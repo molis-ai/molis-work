@@ -597,7 +597,7 @@ function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: {
     },
     dispose: (type) => {
       ready = true;
-      settle(type);
+      settle(pendingTerminal ?? type);
     },
   };
 }
@@ -831,7 +831,10 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       try {
         await accepted.run.cancel();
         lifecycle?.dispose("cancelled");
-      } catch (failure) { failures.push(failure); }
+      } catch (failure) {
+        lifecycle?.markReady();
+        failures.push(failure);
+      }
     }
     try { await surface.release("failed"); } catch (failure) { failures.push(failure); }
     try { await codeIntelligence?.close(); } catch (failure) { failures.push(failure); }

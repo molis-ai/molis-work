@@ -500,8 +500,13 @@ export interface SharedAssistantStore {
 /** The serving Host and its entry points share one Assistant store and its change notifications. */
 export function assistantStoreFor(home: string): SharedAssistantStore {
   let store: AssistantStore | undefined;
-  const open = (() => store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE))) as SharedAssistantStore;
+  let closed = false;
+  const open = (() => {
+    if (closed) throw new Error("Assistant store is closed");
+    return store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+  }) as SharedAssistantStore;
   open.close = () => {
+    closed = true;
     const current = store;
     store = undefined;
     current?.close();

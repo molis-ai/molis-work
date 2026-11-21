@@ -302,8 +302,8 @@ test("101-2: concurrent startFor reuses settled same-key run and re-evaluates af
     authority: async () => { throw new Error("No real dispatch expected"); },
   }, "user");
   const continuations = service.continuations;
-  const internal = continuations as unknown as { ports: { start: () => Promise<{ run_id: string }> } };
-  t.mock.method(internal.ports, "start", async () => {
+  const ports = Reflect.get(continuations, "ports") as { start: () => Promise<{ run_id: string }> };
+  t.mock.method(ports, "start", async () => {
     startCount += 1;
     await gate.promise;
     return { run_id: `run-${startCount}` };
@@ -318,7 +318,7 @@ test("101-2: concurrent startFor reuses settled same-key run and re-evaluates af
     assert.deepEqual(a2, { run: { run_id: "run-1", session_id: "sess-concurrent" } });
     assert.equal(startCount, 1);
 
-    // 2. If the in-flight start returned `later` (e.g. a concurrent user send ended right after), the waiter re-evaluates and starts.
+    // 2. If the in-flight start returns `later` (busy held when attempt 1 checks), the queued caller must re-evaluate once free instead of stranding.
     const releaseSend = continuations.blockStart(work.work_id);
     const gateView = Promise.withResolvers<void>();
     const origRead = adapter.collaboration.read;
@@ -326,15 +326,18 @@ test("101-2: concurrent startFor reuses settled same-key run and re-evaluates af
     adapter.collaboration.read = async () => {
       calls += 1;
       if (calls === 1) await gateView.promise;
+      if (calls === 2) releaseSend();
       return origRead();
     };
     const deferred = continuations.startFor({ ...request, request_key: "req-k2" });
     const queued = continuations.startFor({ ...request, request_key: "req-k2" });
-    releaseSend();
+    // Attempt 1 checks while busy is held → returns `{ later: "assistant.send_in_progress" }`.
+    // Attempt 2 runs only when `queued` re-evaluates via `continue`, releases busy, and starts `run-2`.
     gateView.resolve();
     const [d1, d2] = await Promise.all([deferred, queued]);
-    assert.deepEqual(d1, { run: { run_id: "run-2", session_id: "sess-concurrent" } });
+    assert.deepEqual(d1, { later: { code: "assistant.send_in_progress" } });
     assert.deepEqual(d2, { run: { run_id: "run-2", session_id: "sess-concurrent" } });
+    assert.equal(calls, 2);
   } finally {
     continuations.close();
     store.close();

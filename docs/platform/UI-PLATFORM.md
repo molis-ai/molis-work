@@ -88,7 +88,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 （情境浮条的三个事件，主人是 `context-toolbar`（设计系统的页面程序）：`molis:context-tools` 与 `molis:context-panel-open` 是 `request`，发的是拥有内容的插件，听的是浮条；`molis:context-tool-invoke` 是公告，浮条在插件发布工具的那个元素上发，插件自己执行。工作台已经采用它，Pages 是第一个真实的发送方；组件板的示范是另一个。`molis:context-panel-open` 带 `cancelable`：浮条接住了（有这个情境的浮条在）就 `preventDefault()`，没接住时插件自己把表单放在原处。）
 
-另有两处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
+另有一处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它是现状，不是设计：
 
 - `molis-work:place-changed`：`scripts/contextual-slice/client.ts`（情境交互的评估用脚本，不进产品页面）在 `window` 上听它，而它发在 `document` 且不冒泡，那个监听器永远不会触发。
 

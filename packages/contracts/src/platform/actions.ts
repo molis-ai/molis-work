@@ -682,16 +682,17 @@ export interface BoundActionClient {
   invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
+async function discoverOneAction(client: ActionClient, bound: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {
+  if (client.discoverOne) return await client.discoverOne(bound, reference);
+  return (await client.discover(bound)).find(view => view.capability_id === reference.capability_id
+    && view.version === reference.version
+    && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+}
+
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return {
     discover: async () => client.discover(context()),
-    discoverOne: async reference => {
-      const bound = context();
-      if (client.discoverOne) return await client.discoverOne(bound, reference);
-      return (await client.discover(bound)).find(view => view.capability_id === reference.capability_id
-        && view.version === reference.version
-        && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
-    },
+    discoverOne: async reference => discoverOneAction(client, context(), reference),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context, locale: control.locale ?? caller.locale,

@@ -84,11 +84,12 @@ export class BrowserSiteDecisions {
 
   /** The decisions in memory change only once they are on disk: a refused save (§2.6) leaves the browser deciding as it did before. */
   private save(sites: readonly SurfaceSiteDecision[], assistant: boolean): void {
-    assertVersionedFileWritable(BROWSER_SITES_FILE, this.file);
+    assertVersionedFileWritable(BROWSER_SITES_FILE, this.file, this.homeDirectory);
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.${process.pid}.tmp`;
     fs.writeFileSync(temp, JSON.stringify({ version: BROWSER_SITES_VERSION, assistant, sites }, null, 2), { mode: 0o600 });
     fs.renameSync(temp, this.file);
+    this.failClosed = false;
   }
 
   /** Absent file uses the default. Too-new, unupgraded, or unreadable files fail closed (all sites blocked, Assistant disabled) while leaving the file untouched. */

@@ -188,7 +188,12 @@ ${ASSISTANT_CONVERSATION_PART}
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
   const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? readText("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
-  const showError = (next) => { problem = next; render(); };
+  const problemOf = (next) => {
+    if (!next || typeof next !== "object") return next;
+    const data = next.body?.details;
+    return data && (data.action || data.action_kind) ? { ...next, name: next.name, message: next.message, action: next.action ?? data.action, action_kind: next.action_kind ?? data.action_kind } : next;
+  };
+  const showError = (next) => { problem = problemOf(next); render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
   const announced = new Set();
   let announcing = false;
@@ -476,12 +481,14 @@ ${ASSISTANT_TABS_PART}
       if (shown.action_kind || shown.action) {
         if (shown.action_kind === "open_model_settings") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-model-settings")); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
         // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
-        else if (shown.action_kind === "raise_work_budget" && usageBox) {
-          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.raise-work-budget")); raise.type = "button";
-          raise.addEventListener("click", openUsage);
-          box.append(raise);
+        else if (shown.action_kind === "raise_work_budget") {
+          if (usageBox) {
+            const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.raise-work-budget")); raise.type = "button";
+            raise.addEventListener("click", openUsage);
+            box.append(raise);
+          } else box.append(el("p", "assistant-muted", readText("workbench.assistant-island.raise-work-budget")));
         }
-        else if (shown.action_kind === "open_assistant_settings") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; box.append(link); }
+        else if (shown.action_kind === "open_assistant_settings") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
         else if (shown.action) box.append(el("p", "assistant-muted", shown.action));
       }
       thread.append(box);

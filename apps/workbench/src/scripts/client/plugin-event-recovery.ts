@@ -162,6 +162,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   });
   lifetime.listen(document, 'molis-work:language-changed', () => {
     root.querySelectorAll('time[datetime]').forEach(item => { item.textContent = wordsAt(item.dateTime); });
+    sync();
   });
   lifetime.listen(root, 'click', event => {
     const open = event.target.closest('[data-plugin-event-open]');

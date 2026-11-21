@@ -5,7 +5,7 @@ import { assistantErrors } from "./assistant-errors.js";
 
 /**
  * Existing Assistant presentation failures; foreign owner codes and diagnostic details remain intact. The Host's own reasons
- * are said in the page's language (QA-001); `action` stays the key the page picks its control by and translates.
+ * are said in the page's language (QA-001); structured `action_kind` picks the page control while `action` stays for compatibility.
  */
 export function assistantFailure(error: unknown): ActionError {
     const code = (error as { code?: string })?.code ?? "";

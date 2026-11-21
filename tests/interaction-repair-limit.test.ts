@@ -83,29 +83,49 @@ test("ISSUE-34 a question refused once is told why, its original shape kept, and
   assert.equal(bodies.length, 2, "no third model call while the question waits");
 });
 
-test("101-2: round terminal cleanup runs once whether zero or multiple observers subscribe", { timeout: 60_000 }, async t => {
+test("101-2: round terminal cleanup runs exactly once whether zero or multiple observers subscribe", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "round-ended-once-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("完成。"));
-  const adapter = await adapterIn(home);
+  const reviewQueue = new AgentReviewQueue();
+  const released: string[] = [];
+  const origRelease = reviewQueue.permissions.releaseRun.bind(reviewQueue.permissions);
+  t.mock.method(reviewQueue.permissions, "releaseRun", (runId: string) => {
+    released.push(runId);
+    return origRelease(runId);
+  });
+  const adapter = await createPrologueNodeAdapter({
+    app: { appId: "io.molis.work.round-ended-once-test", appVersion: "1.0.0" },
+    storageRoot: join(home, "sdk"),
+    questionTypes: hostQuestionTypes(),
+    referenceKinds: hostReferenceKinds(),
+    reviewQueue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "fixture-only",
+  });
   t.after(() => adapter.close());
-  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Observe once" });
-  const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "简短回复" });
-  const seen = [0, 0, 0];
-  const offs = seen.map((_, index) => adapter.observe(handle.ref, view => {
-    if (view.phase === "completed") seen[index] = (seen[index] ?? 0) + 1;
-  }));
-  try {
-    const deadline = Date.now() + 30_000;
-    let live = await adapter.read(handle.ref);
-    while (live.phase !== "completed") {
-      assert.ok(Date.now() < deadline, `round did not complete: ${live.phase}`);
-      await new Promise(resolve => setTimeout(resolve, 10));
-      live = await adapter.read(handle.ref);
+
+  for (const observerCount of [0, 3]) {
+    released.length = 0;
+    const session = await adapter.createSession({ ...owner, workspace: "business", title: `Observe ${observerCount}` });
+    const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "简短回复" });
+    const seen = Array.from({ length: observerCount }, () => 0);
+    const offs = seen.map((_, index) => adapter.observe(handle.ref, view => {
+      if (view.phase === "completed") seen[index] = (seen[index] ?? 0) + 1;
+    }));
+    try {
+      const deadline = Date.now() + 30_000;
+      let live = await adapter.read(handle.ref);
+      while (live.phase !== "completed") {
+        assert.ok(Date.now() < deadline, `round did not complete: ${live.phase}`);
+        await new Promise(resolve => setTimeout(resolve, 10));
+        live = await adapter.read(handle.ref);
+      }
+      assert.equal(live.phase, "completed");
+      assert.ok(seen.every(count => count >= 1), `all ${observerCount} observers observed completion`);
+      assert.equal(released.filter(id => id === handle.ref.run_id).length, 1, `roundEnded must run exactly once with ${observerCount} observers`);
+    } finally {
+      for (const off of offs) off();
     }
-    assert.equal(live.phase, "completed");
-    assert.ok(seen.every(count => count >= 1), "all three observers observed completion");
-  } finally {
-    for (const off of offs) off();
   }
 });

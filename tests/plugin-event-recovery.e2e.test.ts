@@ -78,13 +78,15 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   assert.equal(await evaluate("document.activeElement === document.querySelector('[data-plugin-event-cancel]')"), true, "cancel receives initial focus rather than a decision action");
   await evaluate(`(()=>{const dialog=document.querySelector('[data-plugin-event-dialog]'),cancel=dialog.querySelector('[data-plugin-event-cancel]');
     window.eventTimes={dialog,cancel,row:document.querySelector('[data-plugin-events-list] time'),stamp:dialog.querySelector('time')};})()`);
-  for (const [tag, lang, locale] of [["en", "en", "en-US"], ["zh", "zh-CN", "zh-CN"]]) {
+  for (const [tag, lang, locale, retryLabel, skipLabel] of [["en", "en", "en-US", "Retry", "Skip this notification"], ["zh", "zh-CN", "zh-CN", "重试", "跳过这一条"]] as const) {
     await evaluate(`(()=>{const link=document.createElement('a');link.href='#';link.dataset.uiLanguage=${JSON.stringify(tag)};document.body.append(link);link.click();link.remove();})()`);
     await waitFor(`document.documentElement.lang===${JSON.stringify(lang)} && eventTimes.stamp?.textContent===new Date(eventTimes.stamp.dateTime).toLocaleString(${JSON.stringify(locale)})`);
     assert.deepEqual(await evaluate(`(()=>{const {dialog,cancel,row,stamp}=eventTimes;
       return [dialog.open,cancel===document.activeElement,
+        dialog.querySelector('[data-plugin-event-decision="retry"]')?.textContent,
+        dialog.querySelector('[data-plugin-event-decision="skip"]')?.textContent,
         row===document.querySelector('[data-plugin-events-list] time'),stamp===dialog.querySelector('time'),row.textContent===stamp.textContent,stamp.dateTime];})()`),
-    [true, true, true, true, true, event.occurred_at]);
+    [true, true, retryLabel, skipLabel, true, true, true, event.occurred_at]);
     assert.deepEqual(repository.resolutions(projectId!), []);
   }
   await click('[data-plugin-event-cancel]');

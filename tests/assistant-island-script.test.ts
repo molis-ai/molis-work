@@ -214,6 +214,7 @@ test("101-1: assistant-island routes problem actions by action_kind and translat
   assert.match(script, /shown\.action_kind === "raise_work_budget"/);
   assert.match(script, /shown\.action_kind === "open_assistant_settings"/);
   assert.match(script, /problem\.action_kind === "open_model_settings"/);
+  assert.match(script, /const problemOf = \(next\) =>/);
   assert.match(script, /workbench\.assistant-island\.material-kind-image/);
   assert.match(script, /workbench\.assistant-island\.group-waiting/);
   assert.equal(pageText("en")("workbench.assistant-island.open-model-settings"), "Open model settings");

@@ -124,7 +124,7 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
     false,
     { owner: "io.molis.work.generated.demo", page: "/projects/p/plugins/io.molis.work.generated.demo?frame=workbench" },
   );
-  assert.doesNotMatch(installedHtml, /data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
+  assert.doesNotMatch(installedHtml, /data-plugin-help|data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
 
   const thirdPartyManifest: PluginManifest = {
     ...BUILTIN_PLUGIN_CATALOG[0]!.manifest,
@@ -163,6 +163,7 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
       client: { clientMounts: "surfaces", clientFactory: "() => {}" },
     },
   );
-  assert.match(rendered.html, /data-mw-help-declaration/u, "non-builtin manifest.ui.help flows through renderStagePage");
+  assert.match(rendered.html, /<script type="application\/json" data-plugin-help>/u, "non-builtin manifest.ui.help flows through renderStagePage as a sibling help payload");
   assert.match(rendered.html, /tracker\.help\.title/u, "non-builtin help topic keys are preserved verbatim");
+  assert.doesNotMatch(rendered.html, /data-plugin-document>[^<]*data-mw-help-declaration/u, "plugin owner document markup stays untouched");
 });

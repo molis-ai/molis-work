@@ -222,7 +222,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const MAC=/Mac|iP/.test(navigator.platform);
   const side=()=>getState().side;
   const buttons=()=>[...strip.querySelectorAll('[data-side-tab]')];
-  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')&&!button.hasAttribute('data-side-removed')).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
+  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')&&!button.hasAttribute('data-side-removed')&&!(button.dataset.sideTab==='help'&&button.hidden)).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
   const tabOf=key=>side().tabs.find(tab=>tab.itemId===key);
   const offered=id=>!!id&&buttons().some(button=>button.dataset.sideTab===id&&!button.hidden);
   const tabs=()=>buttons().filter(button=>!button.hidden&&tabOf(button.dataset.sideTab));
@@ -347,6 +347,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       if(inner)ready(inner,()=>inner.focus());
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
+      const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');
+      if(helpBtn&&!helpBtn.hidden){helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);}
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
       if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:switchButton??strip.querySelector('[data-side-tab][aria-selected="true"]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       // The side's name and its list go with it: a focus there goes to the switch that opens it again.

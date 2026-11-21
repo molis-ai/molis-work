@@ -209,7 +209,7 @@ function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
     label.dataset.slot = "button-label";
     label.textContent = uiText.text("common.help.title");
     btn.append(svg, label);
-    const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome, .as-head-actions, .wb-head-actions");
+    const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome, .wb-head-actions");
     if (slot) {
       slot.append(btn);
     } else {

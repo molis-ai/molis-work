@@ -954,6 +954,21 @@ export interface UiNestedContentModel {
     readonly nested?: Readonly<Record<string, string>>;
 }
 
+export type UiPackageInstallOutcome = {
+    readonly status: "installed";
+    readonly plugin_id: string;
+    readonly version: string;
+} | {
+    readonly status: "cancelled";
+} | {
+    readonly status: "failed";
+    readonly code: string;
+};
+
+export interface UiPackageInstallTarget {
+    readonly bundle: unknown;
+}
+
 export interface UiPageActions {
     invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
     actionAvailability(reference: ActionReference): Promise<ActionAvailability>;
@@ -1110,6 +1125,9 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: {
         signal?: AbortSignal;
     }): Promise<UiConnectionNeedOutcome>;
+    packageInstall(place: Element, target: UiPackageInstallTarget, options?: {
+        signal?: AbortSignal;
+    }): Promise<UiPackageInstallOutcome>;
     openItem(surface: string, itemId: string, title?: string): void;
     openBeside(surface: string, itemId: string, title?: string): void;
     openPlugin(surface: string, view?: string, panel?: string): void;

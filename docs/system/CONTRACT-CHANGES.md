@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-21 第 47 批（47-1 原处的安装单）。页面宿主接口 `UiPluginClientHost` 增加 `packageInstall(place, { bundle })`：页面把自己持有的签名包整包交给外壳，外壳在页面框外画安装单并经宿主安装；页面只得到装上的插件编号与版本、本人先不装、或拒绝的错误码。`plugins.install.confirm@1` 增加可选输入 `optional_permissions`（只能是那次预览里包自己请求的可选权限）与可选输出 `permission_changes_failed`；`plugins.install.preview@1` 的输出增加可选的 `publisher.local` 与 `secrets`。都是只加可选字段，现有调用方不受影响；API 与动作快照已刷新。安全记录见 [S-package-install-sheet](security-invariants/S-package-install-sheet.md)。
+
 2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
 
 2026-11-19 第 35 批复核修复。Coding 的 `coding.runs.start@1` 与 `coding.runs.control@1` 补充项接受可选的 `command_prompt: true`。工作台发送展开后的命令时使用该字段，保留参数首尾空白。普通任务和补充在派发前去掉首尾空白，可信原文按输入回执合同保存。这个字段只决定派发文本的格式。两项动作快照随实现更新。

@@ -419,8 +419,8 @@ plugins.home.installed.enable	1	plugin-install	command	operation	home	write	-	us
 plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	3865972801c3	-
 plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	57ec6c573f4d	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
-plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
-plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	36dad9490d55	-
+plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	f5134430d9ae	37223a324d06	-
+plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	811ebf69d664	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	f97bfdcc54f1	ed1bbfdbc8a1	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	a4dc540d7a61	-

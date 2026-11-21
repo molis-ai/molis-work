@@ -234,7 +234,7 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
 // or used since that read, is read in the background (opened quietly, the page told) and not waited for; one closed on purpose is left.
 test("B103-01 a sleeping project is answered from its last read until it is used again; one not read yet is read in the background", async () => {
   const a = reference("project-a"), b = reference("project-b"), c = reference("project-c");
-  const answering = (projectId: string) => ({ ...unavailableView(projectId), availability: { available: true } });
+  const answering = (projectId: string): ActionView => ({ ...unavailableView(projectId), availability: { available: true } as const });
   const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
     [a.storage_key, { state: "open", usedAt: 5 }], [b.storage_key, { state: "never", usedAt: undefined }], [c.storage_key, { state: "closed", usedAt: undefined }]]);
   let quiet = 0;
@@ -279,7 +279,7 @@ test("B103-01 a sleeping project is answered from its last read until it is used
 // an answer made from a per-provider input is shown for a sleeping project only while what it was made from (`keyOf`) is the same.
 test("B103-01 a reading is kept only when it read the project, and shown asleep only while its input key holds", async () => {
   const a = reference("project-a"), b = reference("project-b");
-  const answering = (projectId: string) => ({ ...unavailableView(projectId), availability: { available: true } });
+  const answering = (projectId: string): ActionView => ({ ...unavailableView(projectId), availability: { available: true } as const });
   const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
     [a.storage_key, { state: "open", usedAt: 5 }], [b.storage_key, { state: "never", usedAt: undefined }]]);
   let listed = [a];

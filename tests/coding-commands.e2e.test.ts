@@ -196,4 +196,83 @@ test("Coding A1 A2 B35-R7 the / menu sends the exact prompt and /init writes onl
     if (written === undefined) await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.equal(written, review.document.after_text, "approval writes the exact reviewed file");
+
+  // Coding promptCommands reliability: failed /commands read does not lock retries for 30s,
+  // and switching workspace while a /commands read is in flight discards the stale response and refetches the new workspace.
+  const secondWorkspace = join(homeDirectory, "coding-second-read");
+  await mkdir(join(secondWorkspace, ".molis", "commands"), { recursive: true });
+  await writeFile(join(secondWorkspace, ".molis", "commands", "ws2-only.md"), "---\ndescription: 第二工作区命令\n---\n第二工作区内容。");
+  const directoriesBefore = await opened.web.get<{ revision: number }>(`/projects/${opened.projectId}/api/project-settings/directories`);
+  const directoriesAfter = await opened.web.post<{ directories: Array<{ workspace_id: string; canonical_path: string }> }>(
+    `/projects/${opened.projectId}/api/project-settings/directories`,
+    { change: "add_input", input: { workspace_path: secondWorkspace, expected_revision: directoriesBefore.revision } },
+  );
+  const registered = directoriesAfter.directories.find(item => item.canonical_path.endsWith("coding-second-read"));
+  assert.ok(registered?.workspace_id);
+  await evaluate(`(() => {
+    const baseFetch = window.fetch;
+    window.__cmdCalls = [];
+    window.__failNextCmd = true;
+    window.__holdFirstWs = null;
+    window.__releaseFirstWs = null;
+    window.fetch = (input, init) => {
+      const url = String(input?.url || input);
+      if (url.includes("/api/plugins/io.molis.work.coding/commands")) {
+        window.__cmdCalls.push(url);
+        if (window.__failNextCmd) {
+          window.__failNextCmd = false;
+          return Promise.resolve(new Response(JSON.stringify({ error: "transient" }), { status: 500, headers: { "content-type": "application/json" } }));
+        }
+        if (window.__holdFirstWs && url.includes(window.__holdFirstWs)) {
+          const heldUrl = url;
+          window.__holdFirstWs = null;
+          return new Promise(resolve => {
+            window.__releaseFirstWs = () => resolve(new Response(JSON.stringify({
+              commands: [{ name: "stale-from-first", description: "过期工作区命令", text: "stale", takes_arguments: false, origin: "project", location: ".molis/commands", path: "stale.md" }],
+            }), { status: 200, headers: { "content-type": "application/json" } }));
+            window.__heldCmdUrl = heldUrl;
+          });
+        }
+      }
+      return baseFetch(input, init);
+    };
+  })()`);
+  const switchWorkspace = (workspaceId: string) => evaluate(`(() => {
+    const choice = document.querySelector("[data-coding-workspace-choice]");
+    if (![...choice.options].some(o => o.value === ${JSON.stringify(workspaceId)})) {
+      const opt = document.createElement("option");
+      opt.value = ${JSON.stringify(workspaceId)};
+      opt.textContent = ${JSON.stringify(workspaceId)};
+      choice.append(opt);
+    }
+    choice.value = ${JSON.stringify(workspaceId)};
+    document.querySelector("[data-coding-workspace-form]").requestSubmit();
+  })()`);
+  const firstWorkspaceId = await evaluate<string>(`document.querySelector("[data-coding-workspace-choice]")?.value ?? ""`);
+  assert.ok(firstWorkspaceId);
+  // Switch workspace to secondWorkspace (triggers /commands which fails with 500 once), then type / immediately to verify immediate retry (no 30s lock).
+  await switchWorkspace(registered.workspace_id);
+  await waitFor("window.__cmdCalls.length >= 1", 15_000);
+  await type("");
+  await keys("/");
+  await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(`${MENU} [data-composer-command] .mw-menu__shortcut`)})].some(n=>n.textContent==='/ws2-only')`, 15_000);
+  assert.ok(await evaluate<number>("window.__cmdCalls.length") >= 2, "failed /commands retried immediately instead of waiting 30s");
+
+  // Hold /commands for original workspace, switch back to secondWorkspace while in flight, then release stale response.
+  await evaluate(`window.__holdFirstWs = ${JSON.stringify(encodeURIComponent(firstWorkspaceId))};`);
+  await switchWorkspace(firstWorkspaceId);
+  await waitFor("typeof window.__releaseFirstWs === 'function'", 15_000);
+  const callsBeforeSwitch = await evaluate<number>("window.__cmdCalls.length");
+  await switchWorkspace(registered.workspace_id);
+  await waitFor(`document.querySelector("[data-coding-workspace-choice]")?.value === ${JSON.stringify(registered.workspace_id)}`, 15_000);
+  await evaluate("window.__releaseFirstWs()");
+  await waitFor(`window.__cmdCalls.length > ${callsBeforeSwitch} && window.__cmdCalls.at(-1).includes(${JSON.stringify(encodeURIComponent(registered.workspace_id))})`, 15_000);
+  await type("");
+  await keys("/");
+  await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(`${MENU} [data-composer-command] .mw-menu__shortcut`)})].some(n=>n.textContent==='/ws2-only')`, 10_000);
+  assert.equal(
+    await owner.evaluate<boolean>(`[...document.querySelectorAll(${JSON.stringify(`${MENU} [data-composer-command] .mw-menu__shortcut`)})].some(n=>n.textContent==='/stale-from-first')`),
+    false,
+    "stale response from previous workspace is discarded",
+  );
 });

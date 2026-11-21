@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
+import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 import { PluginHostExecutor, installHostUiText, runWithLocale, runWithPluginText } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginText } from "@molis-ai/molis-work-ui-host";
 import { t as hostT } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -175,9 +176,40 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(refusedDirectory.status, 1, refusedDirectory.stderr);
     assert.equal(refusedDirectory.stdout, "");
     assert.equal(refusal(refusedDirectory).code, "host.plugin_development_directory_occupied");
+    assert.equal(refusal(refusedDirectory).details?.state_directory, ordinary, "details.state_directory is serialized to stderr JSON");
     assert.match(refusal(refusedDirectory).message, /非空的普通目录/);
     assert.deepEqual(readdirSync(ordinary), ["user-data.txt"]);
     assert.equal(readFileSync(join(ordinary, "user-data.txt"), "utf8"), "keep me");
+    for (const [label, rawMarker] of [["corrupt-json", "{corrupt"], ["null-marker", "null"], ["array-marker", "[]"]] as const) {
+      const badMarkerDir = join(directory, `bad-marker-${label}`);
+      mkdirSync(badMarkerDir);
+      writeFileSync(join(badMarkerDir, ".molis-work-plugin-development.json"), rawMarker);
+      const badMarker = dev(badMarkerDir, grants);
+      assert.equal(badMarker.status, 1, badMarker.stderr);
+      assert.equal(refusal(badMarker).code, "host.plugin_development_directory_unsupported", label);
+      assert.equal(refusal(badMarker).details?.state_directory, badMarkerDir, label);
+    }
+    const devUncodedStderr: string[] = [];
+    const devUncodedStatus = await runPluginCli(
+      ["dev", project, state, grants, "--allow-unsigned-development"],
+      { stdout() {}, stderr(line) { devUncodedStderr.push(line); } },
+      {
+        async runDevelopment() { throw new Error("boom in plugin code"); },
+        async install() { return {}; },
+      },
+    );
+    assert.equal(devUncodedStatus, 1);
+    assert.deepEqual(JSON.parse(devUncodedStderr.join("")), { developed: false, code: "plugin.development_failed", message: "boom in plugin code" });
+    const packUncodedStderr: string[] = [];
+    const packUncodedStatus = await runPluginCli(
+      ["pack", join(directory, "does-not-exist"), join(directory, "out.json")],
+      { stdout() {}, stderr(line) { packUncodedStderr.push(line); } },
+    );
+    assert.equal(packUncodedStatus, 1);
+    const packErr = JSON.parse(packUncodedStderr.join("")) as { ok?: boolean; valid?: boolean; code: string };
+    assert.equal(packErr.ok, false);
+    assert.equal(packErr.valid, undefined);
+    assert.notEqual(packErr.code, "plugin.manifest_invalid");
     // A Manifest that really is wrong still says so, and the empty state directory it was given stays empty.
     const brokenSource = join(directory, "broken-manifest");
     cpSync(project, brokenSource, { recursive: true });

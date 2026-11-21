@@ -271,4 +271,49 @@ test("BL-schedule-view-refresh-followups the open page follows changes made thro
     "the page shows Alpha unread");
   assert.equal((await actions.invoke(caller, scheduleActions.list, {})).tasks.find(task => task.task_id === alpha.task_id)!.unread, true, "and Alpha is still unread");
   assert.equal(await child.evaluate("window.__scheduleStayed"), true, "every change showed in place: the page was not loaded again");
+
+  // ⑤ Failed ordinary command does not bump view-revision; open recoveryDialog pauses background refresh until closed;
+  // opening Schedule when SSR data-view-revision matches /view-revision performs zero redundant readDocument fetches.
+  const revBeforeFail = await child.evaluate<string>("document.querySelector('[data-schedule-workbench]')?.dataset.viewRevision ?? ''");
+  assert.ok(revBeforeFail.includes(":"), `SSR stamped data-view-revision (${revBeforeFail})`);
+  await assert.rejects(actions.invoke(caller, scheduleActions.updateTask, {
+    task_id: "missing-task-id",
+    title: "Nope",
+    instructions: "Read",
+    time: "08:00",
+    notify_important: false,
+  }));
+  const revAfterFail = await child.evaluate<string>(`fetch('/projects/${browser.projectId}/api/plugins/io.molis.work.schedule/view-revision').then(r => r.json()).then(d => d.revision)`);
+  assert.equal(revAfterFail, revBeforeFail, "failed ordinary command must not invalidate view revision");
+
+  await child.evaluate("document.querySelector('[data-schedule-recovery-dialog]').showModal()");
+  await rename(beta, "Beta while dialog open");
+  await new Promise(resolve => setTimeout(resolve, 2_500));
+  assert.equal(await child.evaluate<string>(`document.querySelector('${row(beta.task_id)} strong').textContent`), "Beta v2", "open recoveryDialog blocks silent refresh");
+  await child.evaluate("document.querySelector('[data-schedule-recovery-dialog]').close()");
+  await child.waitFor(titled(beta.task_id, "Beta while dialog open"), 10_000);
+
+  // Reopen with no changes: watchRevision observes matching data-view-revision and triggers zero redundant readDocument fetches.
+  let redundantPageReads = 0;
+  let revisionPolls = 0;
+  await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*/projects/${browser.projectId}/*`, resourceType: "Fetch", requestStage: "Request" }] }, browser.sessionId);
+  const stopCounting = browser.on("Fetch.requestPaused", (event, session) => {
+    if (session !== browser.sessionId) return;
+    const url = new URL((event as { request: { url: string } }).request.url);
+    if (url.pathname.endsWith("/view-revision")) revisionPolls += 1;
+    else if (pageDocument(url)) redundantPageReads += 1;
+  });
+  try {
+    await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=schedule` }, browser.sessionId));
+    await browser.surfaceReady("schedule");
+    await child.waitFor(`document.querySelector('${row(alpha.task_id)}')?.getClientRects().length > 0`, 20_000);
+    const deadline = Date.now() + 8_000;
+    while (revisionPolls < 2 && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    assert.ok(revisionPolls >= 2, `expected at least 2 view-revision checks, got ${revisionPolls}`);
+    assert.equal(redundantPageReads, 0, "matching SSR data-view-revision avoids redundant readDocument fetches");
+  } finally {
+    stopCounting();
+  }
 });

@@ -35,10 +35,12 @@
   const upgrade = () => S.case === "upgrade" || S.case === "rollback";
   const home = () => S.case === "home";
   const restore = () => S.case === "damaged";
+  const keyed = () => S.case === "secret";
 
   const REQUIRED = () => [
     { icon: "database", tint: "blue", name: L("保存签到记录", "Save check-in records"), note: home() ? L("所有项目共用一份", "One copy for all projects") : L("只留在这个项目", "Stays in this project") },
     { icon: "file", tint: "plain", name: L("读你导入的名单", "Read the list you import"), note: L("只读你选的那份", "Only the file you pick") },
+    ...(keyed() ? [{ icon: "key", tint: "amber", name: L("用 1 个密钥连日历服务", "Use 1 key for the calendar service"), note: L("下一步填，插件看不到原文", "You type it next; the plugin never sees it") }] : []),
   ];
   const OPTIONAL = () => [
     { id: "goals", icon: "target", tint: "green", name: L("在 Goals 里记缺席", "Note absences in Goals"), on: L("会后自动记一条", "Adds a note after each meeting"), off: L("不开就自己记", "Off: you add it yourself") },
@@ -95,6 +97,14 @@
     return `<div class="ps-foot"><span class="ps-sum" aria-live="polite">${esc(L(`必需 ${REQUIRED().length} 项 · 可选开了 ${granted()}/${count}`, `${REQUIRED().length} required · ${granted()} of ${count} optional on`))}</span>
       <span class="ps-acts">${btn("ghost", upgrade() ? L("先不升级", "Not now") : L("先不装", "Not now"), { "data-act": "later" })}${btn("primary", upgrade() ? L("同意并升级", "Agree and upgrade") : L("同意并安装", "Agree and install"), { "data-act": "confirm", "data-primary": "" })}</span></div>`;
   }
+  function keys() {
+    return `<div class="ps-keys" tabindex="-1" data-focus><h4>${esc(L("还差一步：填 1 个密钥", "One more step: 1 key"))}<span>${esc(L("只存在这台 Mac 的加密存储里", "Kept only in this Mac's encrypted store"))}</span></h4>
+        <div class="ps-key">${mark("key", "amber")}<span class="ps-tile__copy"><strong>calendar-key</strong><span>${esc(L("日历服务给你的访问钥匙；插件只说要用，拿不到原文", "The access key your calendar service gave you; the plugin asks to use it and never reads it"))}</span></span></div>
+        <div class="ps-key__fields"><label class="mw-field"><span class="mw-field__label">${esc(L("密钥", "Key"))}</span><input class="mw-input" type="password" id="ps-key-value" autocomplete="off" placeholder="${esc(L("例如 Bearer sk-…", "e.g. Bearer sk-…"))}" value="${esc(P.key || "")}"></label>
+          <label class="mw-field ps-key__header"><span class="mw-field__label">${esc(L("放在请求头", "Sent in header"))}</span><input class="mw-input" id="ps-key-header" value="Authorization" spellcheck="false"></label></div></div>
+      <div class="ps-foot"><span class="ps-sum">${esc(L("填完就开始安装", "Installing starts once it's filled"))}</span>
+        <span class="ps-acts">${btn("ghost", L("上一步", "Back"), { "data-act": "back" })}${btn("primary", L("保存并安装", "Save and install"), { "data-act": "keyed", "data-primary": "" }, { disabled: !P.key })}</span></div>`;
+  }
   function outcome() {
     if (P.phase === "done") {
       const off = OPTIONAL().length - granted();
@@ -113,7 +123,7 @@
   }
   function sheet() {
     const settled = P.phase === "done" || P.phase === "failed";
-    return `<section class="ps" data-phase="${P.phase}" aria-label="${esc(L("Molis Work 安装确认", "Molis Work install confirmation"))}">${band()}${head()}${settled ? outcome() : (upgrade() ? `<p class="ps-news">${ic("plus")}<span>${esc(L("1.1.0 新增：会后汇总缺席原因", "New in 1.1.0: absence reasons summed up"))}</span></p>` : "") + tiles() + foot()}</section>`;
+    return `<section class="ps" data-phase="${P.phase}" aria-label="${esc(L("Molis Work 安装确认", "Molis Work install confirmation"))}">${band()}${head()}${settled ? outcome() : P.phase === "keys" ? keys() : (upgrade() ? `<p class="ps-news">${ic("plus")}<span>${esc(L("1.1.0 新增：会后汇总缺席原因", "New in 1.1.0: absence reasons summed up"))}</span></p>` : "") + tiles() + foot()}</section>`;
   }
 
   // ---------- the studio (layout decided in batch 03: the conversation on the left, the current stage on the right) ----------
@@ -153,7 +163,7 @@
 
   // ---------- the prototype bar ----------
   const CASE_NAMES = { first: ["第一次安装（装进项目）", "First install (into the project)"], home: ["装进个人空间（所有项目共用）", "Into the personal space (shared)"], upgrade: ["升级到 1.1.0（多一项可选权限）", "Upgrade to 1.1.0 (one more optional)"],
-    blocked: ["安装没通过（什么都没装）", "Install rejected (nothing installed)"], rollback: ["升级没成功（已回到 1.0.0）", "Upgrade failed (back on 1.0.0)"], damaged: ["安装文件坏了（恢复）", "Installed files damaged (recover)"] };
+    blocked: ["安装没通过（什么都没装）", "Install rejected (nothing installed)"], rollback: ["升级没成功（已回到 1.0.0）", "Upgrade failed (back on 1.0.0)"], secret: ["要用密钥（多一步填密钥）", "Needs a key (one more step)"], damaged: ["安装文件坏了（恢复）", "Installed files damaged (recover)"] };
   function bar() {
     document.getElementById("p-title").textContent = L("47 · 创作台做的插件：安装、升级、恢复", "47 · Studio-made plugins: install, upgrade, recover");
     document.getElementById("p-case").textContent = L("情形", "Case");
@@ -193,7 +203,9 @@
       case "lang": S.lang = v; save(); return render(true);
       case "theme": S.theme = v; save(); return render(true);
       case "pane": P.pane = v; return render(true);
-      case "confirm": P.phase = "working"; P.step = 0; render(true); return later(520, advance);
+      case "confirm": if (keyed() && !P.keySaved) { P.phase = "keys"; return render(); } P.phase = "working"; P.step = 0; render(true); return later(520, advance);
+      case "back": P.phase = "idle"; return render();
+      case "keyed": P.keySaved = true; P.phase = "working"; P.step = 0; render(true); return later(520, advance);
       case "again": P.retried = true; P.phase = "idle"; P.step = 0; return render();
       case "later": return toast(L("先放着：安装包留在创作台，随时回来装", "Kept for later: the package stays in the studio"));
       case "fix": return toast(L("回到「构建」，助理接着修（原型只演到这里）", "Back in Build; the assistant carries on fixing (the prototype stops here)"));
@@ -216,6 +228,12 @@
       document.querySelector(".ps-sum").textContent = L(`必需 ${REQUIRED().length} 项 · 可选开了 ${granted()}/${count}`, `${REQUIRED().length} required · ${granted()} of ${count} optional on`);
     }
     return undefined;
+  });
+  document.addEventListener("input", (event) => {
+    if (event.target.id !== "ps-key-value") return;
+    P.key = event.target.value;
+    const save = document.querySelector('[data-act="keyed"]');
+    if (save) { save.disabled = !P.key; save.toggleAttribute("aria-disabled", !P.key); }
   });
   document.getElementById("reset").addEventListener("click", () => { clearTimers(); const keep = { lang: S.lang, theme: S.theme }; S = { ...fresh(), ...keep }; save(); P = freshFlow(); render(); });
   // For screenshots only: jump straight to a state.

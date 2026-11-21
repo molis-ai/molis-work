@@ -1097,6 +1097,8 @@
     "action.skills.settings.set": 1,
     "action.skills.trials.run": 1,
     "action.skills.versions.list": 1,
+    "action.state_machines.get": 1,
+    "action.state_machines.list": 1,
     "action.surfaces.compose": 1,
     "action.surfaces.correct": 1,
     "action.text-stats.count": 1,

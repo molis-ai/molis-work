@@ -41,7 +41,7 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
   - 外部 AI 会话（`horizontal/sessions`）原文绝不落库或进全文索引；读取受范围与项目 AI 许可约束。
   - 工作记录/观测层（`horizontal/observation`）：新增或修改入口、动作、后台任务、触发条件、Skill 生效方式或模型上下文时，同步在 `OBSERVATION_COVERAGE_PLAN` 登记覆盖；只经三条写入路（动作出口、`ObservationSink`、`observation.report@1`）记录，不复制业务事实、不改变或拖慢业务结果（`docs/horizontal/observation.md`）。
   - 中央账号（`horizontal/account`）合同以 Auth 仓库为准，不得在 Work 侧独立修改（更新经 Auth 仓库同步脚本生成）。
-- **状态与状态机：** 平台能力的公开状态从 contracts 的[公开词表](docs/platform/STATE-VOCABULARY.md)派生，转换归原来的包；插件自己的状态用 Manifest 申报，写入和流水账归该插件。状态声明变更走合同流程，非法转换由 SDK 拒绝；清单校验已落地，启动兑现与只读登记见[第 47 批](specs/post-anticorruption-roadmap/reference/batches/47.md)。
+- **状态与状态机：** 平台能力的公开状态从 contracts 的[公开词表](docs/platform/STATE-VOCABULARY.md)派生，转换归原来的包；插件自己的状态用 Manifest 申报，写入和流水账归该插件。状态声明变更走合同流程，非法转换由 SDK 拒绝；随宿主发布的插件启动时核对代码运行的状态机和清单一致，不一致不启动；已申报的状态机经 `system.state-machines` 只读查询（`state_machines.list@1`、`state_machines.get@1`），登记是投影、不建表（`packages/plugin-runtime/README.md`）。
 - **模型调用只经 `horizontal/agent-host`**（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程，其他入口转发给常驻宿主。
 - **外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk`。** SDK 只依赖 contracts，不转出私有包；作者和平台共用的运行时工具放在 SDK 里，平台各层取同一份。SDK 算共享核心，改它按共享核心跑全量。
 - **取消、撤权、停用的调用不再写业务记录。** 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。处理器开始前就被拒的只留一行不含内容的诊断。两个由用户定的例外：跨分区移动被拒后平台把对象移回原处（S-35），OAuth 共用刷新的凭据写回（S-95），条件见 `docs/system/SECURITY-INVARIANTS.md`。

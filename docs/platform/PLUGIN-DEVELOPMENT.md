@@ -336,7 +336,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ## 状态与状态机
 
-手写插件在 Manifest 申报 `state_machines`；主人的代码通过 SDK 的 `/state-machine` 声明业务转换。校验只读静态声明，输出申报的机器、状态和家族。现行 Manifest 格式允许省略此字段。状态的家族从 UI 合同取，落库仍走普通写动作的授权与 CAS。例子见[状态机 Skill](../../skills/molis-plugin-dev/state-machine.md)，平台能力的现行取值见[平台词表](STATE-VOCABULARY.md)。创作台生成合同及启动核对见[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)。
+手写插件在 Manifest 申报 `state_machines`；主人的代码通过 SDK 的 `/state-machine` 声明业务转换。校验只读静态声明，输出申报的机器、状态和家族。现行 Manifest 格式允许省略此字段。状态的家族从 UI 合同取，落库仍走普通写动作的授权与 CAS。例子见[状态机 Skill](../../skills/molis-plugin-dev/state-machine.md)，平台能力的现行取值见[平台词表](STATE-VOCABULARY.md)。代码在 `start` 的返回值里用 `state_machines: [machine.describe()]` 交出自己运行的状态机时，平台在启动前把它和 Manifest 逐台核对（编号、版本、状态与家族、起始与终止状态），不一致就不启动并指出是哪一台；随宿主发布的插件必须交出，本地开发的插件交出才核对，模板已带这一行。已申报的状态机可用 `state_machines.list@1`、`state_machines.get@1` 查询，插件停用或没启动也读得到。
 
 ## 插件版本升级
 

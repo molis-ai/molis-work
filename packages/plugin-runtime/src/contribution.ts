@@ -1,10 +1,13 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { syncContributionProblems } from './sync-contribution.js';
 import { declaresOwner } from "@molis-ai/molis-work-contracts/platform/ui";
-import type {
-  PluginAppContribution,
-  PluginContribution,
-  PluginManifest,
+import {
+  STATE_MACHINE_DECLARATION_LIMITS,
+  type PluginAppContribution,
+  type PluginContribution,
+  type PluginManifest,
+  type StateMachineDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -24,6 +27,12 @@ import type {
 export interface RedemptionScope {
   readonly partial?: boolean;
   readonly outside_project?: boolean;
+  /**
+   * Whether the code owes the Manifest's state machines (specs/state-machine-platform §4.3). A plugin shipped with the Host
+   * writes both sides, so every declared machine must come back from `start()`. Elsewhere (a development plugin, a sandboxed one
+   * whose Manifest the Host wrote) code that returns machines is checked, and code that returns none owes none.
+   */
+  readonly state_machines_owed?: boolean;
 }
 
 /** A Runtime that serves a project (its own `actions.project_id`) is never outside one, whatever its Host says of a definition. */
@@ -125,7 +134,7 @@ export function assertContributionMatchesManifest(
   scope: RedemptionScope = {},
 ): void {
   assertKind(manifest, contribution);
-  const problems = assertActions(manifest, contribution, scope);
+  const problems = [...assertActions(manifest, contribution, scope), ...assertStateMachines(manifest, contribution, scope)];
   if (contribution.kind === "integration" && Boolean(manifest.source_presentations?.length) !== (typeof contribution.presentSource === "function")) {
     problems.push("source_presentations 声明与 presentSource 必须一同兑现");
   }
@@ -138,6 +147,38 @@ export function assertContributionMatchesManifest(
   if (problems.length > 0) {
     throw pluginErrors.contribution_unredeemed(problems.join("；"));
   }
+}
+
+/** The same machine on both sides: same version, same states with the same families, same initial and terminal states. */
+function sameMachine(declared: StateMachineDeclaration, delivered: StateMachineDeclaration): boolean {
+  const states = Object.entries(declared.states), terminal = new Set(declared.terminal);
+  return declared.version === delivered.version && declared.initial === delivered.initial
+    && isRecord(delivered.states) && Object.keys(delivered.states).length === states.length && states.every(([state, family]) => delivered.states[state] === family)
+    && Array.isArray(delivered.terminal) && delivered.terminal.length === terminal.size && delivered.terminal.every(state => terminal.has(state));
+}
+
+/**
+ * State machines are redeemed like everything else the Manifest declares: a machine the code runs but the Manifest does not
+ * declare, or declares differently, fails the start and names the machine. Triggers are not part of the declaration and are
+ * never looked up (SMP-15).
+ */
+function assertStateMachines(manifest: PluginManifest, contribution: PluginContribution, scope: RedemptionScope): string[] {
+  const declared = new Map((manifest.state_machines ?? []).map(machine => [machine.machine_id, machine]));
+  const delivered: unknown = contribution.state_machines;
+  if (delivered === undefined) {
+    return scope.state_machines_owed && !scope.partial ? [...declared.keys()].map(id => `声明的状态机 ${id} 没有兑现`) : [];
+  }
+  if (!Array.isArray(delivered) || delivered.length > STATE_MACHINE_DECLARATION_LIMITS.machines) return ["state_machines 须为状态机声明列表"];
+  const problems: string[] = [], seen = new Set<string>();
+  for (const machine of delivered as readonly unknown[]) {
+    const id = isRecord(machine) && typeof machine.machine_id === "string" ? machine.machine_id.slice(0, STATE_MACHINE_DECLARATION_LIMITS.id) : "";
+    const expected = declared.get(id);
+    if (!expected || seen.has(id)) problems.push(`状态机 ${id || "（无 machine_id）"} 未声明或重复`);
+    else if (!sameMachine(expected, machine as StateMachineDeclaration)) problems.push(`状态机 ${id} 与 Manifest 声明的版本、状态或家族不一致`);
+    seen.add(id);
+  }
+  if (!scope.partial) for (const id of declared.keys()) if (!seen.has(id)) problems.push(`声明的状态机 ${id} 没有兑现`);
+  return problems;
 }
 
 function assertActions(manifest: PluginManifest, contribution: PluginContribution, scope: RedemptionScope): string[] {

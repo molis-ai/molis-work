@@ -79,7 +79,7 @@ Integration Plugin 把 Provider 的 Manifest、Local/Server entry、设置 UI、
 
 ### 状态机声明
 
-`state_machines` 与其他 Manifest 数据一起解析和计算摘要。内置与本地开发代码可用 SDK 定义状态转换；安装包按相同语法校验静态声明。解析拒绝越界 ID、字段、家族和数量。登记读取和运行时兑现由[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)接入；安装预演读取和展示见[第 48 批](../../specs/post-anticorruption-roadmap/reference/batches/48.md)。持久状态仍由插件自己的写动作与库管理。
+`state_machines` 与其他 Manifest 数据一起解析和计算摘要。内置与本地开发代码可用 SDK 定义状态转换；安装包按相同语法校验静态声明。解析拒绝越界 ID、字段、家族和数量。启动时 Plugin Runtime 把代码交出的状态机（贡献里的 `state_machines`）和 Manifest 逐台核对：随宿主发布的插件双向核对，缺一台、多一台或不一致都不启动，报错指到 `machine_id`，其他插件不受影响；本地开发的插件交出才核对；沙箱里的生成插件没有代码声明，不做这项核对。登记是投影、不建表：`system.state-machines` 的 `state_machines.list@1`、`state_machines.get@1` 按调用方所在范围，从内置定义和安装记录对应的已存发行物现读，停用或没启动的也读得到，读不到或声明不合法的标为未知并给出原因；只返回编号、版本、状态与家族、起始与终止状态，不执行插件入口、不新增权限。平台自己的样板是插件生命周期 `platform.plugin-runtime.lifecycle`：安装记录只按这台机器列出的步子写入。安装预演读取和展示见[第 48 批](../../specs/post-anticorruption-roadmap/reference/batches/48.md)。持久状态仍由插件自己的写动作与库管理。
 
 ## 6. 安全边界
 

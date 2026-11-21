@@ -33,6 +33,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const samplesEl = bench.querySelector("[data-functions-samples]");
   const sampleText = bench.querySelector("[data-functions-preview-input]");
   const pubBtn = bench.querySelector("[data-functions-publish]");
+  const pubActivateBtn = bench.querySelector("[data-functions-publish-activate]");
+  const releaseFactsEl = bench.querySelector("[data-functions-release-facts]");
   const note = bench.querySelector("[data-functions-note]");
   const lastPreview = bench.querySelector("[data-functions-last-preview]");
   const usagesEl = bench.querySelector("[data-functions-usages]");

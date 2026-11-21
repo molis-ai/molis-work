@@ -259,6 +259,13 @@
     "jelly.read-group.calendar.description": "日历事项与进展",
     "jelly.read-group.calendar.title": "日历",
     "jelly.read-group.notes.description": "笔记全文、搜索，以及整个 Jelly 工作区的读取与导出",
-    "jelly.read-group.notes.title": "笔记"
+    "jelly.read-group.notes.title": "笔记",
+    "jelly.help.title": "Jelly",
+    "jelly.help.what": "把日程安排、随手笔记和阶段回顾放在一起的个人空间，按月、周或列表掌控自己的时间。",
+    "jelly.help.example-1": "新建一条日程或提醒，在日历里按周安排专注时段",
+    "jelly.help.example-2": "在「笔记」里记录想法，到周末打开「回顾」查看时间分布",
+    "jelly.help.scope": "属于你的个人空间，在所有项目间共享；只在你主动开启外部同步或语音转写时才触发对应服务。",
+    "jelly.help.advanced-summary": "日历视图、导入与备份",
+    "jelly.help.advanced": "导入日程前会展示条目数量并保留备份，重复条目会自动跳过。"
   }
 }

@@ -34,6 +34,7 @@ import { workTerminalDeclarationProblems } from "./work-terminal.js";
 import { settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 import { inspectStateMachineDeclarations } from "./state-machine-declaration.js";
+import { uiHelpDeclarationProblems } from "./ui/on-demand-help.js";
 
 
 
@@ -286,6 +287,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...subjectContextProblems(parsed));
   problems.push(...workTerminalDeclarationProblems(parsed));
   problems.push(...localeDeclarationProblems(parsed));
+  problems.push(...uiHelpDeclarationProblems(parsed));
   problems.push(...validateSettingsDeclaration(parsed), ...blueprintDeclarationProblems(parsed, ui), ...validateAdoptsDeclaration(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));

@@ -118,6 +118,14 @@
     "images.limit.over": "{field} can be up to {max} characters; it has {count}. Please shorten it.",
     "images.limit.prompt": "The image description",
     "images.limit.ratio": "The aspect ratio",
-    "images.limit.size": "The image size"
+    "images.limit.size": "The image size",
+    "images.help.title": "Images",
+    "images.help.what": "Generate new images from your description or refine from references, keeping every result and record in this project.",
+    "images.help.example-1": "Describe subject, framing, and mood to create an illustration or visual draft",
+    "images.help.example-2": "Save a chosen image as a fixed deliverable for documents or slides",
+    "images.help.scope": "Image generation calls your connected image service and is billed by that provider; your description and selected references are sent to that service.",
+    "images.help.advanced-summary": "Connecting an image service",
+    "images.help.advanced": "If no image service is connected yet, use Manage services or Settings › Service connections to add one and return — existing images remain viewable anytime.",
+    "images.compose.before-action": "Before generating"
   }
 }

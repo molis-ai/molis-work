@@ -22,6 +22,8 @@ export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-f
 export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();
 /** `window.molisTip`, the one tooltip (`browser/tip.ts`, VUX-05). */
 export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();
+/** `window.molisOnDemandHelp`, shared Scheme A on-demand help controller (`browser/on-demand-help.ts`, VUX-55). */
+export const ON_DEMAND_HELP_CLIENT_SCRIPT = readFileSync(new URL("../dist/on-demand-help-client.js", import.meta.url), "utf8").trim();
 /** `window.molisDropZone`, one drop-zone child/drag-leave owner (`browser/drop-zone.ts`, VUX-18). */
 export const DROP_ZONE_CLIENT_SCRIPT = readFileSync(new URL("../dist/drop-zone-client.js", import.meta.url), "utf8").trim();
 /** `window.molisReflow`, one measured reflow for chips and rows (`browser/reflow.ts`, VUX-16/18). */

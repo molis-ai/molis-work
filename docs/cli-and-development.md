@@ -273,6 +273,8 @@ npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按�
 | `pnpm start --env dev` | `http://127.0.0.1:8787` | `http://127.0.0.1:4207` | `~/.molis-work-environments/dev` |
 | `pnpm start --env test` | `https://auth.test.molis.ai` | `http://127.0.0.1:4207` | `~/.molis-work-environments/test` |
 
+启动前会检查 Node 版本和终端编译工具。缺少终端工具时仍可使用其他功能，加 `--strict-native` 可在检查失败时停止启动。
+
 `--desktop` 会从当前检出启动桌面界面并附着经过本机身份校验的相同 Host。启动前需停掉自己上一次启动的 Work。账号会话按切换后的本机会话代次失效，两套 Home 和项目文件保留。
 
 <a id="local-login-test"></a>

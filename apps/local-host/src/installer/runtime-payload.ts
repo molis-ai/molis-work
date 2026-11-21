@@ -52,8 +52,6 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
   if (await pathState(destination)) throw installerErrors["installer.source.invalid"](`Runtime payload 输出已存在，不会覆盖: ${destination}`);
   const nodeExecutable = path.resolve(options.nodeExecutablePath);
   if (!(await pathState(nodeExecutable))?.isFile()) throw installerErrors["installer.source.invalid"](`Runtime Node 不是文件: ${nodeExecutable}`);
-  const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
-  source.bundledNodePath = nodeExecutable;
   const distribution = options.desktopDistribution;
   let account: ReturnType<typeof parseAccountEnvironment> | undefined;
   let syncOrigin: string | undefined;
@@ -69,6 +67,8 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
       throw new Error("This release profile has no packaged account configuration");
     }
   }
+  const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
+  source.bundledNodePath = nodeExecutable;
   source.contentDigest = createHash("sha256").update(JSON.stringify({
     source: source.contentDigest,
     node: await digestPaths(path.dirname(nodeExecutable), [path.basename(nodeExecutable)]),

@@ -12,7 +12,8 @@ const uiText = globalThis.t;
 
 /** The words a function link's rule can take from the content handed over. */
 const TOKENS = ["标题", "正文", "来源", "链接", "日期"];
-const KINDS: readonly WorkflowLinkKind[] = ["judgment", "function", "ai", "manual"];
+/** Outcome-first order (PF-A13): direct pass-through first, then AI organize, explicit user decision, and rule filter. */
+const KINDS: readonly WorkflowLinkKind[] = ["function", "ai", "manual", "judgment"];
 
 const field = (name: string, title: string, value: string, rows: number, placeholder: string) => `<label class="mw-field"><span class="mw-field__label">${esc(title)}</span>`
   + (rows === 1 ? `<input class="mw-input" data-wf-link-field="${name}" value="${esc(value)}" placeholder="${esc(placeholder)}">`
@@ -22,12 +23,21 @@ const field = (name: string, title: string, value: string, rows: number, placeho
 export function linkView(page: WorkflowsPage, link: WorkflowLink) {
   const { ui } = page;
   if (link.kind === "function") {
-    return field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, "{标题}")
+    const customized = Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== "{正文}"));
+    return `<p class="wf-hint">${esc(uiText.text("workflows.rule.direct-summary"))}</p>`
+      + `<details class="mw-collapsible wf-advanced-template" data-slot="collapsible"${customized ? " open" : ""}>`
+      + `<summary>${esc(uiText.text("workflows.rule.customize"))}</summary>`
+      + `<div class="mw-collapsible__body">`
+      + field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, "{标题}")
       + field("body_template", uiText.text("workflows.rule.body"), link.body_template, 5, uiText.text("workflows.rule.body-placeholder", { source: "{来源}", link: "{链接}", body: "{正文}" }))
       + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map((name) => `<button type="button" class="wf-token" data-wf-token="{${name}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">{${esc(name)}}</button>`).join("") + "</p>"
-      + `<p class="wf-hint">${esc(uiText.text("workflows.rule.title-empty-note"))}</p>`;
+      + `<p class="wf-hint">${esc(uiText.text("workflows.rule.title-empty-note"))}</p>`
+      + "</div></details>";
   }
-  if (link.kind === "ai") return field("instructions", uiText.text("workflows.ai.target"), link.instructions, 4, uiText.text("workflows.ai.placeholder"));
+  if (link.kind === "ai") {
+    return field("instructions", uiText.text("workflows.ai.target"), link.instructions, 4, uiText.text("workflows.ai.placeholder"))
+      + `<p class="wf-hint">${esc(uiText.text("workflows.ai.model-cost-note"))}</p>`;
+  }
   if (link.kind === "judgment") {
     if (!ui.judgments) return '<div class="wf-judgment" aria-busy="true"><span class="mw-skeleton" style="width:70%"></span><span class="mw-skeleton wf-skeleton-small"></span></div>';
     const rows = [...ui.judgments];
@@ -91,8 +101,10 @@ export async function checkRules(page: WorkflowsPage, index: number, force?: boo
 export function switchKind(page: WorkflowsPage, index: number, kind: WorkflowLinkKind, { pointer = false } = {}) {
   const { ui, pop } = page;
   const chain = chainOf(page);
-  if (chain.links[index]!.kind === kind) return;
-  chain.links[index] = { ...chain.links[index]!, kind };
+  const current = chain.links[index]!;
+  if (current.kind === kind) return;
+  const nextBody = kind === "function" && !current.body_template.trim() ? "{正文}" : current.body_template;
+  chain.links[index] = { ...current, kind, body_template: nextBody };
   saveFlow(page, { chain, undoable: true });
   for (const toggle of pop.querySelectorAll<HTMLElement>("[data-wf-action=kind]")) {
     const on = toggle.dataset.kind === kind;

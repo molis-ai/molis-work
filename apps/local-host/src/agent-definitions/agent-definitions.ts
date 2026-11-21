@@ -45,7 +45,7 @@ CREATE TABLE prompt_uses (
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}`,
   upgrades: [] };
 
-const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
+export const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 
 /** A running signed package's role in one installation, with the signed default its material is read by. */
 export interface SignedRoleView {

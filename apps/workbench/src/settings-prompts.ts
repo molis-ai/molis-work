@@ -93,6 +93,8 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     area.dataset.agentDisplayField = "title";
     area.dataset.agentDisplayAttribute = "edit-label";
     area.dataset.promptSimplified = "true";
+    area.readOnly = true;
+    area.setAttribute("aria-busy", "true");
     label.append(area);
     const lockSlot = el("div", "prompt-editor-lock-slot");
     const count = el("span", "settings-muted prompt-editor-count");
@@ -101,10 +103,12 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     area.addEventListener("input", () => { dirty = true; syncCount(); });
     syncCount();
     let editorInfo = null;
+    let simplifiedActive = false;
     let cachedDetail = null;
     const actions = el("div", "prompt-editor-actions");
     const save = el("button", "mw-btn mw-btn--primary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.save-my-version"));
     save.type = "button";
+    save.disabled = true;
     const cancel = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("common.control.cancel"));
     cancel.type = "button";
     const reset = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-prompts.restore-default"));
@@ -136,7 +140,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         error.hidden = false;
         return;
       }
-      const payload = editorInfo && editorInfo.locked_format
+      const payload = simplifiedActive && editorInfo && editorInfo.locked_format
         ? { mode: "simplified", guidance: area.value, expected_revision: prompt.user ? prompt.user.revision : null }
         : { body: area.value, expected_revision: prompt.user ? prompt.user.revision : null };
       run(save, () => api("/prompt?key=" + encodeURIComponent(prompt.key), payload));
@@ -148,6 +152,9 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     box.append(label, lockSlot, actions, error, advSlot);
     void api("/prompt?key=" + encodeURIComponent(prompt.key)).then((detail) => {
       if (!box.isConnected) return;
+      area.readOnly = false;
+      area.removeAttribute("aria-busy");
+      save.disabled = false;
       cachedDetail = detail;
       if (!detail?.editor) return;
       editorInfo = detail.editor;
@@ -156,6 +163,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         area.value = editorInfo.editable;
         area.rows = Math.min(14, Math.max(4, editorInfo.editable.split("\n").length + 1));
         syncCount();
+        simplifiedActive = true;
       }
       const lock = el("div", "mw-facts");
       lock.dataset.promptLockedFormat = "true";
@@ -195,6 +203,9 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       advSlot.replaceChildren(adv);
     }).catch((failure) => {
       if (!box.isConnected) return;
+      area.readOnly = false;
+      area.removeAttribute("aria-busy");
+      save.disabled = false;
       molisWorkRequest.show(error, failure);
       error.hidden = false;
     });

@@ -19,8 +19,10 @@ ${F} .feed-column-head { flex: none; padding: 24px 16px 0; border: 0; }
 ${F} .feed-column-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 16px; }
 ${F} .feed-column-title h1 { margin: 0; font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.2; }
 ${F} .feed-column-actions { display: flex; align-items: center; gap: 4px; }
-${F} .feed-column-actions .mw-btn { width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
+${F} .feed-column-actions .mw-btn:not([data-mw-help-auto]) { width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
 ${F} .feed-column-actions .mw-btn:hover { color: var(--ink); }
+/* The platform's 「帮助」 button lands here (data-help-slot) and keeps its label: same height as the icon buttons, its own width. */
+${F} .feed-column-actions [data-mw-help-auto] { height: 32px; min-height: 32px; color: var(--muted); }
 ${F} .feed-column-actions svg { width: 16px; height: 16px; }
 
 /* The source menu: one row that names what the list is showing. */

@@ -264,7 +264,10 @@ export function openVersionDiff(page: PagesPage) {
   const update = async () => {
     const requested = ++sequence;
     const current = () => dialog.open && requested === sequence && page.editorEpoch === epoch && page.host.projectId() === projectId;
-    if (!current()) { dialog.close(); return; }
+    if (!current()) {
+      dialog.close();
+      return;
+    }
     result.replaceChildren();
     if (before.value === after.value) {
       status.textContent = uiText.text("pages.version.different");
@@ -284,7 +287,10 @@ export function openVersionDiff(page: PagesPage) {
     }
   };
   before.onchange = after.onchange = () => { void update(); };
-  dialog.onclose = () => { sequence++; result.replaceChildren(); };
+  dialog.onclose = () => {
+    sequence++;
+    result.replaceChildren();
+  };
   dialog.dataset.pageId = sel.id;
   dialog.showModal();
   void update();

@@ -71,7 +71,8 @@ function* equalAnchors(before: ParagraphBlock[], after: ParagraphBlock[]): Itera
     const cell = left * stride + right;
     if (sameBlock(before[left], after[right])) {
       yield [left, right];
-      left++; right++;
+      left++;
+      right++;
     } else if (lengths[cell + stride] >= lengths[cell + 1]) left++;
     else right++;
   }

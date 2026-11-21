@@ -206,7 +206,8 @@ test("AC-T4-01 AC-T4-02 AC-T4-03 AC-T4-04 AC-T4-05 a Goal's source change is dec
   const goalId = "SOURCE-REVIEW";
   const permissions = ["goals:read", "goals:write", "goals:decide", "workspace:read"];
   const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions };
-  const actions = served.host.actionClient(project.reference), user = bindActionClient(actions, () => person);
+  const host: MolisWorkLocalHost = served.host;
+  const actions = host.actionClient(project.reference), user = bindActionClient(actions, () => person);
   const folder = await mkdtemp(join(tmpdir(), "goals-review-source-"));
   t.after(() => rm(folder, { recursive: true, force: true }));
   const { workspace_id } = await addProjectInputFolder(served.web, project.project_id, folder);
@@ -219,7 +220,7 @@ test("AC-T4-01 AC-T4-02 AC-T4-03 AC-T4-04 AC-T4-05 a Goal's source change is dec
   const original = await write("First version");
   const { binding } = await user.invoke(goalsActions.inputsBind, { goal_id: goalId, subject: { kind: "workspace_file", id: `${workspace_id}:source.txt` },
     title: "source.txt", read_revision: original });
-  const stored = () => served.host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalInputs.list(project.project_id).find(row => row.binding_id === binding.binding_id)!);
+  const stored = () => host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalInputs.list(project.project_id).find(row => row.binding_id === binding.binding_id)!);
   const projectApprovals = `/projects/${project.project_id}/api/project-approvals`;
   const review = (old: string, observed: string, note?: string) => served.web.post<ReviewRequest>(`${projectApprovals}/request`, {
     action: { capability_id: goalsActions.inputsReviewChange.capability_id, version: goalsActions.inputsReviewChange.version, provider_id: GOALS_PLUGIN_ID },

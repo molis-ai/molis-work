@@ -66,7 +66,7 @@ function windowCursors() {
 
 const POSITION_KEY = "reading-position";
 /**
- * The project's last reading position as Files kept it, carried here by adoption (process-items-adoption.ts): it never had an actor and
+ * The project's actor-less fallback reading position (retained from the retired Files plugin): it never had an actor and
  * none is made up for it. A caller's own position comes first; this one is read only when the caller has none, and like every position
  * it is resolved against the folders the caller can read now.
  */

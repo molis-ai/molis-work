@@ -25,10 +25,9 @@ export function createSubtaskQuestions(ports: {
     let question = questions.get(key(view.target, view.binding))?.get(detail.id);
     if (!question?.html || !question!.pending_revision) return;
     const saved = draft(view.target, view.binding, detail.id, question); let alive = true, edited = false, client: InteractionClient;
-    let definition = "";
     const problem = (text: string) => { const note = root.querySelector<HTMLElement>("[data-ix-note]"); if (alive && note) note.textContent = text; };
     const bind = (values?: InteractionValues) => {
-      client?.destroy(); definition = question!.html!; root.innerHTML = definition;
+      client?.destroy(); root.innerHTML = question!.html!;
       client = ports.interaction(root, {
       onChange: () => { edited = true; void saved.adapter.write(JSON.stringify(client.read())).catch(() => problem(ports.text("draft-unsaved"))); },
       onSubmit: () => {
@@ -54,8 +53,10 @@ export function createSubtaskQuestions(ports: {
     return { update(next, item) {
       const latest = questions.get(key(next.target, next.binding))?.get(item.id);
       if (!latest?.html) return;
+      // The detail key already includes the question revision. Draft echoes must keep the live controls.
+      const availabilityChanged = latest.answerable !== question?.answerable || latest.unavailable_reason !== question?.unavailable_reason;
       question = latest;
-      if (latest.html !== definition) bind(client.read());
+      if (availabilityChanged) bind(client.read());
     }, destroy() { alive = false; client.destroy(); } };
   };
   return {

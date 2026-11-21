@@ -13,23 +13,50 @@ import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { readSessionSourceFailure, sessionSourceFailure, type AdapterHistoryInput, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
 
+const FILE_DISCOVERY_CURSOR = /^(0|[1-9]\d*):(0|[1-9]\d*)$/u;
+
+export function isValidDiscoveryCursor(cursor: string): boolean {
+  const match = FILE_DISCOVERY_CURSOR.exec(cursor);
+  if (!match) return false;
+  return Number.isSafeInteger(Number(match[1])) && Number.isSafeInteger(Number(match[2]));
+}
+
 export function discoveryCursor(cursor: string | null, alreadyRead: number): { offset: number; seenSessions: number; seenUnsupported: number } {
-  if (!cursor) return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
-  const [rawOffset, rawSeen, rawUnsupported] = cursor.split(":");
+  if (!cursor) {
+    return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
+  }
+  const match = FILE_DISCOVERY_CURSOR.exec(cursor);
+  if (!match) {
+    return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
+  }
+  const offset = Number(match[1]);
+  const seenUnsupported = Number(match[2]);
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(seenUnsupported)) {
+    return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
+  }
   return {
-    offset: Math.max(0, Number.parseInt(rawOffset ?? "0", 10) || 0),
-    seenSessions: rawSeen === undefined ? alreadyRead : Math.max(0, Number.parseInt(rawSeen, 10) || 0),
-    seenUnsupported: Math.max(0, Number.parseInt(rawUnsupported ?? "0", 10) || 0),
+    offset,
+    seenSessions: Math.max(0, alreadyRead),
+    seenUnsupported,
   };
 }
 
-/** Carry the totals across persisted pages, including empty pages in a mixed-format directory. */
-export function nextDiscoveryCursor(previous: ReturnType<typeof discoveryCursor>, pageSize: number, total: number,
-  sessions: number, unsupported: number, source: string): string | null {
+/** Carry the offset and unsupported count across persisted pages; `alreadyRead` (`progress_read`) is the sole source of read sessions. */
+export function nextDiscoveryCursor(
+  previous: ReturnType<typeof discoveryCursor>,
+  pageSize: number,
+  total: number,
+  sessions: number,
+  unsupported: number,
+  source: string,
+): string | null {
   const nextOffset = previous.offset + pageSize;
-  const totalSessions = previous.seenSessions + sessions, totalUnsupported = previous.seenUnsupported + unsupported;
-  if (nextOffset < total) return `${nextOffset}:${totalSessions}:${totalUnsupported}`;
-  if (!totalSessions && totalUnsupported) throw sessionSourceFailure("version_mismatch", `${source} 会话记录版本暂不支持解析`, false);
+  const totalSessions = previous.seenSessions + sessions;
+  const totalUnsupported = previous.seenUnsupported + unsupported;
+  if (nextOffset < total) return `${nextOffset}:${totalUnsupported}`;
+  if (!totalSessions && totalUnsupported) {
+    throw sessionSourceFailure("version_mismatch", `${source} 会话记录版本暂不支持解析`, false);
+  }
   return null;
 }
 

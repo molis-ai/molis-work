@@ -1,4 +1,4 @@
-import { resolveHomeDirectory, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveHomeDirectory, resolveMolisWorkHome, scopedMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { packagedDesktopHome } from "./active-release-profile.js";
@@ -9,6 +9,8 @@ import { packagedDesktopHome } from "./active-release-profile.js";
  */
 export function resolveConfiguredHome(homeDirectory?: string): string {
   if (homeDirectory !== undefined) return resolveHomeDirectory(homeDirectory);
+  const scoped = scopedMolisWorkHome();
+  if (scoped) return scoped;
   const packaged = packagedDesktopHome();
   return packaged ? resolveHomeDirectory(join(homedir(), packaged)) : resolveMolisWorkHome();
 }

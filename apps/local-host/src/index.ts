@@ -324,6 +324,7 @@ export { issuePluginCaller } from "./plugin-callers.js";
 export { classifyContextModelFailure } from "./context-onboarding-delta.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
+export { composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody, type PromptEditorSections } from "./agent-definitions/prompt-sections.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { placementCallPorts } from "./placement-call.js";
 export { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
@@ -366,6 +367,7 @@ export { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIN
 export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
+export { listVerifiableComputerApps, type DiscoveredComputerApp } from "./computer/computer-apps.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
 export { HelperConnection } from "./computer/helper-connection.js";
 export { BrowserHost } from "./browser/browser-host.js";
@@ -476,3 +478,4 @@ export { contextOnboardingActions, contextOnboardingProvider } from "./context-o
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
+export { offerProjectAutomation } from "./automation-proactive.js";

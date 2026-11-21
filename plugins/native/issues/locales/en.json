@@ -111,6 +111,13 @@
     "issues.agent-prompt.issues-name.title": "Name an Issue",
     "issues.agent-prompt.issues-name.purpose": "Create a title and classify the Issue from the user’s description and screenshots; ask one question if the evidence is insufficient",
     "issues.capability-library.issues-create-v1.title": "Record an issue",
-    "issues.capability-library.issues-delete-v1.title": "Delete issue"
+    "issues.capability-library.issues-delete-v1.title": "Delete issue",
+    "issues.help.title": "Issues",
+    "issues.help.what": "Quickly capture bugs, rough edges, or follow-up items with optional screenshots so nothing slips through the cracks.",
+    "issues.help.example-1": "Open a quick note, describe what happened, and attach a screenshot",
+    "issues.help.example-2": "Filter open items in your list and mark them resolved once handled",
+    "issues.help.scope": "Saved locally in your personal workspace by default — never sent to an external server automatically.",
+    "issues.help.advanced-summary": "Screenshots and filtering",
+    "issues.help.advanced": "Paste or drop screenshots directly; deleting an item asks for confirmation first."
   }
 }

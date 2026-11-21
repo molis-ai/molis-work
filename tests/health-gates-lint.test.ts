@@ -34,7 +34,7 @@ const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
 const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
 const gate = (...args: string[]) => {
   const run = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
-  return { code: run.status, out: `${run.stdout}${run.stderr}` };
+  return { code: run.status, stdout: run.stdout, out: `${run.stdout}${run.stderr}` };
 };
 
 // ---- 1. the definitions -------------------------------------------------------------------------------------------------
@@ -633,6 +633,19 @@ test("scoped --base lint follows relative importers when a callee becomes async"
   assert.match(caught.out, /floating promises in packages\/alpha\/src\/sync-caller\.ts 0 → 1/);
 });
 
+test("scoped --base lint strips trailing slashes when resolving directory index imports", () => {
+  branch("dir-import-base", () => {
+    put("packages/alpha/src/sub/index.ts", "export function subWork() { return 1; }\n");
+    put("packages/alpha/src/sub-caller.ts", "import { subWork } from './sub/';\nexport function callSub() { subWork(); }\n");
+  });
+  git("checkout", "-q", "-B", "dir-import-async");
+  put("packages/alpha/src/sub/index.ts", "export async function subWork() { return 1; }\n");
+  commit("directory index callee becomes async");
+  const caught = gate("--base", "dir-import-base");
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /floating promises in packages\/alpha\/src\/sub-caller\.ts 0 → 1/);
+});
+
 test("the report lists each count per file, next to the merge-base's", () => {
   git("checkout", "-q", "-f", "main");
   assert.equal(gate("--update").code, 0);
@@ -643,7 +656,9 @@ test("the report lists each count per file, next to the merge-base's", () => {
   assert.match(text, /Explicit `any` types: 1 in 1 files/);
   assert.match(text, /console calls \(leftover debug output\): 1 in 1 files/);
   assert.match(text, /Static check rules \(biome\.jsonc\): 4 rules, 5 directory exceptions, 2 plugins/);
-  const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
+  const report = gate("--report", "--json", "--base", "main");
+  assert.equal(report.code, 0, report.out);
+  const json = JSON.parse(report.stdout);
   assert.deepEqual(json.head.emptyCatches, { "packages/alpha/src/swallow.ts": 1, "tests/old.test.ts": 1 });
   assert.deepEqual(json.head.unknownCasts, { "packages/alpha/src/cast.ts": 1, "tests/old.test.ts": 1 });
   assert.deepEqual(json.head.floatingPromises, { "packages/alpha/src/dropped.ts": 1 });

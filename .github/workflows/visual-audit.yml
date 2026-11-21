@@ -11,13 +11,22 @@ on:
     paths:
       - "packages/design-system/**"
       - "packages/ui-host/**"
+      - "packages/plugin-sdk/src/ui.ts"
       - "packages/plugin-sdk/src/ui/**"
+      - "packages/plugin-sdk/src/browser.ts"
       - "packages/plugin-sdk/src/browser/**"
+      - "packages/plugin-sdk/src/diff-view.ts"
+      - "packages/plugin-sdk/src/highlight.ts"
       - "apps/workbench/**"
       - "plugins/**/src/browser/**"
       - "plugins/**/src/styles/**"
       - "plugins/**/src/styles.ts"
+      - "plugins/**/src/**/*-styles.ts"
       - "plugins/**/src/ui*.ts"
+      - "plugins/**/src/**/*-ui.ts"
+      - "plugins/**/src/**/*-ui-model.ts"
+      - "plugins/**/src/**/ui.ts"
+      - "plugins/**/src/page/**"
       - "plugins/**/locales/**"
       - "tests/fixtures/chinese-walk.ts"
       - "tests/fixtures/layout-audit.ts"
@@ -93,7 +102,7 @@ jobs:
     needs: [build]
     if: ${{ needs.build.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -151,3 +160,10 @@ jobs:
         run: |
           mapfile -t files < <(node -e 'import("./scripts/run-tests/strata.mjs").then(m => console.log(m.VISUAL_AUDIT_TESTS.join("\n")))')
           node scripts/run-tests.mjs --shard ${{ matrix.shard }}/4 --timeout-seconds 1800 --retries 1 "${files[@]}"
+
+      - name: Run visual-capture settlement check (nightly / manual)
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.shard == 1
+        shell: bash
+        env:
+          MOLIS_WORK_VISUAL_OUT: ${{ runner.temp }}/visual-capture
+        run: node scripts/run-tests.mjs --timeout-seconds 1200 --retries 1 tests/fixtures/visual-capture.mts

@@ -205,11 +205,11 @@ test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder
       svc.close();
     }
 
-    // MR19-04: resume the saved offset after the previous version indexed the valid file on page one.
+    // MR19-04 / P1-F8: resume the saved current `offset:seenUnsupported` cursor using `progress_read` as sole source of read count.
     await utimes(path.join(geminiChats, "future-0.json"), 0, 0);
     {
       using db = new DatabaseSync(homeSqlitePath(homeDir, EXTERNAL_SESSIONS_STORE));
-      const updated = db.prepare("UPDATE session_sources SET state = 'reading', progress_cursor = '50', progress_read = 1, skipped_count = 49 WHERE entry_id = 'gemini-cli'").run();
+      const updated = db.prepare("UPDATE session_sources SET state = 'reading', progress_cursor = '50:0', progress_read = 1, skipped_count = 49 WHERE entry_id = 'gemini-cli'").run();
       assert.equal(updated.changes, 1);
     }
     const restarted = new SessionsService(homeDir, ports);
@@ -219,9 +219,31 @@ test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder
       const source = listed.sources.find(item => item.entry_id === "gemini-cli");
       assert.equal(source?.state, "complete");
       assert.equal(source.session_count, 1);
-      assert.ok(listed.sessions.some(row => row.identity.native_id === "gem-session-1"));
+      assert.ok(listed.sessions.some(row => "identity" in row && row.identity.native_id === "gem-session-1"));
     } finally {
       restarted.close();
+    }
+
+    // P1-F8: unregistered legacy single-value cursor ('50') is treated as invalid and safely restarts indexing from scratch.
+    {
+      using db = new DatabaseSync(homeSqlitePath(homeDir, EXTERNAL_SESSIONS_STORE));
+      const updated = db.prepare("UPDATE session_sources SET state = 'reading', progress_cursor = '50', progress_read = 99, skipped_count = 49 WHERE entry_id = 'gemini-cli'").run();
+      assert.equal(updated.changes, 1);
+    }
+    const resetFromInvalid = new SessionsService(homeDir, ports);
+    try {
+      await resetFromInvalid.waitForDiscoveryIdle();
+      const listed = await resetFromInvalid.list({ view: "all", limit: 50 }, PERSON);
+      const source = listed.sources.find(item => item.entry_id === "gemini-cli");
+      assert.equal(source?.state, "complete");
+      assert.equal(source.session_count, 1);
+      assert.ok(listed.sessions.some(row => "identity" in row && row.identity.native_id === "gem-session-1"));
+      using checkDb = new DatabaseSync(homeSqlitePath(homeDir, EXTERNAL_SESSIONS_STORE), { readOnly: true });
+      const storedRow = checkDb.prepare("SELECT progress_read, progress_cursor FROM session_sources WHERE entry_id = 'gemini-cli'").get() as { progress_read: number; progress_cursor: string | null };
+      assert.equal(storedRow.progress_read, 1, "restarted from 0 rather than accumulating stale progress_read");
+      assert.equal(storedRow.progress_cursor, null);
+    } finally {
+      resetFromInvalid.close();
     }
   });
 });

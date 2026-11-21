@@ -1,4 +1,4 @@
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WEB_SEARCH_BUILTIN_SOURCE, WEB_SEARCH_MAX_RESULTS, type WebSearchQueryResponse, type WebSearchResult, type WebSearchSettingsView,
   type WebSearchSourceView,
@@ -124,7 +124,18 @@ async function connectedSearch(home: string, source: WebSearchSourceView, query:
   };
   const control = { signal: call.signal, beforeEffect: () => call.beforeEffect(), current };
   return withConnectorRequest(home, id, call.signal, async signal => {
-    const access = await resolveApiConnection(home, id, { ...control, signal }, serviceId).catch(() => { current(); throw webSearchErrors.needs_auth(`${source.title} 的密钥用不了，请在服务连接里换一把`); });
+    const access = await resolveApiConnection(home, id, { ...control, signal }, serviceId).catch(async error => {
+      await call.beforeEffect();
+      signal.throwIfAborted();
+      current();
+      if (
+        (error instanceof ActionError && (error.code === "actions.forbidden" || error.code === "actions.cancelled"))
+        || (error instanceof Error && error.name === "AbortError")
+      ) {
+        throw error;
+      }
+      throw webSearchErrors.needs_auth(`${source.title} 的密钥用不了，请在服务连接里换一把`);
+    });
     if (!access) throw webSearchErrors.needs_auth(`${source.title} 的密钥用不了，请在服务连接里换一把`);
     let results: WebSearchResult[];
     try {

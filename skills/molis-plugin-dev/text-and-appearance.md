@@ -71,6 +71,15 @@
 - **英文大小写与术语**：英文标题、按钮、表头、状态词一律采用 **Sentence case**（仅句首词与专有名词如 `Goal`、`Inbox`、`Feed`、`Pages`、`Forms`、`Dataset`、`PPT`、`Shelf`、`Jelly`、`Cognia`、`Coding`、`Git`、`Diff`、`Schedule`、`Work Brief`、`AI`、`Skill`、`MCP`、`Molis Work` 大写）；一轮统一写 `turn`（不写 `round`），子任务统一写 `sub-task`（不写 `subtask`）。
 - **巡检命令**：改完词包先跑 `node scripts/gates/translations.mjs --missing` 查缺漏与参数一致性，再跑 `node scripts/audit-ui-copy.mjs` 自查架构黑话、高门槛 AI 词、旧术语、标点与大小写。
 
+### 按需帮助与执行前事实（方案 A）
+
+背景说明默认收起、按需展开；做决定必需的事实直接留在操作前，不藏进帮助：
+
+- **声明按需帮助**：原生与外部插件在 Manifest 的 `ui.help` 声明主题（`default_topic` 与 `topics[].{ id, title, first_visit_tip?, sections[] }`），全部文案用本插件语言键（`TextRef`），宿主自动在插件页右上挂载统一的 `「帮助」` 入口（关闭回到入口、按 `Esc` 归还焦点、可点「在右栏继续看」移入右侧栏不挡正文）。可用 `@molis-ai/molis-work-plugin-sdk/ui` 的 `uiHelpDeclarationProblems(manifest)` 校验声明，或用 `renderHelpButton` / `renderHelpContent` / `renderHelpFirstVisitTip` 放置自定义入口与可跳过一次的首访提示。
+- **生成与签名沙箱插件**：在 `contract.json` 的 `help` 声明同样结构（`sandboxHelpDeclarationProblems(contract)` 校验）；未单独声明时，宿主渲染器只从已声明的页面和 `effects` 推导真实范围，绝不虚构未声明的能力。
+- **执行前事实常驻可见**：涉及外部发送、模型/生图计费、权限范围扩大或不可逆删除的操作，用 SDK 的 `renderPreActionFacts`（`.mw-facts`）把事实直接写在按钮之前；合上帮助时这些事实依然可见。生成插件的宿主渲染器也会按操作声明的 `effects` 自动补齐执行前事实。
+- **状态沿用七义与语义令牌**：公开状态对齐平台七义（`可开始`、`进行中`、`等你`、`等别人`、`走不通`、`已完成`、`歇着`），颜色与图标由设计系统语义令牌成对给出，不靠纯色或自造缩写表达状态。
+
 ## 写一个带两种语言的插件
 
 `molis-work plugin create` 生成的样例已经带 `ui.locales`、`locales/en.json` 和 `locales/zh.json`。先按随包手册准备安装版 CLI 和 contracts、SDK 两包。从空目录手写时，照下面四步和文末的完整例子。[安装版开发入口](authoring.md#安装版开发入口) · [中英文最小例子](#最小的完整例子)

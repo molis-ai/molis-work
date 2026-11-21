@@ -50,6 +50,13 @@ test('WUA-32 logout clears account browser caches while preserving unrelated loc
     await page.wait("Boolean(document.querySelector('#mw-account-menu')) && document.querySelector('[data-personal-action=logout]')?.hidden===false");
     await page.wait("[...document.querySelectorAll('iframe')].some(f=>{try{return Boolean(f.contentWindow?.molisWorkAccountTransition)&&!f.contentDocument.body.hasAttribute('data-account-registering');}catch{return false;}})");
     assert.equal(streams.size,1,'the embedded carrier saves through its parent instead of opening an account stream');
+    const clickLogout = async () => {
+      if (await page.evaluate<boolean>("document.querySelector('#mw-account-menu').hidden")) {
+        await page.click('.bar-account [data-account-link]');
+      }
+      await page.wait("!document.querySelector('#mw-account-menu').hidden && !document.querySelector('[data-personal-action=logout]').disabled");
+      await page.click('[data-personal-action=logout]');
+    };
     const originalPage=[...pageIds][0];assert.ok(originalPage);
     // WUA-32: a draft inventory already in flight must finish before clearing its physical cache.
     const racePage=await browser.page();await racePage.command('Page.enable');
@@ -86,11 +93,9 @@ test('WUA-32 logout clears account browser caches while preserving unrelated loc
       window.reconnectDraftSaved=false;
       const frame=[...document.querySelectorAll('iframe')].find(f=>{try{return Boolean(f.contentWindow?.molisWorkAccountTransition);}catch{return false;}});
       frame.contentWindow.molisWorkAccountTransition.page(frame.contentDocument.body,async()=>{throw new Error('synthetic unsaved draft');},()=>{},()=>{});
-      const links=[...document.querySelectorAll('[data-account-link]')];
-      document.querySelector('[data-project-menu]')?.setAttribute('open','');links.find(e=>e.getClientRects().length).click();
     }`);
     stage='logout with draft checks';
-    await page.click('[data-personal-action=logout]');
+    await clickLogout();
     await page.wait("!document.querySelector('[data-personal-action=logout]').disabled && Boolean(document.querySelector('#mw-account-menu [role=alert]')?.textContent)");
     assert.ok((await (await request('/api/personal/status')).json()).identity,'an embedded draft save refusal prevents logout');
     await page.evaluate(`{
@@ -98,7 +103,7 @@ test('WUA-32 logout clears account browser caches while preserving unrelated loc
       frame.contentWindow.molisWorkAccountTransition.page(frame.contentDocument.body,()=>new Promise(resolve=>{window.finishOldDraft=resolve;}),()=>{},()=>{});
     }`);
     stage='logout with draft checks';
-    await page.click('[data-personal-action=logout]');
+    await clickLogout();
     await page.wait("Boolean(window.finishOldDraft) && molisWorkAccountTransition.preparing");
     await page.evaluate(`{
       const frame=[...document.querySelectorAll('iframe')].find(f=>{try{return Boolean(f.contentWindow?.molisWorkAccountTransition);}catch{return false;}});
@@ -154,14 +159,14 @@ test('WUA-32 logout clears account browser caches while preserving unrelated loc
     await second.evaluate(`{window.confirm=()=>true;for(const f of document.querySelectorAll('iframe')){try{f.contentWindow.confirm=window.confirm;}catch{/* Opaque plugin frames cannot access the top-level dialog. */}}}`);
     await page.evaluate(`window.draftConfirmations=0;window.confirm=()=>{window.draftConfirmations++;return false;};for(const f of document.querySelectorAll('iframe')){try{f.contentWindow.confirm=window.confirm;}catch{/* Opaque plugin frames cannot access the top-level dialog. */}}`);
     stage='cancel logout preserves browser-only drafts';
-    await page.click('[data-personal-action=logout]');
+    await clickLogout();
     await page.wait("window.draftConfirmations>0 && !molisWorkAccountTransition.preparing && !document.querySelector('[data-personal-action=logout]').disabled");
     assert.ok((await (await request('/api/personal/status')).json()).identity,'cancel preserves the current account');
     assert.equal(await page.evaluate(`sessionStorage.getItem('molis-review-feedback:/api/agent/reviews:synthetic')`),'account-A-feedback');
     assert.equal(await page.evaluate(`(async()=>{const cache=await caches.open('molis-plugin-page:synthetic-account-A:drafts');return await(await cache.match('/.molis-draft/synthetic')).text();})()`),'account-A-draft');
     await page.evaluate(`window.confirm=()=>{window.draftConfirmations++;return true;};for(const f of document.querySelectorAll('iframe')){try{f.contentWindow.confirm=window.confirm;}catch{/* Opaque plugin frames cannot access the top-level dialog. */}}`);
     stage='confirmed logout discards browser-only drafts';
-    await page.click('[data-personal-action=logout]');
+    await clickLogout();
     await until(async()=>!(await (await request('/api/personal/status')).json()).identity);
     await until(()=>saved);
     assert.equal(saved,true,'embedded draft flush finished before logout');

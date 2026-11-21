@@ -8,7 +8,7 @@ import {
   DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
   type ArtifactDocumentImportPorts, type OfferedOriginal,
 } from "@molis-ai/molis-work-module-artifacts";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -44,11 +44,11 @@ type ConnectionView = ReturnType<typeof listConnectorConnectionViews>[number];
 const readsWith = (row: ConnectionView, entry: { service: string; methods: readonly string[] }) =>
   row.service_id === entry.service && entry.methods.includes(row.auth_method);
 
-export async function documentImportConnections(home = resolveMolisWorkHome()) {
+export async function documentImportConnections(home = resolveConfiguredHome()) {
   const imports = Object.values(await documentImports(home));
   return listConnectorConnectionViews(home).filter(row => imports.some(entry => readsWith(row, entry)));
 }
-export async function documentImportConnectionStatus(home = resolveMolisWorkHome()): Promise<Record<string, boolean>> {
+export async function documentImportConnectionStatus(home = resolveConfiguredHome()): Promise<Record<string, boolean>> {
   const imports = await documentImports(home), connections = listConnectorConnectionViews(home);
   return Object.fromEntries(Object.entries(imports).map(([source, entry]) => [source, connections.some(row => readsWith(row, entry) && row.state === "connected")]));
 }
@@ -64,7 +64,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
   allowModelDownload?: boolean;
   onProgress?: (progress: { stage: string; progress: number }) => void;
 }) {
-  const home = resolveMolisWorkHome();
+  const home = resolveConfiguredHome();
   let usedConnection: string | undefined;
   let usedRevision: string | undefined;
   const assertConnection = () => {

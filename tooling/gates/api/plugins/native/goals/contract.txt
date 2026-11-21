@@ -1024,6 +1024,7 @@ export interface GoalInputBindingsApi {
     list(projectId: string): GoalInputBindingRecord[];
     register(input: GoalInputBindingRecord): void;
     deactivate?(projectId: string, bindingId: string): boolean;
+    acknowledgeSourceChange?(projectId: string, bindingId: string, expectedOldDigest: string, nextDigest: string | null, reason: string): boolean;
     accept?(projectId: string, bindingId: string): boolean;
 }
 
@@ -1145,6 +1146,16 @@ export interface GoalRequirementLink {
     created_in_config_version: number;
     created_at: string;
 }
+
+export type GoalSourceReviewOffer = Omit<TrustedReviewOffer, "request"> & {
+    request: Omit<TrustedReviewOffer["request"], "choices"> & {
+        choices: readonly (Omit<TrustedReviewOffer["request"]["choices"][number], "label"> & {
+            label: {
+                key: string;
+            };
+        })[];
+    };
+};
 
 export interface GoalSystemWorkEventRecord extends GoalWorkEventBase {
     kind: "system";
@@ -2292,6 +2303,201 @@ export declare const goalEntryActions: {
     readonly directoryItem: ActionDefinition<{
         goal_id: string;
     }, GoalEventDirectoryItem | null>;
+    readonly inputsReviewSource: {
+        readonly action: {
+            readonly scheduling: "concurrent";
+            readonly required_actions: readonly [{
+                readonly capability_id: string;
+                readonly version: number;
+                readonly provider_id: "system.materials";
+            }];
+            readonly audiences: readonly ["user"];
+            readonly subject_kinds: string[];
+            readonly title: string;
+            readonly description: string;
+            readonly local_id?: string;
+            readonly kind: "query" | "judgment" | "operation" | "navigation";
+            readonly scope: "home" | "project";
+            readonly effect?: "read" | "write" | "irreversible";
+            readonly external?: true;
+            readonly draft?: true;
+            readonly plugin?: false;
+            readonly authorship?: "session";
+            readonly execution?: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionPolicy;
+            readonly permissions: readonly string[];
+            readonly delegation?: import("@molis-ai/molis-work-contracts/platform/actions").ActionDelegationDeclaration | "confirmation-only";
+            readonly requires_trusted_decision?: true;
+            readonly trusted_decision_request?: Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, "capability_id" | "version">;
+            readonly trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+            readonly input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            readonly output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            readonly result_view?: ActionResultView;
+            readonly input_type?: string;
+            readonly output_type?: string;
+            readonly workflow_content?: import("@molis-ai/molis-work-contracts/platform/actions").WorkflowContentStation;
+            readonly search_source?: import("@molis-ai/molis-work-contracts/platform/actions").SearchSourceDeclaration;
+            readonly file_source?: import("@molis-ai/molis-work-contracts/platform/actions").FileSourceDeclaration;
+            readonly composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
+            readonly thread_source?: {
+                readonly role: "context" | "reply";
+                readonly subject_kind: string;
+            };
+            readonly home_aggregate?: true;
+            readonly project_reach?: "person";
+            readonly placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            readonly subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
+            readonly fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
+            readonly intake?: ActionIntake;
+            readonly attach?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAttach;
+            readonly required_scene?: {
+                readonly scene_id: string;
+                readonly version: number;
+            };
+            readonly result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
+            readonly required_roles?: readonly {
+                readonly input_type: string;
+                readonly output_type: string;
+            }[];
+            readonly result_subject?: {
+                readonly id: string;
+                readonly revision?: string;
+            };
+            readonly background_job?: {
+                readonly status: {
+                    readonly capability_id: string;
+                    readonly version: number;
+                };
+                readonly id: string;
+                readonly input: string;
+                readonly state: string;
+                readonly done: readonly string[];
+                readonly failed: readonly string[];
+            };
+            readonly undo?: {
+                readonly capability_id: string;
+                readonly version: number;
+                readonly input: Readonly<Record<string, string | readonly [string]>>;
+            };
+        };
+        readonly __types__?: {
+            input: {
+                readonly request_id: string;
+                readonly draft?: Record<string, unknown> | undefined;
+            };
+            output: GoalSourceReviewOffer;
+        } | undefined;
+        readonly operation: "query" | "command";
+        readonly provider_id?: string;
+        readonly capability_id: string;
+        readonly version: number;
+        readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
+    readonly inputsReviewChange: {
+        readonly action: {
+            readonly scheduling: "concurrent";
+            readonly subject_kinds: string[];
+            readonly requires_trusted_decision: true;
+            readonly trusted_decision_request: {
+                capability_id: string;
+                version: number;
+            };
+            readonly title: string;
+            readonly description: string;
+            readonly local_id?: string;
+            readonly kind: "query" | "judgment" | "operation" | "navigation";
+            readonly scope: "home" | "project";
+            readonly effect?: "read" | "write" | "irreversible";
+            readonly external?: true;
+            readonly draft?: true;
+            readonly plugin?: false;
+            readonly authorship?: "session";
+            readonly execution?: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionPolicy;
+            readonly audiences: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionAudience[];
+            readonly permissions: readonly string[];
+            readonly delegation?: import("@molis-ai/molis-work-contracts/platform/actions").ActionDelegationDeclaration | "confirmation-only";
+            readonly trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+            readonly input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            readonly output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            readonly result_view?: ActionResultView;
+            readonly input_type?: string;
+            readonly output_type?: string;
+            readonly workflow_content?: import("@molis-ai/molis-work-contracts/platform/actions").WorkflowContentStation;
+            readonly search_source?: import("@molis-ai/molis-work-contracts/platform/actions").SearchSourceDeclaration;
+            readonly file_source?: import("@molis-ai/molis-work-contracts/platform/actions").FileSourceDeclaration;
+            readonly composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
+            readonly thread_source?: {
+                readonly role: "context" | "reply";
+                readonly subject_kind: string;
+            };
+            readonly home_aggregate?: true;
+            readonly project_reach?: "person";
+            readonly placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            readonly subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
+            readonly fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
+            readonly intake?: ActionIntake;
+            readonly attach?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAttach;
+            readonly required_scene?: {
+                readonly scene_id: string;
+                readonly version: number;
+            };
+            readonly result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
+            readonly required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            readonly required_roles?: readonly {
+                readonly input_type: string;
+                readonly output_type: string;
+            }[];
+            readonly result_subject?: {
+                readonly id: string;
+                readonly revision?: string;
+            };
+            readonly background_job?: {
+                readonly status: {
+                    readonly capability_id: string;
+                    readonly version: number;
+                };
+                readonly id: string;
+                readonly input: string;
+                readonly state: string;
+                readonly done: readonly string[];
+                readonly failed: readonly string[];
+            };
+            readonly undo?: {
+                readonly capability_id: string;
+                readonly version: number;
+                readonly input: Readonly<Record<string, string | readonly [string]>>;
+            };
+        };
+        readonly __types__?: {
+            input: {
+                readonly binding_id: string;
+                readonly goal_id: string;
+                readonly decision: "adopt_latest";
+                readonly expected_old_digest: string;
+                readonly observed_new_digest: string;
+                readonly note?: string | undefined;
+            } | {
+                readonly binding_id: string;
+                readonly goal_id: string;
+                readonly decision: "remove";
+                readonly expected_old_digest: string;
+                readonly note?: string | undefined;
+                readonly observed_new_digest?: string | undefined;
+            };
+            output: {
+                decision: "adopt_latest";
+                binding_id: string;
+                snapshot_digest: string;
+            } | {
+                decision: "remove";
+                binding_id: string;
+            };
+        } | undefined;
+        readonly operation: "query" | "command";
+        readonly provider_id?: string;
+        readonly capability_id: string;
+        readonly version: number;
+        readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
     readonly inputsConfirm: ActionDefinition<{
         goal_id: string;
         source: {

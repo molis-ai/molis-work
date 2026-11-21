@@ -102,6 +102,13 @@
     "dataset.capability-library.dataset-files-content-v1.title": "Dataset",
     "dataset.capability-library.dataset-files-entries-v1.title": "Dataset",
     "dataset.capability-library.dataset-placement-copy-v1.title": "Dataset",
-    "dataset.capability-library.dataset-placement-move-v1.title": "Dataset"
+    "dataset.capability-library.dataset-placement-move-v1.title": "Dataset",
+    "dataset.help.title": "Dataset",
+    "dataset.help.what": "Create structured tables inside your project, import or export CSV files, filter rows, and freeze stable snapshots.",
+    "dataset.help.example-1": "Import a CSV file, add columns, and organize rows",
+    "dataset.help.example-2": "Save a fixed version to deliverables for other plugins to consume",
+    "dataset.help.scope": "Table data stays in this project’s local database; overwriting via CSV import states its impact clearly, and fixed versions remain immutable.",
+    "dataset.help.advanced-summary": "Fixed versions and rollback",
+    "dataset.help.advanced": "Saving a fixed version records an immutable deliverable; later edits to the working table never alter earlier versions."
   }
 }

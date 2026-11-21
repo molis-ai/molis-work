@@ -138,23 +138,15 @@ export class ProjectDeletionService {
         await this.ports.releaseProject(observed.database_path);
         await guards.refreshChildren?.();
         assertReady();
-        // Recycled projects are hidden from ProjectService.get(); unhide under the passive
-        // reservation immediately before delegating physical deletion and receipt recording.
-        await catalog.commit(() => catalog.recycle.change({
-          project_id: input.project_id,
-          recycled: false,
-          confirmed: true,
-          actor_id: input.actor_id,
-          operation_id: `${input.idempotency_key}:finalize`,
-          expected_state: observed.state,
-        }, assertReady));
+        // Delete the recycled project directly in a single catalog transaction without restoring it
+        // or emitting a `project.restored` event.
         return catalog.deleteProject({
           project_id: input.project_id,
           actor_id: input.actor_id,
           idempotency_key: input.idempotency_key,
           delete_confirmed: true,
           output_files: 'keep',
-        });
+        }, { allowRecycled: true, beforeCommit: assertReady });
       });
     });
   }

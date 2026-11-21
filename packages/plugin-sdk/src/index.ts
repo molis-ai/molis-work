@@ -112,7 +112,7 @@ export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-c
 export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
   ActionSceneReference, ActionSceneBinding, ActionSceneTargetDefinition, ActionSceneTarget, ActionSceneConfigureOptions, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
-  PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
+  PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginConsumableFilter, PluginConsumableVersion, PluginPrivateStorage,
   PluginUiClient, PluginHostServices, PluginActionClient, PluginActionDirectory,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
   PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginJournalEvent, PluginJournalAppend,

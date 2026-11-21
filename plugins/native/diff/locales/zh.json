@@ -43,6 +43,13 @@
     "diff.waiting.choose-input": "先选一组对比内容：两个已固定的文件版本、Coding 准备的改动，或 Git 未提交改动",
     "diff.waiting.choose-snapshots": "请先选择两个已固定的文件版本进行对比",
     "diff.waiting.git-change-set": "在 Git 里选一处改动，这里就会显示",
-    "diff.waiting.snapshots": "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异"
+    "diff.waiting.snapshots": "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异",
+    "diff.help.title": "差异对比",
+    "diff.help.what": "逐行比较两份文件快照或工作区改动，方便在确认修改、验收或提交前核对每一处变化。",
+    "diff.help.example-1": "从 Files 或 Git 打开一份变动文件，逐块检查增删内容",
+    "diff.help.example-2": "对比两份固定版本快照，确认改动是否符合预期",
+    "diff.help.scope": "纯只读查看，不会修改任何源文件或提交记录。",
+    "diff.help.advanced-summary": "与 Files、Git 配合",
+    "diff.help.advanced": "没有选中文件时点「打开 Files」即可挑选要对比的文件快照。"
   }
 }

@@ -821,3 +821,18 @@ test("S-skill-authoring a plugin page cannot call the authored Skills routes thr
     assert.equal(response.status, 403, `${route}: ${await response.text()}`);
   }
 });
+
+test("P1-D2 S-47 declared project page route surfaces stageErrorsOf HTTP status instead of 200 HTML shell", async t => {
+  const f = await serveHomeRuntime(t, {
+    actionAvailability: (_caller, view) => view.capability_id === "goals.stage.read"
+      ? { available: false, code: "actions.forbidden", kind: "forbidden", reason: "目标舞台读取被拒绝" }
+      : { available: true },
+  });
+  const project = await f.project("Denied stage page", ["goals"]);
+  const response = await f.request(`/projects/${project.project_id}/archive`, {
+    headers: { accept: "text/html" },
+  });
+  assert.equal(response.status, 403, await response.clone().text());
+  const body = await response.json() as { code?: string; error?: string };
+  assert.equal(body.code, "actions.forbidden");
+});

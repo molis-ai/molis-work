@@ -121,6 +121,13 @@
     "cognia.agent-prompt.cognia-answer.title": "知识整理与问答",
     "cognia.agent-prompt.cognia-answer.purpose": "只依据选中的固定版本资料整理或回答，并用 [S1] 这样的标记引用来源",
     "cognia.agent-prompt.cognia-evidence.title": "知识助手角色",
-    "cognia.agent-prompt.cognia-evidence.purpose": "Cognia 整理资料与回答提问时的角色说明"
+    "cognia.agent-prompt.cognia-evidence.purpose": "Cognia 整理资料与回答提问时的角色说明",
+    "cognia.help.title": "Cognia",
+    "cognia.help.what": "你的个人知识库，所有项目共享：导入本机 Markdown 文件夹或参考材料，按来源检索和整理问答。",
+    "cognia.help.example-1": "导入一个本机笔记文件夹，建立可追溯原处的知识领域",
+    "cognia.help.example-2": "按主题全文检索并核对原始段落出处",
+    "cognia.help.scope": "导入前会展示读取范围，只读你选中的本机目录；全文检索完全在本机运行，调用文字模型整理问答时按所连服务商计费。",
+    "cognia.help.advanced-summary": "多格式导入与版本快照",
+    "cognia.help.advanced": "导入会保留原文件夹结构与附件；暂不支持直接解析的格式会跳过并列出清单，不会静默丢弃。"
   }
 }

@@ -727,11 +727,11 @@ test("FSS-20 FSS-35 FSS-36 the mounted AI kit retitles the same prompt, tools an
   const select = await chooseEnglishInSettings(t, b);
   await b.waitFor(`document.documentElement.lang==='en' && ${detail}.querySelector('h3')?.textContent==='Base constraints'`);
   assert.deepEqual(await b.evaluate(`[kitHeading===${detail}.querySelector('h3'),kitManage===${detail}.querySelector('a[href="/settings/prompts"]'),
-    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "Edit in Prompts"]);
+    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "Open full prompt list"]);
   await select("zh");
   await b.waitFor(`document.documentElement.lang==='zh-CN' && ${detail}.querySelector('h3')?.textContent==='基础约束'`);
   assert.deepEqual(await b.evaluate(`[kitHeading===${detail}.querySelector('h3'),kitManage===${detail}.querySelector('a[href="/settings/prompts"]'),
-    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "在提示词里改"]);
+    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "打开完整提示词列表"]);
   await b.click(".kit-detail [data-kit-act=up]");
   const wire = await b.evaluate<Array<[string, number, string | null, number]>>("kitWire");
   assert.deepEqual(wire.map(([tag, status]) => [tag, status]), [["zh", 200], ["en", 200], ["zh", 200]]);

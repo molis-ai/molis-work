@@ -77,20 +77,31 @@ export function createEvidenceContentStore(options: {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const root = options.rootDirectory ?? path.join(resolveHomeSecurityDirectory(), "evidence");
 
-  const readKey = (): Buffer | null => {
+  type KeyState = { kind: "ready"; key: Buffer } | { kind: "absent" } | { kind: "corrupted" };
+
+  const inspectKey = (): KeyState => {
     const raw = secretStore.get(CONTENT_KEY_REF);
-    if (!raw) return null;
+    if (raw == null) return { kind: "absent" };
     const key = Buffer.from(raw, "base64");
-    return key.length === 32 ? key : null;
+    return key.length === 32 ? { kind: "ready", key } : { kind: "corrupted" };
   };
 
-  const sealingStatus = (): EvidenceContentKeyStatus => readKey()
-    ? "ready"
-    : keySharingRoots(root).some(hasBlobFile) ? "missing" : "creatable";
+  const readKey = (): Buffer | null => {
+    const state = inspectKey();
+    return state.kind === "ready" ? state.key : null;
+  };
+
+  const sealingStatus = (): EvidenceContentKeyStatus => {
+    const state = inspectKey();
+    if (state.kind === "ready") return "ready";
+    if (state.kind === "corrupted") return "missing";
+    return keySharingRoots(root).some(hasBlobFile) ? "missing" : "creatable";
+  };
 
   const keyForWrite = (): Buffer => {
-    const existing = readKey();
-    if (existing) return existing;
+    const state = inspectKey();
+    if (state.kind === "ready") return state.key;
+    if (state.kind === "corrupted") throw keyMissing();
     if (keySharingRoots(root).some(hasBlobFile)) throw keyMissing();
     const key = randomBytes(32);
     if (secretStore.createIfAbsent(CONTENT_KEY_REF, key.toString("base64"))) return key;

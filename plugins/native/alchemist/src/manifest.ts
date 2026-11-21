@@ -28,6 +28,19 @@ export const alchemistManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "alchemist.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "alchemist.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "alchemist.help.example-1" }, { key: "alchemist.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "alchemist.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "alchemist.help.advanced-summary" }, body: { key: "alchemist.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [ALCHEMIST_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "炼金术士", title_text: { key: "alchemist.directory.view-directory" }, contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, icon: "zap", hue: "purple", order: 60, group: "research" },

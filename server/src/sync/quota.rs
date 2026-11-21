@@ -7,10 +7,11 @@ use worker::{D1Database, Date};
 const SCHEMA_TTL_MS: u64 = 30_000;
 const SCHEMA: &str = include_str!("../../migrations/sync/0001_sync.sql");
 
-fn schema_guards() -> &'static (Vec<(&'static str, String)>, String) {
-    static GUARDS: OnceLock<(Vec<(&'static str, String)>, String)> = OnceLock::new();
+fn schema_guards() -> &'static (Vec<(String, String)>, String) {
+    static GUARDS: OnceLock<(Vec<(String, String)>, String)> = OnceLock::new();
     GUARDS.get_or_init(|| {
-        let guards: Vec<_> = SCHEMA
+        let normalized = SCHEMA.replace("\r\n", "\n");
+        let guards: Vec<_> = normalized
             .split("\nCREATE TRIGGER ")
             .skip(1)
             .map(|trigger| {
@@ -20,11 +21,18 @@ fn schema_guards() -> &'static (Vec<(&'static str, String)>, String) {
                 let name = body
                     .split_whitespace()
                     .next()
-                    .expect("sync trigger needs a name");
+                    .expect("sync trigger needs a name")
+                    .to_owned();
                 (name, format!("CREATE TRIGGER {body}\nEND"))
             })
             .collect();
-        let names = json!(guards.iter().map(|(name, _)| name).collect::<Vec<_>>()).to_string();
+        let names = json!(
+            guards
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>()
+        )
+        .to_string();
         (guards, names)
     })
 }
@@ -71,8 +79,14 @@ pub(crate) async fn validate_schema(db: &D1Database) -> ApiResult<()> {
     require(
         rows.len() == guards.len()
             && guards.iter().all(|(name, sql)| {
-                rows.iter()
-                    .any(|row| row["name"] == *name && row["sql"] == sql.as_str())
+                rows.iter().any(|row| {
+                    row["name"] == name.as_str()
+                        && row["sql"]
+                            .as_str()
+                            .map(|value| value.replace("\r\n", "\n"))
+                            .as_deref()
+                            == Some(sql.as_str())
+                })
             }),
         503,
         "SYNC_SCHEMA_MISMATCH",

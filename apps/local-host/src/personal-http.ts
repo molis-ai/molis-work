@@ -2,6 +2,7 @@ import { WEB_PAGE_SESSION_HEADER, webPageToken } from './web-sessions.js';
 import { createPersonalAccountProtocol } from './personal-account-protocol.js';
 import { createPersonalPageHttp } from './personal-page-http.js';
 import { AccountRefreshPages } from './account-refresh-pages.js';
+import { describeAccountConfigState } from './active-release-profile.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
 import { fileAccountSecrets, personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
@@ -77,6 +78,21 @@ function browserStatusFence(desktop:boolean,session:WebAccountSession|null,respo
     try{if(lease&&expires>Date.now()){lease.assertCurrent();return true;}}catch{ /* The request's original browser lease was revoked. */ }
     sendLocalWebJson(response,200,{configured,identity:null,accountChanged:true,ready:false,switching:false});return false;
   };
+}
+
+function respondAnonymousPersonalStatus(response: ServerResponse, cookie: string | undefined, accountGeneration: number | undefined): void {
+  const configState = describeAccountConfigState();
+  sendLocalWebJson(response, 200, {
+    configured: configState.configured, identity: null,
+    accountChanged: cookie?.split(";").some(part => part.trim().startsWith(WEB_ACCOUNT_COOKIE + "=")) ?? false,
+    accountGeneration, ready: false, switching: false,
+    ...(!configState.configured ? {
+      configReason: configState.reason,
+      configHint: configState.reason === "missing_env"
+        ? "当前未配置账号服务环境（缺少 MOLIS_WORK_ACCOUNT_CONFIG）。本地测试请使用账号环境启动脚本，或联系管理员提供专用测试配置。"
+        : "账号服务环境配置格式无效，请检查 MOLIS_WORK_ACCOUNT_CONFIG。",
+    } : {}),
+  });
 }
 
 interface PersonalAccountEnvironment {
@@ -205,16 +221,16 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     if(request.method==='POST' && url.pathname==='/api/personal/local'){
       sendLocalWebJson(response,400,{error:'此安装使用当前登录账号，不能切换匿名工作区。'});return true;
     }
+    let session=desktop?null:webSessions.get(request.headers.cookie);
+    if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
+      respondAnonymousPersonalStatus(response, request.headers.cookie, auth?.accountGeneration());return true;
+    }
     let config;try{config=personalCloudConfig();}catch{ /* Session cleanup is best effort; no authenticated response is returned. */ }
     const configured=!!config;
-    let session=desktop?null:webSessions.get(request.headers.cookie);
     const setSessionCookie=()=>response.setHeader('Set-Cookie',webSessions.cookie(session,origin.startsWith('https:')));
     if(!desktop && !session && config && request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)){
       session=await openAnonymousSession(getAuth,webSessions,()=>pendingNavigation,response,origin,()=>request.headers[WEB_PAGE_SESSION_HEADER]===undefined||webPageToken(request)===request.headers[WEB_PAGE_SESSION_HEADER]);
       if(!session)return true;
-    }
-    if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
-      sendLocalWebJson(response,200,{configured,identity:null,accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,accountGeneration:auth?.accountGeneration(),ready:false,switching:false});return true;
     }
     const service=desktop?getAuth():session?.auth??null;
     let navigation=desktop?desktopNavigation:session?.navigation??null;

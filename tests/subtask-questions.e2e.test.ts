@@ -25,7 +25,15 @@ test("SAI-06/10/11: original question client in the public float retains fields,
   await b.waitFor(`${field}.getAttribute('aria-invalid') === 'true'`);
   assert.equal(await b.evaluate("qp.root.querySelector('[data-ix-error]').textContent"), "At most 120 minutes");
   assert.equal(await b.evaluate(`document.activeElement === ${field}`), true);
-  await b.evaluate("qp.fill('45'); qp.handle.refresh()");
+  const savedHtml = runWithLocale("en", () => agentQuestionHtml(forms.a!, key => key, { n0: "45" }));
+  const submitButton = "qp.root.querySelector('[data-ix-action=answer]')";
+  assert.equal(await b.evaluate(`(async () => {
+    const button = ${submitButton};
+    qp.fill('45');
+    qp.forms.a.html = ${JSON.stringify(savedHtml)};
+    await qp.handle.refresh();
+    return ${submitButton} === button;
+  })()`), true, "a saved draft of the same question keeps the live submit button");
   await b.waitFor(`${field}.value === '45'`);
   await b.evaluate("qp.submit()");
   await b.waitFor("qp.answers.length === 2");
@@ -39,5 +47,9 @@ test("SAI-06/10/11: original question client in the public float retains fields,
   await b.evaluate("qp.handle.open('a')");
   await b.waitFor(`${field}?.value === '60'`);
   assert.equal(await b.evaluate("qp.answers.length"), 2, "reopen restores without submission");
+  const closed = { ...forms.a!, answerable: false, unavailable_reason: "This question closed" };
+  const closedHtml = runWithLocale("en", () => agentQuestionHtml(closed, key => key));
+  await b.evaluate(`qp.forms.a = ${JSON.stringify({ ...closed, html: closedHtml })}; qp.handle.refresh()`);
+  assert.equal(await b.evaluate(`${submitButton} === null && qp.root.textContent.includes('This question closed')`), true);
   await b.evaluate("qp.handle.destroy(); qp.root.remove()");
 });

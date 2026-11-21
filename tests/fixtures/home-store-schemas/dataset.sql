@@ -1,4 +1,4 @@
--- Frozen complete current baseline; test-only schema, no real Home receipt.
+-- Frozen complete Dataset v2 baseline; test-only schema, no real Home receipt.
 
   CREATE TABLE datasets (
     id TEXT PRIMARY KEY,
@@ -24,6 +24,15 @@
   );
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 
+
+  CREATE TABLE dataset_source_bindings (
+    project_id TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    dataset_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, source_key)
+  );
 
     CREATE TABLE IF NOT EXISTS sync_aa98c46361f294dbb01ea79b1b42_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS sync_aa98c46361f294dbb01ea79b1b42_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);

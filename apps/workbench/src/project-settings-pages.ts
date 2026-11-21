@@ -7,7 +7,7 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules
 import { createProjectGuidanceDocumentRenderer } from "./project-guidance-settings.js";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MolisWorkWebView } from "./page-view.js";
-import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderShellEnvironmentBadge } from "./document-shell.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -25,10 +25,12 @@ import { PLUGIN_RETAINED_ICONS, PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPlugi
 import { renderTaskGrantsSettings, TASK_GRANTS_SETTINGS_CLIENT_SCRIPT } from "./settings-task-grants.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
+import { withSettingsHelp } from "./settings-help-topics.js";
 import { renderLanguageHead } from "./language-resource.js";
 
 export interface ProjectSettingsPagePorts {
   accountRegistration?: boolean;
+  environmentName?(): "dev" | "test" | undefined;
   appearance?: WorkbenchAppearancePorts;
   projectDeletionLabels?(): readonly string[];
   catalogTextPacks(manifest: PluginManifest): readonly UiLocalePack[];
@@ -63,6 +65,11 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
+    const raw = renderHubSectionBody(view, guidance, section, desktopShell);
+    return withSettingsHelp(section, raw);
+  }
+
+  function renderHubSectionBody(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderGuidance(guidance ?? { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });
@@ -74,7 +81,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "plugins") return renderPluginTrustSettings({ readText, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down"), kinds: Object.fromEntries(Object.entries(PLUGIN_RETAINED_ICONS).map(([kind, name]) => [kind, icon(name)])) });
     if (section === "grants") return renderTaskGrantsSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
     const href = `/settings/authorizations?view=project-rules&project=${encodeURIComponent(view.project!.project_id)}`;
-    return `<a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a>`;
+    return `<section class="settings-section"><header class="settings-heading"><div class="settings-heading-title"><h1>${uiText("workbench.settings-navigation.access-approvals")}</h1></div></header><p><a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a></p></section>`;
   }
 
   function renderMolisWorkProjectSettingsHub(
@@ -103,7 +110,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     ${navigation}
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(ports.environmentName?.())}
   <script>${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${SKILL_SETTINGS_CLIENT_SCRIPT}${KIT_SETTINGS_LOADER_SCRIPT}${CHARACTERS_SETTINGS_LOADER_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}${knowledgeClientTag()}
 </body></html>`;
   }

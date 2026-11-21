@@ -18,8 +18,15 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
   const f=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-large-goal-'));
   const runtimes=[],clients=[];t.after(async()=>{clients.forEach(client=>client.close());for(const runtime of runtimes)await runtime.close();rmSync(root,{recursive:true,force:true});});
   const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b','damaged'].map(n=>join(root,n));homes.forEach(home=>ensureStorageSpace(home,space));
-  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Large Goals',actor_id:'alice'}));
-  for(const home of homes.slice(1))await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{}));
+  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async c=>{
+    const p=await c.createProject({display_name:'Large Goals',actor_id:'alice'});
+    c.addProjectPlugin({project_id:p.project_id,plugin_id:'goals',actor_id:'alice'});
+    return p;
+  });
+  for(const home of homes.slice(1))await withMolisWorkProjectCatalog({homeDirectory:home},async catalog=>{
+    await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});
+    catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'goals',actor_id:'alice'});
+  });
   runtimes.push(...homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',()=>{})));for(const runtime of runtimes)await runtime.registration.refresh();
   const store=new LocalProjectDatabase(project.database_path);
   try {
@@ -78,7 +85,7 @@ test('PCSYNC-09/10/11 actual 100 MB of private content fills the shared quota wi
   for(let part=0;part<Math.ceil(bytes.length/chunk);part++)assert.equal((await put(f,reference,bytes.subarray(part*chunk,(part+1)*chunk),part)).status,200);
   const started=performance.now();
   assert.equal((await complete(f,reference,'alice',manifest)).status,200);
-  assert.ok(performance.now()-started<2000,'PCSYNC-OPT-04 50 MB complete must stay under 2s without re-reading R2 bytes');
+  assert.ok(performance.now()-started<2000,'PCSYNC-OPT-04 50 MB complete streams chunk-by-chunk under 2s while enforcing S-126 whole-object SHA-256');
   assert.equal((await complete(f,reference,'alice',manifest)).status,200,'completion replay does not charge again');
  }
  const value={files},published=await f.write('full:files','files',value,{attachments:files});assert.equal(published.status,200);const revision=(await published.json()).revision;
@@ -143,6 +150,18 @@ test('PCSYNC-11/12 wrong digest or damaged R2 chunks never become a usable attac
   const objects=await f.bucket.list();const key=objects.objects.find(o=>o.key.includes('/'+proper.digest+'/')).key;
   await f.bucket.put(key,Buffer.from('oops'));
   assert.equal((await f.call(query(f,proper))).status,503);
+  // S-126: multi-part (> 4 MiB) forged whole-object digest with a matching partsDigest must be rejected and stay ready=0.
+  const evil=Buffer.alloc(4*1024*1024+17,0x45);
+  const forged={digest:hash(Buffer.alloc(4*1024*1024+17,0x47)),size:evil.length};
+  assert.equal((await reserve(f,forged)).status,200);
+  assert.equal((await put(f,forged,evil.subarray(0,4*1024*1024),0)).status,200);
+  assert.equal((await put(f,forged,evil.subarray(4*1024*1024),1)).status,200);
+  const badComplete=await complete(f,forged,'alice',partsDigest(evil));
+  assert.equal(badComplete.status,409,'S-126 forged multi-part whole-object digest is refused even when partsDigest matches uploaded chunks');
+  assert.deepEqual(await badComplete.json(),{error:'SYNC_BLOB_DIGEST_MISMATCH'});
+  const forgedRow=await f.db.prepare('SELECT ready FROM sync_blobs WHERE space=? AND digest=?').bind(f.space('alice'),forged.digest).first();
+  assert.equal(forgedRow.ready,0,'S-126 rejected forged multi-part blob must remain ready=0');
+  assert.equal((await f.write('forged-multi','record',{file:forged},{attachments:[forged]})).status,409,'S-126 unverified forged multi-part blob cannot be published');
 });
 
 function artifactDevice(t,f,name,fetcher=f.transport){

@@ -24,7 +24,7 @@ export class ProjectsRepository {
 
 /**
  * A folder's link to a project and what it is there (specs/shared-sources-and-surfaces §3): an input, the output, or both. One link per
- * project carries the output. The catalog upgrade to version 2 builds this table from the same text (`catalog-upgrade.ts`).
+ * project carries the output. Included directly in the clean v1 catalog baseline (future schema steps live in `CATALOG_UPGRADES`).
  */
 export const WORKSPACE_MEMBERSHIPS_SQL = `
     CREATE TABLE IF NOT EXISTS workspace_project_memberships (
@@ -65,8 +65,8 @@ export const WORKSPACE_SOURCE_LINKS_SQL = `
 
 /**
  * Whether a project's rounds read the repository's instruction files, and which output the person confirmed for it (batch12-design §3.3).
- * No row is the default: read, nothing confirmed. A device fact, beside the output it is about: never in the synced projection. The
- * catalog upgrade to version 4 makes this table from the same text (`catalog-upgrade.ts`).
+ * No row is the default: read, nothing confirmed. A device fact, beside the output it is about: never in the synced projection. Included
+ * directly in the clean v1 catalog baseline (future schema steps live in `CATALOG_UPGRADES`).
  */
 export const PROJECT_INSTRUCTION_SETTINGS_SQL = `
     CREATE TABLE IF NOT EXISTS project_instruction_settings (

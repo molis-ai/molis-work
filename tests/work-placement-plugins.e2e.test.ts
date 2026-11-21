@@ -22,11 +22,11 @@ function assertAnswerDataset(home: string, project: string, formId: string, tabl
   const datasets = openDatasetStore(home), forms = openFormStore(home);
   try {
     const saved = datasets.get(tableId, project);
-    assert.deepEqual(saved.columns.map(column => column.name), ["提交时间", "来源", "姓名", '团队, "方向"']);
+    assert.deepEqual(saved.columns.map(column => column.name), ["request_id", "提交时间", "来源", "姓名", '团队, "方向"']);
     const rows = saved.rows.map(row => saved.columns.map(column => row.cells[column.id]));
     assert.equal(rows.length, 2);
-    assert.deepEqual(rows.find(row => row[2] === "林一"), [answerTimes["林一"], "试填", "林一", '设计；"体验"']);
-    assert.deepEqual(rows.find(row => row[2] === "周二"), [answerTimes["周二"], "试填", "周二", "工程"]);
+    assert.deepEqual(rows.find(row => row[3] === "林一"), ["a1", answerTimes["林一"], "试填", "林一", '设计；"体验"']);
+    assert.deepEqual(rows.find(row => row[3] === "周二"), ["a2", answerTimes["周二"], "试填", "周二", "工程"]);
     // The CSV contract uses semicolons for answer line breaks; the source retains the literal LF.
     assert.equal(forms.listSubmissions(formId, project).find(answer => answer.answers.name === "林一")!.answers.team, '设计\n"体验"');
   } finally { datasets.close(); forms.close(); }
@@ -79,9 +79,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
       [...toast.querySelectorAll('button')].find(button => button.textContent.trim() === ${text(label)}).setAttribute('data-e2e-target', ''); })()`);
     await click("[data-e2e-target]");
   };
-  const current = () => evaluate<{ kind: string; id: string; title: string } | null>(`(() => {
+  const activeObject = `(() => {
     const node = [...document.querySelectorAll('[data-assistant-context]')].find(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object);
-    return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`);
+    return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`;
+  const current = () => evaluate<{ kind: string; id: string; title: string } | null>(activeObject);
   const describe = (object: PlacedObject) => evaluate<PlacementDescription>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
@@ -138,6 +139,25 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   const source = await describe({ kind: "form", id: formId, project_id: projectId });
   assert.equal(source.title, "活动报名", "the form itself is unchanged");
   assert.ok(source.associations.some(link => link.label.includes("已转成《活动报名 · 答卷》")));
+
+  // AC-T2-03: a later click on the Form's actual command still opens the original table.
+  const formStore = openFormStore(homeDirectory);
+  try {
+    formStore.submit(formId, { name: "宋三", team: "运营" }, projectId!, { source: "preview", requestId: "a3" });
+  } finally { formStore.close(); }
+  await openPlugin("form", projectId!);
+  await press(`[data-form-id="${formId}"]`);
+  await press('[data-form-tab="results"]');
+  await press("[data-form-to-dataset]");
+  await cardButton("已转成《活动报名 · 答卷》", "打开");
+  await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);
+  await waitFor(`${activeObject}?.id === ${text(table!.id)}`, 15_000);
+  const datasetStore = openDatasetStore(homeDirectory);
+  try {
+    const appended = datasetStore.get(table!.id, projectId!);
+    assert.equal(appended.rows.length, 3);
+    assert.ok(appended.rows.some(row => row.cells[appended.columns[0]!.id] === "a3"));
+  } finally { datasetStore.close(); }
 
   // 3. Lingguang: a spark turns into a document and into a Goal; the spark stays and remembers both.
   await openPlugin("lingguang", projectId!);

@@ -167,8 +167,8 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
     return { head: step.querySelector('summary').textContent, rows: [...step.querySelectorAll('.assistant-activity-detail > p')].map((p) => p.textContent),
       raw: fold.textContent, open: fold.open };`);
   assert.equal(refused.head, "修改 Pages · 新建摘要文档 — 没有完成");
-  assert.deepEqual(refused.rows, ["调用的能力pages.docs.create", "原因输入不符合能力合同", "整个输入多了合同里没有的内容"]);
-  assert.match(refused.raw, /^原始说明Hook "molis-action-gateway-pages" blocked/);
+  assert.deepEqual(refused.rows, ["调用的能力example.docs.create", "原因输入不符合能力合同", "整个输入多了合同里没有的内容"]);
+  assert.match(refused.raw, /^原始说明Hook "molis-action-gateway-example-docs" blocked/);
   assert.equal(refused.open, false, "the runtime's text stays folded until asked for");
 
   // The works' own words in English beside the English interface: the panel, its tabs, the thread and the side pane keep no Chinese.

@@ -1,5 +1,16 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
+const SOURCE_BINDINGS_SCHEMA = `
+  CREATE TABLE dataset_source_bindings (
+    project_id TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    dataset_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, source_key)
+  );
+`;
+
 /** The Dataset baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const DATASET_SCHEMA = `
   CREATE TABLE datasets (
@@ -25,10 +36,11 @@ const DATASET_SCHEMA = `
     created_at TEXT NOT NULL
   );
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+  ${SOURCE_BINDINGS_SCHEMA}
 `;
 /**
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its datasets go with their
- * saved versions and the receipts of datasets made into it.
+ * saved versions, delivery receipts and source bindings.
  */
 const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "dataset.project-deletion.data" }, order: 30,
   artifact_join: { table: "datasets", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
@@ -37,7 +49,9 @@ const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "data
   { table: "dataset_versions", column: "dataset_id", parent: "datasets" },
   { table: "datasets", column: "project_id" },
   { table: "dataset_receipts", column: "project_id" },
+  { table: "dataset_source_bindings", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: /* @version database.dataset_database */ 1,
+export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: /* @version database.dataset_database */ 2,
+  upgrades: [{ from: 1, sql: SOURCE_BINDINGS_SCHEMA }],
   read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };

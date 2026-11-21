@@ -12,6 +12,7 @@ type OnboardingIcon = PluginIconName;
 export interface OnboardingRenderPrimitives {
   catalogTextPacks: import("./project-settings-pages.js").ProjectSettingsPagePorts["catalogTextPacks"];
   accountRegistration?: boolean;
+  environmentName?(): "dev" | "test" | undefined;
   appearance?: WorkbenchAppearancePorts;
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;

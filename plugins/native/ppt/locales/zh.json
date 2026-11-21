@@ -111,6 +111,13 @@
     "ppt.color.pale-blue": "淡蓝",
     "ppt.color.charcoal": "炭黑",
     "ppt.color.dark-gray": "深灰",
-    "ppt.color.blue-gray": "蓝灰"
+    "ppt.color.blue-gray": "蓝灰",
+    "ppt.help.title": "演示稿",
+    "ppt.help.what": "在项目里编辑幻灯片、切换配色主题、直接全屏放映，并支持导出 PowerPoint 文件和存为固定版本。",
+    "ppt.help.example-1": "新建一份演示稿，逐页写清要点并预览放映效果",
+    "ppt.help.example-2": "定稿后导出 .pptx 文件，或存为固定版本留档",
+    "ppt.help.scope": "演示稿存在当前项目本机库里；仅在你主动使用 AI 起草页面时调用文字模型并按服务商计费。",
+    "ppt.help.advanced-summary": "放映快捷键与导出",
+    "ppt.help.advanced": "放映时可用方向键翻页、按 Esc 退出；导出文件保存到你本机指定位置。"
   }
 }

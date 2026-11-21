@@ -3,6 +3,7 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentDisplayModel, displayAgentPrompt, displayAgentRole } from "./display-words.js";
+import { composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody } from "./prompt-sections.js";
 
 /** The local Web's single person, as every other local write. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -26,10 +27,25 @@ export async function handleAgentDefinitionsHttp(request: IncomingMessage, respo
         return { status: 200, body: { roles: definitions.roles().map(role => displayAgentRole(role, words)) } };
       }
       if (method === "GET" && path === "/diagnostics") return { status: 200, body: definitions.diagnostics() };
-      if (method === "GET" && path === "/prompt") return { status: 200, body: { prompt: displayAgentPrompt(definitions.prompt(key, locale), promptWords()), history: definitions.history(key), uses: definitions.uses.list(key) } };
+      if (method === "GET" && path === "/prompt") {
+        const prompt = displayAgentPrompt(definitions.prompt(key, locale), promptWords());
+        return { status: 200, body: { prompt, editor: splitPromptContract(prompt.default_body, prompt.body), history: definitions.history(key), uses: definitions.uses.list(key) } };
+      }
       const expected = body.expected_revision === null || body.expected_revision === undefined ? null : Number(body.expected_revision);
-      if (method === "POST" && path === "/prompt") return { status: 200, body: { prompt: displayAgentPrompt(definitions.save(key, String(body.body ?? ""), expected, WEB_ACTOR, locale), promptWords()) } };
-      if (method === "POST" && path === "/prompt/reset") return { status: 200, body: { prompt: displayAgentPrompt(definitions.reset(key, expected, WEB_ACTOR, locale), promptWords()) } };
+      if (method === "POST" && path === "/prompt") {
+        const mode = body.mode === "simplified" ? "simplified" : "full";
+        const current = definitions.prompt(key, locale);
+        const nextBody = mode === "simplified"
+          ? composeSimplifiedPrompt(current.default_body, String(body.guidance ?? body.body ?? ""))
+          : String(body.body ?? "");
+        if (mode === "full" && body.validate_format === true) validateFullPromptBody(current.default_body, nextBody);
+        const saved = displayAgentPrompt(definitions.save(key, nextBody, expected, WEB_ACTOR, locale), promptWords());
+        return { status: 200, body: { prompt: saved, editor: splitPromptContract(saved.default_body, saved.body) } };
+      }
+      if (method === "POST" && path === "/prompt/reset") {
+        const reset = displayAgentPrompt(definitions.reset(key, expected, WEB_ACTOR, locale), promptWords());
+        return { status: 200, body: { prompt: reset, editor: splitPromptContract(reset.default_body, reset.body) } };
+      }
       return null;
     },
   });

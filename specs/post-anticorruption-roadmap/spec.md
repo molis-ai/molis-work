@@ -108,8 +108,8 @@
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
 |  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
-| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1) |
-|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
+| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，PFG-19、PF-A12～15；本人验收 [BL-b40-governance-help-acceptance](../backlog/BL-b40-governance-help-acceptance.md)） |
+|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，VUX-51～56／58～59、ONB-47～48 入口与事实；VUX-57 准备返回接续归 45-1） |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
 |  | [在设置里写自己的技能](reference/batches/41.md#batch-41-item-3) |
@@ -208,7 +208,7 @@
 | [72](reference/batches/72.md) | [复杂场景设计定稿 → 并入 77](reference/batches/72.md#batch-72-item-1)（2026-11-18） |
 | [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
 |  | [场景包与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
-|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../backlog/BL-tests-umask.md) |
+|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)（已合入）、[BL-tests-umask](https://github.com/molis-ai/molis-work/blob/d5dd1fbb6aec214c743e34fba9434f7f131ae6f1/specs/backlog/BL-tests-umask.md)（#2171 已合入） |
 |  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
 | [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |
 | [75](reference/batches/75.md) | [本机使用统计](reference/batches/75.md#batch-75-item-1) |
@@ -259,8 +259,8 @@
 |  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
 | [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
 | [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
-| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2) |
+| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，#2186 已合入，[决定 58](reference/decisions.md#decision-58)） |
+|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
 | [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，前置 100-2，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2) |
 | [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |

@@ -1,7 +1,7 @@
 import { connectResidentAccount, type ResidentAccountConnection } from "./resident-account-connection.js";
 import { homeHostUrl } from "./host-endpoint.js";
 import { mcpErrors } from "./mcp-errors.js";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { ensureSystemAgentService } from "./system-agent-service.js";
 import { workspaceRefFor } from "./agent-host-composition.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
@@ -136,10 +136,16 @@ export class LocalMcpServer {
 
   /** The Runtime connection pins the installation-selected Home and credential once, until an explicit new context. */
   private async connectedResident(signal:AbortSignal):Promise<ResidentAccountConnection> {
-    const home=this.runtimeContextHost?.homeDirectory??resolveMolisWorkHome();
-    await ensureMcpRequestResident(this.ensureResident,home,this.actionServiceUrl!,signal);signal.throwIfAborted();
+    const home = this.runtimeContextHost?.homeDirectory ?? resolveConfiguredHome();
+    await ensureMcpRequestResident(this.ensureResident,home,this.actionServiceUrl!,signal);
+    signal.throwIfAborted();
     const pending=this.residentAccount??=connectResidentAccount(home,this.actionServiceUrl!,signal);
-    try{return await pending;}catch(error){if(this.residentAccount===pending)this.residentAccount=undefined;throw error;}
+    try {
+      return await pending;
+    } catch (error) {
+      if (this.residentAccount === pending) this.residentAccount = undefined;
+      throw error;
+    }
   }
 
   private currentActions() {
@@ -290,8 +296,8 @@ export class LocalMcpServer {
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
       runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
       ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: mcpResidentManagement(this.ensureResident,
-        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL")
-          ?? homeHostUrl(resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome()),
+        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveConfiguredHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL")
+          ?? homeHostUrl(resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveConfiguredHome()),
         mcpRequestSignal(this.transportLifetime.signal),resident?.controlToken) } : {}) }, name, arguments_);
   }
 

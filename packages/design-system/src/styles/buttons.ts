@@ -58,7 +58,7 @@ export const BUTTON_STYLES = `
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
-  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
+  .mw-btn--primary:is(:active, [aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
     background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
@@ -67,6 +67,11 @@ export const BUTTON_STYLES = `
   .mw-btn--secondary:hover:not(:disabled) {
     border-color: transparent;
     background: var(--nav-hover);
+  }
+  .mw-btn--secondary:is([aria-expanded="true"], [aria-pressed="true"]):not(:disabled),
+  .mw-btn--ghost:is([aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
+    background: var(--nav-active);
+    color: var(--ink);
   }
   .mw-btn--secondary:active:not(:disabled),
   .mw-btn--ghost:active:not(:disabled) {

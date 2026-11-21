@@ -43,12 +43,29 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
     return saved.ref;
   };
   // A step held by the session already there is the same step; held by another, it is someone else's.
+  // The SDK settles a wait/continuation on the parent step asynchronously, so a board version conflict is read again.
   const place = async (ref: ExactRef<"task-board">, session: ExactRef<"session">, node: { id: string; title: string; parent?: string }) => {
-    const there = runtime.boards.get(ref).nodes.find(one => one.id === node.id);
-    if (there && (there.assignee?.kind !== "session" || there.assignee.id !== session.id)) throw agentErrors.collaboration_conflict("这一步已经归别的会话");
-    if (!there) {
-      await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version,
-        node: { id: node.id, title: node.title.slice(0, 120) || "工作", dependsOn: [], ...(node.parent ? { parent: node.parent } : {}), onFailure: "block-for-human", assignee: session } });
+    for (let tries = 0; ; tries++) {
+      const board = runtime.boards.get(ref);
+      const there = board.nodes.find(one => one.id === node.id);
+      if (there && (there.assignee?.kind !== "session" || there.assignee.id !== session.id)) {
+        throw agentErrors.collaboration_conflict("这一步已经归别的会话");
+      }
+      if (!there) {
+        try {
+          await runtime.boards.addNode({
+            ref,
+            expectedVersion: board.version,
+            node: { id: node.id, title: node.title.slice(0, 120) || "工作", dependsOn: [], ...(node.parent ? { parent: node.parent } : {}), onFailure: "block-for-human", assignee: session },
+          });
+        } catch (error) {
+          if (codeOf(error) !== "TASKBOARD_CONFLICT" || tries >= 2) {
+            throw error;
+          }
+          continue;
+        }
+      }
+      break;
     }
     await index.update(session.id, saved => { saved.work_graph = ref.id; });
   };

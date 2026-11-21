@@ -493,8 +493,8 @@ test("stopping or failing to read one SDK child leaves its sibling able to recei
     await f.until(async () => (await f.adapter.read(parent.ref)).phase === "completed");
 
     const probe = createNodeHost({ storageRoot: join(f.root, "fault-probe") });
-    const readStorage = probe.storage.get;
     const prototype: Pick<typeof probe.storage, "get"> = Object.getPrototypeOf(probe.storage);
+    const readStorage = prototype.get;
     const aSession = a.child_run.session_id, bSession = b.child_run.session_id;
     let holdNext = false, blocked = false;
     const fault = t.mock.method(prototype, "get", async function (this: typeof probe.storage, ref: Parameters<typeof readStorage>[0]) {

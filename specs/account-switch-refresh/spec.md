@@ -165,14 +165,14 @@ A→B→A 时，重新取得 A 的授权和服务。A 原有数据、已保存�
 | ASR-10 | 退出登录执行统一清理；关闭窗口沿用后台规则；断网不误触发退出。原账号的离线本机使用和设备同步选择保持，中断 AI/终端/外部写入不因刷新重放 |
 | ASR-11 | 同版本、同形态的期望结构在同一进程只构造一次；两个合法 Home 正常打开，错版、错误空间和关闭后被篡改的库仍被拒绝 |
 | ASR-12 | home/events、board/refresh 同一 Home 的一次只读汇总中共同目录发现至多一次，不随项目枚举反复开库；下一请求反映安装/同意/停用变化，不串 Home；独立的当前授权检查保留，等待后提交仍检查当前权限 |
-| ASR-13 | 同负载前后记录证明重复工作消失；`ui-audit-browser.e2e.test.ts` 原场景在原 15 秒 CDP 时限与文件预算内通过，保留安全拒绝和实际结构校验，不只报一次绿色 |
+| ASR-13 | 同负载前后记录证明重复工作消失；原 `ui-audit-browser.e2e.test.ts` 场景在原 15 秒 CDP 时限与文件预算内通过，保留安全拒绝和实际结构校验，不只报一次绿色（注：`tests/ui-audit-browser.e2e.test.ts` 已于 2026-11-19 随 PR `#2156` 清理删除，现役回归分别由 `tests/home-plugin-read-cost.test.ts` 守重复读取成本、`tests/visual-surfaces.e2e.test.ts` 与 `tests/fixtures/visual-capture.mts` 守浏览器表面就绪与确定性渲染） |
 | ASR-14 | [人工] 最终桌面产物实际完成登录、A→B→A、退出、失败重试和切换后继续使用插件；记录工程结果、实际操作及一骏验收三者的状态，未验收就保持未验收 |
 | ASR-15 | [人工] 每个实施切片和最终集成 diff 均完成上述防腐检查：每项行为修改对应已确认缺口，已有能力保留，普通插件无新增账号分支，不存在第二套认证/目录/权限事实来源；审查发现和处理结果可核对 |
 | ASR-16 | [人工] 本次链路中已确认无用、重复或被替代的代码及连带导出、依赖、测试和文档已清理；删除有消费者核对依据，保留的候选说明原因；相关行为回归和最终调用链检查通过，不靠放宽门禁或删除有效断言通过 |
 
 ### 验证落点
 
-优先扩展现有 `personal-auth.test.ts`、`personal-http.test.ts`、`space-surface-account-race.test.ts`、`space-ownership.test.ts`、`plugin-pages-isolation.e2e.test.ts`，并使用 `action-authority-tail.test.ts`、`mcp-effect-authority.test.ts` 和相关同步生命周期测试覆盖等待后的拒绝。性能对照用 `ui-audit-browser.e2e.test.ts` 与现有 always-on/坏库用例。列出这些文件不代表它们已经覆盖本次要求。
+优先扩展现有 `personal-auth.test.ts`、`personal-http.test.ts`、`space-surface-account-race.test.ts`、`space-ownership.test.ts`、`plugin-pages-isolation.e2e.test.ts`，并使用 `action-authority-tail.test.ts`、`mcp-effect-authority.test.ts` 和相关同步生命周期测试覆盖等待后的拒绝。性能对照原用 `ui-audit-browser.e2e.test.ts`（已于 PR `#2156` 删除）与现有 always-on/坏库用例，现役对应回归落点为 `tests/home-plugin-read-cost.test.ts` 与 `tests/visual-surfaces.e2e.test.ts`。列出这些文件不代表它们已经覆盖本次要求。
 
 实现后先 `pnpm build`，按包 README 和 `node scripts/affected-tests.mjs` 选择 `node scripts/run-tests.mjs <文件…>`。共享核心、跨包集成按[并行开发规则](../../docs/system/PARALLEL-DEVELOPMENT.md)跑必要 Full；接口、页面、安全边界按实际改动执行对应门禁。测试浏览器使用独立资料目录，构建和浏览器批次串行。不使用真实 Home 数据来验证拒绝或清理。
 

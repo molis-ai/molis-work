@@ -208,7 +208,7 @@
 | [72](reference/batches/72.md) | [复杂场景设计定稿 → 并入 77](reference/batches/72.md#batch-72-item-1)（2026-11-18） |
 | [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
 |  | [场景包与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
-|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../backlog/BL-tests-umask.md) |
+|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)（已合入）、[BL-tests-umask](https://github.com/molis-ai/molis-work/blob/d5dd1fbb6aec214c743e34fba9434f7f131ae6f1/specs/backlog/BL-tests-umask.md)（#2171 已合入） |
 |  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
 | [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |
 | [75](reference/batches/75.md) | [本机使用统计](reference/batches/75.md#batch-75-item-1) |
@@ -247,8 +247,8 @@
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |
-| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1) |
-|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2) |
+| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1)（#2148 已合入） |
+|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2)（#2149 已合入） |
 | [94](reference/batches/94.md) | [重新安装同版本开发 App 后，用上刚编出来的版本](reference/batches/94.md#batch-94-item-1) |
 | [95](reference/batches/95.md) | [把 Feed 连数据库的旧函数名改准确](reference/batches/95.md#batch-95-item-1) |
 |  | [资讯更新点过「现在做」，睡醒后直接做](reference/batches/95.md#batch-95-item-2) |
@@ -259,8 +259,8 @@
 |  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
 | [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
 | [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
-| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2) |
+| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，#2186 已合入，[决定 58](reference/decisions.md#decision-58)） |
+|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
 | [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，前置 100-2，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2) |
 | [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |

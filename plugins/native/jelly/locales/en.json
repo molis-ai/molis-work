@@ -259,6 +259,13 @@
     "jelly.read-group.calendar.description": "Calendar items and progress",
     "jelly.read-group.calendar.title": "Calendar",
     "jelly.read-group.notes.description": "Full notes, search, and reading or exporting the whole Jelly workspace",
-    "jelly.read-group.notes.title": "Notes"
+    "jelly.read-group.notes.title": "Notes",
+    "jelly.help.title": "Jelly",
+    "jelly.help.what": "Your personal calendar, notes, and periodic review space across month, week, and list views.",
+    "jelly.help.example-1": "Schedule an event or focus block and review your week at a glance",
+    "jelly.help.example-2": "Jot thoughts in Notes and check your weekly breakdown in Review",
+    "jelly.help.scope": "Lives in your personal workspace across projects; external sync or transcription runs only when you enable it.",
+    "jelly.help.advanced-summary": "Views, imports, and backups",
+    "jelly.help.advanced": "Imports preview counts first, keep a backup, and skip duplicates automatically."
   }
 }

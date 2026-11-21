@@ -929,6 +929,13 @@
     "goals.terminal.open-specific-child-goal-above": "请从上方进入一个具体的子目标。",
     "goals.terminal.parent-does-not-complete-own": "子目标全部完成后，仍需确认收尾上层目标；如需使用终端请进入具体子目标。",
     "goals.terminal.parent-does-not-use-terminal": "上层目标不直接使用终端",
-    "goals.terminal.parent-read-only-message": "这条上层目标由子目标共同完成，终端为只读。请进入一个具体的子目标继续。"
+    "goals.terminal.parent-read-only-message": "这条上层目标由子目标共同完成，终端为只读。请进入一个具体的子目标继续。",
+    "goals.help.title": "目标",
+    "goals.help.what": "把一项要达成的目标拆成清晰结果、验收要求、前置依赖与待决事项，按列表、画布或看板持续推进与收尾。",
+    "goals.help.example-1": "新建一条目标并写清期望结果和验收标准，再拆分前置子目标",
+    "goals.help.example-2": "推进过程中记录风险、逐项认可证据，全部达标后正式收尾",
+    "goals.help.scope": "目标事实只保存在当前项目本机库里；停用或移出插件时原有目标数据会保留，随时可重新打开。",
+    "goals.help.advanced-summary": "列表、画布、看板与归档",
+    "goals.help.advanced": "三种视图展示的是同一份目标记录；已完成或取消的目标可归档退出日常列表，历史仍可回看。"
   }
 }

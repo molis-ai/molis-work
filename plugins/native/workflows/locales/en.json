@@ -251,6 +251,13 @@
     "workflows.verdict.no-result": "Result “None”",
     "workflows.verdict.result": "Result “{choice}”",
     "workflows.agent-prompt.workflows-ai-handoff.title": "AI handoff",
-    "workflows.agent-prompt.workflows-ai-handoff.purpose": "Organize the previous step’s result into content the next step can use, following this handoff’s requirements"
+    "workflows.agent-prompt.workflows-ai-handoff.purpose": "Organize the previous step’s result into content the next step can use, following this handoff’s requirements",
+    "workflows.help.title": "Workflows",
+    "workflows.help.what": "Chains plugins into a repeatable sequence and lets you choose how each step’s result passes to the next, keeping every run isolated.",
+    "workflows.help.example-1": "Start from a Feed item and pass it straight through or let AI organize it into a Pages brief",
+    "workflows.help.example-2": "Set a critical step to “I decide” so you review and edit before handing it over",
+    "workflows.help.scope": "Default pass-through runs purely locally with zero model cost; model or judgment services are called only when you select “Let AI organize” or “Filter by rule”.",
+    "workflows.help.advanced-summary": "Custom templates, edits, and stopping runs",
+    "workflows.help.advanced": "Expand “Customize handoff format (advanced)” to combine title, source, or date; ending a run keeps everything already delivered to earlier plugins."
   }
 }

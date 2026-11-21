@@ -117,6 +117,14 @@
     "images.limit.over": "{field}最多 {max} 个字符，现在有 {count} 个，请删短一些。",
     "images.limit.prompt": "图片描述",
     "images.limit.ratio": "宽高比",
-    "images.limit.size": "图片尺寸"
+    "images.limit.size": "图片尺寸",
+    "images.help.title": "图片",
+    "images.help.what": "按你的描述生成新图片，或基于已有参考图调整，所有生成记录和结果都会留在当前项目里。",
+    "images.help.example-1": "描述画面主体、构图与风格，生成一张配图或概念草图",
+    "images.help.example-2": "选定满意的一张保存为固定成果，方便放进文档或演示稿",
+    "images.help.scope": "生成图片会调用你连接的外部生图服务，按该服务商规则计费；你的提示词与所选参考图会发往该服务商。",
+    "images.help.advanced-summary": "连接生图服务与尺寸选项",
+    "images.help.advanced": "尚未连接生图服务时，点「管理服务」或在「设置 › 服务连接」添加图像服务即可回来继续，已有图片记录仍可正常浏览。",
+    "images.compose.before-action": "生成前先看清"
   }
 }

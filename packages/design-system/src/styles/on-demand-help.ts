@@ -55,5 +55,7 @@ export const ON_DEMAND_HELP_STYLES = `
   .mw-help-side__body{padding:16px;overflow:auto;flex:1;min-height:0}
 
   .mw-help-auto-trigger{position:fixed;top:10px;right:12px;z-index:20}
+  .mw-settings-help-btn{margin-left:auto;flex:none}
+  .mw-settings-help-bar{display:flex;justify-content:flex-end;margin-bottom:8px}
   @media(prefers-reduced-motion:reduce){.mw-help-card{animation:none!important}}
 `.replace(/\n\s*/g, "");

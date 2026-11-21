@@ -129,6 +129,13 @@
     "ppt.color.pale-blue": "Pale blue",
     "ppt.color.charcoal": "Charcoal",
     "ppt.color.dark-gray": "Dark gray",
-    "ppt.color.blue-gray": "Blue gray"
+    "ppt.color.blue-gray": "Blue gray",
+    "ppt.help.title": "PPT",
+    "ppt.help.what": "Edit slide decks inside your project, pick themes, present full-screen, export PowerPoint files, and freeze fixed versions.",
+    "ppt.help.example-1": "Create a deck, outline slides one by one, and preview in presentation mode",
+    "ppt.help.example-2": "Export a .pptx file or save a fixed version to deliverables",
+    "ppt.help.scope": "Decks stay in this project’s local database; AI slide drafting runs only when requested and is billed by your text model provider.",
+    "ppt.help.advanced-summary": "Presentation shortcuts and export",
+    "ppt.help.advanced": "Use arrow keys to step slides and Esc to exit presentation mode; exports save where you choose locally."
   }
 }

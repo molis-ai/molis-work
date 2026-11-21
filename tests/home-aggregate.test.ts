@@ -244,7 +244,7 @@ test("B103-01 a sleeping project is answered from its last read until it is used
   const ports: HomeAggregatePorts = {
     openProjects: () => [a, b, c].filter(project => rests.get(project.storage_key)!.state === "open"),
     whileOpen: async (_reference, work) => work(),
-    client: project => ({ discover: async () => [answering(project.project_id)], invoke: async () => { assert.ok(quiet > 0, "every read is quiet"); return { project: project.project_id }; } }),
+    client: project => fakeActionClient({ discover: async () => [answering(project.project_id)], invoke: async () => { assert.ok(quiet > 0, "every read is quiet"); return { project: project.project_id }; } }),
     context: async project => context(project.project_id),
     projectPlugins: async () => () => true,
     resting: {
@@ -294,7 +294,7 @@ test("B103-01 a reading is kept only when it read the project, and shown asleep 
       rests.set(a.storage_key, { state: "asleep", usedAt: 5 });
       return undefined;
     },
-    client: project => ({ discover: async () => [answering(project.project_id)], invoke: async () => ({ project: project.project_id }) }),
+    client: project => fakeActionClient({ discover: async () => [answering(project.project_id)], invoke: async () => ({ project: project.project_id }) }),
     context: async project => context(project.project_id),
     projectPlugins: async () => () => true,
     resting: {

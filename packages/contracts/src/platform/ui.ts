@@ -118,9 +118,18 @@ export interface UiPageTaskGrants<Element = unknown> {
   place(element: Element, key: string, options?: { signal?: AbortSignal; onChange?: (state: UiTaskGrantsAreaState) => void }): Promise<void>;
 }
 
+/** Structured confirmation dialog options (Decision 60 / UXP-05): separates title, body, and destructive tone. */
+export interface UiConfirmOptions {
+  readonly title: string;
+  readonly body?: string;
+  readonly confirmLabel?: string;
+  readonly cancelLabel?: string;
+  readonly tone?: "default" | "danger";
+}
+
 /** Modal page interactions work without native browser dialogs in an isolated view. Closing the view cancels them. */
 export interface UiPageDialogs {
-  confirm(message: string): Promise<boolean>;
+  confirm(message: string | UiConfirmOptions): Promise<boolean>;
   prompt(message: string, initial?: string): Promise<string | null>;
 }
 

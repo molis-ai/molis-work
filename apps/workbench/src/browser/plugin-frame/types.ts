@@ -30,7 +30,7 @@ export interface FrameHost {
   openBeside?(...args: unknown[]): void;
   openPlugin?(...args: unknown[]): void;
   hideDirectory?(): void;
-  showToast?(message: string, failure?: boolean): void;
+  showToast?(message: string, failure?: boolean | { tone?: "default" | "success" | "warning" | "error"; duration?: "short" | "normal" | "long" | number }): void;
   readRefusal?(status: number, code: unknown): string;
   status?(...args: unknown[]): void;
   openView?(root: HTMLElement, selection: UiViewSelection): void;

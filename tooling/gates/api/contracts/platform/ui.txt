@@ -725,6 +725,14 @@ export interface UiComponentSpec {
     readonly icon: string;
 }
 
+export interface UiConfirmOptions {
+    readonly title: string;
+    readonly body?: string;
+    readonly confirmLabel?: string;
+    readonly cancelLabel?: string;
+    readonly tone?: "default" | "danger";
+}
+
 export type UiConnectionNeedOutcome = {
     readonly status: "connected";
     readonly account: {
@@ -988,7 +996,7 @@ export interface UiPageActions {
 }
 
 export interface UiPageDialogs {
-    confirm(message: string): Promise<boolean>;
+    confirm(message: string | UiConfirmOptions): Promise<boolean>;
     prompt(message: string, initial?: string): Promise<string | null>;
 }
 

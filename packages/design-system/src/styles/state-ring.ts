@@ -19,5 +19,6 @@ export const STATE_RING_STYLES = `
   [data-mw-state][aria-hidden=true] > .mw-state-ring, .assistant-state-ring > .mw-state-ring { margin: 0; }
   .mw-btn--primary .mw-state-ring, .mw-btn--danger .mw-state-ring { --ring-neutral: currentColor; }
   .mw-spinner > .mw-state-ring { width: 100%; height: 100%; }
+  .mw-state-ring--fixed { --ring-size: 20px; width: 20px; height: 20px; }
   @media (prefers-reduced-motion: reduce) { .mw-state-ring path { transition: none; } }
 `;

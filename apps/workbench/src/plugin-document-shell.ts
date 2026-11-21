@@ -1,5 +1,5 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { COPY_FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, renderIconSprite, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, CRAFT_FINISH_CLIENT_SCRIPT, FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, renderIconSprite, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderLanguageHead } from "./language-resource.js";
@@ -21,7 +21,7 @@ export function renderPluginDocumentShell(input: {
     + '<script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">' + appearanceHead(input.appearance)
     + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}[data-work-surface]{position:relative;display:block;width:100%;height:100%}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}</style></head><body' + (input.accountRegistration ? ACCOUNT_REGISTRATION_BODY : '') + '>'
     + renderIconSprite() + renderPluginFrameSurface(input.html, input.id, input.title, false, false, input.bundle)
-    + '<script>' + CONTROL_CLIENT_SCRIPT + MICRO_INTERACTION_CLIENT_SCRIPT + COPY_FEEDBACK_CLIENT_SCRIPT + STATE_RING_CLIENT_SCRIPT + '</script><script src="/assets/molis-work-plugin-frame.js"></script><script>'
+    + '<script>' + CONTROL_CLIENT_SCRIPT + MICRO_INTERACTION_CLIENT_SCRIPT + COPY_FEEDBACK_CLIENT_SCRIPT + FEEDBACK_CLIENT_SCRIPT + CRAFT_FINISH_CLIENT_SCRIPT + REFLOW_CLIENT_SCRIPT + STATE_RING_CLIENT_SCRIPT + '</script><script src="/assets/molis-work-plugin-frame.js"></script><script>'
     + 'const root=document.querySelector("[data-work-surface]"),holder=frameElement;'
     + 'const owned=holder?.parentElement?.dataset.installedPlugin===' + literal(input.plugin_id) + ',position=()=>owned?parent.molisWorkbenchPositionFrom?.(holder):null;'
     + 'const mounted=molisPluginFrames.mount(root,{translate:s=>s,positionNavigationFrom:()=>position()?.navigationFrom(),positionChanged:()=>position()?.changed(),mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'

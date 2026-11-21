@@ -351,6 +351,46 @@ export interface ComposerHandle {
   destroy(): void;
 }
 
+/** Shared toast presentation options (`window.molisToast` / `host.showToast`). */
+export interface MolisToastOptions {
+  readonly tone?: "default" | "success" | "warning" | "error";
+  readonly duration?: "short" | "normal" | "long" | number;
+  readonly action?: { readonly label: string; readonly onClick: () => void };
+  readonly undo?: () => void;
+  readonly undoLabel?: string;
+}
+
+/** Shared button busy options (`window.molisBusy`). */
+export interface MolisBusyOptions {
+  readonly delayMs?: number;
+}
+
+/** Five-state autosave lifecycle (`window.molisAutosave`). */
+export type AutosaveState = "idle" | "dirty" | "saving" | "saved" | "error";
+
+export interface AutosaveOptions {
+  readonly debounceMs?: number;
+  readonly delayMs?: number;
+  readonly savedHoldMs?: number;
+  readonly statusEl?: HTMLElement | null;
+  readonly labels?: Partial<Record<AutosaveState, string>>;
+  readonly onStateChange?: (state: AutosaveState, error?: unknown) => void;
+}
+
+export interface AutosaveController {
+  readonly state: AutosaveState;
+  markDirty(): void;
+  flush(): Promise<boolean>;
+  retry(): Promise<boolean>;
+  dispose(): void;
+}
+
+/** Optimistic toggle options (`window.molisOptimisticToggle`). */
+export interface OptimisticToggleOptions {
+  readonly errorMessage?: string;
+  readonly onRollback?: (error: unknown) => void;
+}
+
 declare global {
   interface Window {
     /** `window.molisComposer(root, options)`: the unified input in `root`; mounting the same root again lets the last one go first. */
@@ -364,6 +404,8 @@ declare global {
      * this" while a drag it does not take, and that came from outside the page, is over it. */
     molisDropZone?: (zone: Element | string, mark: DropMark, accepts?: DropAccepts, reason?: string) => void;
     molisReflow?: Reflow;
+    /** Alias for `window.molisReflow` with smooth container height breathing for zero-refresh list transitions. */
+    molisListTransition?: Reflow;
     /** `window.molisShowMore(list, options)`: keeps a long list's first items in sight and the rest behind one button. */
     molisShowMore?: (list: HTMLElement, options: ShowMoreOptions) => void;
     molisFollow?: (scroller: HTMLElement, options?: { onChange?: (state: FollowState) => void }) => ScrollFollower;
@@ -375,5 +417,15 @@ declare global {
     molisAnnounce?: (text: string) => void;
     /** `window.molisFit(field)`: fits a `data-fit` field again after its value was set by code (a draft put back). */
     molisFit?: (field: HTMLTextAreaElement) => void;
+    /** `window.molisBusy(button, work, options)`: disables only the action button and waits 250ms before showing its spinner. */
+    molisBusy?: <T>(button: HTMLButtonElement | HTMLElement, work: () => Promise<T>, options?: MolisBusyOptions) => Promise<T>;
+    /** `window.molisToast(message, options)`: unified host toast with 3 duration tiers, hover-pause, undo/action, and --helm-h clearance. */
+    molisToast?: (message: string, options?: boolean | MolisToastOptions) => void;
+    /** `window.molisAutosave(target, save, options)`: five-state autosave lifecycle with 250ms silent saving threshold. */
+    molisAutosave?: (target: HTMLElement, save: () => Promise<unknown>, options?: AutosaveOptions) => AutosaveController;
+    /** `window.molisOptimisticToggle(control, work, options)`: flips control immediately and rolls back with toast on failure. */
+    molisOptimisticToggle?: (control: HTMLInputElement | HTMLButtonElement, work: (next: boolean) => Promise<unknown>, options?: OptimisticToggleOptions) => Promise<boolean>;
+    /** `window.molisEnhanceDateInputs(root)`: progressively enhances native date/time inputs with consistent control styling and clear action. */
+    molisEnhanceDateInputs?: (root?: ParentNode) => void;
   }
 }

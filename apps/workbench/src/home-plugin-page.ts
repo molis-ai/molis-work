@@ -2,7 +2,7 @@ import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideViewBridgeScript } from "./side-view-document.js";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { COPY_FEEDBACK_CLIENT_SCRIPT, DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, CRAFT_FINISH_CLIENT_SCRIPT, DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FEEDBACK_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument } from "./document-shell.js";
@@ -71,6 +71,6 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
       const button=event.currentTarget;button.disabled=true;
       try{await molisWorkRequest('/api/plugins/${encodeURIComponent(entry.manifest.plugin_id)}/'+button.dataset.homeLifecycle,{body:{},fallback:globalThis.t.text("workbench.home-plugin-page.couldn-t-change-plugin-state")});location.reload();
       }catch(error){const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;button.disabled=false;}
-    });${MICRO_INTERACTION_CLIENT_SCRIPT}${COPY_FEEDBACK_CLIENT_SCRIPT}${SCROLL_FOLLOW_CLIENT_SCRIPT}${STATE_RING_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${MEDIA_ZOOM_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${OVERFLOW_FADE_CLIENT_SCRIPT}${FIELD_FIT_CLIENT_SCRIPT}${ROVING_FOCUS_CLIENT_SCRIPT}${FLOATING_DETAILS_CLIENT_SCRIPT}${TIP_CLIENT_SCRIPT}${HOME_MODEL_SETTINGS_CLIENT_SCRIPT}
+    });${MICRO_INTERACTION_CLIENT_SCRIPT}${COPY_FEEDBACK_CLIENT_SCRIPT}${FEEDBACK_CLIENT_SCRIPT}${CRAFT_FINISH_CLIENT_SCRIPT}${REFLOW_CLIENT_SCRIPT}${SCROLL_FOLLOW_CLIENT_SCRIPT}${STATE_RING_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${MEDIA_ZOOM_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${OVERFLOW_FADE_CLIENT_SCRIPT}${FIELD_FIT_CLIENT_SCRIPT}${ROVING_FOCUS_CLIENT_SCRIPT}${FLOATING_DETAILS_CLIENT_SCRIPT}${TIP_CLIENT_SCRIPT}${HOME_MODEL_SETTINGS_CLIENT_SCRIPT}
     ${side ? sideViewBridgeScript(route) : ""}${homeToolKeysScript()}${side ? `addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&!document.querySelector('dialog[open],:popover-open'))parent.postMessage({type:'molis:side-close'},location.origin);});` : ""}</script>` });
 }

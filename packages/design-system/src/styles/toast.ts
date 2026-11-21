@@ -11,6 +11,8 @@ export const TOAST_STYLES = `
     font-size: 13px; line-height: 18px; animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both;
   }
   .mw-toast[hidden] { display: none; }
+  .mw-toast--host { position: fixed; inset-inline: 0; bottom: calc(var(--helm-h, 56px) + 12px); margin-inline: auto; z-index: 90; pointer-events: auto; }
+  .mw-date-input { font-variant-numeric: tabular-nums; }
   .mw-toast[data-ring-mounted] { padding-left: 38px; }
   .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 14px; top: 16.5px; }
   .mw-toast.is-error { animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both, mw-toast-nudge var(--dur-arrive, 420ms) var(--ease-quint) var(--dur-hover, 130ms); }

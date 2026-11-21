@@ -91,8 +91,12 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-back:hover { background: var(--nav-hover); color: var(--ink); }
   .plugin-stage-back svg { width: 16px; height: 16px; transform: rotate(180deg); }
   .plugin-stage-detail-bar {
-    display: flex; align-items: center; gap: 8px; flex: none;
-    min-height: 48px; padding: 8px 16px 8px 24px;
+    display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: nowrap;
+    min-height: 48px; padding: 8px 16px 8px 24px; overflow: hidden;
+  }
+  @container plugin-stage (max-width: 560px) {
+    .plugin-stage-detail-bar { padding: 8px 12px 8px 16px; gap: 6px; }
+    .plugin-stage-detail-bar > span { display: none; }
   }
   .plugin-stage-detail-bar > .feed-detail-kicker {
     margin: 0; flex: 1; min-width: 0;

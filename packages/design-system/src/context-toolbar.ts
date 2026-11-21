@@ -27,7 +27,7 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  */
 export const CONTEXT_TOOLBAR_STYLES = `
 .mw-ctx, .mw-ctx-menu, .mw-ctx-panel { position: fixed; max-width: calc(100vw - 16px); background: var(--popover, var(--paper)); }
-.mw-ctx { z-index: 50; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 8px; box-shadow: var(--shadow-raised); }
+.mw-ctx { z-index: 50; display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--control-border); border-radius: 10px; box-shadow: var(--shadow-raised), inset 0 1px 0 var(--edge-highlight, transparent); }
 .mw-ctx[hidden] { display: none; }
 .mw-ctx[data-away] { visibility: hidden; pointer-events: none; }
 @media (prefers-reduced-motion: no-preference) { .mw-ctx:not([data-away]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); } }
@@ -42,7 +42,7 @@ export const CONTEXT_TOOLBAR_STYLES = `
 .mw-ctx .mw-btn[data-emphasis=true] { color: var(--accent-strong); }
 .mw-ctx[data-tight] [data-key] { flex-shrink: 1; min-width: 44px; }
 .mw-ctx[data-tight] [data-key] > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.mw-ctx-menu, .mw-ctx-panel { overflow: auto; border-radius: var(--r-card, 12px); box-shadow: var(--shadow); }
+.mw-ctx-menu, .mw-ctx-panel { overflow: auto; border: 1px solid var(--control-border); border-radius: var(--r-card, 12px); box-shadow: var(--shadow), inset 0 1px 0 var(--edge-highlight, transparent); }
 .mw-ctx-menu { z-index: 52; min-width: 200px; max-height: 45dvh; padding: 6px; }
 .mw-ctx-menu__item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; min-height: 34px; padding: 6px 10px; border: 0; border-radius: var(--r-control, 8px); background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .mw-ctx-menu__item:hover:not(:disabled), .mw-ctx-menu__item:focus-visible { background: var(--nav-hover); outline: none; }

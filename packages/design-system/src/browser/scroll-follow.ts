@@ -86,12 +86,30 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   const follower: Follower = {
     get state() { return state; },
     pin() {
-      if (state !== FOLLOWING || frame) return;
+      if (state !== FOLLOWING || frame) {
+        return;
+      }
+      const instant = () => matchMedia("(prefers-reduced-motion: reduce)").matches
+        || document.documentElement.hasAttribute("data-craft-still")
+        || Boolean(navigator.webdriver);
       const land = () => {
         frame = 0;
-        if (state !== FOLLOWING) return;
-        if (pressed !== null || performance.now() - lastInput < FOLLOW_COOLDOWN_MS) frame = requestAnimationFrame(land);
-        else scroller.scrollTop = scroller.scrollHeight;
+        if (state !== FOLLOWING) {
+          return;
+        }
+        if (pressed !== null || performance.now() - lastInput < FOLLOW_COOLDOWN_MS) {
+          frame = requestAnimationFrame(land);
+          return;
+        }
+        const gap = followDistance(scroller);
+        if (gap <= 2 || gap > 420 || instant()) {
+          scroller.scrollTop = scroller.scrollHeight;
+          return;
+        }
+        scroller.scrollTop += Math.max(2, Math.ceil(gap * 0.32));
+        if (followDistance(scroller) > 1) {
+          frame = requestAnimationFrame(land);
+        }
       };
       frame = requestAnimationFrame(land);
     },

@@ -113,7 +113,17 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
   if (!Array.isArray(args) || args.length > 3) return;
   const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
   if (message.name === "showToast") {
-    if (text(args[0], 4000) && (args[1] === undefined || typeof args[1] === "boolean")) host.showToast?.(args[0], args[1] === true);
+    if (text(args[0], 4000)) {
+      const opt = args[1];
+      if (opt === undefined || typeof opt === "boolean") {
+        host.showToast?.(args[0], opt === true);
+      } else if (opt && typeof opt === "object" && !Array.isArray(opt)) {
+        const record = opt as Record<string, unknown>;
+        const tone = record.tone === "error" || record.tone === "warning" || record.tone === "success" || record.tone === "default" ? record.tone : undefined;
+        const duration = typeof record.duration === "number" || record.duration === "short" || record.duration === "normal" || record.duration === "long" ? record.duration : undefined;
+        host.showToast?.(args[0], { tone, duration });
+      }
+    }
   } else if (message.name === "openPlugin") {
     if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) openPlugin(host, args[0], prefix, args[1], args[2]);
   } else if (message.name === "openItem" || message.name === "openBeside") {

@@ -7059,6 +7059,8 @@
     "workbench.settings-navigation.current": "当前",
     "workbench.settings-navigation.choose-to-go": "点一件，整页换过去",
     "workbench.settings-navigation.projects": "项目",
+    "workbench.settings-navigation.filter-settings": "筛选设置",
+    "workbench.settings-navigation.no-matching-settings": "没有匹配的设置项",
     "workbench.settings-page.agents-can-use-these-pieces-again": "已允许 AI 读取所选资料",
     "workbench.settings-page.choice": "选择",
     "workbench.settings-page.count": "{count} 份",

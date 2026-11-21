@@ -79,7 +79,9 @@ export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrim
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.settings")}</span></div>
     <div class="plugin-section-body">
+      <div class="settings-nav-filter settings-nav-filter--drawer"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
       ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown, desktop), "appearance", "workbench.settings-directory.system-settings", "settings")}
+      <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
     </div>
   </section>`;
 }

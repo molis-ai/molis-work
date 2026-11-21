@@ -421,7 +421,7 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   for (const word of ["--page: #f5f7fa;", "--paper: #ffffff;", "--ink: #15202b;", "--muted: #5a6877;", "--faint: #63707f;"]) {
     assert.ok(light.includes(word), word);
   }
-  for (const word of ["--page: #0f1318;", "--paper: #192029;", "--ink: #ecf1f6;", "--muted: #8c9ba9;", "--faint: #82919f;"]) {
+  for (const word of ["--page: #0f1318;", "--paper: #192029;", "--ink: #ecf1f6;", "--muted: #95a5b5;", "--faint: #8797a6;"]) {
     assert.ok(dark.includes(word), word);
   }
   assert.match(light, /--hue-indigo: #5e6ad2;/);

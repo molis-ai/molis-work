@@ -10479,6 +10479,8 @@
     "workbench.account-bar.settings": "Settings",
     "workbench.settings-navigation.all-projects": "All projects",
     "workbench.settings-navigation.new-project": "New project",
+    "workbench.settings-navigation.filter-settings": "Filter settings",
+    "workbench.settings-navigation.no-matching-settings": "No matching settings",
     "workbench.account-menu.molis-account": "Molis account",
     "common.help.about-this": "About this",
     "common.help.close": "Close help",

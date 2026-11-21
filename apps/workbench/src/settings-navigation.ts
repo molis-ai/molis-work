@@ -128,10 +128,12 @@ function renderSettingsNavigation(
   const projectHome = project ? `/projects/${encodeURIComponent(project.project_id)}/` : "/";
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${uiText("workbench.settings-navigation.system-settings")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${uiText("workbench.settings-navigation.return-project")}</a>
+    <div class="settings-nav-filter"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
     <div class="settings-nav-body">
       ${groupedGlobalSettingsSections(shownPlugins, desktopShell, dynamicPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
       ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
     </div>
+    <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
   </nav>`;
 }
 

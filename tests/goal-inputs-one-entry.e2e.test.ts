@@ -73,9 +73,12 @@ test("a proposed input on a Goal reads 待确认 and is accepted or removed from
   const b = await openGoalBrowser(t, "seeded", seed, null); if (!b) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals&openItem=V1&openGoalView=work` }, sessionId));
-  await waitFor("Boolean(document.querySelector('[data-goal-view=\"V1\"] [data-goal-materials-entry]'))", 15_000);
-  await click('[data-goal-view="V1"] [data-goal-materials-entry]');
+  const openInputs = async () => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals&openItem=V1&openGoalView=work` }, sessionId));
+    await waitFor("Boolean(document.querySelector('[data-goal-view=\"V1\"] [data-goal-materials-entry]'))", 15_000);
+    await click('[data-goal-view="V1"] [data-goal-materials-entry]');
+  };
+  await openInputs();
   const row = (item: string) => `[data-goal-inputs] [data-goal-input-binding="binding-${item}"]`;
   await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-accept]')?.getClientRects().length)`, 10_000);
 
@@ -92,7 +95,9 @@ test("a proposed input on a Goal reads 待确认 and is accepted or removed from
   assert.equal(await evaluate(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-accept], ${row("item-accept")} [data-goal-input-release]'))`), false);
   assert.equal(await evaluate(`document.querySelector('${row("item-remove")} [data-goal-input-state]').textContent`), "待确认", "the other proposal is untouched");
 
-  // Removing takes the proposal off the Goal.
+  // Reopen the list and verify the accepted state came back from storage before removing the other proposal.
+  await openInputs();
+  await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-state="confirmed"]'))`, 10_000);
   await click(`${row("item-remove")} [data-goal-input-release]`);
   await waitFor(`!document.querySelector('${row("item-remove")}')`, 10_000);
 

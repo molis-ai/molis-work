@@ -57,7 +57,7 @@ test("RAC-212 RAC-2378 product code never opens or registers the retired store",
     .filter(path => /session_meta/u.test(text(path)) && !path.startsWith("horizontal/sessions/src/"));
   assert.deepEqual(metaOffenders, [], "only external-sessions/external-sessions.db (BL-177 §9.2) defines session_meta");
   const mentions = productSources().map(path => relative(root, path))
-    .filter(path => /join\([^)]*["']sessions["']/u.test(source(path)) && !path.startsWith("plugins/native/coding/"));
+    .filter(path => /join\([^)]*["']sessions["']/u.test(text(path)) && !path.startsWith("plugins/native/coding/"));
   assert.deepEqual(mentions, [], "the only place that names the directory is the store registry");
 });
 

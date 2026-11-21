@@ -46,7 +46,7 @@
     "workbench.scene.on": "开启",
     "workbench.scene.off": "关闭",
     "workbench.scene.device-only": "仅此设备",
-  "workbench.scene.personal": "个人默认",
+    "workbench.scene.personal": "个人默认",
     "workbench.scene.new_project": "新建项目",
     "workbench.scene.provider_default": "提供方默认",
     "workbench.scene.reach": "会影响此范围内后续的工作",

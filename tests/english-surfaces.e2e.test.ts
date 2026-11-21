@@ -184,18 +184,21 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "the materials reader in English fits");
 });
 
-/** Chinese in the markup the Host sent for `selector` (text, every attribute and template contents, shown or not). */
-const HAN_IN_MARKUP = (url: string, selector: string) => `(async () => {
+/**
+ * Chinese in the markup the Host sent for `selector` (text, every attribute and template contents, shown or not). Text inside
+ * `own` holds the person's own words (a project's name): it is returned apart, in `own`, found by where it is, not by what it says.
+ */
+const HAN_IN_MARKUP = (url: string, selector: string, own = "") => `(async () => {
   const page = new DOMParser().parseFromString(await (await fetch(${JSON.stringify(url)})).text(), 'text/html');
   for (const node of page.querySelectorAll('script[data-plugin-document]')) { const parsed = new DOMParser().parseFromString(JSON.parse(node.textContent), 'text/html'); node.parentElement.replaceWith(...parsed.body.childNodes); }
-  const out = [], han = /[\\u4e00-\\u9fff]/, scopes = [...page.querySelectorAll(${JSON.stringify(selector)})];
+  const out = [], mine = [], own = ${JSON.stringify(own)}, han = /[\\u4e00-\\u9fff]/, scopes = [...page.querySelectorAll(${JSON.stringify(selector)})];
   for (const t of [...scopes.flatMap((scope) => [...scope.querySelectorAll('template')])]) scopes.push(t.content);
   for (const scope of scopes) {
     const walk = page.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
-    for (let node; (node = walk.nextNode());) if (han.test(node.data)) out.push(node.data.trim());
+    for (let node; (node = walk.nextNode());) if (han.test(node.data)) (own && node.parentElement.closest(own) ? mine : out).push(node.data.trim());
     for (const el of [...(scope.attributes ? [scope] : []), ...scope.querySelectorAll('*')]) for (const { name, value } of el.attributes) if (han.test(value)) out.push('@' + name + ' ' + value);
   }
-  return { found: scopes.length > 0, han: [...new Set(out)] };
+  return { found: scopes.length > 0, han: [...new Set(out)], ...(own ? { own: [...new Set(mine)] } : {}) };
 })()`;
 
 test("VUX-40: the Coding page, its own script's words and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
@@ -214,9 +217,10 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   assert.deepEqual(await evaluate(HAN_IN_MARKUP(coding, "[data-coding-workbench]")), { found: true, han: [] }, "Coding in English");
   // The project's name is the person's own; the line around it is English. POLISH-30: the line is a row's name now, and
   // "Switch project" is that row's button, so no " ·" follows the name.
-  const inSettings = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"));
-  assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+$/.test(line)), [], "Coding settings in English");
-  assert.equal(inSettings.han.length, 1, "the current project line is there, in English");
+  const inSettings = await evaluate<{ found: boolean; han: string[]; own: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]", "[data-coding-project-line]"));
+  assert.deepEqual(inSettings.han, [], "Coding settings in English");
+  assert.equal(inSettings.own.length, 1, "the current project line is there");
+  assert.match(inSettings.own[0]!, /^Current project: /, "and the line around the person's own name is English");
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));
   active = views.coding!;

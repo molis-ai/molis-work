@@ -248,7 +248,7 @@ async function open(t: TestContext, locale: "zh" | "en" = "zh") {
   await load();
   const key = async (modifiers = 0, code = 13) => {
     const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, modifiers };
-    await page.command("Input.dispatchKeyEvent", { type: "keyDown", ...enter, ...(modifiers ? {} : { text: "\r" }) });
+    await page.command("Input.dispatchKeyEvent", { type: "keyDown", ...enter, ...(modifiers & 7 ? {} : { text: "\r" }) });
     await page.command("Input.dispatchKeyEvent", { type: "keyUp", ...enter });
   };
   const type = (text: string) => page.command("Input.insertText", { text });
@@ -274,16 +274,12 @@ test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one sen
   assert.equal(empty.min, 40, "the composer's own min-height: two 20px lines (13px body on the type scale), no padding");
   assert.equal(Math.round(empty.h), empty.min);
   await type("把第 3 步的测试补上");
-  // UIC-06: a plain Enter after one written line breaks it and says once how to send now.
-  await key();
-  assert.equal((await state()).text, "把第 3 步的测试补上\n", "Enter breaks the line");
-  assert.match((await state()).status, /回车已改为换行。要发送请按 (⌘↵|Ctrl\+↵)/);
+  // POLISH-52 (UIV §10.5, user 2026-11-16): Shift+Enter breaks the line and sends nothing; Enter sends, so the one-time hint that
+  // Enter had become a new line no longer comes.
+  await key(SHIFT);
+  assert.equal((await state()).text, "把第 3 步的测试补上\n", "Shift+Enter breaks the line");
+  assert.doesNotMatch((await state()).status, /回车已改为换行/);
   assert.deepEqual(mount.sent, []);
-  await page.click("[data-composer-status-action=hint]");
-  assert.equal((await state()).status, "", "知道了 puts the hint away");
-  await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = "第二行"; f.setSelectionRange(3, 3); f.dispatchEvent(new InputEvent("input", { bubbles: true })); })()`);
-  await key();
-  assert.doesNotMatch((await state()).status, /回车已改为换行/, "the hint is shown once, never again");
   await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = Array.from({ length: 40 }, (_, i) => "第 " + i + " 行").join("\\n"); f.dispatchEvent(new InputEvent("input", { bubbles: true })); })()`);
   const tall = await measure();
   assert.equal(Math.round(tall.h), Math.round(fieldHeight(tall.scroll, tall.min, Math.min(FIELD_FIT_MAX, tall.window * FIELD_FIT_ROOM))), "fieldHeight(content, min, max)");
@@ -291,9 +287,13 @@ test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one sen
   // UIC-05 UIV-02: a composition open (Chinese input) takes ⌘/Ctrl+Enter for itself, by isComposing or keyCode 229.
   await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = ""; f.dispatchEvent(new InputEvent("input", { bubbles: true })); f.focus(); })()`);
   await page.command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 });
+  // A plain Enter the input method takes (isComposing, or WebKit's keyCode 229): sent as the page sees it, since a synthetic
+  // CDP key either types a line break the IME would have swallowed or loses the composing flag.
+  await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input");
+    for (const init of [{ isComposing: true, keyCode: 13 }, { isComposing: false, keyCode: 229 }]) f.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, ...init })); })()`);
   await key(META);
   await key(META, 229);
-  assert.deepEqual(mount.sent, [], "nothing goes while composing");
+  assert.deepEqual(mount.sent, [], "nothing goes while composing, by Enter or ⌘/Ctrl+Enter");
   await page.command("Input.insertText", { text: "测试" });
   assert.equal((await state()).text, "测试");
   // UIV-03: one send per request: the button locks while it is under way; ⌘↵ three times sends once.
@@ -588,7 +588,7 @@ const AI_EN: MwComposerAiLabels = {
   searching: "Looking…", nothing: "Nothing found", unavailable: "{name} is unavailable now", reading: "Reading {name}", remove: "Remove {name}", retryFile: "Retry {name}",
   blocked: "Remove the item that cannot attach, then send", restored: "Restored your unsent draft · {time}", clear: "Clear draft",
   unsaved: "The draft could not be saved on this computer; your text is still here and can be sent",
-  enterHint: "Enter now starts a new line. To send, press {keys}", enterHintDismiss: "Got it", notice: "Note", sending: "Sending", sendingText: "Sending…",
+  notice: "Note", sending: "Sending", sendingText: "Sending…",
   failed: "Not sent", retry: "Retry", unknown: "Unconfirmed", unknownText: "Could not confirm it arrived; do not send it again yet", check: "Check",
   notSent: "Checked: it did not arrive. Your text is still here",
   to: "Send to:", stop: "Stop", stopTitle: "Stop this turn", delivery: "Choose how it is delivered", deliveryGroup: "Delivery",

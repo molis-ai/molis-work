@@ -38,9 +38,12 @@ export async function followWorkspace(page: Page) {
 export function showWorkspace(page: Page, path: string | null | undefined, fallback: string) {
   const { q, root, turns } = page;
   const label = q("[data-coding-workspace-label]"), name = path ? path.split("/").filter(Boolean).at(-1) ?? "" : fallback;
-  label.innerHTML = (path ? '<svg aria-hidden="true"><use href="#icon-folder"></use></svg>' : "") + "<span></span>";
+  // The header says where in two words: the repository's folder and the branch it is on (screen-polish §6.4).
+  const readiness = page.s.state.environment_readiness;
+  const branch = path && readiness && readiness.status !== "unavailable" && readiness.is_git_repo && readiness.branch && (!readiness.canonical_path || readiness.canonical_path === path) ? readiness.branch : "";
+  label.innerHTML = (path ? `<svg aria-hidden="true"><use href="#icon-${branch ? "git-branch" : "folder"}"></use></svg>` : "") + "<span></span>";
   const text = label.lastChild;
-  if (text) text.textContent = name;
+  if (text) text.textContent = branch ? name + " · " + branch : name;
   label.title = path || "";
   label.dataset.empty = String(!path);
   root.dataset.codingWorkspaceName = path ? name : "";

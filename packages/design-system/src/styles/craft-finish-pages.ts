@@ -21,8 +21,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
     ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
     ${SHELL} .dock-pins::before { left: -1px; }
-    ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
-    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -1px; }
     html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-side) { gap: 0; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
@@ -42,7 +40,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     html ${SHELL} .workbench-header .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
     html ${SHELL} .workbench-header .plugin-picker-extend { flex: 1 1 100%; }
     html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
-    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px) + var(--context-row, 0px)); width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + var(--line-rise, 0px) + 6px + var(--next-row, 0px) + var(--context-row, 0px)); width: auto; height: min(70dvh, 560px); }
     /* The next steps' band, from the panel's edge down to the bar, is the bar's own ground: the page does not show between the steps.
        It sits on the bar's top edge, above what of the line stacks over the input at this width (--center-rise, measured). */
     ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px calc(100% + var(--center-rise, 0px)); max-width: none; padding: 8px 8px 6px; background: var(--desk); }
@@ -317,7 +315,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* Writing gets the whole height of a short window: while a record form is open the bar steps aside, and it
      returns when the form closes. Phones held sideways or with the keyboard up are short windows too. */
   @media (max-height: 560px) {
-    ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; }
+    ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; --dock-min: 0px; }
     ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
   }
 

@@ -61,6 +61,13 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   assert.equal(await evaluate("document.querySelector('[data-mcp-access]').dataset.clientId"), "runtime:ui-alpha");
   await search(a.directionCreate.capability_id);
   assert.equal(await status(a.directionCreate.capability_id), "ungranted");
+  // POLISH-30: a search that matches nothing says so in two lines, a title over one sentence (the empty state the first step's
+  // row does not replace), and the search still finds the capability afterwards.
+  await search("no-capability-is-called-this");
+  assert.deepEqual(await evaluate(`(() => { const empty = document.querySelector('[data-mcp-access] .settings-empty'), title = empty.querySelector('strong').getBoundingClientRect(), note = empty.querySelector('span').getBoundingClientRect();
+    return [title.width > 0 && note.width > 0, note.top >= title.bottom - 0.5]; })()`), [true, true], "nothing matches: a title over a sentence on its own line");
+  await search(a.directionCreate.capability_id);
+  assert.equal(await status(a.directionCreate.capability_id), "ungranted");
   // Changing the visible scope must never leave the old scope actionable.
   const savedBeforeScopeChange = await readMcpToolPreference(homeDirectory);
   for (const select of ['[data-mcp-client]', '[name=project]']) {

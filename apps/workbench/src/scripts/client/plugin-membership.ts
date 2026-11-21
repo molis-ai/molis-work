@@ -81,8 +81,8 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     for (const attr of [...live.attributes]) if (!keep.includes(attr.name) && !next.hasAttribute(attr.name)) live.removeAttribute(attr.name);
     for (const attr of [...next.attributes]) if (!keep.includes(attr.name) && live.getAttribute(attr.name) !== attr.value) live.setAttribute(attr.name, attr.value);
   };
-  // What the client owns on a tile (kept in the Dock, being asked, busy, retained-data badge) is left alone; everything else follows the server.
-  const OWN = ['is-kept', 'is-confirming', 'is-busy', 'is-retained'];
+  // What the client owns on a tile (being asked, busy, retained-data badge) is left alone; everything else follows the server.
+  const OWN = ['is-confirming', 'is-busy', 'is-retained'];
   const patchTile = (live, next) => {
     const classes = new Set([...live.classList].filter((name) => OWN.includes(name)));
     next.classList.forEach((name) => { if (!OWN.includes(name)) classes.add(name); });
@@ -93,10 +93,8 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     const buttons = [...live.querySelectorAll(':scope > .plugin-rail-ops > button')], buttonsNext = [...next.querySelectorAll(':scope > .plugin-rail-ops > button')];
     buttons.forEach((button, index) => {
       const mate = buttonsNext[index]; if (!mate) return;
-      // The pin's colour is the Dock's (this browser's choice); the plus's and the trash can's colour is the project's.
-      const dockOwned = button.matches('.dock-keep');
-      attrs(button, mate, dockOwned ? ['class', 'aria-pressed'] : ['class']);
-      if (!dockOwned) button.className = mate.className;
+      attrs(button, mate, ['class']);
+      button.className = mate.className;
       const words = button.querySelector('.mw-sr-only'), wordsNext = mate.querySelector('.mw-sr-only');
       if (words && wordsNext) words.textContent = wordsNext.textContent;
     });
@@ -250,7 +248,6 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       const state = added ? 'added' : 'available';
       if (toggle.dataset.state === state) continue;
       toggle.dataset.state = state;
-      tile.querySelector('.dock-keep').disabled = !added;
       tile.querySelector('.rail-beside').disabled = !added;
       toggle.title = readText(added ? "workbench.immersive-shell.turn-off-project-its-data-stays-comes-back" : "workbench.immersive-shell.add-project");
       const label = readText(added ? "workbench.immersive-shell.remove-name" : "workbench.immersive-shell.add-name", { name: nameOf(id) });

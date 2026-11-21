@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { DEFAULT_SESSION_TITLE } from "./session-title.js";
 import { CODING_SETTINGS_STYLES } from "./settings-styles.js";
 import { codingUsageSummary } from "./usage.js";
-import { CODING_SESSION_MARKS } from "./session-marks.js";
+import { CODING_SESSION_ASKS, CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
   SettingsPageModel,
   UiContribution,
@@ -10,7 +10,7 @@ import type {
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderButton, renderComposer, renderDirectoryHeading, renderDirectoryPanel, renderSettingRow, renderSettingsSection, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderButton, renderComposer, renderDirectoryHeading, renderDirectoryPanel, renderMenu, renderMenuItem, renderSettingRow, renderSettingsSection, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingComposerLabels, codingIntentOptions } from "./composer-labels.js";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
@@ -144,18 +144,20 @@ function renderCodingFilesFace(p: CodingUiPrimitives): string {
 
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
-  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(uiText.text(face.label))}" aria-label="${p.escape(uiText.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
+  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(uiText.text(face.label))}" aria-label="${p.escape(uiText.text(face.label))}">${p.icon(face.icon)}<span class="coding-face-name">${p.escape(uiText.text(face.label))}</span></button>`).join("");
   const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter, p))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
     .map((group) => renderCodingSessionGroup(group.goal_id, group.goal_id === null ? uiText.text("coding.directory.no-goal") : group.title, group.entries, p))
     .join("");
   return renderSidebar({className:"coding-directory",attrs:{"data-coding-directory":"","data-coding-current-face":model.face},
     body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face),listLabel:uiText.text("coding.directory.list"),listRole:"none",
-      tools: renderButton({label:uiText.text("coding.directory.search-toggle"),icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}}),
+      // The column's one way to start a session sits beside search; the stage's own button only shows while no session is open.
+      tools: renderButton({label:uiText.text("coding.directory.search-toggle"),icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}})
+        + renderButton({label:uiText.text("coding.directory.new"),icon:"plus",iconOnly:true,variant:"ghost",attrs:{"data-coding-new":"",title:uiText.text("coding.directory.new")}}),
       body: `<nav class="coding-faces" aria-label="${p.escape(uiText.text("coding.directory.faces"))}">${faces}</nav>
       <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">${p.escape(uiText.text("coding.directory.search-title"))}</span><input class="mw-input" data-coding-search aria-label="${p.escape(uiText.text("coding.directory.search-sessions"))}" placeholder="${p.escape(uiText.text("coding.directory.search-sessions"))}"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="${p.escape(uiText.text("coding.directory.filters"))}">${filters}</div></div>
-      <button type="button" class="mw-toggle" data-coding-archived aria-pressed="false">${p.escape(uiText.text("coding.directory.archived"))}</button>
       <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div><button type="button" class="mw-btn mw-btn--ghost" data-coding-archived-more hidden>${p.escape(uiText.text("coding.directory.more"))}</button>
+      <button type="button" class="coding-archived-row" data-coding-archived aria-pressed="false">${p.icon("archive")}<span>${p.escape(uiText.text("coding.directory.archived"))}</span>${p.icon("chevron-right")}</button>
     <section class="coding-face-panel" data-coding-board-outline hidden aria-label="${p.escape(uiText.text("coding.outline.label"))}">
       <p class="coding-face-meta" data-coding-outline-meta hidden></p>
       <div class="coding-outline" data-coding-outline-list></div>
@@ -174,22 +176,21 @@ export function renderCodingDirectory(model: CodingUiModel): string {
     </section>
     ${renderCodingFilesFace(p)}
     ${model.nested?.[CODING_COMPANION_DIRECTORY_SLOT] ?? ""}`,
-      add:{label:uiText.text("coding.directory.new"),attrs:{"data-coding-new":""}}
     })});
 }
 
 /**
- * One session's row, the same row the page's live list draws over it (client.ts `renderDirectory`): its title, its state in
- * words with the state ring and its time on one line, so the first paint already has the ring and nothing moves when the list
- * takes over.
+ * One session's row, the same row the page's live list draws over it (directory.ts `drawRow`): its title, its state ring and
+ * its time, so the first paint already has the ring and nothing moves when the list takes over. The state's words are read
+ * out, not shown; where the state asks something of the person the chip shows its short word (CODING_SESSION_ASKS).
  */
 export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPrimitives): string {
   const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id), shown = entry.title === DEFAULT_SESSION_TITLE ? uiText.text("coding.session.new-title") : entry.title;
-  const state = p.escape(uiText.text(mark.label));
+  const state = p.escape(uiText.text(mark.label)), short = CODING_SESSION_ASKS[entry.state];
   return `<a class="mw-dir-row mw-dir-row--meta coding-session-row" href="#session-${p.escape(encodeURIComponent(entry.session_id))}" data-coding-session="${id}" aria-current="false">`
     + `<span class="mw-dir-row__icon">${p.icon(CODING_DIRECTORY_FACES[0].icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">`
     + `<strong class="coding-session-title" title="${p.escape(shown)}">${p.escape(shown)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
-    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}" title="${state}">${state}</small></span></a>`;
+    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}" title="${state}"${short ? ` data-word="${p.escape(uiText.text(short))}"` : ` data-quiet="true"`}><span class="mw-sr-only">${state}</span></small></span></a>`;
 }
 
 /** A Goal's sessions under its heading (or the real group of sessions with no Goal). */
@@ -214,6 +215,16 @@ function renderRulesDialog(p: CodingUiPrimitives, projectSettingsHref: string): 
     </div></dialog>`;
 }
 
+/** The results panel's 「中断恢复」: what an interrupted round left to check, right after what changed (it waits on the person). */
+function renderRecoverySection(p: CodingUiPrimitives): string {
+  return `<section class="coding-result" data-coding-recovery hidden aria-label="${p.escape(uiText.text("coding.results.recovery"))}">
+          <h3>${p.escape(uiText.text("coding.recovery.title"))}</h3>
+          <p>${p.escape(uiText.text("coding.recovery.note"))}</p>
+          <button class="mw-btn" type="button" data-coding-recovery-refresh>${p.escape(uiText.text("coding.recovery.refresh"))}</button>
+          <p data-coding-recovery-status role="status"></p><div data-coding-recovery-list></div>
+        </section>`;
+}
+
 export function renderCodingWorkbench(model: CodingUiModel): string {
   const { primitives: p } = model;
   // Relative global URL survives the host's project-local link prefixing.
@@ -222,6 +233,8 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const accessHref = up + "capabilities/access?client=agent%3Aprologue&project=" + project;
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
+  // The results panel is in reading order (screen-polish §6.5): what changed, what waits on a decision, the checks, the
+  // outcomes, the checkpoints; then how the work was split, and the run's own details (paths, capability ids, usage) last.
   return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
     <dialog class="mw-dialog mw-dialog--form" data-coding-step-dialog aria-label="${p.escape(uiText.text("coding.step.title"))}"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>${p.escape(uiText.text("coding.step.title"))}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-step-close":""}})}</header>
@@ -324,7 +337,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
         <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
           <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="${p.escape(uiText.text("coding.dialogue.back-to-list"))}" title="${p.escape(uiText.text("coding.dialogue.session-list"))}">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>${p.escape(uiText.text("coding.dialogue.empty-title"))}</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
-          <div class="coding-head-actions"><div class="mw-toggle-group coding-view-switch" role="group" aria-label="${p.escape(uiText.text("coding.view.label"))}"><button class="mw-toggle is-current" type="button" data-coding-view="dialogue" aria-pressed="true">${p.escape(uiText.text("coding.view.dialogue"))}</button><button class="mw-toggle" type="button" data-coding-view="board" aria-pressed="false" title="${p.escape(uiText.text("coding.view.board-title"))}">${p.escape(uiText.text("coding.view.board"))}<span class="coding-view-count" data-coding-view-board-count hidden></span></button></div><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-priority-toggle" type="button" data-coding-priority aria-pressed="false" title="${p.escape(uiText.text("coding.priority.title"))}" hidden>${p.escape(uiText.text("coding.priority.mark"))}</button><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="${p.escape(uiText.text("coding.results.title"))}">${p.icon("panel")}<span data-coding-results-label>${p.escape(uiText.text("coding.results.title"))}</span></button></div>
+          <div class="coding-head-actions"><div class="mw-toggle-group coding-view-switch" data-slot="toggle-group" role="group" aria-label="${p.escape(uiText.text("coding.view.label"))}"><button class="mw-toggle is-current" type="button" data-coding-view="dialogue" aria-pressed="true">${p.escape(uiText.text("coding.view.dialogue"))}</button><button class="mw-toggle" type="button" data-coding-view="board" aria-pressed="false" title="${p.escape(uiText.text("coding.view.board-title"))}">${p.escape(uiText.text("coding.view.board"))}<span class="coding-view-count" data-coding-view-board-count hidden></span></button></div><span class="coding-phase" data-coding-phase hidden></span><details class="coding-head-more" data-coding-head-more hidden><summary class="mw-btn mw-btn--ghost mw-btn--icon-only" aria-haspopup="menu" aria-label="${p.escape(uiText.text("coding.head.more"))}" title="${p.escape(uiText.text("coding.head.more"))}">${p.icon("more")}</summary>${renderMenu({ items: renderMenuItem({ label: uiText.text("coding.priority.mark"), checked: false, attrs: { "data-coding-priority": "", title: uiText.text("coding.priority.title") } }) })}</details><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="${p.escape(uiText.text("coding.results.title"))}">${p.icon("panel")}<span data-coding-results-label>${p.escape(uiText.text("coding.results.title"))}</span><span class="coding-results-count" data-coding-results-count hidden></span></button></div>
         </header>
         <section class="coding-delegation-banner" data-coding-delegation-banner aria-label="${p.escape(uiText.text("coding.delegation.banner"))}" hidden></section>
         <template data-coding-welcome-template><div class="coding-welcome" data-coding-welcome><p class="coding-welcome-kicker">${p.icon("folder")}<span data-coding-welcome-workspace>${p.escape(model.workspace_path ? model.workspace_path.split("/").filter(Boolean).at(-1) ?? model.workspace_path : uiText.text("coding.welcome.workspace"))}</span></p><h2>${p.escape(uiText.text("coding.welcome.title"))}</h2><p>${p.escape(uiText.text("coding.welcome.lede"))}</p><div class="coding-starters">${[
@@ -339,7 +352,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
         </section>
         <section class="coding-board mw-scroll" data-coding-board aria-label="${uiText("coding.face.taskboard")}" tabindex="0" hidden>
-          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>${uiText("coding.face.taskboard")}</h2><p data-coding-board-meta></p></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-board-close>${p.icon("chevron-left")}<span>${p.escape(uiText.text("coding.board.back"))}</span></button></header>
+          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>${uiText("coding.face.taskboard")}</h2><p data-coding-board-meta></p></div></header>
           <div class="coding-board-columns" aria-hidden="true"><span>${p.escape(uiText.text("coding.board.col.task"))}</span><span>${p.escape(uiText.text("coding.board.col.status"))}</span><span>${p.escape(uiText.text("coding.board.col.progress"))}</span><span>${p.escape(uiText.text("coding.board.col.needs"))}</span><span>${p.escape(uiText.text("coding.board.col.run"))}</span></div>
           <div class="coding-board-list" data-coding-board-list></div>
           <p class="coding-board-note" data-coding-board-status role="status"></p>
@@ -365,20 +378,9 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       </div>
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape(uiText.text("coding.results.tools"))}"><h3 class="coding-tools-title">${p.escape(uiText.text("coding.results.title"))}</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="${p.escape(uiText.text("coding.results.back"))}" title="${p.escape(uiText.text("coding.results.back"))}">${p.icon("x")}</button></nav>
-        <nav class="coding-results-index" data-coding-results-index aria-label="${p.escape(uiText.text("coding.results.index"))}" hidden></nav>
+        <nav class="coding-results-index mw-toggle-group" data-slot="toggle-group" data-coding-results-index aria-label="${p.escape(uiText.text("coding.results.index"))}" hidden></nav>
         ${model.nested?.[CODING_COMPANION_RESULT_SLOT] ?? ""}
-        <section class="coding-result" data-coding-subagents aria-label="${p.escape(uiText.text("coding.results.subagents"))}" hidden></section>
-        <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="${p.escape(uiText.text("coding.results.cooperation"))}" hidden></section>
-        <section class="coding-result coding-background" data-coding-background aria-label="${p.escape(uiText.text("coding.results.background"))}" hidden></section>
-        <section class="coding-result" data-coding-plan aria-label="${p.escape(uiText.text("coding.results.plan"))}" hidden></section>
-        <section class="coding-result" data-coding-recovery hidden aria-label="${p.escape(uiText.text("coding.results.recovery"))}">
-          <h3>${p.escape(uiText.text("coding.recovery.title"))}</h3>
-          <p>${p.escape(uiText.text("coding.recovery.note"))}</p>
-          <button class="mw-btn" type="button" data-coding-recovery-refresh>${p.escape(uiText.text("coding.recovery.refresh"))}</button>
-          <p data-coding-recovery-status role="status"></p><div data-coding-recovery-list></div>
-        </section>
-        <div data-coding-host-reviews hidden aria-label="${p.escape(uiText.text("coding.results.reviews"))}"></div><div class="coding-result coding-facts" data-coding-result aria-label="${p.escape(uiText.text("coding.results.facts"))}"><p>${p.escape(uiText.text("coding.result.empty"))}</p></div>
-        <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">${p.escape(uiText.text("coding.outcomes.title"))}</h3><div data-coding-outcome-list></div></section>
+        <section class="coding-result coding-changed" data-coding-changed hidden aria-labelledby="coding-changed-title"><header class="coding-changed-head"><h3 id="coding-changed-title">${p.escape(uiText.text("coding.results.changed"))}</h3><span data-coding-changed-round></span></header><div class="coding-changed-list" data-coding-changed-list></div></section>
         <section class="coding-change" data-coding-change-reader aria-labelledby="coding-change-title" hidden>
           <header class="coding-change-head">
             <div class="coding-change-heading"><h3 id="coding-change-title">${p.escape(uiText.text("coding.change.title"))}</h3><p data-coding-change-summary></p></div>
@@ -400,12 +402,20 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
             <div class="coding-change-feedback-foot"><button class="mw-btn mw-btn--primary" type="button" data-coding-feedback-return disabled>${p.escape(uiText.text("coding.feedback.return"))}</button></div>
           </section>
         </section>
+        <div data-coding-host-reviews hidden aria-label="${p.escape(uiText.text("coding.results.reviews"))}"></div>
+        ${renderRecoverySection(p)}
         <section class="coding-result coding-commands" data-coding-commands aria-labelledby="coding-commands-title" hidden><h3 id="coding-commands-title">${p.escape(uiText.text("coding.commands.title"))}</h3></section>
+        <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">${p.escape(uiText.text("coding.outcomes.title"))}</h3><div data-coding-outcome-list></div></section>
         <section class="coding-result" data-coding-checkpoints aria-label="${p.escape(uiText.text("coding.checkpoints.title"))}">
           <details class="coding-checkpoints"><summary>${p.escape(uiText.text("coding.checkpoints.title"))}</summary><p>${p.escape(uiText.text("coding.checkpoints.note"))}</p>
           <button class="mw-btn" type="button" data-coding-checkpoints-refresh>${p.escape(uiText.text("coding.checkpoints.refresh"))}</button>
           <p data-coding-checkpoints-status role="status">${p.escape(uiText.text("coding.checkpoints.choose-session"))}</p><div data-coding-checkpoints-list></div></details>
-        </section>${panels}
+        </section>
+        <section class="coding-result" data-coding-plan aria-label="${p.escape(uiText.text("coding.results.plan"))}" hidden></section>
+        <section class="coding-result" data-coding-subagents aria-label="${p.escape(uiText.text("coding.results.subagents"))}" hidden></section>
+        <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="${p.escape(uiText.text("coding.results.cooperation"))}" hidden></section>
+        <section class="coding-result coding-background" data-coding-background aria-label="${p.escape(uiText.text("coding.results.background"))}" hidden></section>
+        <div class="coding-result coding-facts" data-coding-result aria-label="${p.escape(uiText.text("coding.results.run-details"))}"><p>${p.escape(uiText.text("coding.result.empty"))}</p></div>${panels}
       </aside>
     </div></div>
   </section>`;
@@ -416,7 +426,8 @@ function renderWorkspaceLine(workspacePath: string | null, p: CodingUiPrimitives
   if (workspacePath === null) {
     return `<span class="mw-status" data-tone="attention" data-mw-state="unavailable">${p.escape(uiText.text("coding.workspace.unbound"))}</span>`;
   }
-  return `<span class="coding-workspace" data-coding-workspace>${p.icon("folder")}${p.escape(workspacePath)}</span>`;
+  // The header names the place by its folder; the whole path is one hover away (screen-polish §6.4).
+  return `<span class="coding-workspace" data-coding-workspace title="${p.escape(workspacePath)}">${p.icon("folder")}${p.escape(workspacePath.split("/").filter(Boolean).at(-1) ?? workspacePath)}</span>`;
 }
 
 function renderToolTab(tool: CodingToolAvailability, p: CodingUiPrimitives): string {
@@ -508,7 +519,7 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
     ${renderSettingsSection({ title: uiText.text("coding.settings.runtimes"), body: runtimes, attrs: { "aria-label": uiText.text("coding.settings.runtimes") } })}
     ${model.project_href ? `<div data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
       ${renderSettingsSection({ title: uiText.text("coding.settings.mcp.title"), attrs: { "aria-label": uiText.text("coding.settings.mcp.title") }, body: `${renderSettingRow({
-        name: uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }),
+        name: uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }), nameAttrs: { "data-coding-project-line": true },
         hint: uiText.text("coding.settings.mcp.note"),
         control: `<a class="mw-btn mw-btn--secondary" href="/settings/coding-settings">${p.escape(uiText.text("coding.settings.switch-project"))}</a>`,
       })}<div class="mw-settings-section__block" data-mcp-servers></div>` })}

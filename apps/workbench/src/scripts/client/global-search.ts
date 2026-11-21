@@ -87,7 +87,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (tools.length) groups.push({ label: globalThis.t.text("workbench.global-search.plugin"), items: tools });
     const actions = [
       ["create", globalThis.t.text("workbench.global-search.new-goal"), "新建目标 create goal", "[data-open-create]"],
-      ["home", globalThis.t.text("workbench.global-search.project-home"), "项目首页 home", '[data-plugin-id="home"]'],
+      ["home", globalThis.t.text("workbench.global-search.project-home"), "项目主页 home", '[data-plugin-id="home"]'],
       ["settings", globalThis.t.text("workbench.global-search.settings"), "设置 settings", '[data-plugin-id="settings"]'],
       ["market", globalThis.t.text("workbench.global-search.plugin-market"), "插件市场 market", '[data-plugin-id="market"]'],
     ].filter(([, title, keyword, selector]) => (title + " " + keyword).toLowerCase().includes(q) && document.querySelector(selector))

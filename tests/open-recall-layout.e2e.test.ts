@@ -21,7 +21,7 @@ const LAYOUT_MENU = "[data-workspace-layout]";
 const GOALS_TAB = `${TABS} .tab-item[data-tab-kind=plugin][data-plugin=goals]`;
 const MOVED = "pane:goals:plugin";
 const stored = "JSON.parse(localStorage.getItem('molis-work-tab-workspace:' + document.body.dataset.projectId) || 'null')";
-const GOALS_ENTRY = "[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]";
+const GOALS_ENTRY = "[data-plugin-strip] [data-plugin-id=goals]";
 // Every toast text shown from now on, so a toast left from the step before cannot pass for this one.
 const WATCH_TOASTS = `(() => { window.__toasts = []; if (window.__toastWatch) return; const toast = document.querySelector('[data-toast]');
   window.__toastWatch = new MutationObserver(() => window.__toasts.push(toast.textContent)); window.__toastWatch.observe(toast, { childList: true, characterData: true, subtree: true, attributes: true }); })()`;
@@ -33,7 +33,7 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.body.dataset.desktopSurface === 'home' && document.querySelector('${PLUS}') && document.querySelector('[data-dock-pin=home]')`, 15_000);
+  await waitFor(`document.body.dataset.desktopSurface === 'home' && document.querySelector('${PLUS}') && document.querySelector('[data-top-corner-toggle]')`, 15_000);
   const mac = await evaluate<boolean>("/Mac|iP/.test(navigator.platform)");
   const key = async (name: string, code: string, modifiers = 0) => {
     // A plain ↵ carries its text, so a focused button activates as under a real key; a chord does not.
@@ -75,25 +75,24 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   await key("Enter", "Enter");
   await waitFor(`document.body.dataset.desktopSurface === 'goals' && document.querySelector('${GOALS_TAB}[aria-current]')`, 15_000);
 
-  // PFG-24 recall: the open plugin says where it is, and choosing it again (here, or from the Dock) goes there: no second tab.
+  // PFG-24 recall: the open plugin says where it is, and choosing it again (here, or from the switcher) goes there: no second tab.
   await click(PLUS);
   await waitFor(`!document.querySelector('${START}').hidden`);
   assert.equal(await evaluate(`document.querySelector('${TILE("goals")} .plugin-rail-where')?.textContent`), "在这一栏");
   assert.equal(await evaluate(`document.querySelector('${TILE("feed")} .plugin-rail-where')`), null, "a plugin that is not open says nothing");
   await click(TILE("goals"));
   await waitFor(`document.querySelector('${START}').hidden`);
-  await click("[data-dock-pin=home]");
+  await click("[data-corner-home]");
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length`), 1, "recall does not open a second Goals tab");
 
-  // 口径 6: one layout button, no split button on the strip. Since the work line took the foot (specs/work-line §6.5) the
-  // project stands at the strip's very end, so the layout button is the last control before it.
+  // 口径 6: one layout button, no split button on the strip. From 960px the right end is the side's switch and the layout button
+  // and nothing else (POLISH-05 as rewritten, POLISH-71): the layout button ends the strip, and no project button is shown.
   assert.equal(await evaluate(`document.querySelector('${TABS} [data-tab-split], .tab-split-button')`), null);
   const ends = await evaluate<boolean>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
-    const end = document.querySelector('.immersive-titlebar > .titlebar-end').getBoundingClientRect();
-    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]') && !button.closest('.titlebar-end')).every(button => button.getBoundingClientRect().right <= layout.left + 1)
-      && layout.right <= end.left + 1 && end.left - layout.right < 24 && innerWidth - end.right < 24; })()`);
-  assert.equal(ends, true, "the layout button is the strip's last control before the project, which ends the strip");
+    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]')).every(button => button.getBoundingClientRect().right <= layout.left + 1)
+      && innerWidth - layout.right < 24 && !document.querySelector('.immersive-titlebar > .titlebar-end').checkVisibility(); })()`);
+  assert.equal(ends, true, "the layout button is the strip's last control and ends the strip; no project button from 960px");
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open') && document.activeElement?.closest('${LAYOUT_MENU}')`);
   const items = await evaluate<{ title: string | null; actions: string[]; splits: string[]; panes: string[] }>(`(() => {
@@ -196,7 +195,7 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   await command("Network.enable", {}, sessionId);
   const since = () => { const start = seen.length; return () => seen.slice(start); };
 
-  await click("[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]");
+  await click("[data-plugin-strip] [data-plugin-id=goals]");
   await waitFor(`document.body.dataset.desktopSurface === 'goals' && document.querySelector('${GOALS_TAB}[aria-current]')`, 15_000);
 
   // Move to the right: the tab leaves the strip and shows in the side, in the workbench's pane page. One document load.
@@ -215,7 +214,9 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
 
   // Switching side tabs, collapsing and opening the side, and recalling the moved view rebuild nothing.
   mark = since();
-  const other = await evaluate<string>(`[...document.querySelectorAll('[data-side-tabs] [data-side-tab]:not([data-side-pane])')].find(tab => tab.checkVisibility()).dataset.sideTab`);
+  // The side's views are in the list that opens from its view's name (specs/screen-polish §3 方案 C), closed at rest: one of
+  // them that is offered (not hidden), which the click below reaches by opening that list.
+  const other = await evaluate<string>(`[...document.querySelectorAll('[data-side-tabs] [data-side-tab]:not([data-side-pane])')].find(tab => !tab.hidden).dataset.sideTab`);
   await click(`[data-side-tabs] [data-side-tab="${other}"]`);
   await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]')`);
   await click(`[data-side-tabs] [data-side-tab="${MOVED}"]`);
@@ -228,15 +229,15 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   assert.deepEqual(otherLoads, [], "switching, collapsing and opening the side load no pane page again");
   assert.equal(await evaluate(`document.querySelector('[data-side-body="${MOVED}"] iframe').contentWindow.__kept`), true, "the moved view stays the same document");
 
-  // PFG-24 口径 8 ③: opening the moved tab again, from the Dock or from ＋, goes to it on the right and says so; nothing opens in
+  // PFG-24 口径 8 ③: opening the moved tab again, from the switcher or from ＋, goes to it on the right and says so; nothing opens in
   // the main area and the view is not loaded again.
   await evaluate(WATCH_TOASTS);
-  for (const route of ["the Dock", "＋"] as const) {
+  for (const route of ["the switcher", "＋"] as const) {
     await click(`[data-side-tabs] [data-side-tab="${other}"]`);
     await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]')`);
     mark = since();
     await evaluate("window.__toasts = []");
-    if (route === "the Dock") await click(GOALS_ENTRY);
+    if (route === "the switcher") await click(GOALS_ENTRY);
     else {
       await click(PLUS);
       await waitFor(`!document.querySelector('${START}').hidden`);
@@ -325,7 +326,7 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   assert.equal(await evaluate(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"]')?.hasAttribute('data-side-closed') ?? true`), true);
 });
 
-test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled there from the switcher, the Dock, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
+test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled there from the switcher, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
@@ -341,7 +342,7 @@ test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled th
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const project = `${origin}/projects/${projectId}/`;
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
-  await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-dock-pin=home]')`, 15_000);
+  await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-top-corner-toggle]')`, 15_000);
   // Two columns, both on the project home; the split's new column (the second) takes the focus.
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
@@ -367,20 +368,13 @@ test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled th
     assert.deepEqual(after, { goals: 1, second: { tabs: 0, view: null } }, `${route}: no second copy of Goals`);
   };
 
-  // The bar's switcher lists every plugin; choosing one that is open in the other column goes there, as the Dock does.
+  // The bar's switcher lists every plugin; choosing one that is open in the other column goes there (the top keeps no plugin glyph to recall from, specs/screen-polish §3 方案 C).
   await focusColumn(second!);
   await evaluate(WATCH_TOASTS);
   const viaSwitcher = since();
   await click("[data-plugin-picker-popover] [data-plugin-id=goals]");
   await recalled("the switcher");
   assert.deepEqual(viaSwitcher().filter(entry => entry.type === "Document"), [], "recalling from the switcher loads no document");
-
-  await focusColumn(second!);
-  await evaluate("window.__toasts = []");
-  const viaDock = since();
-  await click("[data-dock-pin=goals]");
-  await recalled("the Dock");
-  assert.deepEqual(viaDock().filter(entry => entry.type === "Document"), [], "recalling from the Dock loads no document");
 
   // Split, each column has its own strip and ＋ (the title bar's strip is the one column's only); the second column's.
   await focusColumn(second!);
@@ -411,7 +405,7 @@ test("PFG-24 口径 8 ② a Dataset record found from the other column opens in 
   await dataset.waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
   const id = await dataset.evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
   // The first column keeps Dataset's tab while it shows the home, so the split's new column starts on the home and holds nothing.
-  await click("[data-dock-pin=home]");
+  await click("[data-corner-home]");
   await click("[data-layout-open]"); await click("[data-layout-split=right]");
   await waitFor(`${stored}?.panes.length === 2`);
   const [first, second] = await evaluate<string[]>(`${stored}.panes.map(pane => pane.id)`);
@@ -449,7 +443,7 @@ test("PFG-23 review shots of ＋ and the layout menu at 1440, 1024 and 390, Chin
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
     await waitFor(`document.querySelector('${PLUS}')`, 15_000);
     if (!(await evaluate<boolean>(`Boolean(document.querySelector('${GOALS_TAB}'))`))) {
-      await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]')?.click()");
+      await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.click()");
       await waitFor(`document.querySelector('${GOALS_TAB}')`, 15_000);
     }
     const name = `${lang}-${theme}-${width}`;

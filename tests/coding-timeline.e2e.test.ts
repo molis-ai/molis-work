@@ -208,7 +208,9 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.equal(english.summary, "Commands run: 1 · Files read: 1 · Files edited: 1 · Thought · 1 did not succeed");
     assert.deepEqual(english.rows, ["Exited 1", "", "", ""]);
     assert.match(english.footer, /^This turn ended\s*Turn 2 Took 1m \d+s · Files edited: 1 · Commands run: 1 · Last: npm test → Exited 1/);
-    assert.match(english.footer, /View changes\s*Commit these changes…\s*Run report/);
+    // Expected change (screen-polish POLISH-24): an ended round is one line, so its actions sit at the end of that line with
+    // 「View changes」 last, the one thing to do next; committing moved into the round's details under the line.
+    assert.match(english.footer, /Run report\s*View changes.*Commit these changes…/);
     assert.match(english.failed, /This turn did not finish.*Can’t reach the model service: Check the network or proxy, then continue from where it stopped\.\s*MODEL_NETWORK_FAILED/);
     assert.match(english.quiet, /^Working\s*\d+m \d+s\s*The model has had no new output for 3\d seconds/);
     assert.deepEqual(english.han, [], "no Chinese in the timeline's text or attributes");

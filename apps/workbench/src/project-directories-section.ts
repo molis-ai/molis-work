@@ -1,4 +1,4 @@
-import { t as uiText, escapeHtml, icon, renderButton, renderStatusMark, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, renderButton, renderSettingRow, renderSettingsSection, renderStatusMark, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "@molis-ai/molis-work-design-system";
 import { renderWriteCheckersSection } from "./write-checkers-section.js";
 
@@ -29,9 +29,10 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
   const button = (label: string, act: string, variant: "secondary" | "ghost" = "secondary", extra: Record<string, string | boolean> = {}) =>
     renderButton({ label, variant, size: "sm", attrs: { "data-act": act, ...extra } });
   // One folder: its glyph, name, roles, full path (cut, never wrapped; the whole path is its title), what is true of it now, and its buttons.
-  const row = `<template data-pd="row"><div class="settings-setting-row project-directory" data-directory-row>
+  // Not a setting row (a name, a sentence, one control): it is this page's own part, with its own classes (styles/project-directories.ts).
+  const row = `<template data-pd="row"><div class="project-directory" data-directory-row>
       <span class="project-directory__glyph" data-if="input-glyph">${icon("folder")}</span><span class="project-directory__glyph" data-if="output-glyph">${icon("output")}</span>
-      <span class="setting-copy project-directory__copy">
+      <span class="project-directory__copy">
         <strong class="project-directory__head"><span class="project-directory__name" data-text="name"></span><span class="project-directory__roles"><span class="mw-badge mw-badge--neutral" data-slot="badge" data-if="input">${uiText("workbench.project-directories-section.input-folder")}</span><span class="mw-badge mw-badge--info" data-slot="badge" data-if="output">${uiText("workbench.project-directories-section.output-folder")}</span><span data-if="tool-brought">${renderStatusMark({ label: uiText.text("workbench.project-directories-section.tool-brought-pending"), tone: "attention" })}</span></span></strong>
         <span class="project-directory__path" data-text="path"></span>
         <span class="project-directory__note" data-if="tool-brought-note">${icon("circle-alert")}<span>${uiText("workbench.project-directories-section.tool-brought-consequence")}</span></span>
@@ -39,7 +40,7 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
         <span class="project-directory__note" data-if="unmade">${icon("clock")}<span>${uiText("workbench.project-directories-section.not-made-yet-made-first-time-used-reads")}</span></span>
         <span class="project-directory__note" data-if="same">${icon("edit")}<span>${uiText("workbench.project-directories-section.both-input-output-tasks-can-change-files-here")}</span></span>
       </span>
-      <div class="setting-value">${button(uiText.text("workbench.project-directories-section.confirm-link"), "confirm-input", "secondary", { "data-if": "confirm-input" })}${button(uiText.text("workbench.project-directories-section.find-again"), "repair", "secondary", { "data-if": "repair" })}${button(uiText.text("workbench.project-directories-section.make-output"), "set-output", "secondary", { "data-if": "set-output" })}${button(uiText.text("workbench.project-directories-section.change"), "change-output", "secondary", { "data-if": "change-output", "aria-haspopup": "dialog" })}${renderButton({ label: uiText.text("workbench.project-directories-section.remove"), variant: "ghost", size: "sm", icon: "trash", iconOnly: true, attrs: { "data-act": "remove", "data-if": "remove" } })}</div>
+      <div class="project-directory__acts">${button(uiText.text("workbench.project-directories-section.confirm-link"), "confirm-input", "secondary", { "data-if": "confirm-input" })}${button(uiText.text("workbench.project-directories-section.find-again"), "repair", "secondary", { "data-if": "repair" })}${button(uiText.text("workbench.project-directories-section.make-output"), "set-output", "secondary", { "data-if": "set-output" })}${button(uiText.text("workbench.project-directories-section.change"), "change-output", "secondary", { "data-if": "change-output", "aria-haspopup": "dialog" })}${renderButton({ label: uiText.text("workbench.project-directories-section.remove"), variant: "ghost", size: "sm", icon: "trash", iconOnly: true, attrs: { "data-act": "remove", "data-if": "remove" } })}</div>
     </div></template>`;
   // Which folder of another device this one is read for (B1 ④): change it or unlink it here, as from where the reference was met.
   const link = `<template data-pd="link"><div class="project-directory-link" data-directory-link>
@@ -68,19 +69,19 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
   }));
   return `<section class="project-settings-page project-directories" data-project-directories data-directories-prefix="${escapeHtml(prefix)}" data-say="${say}" data-consequence="${consequence}">
       <header class="settings-page-heading"><h1>${uiText("workbench.project-directories-section.inputs-output")}</h1><p>${uiText("workbench.project-directories-section.tasks-plugins-read-inputs-write-only-output-changes")}</p></header>
-      <section class="settings-section mw-settings-section" aria-labelledby="project-directories-inputs">
-        <header class="mw-settings-section__head"><h2 id="project-directories-inputs">${uiText("workbench.project-directories-section.folders-read")}</h2></header><div class="mw-settings-section__rows">
+      ${renderSettingsSection({ title: uiText.text("workbench.project-directories-section.folders-read"), id: "project-directories-inputs", className: "settings-section", body: `
         <div data-directories-inputs></div>
-        <form class="settings-setting-row project-directories-add" data-directories-add><label class="setting-copy" for="project-directories-path"><strong>${uiText("workbench.project-directories-section.add-folder")}</strong><span>${uiText("workbench.project-directories-section.pick-folder-computer-enter-its-full-path")}</span></label>
-          <div class="setting-value"><input id="project-directories-path" name="path" required autocomplete="off" spellcheck="false" placeholder="/path/to/folder">${button(uiText.text("workbench.project-directories-section.choose"), "pick")}${renderButton({ label: uiText.text("workbench.project-directories-section.add"), variant: "primary", size: "sm", type: "submit" })}</div></form>
-      </div></section>
-      <section class="settings-section mw-settings-section" aria-labelledby="project-directories-output">
-        <header class="mw-settings-section__head"><h2 id="project-directories-output">${uiText("workbench.project-directories-section.where-output-goes")}</h2></header><div class="mw-settings-section__rows">
+        <form class="project-directories-add" data-directories-add>${renderSettingRow({
+          name: uiText.text("workbench.project-directories-section.add-folder"), nameAttrs: { id: "project-directories-path-label" }, hint: uiText.text("workbench.project-directories-section.pick-folder-computer-enter-its-full-path"),
+          control: `<input id="project-directories-path" name="path" required autocomplete="off" spellcheck="false" placeholder="/path/to/folder" aria-labelledby="project-directories-path-label">${button(uiText.text("workbench.project-directories-section.choose"), "pick")}${renderButton({ label: uiText.text("workbench.project-directories-section.add"), variant: "primary", size: "sm", type: "submit" })}`,
+        })}</form>` })}
+      ${renderSettingsSection({ title: uiText.text("workbench.project-directories-section.where-output-goes"), id: "project-directories-output", className: "settings-section", body: `
         <div data-directories-output></div>
-        <div class="settings-setting-row" data-directories-instructions><label class="setting-copy" for="project-directories-instructions"><strong>${uiText("workbench.project-directories-section.instructions")}</strong><span>${uiText("workbench.project-directories-section.instructions-help")}</span>
-          <span class="project-directory__note" data-instructions-note hidden>${icon("circle-alert")}<span data-text="note"></span></span></label>
-          <div class="setting-value">${renderSwitch({ attrs: { id: "project-directories-instructions", "data-directories-read-instructions": "" } })}</div></div>
-      </div></section>
+        ${renderSettingRow({
+          name: uiText.text("workbench.project-directories-section.instructions"), hint: uiText.text("workbench.project-directories-section.instructions-help"), label: true, attrs: { "data-directories-instructions": true },
+          detail: `<span class="project-directory__note" data-instructions-note hidden>${icon("circle-alert")}<span data-text="note"></span></span>`,
+          control: renderSwitch({ attrs: { id: "project-directories-instructions", "data-directories-read-instructions": "" } }),
+        })}` })}
       <p class="project-directories__status" data-directories-status role="status" aria-live="polite"></p>
       ${row}${link}${chooser}${folderItem}
       ${renderWriteCheckersSection(readText)}

@@ -52,14 +52,16 @@ test("BRC-03 · one registry preserves the source of tied view ids and the old r
 
 test("BRC-03 · navigation keeps shell owners, titles and enabled views", () => {
   const rail = railEntries(enabled, directory);
-  assert.deepEqual(rail.map(({ id, label, group, rail, pinned_default, chosen }) =>
-    [id, label, group, rail, pinned_default, chosen]), [
-    ["selected", "项目入口", "advance", "core", true, true],
-    ["stalled-package", "旧安装入口", "personal", null, false, false],
-    ["artifacts", "成果", "make", null, false, false],
-    ["sessions", "外部会话", "make", null, false, false],
-    ["stage-only", "原包名称", null, null, false, false],
+  // A view's `pinned_default` is not read: the top strip keeps no plugins of its own (specs/screen-polish §3 方案 C).
+  assert.deepEqual(rail.map(({ id, label, group, rail, chosen }) =>
+    [id, label, group, rail, chosen]), [
+    ["selected", "项目入口", "advance", "core", true],
+    ["stalled-package", "旧安装入口", "personal", null, false],
+    ["artifacts", "成果", "make", null, false],
+    ["sessions", "外部会话", "make", null, false],
+    ["stage-only", "原包名称", null, null, false],
   ]);
+  assert.ok(rail.every(entry => !("pinned_default" in entry)));
   assert.equal(rail.at(-1)!.glyph, "file");
   assert.deepEqual(islandEntries(enabled, directory).map(({ id, label, group }) => [id, label, group]), [["island", "岛屿入口", null]]);
   assert.deepEqual(settingsEntries(enabled, directory).map(view => view.title), ["项目设置", "旧安装设置"]);

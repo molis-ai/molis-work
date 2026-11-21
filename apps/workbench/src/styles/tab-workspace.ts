@@ -230,7 +230,6 @@ export const TAB_WORKSPACE_STYLES = `
   /* A plugin already open says where (PFG-24): at the tile's end, beside the name; the tile's buttons take its place's room, not its place. */
   html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-item:has(> .plugin-rail-where) { grid-template-columns: 16px minmax(0, 1fr) auto; }
   html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone] > span.plugin-rail-where { grid-column: 3; grid-row: 1 / -1; align-self: center; overflow: visible; font-size: 12px; font-weight: 400; line-height: 16px; color: var(--muted); }
-  html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-tile.is-kept .plugin-rail-where { margin-right: 22px; }
   /* What was just closed, last: rows of the same grid, the first with the key that reopens it. */
   html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-recent .plugin-rail-item[data-rail-zone] { grid-template-columns: 16px minmax(0, 1fr) auto; grid-template-rows: auto; }
   html body.immersive-workbench:not([data-pane-embedded]) .workbench-header .plugin-picker-popover .plugin-rail-recent kbd { grid-column: 3; color: var(--muted); font: inherit; font-size: 12px; }

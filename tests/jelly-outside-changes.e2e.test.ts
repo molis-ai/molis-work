@@ -129,10 +129,8 @@ test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly eve
     assert.equal(await evaluate(CURRENT_WORK), workId);
     for (const width of [1440, 1024, 390]) {
       await browser.setViewport(width, 950);
-      if (width === 390) {
-        await click("[data-assistant-panel-close]");
-        await click("[data-pane-switch=side]");
-      }
+      // On a phone the open side is the column that shows (specs/screen-polish §3 方案 C: the strip has no 主区｜右侧 switch).
+      if (width === 390) await click("[data-assistant-panel-close]");
       for (const theme of ["light", "dark"]) {
         await evaluate(`localStorage.setItem('molis-work:theme','${theme}'); dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
         await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}' && (() => {

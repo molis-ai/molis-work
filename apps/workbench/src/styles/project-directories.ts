@@ -1,25 +1,26 @@
 /**
  * A project's 「输入与输出」 (src/project-directories-section.ts), on the settings page and in the workbench's settings. A folder is one
- * row that never wraps: glyph, name with its roles, the whole path cut at the end (its title holds it all), and the buttons on the right;
+ * row of this page's own (a setting row's height, padding and line, and nothing else of it) that never wraps: glyph, name with its roles, the whole path cut at the end (its title holds it all), and the buttons on the right;
  * narrow, the buttons go under the words. What a folder stands in for is a quiet line under it. The chooser is the catalog's popover and
  * menu, placed by the page under its button.
  */
 export const PROJECT_DIRECTORIES_STYLES = `
-  :is(.project-preferences-page, .settings-stage) .settings-setting-row.project-directory {
-    display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; flex-direction: row;
+  .project-directory {
+    display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+    min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); box-sizing: border-box;
   }
   .project-directory__glyph { display: grid; place-items: center; align-self: start; height: 22px; color: var(--ink-soft); }
   .project-directory__glyph svg { width: 16px; height: 16px; }
-  .project-directory__copy { min-width: 0; }
-  .project-directory__head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .project-directory__copy { display: grid; gap: 4px; min-width: 0; color: var(--ink); }
+  .project-directory__head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .project-directory__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .project-directory__roles { display: inline-flex; flex: none; gap: 4px; }
-  .setting-copy > .project-directory__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.5 var(--mono); color: var(--muted); }
-  .setting-copy > .project-directory__note { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .project-directory__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.5 var(--mono); color: var(--muted); }
+  .project-directory__note { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
   .project-directory__note > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .project-directory__note svg { flex: none; width: 14px; height: 14px; }
   .project-directory__note.is-warning { color: var(--amber); }
-  .project-directory .setting-value { flex-wrap: nowrap; }
+  .project-directory__acts { display: flex; align-items: center; justify-content: flex-end; gap: 8px; max-width: 100%; }
   .project-directory-link { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: -4px 0 0 32px; padding: 0 0 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
   .project-directory:has(+ .project-directory-link) { border-bottom: 0; }
   .project-directory-link > svg { width: 14px; height: 14px; color: var(--ink-soft); }
@@ -29,7 +30,7 @@ export const PROJECT_DIRECTORIES_STYLES = `
   .project-directory-link__copy > small { font-size: 12px; }
   .project-directory-link__acts { display: inline-flex; gap: 4px; }
   .project-directories-add input { width: 240px; min-width: 0; }
-  .project-directories .setting-value .mw-btn { white-space: nowrap; }
+  .project-directories :is(.project-directory__acts, .mw-setting-row__control) .mw-btn { white-space: nowrap; }
   /* POLISH-29: a status line with nothing to say takes no room, so the sections keep their 32px apart. */
   .project-directories__status { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 20px; }
   .project-directories__status:empty { display: none; }
@@ -49,11 +50,11 @@ export const PROJECT_DIRECTORIES_STYLES = `
   .project-directory-chooser__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px 12px; border-top: 1px solid var(--line); }
   @media (prefers-reduced-motion: reduce) { .project-directory-chooser:popover-open { animation: none; } }
   @media (max-width: 760px) {
-    :is(.project-preferences-page, .settings-stage) .settings-setting-row.project-directory { grid-template-columns: 20px minmax(0, 1fr); }
-    .project-directory .setting-value { grid-column: 2; justify-content: flex-start; }
+    .project-directory { grid-template-columns: 20px minmax(0, 1fr); }
+    .project-directory__acts { grid-column: 2; justify-content: flex-start; }
     .project-directory-link { grid-template-columns: 16px minmax(0, 1fr); margin-left: 0; }
     .project-directory-link__acts { grid-column: 2; }
     .project-directories-add input { width: auto; flex: 1; }
-    .project-directories-add .setting-value { flex-wrap: nowrap; }
+    .project-directories-add .mw-setting-row__control { flex: 1 1 100%; flex-wrap: nowrap; }
   }
 `;

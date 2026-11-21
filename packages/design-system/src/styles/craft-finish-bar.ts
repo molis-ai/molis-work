@@ -77,7 +77,6 @@ export const CRAFT_BAR_STYLES = `
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) .tab-item:is([aria-current], :has([aria-selected="true"])) { background: transparent; box-shadow: none; color: var(--muted); }
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) .tab-item:is([aria-current], :has([aria-selected="true"])):hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${PAGES} .tab-view-chip:active:not([aria-current="page"]) { transform: scale(.97); }
-  ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
   @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
 
@@ -241,20 +240,11 @@ export const CRAFT_BAR_STYLES = `
   }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
-  /* The trailing :is(.dock-pin, .bar-chat) keeps this rule's specificity (0,5,1); with only the two states it would be (0,4,1)
-     and .dock-pin.is-leaving below would take transform from a Dock item that is both current and leaving. */
   ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"]):is(.dock-pin, .bar-chat) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
-  ${SHELL} .dock-pin[aria-current]::after {
-    content: ""; position: absolute; left: 50%; bottom: 3px; width: 3px; height: 3px; margin-left: 0px; border-radius: 50%; background: var(--accent); pointer-events: none;
-  }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   ${SHELL} .workbench-bar :is(.dock-pin, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
-  /* A plugin kept in the Dock lands (the spring that settles a press); one taken out lets go. Neither moves its neighbours. */
-  @keyframes dock-pin-arrive { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
-  ${SHELL} .dock-pin.is-arriving { animation: dock-pin-arrive var(--dur-move) var(--ease-spring) both; }
-  ${SHELL} .dock-pin.is-leaving { opacity: 0; transform: scale(.6); pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint); }
 
   /* The side panel's button, beside the project at the right. */
   ${SHELL} .bar-side { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -289,29 +279,10 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .navigator-personal .personal-account-copy strong { font-weight: 500; font-size: 13px; color: var(--ink); }
   ${SHELL} .navigator-personal .personal-account-copy small { font-size: 11px; color: var(--muted); }
 
-  /* The Dock: 项目首页 first and always, then the plugins chosen to stay. A short rule parts it from the menu. */
+  /* The Dock: 项目主页, the one fixed place. A short rule parts it from the menu. */
   ${SHELL} .dock-pins { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; height: 44px; margin-left: 12px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
   ${SHELL} .dock-pins::before { content: ""; position: absolute; left: -9px; top: 12px; width: 1px; height: 20px; background: var(--line-strong); pointer-events: none; }
-  ${SHELL} .dock-pin[hidden] { display: none; }
-  ${SHELL} .dock-pin.dock-pin-more { width: auto; min-width: var(--dock-btn); padding: 0 8px; font: inherit; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
-  ${SHELL} .dock-pin.dock-pin-more:is([aria-expanded="true"], .has-current) { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
-  ${SHELL} .dock-overflow {
-    position: absolute; z-index: 60; top: calc(100% + 6px); display: grid; gap: 1px; width: 212px; max-height: min(60dvh, 480px); overflow: auto; padding: 8px;
-    border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: top left; animation: craft-fade-in var(--dur-move) var(--ease-quint) both;
-  }
-  ${SHELL} .dock-overflow[hidden] { display: none; }
-  ${SHELL} .dock-overflow-item {
-    display: flex; align-items: center; gap: 12px; width: 100%; height: 34px; padding: 0 12px; border: 0; border-radius: 8px;
-    background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-  }
-  ${SHELL} .dock-overflow-item svg { flex: none; width: 16px; height: 16px; color: var(--ink-soft); }
-  ${SHELL} .dock-overflow-item:hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .dock-overflow-item[aria-current] { background: var(--nav-active); color: var(--ink); }
-  ${SHELL} .dock-overflow-item:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   ${SHELL} .dock-pins:empty { display: none; }
-  /* 项目首页 stays put; a hairline sets it apart from the plugins you chose. */
-  ${SHELL} .dock-pin.is-fixed { margin-right: 8px; }
-  ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { content: ""; position: absolute; right: -7px; top: 12px; width: 1px; height: 14px; background: var(--line); pointer-events: none; }
 
   /* The resident Assistant: the platform composer (unified-input K3) as wide as its column allows; the bar keeps its rest
      height and grows with it. */
@@ -446,7 +417,7 @@ export const CRAFT_BAR_STYLES = `
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops { position: absolute; top: 0; right: 6px; bottom: 0; display: flex; align-items: center; gap: 4px; pointer-events: none; }
   /* The two buttons are the floor's size (--control-h: 32px, 28px compact; 44px on touch, in touch-targets.ts), and the row gives up their room. */
-  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 3 + 20px); }
+  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 2 + 16px); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn {
     width: var(--ops-btn); min-width: var(--ops-btn); min-height: var(--ops-btn);
     opacity: 0; transform: translateX(8px) scale(.92);
@@ -457,15 +428,9 @@ export const CRAFT_BAR_STYLES = `
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn + .mw-btn { transition-delay: 32ms, 32ms, 0s, 0s; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-ops > .mw-btn:active:not(:disabled) { transform: scale(.94); transition-duration: var(--dur-press); transition-delay: 0s; }
-  /* A kept plugin carries a small pin at rest (its text leaves it room); looked at, the buttons take its place. */
-  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: 36px; }
-  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-mark { position: absolute; top: 50%; right: 14px; display: grid; place-items: center; width: 14px; height: 14px; margin-top: -7px; color: var(--faint); opacity: 0; font-style: normal; pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint); }
-  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-mark svg { grid-row: auto; width: 13px; height: 13px; color: inherit; }
-  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) .plugin-rail-mark { opacity: 1; }
-  /* The glyphs: the pin stands up when kept. The toggle holds both a plus and a trash can and shows the one that fits — the plus
-     while the plugin is not in the project, a red trash can once it is — swapping in place (opacity and transform only). */
-  html ${SHELL} .workbench-header .plugin-picker-popover .dock-keep svg, html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle svg { width: 14px; height: 14px; transition: transform var(--dur-move) var(--ease-spring); }
-  html ${SHELL} .workbench-header .plugin-picker-popover .dock-keep[aria-pressed="false"] svg { transform: rotate(32deg); }
+  /* The toggle holds both a plus and a trash can and shows the one that fits — the plus while the plugin is not in the project,
+     a red trash can once it is — swapping in place (opacity and transform only). */
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle svg { width: 14px; height: 14px; transition: transform var(--dur-move) var(--ease-spring); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle { display: inline-grid; place-items: center; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-toggle > svg { grid-area: 1 / 1; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-available .plugin-toggle > .plugin-toggle-remove { opacity: 0; transform: scale(.5) rotate(-18deg); }
@@ -497,7 +462,6 @@ export const CRAFT_BAR_STYLES = `
     html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
     html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops { pointer-events: auto; }
     html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
-    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-mark { display: none; }
   }
   /* The switcher at the bar's left: where you are, and every plugin; at its head, search and the market and the studio. */
   ${SHELL} .bar-start .plugin-picker { flex: none; max-width: 60%; }

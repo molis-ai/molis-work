@@ -1,0 +1,12 @@
+{
+  "reason": "逐屏打磨 P4 前半：Coding 逐屏里不依赖壳层的六处（specs/screen-polish/spec.md 第 6.1～6.6 节，任务书 specs/screen-polish/p4-coding.md）。Coding 样式 +6883：目录列（当前页签带名字、状态片只留圆环或一个短词、时间在悬停或第二行、列底「已归档」一行）、准备信息的折叠行、回合结束卡一行、头部的 ⋯ 菜单与改动计数、结果面板的「改了什么」与「运行详情」折叠、任务图空状态、以及 UIV-19 对话栏对齐底栏居中输入框规则（用 padding 百分比直接相对 .coding-dialogue 行内宽，避免嵌套容器查询重算以守住 VUX-36 1.0ms 长回合流式样式开销）；同时删掉被替换的旧规则（目录底部的新建键、旧的结果索引、P0 的窄列容器查询、冗余 scrollbar-width:none）。Coding 脚本 +7421：准备信息折叠（prep-fold.ts）、最新一轮增减行的一次读取与按轮缓存（change-tally.ts）、结果面板「改了什么」（changed-files.ts）、目录行状态片的短词、回合明细的开合、头部菜单的收起，以及中英文各 16 个新词条；评审后把增减行的口径规则单列成一处（round-tally.ts）、⋯ 菜单和任务图空状态改用 SDK 的零件，脚本因此比评审前多 645 字节，样式少 159 字节。两个门禁都没有报新增路径（语言包没有因新词条换名）；每个资源与每页净增都低于 10,000 字节。「全部插件」页的首屏冷、热启动涨得几乎一样多（+1422／+1435），是每次都要取的 Coding 页面骨架变长了（「改了什么」分区、头部菜单、列底「已归档」一行、目录行状态片的写法），不是缓存住的脚本和样式。",
+  "review": "本机对照 merge-base 的隔离构建实测（2026-11-18 对照 afaeabdd4a 与 e5e565411b 两次，脚本 +6168；2026-11-19 合并 #2101 之后对照 f5efe316a2 重量，脚本 +6776：#2101 把环境检查卡的画法挪出了回合渲染，合并后折叠行要自己接住「环境读回来时新建」「不再最新的一轮交出环境卡」和「环境检查未完成」三处；样式仍是 +6618；2026-11-19 评审退回、改完之后对照 a4298f4d68 再量，脚本 +7421、样式 +6459；统一分支合并 main ffd077b2df 与 a462bf81f2（含第 35 批代码理解卡片，run-block.ts 同时保留 data-coding-prep 与 data-coding-code-intel-box）后隔离构建实测脚本 +7663、样式 +6459；随后移除 polish-styles.ts 冗余 scrollbar-width:none（scrollbars-hidden 门禁）收紧至 +6438，加入 UIV-19 对话栏对齐底栏居中输入框规则（+506 B）至 +6944，再去掉 .coding-dialogue 嵌套容器查询改用原生 padding 百分比（VUX-36，1.0ms）收紧 61 B 至 +6883。命令：node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main），数字按实测填写，没有取整。没有新增路径，单项都低于 10,000 字节，所以没有 userApproval；数字随报告交给用户过目。",
+  "assets": {
+    "/assets/molis-work-plugins/coding.js": 7663,
+    "/assets/molis-work-plugins/coding.css": 6883
+  },
+  "pages": {
+    "workbench-all-plugins/zh": { "cold": 1422, "warm": 1435 },
+    "workbench-all-plugins/en": { "cold": 1401, "warm": 1414 }
+  }
+}

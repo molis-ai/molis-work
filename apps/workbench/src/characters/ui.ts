@@ -1,5 +1,5 @@
 import { CHARACTERS_STYLES } from "./styles.js";
-import { icon, renderNote, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderNote, renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
 import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { renderCharacterImport, renderCharacterSource } from "./import-ui.js";
@@ -58,12 +58,12 @@ export function renderCharacters(model: CharactersUiModel): string {
   const data = `data-characters data-character-scope="${personal ? "personal" : "project"}" data-character-api="${p.escape(model.route_prefix)}/api/plugins/io.molis.work.characters" data-character-runtime-names="${p.escape(RUNTIME_NAMES)}"`;
   const heading = `<header class="settings-heading"><div class="settings-heading-title"><h1 id="${personal ? "settings-title" : "roles-title"}">${uiText("workbench.characters.title")}</h1></div>
       <p>${uiText(personal ? "workbench.roles.about-personal" : "workbench.roles.about-project")}</p></header>`;
-  const builtin = personal ? `<section class="settings-section mw-settings-section roles-builtin" aria-labelledby="roles-builtin-title" data-character-builtin data-character-builtin-api="/api/agent-definitions/roles" data-character-builtin-settings="/settings/prompts">
-      <script type="application/json" data-agent-display-model="roles">${scriptJson(model.agent_display_model ?? {})}</script>
-      <header class="mw-settings-section__head roles-sec-head"><h2 id="roles-builtin-title">${uiText("workbench.characters.builtin")}</h2></header>
-      <div class="mw-settings-section__rows"><p class="roles-hint">${uiText("workbench.characters.builtin-hint")}</p>
-      <div class="roles-builtin-list" data-character-builtin-list role="list"><p class="roles-hint mw-loading">${uiText("workbench.characters.loading")}</p></div></div>
-    </section>` : "";
+  const builtin = personal ? renderSettingsSection({
+    title: uiText.text("workbench.characters.builtin"), id: "roles-builtin-title", className: "settings-section roles-builtin",
+    attrs: { "data-character-builtin": true, "data-character-builtin-api": "/api/agent-definitions/roles", "data-character-builtin-settings": "/settings/prompts" },
+    body: `<script type="application/json" data-agent-display-model="roles">${scriptJson(model.agent_display_model ?? {})}</script><p class="roles-hint">${uiText("workbench.characters.builtin-hint")}</p>
+      <div class="roles-builtin-list" data-character-builtin-list role="list"><p class="roles-hint mw-loading">${uiText("workbench.characters.loading")}</p></div>`,
+  }) : "";
   const body = `<style>${CHARACTERS_STYLES}</style>${heading}
     <div class="roles-body" data-character-body aria-busy="true"><p class="roles-hint mw-loading">${uiText("workbench.characters.loading")}</p></div>
     ${builtin}

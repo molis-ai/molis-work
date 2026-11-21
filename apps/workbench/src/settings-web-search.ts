@@ -1,8 +1,9 @@
-import { t as uiText, escapeHtml, format, icon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, format, icon, renderAlert, renderButton, renderObjectRow, renderSettingRow, renderSettingsSection, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WEB_SEARCH_BUILTIN_SOURCE, type WebSearchSettingsView, type WebSearchSourceView } from "@molis-ai/molis-work-contracts/services/web-search";
 
 /**
- * 设置 › 网页搜索 (specs/assistant-service-connections §13.7 ②B, user 2026-11-18): the one default source of the platform's web search.
+ * 设置 › 网页搜索 (specs/assistant-service-connections §13.7 ②B, user 2026-11-18; unified settings card layout
+ * specs/screen-polish/p5-settings.md, user 2026-11-20): the one default source of the platform's web search.
  * A row per source — the built-in AnySearch, each account of a service that declares a web search, and such services with no account
  * yet — the default marked, every other usable one with 改用这个, one with no account with 连接. A default that cannot be used is said at
  * the top with the two ways out; it is never swapped for another. The page program only marks the new default in place: the rows are
@@ -29,12 +30,14 @@ function sourceRow(source: WebSearchSourceView, usable: boolean): string {
       : source.is_default
         ? renderStatusMark({ label: uiText.text("workbench.settings-web-search.default-unusable"), tone: "blocked", icon: "circle-alert" })
         : `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="${escapeHtml(connectHref)}">${uiText("workbench.settings-web-search.fix")}</a>`;
-  const mark = source.kind === "builtin" ? "globe" : "search";
-  return `<li class="web-search-source${source.is_default ? " is-default" : ""}" data-web-search-source="${escapeHtml(source.source_id)}" data-state="${source.state}">
-    <span class="web-search-source__mark" aria-hidden="true">${icon(mark)}</span>
-    <span class="web-search-source__identity"><strong>${escapeHtml(name)}</strong><small>${uiText(note)}</small></span>
-    <span class="web-search-source__end">${end}</span>
-  </li>`;
+  return renderObjectRow({
+    name,
+    hint: uiText.text(note),
+    icon: source.kind === "builtin" ? "globe" : "search",
+    action: end,
+    className: `web-search-source${source.is_default ? " is-default" : ""}`,
+    attrs: { "data-web-search-source": source.source_id, "data-state": source.state },
+  });
 }
 
 function lastUse(view: WebSearchSettingsView): string {
@@ -45,8 +48,8 @@ function lastUse(view: WebSearchSettingsView): string {
 }
 
 export function renderWebSearchSettings(view: WebSearchSettingsView | undefined): string {
-  const heading = `<header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-web-search.title")}</h1></div><p>${uiText("workbench.settings-web-search.lead")}</p></header>`;
-  if (!view) return `<section class="settings-document web-search-settings" aria-labelledby="settings-title" data-web-search-settings>${heading}<div class="settings-body"><p class="settings-muted">${uiText("workbench.settings-web-search.unavailable")}</p></div></section>`;
+  const heading = `<header class="settings-heading"><h1 id="settings-title">${uiText("workbench.settings-web-search.title")}</h1><p>${uiText("workbench.settings-web-search.lead")}</p></header>`;
+  if (!view) return `<section class="settings-document web-search-settings" aria-labelledby="settings-title" data-web-search-settings>${heading}${renderSettingsSection({ body: `<p class="mw-settings-section__note">${uiText("workbench.settings-web-search.unavailable")}</p>` })}</section>`;
   const current = view.sources.find(source => source.source_id === view.default_source);
   const builtinOnly = view.sources.every(source => source.kind === "builtin");
   const broken = view.default_unusable ? renderAlert({
@@ -61,48 +64,32 @@ export function renderWebSearchSettings(view: WebSearchSettingsView | undefined)
   const rows = view.sources.map(source => sourceRow(source, source.state === "ready")).join("");
   return `<section class="settings-document web-search-settings" aria-labelledby="settings-title" data-web-search-settings data-web-search-default="${escapeHtml(view.default_source)}">
     ${heading}
-    <div class="settings-body">
-      ${broken}
-      <section class="settings-section web-search-settings__sources" aria-labelledby="web-search-sources">
-        <h2 id="web-search-sources">${uiText("workbench.settings-web-search.default-source")}</h2>
-        <ul class="web-search-sources" data-web-search-list>${rows}</ul>
-        ${builtinOnly ? `<p class="settings-muted">${uiText("workbench.settings-web-search.only-builtin")}</p>` : ""}
-        <p class="web-search-settings__said" data-web-search-said role="status" aria-live="polite"></p>
-        <p class="settings-form-error" data-web-search-error role="alert" hidden></p>
-      </section>
-      <dl class="web-search-settings__facts">
-        <dt>${uiText("workbench.settings-web-search.who-uses")}</dt><dd>${uiText("workbench.settings-web-search.who-uses-value")}</dd>
-        <dt>${uiText("workbench.settings-web-search.last-use")}</dt><dd>${lastUse(view)}</dd>
-      </dl>
-      <p class="web-search-settings__more"><a class="mw-btn mw-btn--ghost mw-btn--sm" href="${CONNECTIONS}">${icon("plus")}<span>${uiText("workbench.settings-web-search.connect-more")}</span></a></p>
-    </div>
+    ${broken}
+    ${renderSettingsSection({
+      title: uiText.text("workbench.settings-web-search.default-source"),
+      id: "web-search-sources",
+      className: "web-search-settings__sources",
+      action: `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="${CONNECTIONS}">${icon("plus")}<span>${uiText("workbench.settings-web-search.connect-more")}</span></a>`,
+      attrs: { "data-web-search-list": true },
+      body: `${rows}${builtinOnly ? `<p class="mw-settings-section__note">${uiText("workbench.settings-web-search.only-builtin")}</p>` : ""}<p class="mw-settings-section__note" data-web-search-said role="status" aria-live="polite" hidden></p><p class="settings-form-error" data-web-search-error role="alert" hidden></p>`,
+    })}
+    ${renderSettingsSection({
+      className: "web-search-settings__facts",
+      body: `${renderSettingRow({
+        name: uiText.text("workbench.settings-web-search.who-uses"),
+        hint: uiText.text("workbench.settings-web-search.who-uses-value"),
+      })}${renderSettingRow({
+        name: uiText.text("workbench.settings-web-search.last-use"),
+        detail: `<span>${lastUse(view)}</span>`,
+      })}`,
+    })}
   </section>`;
 }
 
 export const WEB_SEARCH_SETTINGS_STYLES = `
-  .settings-document.web-search-settings > .settings-body { display: grid; gap: 24px; max-width: 760px; }
-  .web-search-settings__sources { display: grid; gap: 4px; }
-  .web-search-settings__sources > h2 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
-  .web-search-sources { display: grid; margin: 0; padding: 0; list-style: none; }
-  .web-search-source { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding-block: 10px; }
-  .web-search-source + .web-search-source { border-top: 1px solid var(--line); }
-  .web-search-source__mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-control); background: var(--surface-soft); color: var(--muted); transition: color var(--dur-hover) var(--ease-quint); }
-  .web-search-source.is-default .web-search-source__mark { color: var(--text); }
-  .web-search-source__identity { display: grid; gap: 2px; min-width: 0; }
-  .web-search-source__identity strong { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .web-search-source__identity small { color: var(--muted); font-size: 12px; }
-  .web-search-source__end { display: flex; justify-content: flex-end; white-space: nowrap; }
+  .web-search-settings__broken { margin: 24px 0 0; }
+  .web-search-source.is-default .mw-object-row__tile { color: var(--ink); }
   .web-search-source:not(.is-default) .web-search-source__current, .web-search-source.is-default .web-search-source__use { display: none; }
-  .web-search-settings__said { margin: 0; color: var(--muted); font-size: 13px; }
-  .web-search-settings__said:empty { display: none; }
-  .web-search-settings__facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 24px; margin: 0; font-size: 13px; }
-  .web-search-settings__facts dt { color: var(--muted); }
-  .web-search-settings__facts dd { margin: 0; min-width: 0; }
-  .web-search-settings__more { margin: 0; }
-  @media (max-width: 560px) {
-    .web-search-settings__facts { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-    .web-search-settings__facts dd + dt { margin-top: 8px; }
-  }
 `;
 
 /** Marks the chosen source the default in place, through `connectors.web_search.default.set@1` as the person (the Host's route). */
@@ -122,8 +109,9 @@ globalThis.molisWorkBindWebSearchSettings = (container = document) => {
       root.dataset.webSearchDefault = view.default_source;
       root.querySelectorAll("[data-web-search-source]").forEach(row => row.classList.toggle("is-default", row.dataset.webSearchSource === view.default_source));
       root.querySelector("[data-web-search-broken]")?.remove();
+      said.hidden = false;
       said.textContent = globalThis.t.text("workbench.settings-web-search.switched", { name });
-      root.querySelector('[data-web-search-source="' + CSS.escape(view.default_source) + '"] .web-search-source__mark')?.animate?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? [] : [{ transform: "scale(.92)" }, { transform: "scale(1)" }], { duration: 180, easing: "cubic-bezier(.22,1,.36,1)" });
+      root.querySelector('[data-web-search-source="' + CSS.escape(view.default_source) + '"] .mw-object-row__tile')?.animate?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? [] : [{ transform: "scale(.92)" }, { transform: "scale(1)" }], { duration: 180, easing: "cubic-bezier(.22,1,.36,1)" });
     } catch (failure) { error.hidden = false; molisWorkRequest.show(error, failure); }
     finally { button.disabled = false; button.removeAttribute("aria-busy"); }
   });

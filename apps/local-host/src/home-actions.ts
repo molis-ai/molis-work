@@ -54,7 +54,7 @@ const define = <I, O>(id: string, version: number, title: string, description: s
 export const homeActions = {
   ...homeEventActions,
   ...homeOfferActions,
-  readJudgment: define<Record<string, never>, HomeJudgmentState>("home.judgment.read", /* @version action.home.judgment.read */ 1, "首页判断规则", "读取这个项目首页判断现在用的判断规则、可以选用的已发布规则、可交给判断的能力和当前绑定；只读，不调用模型。", "query", empty, {
+  readJudgment: define<Record<string, never>, HomeJudgmentState>("home.judgment.read", /* @version action.home.judgment.read */ 1, "首页判断规则", "读取这个项目主页判断现在用的判断规则、可以选用的已发布规则、可交给判断的能力和当前绑定；只读，不调用模型。", "query", empty, {
     type: "object", properties: { function_key: { type: ["string", "null"] }, functions: { type: "array", items: { type: "object", properties: { function_key: text, name: text }, required: ["function_key", "name"] } },
       capabilities: { type: "array", items: { type: "object" } }, binding: { type: ["object", "null"] } }, required: ["function_key", "functions", "capabilities", "binding"],
   }, ["home:read"]),

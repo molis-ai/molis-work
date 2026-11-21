@@ -37,7 +37,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}`;
   const accountRegistration = ports.accountRegistration ?? false;
 
-  const { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation } = createWorkbenchSettingsNavigation({ readText, escapeHtml, icon, withDesktopQuery });
+  const { settingsContextHref, renderProjectSwitcher, renderProjectCorner, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation } = createWorkbenchSettingsNavigation({ readText, escapeHtml, icon, withDesktopQuery });
   const stages = createWorkbenchStageRenderers({ readText, dateTimeLocale, currentLocale, listJoin, helpers, withDesktopQuery, settingsContextHref });
 
   const projectChooserRenderer = createWorkbenchProjectChooserRenderer({ readText, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT, dateTimeLocale, accountRegistration, appearance: ports.appearance });
@@ -68,7 +68,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     createWorkbenchGoalsPageRenderer<MolisWorkWebView>({
       readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
       renderIconSprite, prefixLocalLinks, renderWorkbenchDocument: createWorkbenchDocumentRenderer(accountRegistration),
-      renderDesktopProjectChrome, renderProjectSwitcher,
+      renderDesktopProjectChrome, renderProjectSwitcher, renderProjectCorner,
       stageModel: stages.declaredStageModel, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
     });
   return {

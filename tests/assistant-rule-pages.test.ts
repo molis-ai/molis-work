@@ -65,7 +65,7 @@ test("PG-036: the pages the settings page offers come with the server, each with
   const { home } = await setup(t);
   const { pages } = await home.web.get<RulePages>("/api/assistant/rules");
   const byId = new Map(pages.map(page => [page.page_id, page.label]));
-  assert.equal(byId.get("home"), "项目首页");
+  assert.equal(byId.get("home"), "项目主页");
   assert.ok((byId.get("jelly") ?? "").length > 0 && byId.get("jelly") !== "jelly", "an installed plugin is listed under the name of its rail entry, not its id");
 });
 

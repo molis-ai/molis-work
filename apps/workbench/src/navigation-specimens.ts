@@ -1,21 +1,21 @@
 import type { WebLocale } from "./i18n.js";
 import { renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
-import { escapeHtml, icon, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { assistantComposerLabels } from "./assistant-composer-labels.js";
+import { escapeHtml, icon, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { builtinPluginDirectory } from "./plugin-catalog.js";
 import { WORK_LINE_FRAME_STYLES, renderWorkLineSpecimens, workLineSpecimenTitle } from "./work-line-specimens.js";
 import {
-  THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram, renderToggleGroup,
+  THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram,
 } from "@molis-ai/molis-work-design-system";
 
 /**
- * The component board's 工作台导航 section (07-1 S0): the parts the settled navigation adds (docs/design/workbench-navigation,
- * section 组件板新增, items 1–3, 6–10 and 12–16; 4, 5, 11 belong to the schemes not taken and 17 to the comparison page only),
- * then the titlebar and the three-zone bar composed from them, as they are and when something is wrong. The frame is a
+ * The component board's 工作台导航 section (07-1 S0, redrawn for specs/screen-polish §3 方案 C「纸上的页签」): the parts of the
+ * tab strip (docs/design/workbench-navigation, section 组件板新增), the side sheet's own tab with its list of views, the side's
+ * switch and the layout button, then the top strip composed from them, as it is and when something is wrong. The frame is a
  * workbench page (`body.immersive-workbench` with the workbench sheet), so every part is drawn by the rules the product loads
- * (styles/workbench-navigation.ts, design-system bar-zones.ts) on the product's own tab markup — the slices that move the
- * product onto it take these rules, not a copy. The data is a sample; nothing is read from a Home.
+ * (styles/workbench-navigation.ts, styles/top-strip.ts) on the product's own markup — the strip's specimen is the product's
+ * header (`.workbench-header[data-dock]`), and a split's strips sit in the product's panes. The bottom of the window is the
+ * 事项线 section's (work-line-specimens.ts). The data is a sample; nothing is read from a Home.
  */
 
 type Say = (text: string, values?: Record<string, string | number>) => string;
@@ -44,12 +44,14 @@ function pluginName(id: PluginId): string {
 const hueVars = (hue: string) => `--group-color:var(--hue-${hue});--group-fill:var(--hue-${hue}-fill)`;
 
 interface TabOptions { readonly label: string; readonly glyph: PluginIconName; readonly head?: boolean; readonly current?: boolean; readonly glyphOnly?: boolean;
-  readonly pinned?: boolean; readonly gone?: boolean; readonly warn?: boolean; readonly grown?: boolean; readonly badge?: number; readonly readerLabel?: string }
+  readonly pinned?: boolean; readonly gone?: boolean; readonly warn?: boolean; readonly grown?: boolean; readonly badge?: number; readonly readerLabel?: string;
+  /** The current tab is an ear on its sheet (方案 C), as tab-workspace-strip.ts marks it; a row of the side's list is not. */
+  readonly ear?: boolean }
 
 /** One tab in the product's markup (tab-workspace-strip.ts appendTab): a tab button and, unless it is glyph-only, its close. */
 function tab(_L: Say, o: TabOptions): string {
   const label = o.readerLabel ?? o.label, close = uiText.text(o.head ? "workbench.navigation-specimens.close-tab-group" : "workbench.navigation-specimens.close-tab");
-  const attrs = `${o.head ? ' data-tab-kind="plugin"' : ' data-tab-kind="record"'}${o.current ? ' aria-current="page"' : ""}${o.glyphOnly ? " data-glyph-only" : ""}${o.pinned ? ' data-pinned="true"' : ""}${o.gone ? ' data-tab-state="gone"' : ""}`;
+  const attrs = `${o.head ? ' data-tab-kind="plugin"' : ' data-tab-kind="record"'}${o.current ? ' aria-current="page"' : ""}${o.glyphOnly ? " data-glyph-only" : ""}${o.pinned ? ' data-pinned="true"' : ""}${o.gone ? ' data-tab-state="gone"' : ""}${o.current && !o.glyphOnly && o.ear !== false ? " data-ear" : ""}`;
   const trigger = `<button type="button" role="tab" class="tab-item-trigger" aria-selected="${Boolean(o.current)}" tabindex="${o.current ? 0 : -1}" aria-label="${escapeHtml(label)}">`
     + `<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-${o.glyph}"></use></svg><span class="tab-item-name">${escapeHtml(o.label)}</span>${o.warn ? '<span class="nav-warn-dot" aria-hidden="true"></span>' : ""}</button>`;
   const closeButton = o.glyphOnly || o.pinned ? "" : `<button type="button" class="tab-item-close" tabindex="-1" aria-label="${escapeHtml(close)}" title="${escapeHtml(`${close}·${o.label}`)}">${icon("x")}</button>`;
@@ -74,8 +76,10 @@ function personGroup(_L: Say, title: string, hue: string, tabs: string): string 
 }
 
 /** A tab strip: the tablist with its scrolling tabs, and what stays at its end (undo, one pane only, all tabs). */
+// The titlebar's strip takes the room its tabs want from --tabs-hug, which the page's script measures (tab-workspace-strip.ts);
+// the board runs no such script, so its titlebar strip says it here (and its header is drawn: data-dock-drawn on it below).
 function strip(label: string, tabs: string, options: { end?: string; unfocused?: boolean; lead?: string; titlebar?: boolean } = {}): string {
-  return `<nav class="tab-strip" role="tablist" aria-label="${escapeHtml(label)}"${options.titlebar ? " data-titlebar-tabs" : ""}${options.unfocused ? " data-unfocused" : ""}>${options.lead ?? ""}<div class="tab-scroll" data-overflow-fade>${tabs}</div>${options.end ?? ""}</nav>`;
+  return `<nav class="tab-strip" role="tablist" aria-label="${escapeHtml(label)}"${options.titlebar ? ' data-titlebar-tabs style="--tabs-hug:max-content"' : ""}${options.unfocused ? " data-unfocused" : ""}>${options.lead ?? ""}<div class="tab-scroll" data-overflow-fade>${tabs}</div>${options.end ?? ""}</nav>`;
 }
 
 const sample = (_L: Say) => ({
@@ -144,8 +148,9 @@ function plusButton(_L: Say, controls: string, open: boolean): string {
 }
 
 function layoutButton(_L: Say, controls: string, open: boolean): string {
-  const attrs = { title: uiText.text("workbench.navigation-specimens.layout"), "data-nav-menu-for": controls, "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": controls };
-  return `<span class="titlebar-layout">${renderButton({ label: uiText.text("workbench.navigation-specimens.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs })}</span>`;
+  // Marked as the product's is (data-layout-open), so the strip's own rules hold for it: on a phone's row it shows only while split.
+  const attrs = { title: uiText.text("workbench.navigation-specimens.layout"), "data-nav-menu-for": controls, "data-nav-layout": true, "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": controls };
+  return renderButton({ label: uiText.text("workbench.navigation-specimens.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs });
 }
 
 /** The right side's glyphs: its tabs against the right edge, background tasks with what is unfinished. */
@@ -158,8 +163,26 @@ function sideGlyphs(readText: Say, options: { current?: PluginId; grown?: Plugin
   return `<div class="tab-glyph-row" role="tablist" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.tabs-right"))}" data-nav-glyph-row>${tabs}</div>`;
 }
 
-function paneSwitch(_L: Say): string {
-  return renderToggleGroup({ label: uiText.text("workbench.navigation-specimens.which-pane-show"), className: "tab-pane-switch", items: [{ value: "main", label: uiText.text("workbench.navigation-specimens.main"), current: true }, { value: "side", label: uiText.text("workbench.navigation-specimens.right-2") }] });
+/** The side's switch at the strip's right end (immersive-shell.ts): pressed while the side is open; ⌘\ does the same. */
+function sideSwitch(open: boolean): string {
+  const label = uiText.text("workbench.immersive-shell.side-toggle");
+  return renderButton({ label, icon: "panel", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-nav-side-switch": true, "aria-pressed": String(open), title: `${label} ⌘\\` } });
+}
+
+/** The side sheet's own tab: the view it shows, by name, which opens the list of the side's views (immersive-shell.ts). */
+function sideEar(id: PluginId, list: string, open: boolean): string {
+  const name = pluginName(id), label = uiText.text("workbench.side-panel.side-view-name", { name });
+  return `<button type="button" class="side-ear" data-side-ear data-ear data-nav-menu-for="${list}" aria-expanded="${open}" aria-controls="${list}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"><span class="side-ear-glyph" aria-hidden="true">${icon(P[id].glyph)}</span><span class="side-ear-name">${escapeHtml(name)}</span>${icon("chevron-down")}</button>`;
+}
+
+/** The side's views as the list that drops from its tab: every one with its glyph and its name (side-panel.ts, menu). */
+function sideViews(readText: Say, id: string, current: PluginId, hidden: boolean): string {
+  const ids: PluginId[] = ["talk", "lingguang", "shelf", "materials", "tasks"];
+  const rows = ids.map((view) => {
+    const name = pluginName(view), badge = view === "tasks" ? 2 : 0;
+    return tab(readText, { label: name, glyph: P[view].glyph, head: true, current: view === current, ear: false, badge, readerLabel: badge ? `${name} · ${uiText.text("workbench.navigation-specimens.n-background-n-not-finished", { n: badge })}` : name });
+  }).join("");
+  return `<div class="side-strip side-views" id="${id}" role="tablist" aria-orientation="vertical" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.tabs-right"))}" data-side-tabs data-side-menu data-nav-popover${hidden ? " hidden" : ""}>${rows}</div>`;
 }
 
 /** The way back after closing Feed's group, at the end of the strip (the product's `.tab-undo-chip`). */
@@ -168,47 +191,44 @@ function undoChip(_L: Say): string {
   return `<button type="button" class="tab-undo-chip" data-nav-undo data-reopened="${escapeHtml(uiText.text("workbench.navigation-specimens.reopened-plugin", { plugin: "Feed" }))}" style="${hueVars(P.feed.hue)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)} (⌘⇧T)">${icon("undo")}<span>${escapeHtml(label)}</span></button>`;
 }
 
-/** The whole titlebar: history, the main strip and its ＋, the right side's glyphs, the layout button. */
+/** The first place, 「项目 › 项目主页」 with ⌂ in it (settings-navigation.ts renderProjectCorner; §4「底栏第十三版」第 1 条): the
+ * one fixed piece of the strip; while the project home shows it is the ear. Pressed in the product, it opens the projects' list. */
+function firstPlace(current = false): string {
+  const project = escapeHtml(uiText.text("workbench.navigation-specimens.website-revamp")), home = escapeHtml(uiText.text("workbench.navigation-specimens.project-home"));
+  return `<div class="top-corner"><button type="button" class="top-corner-cell" aria-expanded="false" aria-label="${project} › ${home}"${current ? ' aria-current="page" data-ear' : ""}>${icon("home")}<span class="top-corner-project-name">${project}</span>${icon("chevron-right")}<span class="top-corner-page-name">${home}</span>${icon("chevron-down")}</button></div>`;
+}
+
+/**
+ * The top strip as the product draws it (immersive-shell.ts renderImmersiveHeader, filled as its scripts fill it): history,
+ * the first place, the tabs with the current one an ear on its sheet, ＋; over the side sheet its own tab; at the
+ * right end the side's switch, the layout button and the project. Below it a strip of paper stands for the sheets.
+ */
 function titlebar(readText: Say, state: "ok" | "wrong"): string {
   const r = sample(readText), wrong = state === "wrong", suffix = wrong ? "wrong" : "ok";
-  const history = `<span class="mw-navs__history">${renderButton({ label: uiText.text("workbench.navigation-specimens.previous"), icon: "back", variant: "ghost", size: "sm", iconOnly: true })}${renderButton({ label: uiText.text("workbench.navigation-specimens.next"), icon: "arrow", variant: "ghost", size: "sm", iconOnly: true, disabled: true })}</span>`;
+  const history = `<div class="mw-group workspace-history">${renderButton({ label: uiText.text("workbench.navigation-specimens.previous"), icon: "back", variant: "ghost", size: "sm", iconOnly: true, className: "workspace-history-button", attrs: { "data-workspace-history": "back" } })}${renderButton({ label: uiText.text("workbench.navigation-specimens.next"), icon: "arrow", variant: "ghost", size: "sm", iconOnly: true, disabled: true, className: "workspace-history-button", attrs: { "data-workspace-history": "forward" } })}</div>`;
+  const pins = `<div class="dock-pins">${firstPlace()}</div>`;
   const pinned = tab(readText, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true });
   const tabs = pinned + mainTabs(readText, state) + (wrong ? tab(readText, { label: uiText.text("workbench.navigation-specimens.receipts"), glyph: "package", head: true, warn: true, readerLabel: `${uiText.text("workbench.navigation-specimens.receipts")} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` }) : "");
   const undo = wrong ? undoChip(readText) : "";
   // A phone always shows 全部标签; on a desk only the strip that cannot hold its tabs does, so the normal row keeps it for the phone.
   const end = `${undo}${allTabsButton(readText, `nav-all-${suffix}`, false, !wrong)}`;
-  const plus = `<span class="mw-navs__anchor">${plusButton(readText, `nav-plus-${suffix}`, false)}${plusMenu(readText, `nav-plus-${suffix}`, true, wrong)}</span>`;
-  const mainStrip = strip(uiText.text("workbench.navigation-specimens.main-tabs"), tabs, { end, titlebar: true, lead: paneSwitch(readText) });
+  const mainStrip = strip(uiText.text("workbench.navigation-specimens.main-tabs"), tabs, { end, titlebar: true });
+  const plus = `<span class="mw-navs__anchor mw-navs__anchor--plus">${plusButton(readText, `nav-plus-${suffix}`, false)}${plusMenu(readText, `nav-plus-${suffix}`, true, wrong)}</span>`;
   const allMenu = `<span class="mw-navs__anchor mw-navs__anchor--all">${allTabsMenu(readText, `nav-all-${suffix}`, true)}</span>`;
-  return `<header class="mw-navs__titlebar" data-nav-titlebar="${state}">${history}<div class="mw-navs__main">${mainStrip}${allMenu}${plus}</div>${sideGlyphs(readText, { current: "talk" })}`
-    + `<span class="mw-navs__anchor mw-navs__anchor--end">${layoutButton(readText, `nav-layout-${suffix}`, false)}${layoutMenu(readText, `nav-layout-${suffix}`, true)}</span></header>`;
-}
-
-function dockPin(_readText: Say, id: PluginId | "home", options: { current?: boolean; warn?: boolean; fold?: boolean } = {}): string {
-  const name = id === "home" ? uiText.text("workbench.navigation-specimens.project-home") : pluginName(id), glyph = id === "home" ? "home" : P[id].glyph;
-  const label = options.warn ? `${name} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` : name;
-  return `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.current ? ' aria-current="page"' : ""}${options.fold ? " data-fold" : ""}>${icon(glyph)}${options.warn ? '<span class="nav-warn-dot" aria-hidden="true"></span>' : ""}</button>`;
-}
-
-/** The bar in three zones: the glyph-only switcher and the Dock, the Assistant, the person's own and the project. */
-function bar(readText: Say, state: "ok" | "wrong"): string {
-  const wrong = state === "wrong", now = `${"Goals"} · ${uiText.text("workbench.navigation-specimens.discuss")}`;
-  const switcher = `<button type="button" class="dock-pin bar-switcher" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.switch-plugin-now-now", { now }))}" title="${escapeHtml(uiText.text("workbench.navigation-specimens.switch-plugin"))} ⌘K">${icon("grid")}</button>`;
-  // On a phone the bar folds what its second row cannot hold behind +N (the product's `.dock-pin-more`); here it is drawn, not measured.
-  const fold = (count: number, label: string) => `<button type="button" class="dock-pin dock-pin-more mw-navs__fold" aria-haspopup="true" aria-expanded="false" aria-label="${escapeHtml(`${label} ${count}`)}" title="${escapeHtml(label)}">+${count}</button>`;
-  const dock = `<div class="dock-pins" role="toolbar" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.pinned-plugins"))}">${dockPin(readText, "home")}${dockPin(readText, "goals", { current: true })}${dockPin(readText, "pages", { fold: true })}${dockPin(readText, "coding", { fold: true })}${dockPin(readText, "feed", { fold: true })}${fold(3, uiText.text("workbench.navigation-specimens.more-pinned-plugins"))}</div>`;
-  const composer = `<div class="bar-center"><div class="assistant-composer">${renderComposer({ kind: "ai", labels: assistantComposerLabels(uiText.text, true), placeholder: uiText.text("workbench.assistant-dock.ask-assistant-do-something"), receiver: { label: uiText.text("workbench.assistant-dock.assistant") } })}</div></div>`;
-  const own = `<div class="bar-side bar-own" role="toolbar" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.own"))}">${wrong ? dockPin(readText, "receipts", { warn: true }) : ""}${dockPin(readText, "jelly", { fold: wrong })}${dockPin(readText, "todo", { fold: true })}${dockPin(readText, "cognia", { fold: true })}${fold(wrong ? 3 : 2, uiText.text("workbench.navigation-specimens.own"))}</div>`;
-  const project = `<section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.current-project"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.switch-project"))} · ${escapeHtml(uiText.text("workbench.navigation-specimens.website-revamp"))}">${renderProjectMonogram(uiText.text("workbench.navigation-specimens.website-revamp"), "project-sample", escapeHtml)}</button></div></section>`;
-  return `<div class="workbench-bar" data-nav-bar="${state}" data-own-kept aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.bottom-bar"))}"><div class="bar-start">${switcher}${dock}</div>${composer}<div class="bar-end">${own}${project}</div></div>`;
+  const side = `${sideEar("talk", `nav-side-${suffix}`, false)}${sideViews(readText, `nav-side-${suffix}`, "talk", true)}`;
+  const layout = `<span class="titlebar-layout">${sideSwitch(true)}<span class="mw-navs__anchor mw-navs__anchor--end">${layoutButton(readText, `nav-layout-${suffix}`, false)}${layoutMenu(readText, `nav-layout-${suffix}`, true)}</span></span>`;
+  const project = `<div class="titlebar-end"><section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.current-project"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.switch-project"))} · ${escapeHtml(uiText.text("workbench.navigation-specimens.website-revamp"))}">${renderProjectMonogram(uiText.text("workbench.navigation-specimens.website-revamp"), "project-sample", escapeHtml)}</button></div></section></div>`;
+  return `<div class="mw-navs__window" data-side-open-sample><header class="workbench-header immersive-titlebar" data-dock data-dock-drawn data-nav-titlebar="${state}">${history}${pins}${mainStrip}${allMenu}${plus}<div class="desktop-titlebar-drag" aria-hidden="true"></div>${side}${layout}${project}</header><div class="mw-navs__sheets" aria-hidden="true"><span></span><span></span></div></div>`;
 }
 
 function partSpecimens(readText: Say): string {
   const r = sample(readText);
   const tiers = specimen("tiers", "1", uiText.text("workbench.navigation-specimens.group-s-head-its-tabs-two-tiers"), uiText.text("workbench.navigation-specimens.head-group-s-colour-its-tabs-step-lighter"),
     strip(uiText.text("workbench.navigation-specimens.main-tabs"), mainTabs(readText)));
-  const unfocused = specimen("unfocused", "2", uiText.text("workbench.navigation-specimens.current-tab-pane-without-focus"), uiText.text("workbench.navigation-specimens.left-pane-has-focus-right-pane-s-current"),
-    `<div class="mw-navs__pair">${strip(uiText.text("workbench.navigation-specimens.pane-1-tabs"), group(readText, "goals", [{ label: r.goal1, current: true }]))}${strip(uiText.text("workbench.navigation-specimens.pane-2-tabs"), group(readText, "pages", [{ label: r.doc1, current: true }]) + tab(readText, { label: r.code1, glyph: "code" }), { unfocused: true })}</div>`);
+  // A split, in the product's panes (tab-workspace.ts): each sheet carries its own strip, and its current tab is an ear on it.
+  const pane = (stripHtml: string, focused: boolean) => `<section class="tab-pane${focused ? " is-focused" : ""}">${stripHtml}<div class="tab-pane-body mw-navs__sheet"></div></section>`;
+  const unfocused = specimen("unfocused", "2", uiText.text("workbench.navigation-specimens.current-tab-pane-without-focus"), uiText.text("workbench.navigation-specimens.focused-pane-s-ear-has-accent-line"),
+    `<div class="tab-workspace mw-navs__split" data-split><div class="tab-workspace-panes">${pane(strip(uiText.text("workbench.navigation-specimens.pane-1-tabs"), group(readText, "goals", [{ label: r.goal1, current: true }])), true)}${pane(strip(uiText.text("workbench.navigation-specimens.pane-2-tabs"), group(readText, "pages", [{ label: r.doc1, current: true }]) + tab(readText, { label: r.code1, glyph: "code" }), { unfocused: true }), false)}</div></div>`);
   const overflow = specimen("all-tabs", "3", uiText.text("workbench.navigation-specimens.all-tabs-button-its-list"), uiText.text("workbench.navigation-specimens.appears-end-strip-only-when-tabs-don-t"),
     `<div class="mw-navs__narrow">${strip(uiText.text("workbench.navigation-specimens.main-tabs"), mainTabs(readText), { end: allTabsButton(readText, "nav-all-open", true) })}</div>${allTabsMenu(readText, "nav-all-open")}`);
   const undo = specimen("undo", "6", uiText.text("workbench.navigation-specimens.undo-chip"), uiText.text("workbench.navigation-specimens.after-group-closes-stays-six-seconds-group-s"),
@@ -219,14 +239,15 @@ function partSpecimens(readText: Say): string {
     `<div class="mw-navs__row">${plusButton(readText, "nav-plus-open", true)}</div>${plusMenu(readText, "nav-plus-open", false, true)}`);
   const marks = specimen("marks", "9", uiText.text("workbench.navigation-specimens.marks-tab-when-something-wrong"), uiText.text("workbench.navigation-specimens.struck-through-record-gone-amber-point-didn-t"),
     strip(uiText.text("workbench.navigation-specimens.main-tabs"), mainTabs(readText, "wrong") + tab(readText, { label: uiText.text("workbench.navigation-specimens.receipts"), glyph: "package", head: true, warn: true, readerLabel: `${uiText.text("workbench.navigation-specimens.receipts")} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` })));
-  const phone = specimen("pane-switch", "10", uiText.text("workbench.navigation-specimens.main-right-switch-before-narrow-strip"), uiText.text("workbench.navigation-specimens.value-760px-less-only-focused-pane-shows-strip-leads"),
-    `<div class="mw-navs__phone" data-force-narrow>${strip(uiText.text("workbench.navigation-specimens.main-tabs"), group(readText, "goals", [{ label: r.goal1, current: true }]), { lead: paneSwitch(readText) })}</div>`);
+  // The side sheet's own tab with its list dropped, as it opens under the name (side-panel.ts); the list is drawn open here.
+  const side = specimen("side", "10", uiText.text("workbench.navigation-specimens.side-sheet-s-tab-its-list"), uiText.text("workbench.navigation-specimens.side-sheet-names-view-it-shows-list"),
+    `<header class="workbench-header immersive-titlebar mw-navs__side" data-dock>${sideEar("shelf", "nav-side-open", true)}${sideViews(readText, "nav-side-open", "shelf", false)}<span class="titlebar-layout">${sideSwitch(true)}</span></header>`);
   const grow = specimen("grow", "12", uiText.text("workbench.navigation-specimens.glyph-tabs-that-widen-place"), uiText.text("workbench.navigation-specimens.rest-about-0-14s-move-keyboard-widens-place"),
     `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(readText, { current: "talk", grown: "shelf" })}</div><div class="mw-navs__row">${strip(uiText.text("workbench.navigation-specimens.main-tabs"), tab(readText, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true, grown: true }) + group(readText, "goals", [{ label: r.goal1, current: true }]))}</div>`);
   const badge = specimen("badge", "13", uiText.text("workbench.navigation-specimens.count-badge"), uiText.text("workbench.navigation-specimens.how-many-background-tasks-unfinished-their-glyph-screen"), `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(readText)}</div>`);
-  const layout = specimen("layout", "14", uiText.text("workbench.navigation-specimens.layout-button-titlebar-s-end"), uiText.text("workbench.navigation-specimens.value-28px-after-hairline-right-side-hidden-right-side"),
-    `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(readText)}${layoutButton(readText, "nav-layout-open", true)}</div><div class="mw-navs__row mw-navs__row--end">${layoutMenu(readText, "nav-layout-open")}</div>`);
-  return tiers + unfocused + overflow + undo + solo + plus + marks + phone + grow + badge + sheetSpecimen(readText) + layout;
+  const layout = specimen("layout", "14", uiText.text("workbench.navigation-specimens.layout-button-titlebar-s-end"), uiText.text("workbench.navigation-specimens.side-switch-and-layout-after-hairline"),
+    `<div class="mw-navs__row mw-navs__row--end"><span class="titlebar-layout">${sideSwitch(false)}${layoutButton(readText, "nav-layout-open", true)}</span></div><div class="mw-navs__row mw-navs__row--end">${layoutMenu(readText, "nav-layout-open")}</div>`);
+  return tiers + unfocused + overflow + undo + solo + plus + marks + side + grow + badge + sheetSpecimen(readText) + layout;
 }
 
 /** The glyph row drawn by whichever sheet this frame loads: the board shows it once in each, one above the other, to show they match. */
@@ -242,9 +263,7 @@ function sheetSpecimen(readText: Say): string {
 export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: string, sheet: "workbench" | "arrival" | "work-line" = "workbench"): string {
   // The arrival sheet has the glyph row but not the project page's tab rules, so its frame draws only that row.
   const arrival = sheet === "arrival", workLine = sheet === "work-line";
-  const bars = specimen("bar", "15 · 16", uiText.text("workbench.navigation-specimens.three-zone-bar"), uiText.text("workbench.navigation-specimens.left-switcher-glyph-then-after-hairline-dock-project"),
-    `<p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.ok"))}</p><div class="mw-navs__bar">${bar(readText, "ok")}</div><p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.personal-plugin-didn-t-start"))}</p><div class="mw-navs__bar">${bar(readText, "wrong")}</div>`);
-  const bars2 = specimen("titlebar", "", uiText.text("workbench.navigation-specimens.titlebar"), uiText.text("workbench.navigation-specimens.main-strip-right-side-s-glyphs-top-right"),
+  const top = specimen("titlebar", "", uiText.text("workbench.navigation-specimens.titlebar"), uiText.text("workbench.navigation-specimens.top-strip-tabs-on-paper"),
     `<p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.ok"))}</p>${titlebar(readText, "ok")}<p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.something-wrong"))}</p>${titlebar(readText, "wrong")}`);
   return `<!doctype html>
 <html lang="${htmlLang}">
@@ -259,7 +278,7 @@ export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: strin
 </head>
 <body class="${arrival ? "arrival-page " : ""}immersive-workbench mw-navs-page" data-nav-sheet="${sheet}">
   ${renderIconSprite()}
-  <main class="mw-navs" data-nav-board>${arrival ? sheetSpecimen(readText) : workLine ? renderWorkLineSpecimens(specimen) : `${partSpecimens(readText)}${bars2}${bars}`}</main>
+  <main class="mw-navs" data-nav-board>${arrival ? sheetSpecimen(readText) : workLine ? renderWorkLineSpecimens(specimen) : `${partSpecimens(readText)}${top}`}</main>
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}${NAVIGATION_FRAME_SCRIPT}</script>
 </body>
 </html>`;
@@ -281,28 +300,33 @@ body.mw-navs-page{margin:0;background:var(--desk);color:var(--ink)}
 .mw-navs__stage>.mw-menu{justify-self:start}
 .mw-navs__row{display:flex;align-items:center;gap:8px;min-width:0}
 .mw-navs__row--end{justify-content:flex-end}
-.mw-navs__pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
-.mw-navs__pair>.tab-strip{border-radius:var(--r-control,8px);background:var(--surface-soft)}
 .mw-navs__narrow{max-width:520px;min-width:0}
-.mw-navs__phone{max-width:375px;min-width:0}
-body.mw-navs-page .mw-navs__phone .tab-pane-switch{display:inline-flex}
-body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 .mw-navs .tab-strip{min-width:0}
-.mw-navs__titlebar{display:flex;align-items:center;gap:8px;height:40px;min-width:0;padding:0 8px}
-.mw-navs__history{display:flex;gap:2px;flex:none}
-.mw-navs__titlebar>.tab-glyph-row{margin-left:8px}
-.mw-navs__main{position:relative;display:flex;flex:1 1 auto;min-width:0}
-.mw-navs__main>.tab-strip{flex:1 1 auto}
+/* The strip's specimen is the product's header on a window's desk, with a strip of paper below for the sheets its ears grow on:
+   the main sheet, and the side sheet under the side's tab. The header's own rules (styles/top-strip.ts) place everything in it. */
+.mw-navs__window{position:relative;min-width:0;border-radius:var(--r-card,12px);background:var(--desk);overflow:visible}
+html body.mw-navs-page .mw-navs__window>.workbench-header{position:relative;inset:auto;width:auto;--side-panel-width:30%}
+.mw-navs__sheets{display:flex;gap:8px;height:28px;padding:0 var(--sheet-inset,14px)}
+.mw-navs__sheets>span{flex:1 1 0;border-radius:0 0 var(--r-sheet,14px) var(--r-sheet,14px);background:var(--paper)}
+.mw-navs__sheets>span:last-child{flex:0 0 30%}
+html body.mw-navs-page .mw-navs__side{position:relative;inset:auto;display:flex;justify-content:flex-end;padding-bottom:220px}
+html body.mw-navs-page .mw-navs__side>.side-ear{position:relative;left:auto;bottom:auto}
+html body.mw-navs-page .mw-navs__side>.side-views{left:auto!important;right:60px}
+/* A split's panes, side by side here (the product places them by its split tree). */
+html body.mw-navs-page .mw-navs__split{display:block}
+html body.mw-navs-page .mw-navs__split>.tab-workspace-panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;background:none}
+html body.mw-navs-page .mw-navs__split>.tab-workspace-panes>.tab-pane{position:relative}
+.mw-navs__sheet{height:28px;background:var(--paper)}
 .mw-navs__anchor{position:relative;display:flex;align-items:center;flex:none}
 .mw-navs__anchor>[data-nav-popover]{position:absolute;z-index:20;top:calc(100% + 6px);right:0}
 .mw-navs__anchor--all{position:absolute;right:0;top:100%}
+.mw-navs__window .workbench-header>.mw-navs__anchor--plus{order:2}
 .mw-navs__live:empty{display:none}
 @media (min-width:761px){[data-nav-when-full][data-nav-fits]{display:none}}
 .mw-navs__live{margin:0;font-size:12px;color:var(--ink-soft)}
-.mw-navs__bar{min-width:0}
-.mw-navs .workbench-bar{min-height:var(--dock-min);padding:8px 0;background:transparent}
-html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
-@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 52px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:2/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs__titlebar .mw-navs__anchor{position:static}.mw-navs__titlebar .mw-navs__anchor>[data-nav-popover]{left:0;right:0;width:auto}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
+/* A phone's row is drawn with the side closed: there the side's own tab takes the current tab's place only while it is open
+   (it outweighs the strip's own rule for that tab, top-strip.ts). */
+@media (max-width:760px){html body .mw-navs__window .workbench-header[data-dock][data-dock][data-dock]>.side-ear{display:none}.mw-navs__sheets>span:last-child{display:none}.mw-navs__window .mw-navs__anchor{position:static}.mw-navs__window .mw-navs__anchor>[data-nav-popover]{left:8px;right:8px;width:auto}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside, like the board's other specimen frames. */
 export function renderNavigationSection(_L: Say, lang: WebLocale): string {

@@ -199,10 +199,8 @@ test("DRT-25 a page in the side cell: its go still waiting gets the result; it h
   if (!at) return;
   const { browser, standIn, side, go, went, arrived } = at;
   const openShelf = async () => {
-    // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
-    if (await browser.evaluate("document.body.dataset.sideOpen !== 'true'")) await browser.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
-    await browser.waitFor(`document.querySelector(${JSON.stringify(`[data-side-tabs] [role=tab][data-side-tab="${SHELF_TAB}"]`)})?.checkVisibility()`, 10_000);
-    await browser.evaluate(`document.querySelector(${JSON.stringify(`[data-side-tabs] [role=tab][data-side-tab="${SHELF_TAB}"]`)}).click()`);
+    // Scheme C: the side opens from its switch and picks a view from the side-ear list (handled by click()).
+    await browser.click(`[data-side-tabs] [role=tab][data-side-tab="${SHELF_TAB}"]`);
     await browser.waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 10_000);
     await side.waitFor("window.pageHost?.returns", 20_000);
   };

@@ -449,16 +449,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (openConversation()) event.preventDefault();
   }, true);
   // What opens from the island besides the composer's own menus, and the button focus returns to.
-  const popovers = () => [[workNav, setWorks, worksToggle], [noticePop, setNotices, noticeBtn]];
+  const popovers = () => [[workNav, setWorks, worksToggle], [noticePop, setNotices, noticeTrigger || noticeBtn, noticeBtn, barNotices]];
   document.addEventListener("pointerdown", (event) => {
-    if (event.target?.nodeType !== 1 || island.contains(event.target)) return;
-    for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
+    const t = event.target;
+    if (!island.isConnected || t?.nodeType !== 1) return;
+    for (const [pop, close, ...btns] of popovers()) if (pop && !pop.hidden && !pop.contains(t) && !btns.some((b) => b?.contains(t))) close(false);
   });
-  island.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || event.target?.closest?.("dialog[data-position-dialog][open], .mw-presentation__more[open]")) return;
-    const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, btnEl]) => pop && !pop.hidden && (stop(), close(false), (visible(btnEl) ? btnEl : input)?.focus(), true);
+  document.addEventListener("keydown", (event) => {
+    if (!island.isConnected || event.key !== "Escape" || event.defaultPrevented || event.target?.closest?.("dialog[data-position-dialog][open], .mw-presentation__more[open]")) return;
+    const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, btnEl]) => pop && !pop.hidden && (stop(), close(false), (visible(btnEl) ? btnEl : visible(noticeBtn) ? noticeBtn : input)?.focus(), true);
     const [worksOpen, notices] = popovers();
     if (put(worksOpen)) return;
-    if (panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
+    if (island.contains(event.target) && panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
     put(notices);
-  }, true);`;
+  });`;

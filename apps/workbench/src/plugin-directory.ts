@@ -35,9 +35,9 @@ function sanitizeView(view: DirectoryView, icons: ReadonlySet<string>, chosen: b
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
     ...(view.group && (UI_VIEW_GROUPS as readonly string[]).includes(view.group) ? { group: view.group } : {}),
     ...(view.hue && (UI_VIEW_HUES as readonly string[]).includes(view.hue) ? { hue: view.hue } : {}),
-    // The backbone, the extend entries and the Dock's default pins are the Host's to give: a plugin installed at run time is none of them.
+    // The backbone and the extend entries are the Host's to give: a plugin installed at run time is neither. (A view's
+    // `pinned_default` is not carried: the top strip keeps no plugins of its own, specs/screen-polish §3 方案 C.)
     ...(chosen && view.slot === "navigator" && view.rail && (UI_VIEW_RAILS as readonly string[]).includes(view.rail) ? { rail: view.rail } : {}),
-    ...(chosen && view.slot === "navigator" && view.pinned_default === true ? { pinned_default: true as const } : {}),
     ...(station && createTitle ? { creates: { station, title: createTitle, ...(createLabel ? { label: createLabel } : {}) } } : {}),
     ...(startTitle && hint ? { start: { title: startTitle, hint, ...(startIcon ? { icon: startIcon } : {}) } } : {}),
   };

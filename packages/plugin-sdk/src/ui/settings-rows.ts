@@ -53,10 +53,14 @@ export function renderSettingsSection(options: {
  * its control is `fold.label` (what is chosen so far) with a chevron, and `fold.body` is what it opens onto; `fold.open`
  * draws it already open, as `open` does on an object row. `fold.labelAttrs` go on the label, for a script that rewrites it
  * as choices are made; `attrs` go on the `<details>`. A row is one or the other: a folding row takes no `control` or `label`.
+ *
+ * `detail` is the caller's HTML under the sentence, for what a row has to show that is not a sentence: a path, a command, a
+ * note that comes and goes. It is part of what the row says, so it never holds a control.
  */
 export function renderSettingRow(options: {
   name: string;
   hint?: string;
+  detail?: string;
   className?: string;
   attrs?: Record<string, AttrValue>;
   nameAttrs?: Record<string, AttrValue>;
@@ -67,7 +71,7 @@ export function renderSettingRow(options: {
 )): string {
   const copy = `<span class="mw-setting-row__copy"><strong${renderAttrs(options.nameAttrs)}>${escapeHtml(options.name)}</strong>${
     options.hint !== undefined ? `<span${renderAttrs(options.hintAttrs)}>${escapeHtml(options.hint)}</span>` : ""
-  }</span>`;
+  }${options.detail ?? ""}</span>`;
   const { fold } = options;
   if (fold) {
     return `<details class="${cx("mw-setting-fold", options.className)}" data-slot="setting-fold"${fold.open ? " open" : ""}${renderAttrs(options.attrs)}><summary class="mw-setting-row">${copy}<span class="mw-setting-row__control"><span class="mw-setting-fold__label mw-btn mw-btn--secondary mw-btn--sm"><span${renderAttrs(fold.labelAttrs)}>${escapeHtml(fold.label)}</span>${icon("chevron-down")}</span></span></summary><div class="mw-setting-open">${fold.body}</div></details>`;

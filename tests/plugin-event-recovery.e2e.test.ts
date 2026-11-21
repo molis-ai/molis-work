@@ -45,11 +45,11 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   assert.equal(other.status, 201);
 
   // The page reads the notifications again when it becomes visible, and the bell comes into reach for the waiting one. On a
-  // project page its number is the line head's alone (WLN-39, user decision 2026-11-15 in specs/work-line): nothing waits on
+  // project page its number is the first place's alone (WLN-39; the line's head became the first place's amber count, POLISH-15, user decision 2026-11-15 in specs/work-line): nothing waits on
   // the line here, so the bell shows without a number, and the plugin's item is in the list behind it.
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await waitFor("document.querySelector('[data-assistant-attention]').hidden === false");
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-work-line-head]'))"), "a project page draws the line's head");
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-top-corner-toggle]'))"), "a project page draws the first place, whose count the bell reads");
   assert.equal(await evaluate("document.querySelector('[data-assistant-attention-count]').textContent"), "");
   const openFromBell = async () => {
     if (await evaluate("document.querySelector('[data-assistant-notices]').hidden")) await click('[data-assistant-attention]');

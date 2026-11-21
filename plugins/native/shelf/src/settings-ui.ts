@@ -1,4 +1,4 @@
-import { renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderSettingRow, renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   SettingsPageModel,
   UiContribution,
@@ -114,9 +114,8 @@ function paneBody(id: (typeof SECTIONS)[number]["id"], model: ShelfSettingsUiMod
 }
 
 function setupPane(_model: ShelfSettingsUiModel): string {
-  const fact = (key: string, copy: string) => `<div class="settings-setting-row shelf-settings-fact">
-      <span class="setting-copy" data-shelf-permission="${key}">${uiText(copy)}</span>
-    </div>`;
+  // What the Mac asks for and why: each is one sentence of the card, not a row with a control.
+  const fact = (key: string, copy: string) => `<p class="shelf-settings-fact" data-shelf-permission="${key}">${uiText(copy)}</p>`;
   return `${fact("accessibility", "shelf.settings-ui.accessibility-needed-add-files-selected-front-app")}
     ${fact("automation", "shelf.settings-ui.finder-automation-mac-os-asks-once-when-add")}
     ${fact("browsers", "shelf.settings-ui.browsers-page-capture-supports-safari-chrome-edge-best")}
@@ -287,13 +286,10 @@ function customRuntimeRow(p: ShelfUiPrimitives, runtime: ShelfCustomRuntime): st
 function appearancePane(model: ShelfSettingsUiModel): string {
   const { settings } = model;
   const checked = settings.drop_wheel_enabled ? " checked" : "";
-  return `<label class="settings-setting-row settings-toggle-row">
-      <span class="setting-copy">
-        <strong>${uiText("shelf.settings-ui.drop-wheel")}</strong>
-        <span>${uiText("shelf.settings-ui.shows-action-wheel-when-dragging-finder-onto-menu")}</span>
-      </span>
-      <input class="settings-switch" type="checkbox" role="switch" name="drop_wheel_enabled" data-shelf-drop-wheel${checked}>
-    </label>
+  return `${renderSettingRow({
+      name: uiText.text("shelf.settings-ui.drop-wheel"), hint: uiText.text("shelf.settings-ui.shows-action-wheel-when-dragging-finder-onto-menu"), label: true,
+      control: `<input class="settings-switch" type="checkbox" role="switch" name="drop_wheel_enabled" data-shelf-drop-wheel${checked}>`,
+    })}
     <p class="settings-hint">${uiText("shelf.settings-ui.theme-language-follow-molis-appearance-settings")}</p>`;
 }
 

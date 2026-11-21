@@ -40,7 +40,9 @@ async function beside(b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>,
   await v.shot(`${name}-${width}`);
   const geometry = await b.evaluate<Record<string, boolean>>(`(() => {
     const main = document.querySelector('[data-plugin-stage]').getBoundingClientRect(), panel = document.querySelector('[data-side-panel]').getBoundingClientRect();
-    const button = document.querySelector(${JSON.stringify(entry)}), box = button.getBoundingClientRect();
+    const raw = document.querySelector(${JSON.stringify(entry)});
+    // In a project's Scheme C top strip (POLISH-01/02), side-view tabs live inside [data-side-menu] behind the visible [data-side-ear].
+    const button = raw.closest('[data-side-menu]') ? document.querySelector('[data-side-ear]') : raw, box = button.getBoundingClientRect();
     return { visible: main.width > 200 && main.height > 100 && panel.height > 200, separate: innerWidth > 760 ? main.right <= panel.left : main.bottom <= panel.top,
       clickable: button.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)), fits: document.documentElement.scrollWidth <= innerWidth };
   })()`);

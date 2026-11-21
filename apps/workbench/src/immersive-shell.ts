@@ -1,11 +1,11 @@
-import {renderSyncIndicator} from './sync-indicator.js';
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
-import { renderLineHead, renderWorkLine } from "./work-line-parts.js";
+import { renderWorkLine } from "./work-line-parts.js";
+import { renderAccountBar } from "./account-bar.js";
 import { renderSidePanel, renderSideStrip, type SidePanelPluginTab } from "./side-panel.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
@@ -98,8 +98,8 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
  *
  * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
  * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
- * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
- * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
+ * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): open it beside what
+ * shows, and add it to or remove it from this project. The client
  * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
  */
 
@@ -123,7 +123,7 @@ export function renderPluginRail(
 ): string {
   const { icon, escapeHtml } = primitives;
   const have = new Set(enabled);
-  const extendIds = extendPluginIds(directory), pinned = new Set(dockDefaultPins(directory));
+  const extendIds = extendPluginIds(directory);
   const cards = pluginMarketCards(options, directory);
   const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
@@ -145,12 +145,6 @@ export function renderPluginRail(
   const alongWith = (id: string): string[] => companionsOf(id).filter(other => other !== id && !have.has(other));
   const dependentsOf = (id: string): string[] => dependentPlugins(id, have, companionsOf);
   const named = (ids: readonly string[]) => ids.map(id => names.get(id) ?? id).join("|");
-  // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project.
-  const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
-    const kept = owned && pinned.has(plugin.id);
-    return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
-      label: uiText.text("workbench.immersive-shell.keep-dock-name", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: uiText.text("workbench.immersive-shell.keep-dock") } });
-  };
   // 「在旁边打开」: the pointer's way to what ⌥↵ on the tile does (PFG-23). Every tile has it, so adding or removing a plugin
   // changes no markup; it answers only for a plugin of the project.
   const besideButton = (plugin: { id: string; label: string }, owned: boolean) => renderButton({ variant: "secondary", size: "sm", icon: "columns", iconOnly: true, className: "rail-beside", disabled: !owned,
@@ -170,20 +164,19 @@ export function renderPluginRail(
         title: locked ? uiText.text("workbench.immersive-shell.always-plugin-cannot-be-removed-project") : owned ? uiText.text("workbench.immersive-shell.turn-off-project-its-data-stays-comes-back") : `${uiText.text("workbench.immersive-shell.add-project")}${alongNote}${dependNote}${sites.length ? uiText.text("workbench.immersive-shell.uses-side-panel-browser-sites", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
-  // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
-  const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
+  // The second line a removal asks in (navigation-presentation.ts).
+  const mark = `<small class="plugin-rail-confirm" aria-hidden="true"></small>`;
   const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean; group?: string | null }, zone: string) => {
     // A plugin installed at run time is in the project because it runs there; taking it out is whoever installed it, not this list.
     const installed = plugin.chosen === false;
     const owned = installed || have.has(plugin.id);
     const label = escapeHtml(plugin.label);
-    const kept = owned && pinned.has(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${escapeHtml(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${uiText("workbench.immersive-shell.name-not-added", { name: plugin.label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
-    // The group goes on the tile so the bar can put a kept 个人 plugin in the right tray (07-1 S4b).
-    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
+    // The tile carries its group, the person's own (个人) among them.
+    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
   const home = link({ id: "home", surface: "home", label: uiText.text("workbench.immersive-shell.project-home"), glyph: "home", hint: uiText.text(RAIL_HOME_HINT) }, "core");
@@ -220,19 +213,19 @@ export function renderPickerExtend(_primitives: ImmersiveShellPrimitives, enable
 }
 
 /**
- * The bottom of the workbench is the work line (specs/work-line §4, WLN-16): what happened on the left, the one input in the
- * middle (the resident Assistant, whose dialog opens above it) and what comes next on the right. It has no Dock: the plugins
- * chosen to stay, the way to every plugin, the person's own plugins and the project are in the top strip
- * (`renderImmersiveHeader`). `head` names whose line it is; the line's events are drawn by the page (browser/work-bar.ts) from
- * the line read, so the page is served with an empty line. The right side panel is in this element because it stands on the bar.
+ * The foot of the workbench (specs/screen-polish §4「底栏第十三版」; specs/work-line §16, WLN-16): the account bar on the left,
+ * the one input in the middle (the resident Assistant, whose dialog opens above it) with 办完, 在办 and 接下来 inside it, and the
+ * card stack of what waits for the person on the right. It has no Dock: the way to every plugin and the projects are in the
+ * top strip (`renderImmersiveHeader`). The counts, the lists and the cards are drawn by the page (browser/work-bar.ts) from the
+ * line read, so the page is served with empty ones. The right side panel is in this element because it stands on the bar.
  */
-export function renderWorkbenchBar(primitives: ImmersiveShellPrimitives, parts: { head?: string; sideTabs?: readonly SidePanelPluginTab[] } = {}): string {
-  const line = renderWorkLine({ head: renderLineHead({ name: parts.head || uiText.text("workbench.immersive-shell.project-home"), waiting: 0 }), past: [], active: [], next: [], slot: renderAssistantDock(primitives) });
+export function renderWorkbenchBar(primitives: ImmersiveShellPrimitives, parts: { sideTabs?: readonly SidePanelPluginTab[] } = {}): string {
+  const line = renderWorkLine({ account: renderAccountBar(primitives), slot: renderAssistantDock(primitives) });
   return `<div class="workbench-bar" data-work-bar aria-label="${uiText("workbench.immersive-shell.bottom-bar")}">${line}${renderSidePanel(primitives, parts.sideTabs ?? [])}</div>`;
 }
 
 /** What the top strip carries beyond history, tabs and the right side's glyphs: the plugins' way around and the project. */
-export interface TopStripNavigation { readonly rail: string; readonly enabled: readonly string[]; readonly projectChrome: string }
+export interface TopStripNavigation { readonly rail: string; readonly enabled: readonly string[]; readonly projectChrome: string; readonly corner?: string }
 
 /** A panel may name an alias inside its HTML; only unmarked panels acquire their owner's identity from the wrapper. */
 export function directoryPanelIdentity(owner: string, panel: string): { ids: string[]; wrap: boolean } {
@@ -261,15 +254,18 @@ export function renderDirectoryPluginSections(
 }
 
 /**
- * The top strip (specs/work-line §4.2, WLN-16): the way back; the plugins chosen to stay (项目首页 first, the current one named);
- * the work area's tabs; ＋, which opens the start page (search, the market and the studio, then every plugin with the buttons that
- * keep it in the strip or add it to the project); the person's own plugins chosen to stay; the right side's tabs (side-panel.ts),
- * the one layout button (07-S2, 口径 6) and, last, the project as a round button whose menu holds the project and the person.
+ * The top strip (specs/screen-polish §3 方案 C「纸上的页签」; specs/work-line §4.2, WLN-16): the way back; the first place,
+ * 「项目 › 项目主页」 with ⌂ in it, whose list changes the project (`nav.corner`, §4「底栏第十三版」第 1 条); the work area's tabs,
+ * the current one grown on its sheet; ＋, which opens the start page (search, the market and the studio, then every plugin with
+ * the button that adds it to the project or takes it out). Over the
+ * side sheet stands the name of the view it shows, which opens the list of the side's views (side-panel.ts). The right end holds
+ * three controls and no more (POLISH-05): the side's switch, the one layout button (07-S2, 口径 6) and the project, a round
+ * button whose menu holds the project and the person; the sync mark joins them only while it has something to say.
  * `nav` is given by the workbench page; without it the strip is the title bar alone (a frame that draws no navigation).
  */
 export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, sideTabs: readonly SidePanelPluginTab[] = [], nav?: TopStripNavigation): string {
   const { icon } = primitives;
-  const pins = nav ? `<div class="dock-pins" data-dock-pins role="toolbar" aria-label="${uiText("workbench.immersive-shell.pinned-plugins")}"></div>` : "";
+  const pins = nav ? `<div class="dock-pins" data-dock-pins>${nav.corner ?? ""}</div>` : "";
   const picker = nav ? `<div class="plugin-picker" data-plugin-picker>
       <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${uiText("workbench.immersive-shell.switch-plugin")}" title="${uiText("workbench.immersive-shell.switch-plugin")} ⌘K">${icon("plus")}<span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${uiText("workbench.immersive-shell.project-home")}</span></span></button>
       <div class="plugin-picker-popover" data-plugin-picker-popover hidden>
@@ -280,7 +276,9 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
         ${nav.rail}
       </div>
     </div>` : "";
-  const own = nav ? `<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="${uiText("workbench.immersive-shell.own")}"></div>` : "";
+  // The side sheet's own tab: the view it shows, by name. The script fills it (side-panel.ts); it is there only while the side is open.
+  const sideEar = `<button class="side-ear" type="button" data-side-ear data-ear aria-expanded="false" aria-controls="side-views" hidden><span class="side-ear-glyph" data-side-ear-glyph aria-hidden="true"></span><span class="side-ear-name" data-side-ear-name></span>${icon("chevron-down")}</button>`;
+  const sideToggle = renderButton({ label: uiText.text("workbench.immersive-shell.side-toggle"), icon: "panel", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-side-toggle": true, "aria-pressed": "false", "aria-controls": "side-panel", "aria-keyshortcuts": "Meta+\\", title: `${uiText.text("workbench.immersive-shell.side-toggle")} ⌘\\` } });
   return `<header class="workbench-header immersive-titlebar"${nav ? " data-dock" : ""}${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="back" aria-label="${uiText("workbench.immersive-shell.previous")}" title="${uiText("workbench.immersive-shell.previous")}" disabled>${icon("back")}</button>
@@ -293,10 +291,10 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     ${picker}
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${uiText("workbench.immersive-shell.workspace-tabs")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    ${own}
-    ${renderSideStrip(primitives, sideTabs)}
-    <span class="titlebar-layout">${renderButton({ label: uiText.text("workbench.immersive-shell.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: uiText.text("workbench.immersive-shell.layout") } })}</span>
-    ${nav ? `<div class="titlebar-end">${renderSyncIndicator(primitives)}${nav.projectChrome}</div>` : ""}
+    ${sideEar}
+    ${renderSideStrip(primitives, sideTabs, {}, { menu: true })}
+    <span class="titlebar-layout">${sideToggle}${renderButton({ label: uiText.text("workbench.immersive-shell.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: uiText.text("workbench.immersive-shell.layout") } })}</span>
+    ${nav ? `<div class="titlebar-end">${nav.projectChrome}</div>` : ""}
   </header>`;
 }
 

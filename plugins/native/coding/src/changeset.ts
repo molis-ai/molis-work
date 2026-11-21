@@ -30,6 +30,12 @@ export function readCodingChangeSet(artifacts: PluginArtifactClient, sessionId: 
   return { change: saved.change, reference, saved_at: artifact.created_at };
 }
 
+/** How many lines turning `before` into `after` adds and removes. */
+export function codingChangedLines(before: string | null, after: string): { added_lines: number; removed_lines: number } {
+  const ops = compareTexts(before ?? "", after).ops;
+  return { added_lines: ops.filter(op => op.kind === "insert").length, removed_lines: ops.filter(op => op.kind === "delete").length };
+}
+
 export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows: Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>): CodingChangeSet {
   if (!["completed", "failed", "stopped", "cancelled"].includes(run.phase)) throw new Error("请等待这一轮结束或先核对中断结果，再固定变更");
   const files = rows.filter(row => row.request.document.kind === "text-edit").map(({ request, receipt }) => {
@@ -38,12 +44,11 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
     const document = request.document;
     parseFilePath(document.target_path.split("/"));
     if (document.exists !== (document.before_text !== null)) throw new Error("原审查文件状态不一致");
-    const diff = compareTexts(document.before_text ?? "", document.after_text);
     const execution = receipt.effect_uncertain || receipt.delivery_error ? "unknown" as const
       : receipt.effect_settled ? "applied" as const : receipt.effect_error ? "failed" as const
         : receipt.status === "approved" ? "unknown" as const : "not-applied" as const;
     return { path: document.target_path, kind: document.exists ? "modified" as const : "added" as const,
-      added_lines: diff.ops.filter(op => op.kind === "insert").length, removed_lines: diff.ops.filter(op => op.kind === "delete").length,
+      ...codingChangedLines(document.before_text, document.after_text),
       diff: "", review: { review_id: request.review_id, before_text: document.before_text, after_text: document.after_text, decision: receipt.status, execution } };
   });
   return parseCodingChangeSet({ scope: "run-frozen", run_id: run.ref.run_id, files, applied: files.length > 0 && files.every(file => file.review.execution === "applied"),

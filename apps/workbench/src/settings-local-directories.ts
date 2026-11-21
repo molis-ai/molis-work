@@ -1,15 +1,20 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderButton, renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * “本机目录” (PG-049, user 2026-10-25): every local directory the person let a plugin read, by plugin, with what read it lately.
  * The page is the platform's, the same for every plugin; a plugin's own settings may link here (`/settings/directories?plugin=<id>`).
  */
 export function renderLocalDirectorySettings({ }: { readText(text: string): string }): string {
+  // The card is drawn here, in the page's language; the page's program clones these and fills in the names and the rows.
+  const card = (words: string, loading = false) => renderSettingsSection({ className: "settings-section", body: `<p class="mw-settings-section__note${loading ? " mw-loading" : ""}">${uiText(words)}</p>` });
+  const plugin = renderSettingsSection({ title: "—", titleAttrs: { "data-local-directory-plugin-name": true }, className: "settings-section local-directory-plugin", body: "",
+    action: renderButton({ variant: "ghost", size: "sm", label: uiText.text("workbench.settings-local-directories.take-back-all-plugin"), attrs: { "data-local-directory-take-all": true } }) });
   return `<section class="settings-document local-directory-settings" aria-labelledby="settings-title" data-local-directory-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-local-directories.local-folders")}</h1></div>
       <p>${uiText("workbench.settings-local-directories.folders-mac-let-plugins-read-permission-stands-until")}</p>
       <p>${uiText("workbench.settings-local-directories.plugins-agents-scheduled-tasks-workflows-external-clients-may")}</p>
       <p>${uiText("workbench.settings-local-directories.backups-keep-read-history-viewing-page-does-not")}</p></header>
-    <div data-local-directory-list><div class="mw-settings-section__rows"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-local-directories.loading")}</p></div></div>
+    <div data-local-directory-list>${card("workbench.settings-local-directories.loading", true)}</div>
+    <template data-local-directory-part="empty">${card("workbench.settings-local-directories.no-plugin-has-been-allowed-read-folder-mac")}</template><template data-local-directory-part="plugin">${plugin}</template>
     <p class="settings-form-error" data-local-directory-error role="alert" hidden></p>
   </section>`;
 }
@@ -28,6 +33,7 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
   const list = root.querySelector("[data-local-directory-list]"), error = root.querySelector("[data-local-directory-error]");
   const address = context || { search: location.search };
   const focus = new URLSearchParams(address.search || "").get("plugin");
+  const part = (name) => root.querySelector('template[data-local-directory-part="' + name + '"]').content.firstElementChild.cloneNode(true);
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   const when = (value) => value ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: value, style: "datetime-with-seconds" } }) : "";
   const BY = { person: globalThis.t.text("workbench.settings-local-directories.page"), agent: "Agent", workflow: globalThis.t.text("workbench.settings-local-directories.workflow"), mcp: globalThis.t.text("workbench.settings-local-directories.external-client-mcp"), background: globalThis.t.text("workbench.settings-local-directories.background-scheduled-task") };
@@ -64,18 +70,16 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
     let grants;
     try { grants = (await molisWorkRequest("/api/host/directory-grants")).grants; }
     catch (failure) { list.replaceChildren(); failed(failure); return; }
-    if (!grants.length) { const card = el("div", "mw-settings-section__rows"); card.append(el("p", "mw-settings-section__note", globalThis.t.text("workbench.settings-local-directories.no-plugin-has-been-allowed-read-folder-mac"))); list.replaceChildren(card); return; }
+    if (!grants.length) { list.replaceChildren(part("empty")); return; }
     const plugins = new Map();
     for (const grant of grants) { if (!plugins.has(grant.plugin_id)) plugins.set(grant.plugin_id, []); plugins.get(grant.plugin_id).push(grant); }
     list.replaceChildren(...[...plugins].map(([pluginId, owned]) => {
       // One plugin is one section: its name outside, its folders the rows of one card.
-      const group = el("section", "settings-section mw-settings-section local-directory-plugin");
+      const group = part("plugin");
       group.dataset.pluginId = pluginId;
-      const head = el("div", "mw-settings-section__head"), card = el("div", "mw-settings-section__rows");
-      head.append(el("h2", "", owned[0].plugin_name));
-      const all = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-local-directories.take-back-all-plugin")); all.type = "button";
-      all.addEventListener("click", () => revoke("plugin/" + encodeURIComponent(pluginId), globalThis.t.text("workbench.settings-local-directories.take-back-every-folder-permission-plugin-has")));
-      head.append(all); card.append(...owned.map(grantRow)); group.append(head, card);
+      group.querySelector("[data-local-directory-plugin-name]").textContent = owned[0].plugin_name;
+      group.querySelector("[data-local-directory-take-all]").addEventListener("click", () => revoke("plugin/" + encodeURIComponent(pluginId), globalThis.t.text("workbench.settings-local-directories.take-back-every-folder-permission-plugin-has")));
+      group.querySelector(".mw-settings-section__rows").append(...owned.map(grantRow));
       return group;
     }));
     if (focus) list.querySelector('[data-plugin-id="' + CSS.escape(focus) + '"]')?.scrollIntoView({ block: "start" });

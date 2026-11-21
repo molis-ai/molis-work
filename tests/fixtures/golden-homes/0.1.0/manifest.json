@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.0",
-  "commit": "610b27ff8f39e02ea13aa044f543bc0e474d81e9",
+  "commit": "e90a8b22113e297019d008f2510e2d514bc9d0ea",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -594,7 +594,7 @@
         "install_declarations": 14,
         "molis_storage_space": 1
       },
-      "sha256": "7fc0c35772c1d872e2f0c5befaa7de3b684c695a6319d078c7759835fd308383"
+      "sha256": "db21d6bcb7db0039f6ed3f9eff51b2ea418b676e63d0678ff15a287d89b9c268"
     },
     {
       "path": "agent-definitions/agent-definitions.db",
@@ -1321,8 +1321,8 @@
         "plugin_runtime_installs": 9,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "27aebf843dd426d6893587fd87165f78f63cc819548e5d524376a4df1827f1d5",
-      "expanded_sha256": "9306b343a6556ca1548cb0576f7496ba652ddc01b12be58ea3158e5c942ab90e"
+      "sha256": "7819b42e3e1f43486ce98160c6d26d1c1a1468786b3540730412b305f2499bd5",
+      "expanded_sha256": "f68414c6880aa893642f3cdbcdb588fbcc4df7b622f269b09cdbb85f8ace52ba"
     },
     {
       "path": "ppt/ppt.db",
@@ -1589,8 +1589,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "0a82df8e9933565caa4a3f6dbe19b304332db7f47a5983bfc82cbb3d3709209e",
-      "expanded_sha256": "61c0c77305e57af560a0253a0d9eae2e372dc5729dfb71d514fe389f34b74560"
+      "sha256": "ad1fc3ec13b0533b9c599f824f54394ca86eb9d273d290ea74c5521654c0b87c",
+      "expanded_sha256": "969cb9f343e98cbecd2afd10f8b69e3c36c449643270b56a49fba3046ca371f4"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1795,8 +1795,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "25e666141416d13d76156c14ea0f1d912e672c61b83e81e85b1c0e5d948b3d69",
-      "expanded_sha256": "c9f8819efc992db79be7e29eefc8bcfb59b321f1ab5268b9340190a687ea1f46"
+      "sha256": "e029204c50f46c78303bd866db1e74da99ec5e6c0d6a1c152c86c0f6a0777669",
+      "expanded_sha256": "8c30801bbda8bab1278f13fc17d01cd4960210f00f165f2dead7d0b5b7a8b6c1"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -2001,8 +2001,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "9f4241e32ce9bec4979ad661068383f4587ce1a3103bdead9fb97cb02525ff87",
-      "expanded_sha256": "2a18104f6a0c2d7b659385168d3a6104d3ce049f2abeb7a5af49d3335beddbff"
+      "sha256": "3b76cab446832e6e048fe3ef71f15b6af2f881a6492f87953ffd2f39066be91d",
+      "expanded_sha256": "6f4183426536f038d855b54a42a2a73b792d8ec56676efb87422a4917761d4e6"
     },
     {
       "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/molis-work.db",
@@ -2207,8 +2207,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "077c36ab8b2a0126d42a76ce5369f0d93f1aeee8592937fb124111a56ca0d261",
-      "expanded_sha256": "61b7d1805d532748f48763d3ca69ff278bb02d0f24cc2d46d5bbc8a5cae3c503"
+      "sha256": "e3a5b781eea37e4e0255dcb91acb79a5577410cbd48ce13253b4753596f71ea1",
+      "expanded_sha256": "60873b7da1d8f6d7245950966a143e360823841c6da0af88a40f213043bad011"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -2258,7 +2258,7 @@
         "install_declarations": 14,
         "molis_storage_space": 1
       },
-      "sha256": "f661c32ff87c2e4afd71ed9574dfc6cc26223fa90dcc0922d612279793640053"
+      "sha256": "63fe6d716401278e9f0402bd0219df218e68fc5403ebe0c3c1bd55443542076a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
@@ -2828,8 +2828,8 @@
         "plugin_runtime_installs": 8,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "28b088a8e12bb56c1214f13848f30f6daec4bb0a7f1eb120bd1db99d0863e053",
-      "expanded_sha256": "887925acfb3e36439c57f8c839acd35d31cca66760c2d8f4a5a5b9b34512ef02"
+      "sha256": "e423864b9f5e2069afd7f02314ceffc09d69c9f7a33f2bbc56132c4a23895ee9",
+      "expanded_sha256": "3eed5e0581f92b7c342fd14b5a118198ef8834a768e622599540936560827617"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
@@ -3096,8 +3096,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "6c3bc66ac532262c4af3210f077adf7d0f793b462d712215ff2648008c9f6195",
-      "expanded_sha256": "a827c082455d6783e653090d01b5d6152c1e42591009c89c3a764935444b45c9"
+      "sha256": "31e6a1341fbfa9077bfc32e9333c46e3517630413f1d27aa90ebcddbca9e0d4e",
+      "expanded_sha256": "9f9df59c2191c8144e4bec79cd6ce375c24a5b4b07dc8db2e3654bb10334af31"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/molis-work.db",
@@ -3302,8 +3302,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "2e20ad6e6f8320a1e477d443f0a785e85cb427c7717fce6ebc5f782d71a8436d",
-      "expanded_sha256": "337267ee8d841e12fc9112da50554079001aba101ded47ae78564a3d9c50b2d2"
+      "sha256": "19e431976d94006773958fa48e2b7c40778ba5a2b9af72940fc1cc5c05d77514",
+      "expanded_sha256": "dbc1a80bfff97249f3d25fa13634cdce9b8a6d49dd7e1ce01e842fddb688ff78"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3992,11 +3992,6 @@
       "bytes": 381417
     },
     {
-      "digest": "238faa4a52eba87be418e0fb1d7a5adcfc2bd8d666560566fe8f0c8bf9f601c5",
-      "payload": "files/module-sources/238faa4a52eba87be418e0fb1d7a5adcfc2bd8d666560566fe8f0c8bf9f601c5.br",
-      "bytes": 2220441
-    },
-    {
       "digest": "28aae3d85531f925b3c82d6368ee7647422afeb4ef0023f3db3c0fb2b41c3d1e",
       "payload": "files/module-sources/28aae3d85531f925b3c82d6368ee7647422afeb4ef0023f3db3c0fb2b41c3d1e.br",
       "bytes": 161728
@@ -4017,14 +4012,19 @@
       "bytes": 122156
     },
     {
+      "digest": "7abbfb4262515291851485f4ee357b5a051879e2d08c09000800df5c3b035f4f",
+      "payload": "files/module-sources/7abbfb4262515291851485f4ee357b5a051879e2d08c09000800df5c3b035f4f.br",
+      "bytes": 147845
+    },
+    {
+      "digest": "7ee0db03f099d0255d9c89651241d062fdd0b935804876975171b08896b7fe4a",
+      "payload": "files/module-sources/7ee0db03f099d0255d9c89651241d062fdd0b935804876975171b08896b7fe4a.br",
+      "bytes": 190797
+    },
+    {
       "digest": "8278198c7f1921c86f41747c67820aa6ddbba4759e2a0685ece0e79d374dba3f",
       "payload": "files/module-sources/8278198c7f1921c86f41747c67820aa6ddbba4759e2a0685ece0e79d374dba3f.br",
       "bytes": 235194
-    },
-    {
-      "digest": "8944eb3cdbdb61f83ae062399b6b03d92d0bad5600160d4da2f49b0d56ebf6f9",
-      "payload": "files/module-sources/8944eb3cdbdb61f83ae062399b6b03d92d0bad5600160d4da2f49b0d56ebf6f9.br",
-      "bytes": 467059
     },
     {
       "digest": "89b7df4a05453b0aacdb09843887a68b902ef874ba419c6e7ae4024809d3619d",
@@ -4032,14 +4032,14 @@
       "bytes": 164557
     },
     {
-      "digest": "933996e1960217ac40316f40b955b7b0c8d1cd18ca1ea7cf638b39d650e42343",
-      "payload": "files/module-sources/933996e1960217ac40316f40b955b7b0c8d1cd18ca1ea7cf638b39d650e42343.br",
-      "bytes": 147845
-    },
-    {
       "digest": "96056c6a38ac0d282b18a6c784e7d35ba0a75fd113c7914737115f05804211a6",
       "payload": "files/module-sources/96056c6a38ac0d282b18a6c784e7d35ba0a75fd113c7914737115f05804211a6.br",
       "bytes": 86579
+    },
+    {
+      "digest": "9d0c2b3a6dc504bb9f0614a3bfe1c405e45dd2c46924a12ad4bfa8e746c238b6",
+      "payload": "files/module-sources/9d0c2b3a6dc504bb9f0614a3bfe1c405e45dd2c46924a12ad4bfa8e746c238b6.br",
+      "bytes": 468057
     },
     {
       "digest": "a3aca2fc1c6fadbbb17f6f0834aa7fc1530c3365186f6a8a02df07b62ba0d270",
@@ -4082,6 +4082,11 @@
       "bytes": 190332
     },
     {
+      "digest": "e0f46b1f47ec0bee58e26025558194cb2fd233349be19258a43cafad08851113",
+      "payload": "files/module-sources/e0f46b1f47ec0bee58e26025558194cb2fd233349be19258a43cafad08851113.br",
+      "bytes": 2225544
+    },
+    {
       "digest": "e27fca0b2df5da60004fa4003cb9e2e3f43b60bd3edb5f4ec82846f0c5ee526c",
       "payload": "files/module-sources/e27fca0b2df5da60004fa4003cb9e2e3f43b60bd3edb5f4ec82846f0c5ee526c.br",
       "bytes": 176633
@@ -4090,11 +4095,6 @@
       "digest": "e98117e4fd6d1de012f86545a2f17e0f96d2c6cd9fd8624960d157edbbdcec78",
       "payload": "files/module-sources/e98117e4fd6d1de012f86545a2f17e0f96d2c6cd9fd8624960d157edbbdcec78.br",
       "bytes": 216660
-    },
-    {
-      "digest": "ecdfdeff7f43f531bd8dd1215b26fd4ab4db4e163cc6323341faed40f98730fe",
-      "payload": "files/module-sources/ecdfdeff7f43f531bd8dd1215b26fd4ab4db4e163cc6323341faed40f98730fe.br",
-      "bytes": 190797
     },
     {
       "digest": "f14fdb267e018070d9e63b6c28a81adb7f482a7353bdaa732ea20a359c00da7c",
@@ -4194,6 +4194,11 @@
       "bytes": 41929
     },
     {
+      "digest": "d3e5359ef562345509a052ff18878898393528958d986509e3bbf27adf7b4400",
+      "payload": "files/release-manifests/d3e5359ef562345509a052ff18878898393528958d986509e3bbf27adf7b4400.br",
+      "bytes": 26760
+    },
+    {
       "digest": "d59196e74ad15461033c769f1ddaaa4d079c0202a688bddd32a8fa2a5a6a7194",
       "payload": "files/release-manifests/d59196e74ad15461033c769f1ddaaa4d079c0202a688bddd32a8fa2a5a6a7194.br",
       "bytes": 83286
@@ -4207,11 +4212,6 @@
       "digest": "e2024806ae3d5b1ba771fecd4e9d912aee0757b806973a010ed0a643863005d6",
       "payload": "files/release-manifests/e2024806ae3d5b1ba771fecd4e9d912aee0757b806973a010ed0a643863005d6.br",
       "bytes": 35071
-    },
-    {
-      "digest": "e3d7d9417e556b247868eddb2adbb8ddee5e237c74709600f65e5198d3c69345",
-      "payload": "files/release-manifests/e3d7d9417e556b247868eddb2adbb8ddee5e237c74709600f65e5198d3c69345.br",
-      "bytes": 26760
     }
   ],
   "formats": [

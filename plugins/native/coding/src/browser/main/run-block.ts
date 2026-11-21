@@ -1,10 +1,12 @@
 import { buildCodeIntelligenceHtml } from "../../code-intelligence-parts.js";
-import { buildRoundMaterialsHtml } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
+import { readChangeTally } from "./change-tally.js";
+import { renderChanged } from "./changed-files.js";
 import { terminal } from "./composer-state.js";
 import { showReviews } from "./helpers.js";
 import { offerApproval } from "./report.js";
+import { runPrep } from "./prep-fold.js";
 import { renderQuestions } from "./questions.js";
 import { groupEntries, type Group } from "./run-entries.js";
 import { turnNode } from "./run-turn.js";
@@ -66,6 +68,14 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
+/** What the round was prepared with sits right under the task, folded to one line once the answer starts (prep-fold.ts). */
+function placePrep(page: Page, block: HTMLElement, run: RunView, ordered: HTMLElement[], last: boolean) {
+  const fold = runPrep(page, block, run, last);
+  if (!fold) return;
+  const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+  ordered.splice(userIdx >= 0 ? userIdx + 1 : 0, 0, fold);
+}
+
 /**
  * A box drawn from HTML under the person's request, after the last of `after` already placed; kept across redraws, so a fold the
  * person opened or closed stays as they left it. No HTML removes it.
@@ -85,18 +95,18 @@ function placeBox(block: HTMLElement, ordered: HTMLElement[], attr: string, clas
   ordered.splice(Math.max(ordered.findIndex(node => node.dataset.kind === "user"), ...after.map(name => ordered.findIndex(node => node.hasAttribute(name)))) + 1, 0, box);
 }
 
-const MATERIALS = "data-coding-round-materials", CODE = "data-coding-code-intel-box";
+const PREP = "data-coding-prep", CODE = "data-coding-code-intel-box";
 
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
-  placeBox(block, ordered, MATERIALS, "coding-round-materials", buildRoundMaterialsHtml(run), []);
-  // Which languages the round could understand sits under its materials: one fold, open only when something is not ready (A4).
-  placeBox(block, ordered, CODE, "", buildCodeIntelligenceHtml(run.frozen?.code_intelligence), [MATERIALS]);
+  placePrep(page, block, run, ordered, last);
+  // Which languages the round could understand sits under its prep: one fold, open only when something is not ready (A4).
+  placeBox(block, ordered, CODE, "", buildCodeIntelligenceHtml(run.frozen?.code_intelligence), [PREP]);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
   if (planCard) {
-    ordered.splice(Math.max(...["user", MATERIALS, CODE].map(name => ordered.findIndex(node => name === "user" ? node.dataset.kind === name : node.hasAttribute(name)))) + 1, 0, planCard);
+    ordered.splice(Math.max(...["user", PREP, CODE].map(name => ordered.findIndex(node => name === "user" ? node.dataset.kind === name : node.hasAttribute(name)))) + 1, 0, planCard);
   }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {
@@ -118,8 +128,6 @@ function placeTray(page: Page, block: HTMLElement, run: RunView, all: readonly R
 function settle(block: HTMLElement, ordered: readonly HTMLElement[]) {
   let cursor = block.firstElementChild;
   for (const node of ordered) {
-    // Configuration anchors the readiness panel independently. Keep the entries after it in place.
-    if (cursor?.hasAttribute("data-coding-env-checklist")) cursor = cursor.nextElementSibling;
     if (node !== cursor) block.insertBefore(node, cursor);
     cursor = node.nextElementSibling;
   }
@@ -169,5 +177,8 @@ export function drawRun(page: Page, block: HTMLElement, run: RunView, all: reado
   const settled = !s.recovery && !s.checkpointBusy, last = run === all.at(-1);
   // Only the revision recorded when the round started names what it tested; the current HEAD may have moved.
   const headRev = run.code_revision ?? null;
-  timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
+  const footer = () => timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
+  footer();
+  // The newest round's line also says how many lines it added and removed; the count is read once and the line drawn again.
+  if (last) readChangeTally(page, run, () => { if (block.isConnected && page.s.allRuns.at(-1)?.ref.run_id === run.ref.run_id) { footer(); renderChanged(page); } });
 }

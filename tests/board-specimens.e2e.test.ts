@@ -97,9 +97,12 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
     // one that needs the person keeps its word, and gives way before the name's last four letters do.
     const narrow = await inFrame<Array<[string, number, string, string, boolean]>>(`return [...d.querySelectorAll('[data-board-specimen=coding-sessions] .coding-session-row')].map((row) => {
       const name = row.querySelector('.coding-session-title'), mark = row.querySelector('.coding-session-state');
-      return [mark.dataset.state, name.getBoundingClientRect().width, getComputedStyle(mark).fontSize, mark.title, !!mark.querySelector(':scope > svg.mw-state-ring') && mark.getBoundingClientRect().width > 0]; });`);
+      return [mark.dataset.state, name.getBoundingClientRect().width, mark.dataset.word ? 'word' : mark.dataset.quiet === 'true' && mark.getBoundingClientRect().width <= 24 ? 'ring' : 'other', mark.title, !!mark.querySelector(':scope > svg.mw-state-ring') && mark.getBoundingClientRect().width > 0]; });`);
     assert.ok(narrow.every(([, name]) => name >= 48), `every session keeps room for its name: ${narrow.map(([state, name]) => `${state} ${Math.round(name)}`).join(", ")}`);
-    assert.deepEqual(narrow.filter(([, , size]) => size === "0px").map(([state]) => state), ["running", "done"], "only the states that ask nothing drop their word");
+    // Expected change (screen-polish P4, POLISH-23): the word is no longer shrunk to nothing by a narrow-column rule; a state
+    // that asks nothing is drawn as its ring alone at every width, its word kept for a screen reader.
+    assert.deepEqual(narrow.filter(([, , shown]) => shown === "ring").map(([state]) => state), ["running", "done"], "only the states that ask nothing drop their word");
+    assert.ok(narrow.every(([, , shown]) => shown !== "other"), "every other state says its word");
     assert.ok(narrow.every(([, , , title, ring]) => title && ring), "every state still shows its ring and says its word as a title");
   }
   await evaluate("document.querySelector('[data-cond-params] [data-theme-option=dark]').click(); document.querySelector('[data-cond-params] [data-density-option=compact]').click()");

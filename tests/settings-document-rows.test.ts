@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createLocalHostWorkbenchRenderer, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -139,4 +141,26 @@ test("对外接入: who, where and what are rows of one card; each capability is
   assert.doesNotMatch(chosen, /<button[^>]*\sdisabled/, "POLISH-32: a capability that cannot be granted has no button rather than a grey one");
   const gone = chosen.slice(chosen.indexOf("notes.gone"));
   assert.doesNotMatch(gone.slice(0, gone.indexOf("</article>")), /data-mcp-grant/);
+});
+
+// specs/screen-polish/p5-settings.md「收齐的标准」: the same row is written one way. The SDK's settings-rows.ts is the only
+// place that writes a settings section, a setting row or an object row; the two older rows are gone with their styles.
+test("only the SDK writes a settings section, a setting row or an object row, and the older rows are gone (POLISH-29)", () => {
+  const sdk = "packages/plugin-sdk/src/ui/settings-rows.ts";
+  const files = execFileSync("git", ["ls-files", "--", "apps", "plugins", "packages", "horizontal"], { encoding: "utf8" }).split("\n")
+    .filter(file => /\/src\/.*\.(ts|tsx)$/.test(file) && file !== sdk && existsSync(file));
+  assert.ok(files.length > 500, "the scan reads the product's sources");
+  const PARTS = new Set(["mw-setting-row", "mw-setting-row__control", "mw-settings-section", "mw-settings-section__head", "mw-settings-section__rows", "mw-object-row", "mw-object-row__head"]);
+  const written: string[] = [], older: string[] = [];
+  for (const file of files) {
+    const text = readFileSync(file, "utf8");
+    // In markup: a class attribute naming one of the parts. In a program: the part's name as a string of its own, as a
+    // class given to a new element (a selector starts with a dot and a modifier goes on after the name, so neither matches).
+    for (const [, value] of text.matchAll(/class=\\?"([^"]*)"/g)) if (value!.split(/\s+/).some(name => PARTS.has(name))) written.push(`${file}: class="${value}"`);
+    for (const [found] of text.matchAll(/["'`]mw-(?:setting-row(?:__control)?|settings-section(?:__head|__rows)?|object-row(?:__head)?)["'` ]/g)) written.push(`${file}: ${found}`);
+    if (/SETTING_ROW_STYLES|settings-setting-row|\.mw-setting[ ,{>.:]|["'` ]mw-settings?["'` ]/.test(text)) older.push(file);
+  }
+  assert.deepEqual(written, [], "a page calls renderSettingsSection, renderSettingRow or renderObjectRow; it does not write their markup");
+  assert.deepEqual(older, [], "the workbench's settingRow (.settings-setting-row) and the design system's SETTING_ROW_STYLES (.mw-setting) are gone");
+  assert.equal(existsSync("apps/workbench/src/settings-row.ts"), false);
 });

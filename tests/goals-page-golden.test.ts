@@ -21,7 +21,13 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // QEA-83 combines those changes with QEA-06 import batch guidance and its action label; the underlying frozen business view is unchanged.
 // Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
 // checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
-// section became a title over one card.
+// section became a title over one card. Its second part (POLISH-29) re-recorded the same twenty for one intended change, checked hunk by
+// hunk against the drawing of #2127's head (4aae9decfa): the four appearance preference rows and the project's name and AI-tool rows are
+// now drawn by the SDK's setting row and section (the form error moved under the sentence, each choice group and field is named by its
+// row's title); nothing outside those two sections changed and the other 32 records did not move. Merged with main f5efe316a2 (#2101,
+// the QEA notes below), the same twenty were recorded again on top of main's accepted records: they move by the same amounts as before
+// the merge (+605 in each whole page, +382 in each settings-general) and the other 32 equal main's. The same held once more when main
+// a8d998935d (#2133) re-recorded the whole pages again: same twenty, same amounts, on top of main's records.
 // Batch 38 adds a project settings link to scene adoption. Removing only that link and its section from each of the 20 changed
 // renders reproduced main a8d998935d's length and SHA-256, including the desktop query. The 32 other records match directly.
 // B35-R1 adds the Sessions link to onboarding for the current project. Sessions sets its tab state after mounting.
@@ -248,6 +254,47 @@ const pages: Record<string, Draw> = {
 // (−19 characters, once, in each of the 16 page-* records). Each of the 16 drawn pages, with only that attribute put back, has its old
 // hash and length exactly; the other 36 records did not change. Checked again on the merges of main 6359987103 (batch 34's records)
 // and of a717e44284, bdfcc36454 and 43a3c3fa2f (the copywriting polish) after it, and the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
+// Screen polish P1 (specs/screen-polish §3 方案 C, the top strip as tabs on paper), on main 0dceaca09: the 16 page-* records grew
+// by 627 zh / 647 en characters and the 50 fragment records did not change. It is the shell's top strip alone, in three places:
+// the person's tray (`data-bar-own`) gave way to the side sheet's own tab (`data-side-ear data-ear`), the side's glyph row became the list
+// of its views (`side-strip side-views`, `data-side-menu hidden`), and the layout button is preceded by the side's switch
+// (`data-side-toggle`). Each of the 16 candidate normalized draws, with only those three put back as they were, had its prior hash
+// and length exactly; the new expectations are those draws' own. Candidate RECORD mode was not used; no Goals markup or JSON changed.
+// On the merges of main 4aa5496e3f (batch 34's records above) and then eafff2b526 the same 16 stood 627 zh / 647 en over main's
+// records, every one by that constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// The directory's two buttons in the top strip (collapse and show) changed their glyph from `panel`, the right-hand panel the side's
+// switch now carries, to `sidebar`: the 16 page-* records grew by 4 characters each (`#icon-panel` to `#icon-sidebar`, twice) in both
+// languages and the other 36 did not change; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main 77954f0100 the 16 stood 631 zh / 651 en over main's records (the strip and the glyph above), every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// After the review of P1 the side sheet's tab lost `aria-haspopup="true"` (21 characters) and the side's switch's tooltip gained
+// ` ⌘\` (3): on the merge of main e56bd6701a the 16 page-* records stood 613 zh / 633 en over main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// The top keeps no plugin (specs/screen-polish §3 方案 C, confirmed by the user 2026-11-18「确认，拿掉」): the start page's
+// entries lost their keep pin and kept mark, the Dock's holder its role and label, and the shell its kept-plugin glyphs. The 16
+// page-* records shrank by 9931 zh / 10430 en characters, every one by that constant, and the other 36 did not change; they then
+// stood 9318 zh / 9797 en under main's records (on main e56bd6701a), every one by that constant, and the 16 were recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main f1e875d11e (P0's records above) the 16 stood 9318 zh / 9797 en under main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main e5e565411b (P5's records above) the 16 again stood 9318 zh / 9797 en under main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Unified screen-polish PR #2142 (P5 Part 2 + Coding P4a + P1 top-strip scheme C / v13 top corner / v13 bottom bar) audited against
+// an independently built clean main a462bf81f2 (all 56 reference assertions passed and all 52 draws were dumped and compared hunk by
+// hunk): 32 records (all document-*, momentum-*, refresh-*, settings-guidance*, settings-rules*) match a462bf81f2 byte for byte, and
+// all `application/json` data blocks (`molis-work-data` and `data-project-guidance-json`) are unchanged byte for byte in every page.
+// The 4 settings-general* records move by +382 in both zh and en (P5 Part 2 SDK setting rows/sections alone). The 16 page-* records
+// move by +3856 zh / +3548 en on the 7 web pages (+605 P5 Part 2 + 3251 zh / +2943 en P1 top corner, scheme C, no kept plugins, and
+// v13 bottom bar account bar / counts / lists / stack) and +3886 zh / +3578 en on page-current-desktop (+30 from four added `?desktop=1`
+// / `&desktop=1` links on top-corner and bar-account minus one removed `/settings/sync?desktop=1` link). Keeping `/onboarding` unprefixed
+// in `prefixLocalLinks` (so the top-corner "New project" link `/onboarding?mode=new-project` does not 404 under `/projects/<id>`) removes
+// 16 characters (`/projects/golden`) from each of the 16 page-* records alone (final net +3840 zh / +3532 en on the 7 web pages and
+// +3870 zh / +3562 en on page-current-desktop). On the merges of main 820c13d498 (#2157, B35-R1 Sessions onboarding link) and main
+// b819fbbf61 (#2155, Batch 44 plugin equal standing), all 20 moved by the exact same constants (+3840/+3870 zh, +3532/+3562 en,
+// +382 settings-general*) over each accepted main's records while the other 32 matched directly. On user's 2026-11-20 decision to
+// unify 「项目首页」 → 「项目主页」 across the product, only the 8 `page-*.zh` records changed hashes at exact +0 character delta
+// (all 26 en records and 18 zh fragments/settings stayed byte-identical). The changed records were recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset; no Goals markup or JSON changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 // QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
 // `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.

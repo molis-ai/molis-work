@@ -64,7 +64,7 @@ test("RAC-400 Goals added again from the plugin list to a project without it ope
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${project.project_id}/` }, b.sessionId));
   await b.waitFor("Boolean(document.querySelector('[data-plugin-tile=\"goals\"]'))");
   await b.navigate(() => b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').click(); true"));
-  await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-kept')");
+  await b.waitFor("!document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-available')");
   assert.equal((await b.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project.project_id)!.plugins.includes("goals"), true);
   assert.equal(await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').disabled"), false,
     "the agreement was taken back, so the project may remove it again");
@@ -89,7 +89,7 @@ test("RAC-400 Goals added again from the plugin list to a project without it ope
   assert.deepEqual(await b.evaluate("window.__errors"), [], "taking Goals away also keeps the platform page usable");
   // PEQ-02: clicking Undo on the remove toast adds Goals back and displays the re-add receipt.
   await b.navigate(() => b.evaluate("document.querySelector('[data-toast] [data-toast-action]').click(); true"));
-  await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-kept')");
+  await b.waitFor("!document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-available')");
   await b.waitFor("/已加回/.test(document.querySelector('[data-toast]')?.textContent || '')");
   assert.equal(await b.evaluate("Boolean(document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-retained]'))"), false, "PEQ-02: Data kept badge clears on re-add");
   await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] > .plugin-rail-item').click(); true");

@@ -320,7 +320,7 @@
     "shelf.ui.search-materials": "搜索材料",
     "shelf.ui.send-to-the-current-terminal": "发给当前终端，不会生成新文件",
     "shelf.ui.sending-to-the-terminal-is": "在终端中运行会直接读写原文件",
-    "shelf.ui.the-project-home-lists-it": "项目首页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里",
+    "shelf.ui.the-project-home-lists-it": "项目主页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里",
     "shelf.ui.to-send-a-terminal-drop": "发给终端请拖到轮盘",
     "shelf.ui.use-in-this-project": "用于本项目",
     "shelf.ui.v-pastes-current": "⌘V 粘贴当前",

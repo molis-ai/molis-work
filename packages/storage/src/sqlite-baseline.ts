@@ -437,10 +437,16 @@ export function clearInExistingHomeSqlite<T>(homeDirectory: string, storeName: s
 // Held Home connections (batch 103-1). They live here, beside `openBaselineHomeSqlite`, because they only pass on the baseline their
 // caller names: the release check reads the named baseline at each caller (scripts/verify-release-versions.mjs).
 
-interface Held { db: DatabaseSync; dev: number; ino: number }
+interface Held { db: DatabaseSync; dev: number; ino: number; data: number; schema: number }
 
 /** The connections this process holds, by library file. */
 const held = new Map<string, Held>();
+
+/** What another connection would change: its committed writes (`data_version`) and any structure change (`schema_version`). */
+const versions = (db: DatabaseSync) => ({
+  data: Number((db.prepare("PRAGMA data_version").get() as { data_version: number }).data_version),
+  schema: Number((db.prepare("PRAGMA schema_version").get() as { schema_version: number }).schema_version),
+});
 
 const identity = (file: string) => {
   const stat = statSync(file, { throwIfNoEntry: false });
@@ -451,7 +457,8 @@ const identity = (file: string) => {
  * The one connection this process keeps to a Home store (batch 103-1): the first call opens it the way `openBaselineHomeSqlite` does (version,
  * structure and space checked, the structure compared once), runs `prepare` on it once, and every later call borrows the same connection instead
  * of opening and closing the file again. A file that was removed or replaced since (its device and inode changed) is opened again, so a borrower
- * never writes into a file that is no longer the store. Borrowers use it synchronously and never close it; the Host releases a Home's
+ * never writes into a file that is no longer the store; one another connection wrote to or changed since it was checked is checked again
+ * (opened again), so a store changed under it is refused as it was when every call opened the file. Borrowers use it synchronously and never close it; the Host releases a Home's
  * connections when it gives the Home up (`releaseHeldHomeSqlite`).
  */
 export function heldHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): DatabaseSync {
@@ -459,7 +466,10 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
   const current = held.get(file);
   if (current) {
     const now = current.db.isOpen ? identity(file) : undefined;
-    if (now && now.dev === current.dev && now.ino === current.ino) return current.db;
+    if (now && now.dev === current.dev && now.ino === current.ino) {
+      const seen = versions(current.db);
+      if (seen.data === current.data && seen.schema === current.schema) return current.db;
+    }
     held.delete(file);
     if (current.db.isOpen) current.db.close();
   }
@@ -468,7 +478,7 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
     prepare?.(db);
     const opened = identity(file);
     if (!opened) throw new Error("SQLite store disappeared while it was opened; retry");
-    held.set(file, { db, ...opened });
+    held.set(file, { db, ...opened, ...versions(db) });
     return db;
   } catch (error) {
     db.close();

@@ -157,7 +157,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       const row = el("div", "mw-fact-row " + (editorInfo.format_intact ? "mw-fact-row--ok" : "mw-fact-row--warn"));
       const bodySpan = el("span", "mw-fact-row__body", globalThis.t.text(editorInfo.format_intact ? "workbench.settings-prompts.locked-format-intact" : "workbench.settings-prompts.locked-format-broken"));
       if (editorInfo.required_keys?.length) {
-        bodySpan.append(el("small", "mw-fact-row__detail", globalThis.t.text("workbench.settings-prompts.locked-format-keys", { keys: editorInfo.required_keys.join("、") })));
+        bodySpan.append(el("small", "mw-fact-row__detail", globalThis.t.text("workbench.settings-prompts.locked-format-keys", { keys: editorInfo.required_keys.join(globalThis.t.text("common.list.separator")) })));
       }
       row.append(bodySpan);
       lock.append(row);

@@ -111,6 +111,6 @@ export function validateFullPromptBody(defaultBody: string, nextBody: string): v
   }
   const missing = required_keys.filter(key => !nextBody.includes(`"${key}"`));
   if (missing.length > 0) {
-    throw agentDefinitionsErrors.invalid(`输出格式约束缺少程序需要的字段：${missing.slice(0, 6).join("、")}。请补回后再保存，或点「恢复默认」回到原版。`);
+    throw agentDefinitionsErrors.invalid(`输出格式约束缺少程序需要的字段：${missing.slice(0, 6).join(", ")}。请补回后再保存，或点「恢复默认」回到原版。`);
   }
 }

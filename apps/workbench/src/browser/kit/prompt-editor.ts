@@ -78,7 +78,7 @@ export function mountKitPromptEditor(container: HTMLElement, promptKey: string, 
         : readText("workbench.settings-prompts.locked-format-broken");
       if (editor.required_keys.length) {
         const detail = el("small", "mw-fact-row__detail");
-        detail.textContent = readText("workbench.settings-prompts.locked-format-keys", { keys: editor.required_keys.join("、") });
+        detail.textContent = readText("workbench.settings-prompts.locked-format-keys", { keys: editor.required_keys.join(readText("common.list.separator")) });
         bodySpan.append(detail);
       }
       row.append(bodySpan);

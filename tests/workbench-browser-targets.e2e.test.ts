@@ -229,7 +229,7 @@ test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices re
   assert.deepEqual(reachable, [9, 9, 9, 9, 9], "all three browser choices, site settings and Assistant minimise are physically reachable");
   await browser.click("[data-browser-action=reject]");
   await browser.waitFor("document.querySelector('[data-browser-approval]').hidden");
-  assert.equal(await browser.evaluate("document.activeElement.dataset.sideTab"), "browser");
+  assert.equal(await browser.evaluate("document.activeElement.dataset.sideEar"), "browser");
   const bodies = await browser.evaluate<string[]>("window.__auditRequests.filter(row=>row.path.endsWith('/api/agent/reviews/decide')).map(row=>row.body)");
   assert.deepEqual(bodies.map(body => JSON.parse(body)), [{ review_id: id, version: "proposal-1", decision: "reject" }]);
   assert.equal(queue.receipt(id)?.status, "rejected");

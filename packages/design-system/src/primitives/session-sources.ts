@@ -2,8 +2,8 @@
 // the D track's specimens): the project permit row, a Setting Row that carries the project's mark and its own receipt, and the
 // external conversation, another tool's session read back as it was. Their rules and renderers live here so the board and, from
 // batch 34, the Sessions surfaces draw one set. Every control inside them is an existing one (project monogram, status mark,
-// loading line, button, Who); the rules only place them, on tokens only. Both lean on board rules that are not in the product
-// stylesheet yet: `.mw-setting` / `.mw-settings` (catalog-patterns.ts) and `.mw-who` (the board's collaboration parts).
+// loading line, button, Who); the rules only place them, on tokens only. The permit row and its card (`mw-permits`) carry their
+// own height, padding and lines: they are not a settings page's rows (styles/settings-rows.ts), which hold one control each.
 import { cx, escapeHtml, icon, renderAttrs, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderProjectMonogram } from "../monogram.js";
 
@@ -22,28 +22,33 @@ export const SESSION_SOURCE_STYLES = `
   /* 1 · Project permit row: the project's mark, its name with badges, one line of what it means, the control on the right, and
      under the line the row's own receipt (saving, on, off, not saved), so the outcome stays where the switch was pressed. The receipt
      arrives with the shared craft-rise; a failed save also nudges once, as a failed toast does (mw-toast-nudge). */
-  .mw-setting.mw-permit { flex-wrap: wrap; align-items: flex-start; gap: 4px 16px; transition: background-color var(--dur-move) var(--ease-quint); }
-  .mw-setting.mw-permit > div:first-child { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; flex: 1 1 0; min-width: 0; }
-  .mw-setting.mw-permit > .mw-permit__control { display: flex; align-items: center; gap: 8px; flex: none; min-height: 22px; margin-left: 0; }
+  .mw-permits { display: grid; width: min(560px, 100%); border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
+  .mw-permit { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 16px; min-height: 60px; padding: 12px 16px; transition: background-color var(--dur-move) var(--ease-quint); }
+  .mw-permit + .mw-permit { box-shadow: inset 0 1px 0 var(--line); }
+  .mw-permit strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-permit p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
+  .mw-permit .mw-select { width: auto; min-width: 140px; }
+  .mw-permit > div:first-child { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; flex: 1 1 0; min-width: 0; }
+  .mw-permit > .mw-permit__control { display: flex; align-items: center; gap: 8px; flex: none; min-height: 22px; margin-left: 0; }
   .mw-permit .project-monogram { margin-top: 1px; }
   .mw-permit__copy { display: grid; gap: 2px; min-width: 0; }
   .mw-permit__name { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .mw-permit__name > strong { min-width: 0; }
   .mw-permit__name > .mw-badge { flex: none; }
-  .mw-setting.mw-permit .mw-permit__meta { overflow-wrap: anywhere; }
+  .mw-permit .mw-permit__meta { overflow-wrap: anywhere; }
   .mw-permit.is-current { background: var(--accent-soft); }
-  .mw-settings > .mw-permit.is-current:first-child { border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0; }
-  .mw-settings > .mw-permit.is-current:last-child { border-radius: 0 0 calc(var(--r-card) - 1px) calc(var(--r-card) - 1px); }
-  .mw-settings > .mw-permit.is-current:only-child { border-radius: calc(var(--r-card) - 1px); }
+  .mw-permits > .mw-permit.is-current:first-child { border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0; }
+  .mw-permits > .mw-permit.is-current:last-child { border-radius: 0 0 calc(var(--r-card) - 1px) calc(var(--r-card) - 1px); }
+  .mw-permits > .mw-permit.is-current:only-child { border-radius: calc(var(--r-card) - 1px); }
   /* The receipt takes the row's whole width under the line (indented past the mark), so a narrow row keeps its words and Retry on one line. */
-  .mw-setting.mw-permit > .mw-permit__note { display: flex; align-items: baseline; gap: 4px 8px; flex: 1 1 100%; min-width: 0; margin: 0; padding-left: 34px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
-  .mw-setting.mw-permit > .mw-permit__note:empty { display: none; }
+  .mw-permit > .mw-permit__note { display: flex; align-items: baseline; gap: 4px 8px; flex: 1 1 100%; min-width: 0; margin: 0; padding-left: 34px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+  .mw-permit > .mw-permit__note:empty { display: none; }
   .mw-permit__note { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   .mw-permit__note > .mw-status { flex: none; }
   .mw-permit__note > span:last-child:not(.mw-status) { min-width: 0; }
   .mw-permit__note[data-kind="saving"] { animation: none; }
   .mw-permit__note[data-kind="saving"] > .mw-loading { font-size: 12px; }
-  .mw-setting.mw-permit > .mw-permit__note[data-kind="failed"] { color: var(--red); }
+  .mw-permit > .mw-permit__note[data-kind="failed"] { color: var(--red); }
   .mw-permit__note[data-kind="failed"] { animation: craft-rise var(--dur-move) var(--ease-quint) both, mw-toast-nudge var(--dur-arrive) var(--ease-quint) var(--dur-hover); }
   .mw-permit__note[data-kind="failed"] > span { flex: 0 1 auto; }
   .mw-permit__note[data-kind="failed"] > .mw-btn { flex: none; color: var(--ink); }
@@ -75,13 +80,13 @@ export const SESSION_SOURCE_STYLES = `
   .mw-transcript__note { color: var(--muted); font-size: 12px; line-height: 18px; text-align: center; overflow-wrap: anywhere; }
   .mw-transcript__hit { padding: 0 2px; border-radius: 4px; background: var(--amber-soft); color: var(--ink); box-shadow: inset 0 -1px 0 var(--amber); }
   @media (max-width: 760px) {
-    .mw-setting.mw-permit--action { flex-wrap: wrap; }
-    .mw-setting.mw-permit--action > div:first-child { flex-basis: 100%; }
-    .mw-setting.mw-permit--action > .mw-permit__control { flex: 1 1 100%; justify-content: space-between; padding-left: 34px; }
+    .mw-permit--action { flex-wrap: wrap; }
+    .mw-permit--action > div:first-child { flex-basis: 100%; }
+    .mw-permit--action > .mw-permit__control { flex: 1 1 100%; justify-content: space-between; padding-left: 34px; }
     .mw-step { margin-left: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .mw-setting.mw-permit, .mw-turn, .mw-step { transition: none; }
+    .mw-permit, .mw-turn, .mw-step { transition: none; }
     .mw-permit__note, .mw-permit__note[data-kind] { animation: none; }
   }
 `;
@@ -116,11 +121,11 @@ export function renderPermitNote(note: MwPermitNote | undefined): string {
   return `${renderStatusMark({ label: note.status, tone: note.kind === "on" ? "done" : "quiet", plain: true })}<span>${escapeHtml(note.text)}</span>`;
 }
 
-/** A Setting Row for one project: its mark, name and line on the left, the control on the right, the receipt under the line. */
+/** The permit row of one project: its mark, name and line on the left, the control on the right, the receipt under the line. */
 export function renderPermitRow(options: MwPermitRowOptions): string {
   const { project, note } = options;
   const description = `<p class="mw-permit__meta"${renderAttrs({ id: options.descriptionId })}>${escapeHtml(options.description)}</p>`;
-  return `<div class="${cx("mw-setting", "mw-permit", options.action && "mw-permit--action", options.current && "is-current")}" data-slot="permit-row"${renderAttrs(options.attrs)}>`
+  return `<div class="${cx("mw-permit", options.action && "mw-permit--action", options.current && "is-current")}" data-slot="permit-row"${renderAttrs(options.attrs)}>`
     + `<div>${renderProjectMonogram(project.name, project.id, escapeHtml)}<div class="mw-permit__copy"><span class="mw-permit__name"><strong title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</strong>${options.badges ?? ""}</span>${description}</div></div>`
     + `<div class="mw-permit__control">${options.control}</div>`
     + `<div class="mw-permit__note" role="status"${note ? ` data-kind="${note.kind}"` : ""}>${renderPermitNote(note)}</div></div>`;

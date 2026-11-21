@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
 import { codingTranscript } from "../transcript.js";
+import { changeTally } from "./change-tally.js";
 import type { CodingHost } from "./host.js";
 import type { Page, Refs, State } from "./page.js";
 import { readCurrent } from "./read.js";
@@ -82,7 +83,7 @@ export function mountFoundations(page: Page) {
   s.viewSignal = undefined;
   mountResultsIndex(page);
   lifetime.listen(document, "molis-work:language-changed", () => retitleCodingComposer(page));
-  const { timeline, turnChanges } = codingTranscript({ readText, lifetime, turns });
+  const { timeline, turnChanges } = codingTranscript({ readText, lifetime, turns, changeTally: runId => changeTally(page, runId) });
   page.refs.timeline = timeline;
   page.refs.turnChanges = turnChanges;
   lifetime.poll(() => page.refs.timeline.tick(turns), 1000);

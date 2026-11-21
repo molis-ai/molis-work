@@ -319,7 +319,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const title = inSide ? globalThis.t.text("workbench.tab-workspace-menus.layout-right") : split ? globalThis.t.text("workbench.tab-workspace-menus.layout-pane-n", { n: ops.paneNumber(state, pane.id) }) : globalThis.t.text("workbench.tab-workspace-menus.layout-main");
     const act = (run) => () => {
       layoutMenu.hidePopover(); run(); apply(); persist();
-      if (column === "side") document.querySelector("[data-side-tabs] [data-side-tab][aria-selected=true]")?.focus({ preventScroll: true }); else focusActiveTab();
+      if (column === "side") { const tab = document.querySelector("[data-side-tabs] [data-side-tab][aria-selected=true]"); (tab?.getClientRects().length ? tab : document.querySelector("[data-side-ear]"))?.focus({ preventScroll: true }); } else focusActiveTab();
     };
     const head = document.createElement("p");
     head.className = "tab-menu-head"; head.setAttribute("aria-hidden", "true"); head.textContent = title;

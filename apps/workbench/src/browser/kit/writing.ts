@@ -113,13 +113,16 @@ export function skillWriting(page: WritingPage) {
     return true;
   }
 
+  const strip = () => draftsStrip(c.drafts, c.kit() ? new Set(c.skills().map(entry => entry.skill.draft?.draft_id).filter((id): id is string => Boolean(id))) : undefined);
+
   /** A draft named in the address (a receipt's 「打开草稿」 link) opens once the page has read the kit. */
   async function fromAddress(): Promise<void> {
     const drafts = await listDrafts(project, true).catch(() => []);
     if (!c.active()) return;
+    const before = strip();
     c.drafts = drafts;
     const named = addressedDraft;
-    if (!named) { if (!view.workshop && !view.asking) draw(); return; }
+    if (!named) { if (strip() !== before && !view.workshop && !view.asking) draw(); return; }
     try {
       const draft = await readDraft(project, named);
       if (c.active() && addressedDraft === named) { addressedDraft = null; edit.opened(draft); }
@@ -131,7 +134,7 @@ export function skillWriting(page: WritingPage) {
   return {
     beforeReplace: () => edit.flush(), dispose,
     run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
-    strip: () => draftsStrip(c.drafts, c.kit() ? new Set(c.skills().map(entry => entry.skill.draft?.draft_id).filter((id): id is string => Boolean(id))) : undefined),
+    strip,
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
     workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),
   };

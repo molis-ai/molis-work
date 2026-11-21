@@ -1,4 +1,4 @@
-import { t as uiText, escapeHtml, renderButton, renderField, renderInput } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderButton, renderField, renderInput, renderSettingRow, renderSettingsSection } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAlertDialog, renderDialog } from "@molis-ai/molis-work-design-system";
 
 type Say = (text: string) => string;
@@ -12,11 +12,11 @@ type Say = (text: string) => string;
  */
 export function renderWriteCheckersSection(_L: Say): string {
   // Short sentences the program says about the whole part: reading, saved, nothing to show, stale, and the dialog titles.
-  const say = escapeHtml(JSON.stringify({
+  const say = JSON.stringify({
     loading: uiText.text("workbench.write-checkers-section.loading-after-write-checkers"), saved: uiText.text("workbench.write-checkers-section.after-write-checkers-saved"), none: uiText.text("workbench.write-checkers-section.link-folder-above-then-add-after-write-checks"),
     stale: uiText.text("workbench.write-checkers-section.these-checkers-were-changed-elsewhere-have-been-reloaded"), failed: uiText.text("workbench.write-checkers-section.after-write-checker-operation-failed"), gone: uiText.text("workbench.write-checkers-section.folder-no-longer-authorized"),
     add: uiText.text("workbench.write-checkers-section.add-checker"), edit: uiText.text("workbench.write-checkers-section.edit-checker"),
-  }));
+  });
   // A button of a group or a row: the visible word, and the name it is read out with (its checker or folder, by the slot).
   const act = (name: string, label: string, named: string, kind = "secondary", only = "") =>
     `<button class="mw-btn mw-btn--${kind}" type="button" data-act="${name}"${only} aria-label="${escapeHtml(named)}">${label}</button>`;
@@ -25,13 +25,12 @@ export function renderWriteCheckersSection(_L: Say): string {
   const text = { autocomplete: "off", spellcheck: "false" };
 
   const group = `<template data-wc="group"><div>
-      <div class="settings-setting-row"><div class="settings-record-title"><div><h3>{folder}</h3><p data-if="saved">${uiText("workbench.write-checkers-section.version-version")}</p><p data-if="unsaved">${uiText("workbench.write-checkers-section.not-saved-yet")}</p></div></div>${act("add", uiText.text("workbench.write-checkers-section.add-checker"), uiText.text("workbench.write-checkers-section.add-checker-folder"))}</div>
+      ${renderSettingRow({ name: "{folder}", nameAttrs: { role: "heading", "aria-level": 3 }, detail: `<span data-if="saved">${uiText("workbench.write-checkers-section.version-version")}</span><span data-if="unsaved">${uiText("workbench.write-checkers-section.not-saved-yet")}</span>`,
+        control: act("add", uiText.text("workbench.write-checkers-section.add-checker"), uiText.text("workbench.write-checkers-section.add-checker-folder")) })}
       <p class="mw-field__hint" data-if="empty">${uiText("workbench.write-checkers-section.folder-has-no-after-write-checkers-configured-yet")}</p>
     </div></template>`;
-  const row = `<template data-wc="row"><div class="settings-setting-row">
-      <span class="setting-copy"><strong>{name}</strong><code>{command}</code><span>${uiText("workbench.write-checkers-section.extensions-folder-cwd-seconds-s-limit")}</span></span>
-      <span class="setting-value">${act("edit", uiText.text("workbench.write-checkers-section.change"), uiText.text("workbench.write-checkers-section.edit-name"))}${act("up", uiText.text("workbench.write-checkers-section.move-up"), uiText.text("workbench.write-checkers-section.move-name-up"), "secondary", ' data-if="movable"')}${act("remove", uiText.text("common.control.delete"), uiText.text("workbench.write-checkers-section.delete-name"), "danger-outline")}</span>
-    </div></template>`;
+  const row = `<template data-wc="row">${renderSettingRow({ name: "{name}", detail: `<code>{command}</code><span>${uiText("workbench.write-checkers-section.extensions-folder-cwd-seconds-s-limit")}</span>`,
+      control: `${act("edit", uiText.text("workbench.write-checkers-section.change"), uiText.text("workbench.write-checkers-section.edit-name"))}${act("up", uiText.text("workbench.write-checkers-section.move-up"), uiText.text("workbench.write-checkers-section.move-name-up"), "secondary", ' data-if="movable"')}${act("remove", uiText.text("common.control.delete"), uiText.text("workbench.write-checkers-section.delete-name"), "danger-outline")}` })}</template>`;
   const remove = `<template data-wc="remove">${renderAlertDialog({
     labelledBy: "write-checkers-remove-title", title: uiText.text("workbench.write-checkers-section.delete-checker-name"), closeLabel: uiText.text("common.control.close"),
     body: `<p>${escapeHtml(uiText.text("workbench.write-checkers-section.after-written-files-no-longer-checked"))}</p>`,
@@ -49,5 +48,9 @@ export function renderWriteCheckersSection(_L: Say): string {
     ].join(""),
     footer: `<p class="form-error" data-wc="error" role="alert" hidden></p>${cancel()}${renderButton({ variant: "primary", size: "md", type: "submit", label: uiText.text("common.control.save") })}`,
   });
-  return `<section class="settings-section mw-settings-section" data-say="${say}" data-write-checkers><header class="mw-settings-section__head"><h2>${uiText("workbench.write-checkers-section.after-write-checks")}</h2></header><div class="mw-settings-section__rows"><p class="mw-settings-section__note">${uiText("workbench.write-checkers-section.after-agent-writes-file-first-checker-here-that")}</p><div data-wc="list"></div><p data-wc="status" role="status" aria-live="polite"></p></div>${editor}${group}${row}${remove}</section>`;
+  // The dialog and the templates come first, so the status line stays the card's last child and the card's edge closes it.
+  return renderSettingsSection({
+    title: uiText.text("workbench.write-checkers-section.after-write-checks"), className: "settings-section", attrs: { "data-say": say, "data-write-checkers": true },
+    body: `${editor}${group}${row}${remove}<p class="mw-settings-section__note">${uiText("workbench.write-checkers-section.after-agent-writes-file-first-checker-here-that")}</p><div data-wc="list"></div><p data-wc="status" role="status" aria-live="polite"></p>`,
+  });
 }

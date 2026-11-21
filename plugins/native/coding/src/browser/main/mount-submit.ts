@@ -28,7 +28,7 @@ function mountCommands(page: Page) {
 async function togglePriority(page: Page, button: HTMLButtonElement) {
   const id = button.dataset.session;
   if (!id) return;
-  const on = button.getAttribute("aria-pressed") !== "true";
+  const on = button.getAttribute("aria-checked") !== "true";
   button.disabled = true;
   try {
     const result = await api<{ priority: boolean; notified: string[]; paths: string[] }>(page, sessionPath(id) + "/priority", "POST", { on });
@@ -63,7 +63,9 @@ function mountSend(page: Page) {
   const { lifetime, q, s } = page;
   s.queuedKey = "";
   const priority = q<HTMLButtonElement>("[data-coding-priority]");
-  lifetime.listen(priority, "click", () => { void togglePriority(page, priority); });
+  // The header's ⋯ menu holds it: choosing closes the menu. A press outside and Escape close it as they close every floating
+  // menu (the frame's floating-details).
+  lifetime.listen(priority, "click", () => { q<HTMLDetailsElement>("[data-coding-head-more]").open = false; void togglePriority(page, priority); });
   mountReturns(page, async () => { q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click(); });
 }
 

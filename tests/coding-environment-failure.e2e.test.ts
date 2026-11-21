@@ -60,7 +60,9 @@ test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment
   // Expire the owner's existing successful inspection; the browser still performs its ordinary reload/read.
   t.mock.timers.enable({ apis: ["Date"], now: Date.now() + 16_000 });
   await b.reloadPage(); await b.waitFor(CODING_OPEN);
-  await frame.waitFor(`document.querySelector('[data-run] > ${retry}')`);
+  // Expected change (screen-polish POLISH-24): a round's environment card sits inside the round's one-line fold of what it was
+  // prepared with (`[data-coding-prep]`), not directly in the round; the card, its actions and what they do are the same.
+  await frame.waitFor(`document.querySelector('[data-run] > [data-coding-prep] > ${retry}')`);
   assert.equal(await draft(), "下一轮仍要保留");
   const evidence = reviewEvidenceUrl("quality-audit-coding-recovery/"); await mkdir(evidence, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
@@ -73,6 +75,6 @@ test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment
     await frame.evaluate(`document.querySelector(${JSON.stringify(retry)}).scrollIntoView({ block: 'center' })`);
     await writeFile(new URL(`environment-unavailable-${theme}-${width}.png`, evidence), Buffer.from((await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId)).data, "base64"));
   }
-  await restoreEnvironment("[data-run] > [data-coding-env-checklist] [data-coding-env-action=run-baseline]");
+  await restoreEnvironment("[data-run] > [data-coding-prep] > [data-coding-env-checklist] [data-coding-env-action=run-baseline]");
   assert.equal(await draft(), "下一轮仍要保留"); assert.equal(model.requests.length, calls);
 });

@@ -24,7 +24,7 @@ const onNote = (): MwPermitNote => ({ kind: "on", status: uiText.text("workbench
 const offNote = (): MwPermitNote => ({ kind: "off", status: uiText.text("workbench.session-source-specimens.off"), text: uiText.text("workbench.session-source-specimens.off-note") });
 
 function statesSpecimen(): string {
-  return `<div class="mw-settings">${[
+  return `<div class="mw-permits">${[
     permitRow({ id: "project-demo", name: uiText.text("workbench.session-source-specimens.project-demo"), line: uiText.text("workbench.session-source-specimens.line-filed", { dir: "~/code/molis-work", n: 12 }), on: true, note: { kind: "saving", label: uiText.text("workbench.session-source-specimens.saving") }, badges: renderBadge({ label: uiText.text("workbench.session-source-specimens.current") }), current: true }),
     permitRow({ id: "project-growth", name: uiText.text("workbench.session-source-specimens.project-growth"), line: uiText.text("workbench.session-source-specimens.line-readable", { dir: "~/work/growth", n: 8 }), on: true, note: onNote() }),
     permitRow({ id: "project-research", name: "Research", line: uiText.text("workbench.session-source-specimens.line-filed", { dir: "~/research", n: 5 }), on: false, note: offNote() }),
@@ -39,7 +39,7 @@ function edgesSpecimen(): string {
   });
   const long = permitRow({ id: "project-long", name: uiText.text("workbench.session-source-specimens.project-long"), line: uiText.text("workbench.session-source-specimens.line-filed", { dir: "~/Documents/Clients/2026/Q4/very-long-folder-name-for-the-annual-review-and-planning", n: 214 }), on: false });
   const empty = permitRow({ id: "project-empty", name: "Onboarding", line: uiText.text("workbench.session-source-specimens.line-none", { dir: "~/onboarding" }), on: false });
-  return `<div class="mw-settings">${team}${long}${empty}</div>`;
+  return `<div class="mw-permits">${team}${long}${empty}</div>`;
 }
 
 const people = (): Pick<MwTranscriptOptions, "you" | "tool" | "label"> => ({
@@ -97,6 +97,6 @@ export function renderSessionSourceSection(): string {
 
 /** The parts' look is the design system's; the board only lays the specimens out. */
 export const SESSION_SOURCE_SECTION_STYLES = SESSION_SOURCE_STYLES
-  + "#session-sources .mw-catalog__specimens{grid-template-columns:minmax(0,1fr)}#session-sources .mw-settings{width:min(640px,100%)}"
+  + "#session-sources .mw-catalog__specimens{grid-template-columns:minmax(0,1fr)}#session-sources .mw-permits{width:min(640px,100%)}"
   + "#session-sources .mw-transcript{max-width:760px}"
   + ".mw-session-board__search{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}.mw-session-board__search>span{margin-right:4px}";

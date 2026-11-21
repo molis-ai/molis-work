@@ -107,14 +107,14 @@ test("global diagnostics and runtime pages use the same setting rows as project 
     },
   });
   // POLISH-30: a section's title sits outside and its rows are one card.
-  assert.match(diagnosticsHtml, /class="settings-section mw-settings-section"[^>]*><header class="mw-settings-section__head"><h2/);
+  assert.match(diagnosticsHtml, /class="mw-settings-section settings-section"[^>]*>\s*<header class="mw-settings-section__head"><h2/);
   assert.doesNotMatch(diagnosticsHtml, /class="mw-hint"/);
   // The diagnostics rows are the SDK's setting row (renderSettingRow), no longer the workbench's own settingRow.
   assert.match(diagnosticsHtml, /class="mw-setting-row" data-slot="setting-row"/);
   assert.doesNotMatch(diagnosticsHtml, /class="settings-setting-row"/);
   assert.match(diagnosticsHtml, /class="setting-copy"/);
   assert.match(diagnosticsHtml, /id="launcher-title">启动入口/);
-  assert.match(diagnosticsHtml, /class="settings-section mw-settings-section settings-project-maintenance"/);
+  assert.match(diagnosticsHtml, /class="mw-settings-section settings-section settings-project-maintenance"/);
   assert.match(diagnosticsHtml, /class="project-manager-danger"/);
   assert.doesNotMatch(diagnosticsHtml, /<h2>Molis Work 本体<\/h2>/);
   assert.doesNotMatch(diagnosticsHtml, /class="settings-body"/);
@@ -189,7 +189,7 @@ test("workbench project gear opens a directory of categories and an exclusive se
   assert.doesNotMatch(settingsDirectory, /data-theme-option/);
   assert.match(html, /data-work-surface="project-settings"[^>]*>[\s\S]*data-project-rename/);
   assert.match(html, /data-work-surface="settings"[^>]*>[\s\S]*data-theme-option="dark"/);
-  assert.match(html, /data-work-surface="settings"[^>]*>[\s\S]*class="settings-section"/);
+  assert.match(html, /data-work-surface="settings"[^>]*>[\s\S]*class="mw-settings-section settings-section"/);
 });
 
 test("settings documents use Codex title, card, and row rhythm instead of Linear compression", () => {
@@ -203,7 +203,7 @@ test("settings documents use Codex title, card, and row rhythm instead of Linear
   assert.match(settings, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: 0;[^}]*background: transparent;/);
   assert.match(workbench, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: 0;[^}]*background: transparent;/);
   assert.match(workbench, /body\.immersive-workbench \.settings-stage :is\([^)]+\) \{ width: 100%; max-width: 760px; margin-inline: 0; padding: 0; \}/);
-  assert.match(settings, /\.settings-setting-row \{ display: flex;[\s\S]*padding: 12px 0;/); // 10px → 12px on the spacing scale
+  assert.match(settings, /\.mw-setting-row \{ display: flex;[^}]*padding: 12px 0;/); // 10px → 12px on the spacing scale; the one row every page draws (POLISH-29)
   assert.match(settings, /:is\(\.guidance-settings-list, \.guidance-advanced-list\) \{[\s\S]*background: var\(--paper\);/);
   assert.doesNotMatch(settings, /color-mix\(in srgb, var\(--nav-bg\) 82%, var\(--paper\)\)/);
   assert.match(workbench, /settings-directory-nav \.mw-dir-row \{[\s\S]*display: flex; justify-content: flex-start;/);

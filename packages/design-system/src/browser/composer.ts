@@ -1,14 +1,14 @@
 import type { AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { ComposerHandle, ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { renderComposer } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { composerKey, composing, wantsEnterHint } from "../composer-rules.js";
-import { composerDrafts, enterHint, type ComposerDrafts } from "./composer-drafts.js";
+import { composerKey, composing } from "../composer-rules.js";
+import { composerDrafts, type ComposerDrafts } from "./composer-drafts.js";
 import { retainComposer } from "./composer-retained.js";
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
 import { molisPicture } from "./picture.js";
-import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer, type Item } from "./composer-state.js";
+import { attached, composerBasics, composerState, itemKey, letGo, type Composer, type Item } from "./composer-state.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
@@ -48,7 +48,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
     const now = [...attached(c), ...c.items.flatMap((item) => item.file ? [item.file] : [])];
     if (now.length !== carried.length || now.some((one, index) => one !== carried[index])) { carried = now; options.onMaterials?.(); }
   };
-  const retained = retainComposer(c), drafts = composerDrafts(c, retained), menus = composerMenus(c), sender = composerSender(c, drafts, enterHint.done, retained);
+  const retained = retainComposer(c), drafts = composerDrafts(c, retained), menus = composerMenus(c), sender = composerSender(c, drafts, retained);
   drafts.load();
 
   const files = Object.assign(document.createElement("input"), { type: "file", multiple: true, hidden: true });
@@ -104,7 +104,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
 
 /** The composer's listeners, all let go with its signal. */
 function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputElement) {
-  const { shell, field, options, signal, labels } = c;
+  const { shell, field, options, signal } = c;
   shell.addEventListener("click", (event) => {
     const target = (event.target as Element).closest<HTMLElement>("button, [role^=menuitem]");
     if (!target || !shell.contains(target) || target.matches(":disabled")) return;
@@ -114,7 +114,6 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     if (data.composerDelivery) { c.delivery = data.composerDelivery as AgentSteerMode; c.close(); field.focus(); return c.paint(); }
     if (data.composerSend !== undefined || data.composerStatusAction === "retry") return void sender.send();
     if (data.composerStatusAction === "check") return void sender.confirm();
-    if (data.composerStatusAction === "hint") { c.note = undefined; enterHint.done(); return c.paint(); }
     if (data.composerStop !== undefined && c.ai?.stop) {
       c.stopping = true; c.paint();
       return void c.ai.stop(signal).catch(() => undefined).finally(() => { if (!signal.aborted) { c.stopping = false; c.paint(); } });
@@ -174,17 +173,12 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     // ⌫ in an empty box takes the command chip off, as × does.
     if (plain && event.key === "Backspace" && !field.value) { const chip = options.chip?.(); if (chip) { event.preventDefault(); chip.remove.run(); return c.paint(); } }
     const key = composerKey(event, options.submitKeys !== false);
-    if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined, true); }
-    if (options.submitKeys !== false && !composing(event) && !enterHint.shown() && wantsEnterHint(event, field.value, field.selectionStart)) {
-      enterHint.done();
-      c.note = { caption: labels.notice, text: c.fill(labels.enterHint, { keys: mac ? "⌘↵" : "Ctrl+↵" }), action: labels.enterHintDismiss, actionId: "hint" };
-      c.paint();
-    }
+    if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined); }
   }, { signal });
   field.addEventListener("input", (event) => {
     const data = (event as InputEvent).data;
     if (c.phase === "failed") { c.phase = ""; c.requestId = ""; } else if (c.phase !== "unknown") c.requestId = "";
-    if (c.note && c.note.actionId !== "hint") c.note = undefined;
+    c.note = undefined;
     c.restored = "";
     drafts.save();
     const before = field.value.slice(0, field.selectionStart);

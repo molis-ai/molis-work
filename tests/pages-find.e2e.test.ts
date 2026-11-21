@@ -183,11 +183,11 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
             return {left, top, right, bottom, controlsHit};
           })()`);
           assert.ok(bar.controlsHit, "find and replace controls hit throughout the row inside the Pages frame");
-          const shell = await b.evaluate<{ belowTabs: boolean; insideFrame: boolean; frameHit: boolean; twoRows: boolean }>(`(() => {
+          const shell = await b.evaluate<{ belowTabs: boolean; insideFrame: boolean; frameHit: boolean; onePhoneRow: boolean }>(`(() => {
             const frame = document.querySelector('iframe[data-plugin-frame=pages]');
             const bounds = frame.getBoundingClientRect();
+            const header = document.querySelector('.workbench-header').getBoundingClientRect();
             const strip = document.querySelector('[data-titlebar-tabs]').getBoundingClientRect();
-            const history = document.querySelector('.workspace-history').getBoundingClientRect();
             const bar = ${JSON.stringify(bar)};
             const x = bounds.left + (bar.left + bar.right) / 2;
             const y = bounds.top + (bar.top + bar.bottom) / 2;
@@ -195,11 +195,12 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
               belowTabs: bounds.top + bar.top >= strip.bottom,
               insideFrame: bar.left >= 0 && bar.top >= 0 && bar.right <= bounds.width && bar.bottom <= bounds.height,
               frameHit: document.elementFromPoint(x, y) === frame,
-              twoRows: strip.top >= history.bottom - 1 && strip.height > 0 && history.height > 0,
+              // POLISH-07: at phone width the workbench titlebar is one 44px row (history hidden <=540px).
+              onePhoneRow: header.height <= 46 && strip.height > 0 && strip.top >= header.top - 1 && strip.bottom <= header.bottom + 1,
             };
           })()`);
           assert.ok(shell.insideFrame && shell.belowTabs && shell.frameHit, JSON.stringify({ shell, bar }));
-          if (width === 390) assert.ok(shell.twoRows, "reproduces the workbench's two actual titlebar rows");
+          if (width === 390) assert.ok(shell.onePhoneRow, "reproduces the workbench's single 44px phone titlebar row (POLISH-07)");
           await frame.click(replacement);
           assert.equal(await frame.evaluate(`document.activeElement === document.querySelector('${replacement}')`), true);
           await closeFind();

@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-973 | 已完成并删除 | 2026-11-18：图片插件 README 的浏览器回归命令补列 `images-result-whole-characters.e2e.test.ts`（下载链接、实际文件名与 Shelf 留存回执里的两单元字），由 [#2144](https://github.com/molis-ai/molis-work/pull/2144) 合入，正式交付项 [92-1](../specs/post-anticorruption-roadmap/reference/batches/92.md#batch-92-item-1)；条目 2026-11-20 删除 |
+| BL-1017 | 已完成并删除 | 2026-11-18：Goals 两份测试的夹具关闭即使前一步抛错也依次清完本次 Host 与临时目录并报首个异常（`tests/fixtures/ordered-cleanup.ts`），由 [#2146](https://github.com/molis-ai/molis-work/pull/2146) 合入，正式交付项 [92-3](../specs/post-anticorruption-roadmap/reference/batches/92.md#batch-92-item-3)；条目 2026-11-20 删除 |
 | BL-964 | 已完成并删除 | 2026-11-20：Plugin Runtime 的路由分发与撤下贡献共用一处「是不是流」的判断 `streamsLines`（`packages/plugin-runtime/src/routes.ts`），即 Manifest 现行唯一允许的 POST `"ndjson"`；`offered-contributions.ts` 不再把任一已声明的 `stream` 当成流。撤下贡献时等着的普通请求立即答 403，进行中的流不被这个 403 截断、由路由的实例监视取消（499）且晚到的尾巴不写；见 `tests/plugin-route-stream-lifecycle.test.ts` 的 W5-01-STREAM-06 |
 | BL-960 | 已完成并删除 | 2026-11-20：补 RAC-181 等待期间撤权的拒绝测试。`tests/agent-host-actions.test.ts` 先等到 `agent.run.wait` 已在跟这一轮（Runtime 的订阅数可见为 1），再经人的权限开关 `PluginRuntime.regrant` 关掉一项可选权限（撤下发起调用的那次激活），之后让这一轮变化：调用方收到 `actions.forbidden`、拿不到轮次视图、拒绝里不带轮次内容，调用记录只留代码，订阅放掉。拒绝来自调用方的插件身份在处理器返回后的最终授权检查；不需要改产品代码 |
 | BL-project-membership-revision-read | 已完成并删除 | 2026-11-20：项目插件成员的版本化读取（`ProjectPluginMembershipService.readSnapshot`）改由项目库主人一条语句读出成员、隐藏项与最近一次成员增删事件（`modules/projects/src/project-records-repository.ts` 的 `pluginMembershipFacts`），不再另查 `project_events`；常开、个人插件的列表与隐藏规则和不带版本的读取共用同一套，revision 计算口径不变，加了又删回原样仍按事件检出。见 `tests/project-plugin-membership-revision.test.ts` 以这个编号开头的用例与 `tests/project-plugin-membership-http.test.ts` |

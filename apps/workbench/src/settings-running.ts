@@ -1,5 +1,4 @@
-import { t as uiText, renderAlert, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { settingRow } from "./settings-row.js";
+import { t as uiText, renderAlert, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * 设置 › 运行 (specs/proactive-assistant/resident-runtime-design.md §5): whether the desktop opens at login and whether Molis Work keeps
@@ -9,15 +8,18 @@ import { settingRow } from "./settings-row.js";
  * (`molisWorkBindRunningSettings`); anywhere else the page says where to find them.
  */
 export function renderRunningSettings(): string {
-  const toggle = (key: "launch_at_login" | "keep_running", title: string, description: string) => settingRow(`<span id="running-${key}">${uiText(title)}</span>`, uiText(description),
-    renderSwitch({ disabled: true, attrs: { "data-running-setting": key, "aria-labelledby": `running-${key}` } }));
+  const toggle = (key: "launch_at_login" | "keep_running", title: string, description: string) => renderSettingRow({
+    name: uiText.text(title), nameAttrs: { id: `running-${key}` }, hint: uiText.text(description), label: true,
+    control: renderSwitch({ disabled: true, attrs: { "data-running-setting": key, "aria-labelledby": `running-${key}` } }),
+  });
   return `<section class="settings-document" aria-labelledby="settings-title" data-running-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title" tabindex="-1">${uiText("workbench.settings-running.title")}</h1></div></header>
     ${renderAlert({ tone: "info", role: null, title: uiText.text("workbench.settings-running.desktop-only"), attrs: { "data-running-elsewhere": true } })}
-    <section class="settings-section" aria-label="${uiText("workbench.settings-running.title")}" data-running-switches hidden>
-      ${toggle("launch_at_login", "workbench.settings-running.launch-at-login", "workbench.settings-running.launch-at-login-hint")}
-      ${toggle("keep_running", "workbench.settings-running.keep-running", "workbench.settings-running.keep-running-hint")}
-    </section>
+    ${renderSettingsSection({
+      className: "settings-section", attrs: { "aria-label": uiText.text("workbench.settings-running.title"), "data-running-switches": true, hidden: true },
+      body: toggle("launch_at_login", "workbench.settings-running.launch-at-login", "workbench.settings-running.launch-at-login-hint")
+        + toggle("keep_running", "workbench.settings-running.keep-running", "workbench.settings-running.keep-running-hint"),
+    })}
     <p class="settings-form-error" role="alert" data-running-error hidden></p>
   </section>`;
 }

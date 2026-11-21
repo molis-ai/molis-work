@@ -14,12 +14,12 @@ import { attached, blocked, busy, itemKey, letGo, sendable, type Composer, type 
  */
 
 export interface ComposerSender {
-  send(mode?: AgentSteerMode, key?: boolean): Promise<void>; confirm(): Promise<void>; upload(files: Iterable<File>): Promise<void>;
+  send(mode?: AgentSteerMode): Promise<void>; confirm(): Promise<void>; upload(files: Iterable<File>): Promise<void>;
   /** Reads a row that failed in a way trying again may mend, in the same row. */
   retry(key: string): Promise<void>;
 }
 
-export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: () => void, retained: ComposerRetained): ComposerSender {
+export function composerSender(c: Composer, drafts: ComposerDrafts, retained: ComposerRetained): ComposerSender {
   const { options, labels, signal, field } = c;
   const values = () => Object.fromEntries((options.controls ?? []).flatMap((control) => {
     const node = c.shell.querySelector<HTMLElement>(`[data-composer-control="${CSS.escape(control.id)}"]`);
@@ -55,7 +55,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
     current?.paint();
   }
   return {
-    async send(mode, key = false) {
+    async send(mode) {
       if (signal.aborted || busy(c) || mode && !c.ai) return;
       c.note = undefined;
       if (blocked(c)) return c.paint();
@@ -79,7 +79,6 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       let outcome: ComposerOutcome;
       try { outcome = await options.submit({ text, materials, ...(delivery ? { delivery } : {}), controls: values(), request_id: c.requestId }, signal, acknowledge); }
       catch (error) { outcome = { state: "failed", message: error instanceof Error ? error.message : String(error) }; }
-      if (key) sentByKey();
       if (!acknowledged) { if (outcome.state === "sent") acknowledged = true; settle(outcome, submitted); }
     },
     async confirm() {

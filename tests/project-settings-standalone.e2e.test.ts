@@ -15,6 +15,9 @@ import { projectReplicationOwner } from "@molis-ai/molis-work-module-projects";
 import { readPluginRuntimeRecords, PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 
+/** 项目设置 in the first place's list: from 960px the right end has no project, so this is where a person opens it (POLISH-05 as rewritten, POLISH-71). */
+const PROJECT_SETTINGS = "[data-top-corner-list] [data-directory-open=project-settings]";
+
 test("PCSYNC-20 missing plugin hints inspect actual local installations without starting or enabling code", { timeout: 60_000 }, async t => {
   let starts = 0, installed!: ReturnType<PluginRuntime["install"]>["install"];
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
@@ -47,7 +50,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
   assert.equal(initialSettings.status, 200);
   assert.match(await initialSettings.text(), /data-project-missing-plugins/);
   await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/` }, sessionId));
-  await click(".navigator-project-settings");
+  await click(PROJECT_SETTINGS);
   await waitFor("!!document.querySelector('[data-project-missing-plugins]') && !document.body.dataset.navigationPending");
   const hint = await evaluate<string>("document.querySelector('[data-project-missing-plugins]').textContent");
   assert.match(hint, /missing\.example\.plugin/);assert.doesNotMatch(hint, new RegExp(githubIntegrationManifest.plugin_id));
@@ -59,7 +62,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
     assert.equal(await evaluate("document.documentElement.dataset.resolvedTheme"), theme);
     await evaluate("document.querySelector('[data-project-missing-plugins]').scrollIntoView({block:'center'})");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-    assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] .settings-setting-row')).every(row=>row.scrollWidth<=row.clientWidth)"), true);
+    assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] .mw-setting-row')).every(row=>row.scrollWidth<=row.clientWidth)"), true);
     assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] [data-slot=status]')).every(mark=>{const rect=mark.getBoundingClientRect();return rect.height<=22&&rect.width<80})"), true, "installation status must neither wrap vertically nor stretch into a full-width bar");
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`.impeccable/qa/review/project-missing-plugins-${width}-${theme}.png`, Buffer.from(shot.data, "base64"));
@@ -75,7 +78,7 @@ test("PCSYNC-15 project rename retains a stale browser draft after another devic
   const browser = await openGoalBrowser(t, "user");if (!browser) return;
   const { origin, projectId, web, command, sessionId, navigate, evaluate, waitFor, click } = browser;
   await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/` }, sessionId));
-  await click(".navigator-project-settings");
+  await click(PROJECT_SETTINGS);
   const form = '[data-work-surface=project-settings] [data-project-rename]';
   await waitFor(`!!document.querySelector('${form}') && !document.body.dataset.navigationPending`);
   const observed = await evaluate<string>(`document.querySelector('${form}').dataset.projectObservedName`);
@@ -132,17 +135,17 @@ test("settings serve complete category pages; the project gear opens them in the
   const storageKey = "molis-work-tab-workspace:" + projectId;
   const readState = `JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)}))`;
   const before = await evaluate(readState);
-  try { await click(".navigator-project-settings"); }
+  try { await click(PROJECT_SETTINGS); }
   catch (error) {
     const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({pane:f.dataset.paneOwner,tab:f.dataset.paneTab,hidden:f.hidden,src:f.src,ready:f.contentDocument?.readyState,goal:f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic("T405 settings after split " + JSON.stringify({ paneReads, state })); throw error;
   }
   await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
-  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-busy')"), false);
+  assert.equal(await evaluate(`document.querySelector('${PROJECT_SETTINGS}').hasAttribute('aria-busy')`), false);
   assert.equal(await evaluate("location.pathname.includes('/settings')"), false);
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
   assert.equal(await evaluate("!!document.querySelector('[data-plugin-strip]')"), true);
-  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').getAttribute('aria-current')"), "page");
+  assert.equal(await evaluate(`document.querySelector('${PROJECT_SETTINGS}').getAttribute('aria-current')`), "page");
   assert.equal(await evaluate("!!document.querySelector('[data-directory-panel=project-settings] [data-project-rename]')"), false);
   const rhythm = await evaluate<{
     titleSize: number;
@@ -156,10 +159,11 @@ test("settings serve complete category pages; the project gear opens them in the
     labelFromStart: number;
   }>(`(() => {
     const title = document.querySelector('[data-work-surface=project-settings] h1');
-    const card = document.querySelector('[data-work-surface=project-settings] .settings-section');
-    const row = document.querySelector('[data-work-surface=project-settings] .settings-setting-row');
-    const copy = row?.querySelector('.setting-copy');
-    const value = row?.querySelector('.setting-value');
+    // The card is the section's rows: the section itself is the title (when it has one) over that card.
+    const card = document.querySelector('[data-work-surface=project-settings] .settings-section > .mw-settings-section__rows');
+    const row = document.querySelector('[data-work-surface=project-settings] .mw-setting-row');
+    const copy = row?.querySelector('.mw-setting-row__copy');
+    const value = row?.querySelector('.mw-setting-row__control');
     const nav = document.querySelector('[data-directory-panel=project-settings] [data-settings-section="general"]');
     const icon = nav?.querySelector('.mw-dir-row__icon');
     const label = nav?.querySelector('.mw-dir-row__copy');
@@ -217,11 +221,11 @@ test("settings serve complete category pages; the project gear opens them in the
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 2);
-  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
+  assert.equal(await evaluate(`document.querySelector('${PROJECT_SETTINGS}').hasAttribute('aria-current')`), false);
   const afterLeave = await evaluate(readState);
   assert.equal(afterLeave?.panes?.length, before?.panes?.length);
   assert.equal(afterLeave?.exclusive, null);
-  await click(".navigator-project-settings");
+  await click(PROJECT_SETTINGS);
   await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   await reloadPage();
   await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
@@ -254,7 +258,7 @@ test("work planning is in neither project settings nor the Goal list (batch 41-2
   await browser.setViewport(1440, 700);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   await waitFor("Boolean(document.body.dataset.desktopSurface) && document.body.classList.contains('immersive-workbench')");
-  await click(".navigator-project-settings");
+  await click(PROJECT_SETTINGS);
   await waitFor("!document.body.classList.contains('settings-page') && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=project-settings] [data-settings-section=\"planning\"]') == null"), true);
   await click('[data-plugin-id="goals"]');

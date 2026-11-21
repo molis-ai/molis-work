@@ -159,7 +159,7 @@ function endedRoundExtras(
             state: lastEnd === 0 ? "done" : "failed",
             text: verifiedText,
             ...(codeRevision ? { codeRevision } : {}),
-            ...(failBeforeEdit && editedSize > 0 ? { badge: { label: uiText.text("coding.round.pre-existing-fail"), tone: "warning" } } : {}),
+            ...(failBeforeEdit && editedSize > 0 ? { badge: { label: uiText.text("coding.round.pre-existing-fail"), tone: "neutral" } } : {}),
           }]
         : [{ state: "idle", text: verifiedText, quiet: true }];
   const remaining: MwRoundReportCheck[] = [
@@ -201,13 +201,58 @@ function endedRoundExtras(
       })
     : "";
   const ringState = run.phase === "reconcile-required" || unknownCmds > 0 ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped";
-  return { tone, title, ringState, digestGrid, extraFacts };
+  // A round that ended cleanly keeps its digest folded under its one line; one that left something to check shows it.
+  const quiet = tone === "done" && !staleCheck;
+  return { tone, title, ringState, digestGrid, extraFacts, quiet };
 }
 
-export function createCodingTimeline(words: TimelineWords) {
+const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
+const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
+
+/** What a round changed, in one phrase: how many files, and the lines added and removed once the page has read them. */
+const editedPhrase = (files: string, lines: { readonly added: number; readonly removed: number } | null) =>
+  `${escape(files)}${lines ? ` <span class="coding-change-counts"><ins>+${lines.added}</ins><del>−${lines.removed}</del></span>` : ""}`;
+
+/**
+ * The end of an ended round's line and what folds under it (POLISH-24, screen-polish §6.3). The one filled button of the
+ * card is what to do next: pick the round up again when it did not finish (`resume`), otherwise look at what it changed.
+ * A round that ended cleanly (`quiet`) keeps its digest, files and commit under the line, behind the chevron at its end
+ * (`showRoundDetails` opens them).
+ */
+function endedRoundParts(run: TimelineRun, edited: ReadonlySet<string>, resume: string, digestGrid: string, quiet: boolean): { actions: string; more: string } {
+  const id = escape(run.ref.run_id);
+  const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>${escape(uiText.text("coding.round.more-files", { count: edited.size - 8 }))}</li>` : ""}</ul>` : "";
+  const commit = edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${id}">${svg("git-branch")}${escape(uiText.text("coding.round.commit"))}</button>` : "";
+  const changes = edited.size ? `<button class="mw-btn${resume ? "" : " mw-btn--primary"}" type="button" data-coding-change-open="${id}" data-coding-card-open>${svg("columns")}${escape(uiText.text("coding.round.changes"))}</button>` : "";
+  const report = `<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${id}" data-coding-card-open>${svg("file")}${escape(uiText.text("coding.report.label"))}</button>`;
+  const detail = `${digestGrid}${files}${commit ? `<div class="coding-run-more-actions">${commit}</div>` : ""}`;
+  const label = escape(uiText.text("coding.round.more"));
+  const toggle = detail && quiet ? `<button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-run-more-toggle" type="button" data-coding-run-more aria-expanded="false" aria-controls="coding-run-more-${id}" aria-label="${label}" title="${label}">${svg("chevron-down")}</button>` : "";
+  return { actions: `${report}${resume}${changes}${toggle}`, more: detail ? `<div class="coding-run-more" id="coding-run-more-${id}"${quiet ? " hidden" : ""}>${detail}</div>` : "" };
+}
+
+/**
+ * Opens or closes an ended round's details under its line. The footer remembers it (`data-more`), so a later draw of the
+ * round leaves them as the person left them; a card with no chevron (its details always on show) is left alone.
+ */
+export function showRoundDetails(footer: Element, open: boolean): void {
+  const toggle = footer.querySelector("[data-coding-run-more]");
+  if (!toggle) return;
+  if (open) footer.dataset.more = "open"; else delete footer.dataset.more;
+  toggle.setAttribute("aria-expanded", String(open));
+  footer.querySelector(".coding-run-more")?.toggleAttribute("hidden", !open);
+}
+
+/** A round's added and removed lines, once the page has read its changes; null until then. */
+/** The files a round wrote, each once, in the order they were first written. */
+export function editedPaths(run: Pick<TimelineRun, "activity">): string[] {
+  return [...new Set(run.activity.flatMap(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target ? [item.target] : []))];
+}
+
+export type CodingChangeTally = (runId: string) => { readonly added: number; readonly removed: number } | null;
+
+export function createCodingTimeline(words: TimelineWords, changeTally: CodingChangeTally = () => null) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
-  const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
-  const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
   const { KIND, FAILURES, toolHint: hintFor, named, tally } = words;
   const kindOf = (item: TimelineActivity) => KIND[item.name] ?? named(item.name);
   /**
@@ -372,7 +417,7 @@ export function createCodingTimeline(words: TimelineWords) {
       tick(block);
       return;
     }
-    const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
+    const edited = new Set(editedPaths(run));
     const commands = run.activity.filter(item => (item.name === "run-command" || item.name === "start-command") && item.state === "completed"), dispatched = run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length;
     const lastCommand = commands.at(-1), lastEnd = lastCommand ? commandEnd(lastCommand) : null;
     const boardNodes = run.step_board?.nodes ?? [], parentIds = new Set(boardNodes.flatMap(n => n.parent_id ? [n.parent_id] : [])), activeNodes = boardNodes.filter(node => (!node.id || !parentIds.has(node.id)) && !node.skipped && !node.scope_removed);
@@ -390,8 +435,9 @@ export function createCodingTimeline(words: TimelineWords) {
       .filter((at): at is string => typeof at === "string" && (!run.started_at || at > run.started_at)).sort().at(-1);
     const took = stoppedAt && duration(run.started_at, stoppedAt) ? uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }) : "";
     const extra = endedRoundExtras(run, edited.size, commands.length, lastCommand, lastEnd, left, stalled, took);
-    const { tone, title, ringState, digestGrid } = extra;
-    const facts = [took, edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"), dispatched && tally(KIND["dispatch-subagent"]!, dispatched), commands.length ? tally(KIND["run-command"]!, commands.length) : "", lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "", ...extra.extraFacts].filter(Boolean);
+    const { tone, title, ringState, digestGrid, quiet } = extra;
+    const editedFact = edited.size ? editedPhrase(tally(KIND.edit!, edited.size), changeTally(run.ref.run_id)) : escape(uiText.text("coding.round.no-edits"));
+    const facts = [escape(took), editedFact, ...[dispatched ? tally(KIND["dispatch-subagent"]!, dispatched) : "", commands.length ? tally(KIND["run-command"]!, commands.length) : "", lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "", ...extra.extraFacts].map(escape)].filter(Boolean);
     // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing. "已停止" is the runtime's own
     // default reason for a stop, so it restates the title in every language.
     const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && (title.includes(stated.replace(/^已/, "")) || (tone === "stopped" && stated === "已停止"));
@@ -405,13 +451,11 @@ export function createCodingTimeline(words: TimelineWords) {
       : ["failed", "stopped", "cancelled"].includes(run.phase) || left
         ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(left ? uiText.text("coding.round.continue-plan") : uiText.text("coding.round.resume"))}</button>`
       : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}${escape(uiText.text("coding.round.nudge"))}</button>` : "";
-    const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>${escape(uiText.text("coding.round.more-files", { count: edited.size - 8 }))}</li>` : ""}</ul>` : "";
+    const { actions, more } = endedRoundParts(run, edited, resume, digestGrid, quiet);
     const html = `<div class="coding-run-card" data-tone="${tone}">
-      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${ringState}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">${escape(uiText.text("coding.turn.number", { number: index + 1 }))}</span></header>
-      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${digestGrid}${stalled ? `<p class="coding-run-reason">${escape(uiText.text("coding.round.stalled-why"))}</p>` : reason}${files}
-      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}${escape(uiText.text("coding.round.changes"))}</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}${escape(uiText.text("coding.round.commit"))}</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}${escape(uiText.text("coding.report.label"))}</button></div>
+      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${ringState}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round mw-sr-only">${escape(uiText.text("coding.turn.number", { number: index + 1 }))} </span><span class="coding-run-facts">${facts.join(" · ")}</span><span class="coding-run-actions">${actions}</span></header>${stalled ? `<p class="coding-run-reason">${escape(uiText.text("coding.round.stalled-why"))}</p>` : reason}${more}
     </div>`;
-    if (footer.dataset.html !== html) { const again = Boolean(footer.dataset.html); footer.innerHTML = html; if (again) footer.firstElementChild?.setAttribute("data-settled", ""); footer.dataset.html = html; footer.dataset.state = "ended"; }
+    if (footer.dataset.html !== html) { const again = Boolean(footer.dataset.html); footer.innerHTML = html; if (again) footer.firstElementChild?.setAttribute("data-settled", ""); footer.dataset.html = html; footer.dataset.state = "ended"; showRoundDetails(footer, footer.dataset.more === "open"); }
   };
   /** Keep elapsed times honest without re-rendering the transcript. */
   const QUIET_AFTER_SECONDS = 20;

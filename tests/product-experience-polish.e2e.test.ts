@@ -39,7 +39,7 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await shot('navigation-expanded');
   await click('[data-plugin-picker-toggle]');
   await reloadPage();
-  await waitFor("document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
+  await waitFor("document.querySelector('[data-dock-pins] [data-top-corner-toggle]')");
   await click('[data-global-search-open]');
   await input('[data-global-search]', 'dataset');
   // Content results arrive after the tool rows and go above them, so a click aimed at a row while the search is still

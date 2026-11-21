@@ -8,7 +8,7 @@ export type BoardSampleText = "zh" | "en" | "mixed";
 
 const TEXT: Record<string, readonly [en: string, mixed?: string]> = {
   "示例项目": ["Sample project"],
-  "项目首页": ["Project home"],
+  "项目主页": ["Project home"],
   "登录兼容旧的 session cookie": ["Sign-in keeps the old session cookie", "登录兼容旧的 session cookie"],
   "安排试用复盘": ["Plan the trial review", "安排 trial review"],
   "顺便把三楼的会议室也订上": ["Book the third-floor meeting room too", "顺便 book 三楼的 meeting room"],

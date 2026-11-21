@@ -60,23 +60,27 @@ test("WLN-19: the head says the work item, and how many of its events wait", () 
   }
 });
 
-test("WLN-37: a source that cannot be read is in the line's lead, outside what scrolls, and the way back to earlier events is drawn (their behaviour: tests/work-line-layout.e2e.test.ts)", () => {
+test("WLN-37 (as specs/work-line §16 rewrote it): a source that cannot be read stands above what scrolls in the open list, the rest of the list reads, and 办完 ends in 更早 N (their behaviour: tests/work-line-layout.e2e.test.ts)", () => {
   const html = main(frame("zh"));
   const whole = html.slice(html.indexOf('data-nav-specimen="wl-line"'), html.indexOf('data-nav-specimen="wl-dialog"'));
   const lines = whole.split('<div class="work-line" data-work-line').slice(1);
   assert.equal(lines.length, 4);
   for (const line of lines) {
-    // The first line has the folded dialog row at its right end, and says so for its wing (data-mini).
-    assert.match(line, /^(?: data-mini)? role="region" aria-label="事项线"/u);
-    const run = line.indexOf('class="work-line-run"');
-    const earlier = line.indexOf("data-work-line-earlier");
-    assert.ok(earlier > 0 && earlier < run, "the way back to earlier events stands before the run, after the head");
-    assert.match(line, /data-work-line-earlier aria-label="更早的事件" hidden>/u);
-    assert.match(line, /<div class="work-line-lead"><button type="button" class="work-line-head"/u, "the head leads the line");
-    const retry = line.indexOf("data-work-line-retry");
-    assert.ok(retry < earlier, "an unreadable source stands in the lead, before the way back and outside what scrolls");
+    // The first foot has the folded dialog row in its counts, and says so (data-mini); every foot is the 底栏 region.
+    assert.match(line, /^(?: data-mini)? role="region" aria-label="底栏"/u);
+    // 办完, 在办 and 接下来 are inside the input's top right, after the input itself.
+    const slot = line.indexOf("data-work-line-slot"), counts = line.indexOf("data-work-counts"), composer = line.indexOf("data-slot=\"composer\"");
+    assert.ok(slot >= 0 && composer > slot && counts > composer, "the counts are in the input's slot, after the composer");
+    assert.deepEqual([...line.matchAll(/data-work-list="([a-z]+)"/g)].map(match => match[1]), ["done", "now", "next"]);
   }
-  assert.ok(lines[3]!.includes("data-work-line-retry"));
+  const shown = lines[3]!;
+  assert.match(shown, /<section class="work-lists"[^>]*\bdata-work-lists\b[^>]*>/u, "the unreadable specimen draws its list");
+  assert.doesNotMatch(shown, /<section class="work-lists"[^>]*\bhidden>/u, "the unreadable specimen shows its list open");
+  const sources = shown.indexOf("data-work-lists-sources"), retry = shown.indexOf("data-work-line-retry"), body = shown.indexOf("data-work-lists-body");
+  assert.ok(sources > 0 && retry > sources && body > retry, "an unreadable source stands in the strip above what scrolls, not among the rows");
+  assert.ok((shown.slice(body).match(/class="work-event"/g) ?? []).length >= 3, "the rest of the list reads as usual");
+  assert.match(shown.slice(body), /data-work-lists-earlier>更早 5</u, "办完 ends in 更早 N");
+  for (const line of lines.slice(0, 3)) assert.doesNotMatch(line, /data-work-line-retry/u);
 });
 
 test("WLN-35: the task mark tells in progress, needs you, failed and disconnected apart, and names itself", () => {

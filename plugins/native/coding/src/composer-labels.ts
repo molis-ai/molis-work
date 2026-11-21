@@ -14,7 +14,7 @@ export function codingComposerLabels(readText: (key: string) => string, mac: boo
     commands: readText("coding.slash.label"), adding: readText("coding.composer.adding"), searching: readText("coding.composer.searching"), nothing: readText("coding.composer.nothing"), unavailable: readText("coding.composer.unavailable"),
     reading: readText("coding.composer.reading"), remove: readText("coding.composer.remove"), retryFile: readText("coding.composer.retry-file"), blocked: readText("coding.composer.blocked"),
     restored: readText("coding.composer.restored"), clear: readText("coding.composer.clear"), unsaved: readText("coding.composer.draft-unsaved-short"),
-    enterHint: readText("coding.composer.enter-hint"), enterHintDismiss: readText("coding.composer.enter-hint-dismiss"), notice: readText("coding.composer.notice"),
+    notice: readText("coding.composer.notice"),
     sending: readText("coding.composer.sending-caption"), sendingText: readText("coding.composer.sending"), failed: readText("coding.composer.failed"), retry: readText("coding.composer.retry"),
     unknown: readText("coding.composer.unknown"), unknownText: readText("coding.composer.unknown-text"), check: readText("coding.composer.check"), notSent: readText("coding.composer.not-sent"),
     to: readText("coding.composer.to"), stop: readText("coding.run.stop"), stopTitle: readText("coding.run.stop-title"), delivery: readText("coding.send-mode.label"), deliveryGroup: readText("coding.send-mode.group"),

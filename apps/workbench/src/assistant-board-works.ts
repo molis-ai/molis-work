@@ -18,7 +18,7 @@ export const round = (at: Iso, run_id: string, minutesAgo: number, more: Partial
   run_id, text: "", materials: [], context: null, started_at: at(minutesAgo), phase: "completed", turns: [], activity: [], awaiting_input: [], ended_at: at(minutesAgo - 2), ...more,
 });
 export const boardWork = (at: Iso, work_id: string, title: string, state: AssistantWork["state"], minutesAgo: number, more: Partial<AssistantWork> = {}): AssistantWork => ({
-  work_id, executor: { kind: "assistant" }, revision: 3, title, scope: SCOPE, scope_title: BOARD_PROJECT.title, origin: { surface: "home", title: "项目首页" },
+  work_id, executor: { kind: "assistant" }, revision: 3, title, scope: SCOPE, scope_title: BOARD_PROJECT.title, origin: { surface: "home", title: "项目主页" },
   state, session_id: "session-" + work_id, draft: "", draft_revision: 1, created_at: at(minutesAgo + 60), updated_at: at(minutesAgo), archived: false, ...more,
 });
 export const boardView = (work: AssistantWork, rounds: AssistantRound[], more: Partial<AssistantWorkView> = {}): AssistantWorkView =>

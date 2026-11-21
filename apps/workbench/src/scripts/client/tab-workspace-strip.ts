@@ -13,19 +13,6 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     button.querySelector("span").textContent = words;
     return button;
   };
-  /** 主区 | 右侧 before the titlebar's strip, shown at 760px and under, where only the focused column shows. */
-  const paneSwitch = () => {
-    const group = document.createElement("div"), inSide = column === "side" && Boolean(sidePane?.isOpen());
-    group.className = "mw-toggle-group tab-pane-switch"; group.dataset.slot = "toggle-group"; group.setAttribute("role", "group"); group.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-strip.which-pane-show"));
-    [["main", globalThis.t.text("workbench.tab-workspace-strip.main"), !inSide], ["side", globalThis.t.text("workbench.tab-workspace-strip.right"), inSide]].forEach(([value, words, current]) => {
-      const button = document.createElement("button");
-      button.type = "button"; button.className = "mw-toggle" + (current ? " is-current" : ""); button.dataset.paneSwitch = value;
-      button.setAttribute("aria-pressed", String(current)); button.textContent = words;
-      if (value === "side" && !state.side.tabs.length) button.disabled = true;
-      group.append(button);
-    });
-    return group;
-  };
   const tabLabel = (tab) => tab.kind === "plugin" ? ops.pluginTitle(tab.plugin) : tab.title;
   const retitlePluginTab = (node, label) => {
     const trigger = node.querySelector(".tab-item-trigger"), name = node.querySelector(".tab-item-name");
@@ -118,10 +105,14 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     };
     const flexSet = new Set(flexNodes);
     const gapOf = (el) => Number.parseFloat(getComputedStyle(el).gap) || 0;
-    let reserved = 0;
+    // The room the scroll box keeps at its ends (where a current tab's corners meet the sheet) is not the tabs' to share.
+    const scrollBox = getComputedStyle(scroll);
+    let reserved = Number.parseFloat(scrollBox.paddingLeft) + Number.parseFloat(scrollBox.paddingRight) || 0;
     // A closing slot and the dragged tab's old place are on their way to nothing; they take no room.
     const gone = (el) => el.hasAttribute?.("data-tab-slot-leaving") || el.classList?.contains("is-tab-drag-source");
-    const scrollKids = [...scroll.children].filter((child) => !gone(child));
+    // Nor does a tab or a group that is not drawn (a narrow window draws only the current tab).
+    const drawn = (el) => !el.matches(".tab-group,.tab-item") || el.getClientRects().length > 0;
+    const scrollKids = [...scroll.children].filter((child) => !gone(child) && drawn(child));
     reserved += gapOf(scroll) * Math.max(0, scrollKids.length - 1);
     for (const child of scrollKids) {
       if (flexSet.has(child)) continue;
@@ -147,6 +138,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     const min = tabShareMin(window.matchMedia("(max-width: 760px), (pointer: coarse)").matches), hugs = flexNodes.map(tabHugWidth);
     const stripStyle = getComputedStyle(strip);
     const innerWidth = strip.clientWidth - (Number.parseFloat(stripStyle.paddingLeft) || 0) - (Number.parseFloat(stripStyle.paddingRight) || 0);
+    let chrome = 0;
     const allot = () => {
       let siblingChrome = 0;
       const stripKids = [...strip.children].filter((child) => child === scroll || child.getClientRects().length);
@@ -160,24 +152,24 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
         const box = getComputedStyle(child);
         siblingChrome += child.getBoundingClientRect().width + (Number.parseFloat(box.marginLeft) || 0) + (Number.parseFloat(box.marginRight) || 0);
       }
+      chrome = siblingChrome + gapOf(strip) * Math.max(0, stripKids.length - 1);
       return tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
     };
     // On a phone the titlebar's row scrolls when it cannot hold it all (workbench-navigation.ts); its edges fade like other scrollers.
     if (strip.hasAttribute("data-titlebar-tabs")) strip.toggleAttribute("data-overflow-fade", phone);
     if (all) all.hidden = !phone;
     let allotted = allot();
+    const floor = hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0);
+    if (all && !phone && hugs.length && reserved + floor > allotted + 0.5) { all.hidden = false; allotted = allot(); }
     // The titlebar's strip is as wide as its tabs want (＋ follows them). Its box takes that from here, not from its content, so
-    // sharing the widths below cannot move the box it was measured in.
+    // sharing the widths below cannot move the box it was measured in. Measured after the all-tabs button settles, using exact non-scroll chrome
+    // so a cover chip arriving in a narrow strip gets its full width on the first pass.
     if (strip.hasAttribute("data-titlebar-tabs")) {
-      // A cover's chip (settings) is the one sibling that gives way: arriving in a strip still as wide as before it came, it is
-      // measured with its name cut. The strip wants it whole, so what its name lacks is asked for too.
       const lacking = [...strip.querySelectorAll(":scope > .tab-view-chip > span")].reduce((sum, name) => sum + Math.max(0, name.scrollWidth - name.clientWidth), 0);
-      const around = reserved + (innerWidth - allotted) + (strip.clientWidth - innerWidth) + 1 + lacking;
-      const sizes = { "--tabs-hug": hugs.reduce((sum, hug) => sum + hug, 0), "--tabs-floor": hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) };
-      const write = () => { for (const name in sizes) { const value = Math.ceil(around + sizes[name]) + "px"; if (strip.style.getPropertyValue(name) !== value) strip.style.setProperty(name, value); } };
-      write();
+      const around = reserved + chrome + (strip.clientWidth - innerWidth) + 1 + lacking;
+      const sizes = { "--tabs-hug": hugs.reduce((sum, hug) => sum + hug, 0), "--tabs-floor": floor };
+      for (const name in sizes) { const value = Math.ceil(around + sizes[name]) + "px"; if (strip.style.getPropertyValue(name) !== value) strip.style.setProperty(name, value); }
     }
-    if (all && !phone && reserved + hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) > allotted + 0.5) { all.hidden = false; allotted = allot(); }
     const share = tabShareWidth(allotted - reserved, hugs, min);
     if (share == null) {
       if (!(scroll.style.getPropertyValue("--tab-share-width") || scroll.style.width)) return;
@@ -275,7 +267,9 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       index += 1;
     }
     if (state.exclusive && strip === titlebarStrip) {
-      // Market and settings cover the panes; say so where the tabs are, with the way out beside the name.
+      // Market and settings cover the panes: a tab like the others, after them, with its glyph, its whole name and its close
+      // (specs/screen-polish §3 方案 C, POLISH-06), in the titlebar's strip so the way out stays in sight over split panes too.
+      // It is the current one while it shows; the tabs beneath wait, one click away.
       const cover = document.createElement("span");
       cover.className = "tab-view-chip is-exclusive"; cover.setAttribute("aria-current", "page");
       cover.dataset.coverChip = state.exclusive;
@@ -290,8 +284,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       close.setAttribute("aria-label", globalThis.t.text("common.control.close") + " " + coverLabel(state.exclusive));
       close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
       cover.append(close);
-      const divider = document.createElement("span"); divider.className = "tab-view-divider"; divider.setAttribute("aria-hidden", "true");
-      fragment.prepend(cover, divider);
+      scrollArea.after(cover);
     }
     const pad = document.createElement("span");
     pad.dataset.tabScrollPad = "";
@@ -310,8 +303,6 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       all.hidden = true;
       fragment.append(all);
     }
-    // On a phone only the focused column shows: the titlebar's strip leads with which one (design README 9).
-    if (!embedded && strip.hasAttribute("data-titlebar-tabs")) fragment.prepend(paneSwitch());
     // A pane of its own with nothing in it says how to fill it; the titlebar's strip over the project home says nothing.
     if (!pane.tabs.length && !strip.hasAttribute("data-titlebar-tabs")) {
       const empty = document.createElement("p");
@@ -333,6 +324,9 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       add.setAttribute("aria-label", globalThis.t.text("common.control.open")); add.title = globalThis.t.text("common.control.open"); add.setAttribute("aria-haspopup", "menu"); add.setAttribute("aria-expanded", "false");
       add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
     }
+    // The current tab is the ear on its sheet, and the sheet's styles read this one mark (styles/top-strip.ts). Under a cover the
+    // cover's own tab is the current piece of the top strip, so no tab there is an ear.
+    if (!(state.exclusive && !embedded && strip.hasAttribute("data-titlebar-tabs"))) fragment.querySelectorAll(".tab-item.is-active").forEach((tab) => { tab.dataset.ear = ""; });
     strip.replaceChildren(fragment);
     scrollArea.scrollLeft = scrollLeft;
     shareTabStrip(scrollArea);
@@ -357,20 +351,13 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     apply();
     persist();
   };
-  /** The phone's 主区 | 右侧: the right side opens and takes the focus, or collapses and gives it back to the main area. */
-  const showColumn = (which) => {
-    const open = Boolean(sidePane?.isOpen());
-    if ((which === "side") !== open) sidePane?.toggle();
-    column = which === "side" && sidePane?.isOpen() ? "side" : "main";
-    apply();
-    if (column === "side") document.querySelector("[data-side-tabs] [data-side-tab][aria-selected=true]")?.focus({ preventScroll: true }); else focusActiveTab();
-  };
   /** The focused column's current tab is paper and lifted; another column's keeps only its place (design README, shared part 5). */
   const markFocus = () => {
     const strips = [titlebarStrip, ...panesEl.querySelectorAll("[data-tab-pane] > [data-tab-strip]")].filter(Boolean);
     strips.forEach((node) => node.toggleAttribute("data-unfocused", column === "side" || (node !== titlebarStrip && node.closest("[data-tab-pane]")?.dataset.tabPane !== state.focusedPaneId)));
-    document.querySelector("[data-side-tabs]")?.toggleAttribute("data-unfocused", column !== "side");
-    document.querySelectorAll("[data-pane-switch]").forEach((button) => { const on = (button.dataset.paneSwitch === "side") === (column === "side"); button.classList.toggle("is-current", on); button.setAttribute("aria-pressed", String(on)); });
+    document.querySelectorAll("[data-side-tabs], [data-side-ear]").forEach((node) => node.toggleAttribute("data-unfocused", column !== "side"));
+    // 项目主页's glyph is its tab (the ear), so the Dock carries the main column's mark as the strip beside it does.
+    document.querySelector("[data-dock-pins]")?.toggleAttribute("data-unfocused", column === "side");
   };
   const focusActiveTab = () => {
     const selected = (titlebarStrip && !titlebarStrip.hidden ? titlebarStrip : panesEl.querySelector('[data-tab-pane="' + state.focusedPaneId + '"] [data-tab-strip]'))?.querySelector('.tab-item-trigger[aria-selected="true"]');
@@ -406,8 +393,6 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
   const handleStripClick = (paneId, event) => {
     const focusPane = event.target.closest("[data-focus-pane]");
     if (focusPane) { activate(focusPane.dataset.focusPane); return true; }
-    const switchTo = event.target.closest("[data-pane-switch]");
-    if (switchTo) { showColumn(switchTo.dataset.paneSwitch); return true; }
     if (event.target.closest("[data-solo-chip]")) { toggleSolo(); apply(); persist(); focusActiveTab(); return true; }
     if (!paneId) return;
     const all = event.target.closest("[data-tab-all]");

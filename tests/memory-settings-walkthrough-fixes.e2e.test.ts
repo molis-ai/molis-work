@@ -42,6 +42,32 @@ test("BL-1076 「明确要求时记住」 says it is not in effect while 允许�
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+// The list toolbar's 「更多筛选」 floats over the card, so it is a layer and closes the way every layer does (the platform's
+// floating-details program; specs/screen-polish/p5-settings.md「评审留下的小修」).
+test("POLISH-29 「更多筛选」 closes on Escape with focus back on its button, and on a press outside it", { timeout: 60_000 }, async t => {
+  const executable = locateTestChrome(); assert.ok(executable, "Chrome is required for the memory settings page");
+  const env = await openTestHome(t); await env.createProject("更多筛选");
+  const directory = await mkdtemp(join(tmpdir(), "memory-walkthrough-more-")), browser = await ChromeHarness.start(directory, { executable });
+  try {
+    const page = await browser.page(); await page.viewport(1440, 1000);
+    await open(page, env.origin + "/settings/memory");
+    const more = `${root} details.mw-list-toolbar__more`;
+    const state = () => page.evaluate<{ open: boolean; focus: boolean }>(`(() => { const more = document.querySelector('${more}');
+      return { open: more.open, focus: document.activeElement === more.querySelector(':scope > summary') }; })()`);
+    const show = async () => { await page.evaluate(`document.querySelector('${more} > summary').click()`); await page.wait(`document.querySelector('${more}').open`); };
+    await show();
+    assert.equal(await page.evaluate<string>(`getComputedStyle(document.querySelector('${more} > .mw-list-toolbar__more-body')).position`), "absolute");
+    await page.evaluate(`document.querySelector('${more} > .mw-list-toolbar__more-body :is(select, button, input)').focus()`);
+    for (const type of ["keyDown", "keyUp"]) await page.command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await page.wait(`!document.querySelector('${more}').open`);
+    assert.deepEqual(await state(), { open: false, focus: true });
+    await show();
+    const outside = await page.evaluate<{ x: number; y: number }>(`(() => { const box = document.querySelector('${root} h1').getBoundingClientRect(); return { x: box.left + 4, y: box.top + 4 }; })()`);
+    for (const type of ["mousePressed", "mouseReleased"]) await page.command("Input.dispatchMouseEvent", { type, ...outside, button: "left", clickCount: 1 });
+    await page.wait(`!document.querySelector('${more}').open`);
+  } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test("BL-1076 a personal memory moves into a project picked on the personal page, and changes made elsewhere show without reload", { timeout: 90_000 }, async t => {
   const executable = locateTestChrome(); assert.ok(executable, "Chrome is required for the memory settings page");
   const env = await openTestHome(t), project = await env.createProject("设计工作室服务");

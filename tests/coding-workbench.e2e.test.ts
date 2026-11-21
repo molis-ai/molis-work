@@ -254,6 +254,7 @@ test("QEA-186: Coding tools open real stages, preserve session tabs and read fix
   await click(`${coding} [data-coding-directory-back]`);
   await click(`${coding} [data-coding-session]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
+  await b.waitFor(CODING_TAKEN);
   // The drawer and the explicit main navigation, on a companion's page (Git's; Files', which this used, retired in batch 06).
   await open("git");
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");

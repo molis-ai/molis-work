@@ -4,7 +4,8 @@ import {openGoalBrowser} from './fixtures/goal-browser.js';
 
 for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed start ${delivery} cannot revive an old preparation or cancel a newer one`, {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280,900);
   // Exercise the real bundled account controller; only HTTP/SSE delivery ordering is controlled here.
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window),Source=window.EventSource;
@@ -35,7 +36,7 @@ for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed sta
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice' && window.cohortOrdering.events");
-  await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await click('[data-personal-action=switch]');
   await waitFor("window.cohortOrdering.acks.includes('old-preparation')");
   await evaluate(`{
@@ -55,7 +56,8 @@ for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed sta
 
 test('ASR-04 a current start failure still reports its original error and does not authenticate', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280,900);
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window),Source=window.EventSource;
     const probe=window.currentStartFailure={logins:0,popupClosed:false};
@@ -75,7 +77,7 @@ test('ASR-04 a current start failure still reports its original error and does n
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice'");
-  await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await click('[data-personal-action=switch]');
   // The existing request owner turns a failed POST delivery into this outcome-unknown error; begin must propagate it unchanged.
   await waitFor("document.querySelector('#mw-account-menu [role=alert]')?.textContent==='不知道这次操作有没有完成，请刷新后核对' && !document.querySelector('[data-personal-action=switch]').disabled");

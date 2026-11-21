@@ -6,7 +6,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 test('an idle closed account menu does not poll, but focus, opening and a pending login still refresh', { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor, click } = browser;
+  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor, click, setViewport } = browser;
+  await setViewport(1280, 900);
   // Identity presentation only: the separate personal HTTP tests retain the real PKCE/session exchange.
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const original = window.fetch.bind(window), interval = window.setInterval.bind(window), now = Date.now.bind(Date);
@@ -45,9 +46,8 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
   assert.equal(await evaluate('window.accountPollProbe.calls.length'), initial, 'a full idle minute must not add an account HTTP request');
   await evaluate("window.dispatchEvent(new Event('focus'))");
   await waitFor(`window.accountPollProbe.calls.length > ${initial}`);
-  await click('[data-project-menu] > summary');
   const beforeOpen = await evaluate<number>('window.accountPollProbe.calls.length');
-  await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await waitFor(`!document.querySelector('#mw-account-menu').hidden && window.accountPollProbe.calls.length > ${beforeOpen}`);
   await click('[data-personal-action=login]');
   await waitFor("window.accountPollProbe.loginUrl.endsWith('/health') && !document.querySelector('[data-personal-action=login]').disabled");
@@ -89,35 +89,42 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
     await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, sessionId);
     await navigate(() => command('Page.navigate', { url: origin + '/projects/' + projectId + '/' }, sessionId));
-    await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-project-menu]')");
-    await evaluate("document.querySelector('[data-project-menu] > summary').focus()");
-    await press('Enter');
-    // Opening <details> has a content-visibility transition. A box alone does not mean its children can take focus yet.
-    await waitFor("document.querySelector('[data-account-link]').checkVisibility({visibilityProperty:true})");
-    assert.equal(await evaluate("document.querySelector('[data-personal-menu] [data-account-link]').tagName"), 'BUTTON');
-    for (let step = 0; step < 8 && !await evaluate("document.activeElement?.matches('[data-account-link]')"); step++) await press('Tab');
-    assert.equal(await evaluate("document.activeElement?.matches('[data-account-link]')"), true, 'Tab must reach the actual account trigger');
+    // From 960px the account is the avatar in the foot's account bar (POLISH-05 as rewritten, POLISH-71); narrower it is the
+    // first row of the project's menu at the strip's right end, and Escape gives the focus back to that menu's visible trigger.
+    const bar = width >= 960, trigger = bar ? '.bar-account [data-account-link]' : '[data-personal-menu] [data-account-link]';
+    const back = bar ? trigger : '[data-project-menu] > summary';
+    await waitFor(`document.querySelector('#mw-account-menu') && document.querySelector('${back}')?.checkVisibility()`);
+    if (bar) await evaluate(`document.querySelector('${trigger}').focus()`);
+    else {
+      await evaluate("document.querySelector('[data-project-menu] > summary').focus()");
+      await press('Enter');
+      // Opening <details> has a content-visibility transition. A box alone does not mean its children can take focus yet.
+      await waitFor(`document.querySelector('${trigger}').checkVisibility({visibilityProperty:true})`);
+      for (let step = 0; step < 8 && !await evaluate(`document.activeElement === document.querySelector('${trigger}')`); step++) await press('Tab');
+    }
+    assert.equal(await evaluate(`document.querySelector('${trigger}').tagName`), 'BUTTON');
+    assert.equal(await evaluate(`document.activeElement === document.querySelector('${trigger}')`), true, 'Tab must reach the actual account trigger');
     await press(theme === 'light' ? 'Enter' : ' ');
     await waitFor("!document.querySelector('#mw-account-menu').hidden && document.activeElement?.dataset.personalAction === 'login'");
     assert.equal(await evaluate("(() => { const r=document.querySelector('#mw-account-menu').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; })()"), true);
     assert.equal(await evaluate("document.querySelector('[data-personal-action=switch]').hidden && document.querySelector('[data-personal-action=logout]').hidden"), true);
-    assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-expanded')"), 'true');
+    assert.equal(await evaluate(`document.querySelector('${trigger}').getAttribute('aria-expanded')`), 'true');
     const shot = await command('Page.captureScreenshot', { format: 'png' }, sessionId) as { data: string };
     mkdirSync('.impeccable/qa/review', { recursive: true });
     writeFileSync(`.impeccable/qa/review/account-keyboard-${width}-${theme}.png`, Buffer.from(shot.data, 'base64'));
     await press('Escape');
     await waitFor("document.querySelector('#mw-account-menu').hidden");
-    assert.equal(await evaluate("document.activeElement === document.querySelector('[data-project-menu] > summary')"), true, 'Escape must restore focus to the visible project trigger, not its hidden account row');
-    assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-expanded')"), 'false');
-    assert.equal(await evaluate("!!document.querySelector('[data-personal-menu] [data-capabilities-open]') && !!document.querySelector('[data-personal-menu] [data-directory-open=settings]')"), true);
+    assert.equal(await evaluate(`document.activeElement === document.querySelector('${back}')`), true, 'Escape must restore focus to the visible trigger, not a hidden account row');
+    assert.equal(await evaluate(`document.querySelector('${trigger}').getAttribute('aria-expanded')`), 'false');
+    // 插件 and 设置 stand beside the account: in the account bar from 960px, in the project's menu narrower.
+    const beside = bar ? '.bar-account' : '[data-personal-menu]';
+    assert.equal(await evaluate(`!!document.querySelector('${beside} [data-capabilities-open]') && !!document.querySelector('${beside} [data-directory-open=settings]')`), true);
   }
-  // The arrival menu puts account management first. Sign-in remains reachable by Tab.
+  // Outside the project menu, Escape still returns to the account button itself.
   await navigate(() => command('Page.navigate', { url: origin + '/' }, sessionId));
   await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-account-link]').checkVisibility()");
   await evaluate("document.querySelector('[data-account-link]').focus()");
   await press('Enter');
-  await waitFor("document.activeElement === document.querySelector('#mw-account-menu [data-unified-account-link]') && !document.querySelector('[data-personal-action=login]').disabled");
-  await press('Tab');
   await waitFor("document.activeElement?.dataset.personalAction === 'login'");
   await press('Escape');
   assert.equal(await evaluate("document.querySelector('#mw-account-menu').hidden && document.activeElement === document.querySelector('[data-account-link]')"), true);
@@ -125,7 +132,8 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
 
 test('ASR-02 signed-in account menu has switch and logout, without an anonymous workspace choice', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280, 900);
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window);
     window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
@@ -134,8 +142,7 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent === '测试用户'");
-  await click('[data-project-menu] > summary');
-  await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
   assert.equal(await evaluate("document.querySelector('[data-menu-email]').textContent"),'alice@example.test','the menu shows the contract user email instead of the signed-out placeholder');
   assert.equal(await evaluate("document.activeElement?.dataset.personalAction"), 'switch');
@@ -149,7 +156,8 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
 
 test('account menu localizes its dynamic controls and accessible labels in English', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280, 900);
   await command('Network.setCookie',{name:'molis_work_locale',value:'en',url:origin},sessionId);
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     window.accountEnglishSignedIn=sessionStorage.getItem('accountEnglishSignedIn')==='1';
@@ -161,8 +169,7 @@ test('account menu localizes its dynamic controls and accessible labels in Engli
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-personal-name]')?.textContent === 'Not signed in'");
-  await click('[data-project-menu] > summary');
-  await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
   assert.equal(await evaluate("document.querySelector('#mw-account-menu').getAttribute('aria-label')"),'Account');
   assert.deepEqual(await evaluate("['login','switch','logout'].map(action=>document.querySelector('[data-personal-action='+action+']').textContent)"),['Sign in / sign up','Switch account','Sign out']);
@@ -180,7 +187,8 @@ test('account menu localizes its dynamic controls and accessible labels in Engli
 
 test('ASR-04/05 account switching waits for the Host preparation and cancellation keeps editing available', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280, 900);
   // Presentation harness: the separate HTTP/cohort tests exercise the real participant owner and lease.
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window), Source=window.EventSource;
@@ -209,7 +217,7 @@ test('ASR-04/05 account switching waits for the Host preparation and cancellatio
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice' && window.preparationProbe.events");
   await evaluate("const dirty=document.createElement('div');dirty.dataset.accountDirtyProbe='';dirty.setAttribute('data-assistant-context',JSON.stringify({unsaved:true}));document.body.append(dirty)");
-  await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await click('[data-personal-action=switch]');
   await waitFor("window.preparationProbe.cancels===1 && !document.querySelector('[data-personal-action=switch]').disabled");
   assert.equal(await evaluate("window.preparationProbe.logins"),0);

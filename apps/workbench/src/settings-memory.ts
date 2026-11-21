@@ -1,5 +1,5 @@
 import { renderMemoryPreferences } from "./settings-memory-preferences.js";
-import { t as uiText, renderListToolbar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderListToolbar, renderSettingRow, renderSettingsSection } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT } from "./settings-memory-classes.js";
 import { MEMORY_EDITORS_CLIENT_SCRIPT } from "./settings-memory-editors.js";
 const attributeJson = (value: unknown): string => JSON.stringify(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -20,35 +20,21 @@ export function renderMemorySettings({ scope, projectId, projects = [] }: { scop
     <header class="settings-page-heading memory-heading"><h1 id="memory-title" data-memory-title>${title}</h1><p data-memory-intro>${lead}</p>
       <p class="memory-summary" data-memory-summary aria-live="polite">${uiText("workbench.settings-memory.loading")}</p></header>
     <p class="settings-form-error" data-memory-error role="alert" hidden></p>
-    <section class="mw-settings-section" data-memory-retries hidden aria-labelledby="memory-retries-title">
-      <header class="mw-settings-section__head"><h2 id="memory-retries-title">${uiText("workbench.settings-memory.operations-waiting-retry")}</h2></header>
-      <div class="mw-settings-section__rows">
-      <p class="mw-settings-section__note">${uiText("workbench.settings-memory.page-keeps-original-requests-accepted-forgetting-confirmed-batches")}</p>
-      <ul class="memory-list" data-memory-retry-list></ul>
-      </div>
-    </section>
-    <section class="mw-settings-section memory-changes" aria-labelledby="memory-changes-title" data-memory-changes-section hidden>
-      <header class="mw-settings-section__head"><h2 id="memory-changes-title">${uiText("workbench.settings-memory.recent-changes")}</h2></header>
-      <div class="mw-settings-section__rows">
-      <ul class="memory-change-list" data-memory-changes></ul>
-      </div>
-    </section>
-    <section class="mw-settings-section memory-candidates" aria-labelledby="memory-candidates-title" data-memory-candidates-section hidden>
-      <header class="mw-settings-section__head"><h2 id="memory-candidates-title">${uiText("workbench.settings-memory.waiting")}</h2></header>
-      <div class="mw-settings-section__rows">
-      <p class="mw-settings-section__note">${uiText("workbench.settings-memory.suggested-work-how-use-interface-held-back-write")}</p>
-      <ul class="memory-list" data-memory-candidates></ul>
-      </div>
-    </section>
-    <section class="mw-settings-section memory-items" aria-labelledby="memory-items-title">
-      <header class="mw-settings-section__head"><h2 id="memory-items-title">${personal ? uiText("workbench.settings-memory.my-memories") : uiText("workbench.settings-memory.project-s-memories")}</h2></header>
-      ${renderListToolbar({ label: uiText.text("workbench.settings-memory.filter-memories"),
+    ${renderSettingsSection({ title: uiText.text("workbench.settings-memory.operations-waiting-retry"), id: "memory-retries-title", attrs: { "data-memory-retries": true, hidden: true },
+      body: `      <p class="mw-settings-section__note">${uiText("workbench.settings-memory.page-keeps-original-requests-accepted-forgetting-confirmed-batches")}</p>
+      <ul class="memory-list" data-memory-retry-list></ul>` })}
+    ${renderSettingsSection({ title: uiText.text("workbench.settings-memory.recent-changes"), id: "memory-changes-title", className: "memory-changes", attrs: { "data-memory-changes-section": true, hidden: true },
+      body: `      <ul class="memory-change-list" data-memory-changes></ul>` })}
+    ${renderSettingsSection({ title: uiText.text("workbench.settings-memory.waiting"), id: "memory-candidates-title", className: "memory-candidates", attrs: { "data-memory-candidates-section": true, hidden: true },
+      body: `      <p class="mw-settings-section__note">${uiText("workbench.settings-memory.suggested-work-how-use-interface-held-back-write")}</p>
+      <ul class="memory-list" data-memory-candidates></ul>` })}
+    ${renderSettingsSection({ title: personal ? uiText.text("workbench.settings-memory.my-memories") : uiText.text("workbench.settings-memory.project-s-memories"), id: "memory-items-title", className: "memory-items",
+      lead: renderListToolbar({ label: uiText.text("workbench.settings-memory.filter-memories"),
         search: `<input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${uiText("workbench.settings-memory.search-memories")}" aria-label="${uiText("workbench.settings-memory.search-memories")}">`,
         filters: `<select class="mw-select" data-memory-filter="scene" aria-label="${uiText("workbench.settings-memory.scene")}"><option value="">${uiText("workbench.settings-memory.all-scenes")}</option><option value="coding">${uiText("workbench.settings-memory.coding")}</option><option value="assistant">${uiText("workbench.settings-memory.assistant")}</option><option value="common">${uiText("workbench.settings-memory.common")}</option><option value="unclassified">${uiText("workbench.settings-memory.unclassified")}</option></select><select class="mw-select" data-memory-filter="state" aria-label="${uiText("workbench.settings-memory.state")}"><option value="">${uiText("workbench.settings-memory.all-states")}</option><option value="active">${uiText("workbench.settings-memory.active")}</option><option value="disabled">${uiText("workbench.settings-memory.switch-off")}</option><option value="paused">${uiText("workbench.settings-memory.paused")}</option></select>`,
         more: { label: uiText.text("workbench.settings-memory.more-filters"), body: `<select class="mw-select" data-memory-filter="kind" aria-label="${uiText("workbench.settings-memory.kind")}"><option value="">${uiText("workbench.settings-memory.all-kinds")}</option><option value="preference">${uiText("workbench.settings-memory.preference")}</option><option value="convention">${uiText("workbench.settings-memory.convention")}</option><option value="fact">${uiText("workbench.settings-memory.background-fact")}</option><option value="experience">${uiText("workbench.settings-memory.lesson")}</option><option value="habit">${uiText("workbench.settings-memory.habit")}</option><option value="project-decision">${uiText("workbench.settings-memory.project-decision")}</option></select><select class="mw-select" data-memory-filter="lifecycle" aria-label="${uiText("workbench.settings-memory.retention")}"><option value="">${uiText("workbench.settings-memory.all-retention-types")}</option><option value="long-term">${uiText("workbench.settings-memory.long-term")}</option><option value="short-term">${uiText("workbench.settings-memory.short-term")}</option><option value="session">${uiText("workbench.settings-memory.within-session")}</option></select><select class="mw-select" data-memory-filter="source" aria-label="${uiText("workbench.settings-memory.source")}"><option value="">${uiText("workbench.settings-memory.all-sources")}</option><option value="said">${uiText("workbench.settings-memory.said")}</option><option value="accepted">${uiText("workbench.settings-memory.accepted")}</option><option value="auto">${uiText("workbench.settings-memory.kept-automatically")}</option><option value="manual">${uiText("workbench.settings-memory.added")}</option><option value="imported">${uiText("workbench.settings-memory.imported")}</option><option value="plugin">${uiText("workbench.settings-memory.kept-plugin")}</option></select><select class="mw-select" data-memory-filter="expired" aria-label="${uiText("workbench.settings-memory.expiry-state")}"><option value="">${uiText("workbench.settings-memory.all-expiry-states")}</option><option value="true">${uiText("workbench.settings-memory.expired-2")}</option><option value="false">${uiText("workbench.settings-memory.not-expired")}</option></select>` },
-        end: `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${uiText("workbench.settings-memory.add")}</button>` })}
-      <div class="mw-settings-section__rows">
-      <div class="memory-toolbar" data-memory-batch>
+        end: `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${uiText("workbench.settings-memory.add")}</button>` }),
+      body: `      <div class="memory-toolbar" data-memory-batch>
         <span class="settings-muted" data-memory-selected aria-live="polite"></span>
         <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-memory-batch-action="disable" disabled>${uiText("workbench.settings-memory.disable-selected")}</button>
         <button type="button" class="mw-btn mw-btn--danger-outline mw-btn--sm" data-memory-batch-action="remove" disabled>${uiText("workbench.settings-memory.forget-selected")}</button>
@@ -62,27 +48,16 @@ export function renderMemorySettings({ scope, projectId, projects = [] }: { scop
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-next disabled>${uiText("workbench.settings-memory.next-page")}</button>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-reload>${uiText("workbench.settings-memory.reload")}</button>
         <span class="settings-muted" data-memory-page-status aria-live="polite"></span>
-      </nav>
-      </div>
-    </section>
+      </nav>` })}
     ${renderMemoryPreferences(personal)}
-    <section class="mw-settings-section memory-data" aria-labelledby="memory-data-title">
-      <header class="mw-settings-section__head"><h2 id="memory-data-title">${uiText("workbench.settings-memory.tidying-data")}</h2></header>
-      <div class="mw-settings-section__rows">
-      <div data-memory-pairs-section><div class="mw-setting-row"><span class="mw-setting-row__copy"><strong id="memory-pairs-title">${uiText("workbench.settings-memory.possible-duplicates-conflicts")}</strong><span>${uiText("workbench.settings-memory.pairs-found-while-tidying-keep-one-other-switched")}</span></span>
-        <span class="mw-setting-row__control"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-pairs-read>${uiText("workbench.settings-memory.review-possible-duplicates-conflicts")}</button></span></div>
+    ${renderSettingsSection({ title: uiText.text("workbench.settings-memory.tidying-data"), id: "memory-data-title", className: "memory-data",
+      body: `      <div data-memory-pairs-section>${renderSettingRow({ name: uiText.text("workbench.settings-memory.possible-duplicates-conflicts"), nameAttrs: { id: "memory-pairs-title" }, hint: uiText.text("workbench.settings-memory.pairs-found-while-tidying-keep-one-other-switched"), control: `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-pairs-read>${uiText("workbench.settings-memory.review-possible-duplicates-conflicts")}</button>` })}
         <ul class="memory-list" data-memory-pairs></ul></div>
-      <div class="mw-setting-row"><span class="mw-setting-row__copy"><strong>${uiText("workbench.settings-memory.tidying")}</strong><span data-memory-upkeep>${uiText("workbench.settings-memory.once-day-expired-long-unused-ones-switched-off")}</span></span>
-        <span class="mw-setting-row__control"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-upkeep-run>${uiText("workbench.settings-memory.tidy-now")}</button></span></div>
-      <div class="mw-setting-row"><span class="mw-setting-row__copy"><strong>${uiText("workbench.settings-memory.export")}</strong><span>${uiText("workbench.settings-memory.download-memory-package-keys-local-paths-taken-out")}</span></span>
-        <span class="mw-setting-row__control"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${uiText("workbench.settings-memory.export")}</button></span></div>
-      <div class="mw-setting-row"><span class="mw-setting-row__copy"><strong>${uiText("workbench.settings-memory.imported")}</strong><span>${uiText("workbench.settings-memory.choose-memory-package-what-already-kept-skipped-damaged")}</span></span>
-        <span class="mw-setting-row__control"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${uiText("workbench.settings-memory.imported")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
-      <div class="mw-setting-row"><span class="mw-setting-row__copy"><strong data-memory-clear-title>${personal ? uiText.text("workbench.settings-memory.clear-personal-memories") : uiText.text("workbench.settings-memory.clear-project-s-memories")}</strong><span>${uiText("workbench.settings-memory.see-how-many-first-once-confirmed-they-deleted")}</span></span>
-        <span class="mw-setting-row__control"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${uiText("workbench.settings-memory.clear")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${uiText("workbench.settings-memory.preview-again")}</button></span></div>
-      <p class="settings-muted" data-memory-clear-status aria-live="polite" hidden></p>
-      </div>
-    </section>
+      ${renderSettingRow({ name: uiText.text("workbench.settings-memory.tidying"), hint: uiText.text("workbench.settings-memory.once-day-expired-long-unused-ones-switched-off"), hintAttrs: { "data-memory-upkeep": true }, control: `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-upkeep-run>${uiText("workbench.settings-memory.tidy-now")}</button>` })}
+      ${renderSettingRow({ name: uiText.text("workbench.settings-memory.export"), hint: uiText.text("workbench.settings-memory.download-memory-package-keys-local-paths-taken-out"), control: `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${uiText("workbench.settings-memory.export")}</button>` })}
+      ${renderSettingRow({ name: uiText.text("workbench.settings-memory.imported"), hint: uiText.text("workbench.settings-memory.choose-memory-package-what-already-kept-skipped-damaged"), control: `<label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${uiText("workbench.settings-memory.imported")}<input type="file" accept="application/json,.json" data-memory-import hidden></label>` })}
+      ${renderSettingRow({ name: personal ? uiText.text("workbench.settings-memory.clear-personal-memories") : uiText.text("workbench.settings-memory.clear-project-s-memories"), nameAttrs: { "data-memory-clear-title": true }, hint: uiText.text("workbench.settings-memory.see-how-many-first-once-confirmed-they-deleted"), control: `<button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${uiText("workbench.settings-memory.clear")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${uiText("workbench.settings-memory.preview-again")}</button>` })}
+      <p class="settings-muted" data-memory-clear-status aria-live="polite" hidden></p>` })}
     ${personal ? `<p class="settings-muted memory-rules-note">${uiText("workbench.settings-memory.interaction-rules-such-dont-interrupt-while-i-write")} <a href="/settings/assistant">${uiText("workbench.settings-memory.assistant-settings")}</a></p>` : ""}
   </section>`;
 }

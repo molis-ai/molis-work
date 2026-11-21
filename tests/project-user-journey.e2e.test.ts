@@ -51,12 +51,12 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await click('[data-frame-goal-work]');
     if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
     await click('[data-record-menu] > summary');await click('[data-record-menu] [data-event-form-open=note]');
-    await fill('[data-event-form=note] [name=note]','已经从项目首页创建目标，接下来核对信息处理路径。');
+    await fill('[data-event-form=note] [name=note]','已经从项目主页创建目标，接下来核对信息处理路径。');
     await click('[data-event-form=note] button[type=submit]');
     await waitFor("!document.querySelector('[data-event-form=note]') || document.querySelector('[data-event-form=note]').hidden || document.querySelector('[data-event-form=note]').getClientRects().length===0");
-    await waitFor("document.querySelector('[data-event-timeline]').textContent.includes('已经从项目首页创建目标')");
+    await waitFor("document.querySelector('[data-event-timeline]').textContent.includes('已经从项目主页创建目标')");
     const app=new GoalProjectApplication(b.store);
-    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
+    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目主页创建目标/);
     await capture('goal-recorded');
     await plugin('feed');await feedView.click('[data-feed-source-rail] [data-feed-add-toggle]');
     await feedView.click('[data-feed-choose-kind=custom_rss]');
@@ -114,6 +114,6 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     assert.equal(history.entries.find((e:{entry_id:string})=>e.entry_id===entryId)?.status,'done');
     assert.equal(feed.getItem(DEMO_PROJECT_ID,item.item_id).body,item.body);
     await b.reloadPage();assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
-    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
+    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目主页创建目标/);
   });
 }

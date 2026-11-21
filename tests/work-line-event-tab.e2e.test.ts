@@ -139,23 +139,45 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   assert.equal(await evaluate(`${EVENT}.hasAttribute('aria-current')`), false);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 
-  // WLN-17: the keyboard reaches the line, moves along it, opens an event and comes back to now.
+  // WLN-17 (as §16 rewrote it): Alt+L puts the focus on the front card in the stack (or the first of 办完 · 在办 · 接下来 when
+  // no card waits); ↓ from an open list's key goes to its first row, ↑ ↓ move between rows, Enter opens the event, and Esc closes
+  // the list and gives the focus back to its key.
   const key = (init: string) => `(document.activeElement && document.activeElement !== document.body ? document.activeElement : document).dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ${init} }))`;
+  const hasCard = await evaluate<boolean>("document.querySelector('[data-work-stack] [data-work-stack-card]') !== null");
+  // A press on the event above left its list open: close it, so the keys start from a closed list.
+  if (!await evaluate<boolean>("document.querySelector('[data-work-lists]').hidden")) await evaluate("document.querySelector('[data-work-lists-close]').click()");
+  await waitFor("document.querySelector('[data-work-lists]').hidden");
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyL', key: 'l', altKey: true }))`);
-  assert.equal(await evaluate("document.activeElement?.matches('[data-work-line] [data-wing=\"past\"] [data-work-event]:last-child')"), true, "Alt+L lands on the event beside now");
+  assert.equal(await evaluate(hasCard
+    ? "document.activeElement === document.querySelector('[data-work-stack] [data-work-stack-card] button')"
+    : "document.activeElement === document.querySelector('[data-work-counts] [data-work-list]')"), true,
+    hasCard ? "Alt+L lands on the front card in the stack" : "Alt+L lands on the first of the three");
+  const list = await evaluate<string>(`${EVENT}.closest('[data-work-list-rows]').dataset.workListRows`);
+  await evaluate(`document.querySelector('[data-work-counts] [data-work-list="${list}"]').focus()`);
+  await evaluate("document.activeElement.click()");
+  await waitFor(`!document.querySelector('[data-work-lists]').hidden && document.querySelector('[data-work-counts] [data-work-list="${list}"]').getAttribute('aria-expanded') === 'true'`);
+  await evaluate(key("key: 'ArrowDown'"));
+  const ROWS = `[...document.querySelectorAll('[data-work-list-rows="${list}"] [data-work-event]')]`;
+  assert.equal(await evaluate(`document.activeElement === ${ROWS}[0]`), true, "↓ from the list's key goes to its first row");
+  if (await evaluate<number>(`${ROWS}.length`) > 1) {
+    await evaluate(key("key: 'ArrowDown'"));
+    assert.equal(await evaluate(`document.activeElement === ${ROWS}[1]`), true, "↓ moves to the next row");
+    await evaluate(key("key: 'ArrowUp'"));
+    assert.equal(await evaluate(`document.activeElement === ${ROWS}[0]`), true, "↑ moves back");
+  }
+  await evaluate(`${EVENT}.focus()`);
+  await evaluate(key("key: 'Escape'"));
+  await waitFor(`document.querySelector('[data-work-lists]').hidden && document.activeElement === document.querySelector('[data-work-counts] [data-work-list="${list}"]')`);
+  assert.equal(await evaluate(`document.querySelector('[data-work-counts] [data-work-list="${list}"]').getAttribute('aria-expanded')`), "false", "Esc closes the list and gives the focus back to its key");
+  await evaluate("document.activeElement.click()");
+  await waitFor("!document.querySelector('[data-work-lists]').hidden");
+  await evaluate(`${EVENT}.focus()`);
   const from = await evaluate<string>("document.activeElement.dataset.workEvent");
-  await evaluate(key("key: 'ArrowRight'"));
-  const to = await evaluate<string>("document.activeElement.dataset.workEvent");
-  assert.ok(to && to !== from, "→ moves to the next event of the line");
-  await evaluate(key("key: 'ArrowLeft'"));
-  assert.equal(await evaluate("document.activeElement.dataset.workEvent"), from, "← moves back");
   await evaluate("document.activeElement.click()");
   await waitFor(`${TAB}?.dataset.tab?.startsWith('event:') && document.querySelector('[data-work-line] [data-work-event][aria-current]')?.dataset.workEvent === ${JSON.stringify(from)}`);
-  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyL', key: 'l', altKey: true }))`);
-  assert.equal(await evaluate("document.activeElement?.getAttribute('aria-current')"), "true", "with an event's tab in front, Alt+L lands on that event");
-  await evaluate(key("key: 'Escape'"));
-  await waitFor(`${TAB}?.hasAttribute('data-main') && document.activeElement === ${INPUT}`);
-  assert.equal(await evaluate("document.querySelectorAll('[data-work-line] [data-work-event][aria-current]').length"), 0, "Esc on the line goes back to now");
+  await click(".assistant-tab[data-current] .assistant-tab-close");
+  await waitFor(`${TAB}?.hasAttribute('data-main')`);
+  assert.equal(await evaluate("document.querySelectorAll('[data-work-line] [data-work-event][aria-current]').length"), 0, "closing its tab goes back to now");
 
   // The card route answers only for an event that is on the person's line.
   const refused = await evaluate<{ status: number; code?: string }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/mainline/event/surfaces`)}, { method: 'POST', headers: { 'content-type': 'application/json', ...(globalThis.molisWorkControlHeaders?.() || {}) },
@@ -163,7 +185,7 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   assert.equal(refused.status >= 400, true, "an object that is not on the line gets no card");
 });
 
-test("WLN-18: at 390 the event's tab is a layer above the line's track and the one input, which stay in reach", { timeout: 120_000 }, async t => {
+test("WLN-18: at 390 the event's tab is a layer above the one input and the three keys inside it, which stay in reach", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
@@ -175,7 +197,6 @@ test("WLN-18: at 390 the event's tab is a layer above the line's track and the o
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor(`document.querySelector(${JSON.stringify(PRESS)})`, 20_000);
-  await evaluate(`document.querySelector(${JSON.stringify(PRESS)}).scrollIntoView({ inline: 'center', block: 'nearest' })`);
   await click(PRESS);
   await waitFor(`${TAB}?.dataset.tab === ${JSON.stringify(`event:todo_item:${item.id}`)}`);
   await waitFor("(document.querySelector('[data-assistant-event-card]')?.textContent || '').includes('给王总回电话')", 15_000);
@@ -183,13 +204,14 @@ test("WLN-18: at 390 the event's tab is a layer above the line's track and the o
   await mkdir(shot, { recursive: true });
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(new URL("event-tab-390.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-  const box = await evaluate<{ panel: number; track: number; input: number; width: boolean; small: number }>(`(() => { const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
-    return { panel: Math.round(rect('[data-assistant-panel]').bottom), track: Math.round(rect('[data-work-line-track]').top), input: Math.round(rect('[data-assistant-composer] .mw-composer__input').top),
+  const box = await evaluate<{ panel: number; foot: number; input: number; width: boolean; small: number }>(`(() => { const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+    return { panel: Math.round(rect('[data-assistant-panel]').bottom), foot: Math.round(rect('[data-work-line-slot]').top), input: Math.round(rect('[data-assistant-composer] .mw-composer__input').top),
       width: document.documentElement.scrollWidth <= window.innerWidth,
-      small: [...document.querySelectorAll('[data-work-line] [data-work-event], .assistant-tab .assistant-tab-main, .assistant-tab .assistant-tab-close, [data-task-mark]')].filter(node => { const at = node.getBoundingClientRect(); return at.width > 0 && (at.height < 44 || at.width < 44); }).length }; })()`);
+      small: [...document.querySelectorAll('[data-work-line] [data-work-event], [data-work-counts] .work-count, .assistant-tab .assistant-tab-main, .assistant-tab .assistant-tab-close, [data-task-mark]')].filter(node => { const at = node.getBoundingClientRect(); return at.width > 0 && (at.height < 44 || at.width < 44); }).length }; })()`);
   assert.equal(box.width, true, "no sideways scroll");
-  assert.ok(box.panel <= box.track + 1 && box.panel <= box.input + 1, `the dialog ends above the track and the input (${JSON.stringify(box)})`);
-  assert.equal(box.small, 0, "every target on the line and the tab strip is at least 44px");
+  // Under 960px the foot is the input alone, 办完 · 在办 · 接下来 inside its top right (WLN-18 as §16 rewrote it; the track is gone).
+  assert.ok(box.panel <= box.foot + 1 && box.panel <= box.input + 1, `the dialog ends above the input's block and the input (${JSON.stringify(box)})`);
+  assert.equal(box.small, 0, "every target in the foot and the tab strip is at least 44px");
 });
 
 // WLN-32: under the reply that handed a task to the background the conversation says where the task went, with 「改」. This Home

@@ -33,7 +33,7 @@ const CRAFT_BASE_STYLES = CRAFT_BAR_STYLES + BAR_ZONE_STYLES + CRAFT_ASSISTANT_S
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `
-  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
+  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
@@ -111,9 +111,10 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     if (row) requestAnimationFrame(() => settleOpened(document.querySelector(".immersive-home .home-erow-wrap.is-open .home-erow__slot")));
   });
 
-  /* ⌥1…⌥9 open the first nine tools of the rail, Home first. Typing, terminals and menus keep their keys. */
-  const railShortcuts = () => [...document.querySelectorAll(".dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]")]
-    .filter((node) => node.getClientRects().length).slice(0, 9);
+  /* ⌥1 opens the project home (the top strip's first place lists it, hidden until its list opens); ⌥2…⌥9 the start page's first
+   * entries while it shows. Typing, terminals and menus keep their keys. */
+  const railShortcuts = () => [...document.querySelectorAll(".top-corner [data-corner-home]"),
+    ...[...document.querySelectorAll(".plugin-rail-items [data-plugin-id]")].filter((node) => node.getClientRects().length)].slice(0, 9);
   document.addEventListener("keydown", (event) => {
     if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
     const digit = /^Digit([1-9])$/.exec(event.code);

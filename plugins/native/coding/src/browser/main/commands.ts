@@ -79,7 +79,7 @@ function builtInCommands(page: Page, init: CommandItem): CommandItem[] {
         status(page, uiText.text("coding.palette.compact-done"));
         if (id === s.current) await readCurrent(page);
       } },
-    { slash: "usage", label: readText("coding.meter.title"), hint: readText("coding.palette.usage-hint"), keywords: ["cost", "费用", "预算", "context"], enabled: !q("[data-coding-meter]").hidden, run: () => q("[data-coding-meter-toggle]").click() },
+    { slash: "usage", label: readText("coding.meter.title"), hint: readText("coding.palette.usage-hint"), keywords: ["cost", "费用", "预算", "context"], enabled: q("[data-coding-meter]").dataset.available === "true", run: () => q("[data-coding-meter-toggle]").click() },
     { slash: "model", label: readText("coding.palette.model"), hint: readText("coding.palette.model-hint"), keywords: ["model"], enabled: open, run: () => focusModel(page) },
     { slash: "workspace", label: readText("coding.workspace.title"), hint: readText("coding.palette.workspace-hint"), keywords: ["目录", "folder"], enabled: open, run: () => q<HTMLDialogElement>("[data-coding-workspace-dialog]").showModal() },
     { slash: "new", label: readText("coding.palette.new"), keys: "Mod+Alt+N", keywords: ["new", "会话"], run: () => q("[data-coding-new]").click() },

@@ -723,8 +723,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz
 
   horizontal/appearance:
     dependencies:
@@ -1916,9 +1916,9 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz':
-    resolution: {integrity: sha512-RtF/WmysRhDb1zVH80k4WCjIgy2+w1gooVd1YubXc9Eg77iz36UW9Zwnl/cUaN3TLTwsdXnkrBCxsYRIs58tKQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz}
-    version: 0.1.0-rc.1
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz':
+    resolution: {integrity: sha512-Z8EF6iv13ptyl8bUke8JQCZBi250xHsp2MyN+9DcBbsl/wABTQcpb/PjfWgPQsQTjqVHAQ61dXgANfp7AoqKag==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz}
+    version: 0.1.0-rc.2
     peerDependencies:
       '@tauri-apps/api': '>=2.0.0 <3.0.0'
     peerDependenciesMeta:
@@ -3779,7 +3779,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz': {}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 

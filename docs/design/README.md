@@ -58,7 +58,7 @@
 - [Coding 子任务入口补充定样（第 59 批）](subagent-entry-59/README.md)
 - [服务差异、默认网页搜索与自动化建议定样（第 61 批）](service-coverage-automation/README.md)
 - [设计讨论交接与研究资料](ui-renewal-2026-09-21/README.md)
-- [待办详情页定样（可点，待定稿）](todo-detail/README.md)
+- [待办详情页定样（可点，已定稿）](todo-detail/README.md)
 - [统一输入框定样](unified-input/README.md)
 - [卸载后留下的项目（第 27 批 · BL-915，已完成）](uninstall-retained/README.md)
 - [Work Brief 首页与简报核心：可点的定样（路线书第 19 批）](work-brief-core/README.md)

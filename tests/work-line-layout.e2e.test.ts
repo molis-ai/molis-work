@@ -64,7 +64,7 @@ for (const lang of ["zh", "en"]) test(`§4「底栏第十三版」(${lang}): the
 
 // WLN-37 and WLN-24 (as §16 rewrote them): the lists are the information column's, under its tabs (§4「底栏第十三版」第 4 条). A
 // source that cannot be read stays fixed above the rows, which scroll under it; 办完 ends in 更早 N.
-test("WLN-37, WLN-24: an unreadable source stays under the information column's tabs while the open list's rows scroll; 更早 N ends 办完", { timeout: 120_000 }, async (t) => {
+test("WLN-37, WLN-24, POLISH-09: an unreadable source stays under the information column's tabs while the open list's rows scroll; 更早 N ends 办完", { timeout: 120_000 }, async (t) => {
   const page = await open(t, 1440); if (!page) return;
   const { evaluate, size, settle } = page;
   for (const width of [1440, 1100]) {
@@ -84,6 +84,14 @@ test("WLN-37, WLN-24: an unreadable source stays under the information column's 
   }
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-nav-specimen="wl-lists"] .work-list')].filter(list => list.querySelector('[data-work-lists-earlier]')).map(list => [list.lastElementChild.matches('[data-work-lists-earlier]'), /更早 \\d+/u.test(list.lastElementChild.textContent)])`),
     [[true, true]], "办完 alone ends in 更早 N");
+  // POLISH-09 (as rewritten for the list's row): the name has a line of its own and keeps six characters at least — what is cut
+  // is what the event says, under it — and the owner's mark carries no state colour.
+  const rows = await evaluate<Array<{ name: number; six: number; mark: string; state: string }>>(`[...document.querySelectorAll('[data-nav-specimen="wl-lists"] .work-list .work-event')].map(row => {
+    const name = row.querySelector('.work-event-name'), mark = row.querySelector(':scope > svg');
+    return { name: name.clientWidth, six: 6 * parseFloat(getComputedStyle(name).fontSize), mark: mark ? getComputedStyle(mark).color : 'none', state: row.dataset.state || '' }; })`);
+  assert.ok(rows.length >= 3 && new Set(rows.map(row => row.state)).size > 1, `the specimen's lists show events in several states (${JSON.stringify(rows.map(row => row.state))})`);
+  assert.deepEqual(rows.filter(row => row.name < row.six), [], "POLISH-09: every name keeps room for six characters");
+  assert.equal(new Set(rows.map(row => row.mark)).size, 1, `POLISH-09: the mark is one quiet colour whatever the state (${JSON.stringify([...new Set(rows.map(row => row.mark))])})`);
 });
 
 test("WLN-03: what the hand added stands above the composer, inside its specimen", { timeout: 120_000 }, async (t) => {

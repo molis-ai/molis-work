@@ -31,7 +31,7 @@ async function toMain(evaluate: <T>(expression: string) => Promise<T>, waitFor: 
 const INPUT = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
 const type = (words: string) => `(() => { const input = ${INPUT}; input.focus(); input.value = ${JSON.stringify(words)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 
-test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: a press on an event turns the conversation to it and opens its page at the top, with its composed card in the information column, its own draft, and words sent for it", { timeout: 150_000 }, async t => {
+test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns the conversation to it (its line, the placeholder, the row marked) and opens its page at the top, with its composed card in the information column, its own draft, and words sent for it", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;

@@ -151,6 +151,9 @@ test("WLN-08, WLN-09, WLN-11: what is known about an event is said in a fixed or
   const [live, decision, acceptance] = cards.split('<article class="work-card"').slice(1) as [string, string, string];
   for (const card of [live, decision, acceptance]) {
     assert.ok(card.indexOf("data-card-ask") < card.indexOf("work-card-now"), "该你做的 comes before 这件事现在怎样");
+    // POLISH-46 (as rewritten): the column's order is what is asked of you, then how it stands; there is no 「到现在为止」 part.
+    assert.deepEqual([...card.matchAll(/class="work-card-part (work-card-[a-z]+)/gu)].map(match => match[1]).slice(0, 2), ["work-card-ask", "work-card-now"]);
+    assert.doesNotMatch(card, /到现在为止/u);
     assert.match(card, /data-event-park=/u, "every form can be parked in the side panel");
   }
   assert.match(live, /data-card-ask hidden>/u, "nothing is asked while it is only being worked on");

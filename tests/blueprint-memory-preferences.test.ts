@@ -255,11 +255,121 @@ test("SPC-07/ONB-28/30: " + operation + " keeps a shared personal Memory layer a
   assert.ok(shelf);
   platform.supervisor.revoke(shelfManifest.plugin_id);
   await platform.runtime.stop(shelf.install_id);
-  const result = await person.invoke(blueprintActions[operation], { ...target, request_id: "undo-first" });
+  const invokeUndo = (requestId: string) => operation === "revert"
+    ? person.invoke(blueprintActions.revert, { ...target, request_id: requestId })
+    : person.invoke(blueprintActions.remove, { ...target, request_id: requestId });
+  // P1-E2: while any pending_verification step still has an online owner (memory), undo must refuse until reconciled.
+  await assert.rejects(
+    invokeUndo("undo-before-reconcile"),
+    (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "blueprints.step_conflict"),
+  );
+  // Reconcile via apply: online memory settles cleanly while offline wheel stays pending_verification.
+  const reconciled = await person.invoke(blueprintActions.apply, first);
+  assert.equal(reconciled.steps[0]?.state, "applied");
+  assert.equal(reconciled.steps[1]?.state, "pending_verification");
+  const result = await invokeUndo("undo-first");
   assert.deepEqual(result.undo.steps, [
     { part_id: "memory", state: "skipped", reason: "shared" },
     { ...apply_steps[1], current: "owner_unavailable" },
   ]);
   assert.deepEqual((await read()).setting, edited, "undo keeps both layer values and their versions");
   assert.deepEqual((await read(elsewhere)).value, personal);
+});
+
+test("B38 P1-E2/P1-E4/P2-5: missing apply receipt converges to detached instead of deadlocking, stale cross-project personal adoption does not block undo, and personal memory receipt survives project scope", async t => {
+  const env = await openTestHome(t);
+  const projectA = await env.createProject("Scene A");
+  const projectB = await env.createProject("Scene B");
+  const callerA = await env.host.localPersonContext(projectA.reference);
+  const callerB = await env.host.localPersonContext(projectB.reference);
+  const homeCaller = await env.host.localPersonContext();
+  const clientA = bindActionClient(env.host.actionClient(projectA.reference), () => callerA);
+  const clientB = bindActionClient(env.host.actionClient(projectB.reference), () => callerB);
+  const home = bindActionClient(env.host.homeActionClient(), () => homeCaller);
+
+  async function prepare(client: BoundActionClient, name: string, settings: BlueprintPart[]) {
+    const title = { literal: name };
+    const part_ids = settings.map(part => part.part_id);
+    const { draft } = await client.invoke(blueprintActions.draftSave, {
+      expected_revision: null,
+      blueprint: {
+        title,
+        purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+        parts: [...settings, { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+        steps: [{ step_id: "prepare", title, part_ids: [...part_ids, "note"] }],
+        example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
+      },
+    });
+    const preview = await client.invoke(blueprintActions.preview, { source: draft.source, target: { kind: "current_project" }, part_ids });
+    return { preview_id: preview.preview_id, part_ids, request_id: name };
+  }
+
+  // 1. P1-E2: apply aborted BEFORE owner write leaves pending_verification with no receipt.
+  //    Undo started while owner is offline and retried after owner returns converges to detached (no permanent deadlock).
+  const wheelPart: BlueprintPart = { part_id: "wheel", layer: "personal", required: true, proposal: { kind: "setting", key: "shelf.drop_wheel", value: false } };
+  const crashedApply = await prepare(clientA, "Crashed apply", [wheelPart]);
+  const originalClient = env.host.actionClient.bind(env.host);
+  const abortBeforeWrite = t.mock.method(env.host, "actionClient", (...args: Parameters<typeof env.host.actionClient>) => {
+    const client = originalClient(...args);
+    return {
+      ...client,
+      async invoke(ctx: ActionCallContext, ref: ActionReference, input: unknown) {
+        if (ref.capability_id === shelfManifest.settings_entries!.write.capability_id) {
+          throw new Error("simulated crash before owner write");
+        }
+        return client.invoke(ctx, ref, input);
+      },
+    };
+  });
+  let crashedAdoptionId = "";
+  try {
+    const applied = await clientA.invoke(blueprintActions.apply, crashedApply);
+    crashedAdoptionId = applied.adoption_id;
+    assert.equal(applied.steps[0]?.state, "pending_verification");
+  } finally {
+    abortBeforeWrite.mock.restore();
+  }
+
+  const platform = await env.host.homePlugins!.ready();
+  const shelfInstall = env.host.homePlugins!.installation(shelfManifest.plugin_id)!;
+  platform.supervisor.revoke(shelfManifest.plugin_id);
+  await platform.runtime.stop(shelfInstall.install_id);
+  const offlineUndo = await clientA.invoke(blueprintActions.revert, { adoption_id: crashedAdoptionId, request_id: "undo-crashed" });
+  assert.equal(offlineUndo.undo.steps[0]?.state, "pending_verification");
+
+  await platform.runtime.start(shelfInstall.install_id);
+  const resumedUndo = await clientA.invoke(blueprintActions.revert, { adoption_id: crashedAdoptionId, request_id: "undo-crashed" });
+  assert.deepEqual(resumedUndo.undo.steps[0], { part_id: "wheel", state: "detached" });
+
+  // 2. P1-E4: pure personal setting without layer_revisions (shelf.drop_wheel) adopted in Project A, then manually changed
+  //    and re-adopted in Project B must NOT falsely treat stale Project A adoption as shared during Project B undo.
+  const firstWheel = await clientA.invoke(blueprintActions.apply, await prepare(clientA, "Wheel A", [wheelPart]));
+  assert.equal(firstWheel.steps[0]?.state, "applied");
+  const shelfPrefs = shelfManifest.settings_entries!;
+  const rawHome = env.host.homeActionClient();
+  const readWheel = async () => (await rawHome.invoke(homeCaller, shelfPrefs.read, { keys: ["shelf.drop_wheel"] }) as { values: Array<{ revision: string; value?: unknown }> }).values[0]!;
+  const revAfterA = (await readWheel()).revision;
+  await rawHome.invoke(homeCaller, shelfPrefs.write, {
+    key: "shelf.drop_wheel", layer: "personal", change: { set: true }, expected_revision: revAfterA, request_id: "manual-wheel-reset",
+  });
+  const secondWheel = await clientB.invoke(blueprintActions.apply, await prepare(clientB, "Wheel B", [wheelPart]));
+  assert.equal(secondWheel.steps[0]?.state, "applied");
+  const undoB = await clientB.invoke(blueprintActions.revert, { adoption_id: secondWheel.adoption_id, request_id: "undo-wheel-b" });
+  assert.equal(undoB.undo.steps[0]?.state, "restored", "stale Project A adoption must not falsely block Project B undo");
+  assert.equal((await readWheel()).value, true);
+
+  // 3. P2-5: personal-layer memory write from Project A stores its receipt under personal profileKey, so replay from Home sees the exact receipt.
+  const personalKey = MEMORY_SETTING_KEYS.personal;
+  const beforePersonal = (await home.invoke(memorySettingActions.read, { keys: [personalKey] })).values[0]!;
+  assert.equal(beforePersonal.state, "ok");
+  const writeReq: SettingsWriteInput = {
+    key: personalKey,
+    layer: "personal",
+    expected_revision: beforePersonal.revision,
+    request_id: "personal-receipt-cross-scope",
+    change: { set: { ...(beforePersonal.value as Record<string, unknown>), auto: true } },
+  };
+  const writtenInProject = await clientA.invoke(memorySettingActions.write, writeReq);
+  const replayedFromHome = await home.invoke(memorySettingActions.write, writeReq);
+  assert.deepEqual(replayedFromHome, writtenInProject, "personal-layer receipt is keyed under personal profile and replayed identically from Home");
 });

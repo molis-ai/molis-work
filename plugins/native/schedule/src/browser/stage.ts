@@ -93,10 +93,11 @@ export function openNow(page: SchedulePage): { readonly id?: string; readonly ki
  * Reads are numbered: one started later (the person's change while a background read was under way, or the other way round) is
  * newer than any answer of an earlier one, so an earlier read that answers after it draws nothing and ends as the later one does.
  */
-export function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false, markRead = true): Promise<boolean> {
-  const turn = ++page.refreshing, read = drawStage(page, turn, openId, kind, preserveConfirmation, markRead);
-  page.latestRefresh = read;
-  return read;
+export function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false, markRead = true, signal?: AbortSignal): Promise<boolean> {
+  const turn = ++page.refreshing;
+  const next = drawStage(page, turn, openId, kind, preserveConfirmation, markRead, signal);
+  page.latestRefresh = next;
+  return next;
 }
 
 /** What a read the page has gone past ends with: the later read's outcome, said the way this read's caller asked for. */
@@ -106,17 +107,22 @@ async function superseded(page: SchedulePage, preserveConfirmation: boolean): Pr
   return drawn;
 }
 
-async function drawStage(page: SchedulePage, turn: number, openId: string | undefined, kind: RowKind, preserveConfirmation: boolean, markRead: boolean): Promise<boolean> {
+async function drawStage(page: SchedulePage, turn: number, openId: string | undefined, kind: RowKind, preserveConfirmation: boolean, markRead: boolean, signal?: AbortSignal): Promise<boolean> {
   const { list, workbench, host } = page;
   try {
     const scrollTop = list.scrollTop, template = document.createElement("template"), asked = openNow(page);
-    const html = await host.view.readDocument();
+    const html = await host.view.readDocument(signal ? { signal } : undefined);
     if (turn !== page.refreshing) return superseded(page, preserveConfirmation);
+    if (signal?.aborted) return false;
     template.innerHTML = html.trim();
     const now = openNow(page), moved = now.kind !== asked.kind || now.id !== asked.id;
+    const nextRoot = template.content.querySelector<HTMLElement>("[data-schedule-workbench]");
     const nextList = template.content.querySelector("[data-schedule-list]"), nextWorkspace = template.content.querySelector("[data-schedule-stage-workspace]");
     const workspace = workbench.querySelector("[data-schedule-stage-workspace]");
     if (!nextList || !nextWorkspace || !workspace) throw new Error(uiText.text("schedule.error.refresh"));
+    if (nextRoot?.dataset.viewRevision) {
+      workbench.dataset.viewRevision = nextRoot.dataset.viewRevision;
+    }
     const chrome = list.querySelector(".plugin-stage-chrome");
     nextList.querySelector(".plugin-stage-chrome")?.remove();
     const incoming = [...nextList.childNodes];
@@ -138,6 +144,7 @@ async function drawStage(page: SchedulePage, turn: number, openId: string | unde
     void readTaskReads(page);
     return true;
   } catch {
+    if (signal?.aborted) return false;
     // A read that failed after a later one began says nothing of its own: the later read draws the page, or says it could not.
     if (turn !== page.refreshing) return superseded(page, preserveConfirmation);
     if (preserveConfirmation) throw new Error(uiText.text("schedule.error.refresh"));

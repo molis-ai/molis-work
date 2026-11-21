@@ -1,4 +1,4 @@
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
@@ -40,6 +40,15 @@ export interface SourcePullPortOptions {
   integrations?: () => Promise<IntegrationRegistry>;
 }
 
+const EVIDENCE_KEY_UNAVAILABLE_CODE = "storage.evidence_content.key_unavailable";
+const EVIDENCE_KEY_MISSING_MESSAGE = "保存正文的钥匙找不到了。已有的内容原样保留；找回原钥匙之前，同步先暂停，不会取新内容。";
+
+function isEvidenceKeyUnavailable(error: unknown): boolean {
+  if (error instanceof ActionError && error.code === EVIDENCE_KEY_UNAVAILABLE_CODE) return true;
+  return typeof error === "object" && error !== null && "code" in error
+    && (error as { code?: unknown }).code === EVIDENCE_KEY_UNAVAILABLE_CODE;
+}
+
 /**
  * `services.sourcePull`'s Host side (FI-4 step 4c, S-97 provisional): the transports, the search records and the evidence store of a plugin's pull.
  * Every body is announced to the plugin (`run.hold`) before it is written, so what the plugin keeps always includes every body that exists.
@@ -57,32 +66,82 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
     async pull(request, run) {
       // The Home's evidence key is lost while bodies sealed with it remain (BL-1065): stop before fetching what could not be kept.
       if (content.sealingStatus() === "missing") {
-        throw sourcePullErrors.evidence_key_missing("保存正文的钥匙找不到了。已有的内容原样保留；找回原钥匙之前，同步先暂停，不会取新内容。");
+        throw sourcePullErrors.evidence_key_missing(EVIDENCE_KEY_MISSING_MESSAGE);
       }
       const intent = buildSourcePullIntent(request);
       // SEL turns a failed body write or caller check into a partial result; a body the plugin could not hold, or a call that went stale
       // (a revoked grant is not a cancellation: the signal stays live), fails the whole pull instead. A cancelled pull keeps its receipt.
       let refused: { readonly error: unknown } | undefined;
-      const stale = (error: unknown): never => { if (!run.signal.aborted) refused ??= { error }; throw error; };
+      let keyUnavailable = false;
+      const stale = (error: unknown): never => {
+        if (!run.signal.aborted) refused ??= { error };
+        throw error;
+      };
+      const trackedContent: EvidenceContentStore = {
+        ...content,
+        write(markdown) {
+          try {
+            return content.write(markdown);
+          } catch (error) {
+            if (isEvidenceKeyUnavailable(error)) keyUnavailable = true;
+            throw error;
+          }
+        },
+        read(contentRef) {
+          try {
+            return content.read(contentRef);
+          } catch (error) {
+            if (isEvidenceKeyUnavailable(error)) keyUnavailable = true;
+            throw error;
+          }
+        },
+      };
       const runtime = createSourcePullRuntime({
-        db: options.db, secretStore, content, sourceCursor: "cursor" in request ? request.cursor : undefined,
+        db: options.db, secretStore, content: trackedContent, sourceCursor: "cursor" in request ? request.cursor : undefined,
         ...(options.fetch ? { fetch: options.fetch } : {}),
-        assertCurrent: () => { try { run.current(); } catch (error) { stale(error); } },
-        beforeDispatch: async () => { try { await run.beforeEffect(); } catch (error) { stale(error); } },
+        assertCurrent: () => {
+          try {
+            run.current();
+          } catch (error) {
+            stale(error);
+          }
+        },
+        beforeDispatch: async () => {
+          try {
+            await run.beforeEffect();
+          } catch (error) {
+            stale(error);
+          }
+        },
         beforeContentWrite: async contentRef => {
-          try { await run.beforeEffect(); await run.hold([contentRef]); } catch (error) { refused ??= { error }; throw error; }
+          try {
+            await run.beforeEffect();
+            await run.hold([contentRef]);
+          } catch (error) {
+            refused ??= { error };
+            throw error;
+          }
         },
       });
       try {
         const result = await runtime.intelligenceCollect.executeExact(intent, { signal: run.signal });
         if (refused) throw refused.error;
+        if (keyUnavailable) {
+          forgetIntelligenceOperations(options.db, [request.operation_id]);
+          run.current();
+          throw sourcePullErrors.evidence_key_missing(EVIDENCE_KEY_MISSING_MESSAGE);
+        }
         run.current();
         return sourcePullResult(result, runtime);
       } catch (error) {
-        // A pull the plugin refused (its call went stale, its source changed) committed nothing and keeps no receipt: the same key pulls again.
-        if (refused) forgetIntelligenceOperations(options.db, [request.operation_id]);
+        const missingKey = keyUnavailable || isEvidenceKeyUnavailable(error);
+        // A pull the plugin refused (its call went stale, its source changed, or the key vanished mid-pull) keeps no receipt.
+        if (refused || missingKey) forgetIntelligenceOperations(options.db, [request.operation_id]);
         // A call that went away mid-pull is told so, not by whatever the search layer made of the write it refused.
         run.current();
+        if (missingKey) {
+          throw sourcePullErrors.evidence_key_missing(EVIDENCE_KEY_MISSING_MESSAGE);
+        }
         throw error;
       } finally {
         await runtime.shutdown().catch(() => undefined);

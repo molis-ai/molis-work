@@ -154,9 +154,17 @@ test("Inbox fragment and Schedule isolated view refresh retain their presentatio
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.archive"));
 
   // Schedule's page is TypeScript bundled and minified into its client pack: what its code does is read in the sources.
-  const stage = scheduleSource("stage.ts"), actions = scheduleSource("actions.ts"), form = scheduleSource("form.ts");
-  assert.match(stage, /await host\.view\.readDocument\(\)/);
+  const stage = scheduleSource("stage.ts");
+  const actions = scheduleSource("actions.ts");
+  const form = scheduleSource("form.ts");
+  const client = scheduleSource("client.ts");
+  const request = scheduleSource("request.ts");
+  assert.match(stage, /await host\.view\.readDocument\(signal \? \{ signal \} : undefined\)/);
   assert.match(stage, /export function refreshStage/);
+  assert.match(request, /signal \? \{ signal \} : undefined/);
+  assert.match(client, /read<\{ revision\?: string \}>\(host, "\/view-revision", signal\)/);
+  assert.match(client, /observedRevision && currentRevision && observedRevision === currentRevision/);
+  assert.match(client, /page\.changing > 0 \|\| page\.recoveryDialog\.open \|\| page\.operationDialog\.open/);
   assert.match(actions + form, /await refreshStage\(|refreshStage\(page/);
   assert.doesNotMatch(stage + actions + form, /location\.reload\(/);
   assert.ok(SCHEDULE_CLIENT_FACTORY_SCRIPT.includes("readDocument"), "and the bundle carries it");

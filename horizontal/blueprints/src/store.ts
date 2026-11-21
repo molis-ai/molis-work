@@ -21,6 +21,7 @@ export interface SettingPlan {
   binding: SettingBinding;
   key: string;
   layer: BlueprintPart["layer"];
+  has_project_layer?: true;
   expected_revision: string;
   original_layer_revision?: string;
   applied_layer_revision?: string;
@@ -180,6 +181,8 @@ export class AdoptionStore {
   sharedSetting(actor: string, project: string | null, previewId: string, plan: SettingPlan, current: Extract<EffectiveSetting, { state: "ok" }>): boolean {
     const scoped = plan.layer === "project" || plan.binding.project_scoped;
     const layerRevision = current.layer_revisions?.[plan.layer];
+    const purePersonal = !scoped && !plan.has_project_layer
+      && current.layers?.project === undefined && current.layer_revisions?.project === undefined;
     return this.access(db => {
       const rows = db.prepare(`SELECT s.plan_json, a.project_id,
         COALESCE(json_extract(s.apply_json,'$.receipt.revision'),json_extract(s.plan_json,'$.expected_revision')) AS observed_revision FROM adoption_steps s JOIN adoptions a USING (preview_id)
@@ -192,7 +195,9 @@ export class AdoptionStore {
         const other = JSON.parse(String(row.plan_json)) as SettingPlan;
         if (layerRevision !== undefined && other.applied_layer_revision !== undefined) {
           if (layerRevision !== other.applied_layer_revision) return false;
-        } else if (project === row.project_id && current.revision !== row.observed_revision) return false;
+        } else if ((project === row.project_id || (purePersonal && !other.has_project_layer)) && current.revision !== row.observed_revision) {
+          return false;
+        }
         return canonicalJsonText(other.binding) === canonicalJsonText(plan.binding) && canonicalJsonText(other.change) === canonicalJsonText(plan.change);
       });
     });

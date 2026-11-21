@@ -5,20 +5,35 @@ import type { PluginSyncBusinessDatabase } from '@molis-ai/molis-work-contracts/
 import type { PluginDatabaseConnection } from './plugin-database-client.js';
 import { assertReadStatement, assertWriteStatement } from './project-statement-protocol.js';
 
+function checkStatement(check: (sql: string) => void, sql: string): void {
+  try {
+    check(sql);
+  } catch (error) {
+    if (error instanceof ActionError) throw error;
+    throw new ActionError("actions.forbidden", error instanceof Error ? error.message : String(error));
+  }
+}
+
 /** Owner callbacks borrow the current replica transaction, with the same table/opcode boundary as ordinary plugin SQL. */
 export function pluginSyncBusinessDatabase(db: PluginDatabaseConnection, inTransaction: () => boolean,
   authorize: () => void, guard: (sql: string, parameters: readonly PluginSqlValue[], mode: 'read' | 'write') => void, perform?: PluginSqlExecution): PluginSyncBusinessDatabase {
   const read = <T>(sql: string, parameters: readonly PluginSqlValue[], run: () => T): T => {
-    authorize(); assertReadStatement(sql); guard(sql, parameters, 'read');
-    const value = perform ? perform(sql, parameters, 'read', run) : run(); authorize(); return value;
+    authorize();
+    checkStatement(assertReadStatement, sql);
+    guard(sql, parameters, 'read');
+    const value = perform ? perform(sql, parameters, 'read', run) : run();
+    authorize();
+    return value;
   };
   const write = (sql: string, parameters: readonly PluginSqlValue[]) => {
     authorize();
     if (!inTransaction()) throw new ActionError('actions.forbidden', '同步业务写入必须处于宿主当前事务');
-    assertWriteStatement(sql);
+    checkStatement(assertWriteStatement, sql);
     guard(sql, parameters, 'write');
     const run = () => db.prepare(sql).run(...parameters) as {changes: number | bigint};
-    const result = perform ? perform(sql, parameters, 'write', run) : run(); authorize(); return result;
+    const result = perform ? perform(sql, parameters, 'write', run) : run();
+    authorize();
+    return result;
   };
   return Object.freeze({
     exec(sql: string) { write(sql, []); },

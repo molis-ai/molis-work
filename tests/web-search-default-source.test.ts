@@ -191,3 +191,21 @@ test("ASC-55: an account changed while its search is out is not reported as the 
     await assert.rejects(search.query({ query: "molis" }), { code: "connector.web_search.changed" });
   });
 });
+
+test("P2: resolveApiConnection failure propagates actions.forbidden instead of masking it as needs_auth", async () => {
+  await withHome(async (home, seen, _answer, search) => {
+    const id = connect(home, "tavily", "tvly-test-key");
+    await search.choose(id);
+    let checks = 0;
+    await assert.rejects(
+      search.query({ query: "molis" }, "agent", () => {
+        checks += 1;
+        if (checks >= 2) {
+          throw new ActionError("actions.forbidden", "revoked during credential resolution");
+        }
+      }),
+      (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    );
+    assert.equal(seen.length, 0);
+  });
+});

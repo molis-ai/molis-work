@@ -24,14 +24,26 @@ export function scheduleClient(host: ScheduleHost): void {
   wireForm(page);
   wireReads(page);
   // Schedule says when what its page shows has changed behind it (a round, reminder or operation ended, a task stopped or was set for
-  // its next time, or anyone changed a task through its actions): while the page is on screen it reads the page again and keeps open
-  // what is open, without marking a task read (PG-061, 96-2). The first check reads too: the page was drawn before it, and a change
-  // in between has no later version to show it by. With the form open it waits; the next check reads again.
-  host.scope.watchRevision(() => read(host, "/view-revision"), async () => {
+  // its next time, or anyone changed a task through its actions): while the page is on screen it reads the page again only when
+  // `/view-revision` differs from the drawn `data-view-revision`, keeping open what is open without marking a task read (PG-061, 96-2).
+  // While the form, recovery/operation dialog, or a write is active, it waits and tries again on the next check.
+  let observedRevision = "";
+  host.scope.watchRevision(async signal => {
+    observedRevision = "";
+    const result = await read<{ revision?: string }>(host, "/view-revision", signal);
+    if (typeof result?.revision === "string") observedRevision = result.revision;
+    return result;
+  }, async signal => {
+    const currentRevision = page.workbench.dataset.viewRevision;
+    if (observedRevision && currentRevision && observedRevision === currentRevision) return true;
     const open = openNow(page);
-    if (open.kind === "form" || page.creating || page.recovering || page.operationBusy) return false;
+    if (open.kind === "form" || page.creating || page.recovering || page.operationBusy || page.changing > 0 || page.recoveryDialog.open || page.operationDialog.open) return false;
     // A page that could not be read this time keeps the change for the next check.
-    return refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, true, false).then(() => true, () => false);
+    const drawn = await refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, true, false, signal).then(() => true, () => false);
+    if (drawn && observedRevision && !page.workbench.dataset.viewRevision) {
+      page.workbench.dataset.viewRevision = observedRevision;
+    }
+    return drawn;
   });
   list.addEventListener("click", event => {
     const target = event.target as Element;

@@ -332,3 +332,171 @@ test("RRC-02 a person's words stop a round under way only when its stored mark s
   const stuck = adapter("running");
   await assert.rejects(reportTurn(stuck, ref, run("running"), () => true, false), { code: "assistant.state" }, "a report that did not stop keeps the words out");
 });
+
+test("WRB-05 followed scans beyond 50 works and propagates jobs.views failure instead of misreporting into main conversation", async () => {
+  const db = new DatabaseSync(":memory:");
+  const store = new AssistantStore(db);
+  let failViews = false;
+  let oldestWorkId = "";
+  const host = { adapter: () => ({ readSession: async () => ({ latest_run: null }) }) };
+  const service = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => host as never,
+    authority: async () => { throw new Error("not reached"); },
+  }, "user");
+  const started: string[] = [];
+  service.dispatcher.dispatch = async (...args: Parameters<typeof service.dispatcher.dispatch>) => {
+    started.push(args[1]);
+    return {} as never;
+  };
+  service.jobs.views = async work => {
+    if (failViews) throw new Error("jobs read failed");
+    if (work.work_id === oldestWorkId) return [{ job_id: "job-oldest" }] as never;
+    return [];
+  };
+  try {
+    const oldest = store.create({
+      actor_id: "user",
+      title: "最早对话",
+      scope: { kind: "project", project_id: "p" },
+      project_ref: { project_id: "p", storage_key: "memory:p" },
+      origin: null,
+    });
+    oldestWorkId = oldest.work_id;
+    // Create 55 more works so the oldest work falls past the default LIMIT 50.
+    for (let i = 0; i < 55; i++) {
+      store.create({
+        actor_id: "user",
+        title: `对话-${i}`,
+        scope: { kind: "project", project_id: "p" },
+        project_ref: { project_id: "p", storage_key: "memory:p" },
+        origin: null,
+      });
+    }
+    const main = store.create({
+      actor_id: "user",
+      title: "主对话",
+      scope: { kind: "project", project_id: "p" },
+      project_ref: { project_id: "p", storage_key: "memory:p" },
+      origin: null,
+      main: true,
+    });
+    store.update("user", main.work_id, null, { session_id: "s-main" });
+
+    const taskReport: TaskReport = {
+      project_id: "p",
+      tasks: [{ row: ended("job-oldest"), end: "done" }],
+    };
+    assert.equal(await service.reports.report(taskReport), "none", "oldest work beyond 50 is still found in followed");
+    assert.equal(started.length, 0);
+
+    failViews = true;
+    await assert.rejects(service.reports.report({
+      project_id: "p",
+      tasks: [{ row: ended("job-other"), end: "done" }],
+    }), /jobs read failed/);
+    assert.equal(started.length, 0, "jobs.views error never misreports into main conversation");
+  } finally {
+    service.continuations.close();
+    db.close();
+  }
+});
+
+test("WRB-06 transient failures retry via pending, batches stay bounded, permanent refusals still raise notice, and executorDispatch rejects report_only", async () => {
+  // 1. AssistantTaskReports retries after transient #lookAt failure and caps batch size at 20.
+  let listener: ((projectId: string | null) => void) | undefined;
+  let failTableOnce = true;
+  const many = Array.from({ length: 25 }, (_, i) => ended(`batch-${i}`));
+  const seenBatches: number[] = [];
+  const watcher = new AssistantTaskReports({
+    table: async () => {
+      if (failTableOnce) {
+        failTableOnce = false;
+        throw new Error("temporary table error");
+      }
+      return table(...many);
+    },
+    reportsTo: () => true,
+    changes: next => {
+      listener = next;
+      return () => {
+        listener = undefined;
+      };
+    },
+    report: async batch => {
+      seenBatches.push(batch.tasks.length);
+      return "reported";
+    },
+  });
+  watcher.start();
+  listener?.("p");
+  await watcher.idle();
+  assert.deepEqual(seenBatches, [], "transient table error deferred project to pending");
+  // Next store change retries the pending project and sends first bounded batch of 20.
+  listener?.(null);
+  await watcher.idle();
+  assert.deepEqual(seenBatches, [20], "first batch capped at 20");
+  // Next store change reports the remaining 5.
+  listener?.(null);
+  await watcher.idle();
+  assert.deepEqual(seenBatches, [20, 5], "remaining 5 tasks reported in follow-up batch");
+  watcher.close();
+
+  // 2. AssistantReportRounds propagates transient start errors without writing notices, while permanent refusals still raise notices.
+  const db = new DatabaseSync(":memory:");
+  const store = new AssistantStore(db);
+  let startError: Error | undefined;
+  const startedTexts: string[] = [];
+  const rounds = new AssistantReportRounds({
+    store,
+    actorId: "user",
+    session: async () => ({ latest_run: null }),
+    continuation: async () => undefined,
+    start: async (_work, text) => {
+      if (startError) throw startError;
+      startedTexts.push(text);
+    },
+    followed: async () => new Set(),
+  });
+  const countNotices = () => (db.prepare("SELECT COUNT(*) AS n FROM assistant_notices").get() as { n: number }).n;
+  try {
+    mainWork(store);
+    const transientReport: TaskReport = { project_id: "p", tasks: [{ row: ended("transient"), end: "done" }] };
+    startError = new Error("transient storage error");
+    await assert.rejects(rounds.report(transientReport), /transient storage error/);
+    assert.equal(countNotices(), 0, "transient error must not write notice receipts");
+
+    startError = undefined;
+    assert.equal(await rounds.report(transientReport), "reported");
+    assert.equal(startedTexts.length, 1);
+    assert.equal(countNotices(), 1);
+
+    const noModelReport: TaskReport = { project_id: "p", tasks: [{ row: ended("nomodel"), end: "failed" }] };
+    startError = Object.assign(new Error("no model"), { code: "agent.model_not_configured" });
+    assert.equal(await rounds.report(noModelReport), "reported");
+    assert.equal(countNotices(), 2, "permanent model refusal still raises one notice");
+
+    // 3. executorDispatch explicitly rejects report_only rounds.
+    const host = { adapter: () => ({ readSession: async () => ({ latest_run: null }) }) };
+    const service = new AssistantService(store, {
+      pages: async () => ["home"],
+      host: async () => host as never,
+      authority: async () => { throw new Error("not reached"); },
+    }, "user");
+    const pluginWork = store.create({
+      actor_id: "user",
+      title: "插件工作",
+      scope: { kind: "project", project_id: "p" },
+      project_ref: { project_id: "p", storage_key: "memory:p" },
+      origin: null,
+      executor: { kind: "plugin", plugin_id: "io.molis.work.coding", title: "Coding", session_id: null },
+    });
+    await assert.rejects(
+      service.dispatcher.executorDispatch(pluginWork, "report", [], null, undefined, "host", undefined, { byHost: true, report_only: true }),
+      { code: "assistant.unsupported" },
+    );
+    service.continuations.close();
+  } finally {
+    db.close();
+  }
+});

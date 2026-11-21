@@ -28,16 +28,22 @@ export function createSchedulePlugin(): PluginDefinition {
     const wakeups = new Set(Object.values(scheduleWakeupActions).map(item => item.capability_id));
     return { kind: "app", sync: syncBindings(context), views: [scheduleUiContribution], actions: scheduleManifest.actions!.map(definition => ({ ...definition,
       handle: async (caller, input) => {
-        // Whatever a command may have written (a round, reminder or operation that ran, a task the page, the Assistant or MCP changed),
-        // an open page reads again (PG-061). A refused call may have written its failure (a round that did not run) and says so too.
-        // Marking a task read changes nothing a page draws until it next reads (the person opened it there): it tells no page.
-        try {
-          if (wakeups.has(definition.capability_id)) return await scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput, projectId);
-          const bindings = await scheduleRuntimeActions(projectId, services, runtime, grants, caller, definition.capability_id);
-          return await bindings.find(binding => binding.capability_id === definition.capability_id && binding.version === definition.version)!.handle(caller, input);
-        } finally {
-          if (definition.operation === "command" && definition.capability_id !== scheduleActions.openTask.capability_id) tellOpenPages(services.ui, caller);
+        // Wakeups may write a failure turn even when they throw, so they always tell open pages.
+        // Ordinary commands only tell open pages after succeeding, so a failed click keeps its error message visible.
+        // Marking a task read changes nothing a page draws until it next reads: it tells no page.
+        if (wakeups.has(definition.capability_id)) {
+          try {
+            return await scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput, projectId);
+          } finally {
+            tellOpenPages(services.ui, caller);
+          }
         }
+        const bindings = await scheduleRuntimeActions(projectId, services, runtime, grants, caller, definition.capability_id);
+        const result = await bindings.find(binding => binding.capability_id === definition.capability_id && binding.version === definition.version)!.handle(caller, input);
+        if (definition.operation === "command" && definition.capability_id !== scheduleActions.openTask.capability_id) {
+          tellOpenPages(services.ui, caller);
+        }
+        return result;
       },
     })),
       routes: scheduleManifest.routes!.map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {

@@ -3847,7 +3847,6 @@
     "workbench.context-onboarding.connect-google-account": "连接一个 Google 账号",
     "workbench.context-onboarding.connect-text-model": "连接文字模型",
     "workbench.context-onboarding.connect-text-model-come-back-get-summary-todos": "连接文字模型后，可以回来继续整理出摘要和待办。",
-    "workbench.context-onboarding.connected-continue": "已连接，继续整理",
     "workbench.context-onboarding.continue": "继续",
     "workbench.context-onboarding.continue-2": "继续整理",
     "workbench.context-onboarding.continue-where-left-off": "继续上次整理",

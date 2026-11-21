@@ -8,7 +8,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@mol
 import { OBSERVATION_LIMITS, observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createHostObservation, installHostUiText, observationShellDoor, webEntryDoor, type HostObservation, type HostObservationPorts } from "@molis-ai/molis-work-app-local-host";
-import { readRecords, withObservationSource } from "@molis-ai/molis-work-service-observation";
+import { readRecords, RETENTION_KEY, retentionActions, withObservationSource } from "@molis-ai/molis-work-service-observation";
 import { openTestHome } from "./fixtures/test-home.js";
 
 installHostUiText();
@@ -289,6 +289,31 @@ test("S-observation-records 10: management actions and /api/observation routes r
   for (const [action, input] of management) {
     await assert.rejects(service.invoke(delegated, action as never, input as never), refused("observation.forbidden"), `delegated user refused ${action.capability_id}`);
   }
+
+  // P1-E3: observation.preferences.read@1 and .write@1 require the direct local person (zero-permission plugins, agents, delegated callers refused).
+  const prefCalls = [
+    [retentionActions.read, { keys: [RETENTION_KEY] }],
+    [retentionActions.write, { key: RETENTION_KEY, layer: "personal", change: { set: "keep" }, expected_revision: "0", request_id: "forged-pref" }],
+  ] as const;
+  for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
+    const caller = audience === "plugin" ? plugin("notes") : person({ audience, actor_kind: "runtime", actor_id: `${audience}-1`, project_id: "proj-a" });
+    const discovered = await service.discover(caller);
+    for (const [action, input] of prefCalls) {
+      const view = discovered.find(entry => entry.capability_id === action.capability_id);
+      assert.ok(!view || !view.availability.available, `${audience} does not see ${action.capability_id} as available`);
+      await assert.rejects(service.invoke(caller, action as never, input as never), (error: unknown) => error instanceof ActionError, `${audience} refused ${action.capability_id}`);
+    }
+  }
+  for (const [label, badUser] of [
+    ["delegated", person({ delegated_by: "io.molis.work.example" })],
+    ["calling_plugin_id", person({ calling_plugin_id: "io.molis.work.example" })],
+  ] as const) {
+    for (const [action, input] of prefCalls) {
+      await assert.rejects(service.invoke(badUser, action as never, input as never), refused("observation.forbidden"), `${label} refused ${action.capability_id}`);
+    }
+  }
+  const ownPref = await service.invoke(person(), retentionActions.read, { keys: [RETENTION_KEY] }) as { values: unknown[] };
+  assert.equal(ownPref.values.length, 1);
 
   const served = await openTestHome(t, { catalogPolicy: false });
   const okGet = await fetch(`${served.origin}/api/observation/settings`, { headers: { origin: served.origin } });

@@ -51,16 +51,31 @@ export function draftEditing(c: WritingContext) {
     }
   }
 
+  function updateBodyCount(w: Workshop): void {
+    const count = countOf(w.fields.body, c.limits);
+    const shown = root.querySelector<HTMLElement>("[data-au-count] .mw-text-count__n");
+    if (shown) {
+      shown.textContent = count.text;
+      shown.toggleAttribute("data-over", count.over);
+    }
+  }
+
   function typedField(w: Workshop, target: HTMLInputElement | HTMLTextAreaElement): void {
     const name = target.dataset.auField as FieldName;
     w.fields[name] = target.value;
-    if (name === "description" || name === "when_not_to_use" || name === "body") w.placeholderBase = undefined;
-    if (w.errors[name]) { delete w.errors[name]; target.removeAttribute("aria-invalid"); root.querySelector(`[data-au-error="${name}"]`)?.remove(); }
-    if (name === "body") {
-      const count = countOf(w.fields.body, c.limits), shown = root.querySelector<HTMLElement>("[data-au-count] .mw-text-count__n");
-      if (shown) { shown.textContent = count.text; shown.toggleAttribute("data-over", count.over); }
+    if (name === "description" || name === "when_not_to_use" || name === "body") {
+      delete w.placeholderBase?.[name];
     }
-    if (name === "name" && w.draft.target.kind === "new") { const title = root.querySelector("#sk-title"); if (title) title.textContent = w.fields.name.trim() || improve("title-new"); }
+    if (w.errors[name]) {
+      delete w.errors[name];
+      target.removeAttribute("aria-invalid");
+      root.querySelector(`[data-au-error="${name}"]`)?.remove();
+    }
+    if (name === "body") updateBodyCount(w);
+    if (name === "name" && w.draft.target.kind === "new") {
+      const title = root.querySelector("#sk-title");
+      if (title) title.textContent = w.fields.name.trim() || improve("title-new");
+    }
     save.schedule(w);
   }
   /** A placeholder's own word: written into the fields in place, and how many are left. */
@@ -70,7 +85,9 @@ export function draftEditing(c: WritingContext) {
       const shown = root.querySelector<HTMLTextAreaElement>(`[data-au-field="${key}"]`);
       if (shown && shown.value !== w.fields[key]) shown.value = w.fields[key];
     }
-    const left = placeholdersOf(w).filter(placeholder => !w.replacements[placeholder]).length, title = root.querySelector<HTMLElement>(".mw-placeholders__title");
+    updateBodyCount(w);
+    const left = placeholdersOf(w).filter(placeholder => !w.replacements[placeholder]).length;
+    const title = root.querySelector<HTMLElement>(".mw-placeholders__title");
     const badge = title?.querySelector(".mw-badge");
     if (left && badge) badge.textContent = improve("placeholders-left", { n: left });
     else if (left && title) title.insertAdjacentHTML("beforeend", renderBadge({ label: improve("placeholders-left", { n: left }), tone: "neutral" }));

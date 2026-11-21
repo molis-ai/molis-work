@@ -1203,8 +1203,11 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
     work_mode: "mixed", query: requestFilter, expectations: [requestRule] }), /agent.reply/);
   const { records } = await fx.service.invoke(person(), observationActions.recordsQuery, requestFilter) as ObservationQueryOutput;
   assert.equal(records.length, 1);
+  await assert.rejects(fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "pinned-request-role", work_mode: "mixed",
+    pinned_record_ids: [records[0]!.record_id], expectations: [requestRule] }), /output/);
   await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "pinned-request", work_mode: "mixed",
-    pinned_record_ids: [records[0]!.record_id], expectations: [requestRule] });
+    pinned_record_ids: [records[0]!.record_id],
+    expectations: [{ ...ownerCriterion, rule: { check: "evidence_text", contains_all: ["量化指标"] } }] });
   const pinned = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "pinned-request" }) as EvaluationRunView;
   assert.equal(pinned.effective_verdict, "unknown");
   assert.deepEqual(pinned.expectation_results[0]?.evidence_refs, []);
@@ -1328,15 +1331,21 @@ test("MR19-03 plugin delivery accepts only the plugin's output, including unrest
   const judged = await run("with-output");
   assert.equal(judged.effective_verdict, "failed");
   assert.deepEqual(judged.expectation_results[0]!.evidence_refs.map(ref => ref.role), ["output"]);
-  await put("query-only", { ...criterion, rule: { ...rule, evidence_role: "input" } });
+  // P2: delivery stage rejects evidence_role: "input" at registration even when facts is omitted (query-only).
+  await assert.rejects(put("query-only-input", { ...criterion, rule: { ...rule, evidence_role: "input" } }), /output/);
+  await put("query-only", { ...criterion, rule: { ...rule } });
   const unnamed = await run("query-only");
-  assert.equal(unnamed.effective_verdict, "unknown");
-  assert.deepEqual(unnamed.expectation_results[0]!.evidence_refs, []);
+  assert.equal(unnamed.effective_verdict, "failed");
+  assert.deepEqual(unnamed.expectation_results[0]!.evidence_refs.map(ref => ref.role), ["output"]);
   const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
   try {
     db.prepare("UPDATE evaluation_samples SET spec_json=json_set(spec_json, '$.expectations[0].rule.evidence_role','input') WHERE sample_id=?").run("with-output");
-  } finally { db.close(); }
+    db.prepare("UPDATE evaluation_samples SET spec_json=json_set(spec_json, '$.expectations[0].rule.evidence_role','input') WHERE sample_id=?").run("query-only");
+  } finally {
+    db.close();
+  }
   await assert.rejects(run("with-output"), /output/);
+  await assert.rejects(run("query-only"), /output/);
   const historical = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: judged.run_id }) as EvaluationRunView;
   assert.equal(historical.effective_verdict, "failed");
 });

@@ -23,7 +23,14 @@ export async function handleProjectGuidanceHttp(request: IncomingMessage, respon
   host: MolisWorkLocalHost, reference: LocalHostProjectReference): Promise<boolean> {
   return await dispatchNativePluginJsonHttp(request, response, url, { prefix: PREFIX, async handle({ method, pathname, body }) {
     const rest = pathname.slice(PREFIX.length);
-    const guidanceId = rest.startsWith("/") ? decodeURIComponent(rest.slice(1)) : "";
+    let guidanceId = "";
+    if (rest.startsWith("/")) {
+      try {
+        guidanceId = decodeURIComponent(rest.slice(1));
+      } catch {
+        throw new ActionError("actions.input_invalid", "项目说明编号格式无效");
+      }
+    }
     if (rest && (!guidanceId || guidanceId.includes("/"))) return null;
     const actions = bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS,
       { user_action: () => entryUserAction("web", reference.project_id, webEntryMessage(request)) });

@@ -1,5 +1,6 @@
 import { EXTERNAL_TOOLS, type ExternalToolEntry, type ExternalToolId } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { getSessionAdapter } from "./adapters/index.js";
+import { isValidDiscoveryCursor } from "./adapters/shared.js";
 import {
   canonicalEntryId,
   computeBindingSnapshotDigest,
@@ -78,7 +79,10 @@ function prepareDiscoveryStart(
 
     const localInfo = tool.surface === "cloud" ? { root: null, exists: true } : resolveLocalToolRoot(tool, ports);
     const existingSource = store.getSource(entryId, locationKey);
-    const resumeCursor = !fromStart && existingSource?.state === "reading" ? existingSource.progress_cursor : null;
+    const rawResumeCursor = !fromStart && existingSource?.state === "reading" ? existingSource.progress_cursor : null;
+    const resumeCursor = rawResumeCursor !== null && tool.sessions.discover.via === "local_record" && !isValidDiscoveryCursor(rawResumeCursor)
+      ? null
+      : rawResumeCursor;
     const startedFromNull = resumeCursor === null;
     const progressRead = startedFromNull ? 0 : (existingSource?.progress_read ?? 0);
     const skippedCount = startedFromNull ? 0 : (existingSource?.skipped_count ?? 0);

@@ -29,7 +29,7 @@ export const ITEM_ROW_STYLES = `
 
 /** The glyph square at an item row's start (`mw-mark`): in the composer's patterns and, alone, in the design kit. */
 export const MARK_STYLES = `
-  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, var(--r-control)); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-control); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
   .mw-mark svg { width: 16px; height: 16px; }`;
 
 /**
@@ -55,7 +55,7 @@ export const COMPOSER_PATTERN_STYLES = `${MARK_STYLES}
   .mw-upload small.is-failed { color: var(--red); }`;
 
 export const CATALOG_PATTERN_STYLES = `
-  .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--sk-b2-bg, var(--control-fill)); box-shadow: inset 0 0 0 1px var(--sk-b2-edge, transparent); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--control-border); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
   .mw-tag--add { gap: 4px; padding: 0 8px 0 6px; background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); cursor: pointer; }
   .mw-tag--add:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag--add:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 1px; }

@@ -163,7 +163,7 @@ ${TOP}{
 /* Split, each sheet carries its own tabs (POLISH-38): the pane's strip stands on the desk and its body is the sheet. */
 ${PANE}{
   &, &.is-focused{background:transparent;box-shadow:none;overflow:visible}
-  &>.tab-pane-body{border-radius:14px;box-shadow:var(--sheet-shadow)}
+  &>.tab-pane-body{border-radius:14px;box-shadow:var(--sheet-shadow),inset 0 1px 0 var(--edge-highlight,transparent)}
   &>.tab-strip{
     --ear-rest:24px;--ear-rise:28px;--ear-foot:4px;height:32px;padding:0 64px 0 0;gap:2px;border-bottom:0;background:transparent;align-items:stretch;overflow:visible;
     &>.tab-scroll{align-self:stretch;align-items:center;box-sizing:border-box;height:auto;gap:2px;padding:0 10px 0 18px}

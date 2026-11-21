@@ -61,7 +61,7 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-list-detail__list > .mw-items { width: 100%; }
   .mw-item.mw-item--pick { min-height: 0; padding: 0; }
   .mw-item--pick:is(:hover, :focus-within) { background: transparent; }
-  .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--r-row, 10px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
   .mw-item__pick:hover { background: var(--nav-hover); }
   .mw-item__pick[aria-current="true"] { background: var(--nav-active); }
   .mw-item__pick:active:not(:disabled) { background: var(--nav-press); }
@@ -117,7 +117,7 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"]) .mw-items { width: 100%; }
   .mw-catalog [data-primitive="list-detail"] .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
   .mw-catalog [data-primitive="list-detail"] .mw-catalog__row { display: block; }
-  .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--r-row, 10px); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-catalog [data-primitive="status-link"] .mw-catalog__row { display: grid; gap: 10px; justify-items: start; }
 `;
 

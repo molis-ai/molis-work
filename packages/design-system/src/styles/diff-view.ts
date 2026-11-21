@@ -14,7 +14,7 @@ export const DIFF_VIEW_STYLES = `
 .mw-diff .mw-diff-sides .mw-diff-path { color:var(--ink); }
 .mw-diff .mw-diff-source { display:block; color:var(--muted); overflow-wrap:anywhere; }
 .mw-diff .mw-diff-sides > span:nth-child(3) { justify-self:start; margin-top:2px; padding:0 8px; border-radius:6px; background:var(--rail); line-height:20px; }
-.mw-diff .mw-diff-rows { --diff-num:calc(var(--diff-digits,3) * 1ch + 16px); --diff-bg:var(--surface-soft); display:grid; grid-template-columns:minmax(max-content,1fr); align-content:start; padding:8px 0; list-style:none; overflow:auto; border:1px solid var(--line); border-radius:var(--radius-panel,12px); background:var(--diff-bg); font:12px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; tab-size:var(--code-tab,4); }
+.mw-diff .mw-diff-rows { --diff-num:calc(var(--diff-digits,3) * 1ch + 16px); --diff-bg:var(--surface-soft); display:grid; grid-template-columns:minmax(max-content,1fr); align-content:start; padding:8px 0; list-style:none; overflow:auto; border:1px solid var(--line); border-radius:var(--r-card,12px); background:var(--diff-bg); font:12px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; tab-size:var(--code-tab,4); }
 .mw-diff .mw-diff-rows li { --diff-tint:transparent; display:grid; grid-template-columns:var(--diff-num) var(--diff-num) minmax(max-content,1fr); background:var(--diff-tint); }
 .mw-diff .mw-diff-rows:not(.mw-diff-split) > li { contain-intrinsic-size:auto none auto 1lh; }
 .mw-diff .mw-diff-rows[data-diff-sized] { display:block; }

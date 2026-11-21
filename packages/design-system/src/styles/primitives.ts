@@ -23,14 +23,14 @@ ${BUTTON_STYLES}
     width: 100%;
     min-height: var(--control-h, 32px);
     padding: 0 12px;
-    border: 1px solid transparent;
+    border: 1px solid var(--control-border);
     border-radius: var(--radius-control, 8px);
     color: var(--ink);
-    background-color: var(--control-fill);
+    background-color: var(--paper);
     transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
     font: inherit;
     font-size: 13px;
-    box-shadow: none;
+    box-shadow: inset 0 1px 1px color-mix(in srgb, var(--shadow-color) 3%, transparent);
     appearance: none;
     -webkit-appearance: none;
   }
@@ -56,7 +56,8 @@ ${BUTTON_STYLES}
   .mw-input:hover:where(:not(:disabled, :focus-visible)),
   .mw-textarea:hover:where(:not(:disabled, :focus-visible)),
   .mw-select:hover:where(:not(:disabled, :focus-visible)) {
-    background-color: var(--nav-hover);
+    border-color: var(--control-input);
+    background-color: var(--paper);
   }
   .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
   .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
@@ -76,17 +77,18 @@ ${BUTTON_STYLES}
     background-color: transparent;
   }
   ${SELECT_MENU_STYLES}
-  /* Search and other grouped fields wear the same wash as a single field. */
+  /* Search and other grouped fields wear the same paper-bordered surface as a single field. */
   .mw-input-group {
     display: flex; align-items: center; gap: 8px;
     min-height: var(--control-h, 32px);
     padding: 0 12px;
-    border: 1px solid transparent;
+    border: 1px solid var(--control-border);
     border-radius: var(--radius-control, 8px);
-    background: var(--control-fill);
+    background: var(--paper);
+    box-shadow: inset 0 1px 1px color-mix(in srgb, var(--shadow-color) 3%, transparent);
     transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
-  .mw-input-group:hover { background: var(--nav-hover); }
+  .mw-input-group:hover { border-color: var(--control-input); background: var(--paper); }
   .mw-input-group .mw-input,
   .mw-number .mw-input {
     border: 0;
@@ -202,6 +204,22 @@ ${BUTTON_STYLES}
   .mw-status--plain {
     min-height: 0; padding: 0; background: transparent; border-radius: 0;
   }
+  .mw-badge--chip { border-radius: 6px; padding: 0 7px; min-height: 20px; }
+  .mw-glyph-status {
+    display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none;
+    border-radius: 6px; color: var(--status-tone, var(--ink-soft));
+  }
+  .mw-glyph-status svg { width: 15px; height: 15px; display: block; }
+  .mw-signal-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex: none;
+    background: var(--status-tone, var(--muted));
+  }
+  .mw-signal {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--muted); font-size: 11.5px; line-height: 16px;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .mw-signal svg { width: 12px; height: 12px; flex: none; color: var(--faint); }
   .mw-status--idle, .mw-badge--neutral { --status-tone: var(--tone-idle, var(--ink-soft)); }
   .mw-status--progress, .mw-badge--info { --status-tone: var(--tone-progress, var(--blue)); }
   .mw-status--attention, .mw-badge--warning { --status-tone: var(--tone-attention, var(--amber)); }
@@ -416,6 +434,7 @@ ${BUTTON_STYLES}
 
   .mw-tabs__list { display: flex; gap: 4px; }
   .mw-tabs__tab {
+    position: relative;
     min-height: 30px; padding: 0 12px; border: 0; border-radius: 8px;
     background: transparent; color: var(--muted); font: inherit; font-weight: var(--weight-control, 500);
     transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
@@ -423,22 +442,37 @@ ${BUTTON_STYLES}
   .mw-tabs__tab:hover { color: var(--ink); background: var(--nav-hover); }
   .mw-tabs__tab:focus-visible, .mw-toggle:focus-visible, .mw-pagination__page:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-tabs__tab.is-active { background: var(--nav-active); color: var(--ink); }
+  /* T3 quiet underline sub-tabs inside a paper sheet. */
+  .mw-tabs__list--underline { gap: 16px; border-bottom: 1px solid var(--line); }
+  .mw-tabs__list--underline .mw-tabs__tab {
+    min-height: 36px; padding: 0 2px; border-radius: 0; background: transparent;
+  }
+  .mw-tabs__list--underline .mw-tabs__tab:hover { background: transparent; color: var(--ink); }
+  .mw-tabs__list--underline .mw-tabs__tab::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    border-radius: 1px; background: var(--accent); opacity: 0;
+    transform: scaleX(.4);
+    transition: opacity var(--dur-move, 220ms) var(--ease-quint), transform var(--dur-move, 220ms) var(--ease-quint);
+  }
+  .mw-tabs__list--underline .mw-tabs__tab.is-active { background: transparent; color: var(--ink); }
+  .mw-tabs__list--underline .mw-tabs__tab.is-active::after { opacity: 1; transform: scaleX(1); }
   .mw-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .mw-toggle-group {
-    display: inline-flex; gap: 4px; padding: 4px;
+    display: inline-flex; gap: 3px; padding: 3px;
     border: 0;
-    border-radius: 12px; background: var(--control-fill);
+    border-radius: 11px; background: var(--control-fill);
+    box-shadow: inset 0 0 0 1px var(--line);
   }
   .mw-toggle {
     min-height: 26px; padding: 0 12px; border: 0; border-radius: 8px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500);
-    transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
+    transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-toggle:hover:not(:disabled):not(.is-current) { color: var(--ink); background: var(--nav-hover); }
   .mw-toggle:disabled { opacity: .42; cursor: not-allowed; }
   .mw-toggle.is-current {
     background: var(--paper); color: var(--ink);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--lift-1), inset 0 1px 0 var(--edge-highlight, transparent);
   }
   /* A toggle on its own is a tool, not a slot in a track: ghost at rest, --nav-active when on, like a pressed bar tool. */
   .mw-toggle:not(.mw-toggle-group .mw-toggle) { min-height: 28px; font-size: 13px; color: var(--ink-soft); }
@@ -731,12 +765,75 @@ ${BUTTON_STYLES}
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__panel p { margin: 0 0 12px; max-width: 52ch; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__panel p:last-child { margin-bottom: 0; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__footer { padding: 8px 32px 24px; }
-  /* A card lifts off the surface on a hairline and a soft shadow instead of a drawn frame. */
+  /* A card lifts off the surface on a hairline, soft shadow, and dark-mode top specular sheen. */
   .mw-card {
     display: grid; border: 1px solid transparent;
     border-radius: 16px;
     background: var(--paper); overflow: hidden;
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent), var(--shadow-soft);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent), var(--shadow-soft), inset 0 1px 0 var(--edge-highlight, transparent);
+  }
+  /* Inset Grouped containers & aligned item rows (Six Laws of Alignment: concentric radii, 22px optical first-line axis, --text-start hairline). */
+  .mw-section-well {
+    padding: 4px;
+    border-radius: var(--radius-surface, 14px);
+    background: var(--surface-soft);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .mw-inset-group {
+    display: flex; flex-direction: column;
+    border-radius: var(--radius-item, 10px);
+    background: var(--paper);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5.5%, transparent), var(--shadow-soft), inset 0 1px 0 var(--edge-highlight, transparent);
+    overflow: hidden;
+  }
+  .mw-inset-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    column-gap: 10px;
+    align-items: start;
+    padding: 11px 14px;
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
+  }
+  .mw-inset-row + .mw-inset-row::before {
+    content: ""; position: absolute; top: 0; left: var(--text-start, 44px); right: 14px; height: 1px;
+    background: var(--line); pointer-events: none;
+  }
+  .mw-inset-row--plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mw-inset-row--plain + .mw-inset-row--plain::before { left: 14px; }
+  .mw-inset-row:hover { background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+  .mw-inset-row__lead {
+    display: inline-grid; place-items: center; width: 20px; height: 22px; flex: none;
+    color: var(--ink-soft);
+  }
+  .mw-inset-row__lead svg { width: 16px; height: 16px; }
+  .mw-inset-row__body { min-width: 0; display: grid; gap: 3px; }
+  .mw-inset-row__title {
+    margin: 0; min-width: 0;
+    color: var(--ink); font-size: 13.5px; font-weight: var(--weight-control, 500); line-height: 22px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mw-inset-row__signals {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    min-width: 0;
+  }
+  .mw-inset-row__end {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 22px;
+    color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums;
+  }
+  .mw-inset-row__drawer {
+    grid-column: 2 / -1;
+    display: grid; grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows var(--dur-move, 220ms) var(--ease-quint), opacity var(--dur-hover, 130ms) var(--ease-quint), margin-top var(--dur-move, 220ms) var(--ease-quint);
+  }
+  .mw-inset-row__drawer > div { overflow: hidden; min-height: 0; }
+  .mw-inset-row[data-open="true"] .mw-inset-row__drawer {
+    grid-template-rows: 1fr; opacity: 1; margin-top: 8px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mw-tabs__list--underline .mw-tabs__tab::after,
+    .mw-inset-row, .mw-inset-row__drawer { transition: none; }
   }
   .mw-card__header { display: flex; justify-content: space-between; gap: 12px; padding: 20px 20px 0; }
   .mw-card__title { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); }

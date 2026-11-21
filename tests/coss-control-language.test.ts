@@ -115,7 +115,7 @@ test("settings secondary buttons leave the 4px blue-outline contract", () => {
   const settings = renderMolisWorkSettingsStylesheet();
   // The secondary button takes its corner and size from .mw-btn (and --sm/--lg); it adds only its colours.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn \{[^}]*border: 1px solid transparent;[^}]*border-radius: var\(--radius-control, 8px\);/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--secondary \{ background: var\(--control-fill\); color: var\(--ink\); \}/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--secondary \{[^}]*border-color: var\(--control-border\);[^}]*background: var\(--paper\);[^}]*color: var\(--ink\);/);
   assert.ok(settings.includes(".mw-btn--secondary {"));
   assert.doesNotMatch(
     settings,

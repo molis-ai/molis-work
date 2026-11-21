@@ -29,9 +29,12 @@ export const BUTTON_STYLES = `
       color var(--dur-hover, 130ms) var(--ease-quint),
       border-color var(--dur-hover, 130ms) var(--ease-quint),
       box-shadow var(--dur-hover, 130ms) var(--ease-quint),
-      opacity var(--dur-hover, 130ms) var(--ease-quint);
+      opacity var(--dur-hover, 130ms) var(--ease-quint),
+      transform var(--dur-hover, 130ms) var(--ease-spring, cubic-bezier(.34, 1.35, .64, 1));
   }
   body .mw-btn:active { filter: none; }
+  .mw-btn:active:not(:disabled) { transform: scale(.985); }
+  @media (prefers-reduced-motion: reduce) { .mw-btn:active:not(:disabled) { transform: none; } }
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
   .mw-btn--sm { min-height: 28px; }
   .mw-btn--md { min-height: 32px; }
@@ -50,13 +53,13 @@ export const BUTTON_STYLES = `
     border-color: var(--action);
     background: var(--action);
     color: var(--action-ink);
-    box-shadow: var(--lift-1);
+    box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
   }
   .mw-btn--primary:hover:not(:disabled) {
     background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink)));
     border-color: var(--action-hover, var(--action));
     color: var(--action-ink);
-    box-shadow: var(--lift-1);
+    box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
   }
   .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
     background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
@@ -64,9 +67,13 @@ export const BUTTON_STYLES = `
   .mw-btn--primary[aria-pressed="true"]:not(:disabled) {
     background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
-  /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
-     (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
-  .mw-btn--secondary { background: var(--control-fill); color: var(--ink); }
+  /* Secondary is a crisp paper-bordered action that reads cleanly on both sunlit sheets and recessed wells. */
+  .mw-btn--secondary {
+    border-color: var(--control-border);
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 0 1px 1.5px color-mix(in srgb, var(--shadow-color) 4%, transparent), inset 0 1px 0 var(--edge-highlight, transparent);
+  }
   .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
   /* Pressed/expanded state on ghost & secondary uses low-specificity :where() after base rules so it wins over
      .mw-btn--ghost without overriding higher-specificity page option pills (Batch 03 / VUX-55). */
@@ -75,8 +82,8 @@ export const BUTTON_STYLES = `
     color: var(--ink);
   }
   .mw-btn--secondary:hover:not(:disabled) {
-    border-color: transparent;
-    background: var(--nav-hover);
+    border-color: var(--line-strong);
+    background: var(--surface-soft);
   }
   .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
   .mw-btn--secondary:active:not(:disabled),
@@ -86,7 +93,7 @@ export const BUTTON_STYLES = `
   /* A ghost with words keeps an outline, so a button never reads as plain text; one that is only an icon stays bare. */
   .mw-btn--ghost:not(.mw-btn--icon, .mw-btn--icon-only) { border-color: var(--line-strong); }
   /* Danger is a red wash with red words: it warns without shouting louder than the primary beside it. */
-  .mw-btn--danger { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); }
+  .mw-btn--danger { border-color: color-mix(in srgb, var(--red) 18%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); }
   .mw-btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 16%, transparent); }
   .mw-btn--danger:active:not(:disabled) { background: color-mix(in srgb, var(--red) 22%, transparent); }
   .mw-btn--danger-outline {

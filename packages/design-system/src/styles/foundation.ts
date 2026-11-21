@@ -4,6 +4,16 @@ import { renderSkinScope } from "../appearance-tokens.js";
 /** AP3 visual layer: foundation. */
 export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
 
+  :root {
+    --measure-narrow: 600px;
+    --measure-reading: 680px;
+    --measure-form: 760px;
+    --measure-wide: 960px;
+    --master-w: 280px;
+    --master-w-compact: 240px;
+    --text-start: 44px;
+  }
+
   html[data-resolved-terminal-theme="light"] {
     ${baselineTerminal("light")}
   }

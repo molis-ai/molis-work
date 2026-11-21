@@ -86,7 +86,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   .prompt-row-meta { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
   .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
   .prompt-state--user { color: var(--ink); background: var(--nav-active); }
-  .prompt-state--updated { color: var(--warning, #b7791f); }
+  .prompt-state--updated { color: var(--amber); }
   .prompt-editor { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
   .prompt-editor-text { width: 100%; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.55; }
   .prompt-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -2320,6 +2320,7 @@
     "workbench.attention.tasks-incomplete": "The background task list is incomplete.",
     "workbench.attention.no-background-tasks-right-now": "No background tasks right now",
     "workbench.attention.stop": "Stop",
+    "workbench.attention.project-resting": "{project} · resting",
     "workbench.board-plugin-rows.container": "Container",
     "workbench.board-plugin-rows.drawn-each-plugin-s-own-row-renderer-data": "Drawn by each plugin’s own row renderer: the data is a fixed sample, and each row is the row the plugin’s page draws. Directory rows take a column’s width; a main-area view takes the whole width.",
     "workbench.board-plugin-rows.language": "Language",

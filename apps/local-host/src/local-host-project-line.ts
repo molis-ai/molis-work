@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { HostCapabilityDescriptor, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostErrors } from "./host-errors.js";
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { hostLog } from "./host-log.js";
@@ -16,6 +16,8 @@ export interface RuntimeEntry<Runtime> {
   operationTail: Promise<void>;
   activeUses: number;
   queuedUses: number;
+  /** When a call last entered or left the project (`Date.now()`): a project unused for long may be put to sleep (`sleepIfIdle`). */
+  lastUsedAt: number;
   idleWaiters: Array<() => void>;
   /** Aborted when the project starts closing: a wait only observes, so it ends then instead of holding close until it times out. */
   observing: AbortController;
@@ -31,8 +33,20 @@ export interface ProjectLineHost {
   assertRunning(): void;
   running(): boolean;
   assertProjectAvailable?(projectId: string): void;
-  /** Whether the registered action runs beside the line (scheduling "concurrent"): read from the registry, never from the caller. */
+  /** Whether the registered action runs beside the line (`runsBesideLine`): read from the registry, never from the caller. */
   concurrent(capability: Pick<HostCapabilityDescriptor, "capability_id" | "version" | "action_provider">): boolean;
+}
+
+/**
+ * Whether a registered action runs beside the project's line instead of waiting in it. One declared `scheduling: "concurrent"` owns its
+ * transactions across its awaits; a pure read (a query whose effect is `read`) changes nothing another operation relies on, so it does not
+ * wait behind a long command (batch 103-1). Every other command stays in line. Read from the registered descriptor, never from the caller.
+ * A pure read is not cancelled when the project starts closing (`callSignal` is for declared concurrent work): it is short, and close waits for it.
+ */
+export function runsBesideLine(descriptor: Pick<HostCapabilityDescriptor, "capability_id" | "operation" | "action"> | undefined): boolean {
+  const action = descriptor?.action;
+  if (!action) return false;
+  return action.scheduling === "concurrent" || (descriptor.operation === "query" && actionEffect(action, descriptor.capability_id) === "read");
 }
 
 export function normalizeReference(reference: LocalHostProjectReference): LocalHostProjectReference {
@@ -71,6 +85,14 @@ async function closeOpened<Runtime>(runtime: Promise<Runtime>, close: (runtime: 
 export class ProjectLine<Runtime> {
   private readonly entries = new Map<string, RuntimeEntry<Runtime>>();
   private readonly closingKeys = new Set<string>();
+  /** Projects being put to sleep: a call that comes meanwhile waits for it, then opens the project again (`awake`). */
+  private readonly sleeping = new Map<string, Promise<unknown>>();
+  /** Projects put to sleep and not opened since, with when they had last been used then: what the Home read of them before still holds. */
+  private readonly rested = new Map<string, number>();
+  /** Projects closed on purpose (not put to sleep) and not opened since: the Home does not open them to read them. */
+  private readonly dismissed = new Set<string>();
+  /** Reads that do not count as using a project (`quietly`): the Home's own reads, which must not keep every project awake. */
+  private readonly quiet = new AsyncLocalStorage<true>();
   private readonly scope = new AsyncLocalStorage<ProjectScope<Runtime>>();
 
   constructor(private readonly runtimeFactory: LocalHostRuntimeFactory<Runtime>, private readonly host: ProjectLineHost) {}
@@ -88,6 +110,26 @@ export class ProjectLine<Runtime> {
   isBusy(storageKey: string): boolean {
     const entry = this.entries.get(storageKey.trim());
     return !!entry && (entry.state !== 'ready' || entry.activeUses > 0 || entry.queuedUses > 0);
+  }
+
+  private used(entry: RuntimeEntry<Runtime>): void {
+    if (!this.quiet.getStore()) entry.lastUsedAt = Date.now();
+  }
+
+  /** Runs `work` without it counting as use of the projects it reads: they go to sleep as if it had not read them (`sleepIfIdle`). */
+  quietly<T>(work: () => T): T {
+    return this.quiet.run(true, work);
+  }
+
+  /**
+   * A project that is not open: put to sleep (`asleep`, with when it had been last used then), closed on purpose (`closed`), or not
+   * opened since the Host started (`never`). An open one is `open`, with when it was last used.
+   */
+  rest(storageKey: string): { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined } {
+    const entry = this.entries.get(storageKey);
+    if (entry) return { state: "open", usedAt: entry.lastUsedAt };
+    if (this.rested.has(storageKey)) return { state: "asleep", usedAt: this.rested.get(storageKey) };
+    return { state: this.dismissed.has(storageKey) ? "closed" : "never", usedAt: undefined };
   }
 
   isClosing(storageKey: string): boolean {
@@ -119,13 +161,19 @@ export class ProjectLine<Runtime> {
     }
     const existing = this.entries.get(normalized.storage_key);
     if (inLanguagePreview() && existing?.state !== "ready") throw languagePreviewUnavailable();
-    if (existing) return existing; // `assertCompatibleReference` already checked this identity.
+    // `assertCompatibleReference` already checked this identity.
+    if (existing) {
+      this.used(existing);
+      return existing;
+    }
+    this.rested.delete(normalized.storage_key);
+    this.dismissed.delete(normalized.storage_key);
     const entry: RuntimeEntry<Runtime> = {
       reference: normalized,
       runtime: Promise.resolve().then(() => this.runtimeFactory.open(normalized)),
       state: "opening",
       operationTail: Promise.resolve(),
-      activeUses: 0, queuedUses: 0,
+      activeUses: 0, queuedUses: 0, lastUsedAt: this.quiet.getStore() ? 0 : Date.now(),
       idleWaiters: [], observing: new AbortController(),
       actionDisposers: new Set(),
     };
@@ -156,6 +204,8 @@ export class ProjectLine<Runtime> {
     execute: () => Promise<Output>,
     step = false,
   ): Promise<Output> {
+    const sleeping = this.awake(reference);
+    if (sleeping) await sleeping;
     const entry = this.ensureEntry(reference);
     const run = async (holdsQueue: boolean) => {
       const runtime = await entry.runtime;
@@ -179,14 +229,17 @@ export class ProjectLine<Runtime> {
     const parent = this.scope.getStore();
     if (parent?.active && parent.entry === entry && (parent.holdsQueue || step)) return run(parent.holdsQueue);
     // Registered concurrent actions own their short transactions, only observe (following a live round) or touch no project
-    // state (a model draft): held in line, each would keep every later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
-    // waiting; callSignal cancels these executions as closing starts, before waiting for their cleanup.
-    // Concurrency is read from the registered descriptor, never from the caller.
+    // state (a model draft), and pure reads change nothing: held in line, each would keep every later operation of the project waiting
+    // until it answers. They run beside the queue; withRuntime keeps close waiting; callSignal cancels the declared concurrent ones as
+    // closing starts, before waiting for their cleanup. Concurrency is read from the registered descriptor, never from the caller.
     if (this.host.concurrent(capability)) return this.withRuntime(reference, () => run(false));
     entry.queuedUses += 1;
     const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
-    try { return await operation; } finally { entry.queuedUses -= 1; }
+    try { return await operation; } finally {
+      entry.queuedUses -= 1;
+      this.used(entry);
+    }
   }
 
   /** Direct composition port for Host code that works inside one project's runtime. */
@@ -194,12 +247,15 @@ export class ProjectLine<Runtime> {
     reference: LocalHostProjectReference,
     operation: (runtime: Runtime) => Result | Promise<Result>,
   ): Promise<Result> {
+    const sleeping = this.awake(reference);
+    if (sleeping) await sleeping;
     const entry = this.ensureEntry(reference);
     entry.activeUses += 1;
     try {
       return await operation(await entry.runtime);
     } finally {
       entry.activeUses -= 1;
+      this.used(entry);
       if (entry.activeUses === 0) {
         for (const resolve of entry.idleWaiters.splice(0)) resolve();
       }
@@ -237,8 +293,10 @@ export class ProjectLine<Runtime> {
     const storageKey = typeof referenceOrStorageKey === "string"
       ? referenceOrStorageKey.trim()
       : normalizeReference(referenceOrStorageKey).storage_key;
+    this.rested.delete(storageKey);
     const entry = this.entries.get(storageKey);
     if (!entry) return false;
+    this.dismissed.add(storageKey);
     entry.state = "closing"; entry.observing.abort(this.host.running() ? hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭") : new ActionError("actions.host_closed", "能力所在运行环境已关闭"));
     this.closingKeys.add(storageKey);
     try {
@@ -252,6 +310,38 @@ export class ProjectLine<Runtime> {
       if (this.entries.get(storageKey) === entry) this.entries.delete(storageKey);
       this.closingKeys.delete(storageKey);
     }
+  }
+
+  /**
+   * Waits while the project is being put to sleep, so a call that comes then opens it again instead of being refused as closing. Nothing
+   * is awaited otherwise: a call enters the project in the same turn it was made, as before.
+   */
+  awake(reference: LocalHostProjectReference): Promise<void> | undefined {
+    const sleeping = this.sleeping.get(reference.storage_key.trim());
+    return sleeping?.then(() => undefined, () => undefined);
+  }
+
+  /**
+   * Closes a project nobody has used for `idleMs` and that has nothing running (batch 103-1): no call in it or waiting for it, and
+   * `hasLiveWork` (asked last, it may wait) says no work of it would end. Checked again just before closing; a call that comes while it
+   * closes waits and opens it again (`awake`). Whether it was put to sleep.
+   */
+  async sleepIfIdle(storageKey: string, idleMs: number, hasLiveWork: () => Promise<boolean>): Promise<boolean> {
+    const entry = this.entries.get(storageKey);
+    const idle = () => !!entry && this.isReady(entry) && entry.activeUses === 0 && entry.queuedUses === 0 && Date.now() - entry.lastUsedAt >= idleMs;
+    if (!idle()) return false;
+    const usedAt = entry!.lastUsedAt;
+    if (await hasLiveWork() || !idle() || entry!.lastUsedAt !== usedAt) return false;
+    const closing = this.closeProject(storageKey).then(closed => {
+      if (closed) {
+        this.dismissed.delete(storageKey);
+        this.rested.set(storageKey, usedAt);
+      }
+      return closed;
+    });
+    this.sleeping.set(storageKey, closing);
+    try { return await closing; }
+    finally { if (this.sleeping.get(storageKey) === closing) this.sleeping.delete(storageKey); }
   }
 
   /** Closes every project that is open now. */

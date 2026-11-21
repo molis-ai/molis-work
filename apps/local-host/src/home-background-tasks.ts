@@ -26,7 +26,7 @@ export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: R
     const key = `${answer.project_id}:${answer.source.capability_id}`;
     if (!tasks) { issues.push({ project_id: answer.project_id, source: answer.source, code: "actions.output_invalid" }); continue; }
     unreadable.worked(key); unreadable.worked(`${answer.project_id}:`);
-    const project = { project_id: answer.project_id, project_name: names.get(answer.project_id) ?? answer.project_id };
+    const project = { project_id: answer.project_id, project_name: names.get(answer.project_id) ?? answer.project_id, ...(answer.resting ? { resting: true as const } : {}) };
     // What ended is kept by its owner only to be reported (`reports_to`): this list is what is still being done or waits on the person.
     for (const row of tasks) if (!BACKGROUND_TASK_DONE_STATES.has(row.state)) rows.push({ ...row, ...project });
   }

@@ -1,8 +1,7 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { existsSync } from "node:fs";
 import { createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
-import { withConnectorsStore } from "./connectors-store.js";
+import { withConnectorsStore, type ConnectorsDatabase } from "./connectors-store.js";
 import { ConnectorProtocolStore, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
@@ -17,7 +16,7 @@ export function withConnectorConnections<T>(homeDirectory: string, operation: (s
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: true): T | undefined;
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: "required"): T;
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: boolean | "required" = false): T | undefined {
-  const run = (db: DatabaseSync) => {
+  const run = (db: ConnectorsDatabase) => {
     const secrets: ConnectorConnectionSecrets = {
       has: (ref) => runWithMolisWorkHome(homeDirectory, () => peekSealedEntry(ref) !== null),
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),

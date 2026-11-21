@@ -9,7 +9,10 @@ interface Held { db: DatabaseSync; dev: number; ino: number }
 /** The connections this process holds, by library file. */
 const held = new Map<string, Held>();
 
-const identity = (file: string) => { try { const { dev, ino } = statSync(file); return { dev, ino }; } catch { return undefined; } };
+const identity = (file: string) => {
+  const stat = statSync(file, { throwIfNoEntry: false });
+  return stat ? { dev: stat.dev, ino: stat.ino } : undefined;
+};
 
 /**
  * The one connection this process keeps to a Home store (batch 103-1): the first call opens it the way `openBaselineHomeSqlite` does (version,
@@ -34,7 +37,10 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
     if (!opened) throw new Error("SQLite store disappeared while it was opened; retry");
     held.set(file, { db, ...opened });
     return db;
-  } catch (error) { db.close(); throw error; }
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
 /**
@@ -55,7 +61,10 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
   const current = held.get(file);
   if (current?.db.isOpen && current.db.isTransaction) {
     const own = existingOnly ? openExistingBaselineHomeSqlite(home, storeName, baseline)! : openBaselineHomeSqlite(home, storeName, baseline);
-    try { prepare?.(own); return work(own); } finally { own.close(); }
+    try {
+      prepare?.(own);
+      return work(own);
+    } finally { own.close(); }
   }
   if (existingOnly && !current?.db.isOpen) openExistingBaselineHomeSqlite(home, storeName, baseline)?.close();
   return work(heldHomeSqlite(home, storeName, baseline, prepare));

@@ -229,3 +229,48 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
     assert.deepEqual(serviceDown.issues.map(issue => issue.code), ["actions.service_unavailable"], "a source that cannot answer is still shown, as on main");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+// B103-01: with projects asleep, the Home answers one from its last read while it was not used since, marked resting; one not read yet,
+// or used since that read, is read in the background (opened quietly, the page told) and not waited for; one closed on purpose is left.
+test("B103-01 a sleeping project is answered from its last read until it is used again; one not read yet is read in the background", async () => {
+  const a = reference("project-a"), b = reference("project-b"), c = reference("project-c");
+  const answering = (projectId: string) => ({ ...unavailableView(projectId), availability: { available: true } });
+  const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
+    [a.storage_key, { state: "open", usedAt: 5 }], [b.storage_key, { state: "never", usedAt: undefined }], [c.storage_key, { state: "closed", usedAt: undefined }]]);
+  let quiet = 0;
+  const woken: string[] = [], changed: string[] = [];
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [a, b, c].filter(project => rests.get(project.storage_key)!.state === "open"),
+    whileOpen: async (_reference, work) => work(),
+    client: project => ({ discover: async () => [answering(project.project_id)], invoke: async () => { assert.ok(quiet > 0, "every read is quiet"); return { project: project.project_id }; } }),
+    context: async project => context(project.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => [a, b, c].filter(project => rests.get(project.storage_key)!.state !== "open"),
+      rest: project => rests.get(project.storage_key)!,
+      wake: async (project, work) => { woken.push(project.project_id); return work(); },
+      quietly: async work => { quiet += 1; try { return await work(); } finally { quiet -= 1; } },
+      changed: projectId => { changed.push(projectId); },
+      running: () => true,
+      readings,
+    },
+  };
+  const read = async () => (await collectHomeAggregate(ports, TYPE, {})).answers.map(answer => `${answer.project_id}${answer.resting ? ":resting" : ""}`).sort();
+  assert.deepEqual(await read(), ["project-a"], "the project not read yet is not waited for");
+  await readings.pass;
+  assert.deepEqual([woken, changed], [["project-b"], ["project-b"]], "it was read in the background and the page told; the one closed on purpose was not");
+  // B was opened to be read and went back to sleep unused (as the Host records it, used at 0); A went to sleep unused too.
+  rests.set(a.storage_key, { state: "asleep", usedAt: 5 }); rests.set(b.storage_key, { state: "asleep", usedAt: undefined });
+  woken.length = 0;
+  assert.deepEqual(await read(), ["project-a:resting", "project-b:resting"]);
+  await readings.pass;
+  assert.deepEqual(woken, [], "neither was opened");
+  // A was used before it slept again: its last read no longer holds.
+  rests.set(a.storage_key, { state: "asleep", usedAt: 9 });
+  assert.deepEqual(await read(), ["project-b:resting"]);
+  await readings.pass;
+  assert.deepEqual(woken, ["project-a"]);
+  assert.deepEqual(await read(), ["project-a:resting", "project-b:resting"]);
+  assert.equal(quiet, 0);
+});

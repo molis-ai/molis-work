@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, LocalMcpServer, composeAgentHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, acceptanceRequestId, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
@@ -315,5 +318,135 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   assert.equal(historyRes.status, 200);
   const historyRows = ((await historyRes.json()) as { rows: Array<{ id: string; person: string }> }).rows;
   assert.ok(historyRows.some(row => row.id === v1Committed.record.decision_id && row.person === LOCAL_PERSON_ACTOR_ID));
+});
+
+test("S-acceptance-person-decides concurrent same-request_key decide commits one decision without ghost rows", { timeout: 60_000 }, async t => {
+  const env = await openTestHome(t);
+  const project = await env.createProject("Concurrent Decide", ["todo"]), pid = project.project_id, ref = project.reference;
+  const todoPerson = person(pid, { permissions: [...ALL, "todo:read"] });
+  const preparedMetadata = await env.host.inspectPreparedActionMetadata(todoPerson, ref) as ReadonlyArray<{ provider: { plugin_id?: string; provider_id: string } }>;
+  const providerId = preparedMetadata.find(view => view.provider.plugin_id === "io.molis.work.todo")!.provider.provider_id;
+  const subject = { provider_id: providerId, subject: { kind: "todo_item", id: "todo-concurrent-1" } };
+  const invoke = <T = AcceptanceView>(caller: ActionCallContext, action: { capability_id: string; version: number }, input: unknown) =>
+    env.host.actionClient(ref).invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input) as Promise<T>;
+  await invoke(todoPerson, acceptanceActions.set, { subject, requirements: [{ id: "r1", statement: "并发不写幽灵行", requires_person: true }] });
+  await invoke(todoPerson, acceptanceActions.deliver, { subject, version: "v1" });
+
+  const approvalsPrefix = `/projects/${encodeURIComponent(pid)}/api/project-approvals`;
+  const acceptancePrefix = `/projects/${encodeURIComponent(pid)}/api/acceptance`;
+  const prepared = await env.web.post<ReviewRequest>(`${approvalsPrefix}/request`, {
+    action: { capability_id: acceptanceActions.decide.capability_id, version: 1, provider_id: ACCEPTANCE_PROVIDER_ID },
+    request_id: acceptanceRequestId(subject),
+  });
+  const payload = { reference: prepared.reference, choice_id: "accept:r1", request_key: "concurrent-same-key-race" };
+  const [first, second] = await Promise.all([
+    env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${approvalsPrefix}/decide`, payload),
+    env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${approvalsPrefix}/decide`, payload),
+  ]);
+  assert.equal(first.record.decision_id, second.record.decision_id, "both concurrent responses converge on the same committed decision");
+  assert.equal([first.replayed, second.replayed].filter(Boolean).length, 1, "exactly one call committed and the other replayed");
+  await env.host.withProject(ref, ({ store }) => {
+    const itemRows = store.db.prepare("SELECT decision_id FROM acceptance_decisions").all() as Array<{ decision_id: string }>;
+    const voucherRows = store.db.prepare("SELECT decision_id FROM project_review_decisions").all() as Array<{ decision_id: string }>;
+    assert.deepEqual(itemRows.map(r => r.decision_id), [first.record.decision_id], "no unvouched ghost row in acceptance_decisions");
+    assert.deepEqual(voucherRows.map(r => r.decision_id), [first.record.decision_id]);
+  });
+  const after = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [subject] })).views[0]!;
+  assert.deepEqual([after.requirements[0]!.person, after.requirements[0]!.awaiting_voucher, after.requirements[0]!.satisfied], ["accepted", false, true]);
+});
+
+test("S-acceptance-evidence-tier EVD-14 EVD-41 EVD-42: real AgentHost weighs machine_checked, peer_reviewed, and evidence_unreadable; mid-flight revoke and abort write nothing", { timeout: 60_000 }, async t => {
+  const { home, a, host, call, read } = await rig(t);
+  const composition = host.ensureAgentService(home, () => composeAgentHost({ localHost: host, homeDirectory: home, workspaceFor: () => null }));
+  let onCheckRun: (() => Promise<void> | void) | undefined;
+  const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
+  composition.agentHost.register({
+    descriptor: { runtime_id: "fixture-evidence", display_name: "Evidence fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    createSession: unused, start: unused, control: unused, observe() { throw new Error("Not used by this fixture"); },
+    readSession: async (session: { runtime_id: string; session_id: string }) => {
+      if (session.session_id === "s-broken") throw new Error("store unavailable");
+      if (session.session_id !== "s-worker") throw new ActionError("agent.session_unknown", "找不到这条会话");
+      return { session, owner: { project_id: a.project_id, plugin_id: "io.molis.work.pages", install_id: "installed", actor_id: LOCAL_PERSON_ACTOR_ID }, title: "Worker", runs: [{ session_id: "s-worker", run_id: "r-made" }] } as never;
+    },
+    read: async (run: unknown) => {
+      await onCheckRun?.();
+      return { ref: run, command_outputs: [{ call_id: "c-pass" }, { call_id: "c-fail" }],
+        activity: [{ call_id: "w1", name: "edit", state: "completed", sequence: 1 }, { call_id: "c-fail", name: "command", state: "completed", sequence: 2 }, { call_id: "c-pass", name: "command", state: "completed", sequence: 3 }] } as never;
+    },
+    readCommandOutput: async (_session: unknown, output: { call_id: string }) =>
+      ({ ref: output, command: "node --test", exit_code: output.call_id === "c-pass" ? 0 : 1, stdout: "", stderr: "", truncated: false }) as never,
+  } as AgentRuntimeAdapter);
+  await host.withProject(a, ({ store }) => {
+    openProjectVersionStores(store).artifacts.commands.registerVersion({
+      project_id: a.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, artifact_id: "art-evd", version: 1,
+      artifact_type_id: "io.molis.work.pages.document", schema_version: 1,
+      producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
+      content: { kind: "inline", payload: { title: "报告", body: { type: "doc", content: [] } } },
+      ...pinnedArtifact("报告", { kind: "document", id: "art-evd" }),
+    });
+  });
+
+  const worker = (extra: Partial<ActionCallContext> = {}) => agent(a.project_id, {
+    permissions: [...ALL, "homebg:read", "artifacts:read", "agent:evidence:read"],
+    runtime_session_id: "s-worker", agent_runtime_id: "fixture-evidence", ...extra,
+  });
+  const reviewer = (extra: Partial<ActionCallContext> = {}) => agent(a.project_id, {
+    permissions: [...ALL, "homebg:read", "artifacts:read", "agent:evidence:read"],
+    runtime_session_id: "s-reviewer", agent_runtime_id: "fixture-evidence", ...extra,
+  });
+  await call(person(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: [
+    { id: "r-machine", statement: "机器核验通过", requires_person: false },
+    { id: "r-peer", statement: "同行复核通过", requires_person: false },
+  ] });
+  await call(worker(), acceptanceActions.deliver, { subject: SUBJECT, version: "v1", made_in: { run_id: "r-made" } });
+
+  // EVD-14 & mid-flight revocation during async checkRun: abort or revoke after lookup writes nothing.
+  const abortController = new AbortController();
+  onCheckRun = () => { abortController.abort(new ActionError("actions.cancelled", "已中止")); };
+  await assert.rejects(call(worker({ signal: abortController.signal }), acceptanceActions.report, {
+    subject: SUBJECT,
+    reports: [{ requirement_id: "r-machine", verdict: "supports", checked: { version: "v1" }, method: "test", observed: "ok", evidence: [{ kind: "command_receipt", run_id: "r-made", call_id: "c-pass" }] }],
+  }), code("actions.cancelled"));
+  assert.equal((await read()).requirements[0]!.check, null, "EVD-14: aborted report writes nothing");
+
+  let revokedMidFlight = false;
+  onCheckRun = () => { revokedMidFlight = true; };
+  await assert.rejects(call(worker({
+    assert_authority_current: () => { if (revokedMidFlight) throw new ActionError("actions.forbidden", "权限已中途撤回"); },
+  }), acceptanceActions.report, {
+    subject: SUBJECT,
+    reports: [{ requirement_id: "r-machine", verdict: "supports", checked: { version: "v1" }, method: "test", observed: "ok", evidence: [{ kind: "command_receipt", run_id: "r-made", call_id: "c-pass" }] }],
+  }), code("actions.forbidden"));
+  assert.equal((await read()).requirements[0]!.check, null, "mid-flight revoked report writes nothing");
+
+  // EVD-41: real AgentHost verifies command receipt -> machine_checked; failed command -> check_failed.
+  onCheckRun = undefined;
+  const failedCmd = await call(worker(), acceptanceActions.report, {
+    subject: SUBJECT,
+    reports: [{ requirement_id: "r-machine", verdict: "supports", checked: { version: "v1" }, method: "test", observed: "fail", evidence: [{ kind: "command_receipt", run_id: "r-made", call_id: "c-fail" }] }],
+  });
+  assert.deepEqual([failedCmd.requirements[0]!.check?.tier, failedCmd.requirements[0]!.check?.gap, failedCmd.requirements[0]!.verified], ["self_reported", "check_failed", false]);
+
+  const machineOk = await call(worker(), acceptanceActions.report, {
+    subject: SUBJECT,
+    reports: [{ requirement_id: "r-machine", verdict: "supports", checked: { version: "v1" }, method: "test", observed: "pass", evidence: [{ kind: "command_receipt", run_id: "r-made", call_id: "c-pass" }] }],
+  });
+  assert.deepEqual([machineOk.requirements[0]!.check?.tier, machineOk.requirements[0]!.check?.gap, machineOk.requirements[0]!.verified, machineOk.requirements[0]!.satisfied], ["machine_checked", null, true, true]);
+
+  // EVD-42: unreadable artifact -> evidence_unreadable; another platform session with readable artifact -> peer_reviewed.
+  const unreadableArt = await call(reviewer(), acceptanceActions.report, {
+    subject: SUBJECT,
+    reports: [{ requirement_id: "r-peer", verdict: "supports", checked: { version: "v1" }, method: "review", observed: "missing", evidence: [{ kind: "artifact_version", artifact_id: "art-nonexistent", version: 1 }] }],
+  });
+  assert.deepEqual([unreadableArt.requirements[1]!.check?.tier, unreadableArt.requirements[1]!.check?.gap, unreadableArt.requirements[1]!.verified], ["self_reported", "evidence_unreadable", false]);
+
+  const artCheck = await host.actionClient(a).invoke(reviewer(), { capability_id: "artifacts.read", version: 1 }, { reference: { artifact_id: "art-evd", version: 1 } }) as { selected: unknown };
+  assert.ok(artCheck.selected, "reviewer can read the registered artifact");
+  const peerOk = await call(reviewer(), acceptanceActions.report, {
+    subject: SUBJECT,
+    reports: [{ requirement_id: "r-peer", verdict: "supports", checked: { version: "v1" }, method: "review", observed: "good", evidence: [{ kind: "artifact_version", artifact_id: "art-evd", version: 1 }] }],
+  });
+  assert.deepEqual([peerOk.requirements[1]!.check?.tier, peerOk.requirements[1]!.check?.gap, peerOk.requirements[1]!.verified, peerOk.requirements[1]!.satisfied], ["peer_reviewed", null, true, true]);
 });
 

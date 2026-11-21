@@ -208,6 +208,7 @@ test("plugin dev runs a developed plugin under its installation id, even when it
     const seen: ActionProvider[] = [];
     const result = await runPluginDevelopment({ directory: sample, grants: manifest.permissions.map(value => value.permission), allow_unsigned_development: true }, {
       repository: new MemoryPluginRuntimeRepository(), project_id: DEMO_PROJECT_ID, actor_id: "local-plugin-developer", ui: new UiHost(),
+      projectLibrary: { db: store.db, path: file },
       artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
       processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
       privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),

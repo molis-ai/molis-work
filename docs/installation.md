@@ -72,7 +72,7 @@ pnpm install:local
 
 `status=needs_repair` 时直接执行 `service install`，不要先尝试 `restart`。`install` 会重写 Molis Work 自己拥有的 plist 和 receipt、受控重启并在失败时回滚；未知 LaunchAgent 或外部端口监听者仍不会被接管。
 
-本体升级不会静默改写 Runtime 配置。只要这次 Release 改过 MCP，还必须打开 Molis Work 的“设置 → AI 与执行工具”：已由 Molis Work 管理但仍指向旧 Release 的 Runtime 会显示“需要修复”，先预览，再由用户确认修复。只有该页回到“已接入”，才可以对依赖 Runtime 协议的修复报告“已安装”。Core、App 和 Web service 版本一致不能代替这一步；未知同名配置仍保持冲突，不得覆盖。从带 `goal-advance` 的版本升上来时，宿主的升级轮次把 Molis Work 当初放进 Runtime 的 `goal-advance` 链接删掉；链接已被改过的不动，在宿主日志里写明。
+本体升级不会静默改写 Runtime 配置。只要这次 Release 改过 MCP，还必须打开 Molis Work 的“设置 → AI 与执行工具”：已由 Molis Work 管理但仍指向旧 Release 的 Runtime 会显示“需要修复”，先预览，再由用户确认修复。只有该页回到“已接入”，才可以对依赖 Runtime 协议的修复报告“已安装”。Core、App 和 Web service 版本一致不能代替这一步；未知同名配置仍保持冲突，不得覆盖。第 44 批删除了原 `goal-advance` Skill 分发，Runtime 接入现在只管理 MCP 配置条目（接入收据随 2026-11-19 发布前 v1 清理回归干净 v1）。
 
 更新 MCP 后还要新开 Runtime Session，因为已经运行的 Session 不会重新加载工具。若要让内置 demo 使用新版示范内容，再单独执行 `molis-work demo reset --confirm`；它会清除 demo 内的改动，但不会影响用户项目。命令行不运行 Agent 执行服务和搜索服务，demo 在记忆与搜索索引里的数据由运行中的 Molis Work 保管，这条命令清不了它们，会在输出里说出来；要连它们一起清，在 Molis Work 里打开示例项目的设置，点「重建 demo」。
 

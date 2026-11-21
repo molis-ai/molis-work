@@ -4,7 +4,7 @@
 
 Molis Work is a local-first **Agent OS**, **human-AI and team collaboration workbench**, and **multi-plugin platform**: you, the built-in Assistant, and external AI Runtimes work together across projects and mainlines on goals, sessions, feeds, code, documents and calendar, with every fact kept by the plugin or module that owns it (currently local single-Home collaboration, evolving toward shared team projects and team memory).
 
-The platform provides one resident host per Home, a shared action catalog with grant guardrails, the plugin runtime, the workbench shell, one Prologue AI runtime (Assistant, sub-agents, background tasks, memory, work records, skills and capability kits), and platform collaboration capabilities including external AI session integration, work mainlines, trusted user decisions and itemized acceptance. Every project currently includes Goals and can add Inbox, Feed, Schedule and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
+The platform provides one resident host per Home, a shared action catalog with grant guardrails, the plugin runtime, the workbench shell, one Prologue AI runtime (Assistant, sub-agents, background tasks, memory, work records, skills and capability kits), and platform collaboration capabilities including project guidance, external AI session integration, work mainlines, trusted user decisions, itemized acceptance and object work terminals. New projects start without Goals by default — add or remove Goals, Inbox, Feed, Schedule and the Coding family as needed (removing a plugin preserves its data for re-adding); personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang, Cognia and Shelf work in every project (only Shelf is always-on). Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
 
 The Goals plugin is for a boring way long-running work fails: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, and what counts as done.
 
@@ -52,7 +52,7 @@ The same local project in a browser. Desktop and Web share data under `~/.molis-
 
 These images show the workspace, Goal list, Goal-bound terminal, and macOS status item. They are historical product surfaces, not the current Goal event document. The current Goal opens as a document: title, outcome, the current status callout, requirements and the timeline, whose events expand in place; the terminal is one switch away in the header.
 
-Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok Build. Other Harnesses can use the same project through Molis Work's MCP server and shared Skill.
+Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok Build. Other Harnesses can use the same project through Molis Work's MCP server and authorized action tools.
 
 ### The workbench today
 
@@ -78,7 +78,7 @@ Plain use, and the problem each one is for.
 
 ### One base, plugins as you need them
 
-Every project has Goals; add Inbox, Feed, Schedule and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The artifact library is provided by the platform. The Sessions plugin has been removed and its replacement is not implemented yet; see the [Sessions requirements](specs/sessions-rebuild/spec.md). Goal terminals remain available. The sections below are the Goals plugin.
+Project plugins — including Goals, Inbox, Feed, Schedule and the Coding family — are added or removed in place from the plugin switcher (new projects do not install Goals by default, and removing a plugin keeps its data). Personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project, with only Shelf always-on. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. Project guidance, trusted user decisions, itemized acceptance, object work terminals and the artifact library are provided by the platform. The sections below describe the optional Goals plugin.
 
 ### See the Goal, what is done, and what to do next
 
@@ -92,11 +92,11 @@ The Graph is for when the list is no longer enough. Parent/child describes struc
 
 A Runtime can propose new work or a new dependency as a structure proposal and can record a concern that blocks completion. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. Each decision card shows the question, why a decision is needed, the evidence behind the recommendation, and what each choice would change.
 
-### Keep the terminal on the Goal
+### Keep the terminal on the work object
 
-Open Codex, Claude Code, or a custom command from a Goal. That terminal stays owned by that Goal — switching Focus later does not silently reassign it, and Molis Work does not auto-send. A parent Goal can still record integration work; it does not become “done” just because its children exist.
+Open Codex, Claude Code, or a custom command from any plugin object that declares `work_terminals` (such as a Goal). That terminal stays owned by that object — switching Focus later does not silently reassign it, and Molis Work does not auto-send. A parent Goal can still record integration work; it does not become “done” just because its children exist.
 
-On macOS, the same current Goal is also on the **top menu bar**. Click the Molis Work status icon for the project, the focused Goal, its state, and the next action; click away and the panel disappears.
+On macOS, the menu bar status item offers quick open and quit actions for the local workbench.
 
 ### Treat “done” as something you can check
 
@@ -108,7 +108,7 @@ If something new shows up while you work, attach an ordinary note with **Add ent
 
 ### Tell the Runtime how this project should be split
 
-A new intent can be saved without a plan or type, then followed by an ordinary note. Register local types when structured results help. Planning methods are optional: they offer types and default requirements you may adopt. The adopted version and this Goal’s local changes stay; later template edits do not change old meaning. Methods are not a task template and they do not auto-build the tree. A project can combine a work-type method and a domain method. Tree changes are still a proposal you confirm.
+A new intent can be saved without a plan or type, then followed by an ordinary note. Register local types when structured results help. Built-in planning skills live in the platform skill catalog for the Assistant to pick when decomposing work, while Goals focuses on Goal relationships, graph impact checks and proposals. Tree changes are still a proposal you confirm.
 
 ### Connect a Runtime on purpose
 

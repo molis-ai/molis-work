@@ -12,7 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { openPluginTables } from "./project-plugin-databases.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
-import { freezeGoalApprovalOutcome } from "./project-approval-sync-links.js";
+import { freezePluginApprovalOutcome } from "./project-approval-sync-links.js";
 import { commitProjectReview } from "./project-review-commit.js";
 import { decisionOwnerMatches, projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { attentionChanged } from "./attention-changes.js";
@@ -83,7 +83,7 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
       ...(approvalRules ? { approvalRules: Object.freeze(approvalRules) } : {}),
       ...(approvalHistory ? { approvalHistory: Object.freeze(approvalHistory) } : {}),
       joinProjectDecision: (decision, check) => commitProjectReview(library.db as SqliteDatabase, decision, check),
-      freezeProjectOutcome: outcome => freezeGoalApprovalOutcome(library.db as SqliteDatabase, manifest, outcome),
+      freezeProjectOutcome: outcome => freezePluginApprovalOutcome(library.db as SqliteDatabase, manifest, outcome),
       ...(projectId ? { committed: () => attentionChanged(projectId) } : {}),
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     const processes = new ProjectStatementProcess(library.path, record, statementLimits);

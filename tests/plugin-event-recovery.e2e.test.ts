@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-plugin-coding";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("event recovery uses real project HTTP and SQLite, preserves failed confirmations, and requires an explicit browser decision", { timeout: 90_000 }, async t => {

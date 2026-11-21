@@ -124,53 +124,93 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         throw error;
       }
       if (result.status !== 200 && body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error ?? '本次结果未知，请先检查结果再决定是否重试'));
-      if (result.status !== 200 && operation.trusted_review) throw actionErrorFromResponse(result.status, body);
+      if (result.status !== 200 && (operation.trusted_review || operation.read_protocol || operation.action_protocol)) throw actionErrorFromResponse(result.status, body);
       if (result.status !== 200) throw new Error(String(body?.error ?? '插件「' + title + '」没有完成这项功能'));
       return body?.value ?? null;
     },
   }));
-  const registrations = new Map<string, { binding: string; policy: ExposedOperationPolicy; dispose(): void }>();
+  const registrations = new Map<string, { binding: string; policies: Map<string, ExposedOperationPolicy>; dispose(): void }>();
+  const opToGroup = new Map<string, string>();
   let closed = false;
-  const dispose = () => { closed = true; for (const registration of registrations.values()) registration.dispose(); registrations.clear(); };
+  const dispose = () => { closed = true; for (const registration of registrations.values()) registration.dispose(); registrations.clear(); opToGroup.clear(); };
   const refresh = (policies: ReadonlyMap<string, ExposedOperationPolicy | Cost>): boolean => {
     if (closed) return false;
     let changed = false;
     try {
-      // Register real status queries before launchers; cross-registration references never use placeholders.
-      definitions.map((definition, index) => ({ definition, index })).sort((a, b) => Number(a.definition.operation !== 'query') - Number(b.definition.operation !== 'query')).forEach(({ definition, index }) => {
-        const operationId = operations[index]!.id, selected = policies.get(operationId) ?? 'unknown';
-        const previous = registrations.get(operationId);
-        const policy = typeof selected === 'string' ? { ...(previous?.policy ?? { permissions: definition.action.permissions, binding: '', available: true, effect: definition.operation === 'query' ? 'read' as const : 'write' as const }), cost: selected } : selected;
-        const { cost, permissions } = policy, binding = JSON.stringify([cost, permissions, policy.binding, policy.statusProblem ?? null]);
-        if (previous?.binding === binding) return;
-        // Per-operation replacement preserves unrelated in-flight calls and their registration tokens.
-        previous?.dispose(); registrations.delete(operationId);
-        const finalDefinition = { ...definition, action: { ...definition.action, permissions, execution: { cost } } };
-        const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
-          definitions: [finalDefinition],
-          // The target owns the private write; its Runtime scope retains the original caller checks.
-          handlers: [{ ...handlers[index]!, availability: (context: ActionCallContext) => policy.statusProblem
-            ? { available: false, code: 'actions.definition_invalid', reason: policy.statusProblem } : operationAvailability?.(operationId, context) ?? { available: true }, handle: (caller, input) => {
-            if (!plugin) return handlers[index]!.handle(caller, input);
-            const checked = { passed: false }, view = { ...caller, beforeEffect: pluginActionBeforeEffect(caller.beforeEffect, checked) };
-            return runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition: finalDefinition, caller,
-              checked, begun: reservePluginInvocationPlace() }, () => handlers[index]!.handle(view, input));
-          } }], ...(availability ? { availability } : {}) });
-        registrations.set(operationId, { binding, policy, dispose: unregister }); changed = true;
-      });
+      // Group placement_relation operations by relation name so ActionRegistry validates all roles of a relation together;
+      // unrelated operations keep per-operation registration and replacement. Register queries before commands.
+      const items = definitions.map((definition, index) => ({
+        definition, index, operation: operations[index]!,
+        groupKey: definition.action.placement_relation ? `placement_relation:${definition.action.placement_relation.relation}` : `op:${operations[index]!.id}`,
+      })).sort((a, b) => Number(a.definition.operation !== 'query') - Number(b.definition.operation !== 'query'));
+      const groups = new Map<string, typeof items>();
+      for (const item of items) {
+        const list = groups.get(item.groupKey) ?? [];
+        list.push(item);
+        groups.set(item.groupKey, list);
+      }
+      for (const [groupKey, groupItems] of groups) {
+        const previous = registrations.get(groupKey);
+        const groupPolicies = new Map<string, ExposedOperationPolicy>();
+        const bindingParts: unknown[] = [];
+        for (const { definition, operation } of groupItems) {
+          const selected = policies.get(operation.id) ?? 'unknown';
+          const policy = typeof selected === 'string'
+            ? { ...(previous?.policies.get(operation.id) ?? { permissions: definition.action.permissions, binding: '', available: true, effect: definition.operation === 'query' ? 'read' as const : 'write' as const }), cost: selected }
+            : selected;
+          groupPolicies.set(operation.id, policy);
+          bindingParts.push([operation.id, policy.cost, policy.permissions, policy.binding, policy.statusProblem ?? null]);
+        }
+        const binding = JSON.stringify(bindingParts);
+        if (previous?.binding === binding) continue;
+        previous?.dispose(); registrations.delete(groupKey);
+        const finalDefinitions = groupItems.map(({ definition, operation }) => {
+          const policy = groupPolicies.get(operation.id)!;
+          return { ...definition, action: { ...definition.action, permissions: policy.permissions, execution: { cost: policy.cost } } };
+        });
+        const finalHandlers = groupItems.map(({ index, operation }, itemIndex) => {
+          const policy = groupPolicies.get(operation.id)!;
+          const finalDefinition = finalDefinitions[itemIndex]!;
+          return {
+            ...handlers[index]!,
+            availability: (context: ActionCallContext) => policy.statusProblem
+              ? { available: false, code: 'actions.definition_invalid', reason: policy.statusProblem } : operationAvailability?.(operation.id, context) ?? { available: true },
+            handle: (caller: ActionExecutionContext, input: unknown) => {
+              if (!plugin) return handlers[index]!.handle(caller, input);
+              const checked = { passed: false }, view = { ...caller, beforeEffect: pluginActionBeforeEffect(caller.beforeEffect, checked) };
+              return runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition: finalDefinition, caller,
+                checked, begun: reservePluginInvocationPlace() }, () => handlers[index]!.handle(view, input));
+            },
+          };
+        });
+        const unregister = actions.registry.registerProvider({
+          provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
+          definitions: finalDefinitions,
+          handlers: finalHandlers,
+          ...(availability ? { availability } : {}),
+        });
+        registrations.set(groupKey, { binding, policies: groupPolicies, dispose: unregister });
+        for (const { operation } of groupItems) opToGroup.set(operation.id, groupKey);
+        changed = true;
+      }
     } catch (error) { dispose(); throw error; }
     return changed;
   };
   refresh(exposedOperationPolicies([release], [], false).get(release.pluginId)!);
   return { release, refresh, dispose, retainOperation(operationId) {
-    const original = registrations.get(operationId);
+    const groupKey = opToGroup.get(operationId);
+    const original = groupKey ? registrations.get(groupKey) : undefined;
+    const policy = original?.policies.get(operationId);
     const replaced = () => new ActionError('actions.provider_replaced', '原组件动作的登记或策略已变化');
-    if (closed || !original) throw replaced();
-    return { permissions: Object.freeze([...original.policy.permissions]), assertCurrent() {
-      if (closed || registrations.get(operationId) !== original) throw replaced();
+    if (closed || !original || !policy) throw replaced();
+    return { permissions: Object.freeze([...policy.permissions]), assertCurrent() {
+      if (closed || !groupKey || registrations.get(groupKey) !== original) throw replaced();
     } };
   }, assertReady() {
-    const problem = [...registrations.values()].find(item => item.policy.statusProblem)?.policy.statusProblem;
-    if (problem) throw new ActionError('actions.definition_invalid', problem);
+    for (const registration of registrations.values()) {
+      for (const policy of registration.policies.values()) {
+        if (policy.statusProblem) throw new ActionError('actions.definition_invalid', policy.statusProblem);
+      }
+    }
   } };
 }

@@ -12,7 +12,7 @@ import type { PluginIconName } from './ui/icon.js';
 import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
-import { assertSandboxUpgradeValidator, sandboxOperationActions, sandboxPackageBuildId, sandboxUpgradeOperation } from './sandbox-actions.js';
+import { assertSandboxUpgradeValidator, sandboxActionId, sandboxOperationActions, sandboxPackageBuildId, sandboxUpgradeOperation } from './sandbox-actions.js';
 import { sandboxUiDeclaration } from './sandbox-ui.js';
 import { sandboxLocaleProblems } from './locale-declarations.js';
 
@@ -207,16 +207,42 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   assertSandboxUpgradeValidator(sandboxUpgradeFields(input), input.contract);
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
-  const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
-    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.trusted_review !== undefined
+  const actionIdentity = input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 };
+  const actions = input.contract && (input.contract.presentation !== undefined || input.contract.settings_entries !== undefined || input.contract.operations.some(operation =>
+    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.action_protocol !== undefined || operation.trusted_review !== undefined
     || operation.start !== undefined))
-    ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
+    ? sandboxOperationActions({ contract: input.contract, ...actionIdentity,
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project', dualInstance: input.runtime?.scope === 'home' && input.runtime.dual_instance === true,
       upgradeOperation: sandboxUpgradeOperation(sandboxUpgradeFields(input)), hasProjectDatabase: !!input.projectDatabase }) : undefined;
+  const workTerminals = input.contract?.operations
+    .filter(operation => operation.read_protocol?.kind === 'work_terminal_prompt')
+    .map(operation => ({
+      subject_kind: (operation.read_protocol as { kind: 'work_terminal_prompt'; subject_kind: string }).subject_kind,
+      prompt_action: sandboxActionId(actionIdentity.buildId, operation.id),
+    }));
+  const settingsEntries = (() => {
+    const declared = input.contract?.settings_entries;
+    if (!declared) return undefined;
+    const readOp = input.contract!.operations.find(op => op.id === declared.read_operation);
+    const writeOp = input.contract!.operations.find(op => op.id === declared.write_operation);
+    if (readOp?.action_protocol?.kind !== 'settings' || readOp.action_protocol.role !== 'read') {
+      throw pluginErrors.declaration_invalid('settings_entries.read_operation 必须指向合同中 action_protocol.kind=settings 且 role=read 的查询操作');
+    }
+    if (writeOp?.action_protocol?.kind !== 'settings' || writeOp.action_protocol.role !== 'write') {
+      throw pluginErrors.declaration_invalid('settings_entries.write_operation 必须指向合同中 action_protocol.kind=settings 且 role=write 的命令操作');
+    }
+    return {
+      entries: structuredClone(declared.entries),
+      read: { capability_id: sandboxActionId(actionIdentity.buildId, declared.read_operation), version: actionIdentity.version },
+      write: { capability_id: sandboxActionId(actionIdentity.buildId, declared.write_operation), version: actionIdentity.version },
+    };
+  })();
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     ...(actions ? { actions } : {}),
+    ...(workTerminals?.length ? { work_terminals: workTerminals } : {}),
+    ...(settingsEntries ? { settings_entries: settingsEntries } : {}),
     ...(input.contract?.presentation === undefined ? {} : { presentation: input.contract.presentation }),
     ...directoryFields(input.textDeclarations),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),

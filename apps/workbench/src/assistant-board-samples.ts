@@ -1,10 +1,12 @@
 import type { AssistantActivity, AssistantExecutorOffer, AssistantNotice, AssistantRecovery, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   BOARD_PROJECT, act, boardAnswered, boardDelegatedWorks, boardFinishedWorks, boardInterruptedWork, boardNotices, boardView, boardWork, round, type Iso,
 } from "./assistant-board-works.js";
 import { boardSampleText, type BoardSampleText } from "./assistant-board-text.js";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { drawCatalogText } from "./plugin-text.js";
+
+/** Sample executor id for the component board (never references a real plugin catalog entry). */
+const SAMPLE_EXECUTOR_PLUGIN_ID = "io.molis.work.example.workspace";
 
 /**
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host
@@ -41,12 +43,12 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
     text: "帮我安排一次试用复盘，材料在附件里",
     materials: [{ material_id: "m-notes", kind: "file", title: "试用记录.md", explicit: true }, { material_id: "m-board", kind: "image", title: "图片：白板.png", explicit: true }],
     turns: [{ turn_id: "t-plan-1", kind: "assistant", text: "看过试用记录和白板照片了：12 位试用者里有 7 位卡在第一次导入。要我按这个安排复盘吗？", at: at(46), sequence: 3 }],
-    activity: [act("c-p1", "read", "Feed · 读取条目", "completed", { capability_id: "feed.items.read", sequence: 1 }), act("c-p2", "lookup", "日程", "completed", { sequence: 2 })],
+    activity: [act("c-p1", "read", "Feed · 读取条目", "completed", { capability_id: "example.feed.items.read", sequence: 1 }), act("c-p2", "lookup", "日程", "completed", { sequence: 2 })],
   });
   const latest = round(at, "run-plan-2", 6, {
     text: "就周五上午吧，叫上王一骏和产品组", phase: "awaiting-review", ended_at: null,
-    materials: [{ material_id: "m-outline", kind: "object", title: "引用：首次使用记录汇总", explicit: true, object: { kind: "pages.doc", id: "doc-usage", title: "首次使用记录汇总" } }],
-    context: { source: { surface: "pages", title: "Pages" }, selection: { text: "首次使用卡住最久的三处" }, captured_at: at(6) },
+    materials: [{ material_id: "m-outline", kind: "object", title: "引用：首次使用记录汇总", explicit: true, object: { kind: "example.doc", id: "doc-usage", title: "首次使用记录汇总" } }],
+    context: { source: { surface: "example-docs", title: "Pages" }, selection: { text: "首次使用卡住最久的三处" }, captured_at: at(6) },
     activity: [
       act("c-p3", "lookup", "日程", "completed", { sequence: 1 }),
       act("c-p4", "read", "日程 · 查看空闲时间", "completed", { capability_id: "schedule.events.free", sequence: 2 }),
@@ -63,9 +65,9 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
       fields: [{ label: "时间", value: "周五 10:00–10:45" }, { label: "参加", value: "王一骏、产品组" }, { label: "地点", value: "待定" }] }],
     objects: [
       { relation: "result", subject: { kind: "artifact", id: "art-agenda" }, title: "试用复盘议程 v1", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: at(5), open: { surface: "artifacts", id: "art-agenda" } },
-      { relation: "result", subject: { kind: "pages.doc", id: "doc-outline" }, title: "试用复盘提纲", recorded_revision: "4", current_revision: "6", state: "changed", recorded_at: at(5), open: { surface: "pages", id: "doc-outline" } },
-      { relation: "material", subject: { kind: "pages.doc", id: "doc-usage" }, title: "首次使用记录汇总", recorded_revision: "2", current_revision: "3", state: "changed", recorded_at: at(6), open: { surface: "pages", id: "doc-usage" } },
-      { relation: "material", subject: { kind: "feed.item", id: "feed-week" }, title: "上周用户反馈", recorded_revision: "1", current_revision: null, state: "missing", recorded_at: at(48) },
+      { relation: "result", subject: { kind: "example.doc", id: "doc-outline" }, title: "试用复盘提纲", recorded_revision: "4", current_revision: "6", state: "changed", recorded_at: at(5), open: { surface: "example-docs", id: "doc-outline" } },
+      { relation: "material", subject: { kind: "example.doc", id: "doc-usage" }, title: "首次使用记录汇总", recorded_revision: "2", current_revision: "3", state: "changed", recorded_at: at(6), open: { surface: "example-docs", id: "doc-usage" } },
+      { relation: "material", subject: { kind: "example.feed.item", id: "feed-week" }, title: "上周用户反馈", recorded_revision: "1", current_revision: null, state: "missing", recorded_at: at(48) },
     ],
     undoable: [
       { undo_id: "u-todo", title: "Todo · 新建待办「订会议室」", state: "available", created_at: at(5) },
@@ -99,9 +101,9 @@ const CODE_ACTIVITY = [
   act("c-c5", "command", "pnpm test auth", "failed", { detail: "2 个用例失败：tests/session.test.ts", sequence: 5 }), act("c-c6", "file-change", "auth/session.ts", "completed", { sequence: 6 }),
 ];
 
-/** About code: Coding carries it, in a repository with a conflict; 「推进一步」 finishes the running command, then the round. */
+/** About code: an example plugin executor carries it, in a repository with a conflict; 「推进一步」 finishes the running command, then the round. */
 function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: AssistantWorkSurroundings } {
-  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "plugin", plugin_id: "io.molis.work.coding", title: "Coding", session_id: "cs-auth", mode: "execute" } });
+  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "plugin", plugin_id: SAMPLE_EXECUTOR_PLUGIN_ID, title: "Coding", session_id: "cs-auth", mode: "execute" } });
   const text = "登录要兼容旧的 session cookie，公开接口别动";
   const reply = "先读了 `auth/session.ts` 和 `auth/cookie.ts`：旧格式的 Cookie 叫 `session`，没有过期时间。改成先读 `sid`、再读旧的 `session`，过期时间按新的七天补上。";
   const step = (state: AssistantActivity["state"]) => act("c-c7", "command", "pnpm test auth", state, { sequence: 7 });
@@ -138,12 +140,13 @@ export function assistantBoardSamples(now: number, text: BoardSampleText = "zh")
   const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at), cut = boardInterruptedWork(at);
   const others = [...rest, cut.view, ...boardDelegatedWorks(at, plan.view.work)];
   const views = [coding.views[0]!, plan.view, ...others];
-  const codingManifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "coding")!.manifest;
-  const modes = drawCatalogText(codingManifest, resolve => ([
-    ["discuss", "coding.intent.discuss", "讨论"], ["plan", "coding.intent.plan", "规划"],
-    ["edit", "coding.executor.mode-edit", "修改"], ["execute", "coding.executor.mode-execute", "执行"],
-    ["review", "coding.intent.review", "评审"],
-  ] as const).map(([id, key, title]) => ({ id, title: resolve?.({ key, owner: codingManifest.plugin_id }, title) ?? title })));
+  const modes = ([
+    ["discuss", "workbench.assistant-board-samples.mode-discuss"],
+    ["plan", "workbench.assistant-board-samples.mode-plan"],
+    ["edit", "workbench.assistant-board-samples.mode-edit"],
+    ["execute", "workbench.assistant-board-samples.mode-execute"],
+    ["review", "workbench.assistant-board-samples.mode-review"],
+  ] as const).map(([id, key]) => ({ id, title: uiText.text(key) }));
   const sample = boardSampleText({
     project: { ...BOARD_PROJECT },
     works: views.map((view) => view.work),
@@ -156,6 +159,6 @@ export function assistantBoardSamples(now: number, text: BoardSampleText = "zh")
     recovery: { [cut.view.work.work_id]: cut.recovery },
     notices: boardNotices(at),
   }, text);
-  return { ...sample, executors: [{ plugin_id: codingManifest.plugin_id, title: "Coding", default_mode: "execute", session_kind: "coding_session",
-    modes, capability_ids: { "session.update": "coding.executor.session.update", "run.start": "coding.executor.run.start" } }] };
+  return { ...sample, executors: [{ plugin_id: SAMPLE_EXECUTOR_PLUGIN_ID, title: "Coding", default_mode: "execute", session_kind: "example_workspace_session",
+    modes, capability_ids: { "session.update": "example.workspace.session.update", "run.start": "example.workspace.run.start" } }] };
 }

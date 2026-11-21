@@ -1,3 +1,4 @@
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -203,6 +204,18 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
     }
   }
   return [...needed];
+}
+
+/** Look up an action definition from the generated built-in plugin registry without importing the plugin package. */
+export function registeredHostAction<I = unknown, O = unknown>(capabilityId: string, version?: number): ActionDefinition<I, O> | undefined {
+  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
+    for (const action of registration.manifest.actions ?? []) {
+      if (action.capability_id === capabilityId && (version === undefined || action.version === version)) {
+        return action as ActionDefinition<I, O>;
+      }
+    }
+  }
+  return undefined;
 }
 
 /** The registry Projects validates against, derived from what this build ships. */

@@ -1,8 +1,10 @@
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginEventType } from "@molis-ai/molis-work-contracts/platform/plugin-events";
-import { GIT_OPERATION_UPDATED_EVENT, GIT_FILE_CHANGED_EVENT, parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-export { GIT_FILE_CHANGED_EVENT, GIT_OPERATION_UPDATED_EVENT };
+/** Event ids owned by Git, living in this Plugin's own namespace (enforced by the Host). */
+export const GIT_OPERATION_UPDATED_EVENT = "io.molis.work.git.operation-updated";
+export const GIT_FILE_CHANGED_EVENT = "io.molis.work.git.file-changed";
 
 export interface GitOperationUpdate {
   workspace_id: string;

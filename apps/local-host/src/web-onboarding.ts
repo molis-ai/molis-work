@@ -1,12 +1,12 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindLocalWebAction, bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
+import { LOCAL_PERSON_ACTOR_ID, workItemPromotionRoleOf, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindLocalWebAction, bindLocalWebActions, bindLocalWebProjectAiActions, bindWebEntryActions } from "./local-web-actions.js";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/sessions";
 import { onboardingTakers, type OnboardingMaterialKind } from "./onboarding-takers.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { bindGoalsWebActions, registeredHostAction } from "./goal-callers.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -66,8 +66,16 @@ async function handleOnboardingInitialize(
         display_name: input.projectName,
         actor_id: LOCAL_PERSON_ACTOR_ID,
       });
-      // New projects no longer enable Goals by default (D1, PEQ-12); this explicit Goal-creating entry opts Goals in for the project.
-      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID });
+      const promotionTarget = (() => {
+        for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
+          const action = registration.manifest.actions?.find(item => workItemPromotionRoleOf(item.action) === "create");
+          if (action) return { projectPluginId: registration.project_plugin_id, action: action as ActionDefinition<Record<string, unknown>, { goal: { goal_id: string; title: string } }> };
+        }
+        return undefined;
+      })();
+      if (!promotionTarget) throw new Error("未登记可用的工作项创建插件");
+      // New projects enable no work-item plugin by default (D1, PEQ-12); this explicit onboarding flow opts the discovered provider in.
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: promotionTarget.projectPluginId, actor_id: LOCAL_PERSON_ACTOR_ID });
       const projectPath = `/projects/${encodeURIComponent(project.project_id)}/`;
       partialProjectPath = projectPath;
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
@@ -76,10 +84,8 @@ async function handleOnboardingInitialize(
         .replace(/\s+/gu, " ")
         .trim()
         .slice(0, 120) || input.projectName;
-      const createGoal = registeredHostAction<Record<string, unknown>, { goal: { goal_id: string; title: string } }>("goals.create");
-      if (!createGoal) throw new Error("Goals 插件未登记");
-      // The Web person's Goals call, behind this route's origin, control-token and key checks; Goals is a plugin of the project, which the client starts.
-      const createdGoal = (await bindGoalsWebActions(localHost, reference, request).invoke(createGoal, {
+      // The Web person's call behind this route's origin, control-token and key checks; the provider starts as a normal project plugin.
+      const createdGoal = (await bindWebEntryActions(localHost, reference, request).invoke(promotionTarget.action, {
         title,
         outcome: input.outcome,
         why: "把第一次表达的目标保存为可继续澄清的共同事实",

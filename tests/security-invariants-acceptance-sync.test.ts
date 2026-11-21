@@ -138,3 +138,83 @@ test("PEQ-16 a synced decision with an unvouched or non-trusted origin is refuse
   assert.throws(() => b.replica.resolve(forged.key, "remote"), /CHECK constraint failed/i);
   assert.equal(b.rows()[3], "[]", "even resolving as remote writes nothing");
 });
+
+test("S-acceptance-evidence-tier EVD-43: replicated checks and deliveries refuse forged tier/gap, missing or malformed evidence, oversized evidence arrays, and bad touches_json at both replica and SQLite CHECK layers", async t => {
+  const a = device(t), b = device(t), revision = { value: 0 };
+  a.service.set(PROVIDER, { subject: SUBJECT, requirements: [{ id: "r1", statement: "通过检查", requires_person: false }] });
+  await a.service.deliver(PROVIDER, { subject: SUBJECT, version: "v1" }, NO_EVIDENCE);
+  await a.service.report(PROVIDER, { subject: SUBJECT, reports: [{ requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "跑测试", observed: "通过" }] }, NO_EVIDENCE);
+  const first = a.replica.next()!;
+  send(a, b, revision);
+  // Build a fresh baseline payload with 1 valid self_reported check to mutate against a clean device c.
+  const basePayload = first.value as {
+    space_id: string; project_id: string; created_at: string;
+    requirements: Record<string, unknown>[]; deliveries: Record<string, unknown>[];
+    checks: Record<string, unknown>[]; decisions: Record<string, unknown>[];
+  };
+  const baseCheck = basePayload.checks[0]!;
+  assert.deepEqual([baseCheck.tier, baseCheck.gap], ["self_reported", null]);
+
+  const mutations: Array<[string, (value: typeof basePayload) => void]> = [
+    ["unknown tier", v => { v.checks[0]!.tier = "verified"; }],
+    ["unknown gap", v => { v.checks[0]!.gap = "whatever"; }],
+    ["unknown kind", v => { v.checks[0]!.kind = "manual"; }],
+    ["unknown verdict", v => { v.checks[0]!.verdict = "maybe"; }],
+    ["elevated tier with gap", v => {
+      v.checks[0]!.tier = "machine_checked"; v.checks[0]!.gap = "check_failed";
+      v.checks[0]!.reporter_session = "s-1"; v.checks[0]!.evidence_json = JSON.stringify([{ kind: "command_receipt", run_id: "r", call_id: "c" }]);
+    }],
+    ["machine_checked with empty evidence", v => {
+      v.checks[0]!.tier = "machine_checked"; v.checks[0]!.gap = null;
+      v.checks[0]!.reporter_session = "s-1"; v.checks[0]!.evidence_json = "[]";
+    }],
+    ["machine_checked without reporter_session", v => {
+      v.checks[0]!.tier = "machine_checked"; v.checks[0]!.gap = null;
+      v.checks[0]!.reporter_session = null; v.checks[0]!.evidence_json = JSON.stringify([{ kind: "command_receipt", run_id: "r", call_id: "c" }]);
+    }],
+    ["machine_checked with artifact only", v => {
+      v.checks[0]!.tier = "machine_checked"; v.checks[0]!.gap = null;
+      v.checks[0]!.reporter_session = "s-1"; v.checks[0]!.evidence_json = JSON.stringify([{ kind: "artifact_version", artifact_id: "a1", version: 1 }]);
+    }],
+    ["peer_reviewed with empty evidence", v => {
+      v.checks[0]!.tier = "peer_reviewed"; v.checks[0]!.gap = null;
+      v.checks[0]!.reporter_session = "s-2"; v.checks[0]!.evidence_json = "[]";
+    }],
+    ["peer_reviewed with command receipt", v => {
+      v.checks[0]!.tier = "peer_reviewed"; v.checks[0]!.gap = null;
+      v.checks[0]!.reporter_session = "s-2"; v.checks[0]!.evidence_json = JSON.stringify([{ kind: "command_receipt", run_id: "r", call_id: "c" }]);
+    }],
+    ["malformed evidence_json", v => { v.checks[0]!.evidence_json = "{not json"; }],
+    ["non-array evidence_json", v => { v.checks[0]!.evidence_json = "null"; }],
+    ["unknown evidence ref kind", v => { v.checks[0]!.evidence_json = JSON.stringify([{ kind: "file_change", path: "a.ts" }]); }],
+    ["artifact_version with version 0", v => { v.checks[0]!.evidence_json = JSON.stringify([{ kind: "artifact_version", artifact_id: "a1", version: 0 }]); }],
+    ["more than 8 evidence refs", v => {
+      v.checks[0]!.evidence_json = JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ kind: "command_receipt", run_id: "r", call_id: `c${i}` })));
+    }],
+    ["malformed touches_json on delivery", v => { v.deliveries[0]!.touches_json = "{bad"; }],
+    ["non-array touches_json on delivery", v => { v.deliveries[0]!.touches_json = "\"r1\""; }],
+  ];
+
+  for (const [label, mutate] of mutations) {
+    const c = device(t);
+    const mutated = structuredClone(basePayload);
+    mutate(mutated);
+    const event = { ...first, operationId: `evd43-${label}`, revision: 1, value: mutated };
+    c.replica.receive(event);
+    assert.equal(c.replica.conflicts().length, 1, `receive quarantined: ${label}`);
+    assert.throws(() => c.replica.resolve(event.key, "remote"), undefined, `resolve refused: ${label}`);
+    assert.equal(c.rows()[2], "[]", `no check written for: ${label}`);
+  }
+
+  // Direct SQLite INSERT bypassing replica is still rejected by schema CHECK constraints.
+  const d = device(t);
+  d.service.set(PROVIDER, { subject: SUBJECT, requirements: [{ id: "r1", statement: "通过检查", requires_person: false }] });
+  await d.service.deliver(PROVIDER, { subject: SUBJECT, version: "v1" }, NO_EVIDENCE);
+  const subjectNo = (d.store.db.prepare("SELECT subject_no FROM acceptance_subjects LIMIT 1").get() as { subject_no: number }).subject_no;
+  assert.throws(() => d.store.db.prepare(
+    "INSERT INTO acceptance_checks (check_id,subject_no,clock,requirement_id,requirement_version,round,kind,verdict,tier,gap,checked_version,method,observed,evidence_json,reporter_session,actor_id,reported_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).run("bad-tier", subjectNo, 1, "r1", 1, 1, "engineering", "supports", "machine_checked", null, "v1", "m", "o", "[]", "s-1", "a", at), /CHECK constraint failed/i);
+  assert.throws(() => d.store.db.prepare(
+    "INSERT INTO acceptance_checks (check_id,subject_no,clock,requirement_id,requirement_version,round,kind,verdict,tier,gap,checked_version,method,observed,evidence_json,reporter_session,actor_id,reported_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).run("bad-json", subjectNo, 2, "r1", 1, 1, "engineering", "supports", "self_reported", null, "v1", "m", "o", "{bad", null, "a", at), /CHECK constraint failed/i);
+});

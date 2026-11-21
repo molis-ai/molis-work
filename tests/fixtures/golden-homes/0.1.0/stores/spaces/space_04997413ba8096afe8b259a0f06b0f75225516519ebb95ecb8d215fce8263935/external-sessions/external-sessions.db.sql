@@ -90,7 +90,7 @@ CREATE TABLE session_suggestions (
   );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
 INSERT INTO "session_meta"("key","value") VALUES('binding_snapshot_digest','8277c508113f2293f83d4f12b59bbc8f');
-INSERT INTO "session_meta"("key","value") VALUES('directory_snapshot_digest','4487c5fd90f756ca2883644c95ab65fc');
+INSERT INTO "session_meta"("key","value") VALUES('directory_snapshot_digest','ef0d8a4836892d223fd64e5613f1d970');
 INSERT INTO "session_project_ai_reads"("project_id","allowed","revision","decided_by","decided_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c',0,2,'web-user','2026-01-15T09:00:00.000Z');
 CREATE INDEX external_sessions_activity_idx
     ON external_sessions (last_activity_at DESC, session_key ASC);

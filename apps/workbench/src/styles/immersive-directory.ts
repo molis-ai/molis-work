@@ -53,9 +53,6 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane p.artifact-empty { max-width: 32ch; margin: 0; font-size: 11px; line-height: 1.6; }
 
   body.immersive-workbench .tree-pane :is(.tree-footer, [data-tree-footer]) { display: none !important; }
-  body.immersive-workbench .tree-pane .inbox-filter-row { flex-wrap: nowrap; }
-  body.immersive-workbench .tree-pane .inbox-filter-row button { min-height: 26px; padding: 0 8px; border: 0; border-radius: 5px; font-size: 11px; cursor: pointer; color: var(--muted); background: transparent; }
-  body.immersive-workbench .tree-pane .inbox-filter-row button.is-active { color: var(--ink); background: var(--nav-active); }
   body.immersive-workbench .tree-pane .artifact-version-list .mw-dir-row,
   body.immersive-workbench .plugin-stage-list .artifact-version-list .feed-stage-entry { width: 100%; }
 
@@ -103,7 +100,6 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
     body.immersive-workbench .tree-pane .tree-node,
     body.immersive-workbench .tree-pane .tree-toggle { height: 40px; min-height: 40px; }
     body.immersive-workbench .tree-pane .tree-tool { width: 36px; height: 40px; min-height: 40px; }
-    body.immersive-workbench .tree-pane .inbox-filter-row button { min-height: 32px; }
   }
   @media (max-width: 760px) {
     body.immersive-workbench .feed-stage-entry {

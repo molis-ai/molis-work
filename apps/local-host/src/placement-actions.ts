@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ledgerDatabase } from "./context-ledger-database.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import {
   PLACEMENT_PROVIDER_ID, placementActions, placementAttachActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
@@ -92,7 +93,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     { ...placementActions.copy, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string; request_id: string }; return forCall(caller).copy(value.object, value.to_project_id, value.request_id); } },
     { ...placementActions.convert, handle: (caller, input) => forCall(caller).convert(input as PlacementConvertRequest) },
     { ...placementAttachActions.targets, handle: async (caller, input) => { const value = input as { project_id: string; object: PlacedObject }; return { kinds: await forCall(caller).attachTargets(value.project_id, value.object) }; } },
-    { ...placementAttachActions.attach, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string }; return forCall(caller).attach(value.object, value.project_id, value.target, value.read_revision); } },
+    { ...placementAttachActions.attach, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string; mode?: "live" | "fixed"; material_ref?: MaterialRef }; return forCall(caller).attach(value.object, value.project_id, value.target, value.read_revision, { ...(value.mode ? { mode: value.mode } : {}), ...(value.material_ref ? { material_ref: value.material_ref } : {}) }); } },
     { ...placementAttachActions.create, handle: (caller, input) => forCall(caller).create(input as PlacementCreateRequest) },
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "放置", kind: "system" },

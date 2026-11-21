@@ -70,10 +70,6 @@
       "reason": "接入本机的 Runtime 配置才写，要真实的 Runtime，生成时不碰本机配置"
     },
     {
-      "path": "runtime-integrations/<runtime>.json",
-      "reason": "接入本机的 Runtime 配置才写，要真实的 Runtime，生成时不碰本机配置"
-    },
-    {
       "path": "shelf/catalog.json.lock.sqlite",
       "reason": "只是互斥用的锁库，和目录文件写在同一行，用完就没有数据要回放"
     },
@@ -98,6 +94,7 @@
       "cases": [
         "goals.ts",
         "project-guidance.ts",
+        "acceptance.ts",
         "artifacts.ts",
         "coding.ts",
         "feed.ts",

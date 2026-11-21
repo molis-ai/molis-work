@@ -290,8 +290,10 @@ test("a page asked of a database that does not exist names the database the CLI 
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); rmSync(directory, { recursive: true, force: true }); });
   const response = await fetch(`http://127.0.0.1:${address.port}/goals`);
   assert.equal(response.status, 404);
-  // `molis-work v1 init` has no default database, so the hint carries the --db it needs.
+  // Missing database points at the current project creation entry rather than the removed v1 CLI command.
   const text = await response.text();
-  assert.ok(text.includes(`molis-work v1 init --db ${databasePath}`), text);
+  assert.ok(text.includes(databasePath), text);
+  assert.ok(text.includes("molis-work projects create"), text);
+  assert.ok(!text.includes("molis-work v1 init"), text);
   assert.equal(existsSync(databasePath), false, "asking for a page does not create the database");
 });

@@ -1,7 +1,10 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, bindActionHandler, definePlacementRelationAction, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding,
   type ActionSubject, type PlacementRelationResult } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ARTIFACTS_READ_PERMISSION, CONTEXT_LEDGER_WRITE_PERMISSION, usingServices } from "./action-contract.js";
 import { goalEntryActions, goalPluginActions } from "./contract/goal-actions.js";
+import { goalsArtifactInputActions } from "./deliverable-actions.js";
 import { goalsInputActions, type GoalBoundObject } from "./input-actions.js";
 
 /** The relation placement keeps for the person between any object and a Goal (「挂到…」, PG-032). */
@@ -23,8 +26,8 @@ const part = (title: string, description: string, permission: "goals:read" | "go
 export const goalsAttachActions = {
   list: definePlacementRelationAction(GOALS_ATTACH_RELATION, "list", "goals.attach.list", /* @version action.goals.attach.list */ 1,
     { ...part("资料挂在哪些目标上", "读取一个对象此刻挂在哪些目标上；只读。", "goals:read"), target: { kind: GOAL, noun: "Goal", noun_text: { key: "goals.attach.noun" } } }),
-  bind: authored(definePlacementRelationAction(GOALS_ATTACH_RELATION, "bind", "goals.attach.bind", /* @version action.goals.attach.bind */ 1,
-    part("挂到目标", "把一个对象挂到一个目标上，作为它的输入；不复制、不移动原对象，重复挂接不另加一条。", "goals:write"))),
+  bind: usingServices(authored(definePlacementRelationAction(GOALS_ATTACH_RELATION, "bind", "goals.attach.bind", /* @version action.goals.attach.bind */ 1,
+    part("挂到目标", "把一个对象挂到一个目标上，作为它的输入；不复制、不移动原对象，重复挂接不另加一条。", "goals:write"))), [CONTEXT_LEDGER_WRITE_PERMISSION, ARTIFACTS_READ_PERMISSION]),
   release: authored(definePlacementRelationAction(GOALS_ATTACH_RELATION, "release", "goals.attach.release", /* @version action.goals.attach.release */ 1,
     part("从目标取下", "把一个对象从一个目标的输入里取下；原对象不变。", "goals:write"))),
   candidates: definePlacementRelationAction(GOALS_ATTACH_RELATION, "candidates", "goals.attach.candidates", /* @version action.goals.attach.candidates */ 1,
@@ -51,6 +54,7 @@ export function createGoalsAttachActionHandlers(windowed: readonly ActionHandler
     return found.handle(caller, input);
   };
   const list = of(goalsInputActions.list), bind = of(goalsInputActions.bind), release = of(goalsInputActions.release);
+  const artifactAdd = of(goalsArtifactInputActions.add), artifactPin = of(goalsArtifactInputActions.pin);
   const directory = of(goalPluginActions.list), create = of(goalEntryActions.create);
   // The object itself as it follows its original; a fixed version of it (`ref`) is bound and taken off on the Goal's page, not here.
   const bindings = async (caller: ActionExecutionContext, subject: ActionSubject) => (await list(caller, { subject }) as { bindings: GoalBoundObject[] }).bindings
@@ -62,8 +66,24 @@ export function createGoalsAttachActionHandlers(windowed: readonly ActionHandler
   return [
     bindActionHandler(goalsAttachActions.list, (input, caller) => targets(caller, input.subject)),
     bindActionHandler(goalsAttachActions.bind, async (input, caller) => {
+      const goalId = goalOf(input.target);
+      if (input.material_ref) {
+        const title = input.read?.title.trim();
+        await bind(caller, { goal_id: goalId, ref: input.material_ref, ...(title ? { title } : {}) });
+        return { targets: [asGoal(goalId)] };
+      }
+      if (input.subject.kind === "artifact") {
+        const reference = parseArtifactSubjectId(input.subject.id);
+        if (!reference) throw new ActionError("actions.input_invalid", "成果引用格式不对");
+        await artifactAdd(caller, { goal_id: goalId, reference });
+        return { targets: [asGoal(goalId)] };
+      }
+      if (input.mode === "fixed") {
+        await artifactPin(caller, { goal_id: goalId, subject: input.subject });
+        return { targets: [asGoal(goalId)] };
+      }
       // What the person read goes with it: its title names the input, its revision tells later whether the original changed.
-      await bind(caller, { goal_id: goalOf(input.target), subject: input.subject, title: input.read?.title.trim() || input.subject.id,
+      await bind(caller, { goal_id: goalId, subject: input.subject, title: input.read?.title.trim() || input.subject.id,
         ...(input.read?.revision ? { read_revision: input.read.revision } : {}) });
       return targets(caller, input.subject);
     }),

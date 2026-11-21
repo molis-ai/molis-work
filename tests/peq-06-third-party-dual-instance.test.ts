@@ -185,6 +185,40 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
     (error: { code?: string }) => error?.code === "plugin.grant_denied",
     "S-48: project half cannot grant an optional permission that Home does not hold",
   );
+
+  // S-48 live ceiling tightening: enable network:request on Home + Project A, then revoke on Home -> Project A project.ping is immediately refused.
+  await served.web.post("/api/settings/plugin-permissions/set", {
+    install_id: homeInstall.install_id, permission: "network:request", granted: true,
+  });
+  await served.web.post(`/projects/${encodeURIComponent(projectA.project_id)}/api/plugin-trust/permissions/set`, {
+    install_id: projectAInstall.install_id, permission: "network:request", granted: true,
+  });
+  const viewsWithNetwork = await operationsOf(clientA, projectACaller, DUAL_PLUGIN_ID);
+  assert.equal(await operate(clientA, projectACaller, viewsWithNetwork, "project.ping", {}), "ok", "project.ping runs while both Home and Project A hold network:request");
+  await served.web.post("/api/settings/plugin-permissions/set", {
+    install_id: homeInstall.install_id, permission: "network:request", granted: false,
+  });
+  await assert.rejects(
+    operate(clientA, projectACaller, viewsWithNetwork, "project.ping", {}),
+    (error: { code?: string }) => ["actions.plugin_permission", "actions.forbidden", "actions.plugin_unavailable", "actions.missing"].includes(error?.code ?? ""),
+    "S-48: revoking Home optional permission immediately blocks Project A operation",
+  );
+  const viewsAfterNetworkRevoke = await operationsOf(clientA, projectACaller, DUAL_PLUGIN_ID);
+  assert.equal(viewsAfterNetworkRevoke.some(view => view.capability_id.endsWith(".project.ping") && view.availability.available), false,
+    "S-48: project.ping is no longer available after Home revokes network:request");
+  assert.deepEqual(await operate(clientA, projectACaller, viewsAfterNetworkRevoke, "project.list", {}), [{ id: "1", title: "task-in-A" }],
+    "project.list still works after Home revokes only network:request");
+
+  // Disabling Home half immediately stops and blocks Project A half; re-enabling Home half restores Project A half.
+  await served.web.post("/api/settings/plugin-permissions/disable", { plugin_id: DUAL_PLUGIN_ID });
+  assert.equal(h.host.homePlugins!.installation(DUAL_PLUGIN_ID)?.state, "disabled");
+  await assert.rejects(
+    operate(clientA, projectACaller, projectAViews, "project.list", {}),
+    "disabling Home half immediately blocks Project A operations",
+  );
+  await served.web.post("/api/settings/plugin-permissions/enable", { plugin_id: DUAL_PLUGIN_ID });
+  const viewsAfterEnable = await operationsOf(clientA, projectACaller, DUAL_PLUGIN_ID);
+  assert.deepEqual(await operate(clientA, projectACaller, viewsAfterEnable, "project.list", {}), [{ id: "1", title: "task-in-A" }], "re-enabling Home half restores Project A operations");
   await served.close();
 
   // S-48: turning off home-database:write on Home blocks home.add immediately.

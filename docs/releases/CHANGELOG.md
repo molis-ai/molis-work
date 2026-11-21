@@ -4,15 +4,16 @@
 
 ## [Unreleased]
 
-### 插件同等地位收口（2026-11-19，第 44 批）
+### 插件同等地位收口与合后独立复核整改（2026-11-19／11-20，第 44 批）
 
-- **删除桌面工作胶囊（PEQ-13）**：菜单栏的工作胶囊只画 Goals 的内容，整个删掉：Tauri 胶囊窗口与权限、宿主 `/desktop/capsule` 与 `/api/capsule` 路由、Goals 的胶囊投影，动作 `goals.capsule.menu.read@1` 出动作目录（`pnpm actions:update`）。菜单栏图标只留「打开／退出」。以后重做见 BL-capsule-redo。
-- **删除 CLI 的 Goals 命令（PEQ-15，D6b）**：CLI 写死的 7 个 Goals 动作与 `init`、`snapshot`、`active-goal`、`goal-tree-*` 命令删除，不改成通用命令、不留旧名；只留平台的 `review-request`／`review-decide`，CLI 不再建库。管理入口（CLI、管理 MCP）的受保护审阅改走登记的 `project.approvals.request.*` 动作。宿主交给命令行的端口只剩这两个审阅操作（H6），别的引用（包括 Goals 的动作）在发出前以 `actions.forbidden` 拒绝；管理 MCP 的 Goals 管理工具不变。
-- **删除 `goal-advance` Skill 与它的运行时接入（PEQ-14）**：安装不再发 `skills/goal-advance/`，Runtime 接入只写 MCP 条目。合同 `RuntimeIntegrationDetection` 与接入收据 `runtime-integrations/<runtime>.json`（v1）去掉 `skill_path`、`skill_target`。
-- **合同去插件化（第 1 项），通用引用、挂接与上手承接**：合同里不再有 Goal 一等概念（对象引用通用化 C2、C4、C6，等你的类型与原因由主人在 Manifest 申报 C8）；「挂到…」改成任何插件都能声明的放置关联 `placement_relation`（C1，`definePlacementRelationAction` 的五个部分，Goals 的 `goals.attach.*`）；接续摘要 `defineResumeSummaryAction`（C7），MCP 的项目连接按插件分节，`goal_url_template`、`next_goals` 与公开导出 `buildMcpResumeView` 去掉。能新建什么、能接收什么只在动作的 `intake` 声明一处；上手页把材料和摘要交给声明 `documents` 的插件（`pages.onboarding.documents@1`），把待办草稿交给声明 `drafts` 的插件（`todo.onboarding.draft/get/keep@1`）。
-- **平台能力归位（第 2、3、4 项）**：项目指导迁入 `modules/projects`（项目库 `guidance_entries`、`guidance_revisions` 与「项目长期说明」同步集合）；要求与认可迁入项目库 `acceptance_*` 表并补齐同步集合，Goals 要求经平台认可服务读改；工作终端服务通用化为声明 `work_terminals` 的对象终端（`POST /projects/:id/api/objects/terminals`）。
-- **宿主与工作台去私路、Goals 可移除与 PEQ-03 门禁（第 5、6、8 项）**：`apps/local-host`、`apps/workbench`、`packages/design-system` 零 Goals 私路，Goals 页面与样式归入 `plugins/native/goals`（独立 `goals.css`）；新增 PEQ-03「平台不 import 插件包」门禁（迁移例外列表为空）；新项目不再默认启用 Goals，工作台可按需添加与移除 Goals（移除后数据保留，重新添加恢复）；`examples/plugin-sample/` 补齐同等能力示例。
-- **存储（2026-11-19 发布前 v1 拍平，用户批准）**：跟随 main #2163 的发布前 v1 清理，将第 44 批新增/调整的项目指导、要求与认可、Inbox 开放约束、Goals 私有表与同步集合、放置边、上手旅程及接入收据全部拍平进干净 v1 基线，零迁移代码，并重新生成 `0.1.0` v1 金样。
+- **删除桌面工作胶囊（PEQ-13）**：菜单栏的工作胶囊只画 Goals 的内容，整个删掉：Tauri 胶囊窗口与权限、宿主 `/desktop/capsule` 与 `/api/capsule` 路由、Goals 的胶囊投影与 `goals.capsule.menu.read@1`（已从动作目录移除，`pnpm actions:update`）。菜单栏图标只留「打开／退出」。以后重做见 BL-capsule-redo。
+- **删除 CLI 的 Goals 命令（PEQ-15，D6b）**：CLI 写死的 7 个 Goals 动作与 `init`、`snapshot`、`active-goal`、`goal-tree-*` 命令删除，不改成通用命令、不留旧名；只留平台的 `review-request`／`review-decide`，CLI 不再建库。管理入口（CLI、管理 MCP）的受保护审阅统一走平台 `project.approvals.request.*` 与 `molis_work_v1_review_request`／`molis_work_v1_review_decide`（旧管理 MCP 的 Goals 专用决定工具已于第 39 批移除）。宿主交给命令行的端口只剩这两个审阅操作（H6），别的引用在发出前以 `actions.forbidden` 拒绝。
+- **删除 `goal-advance` Skill 与它的运行时接入（PEQ-14）**：安装不再发 `skills/goal-advance/`，Runtime 接入只写 MCP 条目。合同 `RuntimeIntegrationDetection` 与接入收据 `runtime-integrations/<runtime>.json`（`format.runtime.integration.receipt` v1）去掉 `skill_path`、`skill_target`。
+- **合同去插件化（第 1 项），通用引用、挂接与上手承接**：合同里不再有 Goal 一等概念（对象引用通用化 C2、C4、C6，等你的类型与原因由主人在 Manifest 申报 C8，工作区事件常量去 `io.molis.work.coding.*`/`io.molis.work.git.*` 前缀改为平台中性 `WORKSPACE_EXECUTION_*`/`WORKSPACE_VCS_*`）；「挂到…」改成任何插件都能声明的放置关联 `placement_relation`（C1，`definePlacementRelationAction` 的五个部分，Goals 的 `goals.attach.*`）；接续摘要 `defineResumeSummaryAction`（C7），MCP 的项目连接按插件分节，`goal_url_template`、`next_goals` 与公开导出 `buildMcpResumeView` 去掉。能新建什么、能接收什么只在动作的 `intake` 声明一处；上手页把材料和摘要交给声明 `documents` 的插件（`pages.onboarding.documents@1`），把待办草稿交给声明 `drafts` 的插件（`todo.onboarding.draft/get/keep@1`）。
+- **平台能力归位（第 2、3、4 项）**：项目指导迁入 `modules/projects`（项目库 `guidance_entries`、`guidance_revisions` 与「项目长期说明」同步集合）；要求与认可迁入项目库 `acceptance_*` 表（含 `replica.ts` 与 SQLite `CHECK` 双层守卫、`peer_reviewed` 成果核验及同步集合），Goals 要求经平台认可服务读改；工作终端服务通用化为声明 `work_terminals` 的对象终端（`GET|POST|DELETE /projects/:id/api/work-terminals/:pluginId/:kind/:id`），并在撤权、停用/隐藏、发布者撤销与对象删除时终止存活进程。
+- **宿主与工作台去私路、插件按需样式外置与第三方同等地位（第 5、6、8 项及 11-20 独立复核整改）**：彻底删除 `apps/local-host/src/web-goals-read.ts`、`apps/local-host/src/goal-callers.ts`、`apps/workbench/src/styles/goal-canvas.ts`、`packages/design-system/src/styles/momentum.ts` 与外壳 `goal-*` DOM 事件，清空 `HYBRID_RUNTIME_PLUGINS`，项目简介改走通用 `resume_summary`；Goals/Feed/Inbox 残余专属样式外置为按需插件 CSS（`goals.css`、`feed.css`、`inbox.css`），工作台三张共享样式表净减 141 KB；新增并收紧 PEQ-03「平台不 import 插件包」门禁（覆盖 `server`、相对路径与动态 import，迁移例外清零）与 `plugin-styles` 门禁（去除 `goals: 110` 硬编码特例）；新项目不再默认启用 Goals，工作台可按需添加与移除 Goals（移除后数据保留，重新添加恢复）；签名第三方沙箱包补齐 `dual_instance`（S-48 权限上限与停用联动）、`work_terminals`、`resume_summary`、`placement_relation`、`settings_entries`（含工作台动态设置发现）与 `plugins.data.*` 按项目隔离导出；`examples/plugin-sample/` 补齐同等能力示例。
+- **存储（2026-11-19／11-20 发布前 v1 拍平，用户批准）**：跟随 main #2163 的发布前 v1 清理，将第 44 批及合后整改涉及的项目指导、要求与认可（含 `CHECK` 约束）、Inbox 开放约束、Goals 私有表与同步集合、放置边、上手旅程及接入收据全部拍平进干净 v1 基线，零迁移代码，同版 v1 哈希登记于 `tooling/gates/schemas/same-version-exceptions.json`，并重新生成 `0.1.0` v1 金样（含 `acceptance` 写入与 `codex.json` 收据）。
+- **未完成/待验收**：**PEQ-11** 仍待一骏本人在真实界面走查添加、移除、再添加 Goals 的日常动线。
 
 ### 第 35 批合后复核修复
 

@@ -1,4 +1,4 @@
-import { WORK_GOAL_PROMOTION_PROTOCOL, type ActionDefinition, type ActionIntake, type ActionResultView, type InferActionInput, type WorkGoalPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
+import { WORK_ITEM_PROMOTION_PROTOCOL, type ActionDefinition, type ActionIntake, type ActionResultView, type InferActionInput, type WorkItemPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
 import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
@@ -139,6 +139,6 @@ export const goalEntryActions = {
     object({ binding: goalConfirmedInputSchema, replayed: boolean })), "inputs.confirm"),
 } as const;
 
-function withPromotionRole<I, O>(definition: ActionDefinition<I, O>, role: WorkGoalPromotionRole): ActionDefinition<I, O> {
-  return { ...definition, action: { ...definition.action, ...WORK_GOAL_PROMOTION_PROTOCOL[role] } };
+function withPromotionRole<I, O>(definition: ActionDefinition<I, O>, role: WorkItemPromotionRole): ActionDefinition<I, O> {
+  return { ...definition, action: { ...definition.action, ...WORK_ITEM_PROMOTION_PROTOCOL[role] } };
 }

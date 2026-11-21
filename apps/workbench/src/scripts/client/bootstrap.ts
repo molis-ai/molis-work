@@ -1,4 +1,5 @@
 import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
+import { pluginManifestIds } from "../../plugin-catalog.js";
 
 /** Page-local state: a saved directory from another version is not restored, and the page opens at the root. */
 const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state */ 1;
@@ -16,6 +17,7 @@ const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state *
  */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const readText = globalThis.t.text;
+    const pluginManifestIds = ${JSON.stringify(pluginManifestIds())};
     const q = (selector) => document.querySelector(selector);
     const goalData = q("#molis-work-data");
     let state = goalData ? JSON.parse(goalData.textContent) : { project: { project_id: document.body.dataset.projectId } };

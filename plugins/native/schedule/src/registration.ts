@@ -10,6 +10,11 @@ export const registration: PluginRegistration = {
   default_enabled: true,
   manifest: scheduleManifest,
   project_runtime: { create: createSchedulePlugin, package_name: "@molis-ai/molis-work-plugin-schedule", factory_export: "createSchedulePlugin" },
+  observation: {
+    coverage: [
+      { fact: `${scheduleManifest.plugin_id}.task_turn`, entries: ["plugin"], state: "complete" },
+    ],
+  },
   workbench: {
     order: 7,
     contributions: [scheduleUiContribution],

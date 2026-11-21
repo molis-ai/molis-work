@@ -51,27 +51,27 @@ export function documentGenerationRoleOf(action: TypedActionShape): DocumentGene
     && DOCUMENT_GENERATION_PROTOCOL[role].output_type === action.output_type) ?? null;
 }
 
-/** Role 4: Work-goal promotion target (3 roles discovered together on one provider). */
-export const WORK_GOAL_PROMOTION_ROLES = ["directory.read", "create", "inputs.confirm"] as const;
-export type WorkGoalPromotionRole = (typeof WORK_GOAL_PROMOTION_ROLES)[number];
+/** Role 4: Work-item promotion target (3 roles discovered together on one provider). */
+export const WORK_ITEM_PROMOTION_ROLES = ["directory.read", "create", "inputs.confirm"] as const;
+export type WorkItemPromotionRole = (typeof WORK_ITEM_PROMOTION_ROLES)[number];
 
-export const WORK_GOAL_PROMOTION_PROTOCOL: Record<WorkGoalPromotionRole, { readonly input_type: string; readonly output_type: string }> = {
+export const WORK_ITEM_PROMOTION_PROTOCOL: Record<WorkItemPromotionRole, { readonly input_type: string; readonly output_type: string }> = {
   "directory.read": {
-    input_type: /* @version type.molis.goal.promote.read.input "molis.goal.promote.read.input.v{version}" */ "molis.goal.promote.read.input.v1",
-    output_type: /* @version type.molis.goal.promote.read.output "molis.goal.promote.read.output.v{version}" */ "molis.goal.promote.read.output.v1",
+    input_type: /* @version type.molis.work.promote.read.input "molis.work.promote.read.input.v{version}" */ "molis.work.promote.read.input.v1",
+    output_type: /* @version type.molis.work.promote.read.output "molis.work.promote.read.output.v{version}" */ "molis.work.promote.read.output.v1",
   },
   "create": {
-    input_type: /* @version type.molis.goal.promote.create.input "molis.goal.promote.create.input.v{version}" */ "molis.goal.promote.create.input.v1",
-    output_type: /* @version type.molis.goal.promote.create.output "molis.goal.promote.create.output.v{version}" */ "molis.goal.promote.create.output.v1",
+    input_type: /* @version type.molis.work.promote.create.input "molis.work.promote.create.input.v{version}" */ "molis.work.promote.create.input.v1",
+    output_type: /* @version type.molis.work.promote.create.output "molis.work.promote.create.output.v{version}" */ "molis.work.promote.create.output.v1",
   },
   "inputs.confirm": {
-    input_type: /* @version type.molis.goal.promote.confirm.input "molis.goal.promote.confirm.input.v{version}" */ "molis.goal.promote.confirm.input.v1",
-    output_type: /* @version type.molis.goal.promote.confirm.output "molis.goal.promote.confirm.output.v{version}" */ "molis.goal.promote.confirm.output.v1",
+    input_type: /* @version type.molis.work.promote.confirm.input "molis.work.promote.confirm.input.v{version}" */ "molis.work.promote.confirm.input.v1",
+    output_type: /* @version type.molis.work.promote.confirm.output "molis.work.promote.confirm.output.v{version}" */ "molis.work.promote.confirm.output.v1",
   },
 };
 
-export function workGoalPromotionRoleOf(action: TypedActionShape): WorkGoalPromotionRole | null {
-  return WORK_GOAL_PROMOTION_ROLES.find(role =>
-    WORK_GOAL_PROMOTION_PROTOCOL[role].input_type === action.input_type
-    && WORK_GOAL_PROMOTION_PROTOCOL[role].output_type === action.output_type) ?? null;
+export function workItemPromotionRoleOf(action: TypedActionShape): WorkItemPromotionRole | null {
+  return WORK_ITEM_PROMOTION_ROLES.find(role =>
+    WORK_ITEM_PROMOTION_PROTOCOL[role].input_type === action.input_type
+    && WORK_ITEM_PROMOTION_PROTOCOL[role].output_type === action.output_type) ?? null;
 }

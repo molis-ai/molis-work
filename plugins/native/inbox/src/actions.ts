@@ -43,7 +43,7 @@ export interface InboxStageData {
   readonly judgment?: InboxJudgmentSummary;
   readonly judgments: readonly JudgmentRecord[];
 }
-export const INBOX_STAGE_GOAL_READ = { capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1, provider_id: "io.molis.work.goals" } as const;
+export const INBOX_STAGE_GOAL_READ = { capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1 } as const;
 
 /** Resolve only the names this stage needs; a missing subject never replaces the Inbox's original attention entry. */
 export async function readInboxStageSubjects(entries: readonly InboxActionEntry[], ports: {

@@ -11,7 +11,7 @@ export interface ClassificationShape {
   readonly operation?: string;
 }
 
-const FLOW_OWNERS = new Set(["io.molis.work.native.workflows", "workflows", "scheduler", "schedule", "connections"]);
+const FLOW_SERVICES = new Set(["workflows", "scheduler", "schedule", "connections"]);
 
 /**
  * Map one stored record to its user-facing record kind (contract-design §16.1, docs/design/work-records/data.js):
@@ -23,7 +23,7 @@ const FLOW_OWNERS = new Set(["io.molis.work.native.workflows", "workflows", "sch
  *
  * Keeping one pure classifier ensures space breakdown, query filtering and manual clean-up agree on every row.
  */
-export function classifyRecordKind(row: ClassificationShape): ObservationRecordKind {
+export function classifyRecordKind(row: ClassificationShape, flowOwners?: ReadonlySet<string>): ObservationRecordKind {
   const { owner_kind, owner_id, fact, entry, audience, source_class, provider_id, operation } = row;
   if (
     fact === "ui.candidates" || fact.startsWith("ui.candidates.")
@@ -34,8 +34,9 @@ export function classifyRecordKind(row: ClassificationShape): ObservationRecordK
   }
   if (
     entry === "workflow" || entry === "schedule" || entry === "background"
-    || (owner_id !== null && FLOW_OWNERS.has(owner_id))
-    || fact.startsWith("scheduler.") || fact.startsWith("connections.") || fact.startsWith("io.molis.work.native.workflows.")
+    || (owner_id !== null && (FLOW_SERVICES.has(owner_id) || Boolean(flowOwners?.has(owner_id))))
+    || fact.startsWith("scheduler.") || fact.startsWith("connections.")
+    || (owner_kind === "plugin" && (fact.endsWith(".step") || fact.endsWith(".step.action_result")))
   ) {
     return "flow";
   }
@@ -57,17 +58,19 @@ export function classifyRecordKind(row: ClassificationShape): ObservationRecordK
 }
 
 /** Classify a coverage row or gap (`owner` formatted as `"shell" | "service:<id>" | "plugin:<id>" | "observation"`). */
-export function classifyCoverageKind(owner: string, fact: string, entry: string): ObservationRecordKind {
+export function classifyCoverageKind(owner: string, fact: string, entry: string, flowOwners?: ReadonlySet<string>): ObservationRecordKind {
   const owner_kind = owner === "shell" ? "shell" : owner.startsWith("plugin:") ? "plugin" : "service";
   const owner_id = owner.includes(":") ? owner.slice(owner.indexOf(":") + 1) : null;
-  return classifyRecordKind({ owner_kind, owner_id, fact, entry });
+  return classifyRecordKind({ owner_kind, owner_id, fact, entry }, flowOwners);
 }
 
 /** Group a coverage entry or gap into the UI's three filter buckets (`entry`, `plugin`, `flow`). */
-export function classifyScopeGroup(owner: string, entry: string): "entry" | "plugin" | "flow" {
+export function classifyScopeGroup(owner: string, entry: string, flowOwners?: ReadonlySet<string>): "entry" | "plugin" | "flow" {
+  const ownerId = owner.startsWith("plugin:") ? owner.slice("plugin:".length) : null;
   if (
     entry === "schedule" || entry === "workflow" || entry === "background"
-    || owner === "service:scheduler" || owner === "service:connections" || owner === "plugin:io.molis.work.native.workflows"
+    || owner === "service:scheduler" || owner === "service:connections"
+    || (ownerId !== null && Boolean(flowOwners?.has(ownerId)))
   ) {
     return "flow";
   }

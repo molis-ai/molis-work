@@ -373,25 +373,23 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       choice("mode", "live", readText("workbench.placement.follow-original"), readText("workbench.placement.goal-sees-now"), true), choice("mode", "fixed", readText("workbench.placement.fix-version"), readText("workbench.placement.save-version-now-later-edits-original-don-t"), false));
     return set;
   };
-  // A version fixed now is still Goals' own route (batch 44 item 6 moves this dialog to Goals); following the object is 「挂到…」.
-  const takeAsInput = async (projectId, targetKind, goalId, object, fixed) => {
+  // Both following an object and fixing its current version flow through the generic placement_relation attach contract.
+  const takeAsInput = async (projectId, targetKind, targetId, object, fixed) => {
     const base = "/projects/" + encodeURIComponent(projectId), ask = (path, body) => molisWorkRequest(base + path, { body, fallback: readText("workbench.placement.input-was-not-recorded") });
-    // A file of the project's folders is read first: followed, the Goal keeps what was read so it can tell later that the original changed; fixed, that exact version is bound.
+    // A file of the project's folders is read first: followed, the target keeps what was read so it can tell later that the original changed; fixed, that exact snapshot is bound.
     const seen = object.kind === "workspace_file" ? (await ask("/api/materials/read", { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" })).read_revision : "";
-    if (!fixed && object.kind !== "artifact") { await api("attach", { object, project_id: projectId, target: { kind: targetKind, id: goalId }, ...(seen ? { read_revision: seen } : {}) }); return; }
+    if (!fixed && object.kind !== "artifact") { await api("attach", { object, project_id: projectId, target: { kind: targetKind, id: targetId }, ...(seen ? { read_revision: seen } : {}) }); return; }
     if (object.kind === "workspace_file") {
       const at = object.id.indexOf(":");
       if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(readText("workbench.placement.long-pin"));
       const { ref } = await ask("/api/materials/capture", { workspace_id: object.id.slice(0, at), path: object.id.slice(at + 1).split("/"), fingerprint: seen });
-      await ask("/api/plugins/io.molis.work.goals/goals/" + encodeURIComponent(goalId) + "/inputs", { action: "bind", ref });
+      await api("attach", { object, project_id: projectId, target: { kind: targetKind, id: targetId }, mode: "fixed", material_ref: ref });
       return;
     }
-    let body = { subject: { kind: object.kind, id: object.id }, used: true };
-    if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
-    await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/plugins/io.molis.work.goals/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:readText("workbench.placement.input-was-not-recorded")});
+    await api("attach", { object, project_id: projectId, target: { kind: targetKind, id: targetId }, mode: "fixed" });
   };
-  // 「加输入…」 on a Goal: anything this project lists among its files, chosen here and taken one of the two ways.
-  const addGoalInput = async (goalId) => {
+  // 「加输入…」 on an attach target: anything this project lists among its files, chosen here and taken one of the two ways.
+  const addGoalInput = async (targetId, targetKind = "goal") => {
     const read=path=>molisWorkRequest(route(path),{fallback:readText("workbench.placement.couldn-t-read-project-s-items")});
     const entries = [];
     try {
@@ -406,7 +404,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     dialog(readText("workbench.placement.add-input-goal"), readText("workbench.placement.versions-results-already-fixed-anything-else-can-follow"), [...rows, inputMode()], readText("workbench.placement.add"), async (data) => {
       const subject = JSON.parse(String(data.get("object") || "null"));
       if (!subject) throw new Error(readText("workbench.placement.choose-one-first"));
-      await takeAsInput(here(), "goal", goalId, { ...subject, project_id: here() }, data.get("mode") === "fixed");
+      await takeAsInput(here(), targetKind, targetId, { ...subject, project_id: here() }, data.get("mode") === "fixed");
       invalidate();
       card(readText("workbench.placement.added-goal-s-inputs"), data.get("mode") === "fixed" || subject.kind === "artifact" ? readText("workbench.placement.goal-uses-version") : readText("workbench.placement.goal-follows-original"), [], "done");
     });
@@ -488,16 +486,23 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       await takeAsInput(projectId, targetKind, goalId, view.object, data.get("mode") === "fixed");
       invalidate(); repaint();
       const goal = found.find((entry) => entry.project_id === projectId && entry.kind === targetKind && entry.goal_id === goalId);
-      // The Goal's materials are in its work view, not on the Frame canvas.
-      const openGoal = () => {
-        if (projectId === here()) { openItem("goals", goalId, goal ? goal.title : ""); if (host.openGoalWork) host.openGoalWork(); return; }
-        const url = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin);
-        url.searchParams.set("openPlugin", "goals"); url.searchParams.set("openItem", goalId); url.searchParams.set("openView", "work");
-        if (goal) url.searchParams.set("openTitle", goal.title);
-        location.assign(url.pathname + url.search);
+      const openTarget = async () => {
+        try {
+          const next = await describe({ kind: targetKind, id: goalId, project_id: projectId }, false), open = next?.open;
+          if (!open) return;
+          if (open.surface === "goals") {
+            if (projectId === here()) { openItem(open.surface, open.id, goal ? goal.title : ""); host.openGoalWork?.(); return; }
+            const u = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin), q = u.searchParams;
+            q.set("openPlugin", open.surface); q.set("openItem", open.id); q.set("openView", "work");
+            if (goal) q.set("openTitle", goal.title);
+            location.assign(u.pathname + u.search);
+            return;
+          }
+          openObject(open, goal ? goal.title : next.title);
+        } catch { /* no-op */ }
       };
       card(readText("workbench.placement.linked-goal-goal", { goal: goal ? goal.title : "" }), readText("workbench.placement.open-goal-s-inputs-where-s-stored-doesn"),
-        [{ label: readText("workbench.placement.open-goal"), primary: true, run: openGoal }], "done");
+        [{ label: readText("workbench.placement.open-goal"), primary: true, run: () => { void openTarget(); } }], "done");
     });
   };
   const paintMaterials = () => {
@@ -549,7 +554,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   document.addEventListener("click", (event) => {
     const add = event.target.closest && event.target.closest("[data-goal-input-add]");
-    if (add && here()) { event.preventDefault(); void addGoalInput(add.dataset.goalId); }
+    if (add && here()) { event.preventDefault(); void addGoalInput(add.dataset.goalId, add.dataset.placementTargetKind || "goal"); }
     // An input leaves the Goal, or a proposed one is accepted; the button carries the request and the words for a failure.
     const act = event.target.closest && event.target.closest("[data-goal-input-post]");
     if (act && here()) {

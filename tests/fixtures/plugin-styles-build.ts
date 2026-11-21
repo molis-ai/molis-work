@@ -6,7 +6,7 @@ const BUDGET = "tooling/gates/plugin-styles.json";
 const workbenchEntry = import.meta.resolve("@molis-ai/molis-work-app-workbench");
 export const PREFIX_SHEET = ".probe-private{opacity:1}.probe-shared{color:red}.legacy-card{display:grid}";
 
-// Only the registered data and Goals' empty style constants are synthetic. Both splitOf/on-demand selection and the gate's
+// Only the registered data is synthetic. Both splitOf/on-demand selection and the gate's
 // counting splitter come from this checkout's public built workbench entry; no copy of either production algorithm lives here.
 export function pluginStylesBuildFixture(parent: string) {
   const root = mkdtempSync(path.join(parent, "prefix-build-"));
@@ -29,7 +29,6 @@ export function pluginStylesBuildFixture(parent: string) {
   };
   put("package.json", '{"type":"module","private":true}\n');
   put("apps/workbench/dist/plugin-styles.js", `export { splitPluginStylesheet } from ${JSON.stringify(workbenchEntry)};\n`);
-  put("plugins/native/goals/dist/index.js", 'export const GOALS_DOCUMENT_STYLES = "", TRASH_GOAL_STYLES = "";\n');
   writeBuild();
   writeBudget({ probe: 1 });
   git("init", "-q", "-b", "main");

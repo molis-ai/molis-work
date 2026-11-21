@@ -50,10 +50,10 @@ export function boardFinishedWorks(at: Iso): AssistantWorkView[] {
   })]);
   const failed = boardView(boardWork(at, "board-digest", "整理上周的 Feed 摘要", "failed", 25, { scope: { kind: "personal" }, scope_title: undefined }), [round(at, "run-digest-1", 30, {
     text: "把上周 Feed 里和试用有关的整理成摘要", phase: "failed", stop_reason: "模型服务暂时不可用", model: { model_id: "MiniMax-M2" },
-    activity: [act("c-d1", "read", "Feed · 读取条目", "completed", { capability_id: "feed.items.read", sequence: 1 }), act("c-d2", "read", "Feed · 读取全文", "failed", { capability_id: "feed.items.content", detail: "来源返回 503", sequence: 2 }),
+    activity: [act("c-d1", "read", "Feed · 读取条目", "completed", { capability_id: "example.feed.items.read", sequence: 1 }), act("c-d2", "read", "Feed · 读取全文", "failed", { capability_id: "example.feed.items.content", detail: "来源返回 503", sequence: 2 }),
       // A refusal the platform classified (user 2026-10-23 ⑤): said in plain words, the runtime's own text one fold down.
-      act("c-d3", "change", "Pages · 新建摘要文档", "failed", { capability_id: "pages.docs.create", sequence: 3, failure: { kind: "invalid", fields: [{ path: "/", rule: "additionalProperties" }] },
-        detail: 'Hook "molis-action-gateway-pages" blocked "change-reversible": actions.input_invalid: 输入不符合能力合同：/ additionalProperties' })],
+      act("c-d3", "change", "Pages · 新建摘要文档", "failed", { capability_id: "example.docs.create", sequence: 3, failure: { kind: "invalid", fields: [{ path: "/", rule: "additionalProperties" }] },
+        detail: 'Hook "molis-action-gateway-example-docs" blocked "change-reversible": actions.input_invalid: 输入不符合能力合同：/ additionalProperties' })],
   })]);
   const stopped = boardView(boardWork(at, "board-deps", "检查依赖更新", "stopped", 70), [round(at, "run-deps-1", 75, {
     text: "看看哪些依赖可以升级", phase: "stopped", stop_reason: "你停止了这一轮",
@@ -61,9 +61,9 @@ export function boardFinishedWorks(at: Iso): AssistantWorkView[] {
   })]);
   const done = boardView(boardWork(at, "board-weekly", "写本周周报", "completed", 12), [round(at, "run-weekly-1", 20, {
     text: "按本周完成的待办写一份周报",
-    activity: [act("c-w1", "read", "Todo · 列出本周完成", "completed", { capability_id: "todo.items.list", sequence: 1 }), act("c-w2", "change", "Pages · 新建文档", "completed", { capability_id: "pages.docs.create", sequence: 2 })],
+    activity: [act("c-w1", "read", "Todo · 列出本周完成", "completed", { capability_id: "example.todo.items.list", sequence: 1 }), act("c-w2", "change", "Pages · 新建文档", "completed", { capability_id: "example.docs.create", sequence: 2 })],
     turns: [said(at, "t-weekly-1", 13, "周报写在「本周周报」里了：完成 9 项，2 项顺延到下周。", 3)],
-  })], { objects: [{ relation: "result", subject: { kind: "pages.doc", id: "doc-weekly" }, title: "本周周报", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: at(13), open: { surface: "pages", id: "doc-weekly" } }] });
+  })], { objects: [{ relation: "result", subject: { kind: "example.doc", id: "doc-weekly" }, title: "本周周报", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: at(13), open: { surface: "example-docs", id: "doc-weekly" } }] });
   return [asking, failed, stopped, done];
 }
 
@@ -95,7 +95,7 @@ export function boardInterruptedWork(at: Iso): { view: AssistantWorkView; recove
   const work = boardWork(at, "board-sync", "把复盘结论同步给产品组", "needs-check", 40);
   const cut = round(at, "run-sync-1", 42, {
     text: "把复盘结论发给产品组，再建一个跟进待办", phase: "unknown", ended_at: null,
-    activity: [act("c-y1", "change", "Todo · 新建待办「复盘跟进」", "completed", { capability_id: "todo.items.create", sequence: 1 }),
+    activity: [act("c-y1", "change", "Todo · 新建待办「复盘跟进」", "completed", { capability_id: "example.todo.items.create", sequence: 1 }),
       act("c-y2", "change", "Mail · 发送邮件给产品组", "unknown", { capability_id: "mail.messages.send", sequence: 2 })],
   });
   const view = boardView(work, [cut], { problem: { message: "上一轮在窗口关闭时中断了，有的步骤不知道做没做成。" } });
@@ -113,7 +113,7 @@ export function boardNotices(at: Iso): AssistantNotice[] {
   return [
     notice("n-plan", "needs-decision", "board-plan", "安排试用复盘", "「安排试用复盘」等你确认创建日程", 4),
     notice("n-digest", "failed", "board-digest", "整理上周的 Feed 摘要", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", 25),
-    notice("n-room", "reminder", "", "Todo", "到时间了：订会议室", 1, { open: { surface: "todo", id: "todo-room", title: "订会议室", project_id: BOARD_PROJECT.id } }),
+    notice("n-room", "reminder", "", "Todo", "到时间了：订会议室", 1, { open: { surface: "example-todo", id: "todo-room", title: "订会议室", project_id: BOARD_PROJECT.id } }),
     notice("n-weekly", "completed", "board-weekly", "写本周周报", "「写本周周报」完成了", 12),
     notice("n-review", "material", "board-coding", "登录兼容旧的 session cookie", "GitHub 上有 1 条和「登录兼容旧的 session cookie」有关的新评论", 9, { held: { rule_id: "rule-focus", reason: "专注到 17:00" } }),
   ];

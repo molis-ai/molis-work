@@ -33,7 +33,10 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         void loadGoalDocument(goalId).then((loaded) => {
           if (loaded) {
             document.dispatchEvent(new CustomEvent("molis-work:record-document-loaded", { detail: { recordId: goalId } }));
-            document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-ready", { detail: { pluginId: "io.molis.work.goals", subjectKind: "goal", subjectId: goalId } }));
+            const tui = document.querySelector("[data-tui-pane]");
+            const pluginId = tui?.dataset.tuiPluginId || PLUGIN_MANIFEST_IDS.goals || "";
+            const subjectKind = tui?.dataset.tuiSubjectKind || "goal";
+            if (pluginId && subjectKind) document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-ready", { detail: { pluginId, subjectKind, subjectId: goalId } }));
           }
         }).finally(() => { if (loadingGoalId === goalId) loadingGoalId = null; });
       }

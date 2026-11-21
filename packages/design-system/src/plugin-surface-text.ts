@@ -42,7 +42,7 @@ export function sandboxUiTextRefs(contract: SandboxPluginContract, parts: readon
     if (deriveFieldWords) for (const binding of [read, submit]) for (const [field, input] of Object.entries(binding?.input ?? {})) {
       if (input.source !== 'form') continue;
       // Form fields bind only ordinary operations; a platform read protocol is never a component's binding.
-      const operation = contract.operations.find((row): row is SandboxDataOperation => row.id === binding!.operationId && row.read_protocol === undefined)!;
+      const operation = contract.operations.find((row): row is SandboxDataOperation => row.id === binding!.operationId && row.read_protocol === undefined && row.action_protocol === undefined)!;
       refs.push(...Object.values(pluginFieldWords(contract, operation.id, field, operation.input.properties![field]!, true)));
     }
   }

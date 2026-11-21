@@ -30,42 +30,9 @@ export const DETAIL_READING_STYLES = `
   body[data-desktop-shell="true"] .inbox-attention-context dl > div { padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; }
   body[data-desktop-shell="true"] .inbox-attention-context dt { color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); line-height: 1.55; }
   body[data-desktop-shell="true"] .inbox-attention-context dd { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
-  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next { order: -1; padding: 0 0 16px; }
-  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dt { color: var(--blue-dark); font-weight: var(--weight-control, 500); }
-  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dd { color: var(--ink); font-size: 13px; font-weight: 400; line-height: 1.5; }
-  .inbox-next-config { margin: 0 0 12px; font-size: 13px; }
-  .inbox-next-config > summary {
-    display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: var(--radius-item, 8px);
-    list-style: none; cursor: pointer; color: var(--muted); font-size: 12px;
-  }
-  .inbox-next-config > summary::-webkit-details-marker, .inbox-next-config > summary::marker { display: none; }
-  .inbox-next-config > summary:hover { color: var(--ink); background: var(--nav-hover); }
-  .inbox-next-config:not([open]) > summary .goal-collection-caret svg { transform: rotate(-90deg); }
-  .inbox-next-config > :not(summary) { margin-left: 32px; }
-  .inbox-next-config p { margin-top: 8px; margin-bottom: 8px; overflow-wrap: anywhere; color: var(--ink-soft); }
-  .inbox-next-config button { margin: 4px 4px 0 0; white-space: normal; }
-  .inbox-next-suggestion { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; }
-  .inbox-next-suggestion small { color: var(--muted); }
-  .inbox-compose-trigger { align-self: flex-start; }
-  .inbox-compose-dialog { width: min(640px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 0; border-radius: 16px; background: var(--paper); color: var(--ink); box-shadow: var(--lift-3); }
-  .inbox-compose-dialog::backdrop { background: var(--scrim); }
-  .inbox-compose-dialog form { display: grid; gap: 16px; }
-  .inbox-compose-dialog header, .inbox-compose-dialog footer, .inbox-compose-result { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .inbox-compose-dialog h2, .inbox-compose-dialog p { margin: 0; }
-  .inbox-compose-dialog h2 { font-size: 15px; font-weight: var(--weight-title, 600); }
-  .inbox-compose-dialog form > label { display: grid; gap: 8px; }
-  .inbox-compose-dialog :is(.mw-input, .mw-textarea) { width: 100%; }
-  .inbox-compose-dialog fieldset { max-height: 230px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-  .inbox-compose-dialog fieldset label { display: flex; gap: 12px; padding: 8px 0; line-height: 1.5; }
-  .inbox-compose-dialog fieldset input { flex: none; align-self: start; margin-top: 4px; }
-  .inbox-compose-dialog [role=status] { color: var(--muted); font-size: 13px; }
-  .inbox-compose-result { padding: 12px 0; border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
-  .inbox-compose-result button { flex: none; }
-  body.immersive-workbench .tab-pane-body > :is([data-inbox-workbench], .immersive-artifact-surface) { overflow: hidden; padding: 0; }
+  body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { overflow: hidden; padding: 0; }
   body.immersive-workbench .inbox-reference-detail { height: 100%; min-height: 0; max-width: 920px; padding: 0; display: flex; flex-direction: column; border-radius: 0; box-shadow: none; }
   body.immersive-workbench .inbox-reference-detail > .feed-detail-header { flex: none; padding: 8px 24px 8px; }
-  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header { width: 100%; max-width: none; }
-  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header h1 { width: 100%; max-width: none; }
   body.immersive-workbench .inbox-reference-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 24px; }
   body.immersive-workbench .inbox-reference-detail h1 { margin: 0; font-size: 20px; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
   body.immersive-workbench .inbox-reference-footer { flex: none; padding: 4px 24px 12px; border: 0; border-bottom: 1px solid var(--line); background: var(--paper); }
@@ -108,4 +75,19 @@ export const DETAIL_READING_STYLES = `
     body.immersive-workbench .immersive-artifact-surface .artifact-actions span { flex: 1; min-width: 120px; font-size: 11px; }
     body.immersive-workbench .artifact-export { display: inline-flex; align-items: center; min-height: 44px; }
   }
+
+  .frame-reading { display: grid; gap: 12px; }
+  .frame-reading h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.015em; line-height: 1.35; overflow-wrap: anywhere; }
+  .frame-reading-meta { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .frame-reading .feed-rich-content { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+  .frame-reading .feed-rich-content p { margin: 0 0 .7em; }
+  .frame-reading .feed-rich-content p:last-child { margin-bottom: 0; }
+  .frame-reading-link { margin: 0; font-size: 12px; }
+  .frame-reading-link a { color: var(--blue-dark); text-underline-offset: 3px; }
+  .frame-reading dl { display: grid; gap: 12px; margin: 0; }
+  .frame-reading dl > div { display: grid; gap: 4px; }
+  .frame-reading dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .frame-reading dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+  .frame-reading .artifact-facts { display: grid; gap: 8px; margin: 0; font-size: 13px; line-height: 1.6; }
+  .frame-reading .artifact-facts p { margin: 0; }
 `;

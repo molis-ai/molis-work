@@ -1,6 +1,6 @@
 # 目标用例与原生界面
 
-Goals 是每个项目都带的内置插件，是 Goal 的产品 owner；Goal 事实本身由本包的 `src/module/` 保存（见 [SSOT-MATRIX](../../../docs/SSOT-MATRIX.md)），本插件在它之上组合。它把 Goal 的当前约定、要求、工作记录和可信决定组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面；其他插件经它公开的动作读取，不碰它的存储。
+Goals 是普通的内置项目插件（新项目不默认安装、可按需添加与移除，移除后数据保留、重新添加恢复），是 Goal 的产品 owner；Goal 事实本身由本包的 `src/module/` 保存（见 [SSOT-MATRIX](../../../docs/SSOT-MATRIX.md)），本插件在它之上组合。它把 Goal 的当前约定、工作事件历史、关系图与结构提案组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面；项目指导、可信决定、要求与认可、对象工作终端均已归平台能力，Goals 仅作消费方；其他插件经它公开的动作读取，不碰它的存储。
 
 包名：`@molis-ai/molis-work-plugin-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -56,7 +56,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 
 查询需要 `goals:read`，普通工作写入需要 `goals:write`；MCP 客户端须显式授权精确动作。输入不接受 project、actor 或权限，Host 从项目与调用上下文绑定。有幂等合同的写入沿用原事务及 idempotency key，各入口读写同一记录；记录便笺不代表完成目标或作出用户决定。输出合同包含完整类型定义、报告原文和历史状态字段。
 
-对应 typed Capability、Coding 目标目录/状态/进展、项目恢复目录与焦点查询、Web 创建/便笺/工作操作/状态/事件/历史及首页胶囊目录已经转调统一动作。MCP 只经动作工具（`molis_work_v1_action_goals.<动作>__v1`）调用 Goals，逐客户端授权、由常驻 Host 执行；旧的 30 个兼容名称已删除（#269），不再有通过名称指定数据库或自填作者的入口。Runtime 的写入保留可信 Runtime Session 作者及原幂等域，其他调用保留客户端作者；权限始终按客户端与项目判断。可信调用者未记录 actor kind 时保持未知分类，不补写成用户身份。
+对应 typed Capability、Coding 目标目录/状态/进展、项目恢复目录与焦点查询、Web 创建/便笺/工作操作/状态/事件/历史已经转调统一动作（桌面胶囊与 `goals.capsule.menu.read@1` 已于第 44 批删除）。MCP 只经动作工具（`molis_work_v1_action_goals.<动作>__v1`）调用 Goals，逐客户端授权、由常驻 Host 执行；旧的 30 个兼容名称已删除（#269），不再有通过名称指定数据库或自填作者的入口。Runtime 的写入保留可信 Runtime Session 作者及原幂等域，其他调用保留客户端作者；权限始终按客户端与项目判断。可信调用者未记录 actor kind 时保持未知分类，不补写成用户身份。
 
 Coding 的进展回执查询也转入统一动作，保留原保存回执和重启恢复行为。进展附带的成果来源是提交者的引用，不表示系统已验证成果内容，也不构成用户授权。
 
@@ -98,8 +98,8 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
 
 问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求。要求修改沿事件表单，项目默认沿统一授权管理页。
 
-- 负责：Goals 的导航、界面、命令与组合，以及 Goals 与 Governance 的项目私有表声明（Manifest 的 `databases.project`、`src/project-database.ts`，S8、PG-020）。`src/module/` 拥有 Goal 约定、要求、工作事件、关注项、关系图、规则生效计算、生命周期、项目指导、关系图检查与影响分析。`src/governance/` 拥有 Goal Tree 结构提案和物化结果。
-- 不负责：平台拥有审批规则、可信决定记录和终端进程。Goals 提供工作终端动作与推进提示（`src/terminal-actions.ts`）。拆解与规划方法归自带技能包（`plugins/content/planning-methods`），由助理选用。Goals 支持跨模块来源引用。Artifact、Project 与 Session 的事实归各自主人。Goals 的项目表读写登记见 `tooling/gates/table-owners.json`。
+- 负责：Goals 的导航、界面、按需样式（`goals.css`）、命令与组合，以及 Goals 与 Governance 的项目私有表声明（Manifest 的 `databases.project`、`src/project-database.ts`，S8、PG-020）。`src/module/` 拥有 Goal 约定、工作事件历史、关注项、关系图、规则生效计算、生命周期、关系图检查与影响分析。`src/governance/` 拥有 Goal Tree 结构提案和物化结果。
+- 不负责：平台拥有项目指导（`modules/projects`）、审批规则与可信决定记录（`horizontal/project-approvals`）、要求与认可（`modules/acceptance`）以及对象工作终端（平台 `work_terminals` 声明与 `/api/work-terminals/:pluginId/:kind/:id`，原 `src/terminal-actions.ts` 与 Goals 终端路由已于第 44 批删除）。拆解与规划方法归自带技能包（`plugins/content/planning-methods`），由助理选用。Goals 支持跨模块来源引用。Artifact、Project 与 Session 的事实归各自主人。Goals 的项目表读写登记见 `tooling/gates/table-owners.json`。
 - 公开入口：`@molis-ai/molis-work-plugin-goals`。Goal、事件、状态、动作和治理协作的类型与 schema 在 `@molis-ai/molis-work-plugin-goals/contract`，平台合同在 `@molis-ai/molis-work-contracts/platform/plugin`。CLI、MCP、Coding、Feed 按动作 id 与版本调用，按需就地声明字段。宿主与工作台沿现有依赖边界取类型。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：

@@ -3,24 +3,23 @@ import { HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type PluginMan
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
-  CODING_RUN_UPDATED_EVENT,
-  GIT_OPERATION_UPDATED_EVENT,
-  CODING_FILE_CHANGED_EVENT,
-  CODING_WORKSPACE_INVALIDATED_EVENT,
   DIFF_CHANGESET_SCHEMA_VERSION,
   DIFF_CHANGESET_TYPE,
-  GIT_FILE_CHANGED_EVENT,
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
   workspaceReadActions,
   prepareGitIndexCapability,
   readGitResultsCapability, prepareGitOperationCapability, readGitOperationsCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { GIT_FILE_CHANGED_EVENT, GIT_OPERATION_UPDATED_EVENT } from "./events.js";
 import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export const GIT_PLUGIN_ID = "io.molis.work.git";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
+const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
+const CODING_FILE_CHANGED_EVENT = "io.molis.work.coding.file-changed";
+const CODING_WORKSPACE_INVALIDATED_EVENT = "io.molis.work.coding.workspace-invalidated";
 /** What the project database stores for this Plugin. */
 export const GIT_PROJECT_PLUGIN_ID = "git";
 

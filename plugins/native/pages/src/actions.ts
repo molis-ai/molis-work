@@ -1,4 +1,4 @@
-import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
+import { objectSchema as object, arraySchema as array, createActionDefinition, type InferActionInput } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, DOCUMENT_GENERATION_PROTOCOL, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -27,6 +27,7 @@ import { createPagesDocument, type CreatedPagesDocument } from "./create-documen
 import { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { pagesPresentationValues, PAGES_FOLDER_KIND, PAGES_SUBJECT_KIND } from "./presentation.js";
 import { pagesDelegations } from "./delegation.js";
+import { comparePagesFixedVersions, type PagesFixedVersion, type PagesVersionDiffResult } from "./version-diff.js";
 export { PAGES_FOLDER_KIND, PAGES_SUBJECT_KIND } from "./presentation.js";
 
 const text = { type: "string" };
@@ -67,6 +68,19 @@ const writeFields = { ...fields,
 const files = { ...array(object({ name: text, data: text })), minItems: 1, maxItems: 100 };
 const prepared = object({ documents: array(object({ key: id, name: text, title: text, body, warnings: array(text) })), warnings: array(text) });
 const version = { type: "integer", minimum: 1 };
+const fixedVersion = { ...version, maximum: Number.MAX_SAFE_INTEGER, type: "integer" } as const;
+const artifactDiffInput = object({ id: { ...id, type: "string" } as const, before_version: fixedVersion, after_version: fixedVersion },
+  ["id", "before_version", "after_version"] as const);
+const nullableIndex = { type: ["integer", "null"], minimum: 1 };
+const nullableText = { type: ["string", "null"] };
+const count = { type: "integer", minimum: 0 };
+const artifactDiffOutput = object({
+  page_id: id, before_version: fixedVersion, after_version: fixedVersion, before_title: text, after_title: text,
+  title_changed: { type: "boolean" }, identical: { type: "boolean" },
+  summary: object({ equal: count, modified: count, added: count, removed: count }),
+  paragraphs: array(object({ kind: { enum: ["equal", "modified", "added", "removed"] },
+    block_kind: text, before_index: nullableIndex, after_index: nullableIndex, before_text: nullableText, after_text: nullableText })),
+});
 const snapshot = object({ entry_id: id, item_id: id, revision: version, title: text, body: text, url: { type: ["string", "null"] }, source_label: text, captured_at: text, provenance: array({ type: "object" }) });
 const generation = object({ request_id: id, project_id: id, request_hash: id, status: { enum: ["running", "failed", "completed"] }, document_id: { type: ["string", "null"] }, inputs: array(snapshot), instructions: text, title: text, error: { type: ["string", "null"] }, updated_at: text });
 const requestIdentity = { request_id: { type: "string", minLength: 1, maxLength: 160 }, request_hash: { type: "string", minLength: 1, maxLength: 160 } };
@@ -117,6 +131,9 @@ export const pagesActions = {
   artifactPin: withAction(defineArtifactPinAction("pages.artifacts.pin", /* @version action.pages.artifacts.pin */ 1, PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]), { scheduling: "concurrent", delegation: "confirmation-only" }),
   /** Whether a pinned version still matches the pages object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", /* @version action.pages.artifacts.compare */ 1, "文档", [...read]),
+  artifactDiff: define<InferActionInput<typeof artifactDiffInput>, PagesVersionDiffResult>("artifacts.diff",
+    /* @version action.pages.artifacts.diff */ 1, "对比文档固定版本", "逐段读取同一篇文档的两个固定版本，查看改动前后的文字",
+    "query", artifactDiffInput, artifactDiffOutput, [...read, "artifact:read"]),
   /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
   // Continuing from an imported file parses it, which is a material read inside the action itself.
   artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", /* @version action.pages.artifacts.continue */ 1, "文档", [...read, ...write, MATERIALS_READ], { item_kind: PAGES_SUBJECT_KIND,
@@ -185,7 +202,22 @@ export interface PagesActionPorts extends PagesStores {
   complete?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<PluginModelResult>;
   modelAvailability(): ActionAvailability;
   prepareImport(files: readonly PagesImportFile[], caller: ActionExecutionContext): Promise<PreparedPagesImport>;
+  readFixedVersion?(id: string, version: number): PagesFixedVersion | null;
   promote?(id: string, expectedVersion?: number, goalId?: string): ReturnType<typeof promotePagesDocument>;
+}
+
+function diffFixedVersions(ports: PagesActionPorts, input: InferActionInput<typeof artifactDiffInput>, projectId: string): PagesVersionDiffResult {
+  ports.read(store => store.get(input.id, projectId));
+  if (input.before_version === input.after_version) throw pagesErrors.invalid("请选择两个不同的固定版本");
+  const before = ports.readFixedVersion?.(input.id, input.before_version);
+  const after = ports.readFixedVersion?.(input.id, input.after_version);
+  if (!before || !after) throw pagesErrors.not_found("找不到指定的固定版本，请刷新后重试");
+  try {
+    return comparePagesFixedVersions({ page_id: input.id, before_version: input.before_version, after_version: input.after_version, before, after });
+  } catch (error) {
+    if (error instanceof RangeError) throw pagesErrors.invalid("这个固定版本的正文无法读取");
+    throw error;
+  }
 }
 
 /**
@@ -337,6 +369,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     }, () => ports.modelAvailability()),
     bind(pagesActions.promote, (input, caller) => promote(input.id, caller, input.goal_id, input.expected_version), publishable),
     bind(pagesActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bind(pagesActions.artifactDiff, (input, caller) => diffFixedVersions(ports, input, project(caller))),
     bindArtifactCompare(pagesActions.artifactCompare, PAGES_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.read(store => store.get(id, project(caller)))),
       (payload, object) => sameArtifactFields(payload, object, ["title", "body"]),
       // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.

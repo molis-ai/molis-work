@@ -5,10 +5,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertPortAvailable, selectEnvironment } from './environment-properties.mjs';
 import { sessionGeneration } from './environment-session.mjs';
-import { port, workSettings } from './account-environments.mjs';
+import { runPreflight } from './preflight-env.mjs';
 
-const name = selectEnvironment(process.argv.slice(2), 'start', ['--desktop']);
-const desktop = process.argv.includes('--desktop');
+const args = process.argv.slice(2);
+const preflight = runPreflight({ strictNative: args.includes('--strict-native') });
+if (preflight) process.exit(preflight);
+
+const name = selectEnvironment(args, 'start', ['--desktop', '--strict-native']);
+const { port, workSettings } = await import('./account-environments.mjs');
+const desktop = args.includes('--desktop');
 const { account, syncOrigin } = workSettings(name);
 await assertPortAvailable(port);
 const entry = new URL('../dist/web/server.js', import.meta.url);

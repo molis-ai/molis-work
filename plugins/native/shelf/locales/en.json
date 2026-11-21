@@ -113,6 +113,7 @@
     "shelf.preview.done-editing": "Done editing",
     "shelf.preview.download-file": "Download file",
     "shelf.preview.edit-copy": "Edit copy",
+    "shelf.preview.empty-file": "This file is empty.",
     "shelf.preview.material": "Material",
     "shelf.preview.origin-project-deleted": "Project deleted",
     "shelf.preview.previewing-a-saved-clip-add": "Previewing a saved clip · Add it to materials to run actions",

@@ -247,8 +247,8 @@
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |
-| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1) |
-|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2) |
+| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1) · [#2148](https://github.com/molis-ai/molis-work/pull/2148) 已合入 |
+|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2) · [#2149](https://github.com/molis-ai/molis-work/pull/2149) 已合入 |
 | [94](reference/batches/94.md) | [重新安装同版本开发 App 后，用上刚编出来的版本](reference/batches/94.md#batch-94-item-1) |
 | [95](reference/batches/95.md) | [把 Feed 连数据库的旧函数名改准确](reference/batches/95.md#batch-95-item-1) |
 |  | [资讯更新点过「现在做」，睡醒后直接做](reference/batches/95.md#batch-95-item-2) |

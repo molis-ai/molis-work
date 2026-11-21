@@ -97,13 +97,18 @@ test("removing a dependency during a real nested call blocks the caller's write,
   } finally { release(); await plugin.close(); await host.close(); }
 });
 
-test("a plugin query does not discover every action on each read; a command still confirms before it writes", async () => {
+test("a plugin query does not discover every action on each read; a command confirms via discoverOne without full discovery", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = reference("reads");
   const caller = { actor_id: "owner", project_id: project.project_id, audience: "user" as const, permissions: [] };
   const client = host.actionClient(project);
   let discovered = 0;
-  const actions = bindActionClient({ ...client, discover: async (who) => { discovered++; return client.discover(who); } }, () => caller);
+  let discoveredOne = 0;
+  const actions = bindActionClient({
+    ...client,
+    discover: async (who) => { discovered++; return client.discover(who); },
+    discoverOne: async (who, target) => { discoveredOne++; return client.discoverOne!(who, target); },
+  }, () => caller);
   const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", plugin_id: "io.molis.work.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
     services: { actions: { ...actions, availability: () => ({ available: true }), invokeQuery: async () => { throw new Error("No query delegation expected"); } },
       artifacts: { read: () => { throw new Error("No Artifact reads expected"); }, publish: () => { throw new Error("No Artifact writes expected"); } },
@@ -116,8 +121,10 @@ test("a plugin query does not discover every action on each read; a command stil
   try {
     for (let i = 0; i < 3; i++) assert.equal(await actions.invoke(read, {}), 7);
     assert.equal(discovered, 0, "reads are routed by the registry; they do not list every action");
+    assert.equal(discoveredOne, 0, "reads do not call discoverOne either");
     assert.equal(await actions.invoke(write, {}), 8);
-    assert.equal(discovered, 1, "a command confirms it is still the published action before writing");
+    assert.equal(discovered, 0, "writes confirm via single-action lookup instead of full catalog discovery");
+    assert.equal(discoveredOne, 1, "a command confirms it is still the published action via discoverOne before writing");
   } finally { await host.close(); }
 });
 

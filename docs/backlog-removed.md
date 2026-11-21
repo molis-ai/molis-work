@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-1006 | 已完成并删除 | [93-1](../specs/post-anticorruption-roadmap/reference/batches/93.md#batch-93-item-1) 由 [#2148](https://github.com/molis-ai/molis-work/pull/2148)（`59ab3bf6fd`，2026-11-19）合入。普通离开、带收尾动作的离开和撤权时，同页每个在途请求都获得自己的错误对象和正确原因码。 |
+| BL-browser-socket-close-pending-bind | 已完成并删除 | [93-2](../specs/post-anticorruption-roadmap/reference/batches/93.md#batch-93-item-2) 由 [#2149](https://github.com/molis-ai/molis-work/pull/2149)（`a87afa196b`，2026-11-19）合入。侧栏连接关闭后会释放已有监听，晚到的项目检查不会再挂监听。 |
 | BL-973 | 已完成并删除 | 2026-11-18：图片插件 README 的浏览器回归命令补列 `images-result-whole-characters.e2e.test.ts`（下载链接、实际文件名与 Shelf 留存回执里的两单元字），由 [#2144](https://github.com/molis-ai/molis-work/pull/2144) 合入，正式交付项 [92-1](../specs/post-anticorruption-roadmap/reference/batches/92.md#batch-92-item-1)；条目 2026-11-20 删除 |
 | BL-1017 | 已完成并删除 | 2026-11-18：Goals 两份测试的夹具关闭即使前一步抛错也依次清完本次 Host 与临时目录并报首个异常（`tests/fixtures/ordered-cleanup.ts`），由 [#2146](https://github.com/molis-ai/molis-work/pull/2146) 合入，正式交付项 [92-3](../specs/post-anticorruption-roadmap/reference/batches/92.md#batch-92-item-3)；条目 2026-11-20 删除 |
 | BL-964 | 已完成并删除 | 2026-11-20：Plugin Runtime 的路由分发与撤下贡献共用一处「是不是流」的判断 `streamsLines`（`packages/plugin-runtime/src/routes.ts`），即 Manifest 现行唯一允许的 POST `"ndjson"`；`offered-contributions.ts` 不再把任一已声明的 `stream` 当成流。撤下贡献时等着的普通请求立即答 403，进行中的流不被这个 403 截断、由路由的实例监视取消（499）且晚到的尾巴不写；见 `tests/plugin-route-stream-lifecycle.test.ts` 的 W5-01-STREAM-06 |

@@ -160,7 +160,8 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
     // What its Manifest requires and nothing optional: a sandbox plugin's own storage, nothing for a plugin with only declarations.
     const definition = c.definition(release, release.permissions), required = definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
-    const entry = { definition, grants: required, trust: release.packaged?.trust ?? UNSIGNED_TRUST };
+    // The Runtime refuses one the installation's declaration does not have (`plugin.grant_denied`).
+    const entry = { definition, grants: [...new Set([...required, ...grants.optional ?? []])], trust: release.packaged?.trust ?? UNSIGNED_TRUST };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;

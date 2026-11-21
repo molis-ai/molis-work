@@ -100,6 +100,17 @@ export type ConnectionNeedDown = { type: "connection-need-size"; id: number; hei
   | { type: "connection-need-reveal"; id: number }
   | { type: "connection-need-done"; id: number; outcome?: import("@molis-ai/molis-work-contracts/platform/ui").UiConnectionNeedOutcome; error?: string };
 /**
+ * The install sheet on a place the page keeps for it (package-install.ts, specs/plugin-builder-upgrade/spec.md §7.0). Up: the signed
+ * package as the page holds it, a place and closing. Down: the element's height (what the package asks adds up to, or 0 when too
+ * narrow), that the sheet is shown, a request to scroll the element into view, and the outcome: the installed plugin and version, that
+ * the person put it off, a refusal's code, or the one fixed error. Never a permission the person chose, or a key.
+ */
+export type PackageInstallUp = { type: "package-install-open"; id: number; target: unknown }
+  | { type: "package-install-layout"; id: number; box: FrameBox | null } | { type: "package-install-close"; id: number };
+export type PackageInstallDown = { type: "package-install-size"; id: number; height: number } | { type: "package-install-shown"; id: number }
+  | { type: "package-install-reveal"; id: number }
+  | { type: "package-install-done"; id: number; outcome?: import("@molis-ai/molis-work-contracts/platform/ui").UiPackageInstallOutcome; error?: string };
+/**
  * A page's return trip (returns.ts, specs/draft-and-return §2.4). Up: the need and the carry only, an abort, and the one claim of a
  * later mount; nothing that names where the page is. Down: the outcome (or none), or the one fixed refusal.
  */
@@ -125,7 +136,7 @@ export type FrameUp =
   | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
-  | TaskGrantsUp | ConnectionNeedUp | ReturnUp | ComposerUp | SurfaceSlotUp
+  | TaskGrantsUp | ConnectionNeedUp | PackageInstallUp | ReturnUp | ComposerUp | SurfaceSlotUp
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string }; input?: Readonly<Record<string, string>> }
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
@@ -156,7 +167,7 @@ export type FrameDown =
   | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
   | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; instructions?: UiPageInstructionSettings; error?: string; status?: number }
   | { type: "embedded"; id: number; error?: string }
-  | TaskGrantsDown | ConnectionNeedDown | ReturnDown | ComposerDown | SurfaceSlotDown
+  | TaskGrantsDown | ConnectionNeedDown | PackageInstallDown | ReturnDown | ComposerDown | SurfaceSlotDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "environment"; snapshot: AppearanceProjection["snapshot"]; skin_href: string | null }
   | FrameLanguageUpdate

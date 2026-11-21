@@ -385,12 +385,15 @@ export class PluginPageAuthority {
     // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
     const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";
+    // The platform's install sheet (S-package-install-sheet): the page only handed the shell a signed package, so any page of a project may have one.
+    const installChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id) && request.method === "POST" && pathname === "/api/host/plugin-page-install";
     const surfaceSlot = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.selection?.surfaceSlotSource) && request.method === "POST" && pathname === "/api/contextual/surface-slot";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery", "/api/agent/reviews/permission"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery", "/api/agent/reviews/permission"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !installChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const pageCurrent = () => {

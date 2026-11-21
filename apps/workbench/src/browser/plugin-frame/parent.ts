@@ -9,6 +9,7 @@ import { pageFramedAreas } from "./framed-area.js";
 import { pageSurfaceSlots } from "./surface-slot-parent.js";
 import { pageTaskGrants } from "./task-grants-area.js";
 import { pageConnectionNeed } from "./connection-need.js";
+import { pagePackageInstall } from "./package-install.js";
 import { pageReturns } from "./returns.js";
 import { downloadFrameFile, downloadPageBlob } from "./links.js";
 import { printPageDocument } from "./files.js";
@@ -291,6 +292,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const surfaceSlot = pageSurfaceSlots(port, scope, areas, grant.page_id, JSON.stringify([grant.storage_scope, mount ?? pack.id]), route, host, root);
   const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, () => frame.title);
   const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, uiText.text, owner, returns.connection);
+  // 原处的安装单: the sheet's 「打开」 reloads the project on the installed plugin's place (it is not in this document yet), and
+  // 「管理权限」 opens 设置 › 插件 as a link of this page does.
+  const packageInstall = pagePackageInstall(port, scope, areas, grant.page_id, route, uiText.text, () => frame.title,
+    surface => location.assign(route("") + "/?openSurface=" + encodeURIComponent(surface)), () => returns.link(new URL(route("/settings/plugins"), location.origin)));
   const state = () => {
     const shown = visible(); reviews.sync(shown);
     if (shown && invalidated) {
@@ -362,6 +367,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
     if (message.type === "connection-need-open" || message.type === "connection-need-layout" || message.type === "connection-need-close") { connectionNeed(message); return; }
+    if (message.type === "package-install-open" || message.type === "package-install-layout" || message.type === "package-install-close") { packageInstall(message); return; }
     if (message.type === "return-go" || message.type === "return-arrived" || message.type === "return-abort") { returns.receive(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") {

@@ -12,7 +12,7 @@ import { pluginPackageExport, pluginPackageExportHandler } from "./plugin-packag
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
-import { controlHomePackage, controlPackageInProject, installationPresentationCatalog, installPackageInHome, installedHomePlugins, installedPluginsInProject, installPackageInProject, regrantHomePlugin, regrantPluginInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
+import { controlHomePackage, controlPackageInProject, installationPresentationCatalog, installPackageInHome, savedPackageSecrets, installedHomePlugins, installedPluginsInProject, installPackageInProject, regrantHomePlugin, regrantPluginInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
 import { disposeWorkTerminalsForPublisher } from "./work-terminal-service.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
@@ -141,8 +141,9 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
   return new PluginInstallService({ skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
-    installInProject: (projectId, release, check, complete) => installPackageInProject(source, projectId, release, check, complete),
-    installInHome: (release, check, complete) => installPackageInHome(source, release, check, complete),
+    installInProject: (projectId, release, check, complete, choices) => installPackageInProject(source, projectId, release, check, complete, choices),
+    installInHome: (release, check, complete, choices) => installPackageInHome(source, release, check, complete, choices),
+    savedSecrets: (projectId, pluginId) => savedPackageSecrets(source, projectId, pluginId),
     presentationCatalog: projectId => installationPresentationCatalog(source, projectId),
     runHomeInstallation: operation => {
       const host = source.homePlugins();

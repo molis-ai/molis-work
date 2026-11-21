@@ -6,6 +6,7 @@ import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
 import { childTaskGrants } from "./task-grants-area.js";
 import { childConnectionNeed } from "./connection-need.js";
+import { childPackageInstall } from "./package-install.js";
 import { childReturns } from "./returns.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
@@ -88,7 +89,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host = { root, scope, mountPluginClient: ui.mountPluginClient, side: config.side,
-    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope), packageInstall: childPackageInstall(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, uiText.text), confirmBox: pageConfirmBox(scope, uiText.text), drafts: childDrafts(port, scope),

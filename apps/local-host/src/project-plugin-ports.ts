@@ -9,7 +9,7 @@ import { currentInstalledPluginHost, ensureInstalledPlugins, runningInstalledPlu
 import { installedPluginEntries, installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { assertPermissionSwitchTarget, type InstalledPluginEntry, type PermissionSwitchTarget } from "./plugin-installed-view.js";
-import type { InstalledRelease } from "./installed-release.js";
+import type { InstalledRelease, PackageInstallChoices } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
@@ -88,14 +88,14 @@ const projectScopeOpen = (source: ProjectPluginHost, projectId: string) => !sour
   && source.host.projects().some(row => row.project_id === projectId && row.state !== "closing");
 
 /** Installs a release read from a signed package in the project the person is in; the project's installed plugins are the ones that run it. */
-export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void> {
+export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void, choices?: PackageInstallChoices): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "安装需要一个打开的项目");
   await source.host.withRuntime(reference, async runtime => {
     const installed = await installedPluginsOf(source, reference, runtime);
     assertCurrent?.();
     const scopeOpen = () => projectScopeOpen(source, projectId);
-    await installed.installPackage(release, { consent: true, assertCurrent, scopeOpen, complete });
+    await installed.installPackage(release, { consent: true, assertCurrent, scopeOpen, complete, ...choices });
   });
 }
 
@@ -145,11 +145,19 @@ export async function controlPackageInProject(source: ProjectPluginHost, project
   });
 }
 
+/** The names of the keys saved for a package where it is installed (a project, or the Home: null); never a value. */
+export async function savedPackageSecrets(source: ProjectPluginHost, projectId: string | null, pluginId: string): Promise<readonly string[]> {
+  if (projectId === null) return await source.homePlugins()?.savedSecrets(pluginId) ?? [];
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference || !source.options.homeDirectory) return [];
+  return await source.host.withRuntime(reference, async runtime => (await installedPluginsOf(source, reference, runtime)).secrets.list(pluginId).map(item => item.name));
+}
+
 /** Installs a release read from a signed package in the Home: the Home's plugin host runs it, in the sandbox, for every project. */
-export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void> {
+export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void, choices?: PackageInstallChoices): Promise<void> {
   const home = source.homePlugins();
   if (!home) throw new ActionError("actions.scope_mismatch", "这个 Host 没有 Home，不能把插件装进 Home");
-  await home.installPackage(release, assertCurrent, complete);
+  await home.installPackage(release, assertCurrent, complete, choices);
 }
 
 /** A catalog only sees an open scope; this never starts its Runtime or asks what a caller may invoke. */

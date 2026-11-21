@@ -4,6 +4,8 @@ import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-h
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
+import type { UiPackageInstallOutcome, UiPackageInstallTarget } from "./ui-installs.js";
+export * from "./ui-installs.js";
 import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
 import type { UiLanguageTag } from "./ui-text.js";
 import type { UiSlotDescriptor } from "./ui-slots.js";
@@ -587,6 +589,15 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
    * aborts, the view changes or the page closes, and with one fixed message when unavailable, whatever the reason.
    */
   connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: { signal?: AbortSignal }): Promise<UiConnectionNeedOutcome>;
+  /**
+   * The platform's install sheet at `place`, an empty element the page leaves where a signed package it holds is to be installed
+   * or upgraded. The shell draws the sheet outside the page: what the package may do, the switches for what is optional, the keys
+   * it needs and the button that installs are the person's own in the trusted sheet; asking installs nothing. Resolves once the
+   * person is done: `installed`, `cancelled`, or `failed` when they leave a refused install. `signal` is the page's only way out.
+   * Rejects with an `AbortError` when `signal` aborts, the view changes or the page closes, and with one fixed message when
+   * unavailable, whatever the reason.
+   */
+  packageInstall(place: Element, target: UiPackageInstallTarget, options?: { signal?: AbortSignal }): Promise<UiPackageInstallOutcome>;
   openItem(surface: string, itemId: string, title?: string): void;
   openBeside(surface: string, itemId: string, title?: string): void;
   openPlugin(surface: string, view?: string, panel?: string): void;

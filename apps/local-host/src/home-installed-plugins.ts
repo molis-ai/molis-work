@@ -229,6 +229,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
   return {
     lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach, pendingUninstalls,
+    secretNames: (pluginId: string): string[] => secrets.list(pluginId).map(item => item.name),
     /** Takes a signed package's installation off from its trusted row, its package not read (BL-915). */
     uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
     /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */

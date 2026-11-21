@@ -8,10 +8,10 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 // node scripts/run-tests.mjs [options] [files…]       without files: every test file, the `.mjs` boundary checks included
 //   --jobs <n>              files at once (default: MOLIS_WORK_TEST_JOBS, else half the cores, at most 6)
 //   --browser-jobs <n>      of those, browser files at once (default: MOLIS_WORK_TEST_BROWSER_JOBS, else 2)
-//   --timeout-seconds <n>   per file when several run at once (default 1200)
+//   --timeout-seconds <n>   per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
 //   --verbose               print every file's output, not only the failing ones'
-//   --retries <n>           run a failed file again, up to n more times (default 0); one that then passes is listed as flaky and
-//                           does not fail the run (the CI full suite uses 1)
+//   --retries <n>           run a failed file again, up to n more times (default 0; passing >0 on a single file enables coordinator mode);
+//                           one that then passes is listed as flaky and does not fail the run (the CI full suite uses 1)
 //   --bail                  stop at the first file that fails (after its retries, run at once): nothing more starts and the files
 //                           still running are stopped; the CI full suite uses it, so a red shard ends early
 //   --shard <k>/<n>         the k-th of n parts of the list, dealt by how long the files take (tests/ci-shard-weights.json, see
@@ -34,7 +34,19 @@ const whole = (name, value, least) => {
   return number;
 };
 
-const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, bail: false, shard: undefined, skipMacosOnly: false, excludeGateMeta: false, excludeVisualAudit: false };
+const options = {
+  jobs: undefined,
+  browserJobs: undefined,
+  timeoutSeconds: 1200,
+  hasExplicitTimeout: false,
+  verbose: false,
+  retries: 0,
+  bail: false,
+  shard: undefined,
+  skipMacosOnly: false,
+  excludeGateMeta: false,
+  excludeVisualAudit: false,
+};
 const targets = [], testArgs = [];
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -42,7 +54,10 @@ for (let index = 0; index < args.length; index++) {
   const value = () => inline ?? args[++index];
   if (name === "--jobs") options.jobs = whole(name, value(), 1);
   else if (name === "--browser-jobs") options.browserJobs = whole(name, value(), 1);
-  else if (name === "--timeout-seconds") options.timeoutSeconds = whole(name, value(), 1);
+  else if (name === "--timeout-seconds") {
+    options.timeoutSeconds = whole(name, value(), 1);
+    options.hasExplicitTimeout = true;
+  }
   else if (name === "--verbose") options.verbose = true;
   else if (name === "--retries") options.retries = whole(name, value(), 0);
   else if (name === "--skip-macos-only") options.skipMacosOnly = true;
@@ -105,8 +120,8 @@ if (options.shard) {
   }
 }
 
-// A one-file shard still needs the coordinator's timeout, retries and timed summary.
-if (targets.length > 1 || options.shard) {
+// A one-file shard, or a single file with an explicit timeout or retries, still needs the coordinator's timeout, retries and timed summary.
+if (targets.length > 1 || options.shard || options.retries > 0 || options.hasExplicitTimeout) {
   const { runParallel } = await import("./run-tests/pool.mjs");
   process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail });
 } else {

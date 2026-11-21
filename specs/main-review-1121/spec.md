@@ -28,7 +28,7 @@
 | MR21-14 | #2156 删掉的 `design-system-giants`（RAC-370～372）与 `ui-audit-browser.e2e`（ASR-13）恢复；`ui-audit-2026-09-22` 只恢复走公开入口的两例（收件箱行的 Tab 顺序、修饰键回车），另三例要伸进工作台内部、门禁不许；两处按 CSS 原文写的正则（测试卫生规则不许，且那条样式已改）去掉，标题宽度由浏览器用例实量。追认记在 [ci-acceleration](../ci-acceleration/spec.md#非目标) | 三个测试文件 |
 | MR21-15 | visual-audit 覆盖宿主渲染的页面 | 未做，[BL-mr21-review-followups](../backlog/BL-mr21-review-followups.md) ⑧ |
 | MR21-16 | Assistant 与知识整理里给人和模型看的文字按整字截断（SDK `cutHead`），不留半个字 | 代码 |
-| MR21-17 | 账号弹层的触发按钮宣告的弹出类型与弹层角色一致（`dialog`） | 代码 |
+| MR21-17 | 账号弹层的触发按钮不再宣告它不是的弹出类型：弹层是不抢焦点的区域（`region`），按钮按展开/收起宣告（`aria-expanded` + `aria-controls`），不写 `aria-haspopup=menu` | 代码；`tests/dialog-submit-rules.e2e.test.ts` VUX-29 仍只把模态层当对话框 |
 | MR21-18 | `molis-work:attention-refresh` 的 `{ reconnected: true }` 写进页面事件登记 | `packages/contracts/src/platform/dom-events.ts` |
 
 D-1 的例外写在 [CONTRACT-CHANGES「当前保留机制」](../../docs/system/CONTRACT-CHANGES.md#当前保留机制)。没改的 P2 记在 [BL-mr21-review-followups](../backlog/BL-mr21-review-followups.md)。

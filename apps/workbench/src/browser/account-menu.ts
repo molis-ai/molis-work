@@ -31,7 +31,7 @@ function createAccountMenu() {
   style.textContent += '@media(max-width:480px){.project-directory-topbar [data-personal-status]{display:none}.project-directory-topbar [data-account-link]{flex-shrink:0;max-width:120px}.project-directory-topbar .brand{white-space:nowrap}}';
   const menu = document.createElement('div');
   menu.className = 'mw-account-popover'; menu.hidden = true; menu.id = 'mw-account-menu';
-  menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', uiText.text("workbench.account-menu.account"));
+  menu.setAttribute('role', 'region'); menu.setAttribute('aria-label', uiText.text("workbench.account-menu.account"));
   menu.innerHTML = '<div class="mw-account-summary"><strong data-menu-name></strong><small data-menu-email></small></div><a class="mw-account-sync" data-sync-indicator hidden><span data-sync-indicator-label></span></a><button type="button" data-personal-action="login"></button><button type="button" data-personal-action="switch"></button><button type="button" data-personal-action="logout"></button><button type="button" data-unified-account-link><span data-unified-account-name></span></button><p class="mw-account-feedback" role="status"></p><p class="mw-account-feedback" role="alert"></p>';
   for (const [action, label] of [['login', 'workbench.account.sign-in-register'], ['switch', 'workbench.account.switch-account'], ['logout', 'workbench.account.sign-out']]) {
     requiredElement(menu, '[data-personal-action=' + action + ']').textContent = uiText.text(label);
@@ -91,7 +91,7 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
     menu.querySelectorAll<HTMLButtonElement>('[data-personal-action]').forEach(b => { b.style.display = b.hidden ? 'none' : ''; b.disabled = busy || !configured; });
   };
   links.forEach(link => {
-    link.setAttribute('aria-haspopup', 'dialog'); link.setAttribute('aria-controls', menu.id); link.setAttribute('aria-expanded', 'false');
+    link.setAttribute('aria-controls', menu.id); link.setAttribute('aria-expanded', 'false');
     link.addEventListener('click', event => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();

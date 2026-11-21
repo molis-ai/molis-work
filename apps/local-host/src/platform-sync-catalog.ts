@@ -1,4 +1,5 @@
 import { CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { modulesProjectsContract } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { SyncSelection } from "@molis-ai/molis-work-module-sync-replication";
 
 /** Platform-owned stores retain their consent identities without impersonating Runtime plugins. */
@@ -24,3 +25,13 @@ export const PLATFORM_SYNC_COLLECTIONS: readonly PlatformSyncCollection[] = [
   { owner: "acceptance", store: "acceptance", title: "要求与认可", selection: { plugin_id: "io.molis.work.acceptance", publisher_id: "molis",
     publisher_signature: "official-acceptance-binding", collection_id: "acceptance", schema_version: /* @version sync.collection.platform.acceptance */ 1 } },
 ];
+
+/** Authoritative grouping of sync collections: platform-owned stores and project catalog vs plugin collections. */
+export function isPlatformSyncSelection(selection: SyncSelection): boolean {
+  if (selection.plugin_id === modulesProjectsContract.contractId && selection.collection_id === "projects") {
+    return true;
+  }
+  return PLATFORM_SYNC_COLLECTIONS.some(
+    entry => entry.selection.plugin_id === selection.plugin_id && entry.selection.collection_id === selection.collection_id,
+  );
+}

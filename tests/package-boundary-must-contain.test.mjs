@@ -74,37 +74,37 @@ test("RAC-2010 the Goals, Governance, Artifacts, Private Work Context and Runtim
   for (const row of ROWS) assert.ok(read(row.file).includes(row.needle), `${row.file} has ${row.needle}`);
 });
 
-/** One representative row per `(check, kind)` pair so every boundary checker and matching mode is mutation-verified without repeating hundreds of identical full-tree scans. */
-function representativeRows(rows) {
-  const seen = new Set();
-  return rows.filter(row => {
-    const key = `${row.check.name}:${row.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/** The three tests for each representative row of a table: taking the text out refuses; a code or import row refuses it written only where no code is; a text row also refuses a comment or a regular expression but takes a string. */
+/** The three tests for each row of a table: taking the text out refuses; a code or import row refuses it written only where no code is; a text row also refuses a comment or a regular expression but takes a string. */
 function defineRowTests(rows, [removed, standIns, content]) {
-  const sample = representativeRows(rows);
-  for (const row of sample) test(`${removed} ${row.check.name}: ${row.needle} in ${path.basename(row.file)} is a ${row.kind} requirement that taking it out refuses`, () => {
-    assert.ok(checkWith(row.check, row.file, without(read(row.file), row.needle)).length > 0);
-  });
+  for (const row of rows) {
+    test(`${removed} ${row.check.name}: ${row.needle} in ${path.basename(row.file)} is a ${row.kind} requirement that taking it out refuses`, () => {
+      assert.ok(checkWith(row.check, row.file, without(read(row.file), row.needle)).length > 0);
+    });
+  }
 
-  for (const row of sample.filter(({ kind }) => kind !== "text")) test(`${standIns} ${row.check.name}: ${row.needle} written only in a comment, a string, a regular expression or template text no longer stands in for the ${row.kind}`, () => {
-    const source = without(read(row.file), row.needle);
-    for (const [name, write] of Object.entries(stand)) assert.ok(checkWith(row.check, row.file, source + write(row.needle)).length > 0, `${row.needle} as ${name}`);
-  });
+  for (const row of rows.filter(({ kind }) => kind !== "text")) {
+    test(`${standIns} ${row.check.name}: ${row.needle} written only in a comment, a string, a regular expression or template text no longer stands in for the ${row.kind}`, () => {
+      const source = without(read(row.file), row.needle);
+      for (const [name, write] of Object.entries(stand)) {
+        assert.ok(checkWith(row.check, row.file, source + write(row.needle)).length > 0, `${row.needle} as ${name}`);
+      }
+    });
+  }
 
-  for (const row of sample.filter(({ kind }) => kind === "text")) test(`${content} ${row.check.name}: ${row.needle} is content, so a string or template that holds it counts and a comment or a regular expression does not`, () => {
-    const source = without(read(row.file), row.needle);
-    for (const name of ["a line comment", "a block comment", "a regular expression"]) assert.ok(checkWith(row.check, row.file, source + stand[name](row.needle)).length > 0, `${row.needle} as ${name}`);
-    for (const name of ["a string", "template text"]) {
-      // The text may be one that a string alone cannot hold (the quotes are part of it); only the ones a string can hold are tried.
-      if (!row.needle.includes('"') && !row.needle.includes("${")) assert.deepEqual(checkWith(row.check, row.file, source + stand[name](row.needle)), [], `${row.needle} as ${name}`);
-    }
-  });
+  for (const row of rows.filter(({ kind }) => kind === "text")) {
+    test(`${content} ${row.check.name}: ${row.needle} is content, so a string or template that holds it counts and a comment or a regular expression does not`, () => {
+      const source = without(read(row.file), row.needle);
+      for (const name of ["a line comment", "a block comment", "a regular expression"]) {
+        assert.ok(checkWith(row.check, row.file, source + stand[name](row.needle)).length > 0, `${row.needle} as ${name}`);
+      }
+      for (const name of ["a string", "template text"]) {
+        // The text may be one that a string alone cannot hold (the quotes are part of it); only the ones a string can hold are tried.
+        if (!row.needle.includes('"') && !row.needle.includes("${")) {
+          assert.deepEqual(checkWith(row.check, row.file, source + stand[name](row.needle)), [], `${row.needle} as ${name}`);
+        }
+      }
+    });
+  }
 }
 defineRowTests(ROWS, ["RAC-2011", "RAC-2012", "RAC-2013"]);
 
@@ -202,14 +202,19 @@ test("RAC-2060 the Feed and Integration, Goals route mount and proposal UI check
   for (const row of MORE_ROWS) assert.ok(read(row.file).includes(row.needle), `${row.file} has ${row.needle}`);
   for (const { file, pattern } of PATTERNS) assert.ok(pattern.exec(read(file)), `${file} has ${pattern}`);
 });
-for (const { check, file, pattern } of representativeRows(PATTERNS.map(entry => ({ ...entry, kind: "pattern" })))) test(`RAC-2064 ${check.name}: what ${pattern.source.slice(0, 50)}… finds in ${path.basename(file)} is required, and the same words in a comment, a string, a regular expression or template text do not stand in`, () => {
-  const original = read(file), found = pattern.exec(original);
-  assert.ok(found, "the file says it as it did");
-  const source = without(original, found[0]);
-  assert.notEqual(source, original, "the negative really removes the actual requirement");
-  assert.ok(checkWith(check, file, source).length > 0, "taking it out refuses");
-  for (const [name, write] of Object.entries(stand)) assert.ok(checkWith(check, file, source + write(found[0])).length > 0, name);
-});
+for (const { check, file, pattern } of PATTERNS) {
+  test(`RAC-2064 ${check.name}: what ${pattern.source.slice(0, 50)}… finds in ${path.basename(file)} is required, and the same words in a comment, a string, a regular expression or template text do not stand in`, () => {
+    const original = read(file);
+    const found = pattern.exec(original);
+    assert.ok(found, "the file says it as it did");
+    const source = without(original, found[0]);
+    assert.notEqual(source, original, "the negative really removes the actual requirement");
+    assert.ok(checkWith(check, file, source).length > 0, "taking it out refuses");
+    for (const [name, write] of Object.entries(stand)) {
+      assert.ok(checkWith(check, file, source + write(found[0])).length > 0, name);
+    }
+  });
+}
 
 test("RAC-2014 an import is the statement, written with double quotes: the same words in a comment, a string or single quotes are not", () => {
   const specifier = "@molis-ai/molis-work-service-runtime-host", real = `import { x } from "${specifier}";\n`;

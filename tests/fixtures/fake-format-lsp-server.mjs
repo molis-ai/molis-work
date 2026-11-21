@@ -63,9 +63,17 @@ const answer = (message) => {
   }
   if (method === "textDocument/diagnostic") { send({ id, result: { kind: "full", items: errors(docs.get(params.textDocument.uri)?.text ?? "") } }); return; }
   if (method === "textDocument/formatting" || method === "textDocument/rangeFormatting") {
-    if (process.env.FAKE_LSP_FORMAT_ERROR) { send({ id, error: { code: -32603, message: "rustfmt.toml: unknown key `max_widht`" } }); return; }
+    if (process.env.FAKE_LSP_FORMAT_ERROR) {
+      send({ id, error: { code: -32603, message: "rustfmt.toml: unknown key `max_widht`" } });
+      return;
+    }
+    if (process.env.FAKE_LSP_CUSTOM_EDITS) {
+      send({ id, result: JSON.parse(process.env.FAKE_LSP_CUSTOM_EDITS) });
+      return;
+    }
     const lines = (docs.get(params.textDocument.uri)?.text ?? "").split("\n");
-    const from = params.range?.start.line ?? 0, to = params.range?.end.line ?? lines.length - 1;
+    const from = params.range?.start.line ?? 0;
+    const to = params.range?.end.line ?? lines.length - 1;
     send({ id, result: trimmed(lines, from, to) });
     return;
   }

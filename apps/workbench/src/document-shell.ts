@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderLanguageHead } from "./language-resource.js";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
@@ -50,13 +50,28 @@ ${request.body_html}
 </html>`;
 }
 
+/** Semantic environment badge rendered by the Workbench shell when running in dev or test environment. */
+export function renderShellEnvironmentBadge(environment?: "dev" | "test"): string {
+  if (environment === "test") {
+    return `<div class="mw-env-badge" data-env-badge="test" role="note">${uiText("workbench.shell.env-badge-test")}</div>`;
+  }
+  if (environment === "dev") {
+    return `<div class="mw-env-badge" data-env-badge="dev" role="note">${uiText("workbench.shell.env-badge-dev")}</div>`;
+  }
+  return "";
+}
+
 /** Compose the document's initial account-registration barrier at its shell owner. */
-export function createWorkbenchDocumentRenderer(accountRegistration = false): typeof renderWorkbenchDocument {
+export function createWorkbenchDocumentRenderer(
+  accountRegistration = false,
+  environmentName?: () => "dev" | "test" | undefined,
+): typeof renderWorkbenchDocument {
   return (request, options) => renderWorkbenchDocument({
     ...request,
     body_attributes: {
       ...request.body_attributes,
       ...(accountRegistration ? { inert: true, 'data-account-registering': true } : {}),
     },
+    body_html: `${request.body_html}${renderShellEnvironmentBadge(environmentName?.())}`,
   }, options);
 }

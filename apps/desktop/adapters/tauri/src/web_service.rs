@@ -678,6 +678,7 @@ pub(crate) fn start_molis_work_web(
     let mut command = Command::new(&bin);
     command
         .args(["--home", home.to_str().unwrap_or_default()])
+        .env("MOLIS_WORK_HOME", &home)
         .env("PATH", &path);
     // 4173 answers, but not as this Home's Host: another program's port. This Host listens on a spare
     // one and says so in its address file (resident-runtime-design §6).

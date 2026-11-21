@@ -1,7 +1,7 @@
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { hostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 import { prepareInstructionPrompt } from "./agent-definitions/instructions.js";
@@ -20,7 +20,7 @@ export async function draftText(options: HostTextOptions, input: AgentDraftTextR
   const lifetime = createExecutionLifetime({ signal: execution.signal, timeout: { milliseconds: 120_000, reason: new ActionError("actions.timeout", "起草超过两分钟，已停止，可重试") } });
   try {
     lifetime.assertActive();
-    const home = options.homeDirectory ?? resolveMolisWorkHome(), locale = modelRoundLocale(home);
+    const home = options.homeDirectory ?? resolveConfiguredHome(), locale = modelRoundLocale(home);
     const instruction = prepareInstructionPrompt(home, execution.pluginId, input.prompt, locale);
     const system = instruction.body + "\n\n" + replyLanguagePrompt(locale).body;
     await lifetime.wait(Promise.resolve(execution.beforeDispatch?.()));

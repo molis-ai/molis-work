@@ -7,7 +7,7 @@ import { checkHeldImages, checkMaterials, MAX_ATTACHMENT_TEXT, MAX_MATERIAL_TEXT
 import { isExternalSessionMaterial } from "./assistant-external-sessions.js";
 import type { AssistantStore } from "./assistant-store.js";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { attachConversationFile, holdsConversationAttachment, readConversationAttachment, type AttachmentOwner, type AttachmentRead, type AttachmentReadResult } from "../material-attachments.js";
+import { attachConversationFile, forgetOwnedAttachments, holdsConversationAttachment, readConversationAttachment, type AttachmentOwner, type AttachmentRead, type AttachmentReadResult } from "../material-attachments.js";
 
 /**
  * The Assistant's files, kept by the platform's material service like any plugin's (platform capability audit §6): the Assistant is a
@@ -22,6 +22,8 @@ export interface AssistantAttachmentPort {
   read(ref: MaterialRef, request: AttachmentRead): Promise<AttachmentReadResult>;
   /** Whether the bytes are still kept: an attachment the person can see and send again. */
   holds(ref: MaterialRef): boolean;
+  /** Release attachments owned by the Assistant when no stored work or round references them. */
+  forget?(refs: readonly MaterialRef[]): Promise<void>;
 }
 
 export function assistantAttachments(home: string): AssistantAttachmentPort {
@@ -29,6 +31,7 @@ export function assistantAttachments(home: string): AssistantAttachmentPort {
     attach: (upload, options) => attachConversationFile(home, ASSISTANT_ATTACHMENT_OWNER, upload, options ?? {}),
     read: (ref, request) => readConversationAttachment(home, ASSISTANT_ATTACHMENT_OWNER, ref, request),
     holds: ref => holdsConversationAttachment(home, ASSISTANT_ATTACHMENT_OWNER, ref),
+    forget: refs => forgetOwnedAttachments(home, ASSISTANT_ATTACHMENT_OWNER, refs),
   };
 }
 
@@ -44,7 +47,11 @@ const MATERIAL_PREVIEW_CHARS = 20_000;
 
 /** Attachment admission and readback for one person's Assistant work. Only this service can reach the Assistant's Home attachment owner. */
 export class AssistantMaterialAccess {
-  constructor(private readonly store: Pick<AssistantStore, "get" | "rounds">, private readonly actorId: string, private readonly attachments?: AssistantAttachmentPort) {}
+  constructor(
+    private readonly store: Pick<AssistantStore, "get" | "rounds"> & Partial<Pick<AssistantStore, "referencesAttachment">>,
+    private readonly actorId: string,
+    private readonly attachments?: AssistantAttachmentPort,
+  ) {}
 
   checkSend(input: unknown): AssistantMaterial[] {
     const materials = checkMaterials(input);
@@ -74,6 +81,10 @@ export class AssistantMaterialAccess {
     const read = await attachments.read(attached.ref, { as: "text", signal: control.signal }).catch(error => { throw assistantErrors.invalid(said(error)); });
     const whole = read.text ?? "";
     if (!whole.trim()) {
+      const referenced = this.store.referencesAttachment ? this.store.referencesAttachment(attached.ref.subject.id) : false;
+      if (!referenced) {
+        await attachments.forget?.([attached.ref]).catch(() => undefined);
+      }
       const issues = attached.text?.issues.slice(0, 2);
       const details = issues?.length ? uiText.text("common.punctuation.in-parens", { value: issues.join(uiText.text("common.list.separator")) }) : "";
       const title = uiText.text("common.punctuation.quoted", { value: name });

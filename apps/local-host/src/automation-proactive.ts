@@ -4,6 +4,7 @@ import { AUTOMATION_ADOPTION_PROVIDER_ID, AUTOMATION_OFFER_INTERVAL_MS, AUTOMATI
   type AutomationSuggestion } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { changeOfferRecord, readOfferRecord, type OfferedItem } from "@molis-ai/molis-work-service-automation-recommender";
 import type { HostCardInput } from "./assistant/assistant-offers.js";
+import { listConnectorSettingsCards } from "./connector-directory.js";
 
 /**
  * The Assistant bringing up a project's automation by itself (specs/automation-recommender §7, user 2026-11-18): whenever a look at the
@@ -55,8 +56,23 @@ export async function offerProjectAutomation(home: string, subject: Subject, rep
     changeOfferRecord(home, subject, record => ({ result: undefined, next: { ...record, looked_at: now.toISOString() } }), assertCurrent);
     return { offered: false, reason: "no-workspace" };
   }
-  const record = readOfferRecord(home, subject), told = new Set(record.told);
-  const rows = report.groups.filter(group => ADOPTABLE.has(group.category)).flatMap(group => group.suggestions).filter(row => offered(row) !== null);
+  const record = readOfferRecord(home, subject);
+  const told = new Set(record.told);
+  const adoptable = report.groups
+    .filter(group => ADOPTABLE.has(group.category))
+    .flatMap(group => group.suggestions)
+    .filter(row => offered(row) !== null);
+  let preparableConnections: ReadonlySet<string> | null = null;
+  if (adoptable.some(row => row.next.kind === "connection")) {
+    const cards = await listConnectorSettingsCards(home);
+    assertCurrent();
+    preparableConnections = new Set(
+      cards
+        .filter(entry => entry.method_options?.some(option => (option.kind === "oauth" && option.login_ready) || option.kind === "token"))
+        .map(entry => entry.connector_id),
+    );
+  }
+  const rows = adoptable.filter(row => row.next.kind !== "connection" || Boolean(preparableConnections?.has(row.next.service_id)));
   const fresh = rows.filter(row => !told.has(row.id));
   if (!fresh.length) {
     changeOfferRecord(home, subject, current => ({ result: undefined, next: { ...current, looked_at: now.toISOString() } }), assertCurrent);

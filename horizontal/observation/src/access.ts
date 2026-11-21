@@ -6,7 +6,14 @@ import type { ObservationEnvironment } from "./records.js";
 
 /** Assert the caller is the local person themselves (never delegated, never a runtime audience). */
 export function assertPersonCaller(caller: ActionCallContext): void {
-  if (caller.audience !== "user" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.delegated_by) {
+  if (
+    caller.audience !== "user"
+    || caller.actor_id !== LOCAL_PERSON_ACTOR_ID
+    || caller.actor_kind === "runtime"
+    || caller.delegated_by
+    || caller.host_plugin
+    || caller.calling_plugin_id
+  ) {
     throw observationErrors.forbidden("只有本人能管理工作记录设置与清理");
   }
 }

@@ -33,7 +33,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "node scripts/start-account-environment.mjs",
+    "dev": "node scripts/start-account-environment.mjs --env dev",
     "versions:generate": "node scripts/generate-versions.mjs --write",
     "versions:check": "node scripts/generate-versions.mjs --check",
     "prepare": "node scripts/setup-merge-drivers.mjs",

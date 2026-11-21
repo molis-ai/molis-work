@@ -1,7 +1,7 @@
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
-import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, RESEARCH_EVIDENCE_DIRECTORY, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, RESEARCH_EVIDENCE_DIRECTORY, runWithMolisWorkHome, type EvidenceContentStore, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { ALCHEMIST_STUDIO_BASELINE, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 export { ALCHEMIST_STUDIO_BASELINE };
 export {assertStudioProjectIdentity} from "@molis-ai/molis-work-plugin-alchemist";
@@ -30,53 +30,113 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
     if (!call) throw new Error("alchemist.search_authority_missing");
     return call;
   };
-  const assertCurrent = () => { const call = currentCall(); call.signal?.throwIfAborted(); call.assertCurrent?.(); };
+  const assertCurrent = () => {
+    const call = currentCall();
+    call.signal?.throwIfAborted();
+    call.assertCurrent?.();
+  };
+  const keyLostCalls = new WeakSet<Parameters<AlchemistAiPort["search"]>[0]>();
+  const isEvidenceKeyUnavailable = (error: unknown): boolean =>
+    typeof error === "object" && error !== null && "code" in error
+    && (error as { code?: unknown }).code === "storage.evidence_content.key_unavailable";
+  const evidenceKeyMissing = () => Object.assign(
+    new Error("保存研究资料的钥匙找不到了。之前的动态和研究正文都原样保留；找回原钥匙之前，新的研究资料不会保存，所以这次研究先不搜索。"),
+    { code: "alchemist.research_evidence_key_missing" },
+  );
   const runtime = (() => {
     try {
       applySqliteBaseline(storage.db, storage.path, ALCHEMIST_SEARCH_BASELINE);
       return runWithMolisWorkHome(options.homeDirectory, () => {
         const secretStore = options.secretStore ?? createFileSecretStore();
-        return createSearchEvidenceRuntime({ db: storage.db, secretStore, assertCurrent,
-          beforeDispatch: async () => { await currentCall().beforeDispatch?.(); assertCurrent(); },
-          content: createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, RESEARCH_EVIDENCE_DIRECTORY) }) });
+        const rawContent = createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, RESEARCH_EVIDENCE_DIRECTORY) });
+        const content: EvidenceContentStore = {
+          ...rawContent,
+          write(markdown) {
+            try {
+              return rawContent.write(markdown);
+            } catch (error) {
+              if (isEvidenceKeyUnavailable(error)) {
+                const activeCall = calls.getStore();
+                if (activeCall) keyLostCalls.add(activeCall);
+              }
+              throw error;
+            }
+          },
+          read(contentRef) {
+            try {
+              return rawContent.read(contentRef);
+            } catch (error) {
+              if (isEvidenceKeyUnavailable(error)) {
+                const activeCall = calls.getStore();
+                if (activeCall) keyLostCalls.add(activeCall);
+              }
+              throw error;
+            }
+          },
+        };
+        return createSearchEvidenceRuntime({
+          db: storage.db, secretStore, assertCurrent,
+          beforeDispatch: async () => {
+            await currentCall().beforeDispatch?.();
+            assertCurrent();
+          },
+          content,
+        });
       });
-    } catch (error) { storage.close(); throw error; }
+    } catch (error) {
+      storage.close();
+      throw error;
+    }
   })();
-  let closing: Promise<void> | undefined, stopped = false, runtimeClosed = false;
+  let closing: Promise<void> | undefined;
+  let stopped = false;
+  let runtimeClosed = false;
   const active = new Set<Promise<Awaited<ReturnType<AlchemistAiPort["search"]>>>>();
   const search: AlchemistAiPort["search"] = input => runWithMolisWorkHome(options.homeDirectory, async () => {
-      input.signal?.throwIfAborted();
+      assertCurrent();
       // The Home's evidence key is lost while Feed or research bodies sealed with it remain (BL-1065): say so before any search is spent.
       if (runtime.content.sealingStatus() === "missing") {
-        throw Object.assign(new Error("保存研究资料的钥匙找不到了。之前的动态和研究正文都原样保留；找回原钥匙之前，新的研究资料不会保存，所以这次研究先不搜索。"),
-          { code: "alchemist.research_evidence_key_missing" });
+        throw evidenceKeyMissing();
       }
       await input.beforeDispatch?.();
+      assertCurrent();
       const selectors = [{ kind: "provider" as const, value: "anysearch" }, { kind: "channel" as const, value: "web" as const },
         { kind: "source_definition" as const, namespace: "app" as const, value: "anysearch" }];
-      const result = await runtime.intelligenceCollect.executeExact({
-        schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1", operationId: crypto.randomUUID(), goal: "为炼金术研究收集相关公开证据",
-        taskProfile: input.lens === "build_cost" ? "technical_open_source_research" : "market_opportunity_research", mode: "exact",
-        input: { kind: "query", query: input.query.slice(0, 2000) }, sourcePolicy: { required: selectors, allowed: selectors },
-        budget: { maxProviderCalls: 1, maxFetchExtractCalls: 3, maxModelInputTokens: 0, maxModelOutputTokens: 0, maxMaterials: 5, maxBytes: 1_048_576, maxConcurrency: 1, deadlineMs: 30_000 },
-        partialPolicy: "allow_partial", resultProfile: "materials_v1",
-      }, input.signal ? { signal: input.signal } : undefined);
-      if (!result.materials.length) {
-        const code = result.receipts.map(receipt => "errorCode" in receipt ? receipt.errorCode : undefined)
-          .find(value => typeof value === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(value))
-          ?? result.budget.stopReason ?? result.outcome;
-        throw Object.assign(new Error(`公开搜索暂未取得可引用来源（${code}），请稍后重试研究。不会用模型编造来源。`),
-          { code: `alchemist.research_search_${String(code).toLowerCase()}` });
+      try {
+        const result = await runtime.intelligenceCollect.executeExact({
+          schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1", operationId: crypto.randomUUID(), goal: "为炼金术研究收集相关公开证据",
+          taskProfile: input.lens === "build_cost" ? "technical_open_source_research" : "market_opportunity_research", mode: "exact",
+          input: { kind: "query", query: input.query.slice(0, 2000) }, sourcePolicy: { required: selectors, allowed: selectors },
+          budget: { maxProviderCalls: 1, maxFetchExtractCalls: 3, maxModelInputTokens: 0, maxModelOutputTokens: 0, maxMaterials: 5, maxBytes: 1_048_576, maxConcurrency: 1, deadlineMs: 30_000 },
+          partialPolicy: "allow_partial", resultProfile: "materials_v1",
+        }, input.signal ? { signal: input.signal } : undefined);
+        if (keyLostCalls.has(input)) {
+          assertCurrent();
+          throw evidenceKeyMissing();
+        }
+        if (!result.materials.length) {
+          const code = result.receipts.map(receipt => "errorCode" in receipt ? receipt.errorCode : undefined)
+            .find(value => typeof value === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(value))
+            ?? result.budget.stopReason ?? result.outcome;
+          throw Object.assign(new Error(`公开搜索暂未取得可引用来源（${code}），请稍后重试研究。不会用模型编造来源。`),
+            { code: `alchemist.research_search_${String(code).toLowerCase()}` });
+        }
+        const sources = [];
+        for (const item of result.materials) {
+          input.signal?.throwIfAborted();
+          const markdown = await runtime.content.read(item.contentRef);
+          const excerpt = researchExcerpt(markdown, input.query);
+          if (excerpt) sources.push({ url: item.canonicalUrl, title: item.title, excerpt });
+        }
+        if (!sources.length) throw Object.assign(new Error("公开来源未提供可用正文；本次研究仍未知，请调整范围后重试。"), { code: "alchemist.research_no_sources" });
+        return sources;
+      } catch (error) {
+        if (keyLostCalls.has(input) || isEvidenceKeyUnavailable(error)) {
+          assertCurrent();
+          throw evidenceKeyMissing();
+        }
+        throw error;
       }
-      const sources = [];
-      for (const item of result.materials) {
-        input.signal?.throwIfAborted();
-        const markdown = await runtime.content.read(item.contentRef);
-        const excerpt = researchExcerpt(markdown, input.query);
-        if (excerpt) sources.push({ url: item.canonicalUrl, title: item.title, excerpt });
-      }
-      if (!sources.length) throw Object.assign(new Error("公开来源未提供可用正文；本次研究仍未知，请调整范围后重试。"), { code: "alchemist.research_no_sources" });
-      return sources;
     });
   return {
     async search(input) {

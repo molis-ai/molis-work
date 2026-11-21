@@ -433,7 +433,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ],
     extraDependencies: {
-      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz"
+      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz"
     }
   }),
   entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {

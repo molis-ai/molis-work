@@ -28,8 +28,20 @@ import { PLUGIN_TRUST_SETTINGS_STYLES } from "./styles/settings-plugins.js";
 import {
   CONTEXT_TOOLBAR_STYLES,
   COSS_CONTROL_STYLES,
+  PLUGIN_COSS_CONTROL_STYLES,
+  PLUGIN_FOUNDATION_STYLES,
   CRAFT_FINISH_STYLES,
   DIFF_VIEW_STYLES,
+  FOLLOW_STYLES,
+  HIDDEN_SCROLLBAR_STYLES,
+  COPY_FEEDBACK_STYLES,
+  FIELD_FIT_STYLES,
+  MEDIA_ZOOM_STYLES,
+  MOTION_STYLES,
+  NUMBER_STYLES,
+  OVERFLOW_FADE_STYLES,
+  SHOW_MORE_STYLES,
+  STREAM_TEXT_STYLES,
   INTERACTION_DATE_STYLES,
   DROP_ZONE_CLIENT_SCRIPT, COMPOSER_LOADER_CLIENT_SCRIPT, COMPOSER_SWEEP_CLIENT_SCRIPT, COMPOSER_STYLES, SUBTASK_CONVERSATION_STYLES,
   INTERACTION_NUMBER_STYLES,
@@ -45,6 +57,7 @@ import {
   SOURCE_LADDER_STYLES,
   MICRO_INTERACTION_STYLES,
   PRIMITIVE_STYLES,
+  PRIMITIVE_PLUGIN_STYLES,
   SESSION_SOURCE_STYLES,
   WHO_STYLES,
   APPEARANCE_PARTS_STYLES,
@@ -76,12 +89,12 @@ import { WORK_BAR_CLIENT_SCRIPT } from "./scripts/work-bar-client.js";
 import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
 import { APPEARANCE_RECOVERY_STYLES } from "./styles/settings.js";
 import { FOCUS_SECTION_STYLES } from "./styles/focus-sections.js";
-import { PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
+import { PLUGIN_STAGE_LAYER_STYLES, PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
 import { IMMERSIVE_DIRECTORY_STYLES } from "./styles/immersive-directory.js";
 import { ARRIVAL_STYLES } from "./styles/arrival.js";
 import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
 import { GLOBAL_SEARCH_CONTENT_STYLES } from "./styles/global-search-content.js";
-import { PLACEMENT_STYLES } from "./styles/placement.js";
+import { PLACEMENT_SLOT_STYLES, PLACEMENT_STYLES } from "./styles/placement.js";
 import { LINEAR_DENSITY_STYLES } from "./styles/linear-density.js";
 import { PROJECT_HOME_STYLES } from "./styles/project-home.js";
 import { PROJECT_SETTINGS_PAGE_STYLES } from "./styles/project-settings-page.js";
@@ -138,6 +151,22 @@ export function renderMolisWorkArrivalStylesheet(): string {
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
   return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${SKILL_SETTINGS_STYLES}${LOCAL_DIRECTORY_SETTINGS_STYLES}${WEB_SEARCH_SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${KNOWLEDGE_SETTINGS_STYLES}${ITEM_ROW_STYLES}${TASK_GRANTS_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${pluginSettingsStyles()}${VISUAL_FOUNDATION_PAGE_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${PROJECT_DIRECTORIES_STYLES}${INTERACTION_OPTION_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${KEEP_EDITS_TAIL}${TYPEFACE_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
+}
+
+const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLLOW_STYLES}${OVERFLOW_FADE_STYLES}${FIELD_FIT_STYLES}${COPY_FEEDBACK_STYLES}${NUMBER_STYLES}${STREAM_TEXT_STYLES}${HIDDEN_SCROLLBAR_STYLES}`;
+
+/**
+ * Dedicated lightweight (<80 KB minified) base stylesheet for opaque plugin `srcdoc` frames (102-1).
+ * Uses CSS Cascade Layers (`@layer`) so unlayered plugin stylesheets override cleanly without `!important` escalation.
+ */
+export function renderMolisWorkPluginBaseStylesheet(): string {
+  return `@layer reset, tokens, foundation, primitives, controls, stage;
+@layer reset { *, *::before, *::after { box-sizing: border-box; } [hidden] { display: none; } }
+@layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
+@layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
+@layer primitives { ${PRIMITIVE_PLUGIN_STYLES} }
+@layer controls { ${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES} }
+@layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

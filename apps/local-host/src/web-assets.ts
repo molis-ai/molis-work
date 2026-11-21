@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -72,10 +72,17 @@ function bundledAppearanceFile(route: string): { body: string | Buffer; contentT
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
-  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkArrivalStylesheet" | "renderMolisWorkSettingsStylesheet">;
+  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkArrivalStylesheet" | "renderMolisWorkSettingsStylesheet">
+    & Partial<Pick<WorkbenchRenderer, "renderMolisWorkPluginBaseStylesheet">>;
 }) {
   const { ptyClientFilePath } = ports;
-  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
+  const {
+    renderMolisWorkWorkbenchStylesheet,
+    renderMolisWorkWorkbenchClientScript,
+    renderMolisWorkArrivalStylesheet,
+    renderMolisWorkSettingsStylesheet,
+    renderMolisWorkPluginBaseStylesheet = defaultPluginBaseStylesheet,
+  } = ports.renderer;
   const workbenchAssets = new Map<string, { body: string | Buffer; contentType: string; etag: string }>();
   function servePtyClient(request: IncomingMessage, response: ServerResponse): boolean {
     const filePath = ptyClientFilePath();
@@ -127,9 +134,11 @@ export function createLocalWebAssets(ports: {
     if (!asset) {
       const plugin = pathname.match(/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/);
       const client = plugin?.[2] === "js" ? pluginWorkbenchClientAsset(plugin[1]!) : null;
-      const styles = plugin?.[2] === "css" ? pluginOnDemandStylesheet(plugin[1]!) : null;
+      const styles = plugin?.[2] === "css" ? pluginFrameServedStylesheet(plugin[1]!) : null;
       const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : styles ? { body: styles, contentType: "text/css; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
+      : pathname === "/assets/molis-work-plugin-base.css"
+        ? { body: renderMolisWorkPluginBaseStylesheet(), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-plugin-frame.js"
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"

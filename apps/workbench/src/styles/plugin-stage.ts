@@ -209,3 +209,10 @@ export const PLUGIN_STAGE_STYLES = `
     [data-lingguang-save-status] { order: 2; flex-basis: 100%; }
   }
 `;
+
+/** Layered plugin-frame stage rules: drops outer-shell prefixes and redundant !important so unlayered plugin sheets override cleanly (102-1). */
+export const PLUGIN_STAGE_LAYER_STYLES = PLUGIN_STAGE_STYLES
+  .replace(".immersive-plugin-stage > .plugin-stage-shell,\n  .tab-pane-body > .plugin-stage-shell {", "body > .plugin-stage-shell {")
+  .replaceAll("body.immersive-workbench ", "")
+  .replaceAll(".plugin-stage-chrome .tree-create,\n  .plugin-stage-chrome .tree-create", ".plugin-stage-chrome .tree-create")
+  .replaceAll("display: none !important;", "display: none;");

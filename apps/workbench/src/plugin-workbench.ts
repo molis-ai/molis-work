@@ -3,6 +3,21 @@ import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@mol
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { drawCatalogText } from "./plugin-text.js";
 import { splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
+import {
+  CODING_BASICS_STYLES,
+  COMPOSER_STYLES,
+  CONTEXT_TOOLBAR_STYLES,
+  INPUT_RECEIPTS_STYLES,
+  INTERACTION_STYLES,
+  KEEP_EDITS_STYLES,
+  PRESENTATION_FORM_STYLES,
+  PRIMITIVE_PLUGIN_CALENDAR,
+  PRIMITIVE_PLUGIN_LAYOUT_SHELL,
+  PRIMITIVE_PLUGIN_SEVERITY,
+  SETTINGS_DOCUMENT_STYLES,
+  SOURCE_LADDER_STYLES,
+} from "@molis-ai/molis-work-design-system";
+import { CODING_COMPANION_STYLES } from "./styles/coding-companions.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses" | "contributions"> {
@@ -100,6 +115,32 @@ export function pluginWorkbenchStyles(packs: readonly BuiltinPluginWorkbenchPack
 export function pluginOnDemandStylesheet(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string | null {
   const pack = packs.find(candidate => candidate.project_plugin_id === id);
   return (pack && splitOf(pack)?.scoped) || null;
+}
+
+const FRAMED_PLUGIN_EXTRA_STYLES: Readonly<Record<string, string>> = {
+  coding: `${COMPOSER_STYLES}${CODING_BASICS_STYLES}${CODING_COMPANION_STYLES}${SETTINGS_DOCUMENT_STYLES}${INPUT_RECEIPTS_STYLES}${INTERACTION_STYLES}`,
+  feed: `${KEEP_EDITS_STYLES}${SOURCE_LADDER_STYLES}`,
+  inbox: PRESENTATION_FORM_STYLES,
+  jelly: PRIMITIVE_PLUGIN_CALENDAR,
+  pages: CONTEXT_TOOLBAR_STYLES,
+  risk: PRIMITIVE_PLUGIN_SEVERITY,
+  shelf: SETTINGS_DOCUMENT_STYLES,
+  "work-brief": PRIMITIVE_PLUGIN_LAYOUT_SHELL,
+};
+
+/**
+ * Full stylesheet served at `/assets/molis-work-plugins/<id>.css` for opaque plugin frames (102-1).
+ * Framed plugins now load the lightweight `molis-work-plugin-base.css` instead of `molis-work-workbench.css`,
+ * so their served on-demand sheet includes their own `shared` split rules (e.g. `@keyframes`, `.pc-*`, `.alc-*`)
+ * plus any specialized design-system feature sheet only that plugin renders. `pluginOnDemandStylesheet` stays unchanged.
+ */
+export function pluginFrameServedStylesheet(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string | null {
+  const pack = packs.find(candidate => candidate.project_plugin_id === id);
+  const split = pack ? splitOf(pack) : null;
+  if (!split?.scoped) return null;
+  if (!pack?.clientFactory) return split.scoped;
+  const extra = FRAMED_PLUGIN_EXTRA_STYLES[id] ?? "";
+  return `${extra}${split.shared}${split.scoped}`;
 }
 
 /** The sheets a plugin's frame links: its own, then those of the plugins whose classes it draws. */

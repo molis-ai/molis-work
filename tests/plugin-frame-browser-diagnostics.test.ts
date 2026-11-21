@@ -153,3 +153,27 @@ test("102-1 plugin-frame navigation normalizes and dispatches platform-aware sho
   assert.equal(linuxSolo.ctrlKey, true);
   assert.equal(linuxSolo.shiftKey, true);
 });
+
+test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <head> and rejects foreign/non-asset links", () => {
+  const bundled = buildSync({
+    entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/document.ts", import.meta.url))],
+    bundle: true,
+    format: "iife",
+    globalName: "frameDocMod",
+    platform: "browser",
+    write: false,
+  }).outputFiles[0]!.text;
+  const ctx: Record<string, unknown> = { URL };
+  runInNewContext(bundled, ctx);
+  const { extractHeadStyleLinks } = ctx.frameDocMod as {
+    extractHeadStyleLinks(content: string, origin: string): { headLinks: string; bodyContent: string };
+  };
+  const origin = "http://127.0.0.1:4173";
+  const input = '<link rel="stylesheet" href="/assets/molis-work-plugins/coding.css"><link rel="stylesheet" href="https://evil.invalid/assets/x.css"><link rel="stylesheet" href="/api/other.css"><main>ok</main>';
+  const result = extractHeadStyleLinks(input, origin);
+  assert.equal(result.headLinks, '<link rel="stylesheet" href="http://127.0.0.1:4173/assets/molis-work-plugins/coding.css">');
+  assert.ok(!result.bodyContent.includes("coding.css"), "hoisted same-origin /assets/ link removed from body");
+  assert.ok(result.bodyContent.includes("https://evil.invalid/assets/x.css"), "foreign-origin link never hoisted");
+  assert.ok(result.bodyContent.includes("/api/other.css"), "non-/assets/ link never hoisted");
+  assert.ok(result.bodyContent.includes("<main>ok</main>"));
+});

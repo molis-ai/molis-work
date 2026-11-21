@@ -1,5 +1,5 @@
-/** Placement bar, panel, dialogs and completion cards (specs/archive/work-placement §4). Shared tokens only; no new visual system. */
-export const PLACEMENT_STYLES = `
+/** Placement slot and target label styles rendered inside framed plugin documents (102-1). */
+export const PLACEMENT_SLOT_STYLES = `
   /* The bar gives way in a crowded header: the location ellipsizes rather than pushing the plugin's own buttons out. */
   [data-placement-slot], .plugin-stage-detail-bar > span[data-placement-slot] { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; }
   [data-placement-slot]:empty, .plugin-stage-detail-bar > span[data-placement-slot]:empty { display: none; }
@@ -16,6 +16,14 @@ export const PLACEMENT_STYLES = `
   .placement-target { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--muted); white-space: nowrap; }
   .placement-target > span { flex: none; }
   .placement-target b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--ink-soft, var(--ink)); }
+  @media (max-width: 760px) {
+    .placement-bar > .placement-bar-access, .placement-bar > .placement-bar-links { display: none; }
+    .placement-bar > .placement-bar-where { display: block; max-width: 8em; }
+  }
+`;
+
+/** Placement bar, panel, dialogs and completion cards (specs/archive/work-placement §4). Shared tokens only; no new visual system. */
+export const PLACEMENT_STYLES = `${PLACEMENT_SLOT_STYLES}
   .placement-panel { position: fixed; z-index: 60; width: min(380px, calc(100vw - 16px)); max-height: calc(100vh - 80px); overflow: auto; padding: 14px;
     background: var(--paper); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); }
   .placement-panel-title { margin: 0 0 10px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }

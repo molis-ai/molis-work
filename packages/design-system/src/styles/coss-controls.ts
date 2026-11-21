@@ -1,3 +1,94 @@
+/** Core Coss control and dialog/popover motion rules shared by plugin frames (102-1). */
+export const PLUGIN_COSS_CONTROL_STYLES = `
+  html[data-density="compact"] body.immersive-workbench { --control-h: 28px; }
+
+  body { caret-color: var(--ink); }
+  ::selection { background: var(--blue-soft); color: var(--ink); }
+  :where(button, a, summary, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
+  :where(button, a, summary) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint); }
+  :where(input, select, textarea) { accent-color: var(--action); }
+  :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+
+  .tree-create,
+  [data-tree-filter-trigger] {
+    height: var(--control-h);
+    min-height: var(--control-h);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: var(--control-fill);
+    color: var(--ink);
+    box-shadow: none;
+    font-weight: var(--weight-control, 500);
+  }
+  .tree-create:hover,
+  [data-tree-filter-trigger]:is(:hover, .is-active, [aria-expanded="true"]) {
+    background: var(--nav-hover);
+    color: var(--ink);
+  }
+  [data-tree-filter-trigger] {
+    width: var(--control-h);
+    min-width: var(--control-h);
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+  }
+  [data-tree-filter-trigger] > span { display: none; }
+  [data-tree-filter-trigger] svg { width: 14px; height: 14px; color: inherit; }
+
+  .dialog-body input:not([type=checkbox]):not([type=radio]),
+  .dialog-body textarea,
+  .dialog-body select {
+    min-height: var(--control-h);
+    height: var(--control-h);
+    padding: 0 12px;
+    border: 1px solid var(--control-input);
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    background: var(--paper);
+    box-shadow: none;
+  }
+  .dialog-body textarea {
+    height: auto;
+    min-height: 72px;
+    padding: 8px 12px;
+    resize: vertical;
+  }
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 0 8px;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    background: var(--control-fill);
+    color: var(--muted);
+    font: 11px/20px ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  :where(button:not(:disabled), summary):active { filter: brightness(.94); }
+  :where(input, textarea, select) { transition: border-color 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint); }
+  :where(dialog) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete; opacity: 0; transform: translateY(8px) scale(.98); }
+  :where(dialog[open]) { opacity: 1; transform: none; transition-duration: var(--dur-move); }
+  :where(dialog)::backdrop { background: var(--scrim); transition: opacity var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete; opacity: 0; }
+  :where(dialog[open])::backdrop { opacity: 1; transition-duration: var(--dur-move); }
+  @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); } :where(dialog[open])::backdrop { opacity: 0; } }
+  [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
+  .mw-modal-cover[popover] { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: var(--scrim); }
+  .form-actions { --control-h: 36px; }
+  .form-actions > button { min-height: 36px; }
+  .feed-stage-leading strong { font-size: 13px; }
+  [data-feed-task] { position: relative; }
+  @media (max-width: 760px) {
+    .mw-btn--primary, .mw-btn--secondary, .mw-btn--danger, .form-actions > button { min-height: 44px; }
+    .form-actions { --control-h: 44px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms; animation-iteration-count: 1; transition-duration: 0s; transition-delay: 0s; scroll-behavior: auto; }
+    :where(dialog), :where(dialog)::backdrop { transform: none; transition: none; animation: none; }
+    [popover]:popover-open { animation: none; }
+  }
+`;
+
 /** Shared Coss surfaces and controls. Loaded last by each page renderer. */
 export const COSS_CONTROL_STYLES = `
   html[data-density="compact"] :is(body.immersive-workbench, body.settings-page, body.project-preferences-page) { --control-h: 28px; }

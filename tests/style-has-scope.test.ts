@@ -5,6 +5,7 @@ import test from "node:test";
 import { AGENT_STUDIO_STYLES } from "@molis-ai/molis-work-plugin-builder";
 import {
   renderMolisWorkArrivalStylesheet,
+  renderMolisWorkPluginBaseStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
@@ -148,7 +149,7 @@ function sourcesWithHas(): string[] {
 }
 
 test("VUX-36 no style rule makes the page root, the work area or the switcher re-check a :has() over its whole subtree", () => {
-  const sheets = { workbench: renderMolisWorkWorkbenchStylesheet(), arrival: renderMolisWorkArrivalStylesheet(), settings: renderMolisWorkSettingsStylesheet(), studio: AGENT_STUDIO_STYLES };
+  const sheets = { workbench: renderMolisWorkWorkbenchStylesheet(), pluginBase: renderMolisWorkPluginBaseStylesheet(), arrival: renderMolisWorkArrivalStylesheet(), settings: renderMolisWorkSettingsStylesheet(), studio: AGENT_STUDIO_STYLES };
   const found: string[] = [];
   let checked = 0;
   for (const [sheet, css] of Object.entries(sheets)) {

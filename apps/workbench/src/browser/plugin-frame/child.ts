@@ -148,11 +148,15 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     event.preventDefault(); send({ type: "link", url: new URL(href, config.origin).href, download: link.hasAttribute("download") });
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script"); script.src = new URL(url, config.origin).href;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched"))); document.head.append(script);
+    const script = document.createElement("script");
+    script.async = false;
+    script.src = new URL(url, config.origin).href;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched")));
+    document.head.append(script);
   });
-  for (const asset of config.assets) await load(asset);
-  await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
+  const scripts = [...config.assets, "/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js"];
+  await Promise.all(scripts.map(load));
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(uiText.text("common.child.view-entry-missing"));
   childPresentation(port, scope);

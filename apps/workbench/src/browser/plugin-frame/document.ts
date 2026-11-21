@@ -19,9 +19,33 @@ export function renderedFrameText(page: ParentNode, root: HTMLElement): string |
   return frameDocumentMarkup(matches[0]!);
 }
 
+const PLUGIN_STYLE_LINK = /<link\b[^>]*\brel=(["'])stylesheet\1[^>]*>/gi;
+const LINK_HREF = /\bhref=(["'])([^"']+)\1/i;
+
+/** Hoist same-origin `/assets/` plugin stylesheet links from body markup into `<head>` to eliminate FOUC and preserve cascade order (102-1). */
+export function extractHeadStyleLinks(content: string, origin: string): { headLinks: string; bodyContent: string } {
+  const headLinks: string[] = [];
+  const bodyContent = content.replace(PLUGIN_STYLE_LINK, (tag) => {
+    const hrefMatch = LINK_HREF.exec(tag);
+    if (!hrefMatch) return tag;
+    const rawHref = hrefMatch[2]!;
+    let resolved: URL;
+    try {
+      resolved = new URL(rawHref, origin);
+    } catch {
+      return tag;
+    }
+    if (resolved.origin !== origin || !resolved.pathname.startsWith("/assets/")) return tag;
+    headLinks.push(`<link rel="stylesheet" href="${escape(resolved.href)}">`);
+    return "";
+  });
+  return { headLinks: headLinks.join(""), bodyContent };
+}
+
 /** The CSP permits the registered bundle, its declared static dependencies and the shared composer on demand. No child network or nested frame. */
 export function frameDocument(root: HTMLElement, pack: FramePack, challenge: string, appearance?: AppearanceProjection): string {
-  const origin = location.origin, script = origin + "/assets/molis-work-plugin-frame.js";
+  const origin = location.origin;
+  const script = origin + "/assets/molis-work-plugin-frame.js";
   const sources = [script, origin + "/assets/molis-work-composer.js", origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
   const policy = "default-src 'none'; script-src " + sources.join(" ") + "; style-src 'unsafe-inline' " + origin + "/assets/; font-src " + origin
     + "/assets/; img-src data: blob: " + origin + "/assets/; connect-src 'none'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
@@ -29,6 +53,7 @@ export function frameDocument(root: HTMLElement, pack: FramePack, challenge: str
   if (content === null) throw new Error("Missing plugin document");
   const helpJson = root.querySelector(":scope > script[data-plugin-help]")?.textContent?.trim();
   const helpTag = helpJson ? `<script type="application/json" data-mw-help-declaration>${helpJson.replaceAll("<", "\\u003c")}</script>` : "";
+  const { headLinks, bodyContent } = extractHeadStyleLinks(content, origin);
   const dataset = document.documentElement.dataset;
   const device = [["theme", dataset.theme], ["resolved-theme", dataset.resolvedTheme], ["density", dataset.density],
     ["terminal-theme", dataset.terminalTheme], ["resolved-terminal-theme", dataset.resolvedTerminalTheme]];
@@ -39,6 +64,6 @@ export function frameDocument(root: HTMLElement, pack: FramePack, challenge: str
   const sheet = appearance?.stylesheet ? `<link rel="stylesheet" data-ui-appearance-sheet href="${escape(new URL(appearance.stylesheet, origin).href)}">` : "";
   return '<!doctype html><html lang="' + escape(document.documentElement.lang) + '"' + attributes + '><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'
     + escape(policy) + '"><meta name="molis-work-frame-parent" content="' + escape(origin) + '"><meta name="molis-work-frame-mount" content="' + escape(challenge)
-    + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-workbench.css">' + sheet + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body{container:plugin-stage / inline-size}body>:is([data-work-surface],[data-ui-client-root]){position:relative;width:100%;height:100%;min-width:0}body[hidden],body>:is([data-work-surface],[data-ui-client-root])[hidden]{display:none}</style></head><body class="immersive-workbench">'
-    + (document.querySelector("svg.icon-sprite")?.outerHTML ?? "") + content + helpTag + '<script src="' + script + '"></script></body></html>';
+    + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-plugin-base.css">' + sheet + headLinks + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body{container:plugin-stage / inline-size}body>:is([data-work-surface],[data-ui-client-root]){position:relative;width:100%;height:100%;min-width:0}body[hidden],body>:is([data-work-surface],[data-ui-client-root])[hidden]{display:none}</style></head><body class="immersive-workbench">'
+    + (document.querySelector("svg.icon-sprite")?.outerHTML ?? "") + bodyContent + helpTag + '<script src="' + script + '"></script></body></html>';
 }

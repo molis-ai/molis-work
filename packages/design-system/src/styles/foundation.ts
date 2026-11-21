@@ -1,8 +1,8 @@
 import { BASELINE_SKIN, baselineTerminal } from "../baseline.js";
 import { renderSkinScope } from "../appearance-tokens.js";
 
-/** AP3 visual layer: foundation. */
-export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
+/** Core tokens, terminal themes, body typography, focus ring and baseline field border shared by plugin frames. */
+export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
 
   html[data-resolved-terminal-theme="light"] {
     ${baselineTerminal("light")}
@@ -19,11 +19,6 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
     text-rendering: optimizeLegibility;
   }
 
-  body[data-navigation-pending="true"] { cursor: progress; }
-  .mw-navigation-loading { position: fixed; z-index: 1000; top: 8px; right: 12px; display: inline-flex; padding: 4px; border-radius: 50%; background: var(--paper); color: var(--muted); pointer-events: none; }
-  body[data-navigation-pending="true"] a[aria-busy="true"] { color: var(--blue-dark); }
-
-
   svg { stroke-width: 2; }
   button, input, textarea, select { font-family: var(--font); }
   button:focus-visible, input:focus-visible, textarea:focus-visible,
@@ -31,6 +26,19 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
     outline: var(--focus-stroke);
     outline-offset: var(--focus-stroke-inset);
   }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not([data-feed-search]),
+  textarea:not(.mw-textarea),
+  select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
+  .dialog-shell { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
+`;
+
+/** AP3 visual layer: foundation. */
+export const FOUNDATION_STYLES = `${PLUGIN_FOUNDATION_STYLES}
+
+  body[data-navigation-pending="true"] { cursor: progress; }
+  .mw-navigation-loading { position: fixed; z-index: 1000; top: 8px; right: 12px; display: inline-flex; padding: 4px; border-radius: 50%; background: var(--paper); color: var(--muted); pointer-events: none; }
+  body[data-navigation-pending="true"] a[aria-busy="true"] { color: var(--blue-dark); }
+
 
   .app { grid-template-rows: 48px minmax(0, 1fr); }
   .topbar {

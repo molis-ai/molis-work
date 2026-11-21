@@ -83,7 +83,7 @@ export interface PlacementConvertRequest {
   to_project_id: string;
   request_id: string;
   /** What the source hands over, when it is not the object's own content (a form's responses as CSV). */
-  payload?: { title: string; body: string };
+  payload?: { title: string; body: string; url?: string | null };
 }
 export interface PlacementConvertResponse {
   object: PlacedObject; title: string; location: PlacementLocation; open: PlacementOpen | null;
@@ -151,7 +151,7 @@ export const placementActions = {
   convert: { capability_id: "placement.convert", version: /* @version action.placement.convert */ 1, operation: "command", action: { ...write,
     title: "转成另一种内容", description: "把对象的内容交给另一个插件做成新对象（如转成文档、建成一个可挂接的对象、存成数据表），并记下来源；原对象不变。",
     input_schema: object({ source: PLACED_OBJECT_SCHEMA, to: { anyOf: [object({ station: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" } }), object({ attach_kind: kindSchema })] },
-      to_project_id: projectRef, request_id: id, payload: object({ title: { type: "string", maxLength: 200 }, body: { type: "string", maxLength: 400000 } }) }, ["source", "to", "to_project_id", "request_id"]),
+      to_project_id: projectRef, request_id: id, payload: object({ title: { type: "string", maxLength: 200 }, body: { type: "string", maxLength: 400000 }, url: nullable({ type: "string", maxLength: 1000 }) }, ["title", "body"]) }, ["source", "to", "to_project_id", "request_id"]),
     output_schema: object({ object: PLACED_OBJECT_SCHEMA, title: { type: "string" }, location, open, noun: { type: "string" } }, ["object", "title", "location", "open"]) } } as ActionDefinition<PlacementConvertRequest, PlacementConvertResponse>,
 };
 

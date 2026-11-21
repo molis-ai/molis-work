@@ -15,6 +15,13 @@
     "text-stats.stage.retry": "。选择「刷新」重试。",
     "text-stats.empty.waiting": "固定一份文件版本后，这里会显示它的字数与行数统计",
     "text-stats.empty.unavailable": "之前固定的文件版本已不可用",
-    "text-stats.empty.recapture": "重新捕获一次，或者在 Sources 里换一个输入"
+    "text-stats.empty.recapture": "重新捕获一次，或者在 Sources 里换一个输入",
+    "text-stats.help.title": "文本统计",
+    "text-stats.help.what": "对项目里的一份固定文稿成果做字数、段落与结构统计，帮助你快速核对篇幅与分布。",
+    "text-stats.help.example-1": "在文档里「存为固定版本」后，把这份成果交给文本统计查看字数与结构",
+    "text-stats.help.example-2": "对比两版固定文稿的篇幅变化",
+    "text-stats.help.scope": "纯本机只读分析，不联网、不调用付费模型，也不改写原文档。",
+    "text-stats.help.advanced-summary": "从哪里选择输入成果",
+    "text-stats.help.advanced": "需要先在 Pages 或项目成果库里有一份固定版本文稿；原成果被删或更新时不会静默替换。"
   }
 }

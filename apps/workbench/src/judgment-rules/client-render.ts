@@ -258,7 +258,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const say = globalThis.t.text;
     else if (kind === "noul") title.textContent = say("workbench.client-render.probability") + " " + Number(peek.noul ?? 0).toFixed(2);
     else title.textContent = say("workbench.client-render.judged") + " " + String(peek.score ?? "");
     const model = document.createElement("small");
-    model.textContent = peek.model ? "model " + peek.model : "";
+    model.textContent = peek.model ? say("workbench.client-render.evaluated-by", { model: peek.model }) : "";
     head.append(title, model);
     lastPreview.append(head);
     const hint = document.createElement("small");
@@ -291,6 +291,55 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const say = globalThis.t.text;
       });
       lastPreview.append(legend);
     }
+  };
+  const renderReleaseFacts = (rec) => {
+    if (!releaseFactsEl) return;
+    releaseFactsEl.replaceChildren();
+    if (!rec) return;
+    const dst = rec.scene_id || "";
+    const dest = destOf(dst, rec);
+    const canOneStep = rec.status !== "published" && Boolean(dest && dest.kind === "event" && dest.availability?.available !== false);
+    if (pubActivateBtn) {
+      pubActivateBtn.hidden = !canOneStep;
+      if (canOneStep) {
+        pubActivateBtn.textContent = say("workbench.client-records.publish-and-activate", { destination: dest.title });
+      }
+    }
+    if (pubBtn) {
+      pubBtn.classList.toggle("mw-btn--primary", !canOneStep);
+      pubBtn.classList.toggle("mw-btn--secondary", canOneStep);
+      pubBtn.textContent = say(canOneStep ? "workbench.client-records.publish-only" : "workbench.client-records.publish-first-version");
+    }
+    const section = document.createElement("section");
+    section.className = "mw-facts";
+    section.dataset.slot = "facts";
+    const heading = document.createElement("h4");
+    heading.className = "mw-facts__heading";
+    heading.textContent = say("workbench.client-render.release-facts-heading");
+    section.append(heading);
+    const addRow = (tone, text, detail) => {
+      const row = document.createElement("div");
+      row.className = "mw-fact-row" + (tone ? " mw-fact-row--" + tone : "");
+      const body = document.createElement("span");
+      body.className = "mw-fact-row__body";
+      body.textContent = text;
+      if (detail) {
+        const sub = document.createElement("small");
+        sub.className = "mw-fact-row__detail";
+        sub.textContent = detail;
+        body.append(sub);
+      }
+      row.append(body);
+      section.append(row);
+    };
+    addRow("", say("workbench.client-render.release-fact-service"), say("workbench.client-render.release-fact-service-detail"));
+    if (dest && dest.kind === "event") {
+      addRow("ok", say("workbench.client-render.release-fact-scope-event", { destination: dest.title }), say("workbench.client-render.release-fact-scope-event-detail"));
+    } else {
+      addRow("", say("workbench.client-render.release-fact-scope-standalone"), say("workbench.client-render.release-fact-scope-standalone-detail"));
+    }
+    addRow("", say("workbench.client-render.release-fact-version", { version: rec.version || 1 }), say("workbench.client-render.release-fact-version-detail"));
+    releaseFactsEl.append(section);
   };
   const ruleRequest = (rec, suffix, method = "GET", body) => {
     const path = "/api/functions/" + encodeURIComponent(rec.id) + "/" + suffix;

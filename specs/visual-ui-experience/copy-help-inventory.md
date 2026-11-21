@@ -228,3 +228,19 @@
 **F-10 · VUX-54（B27-AC03）。** 从空 Home 走首跑，390px 深色下原有底栏副提示隐藏，浏览器自己的英文气泡难辨认。现在点击或按回车都会在原名称框旁提示，焦点回字段，不发创建请求。纯空格经 Host 拒绝且不创建项目；补上名称后按回车，打开同一流程创建的唯一项目。验证了中英文的 1440、1024、390px 明暗界面。
 
 **F-11／F-12 · BHI-01～04。** 项目首页用一条日期状态摘要说明有无事项，保留起步入口、回到今天与读取失败重试。Inbox 的原文稿按钮移到历史后，按内容宽靠左排列。隔离 Host 的三档宽度、中英文、明暗主题均走了空态、键盘及可访问名称。失败重试后生成并编辑的原文稿，在事项移到历史且折叠历史分组时仍能打开。被动进入空 Inbox 没有文稿请求，打开对话框只读取一次。整批复验及本人验收待做，单独断开旧文稿来源、桌面原生壳与读屏实听未覆盖。[本片需求与验证](work-items/batch27-home-inbox-copy/spec.md)
+
+## 7. 第 40 批落地与复验（VUX-51～59，ONB-47～48 入口）
+
+本批围绕全产品按需帮助（复用第 03 批已定方案 A [`docs/design/on-demand-help/`](../../docs/design/on-demand-help/)）、执行前事实、零黑话文案与生成插件同源规则落地，对应路线书[第 40 批](../post-anticorruption-roadmap/reference/batches/40.md#batch-40-item-2)：
+
+- **组件板标本与共享控制器（VUX-55／VUX-56／VUX-59）。** `/__ui/catalog#on-demand-help` 新增四件生产标本：方案 A 页内「帮助」浮层（含「在右栏继续看」移入右侧栏隐藏标签 `help`、`Esc` 关闭并归还焦点）、字段旁「了解此项」、`.mw-facts` 执行前事实块（收起帮助时常驻可见）、可跳过一次的首访提示（跳过后刷新不重弹、可随时从「帮助」找回）以及帮助读取失败兜底与「再试一次」。工作台、设置、组件板与插件框架共用同一编译产物 `packages/design-system/src/browser/on-demand-help.ts`。
+- **F-06 闭环 · 全量设置与全部 24 个原生内置插件（VUX-55／VUX-58）。**
+  - 全局设置与项目设置全部 27 节经 `apps/workbench/src/settings-help-topics.ts` 接入方案 A「帮助」（每节含「这是什么」「怎么用」「权限与范围」三段中英文词条）。
+  - 全部 24 个原生内置插件（`alchemist`、`coding`、`cognia`、`dataset`、`diff`、`feed`、`form`、`git`、`goals`、`images`、`inbox`、`issues`、`jelly`、`lingguang`、`pages`、`plugin-builder`、`ppt`、`risk`、`schedule`、`shelf`、`text-stats`、`todo`、`work-brief`、`workflows`）均已在 Manifest `ui.help` 声明中英文主题，由插件框架在首屏自动挂载统一「帮助」入口；由单测逐个核验 `uiHelpDeclarationProblems` 与双语键齐全。
+- **F-05 与执行前事实（VUX-54／VUX-56）。** 侧栏「电脑」未开启时提供直达「助理设置」按钮；「图片」首屏目录在未连生图服务时显示连接提示与入口，并在生成按钮前以 `.mw-facts` 常驻呈现外部服务与计费事实；「本机目录」空态指明前往「项目设置 › 工作目录」或具体插件授权；判断规则发布页（PF-A12）与助理电脑授权页（PF-A15）同步呈现常驻 `.mw-facts` 执行前事实。
+- **文案巡检清零（VUX-52／VUX-58）。** 清理全部 28 条 `node scripts/audit-ui-copy.mjs --strict` 告警（含日常界面禁用的 `Agent` / `Runtime` / `Prompt` / 弯引号 / 箭头路径与英文大小写），与 `node scripts/gates/translations.mjs --missing` 双语完整性检查共同归零。
+- **生成插件与作者指导（VUX-59）。** 合同新增 `PluginManifest.ui.help` 与 `SandboxPluginContract.help`；生成插件浏览器渲染器 `packages/design-system/src/plugin-component-help.ts` 自动挂载方案 A「帮助」（优先读取 `contract.help`，缺省时仅从已声明的页面与 `effects` 推导真实范围，绝不虚构未声明能力），并在调用模型、生图、外部网络或不可逆操作前自动展示 `.mw-facts` 事实块。规则同步写入 `skills/molis-plugin-dev/{text-and-appearance.md,ui.md,ui.en.md,generated-experience.md,generated-experience.en.md}`。
+- **仍保留为未覆盖或后续批处理的项（不冒充完成）：**
+  - **VUX-57 / ONB-47～49 的「帮助 → 准备 → 原任务接续」闭环**：按决策 #57（#2185）归第 45 批交付项 1 接线，本批仅提供帮助入口、事实与直达设置/连接去处。
+  - **桌面壳专属路径**：macOS 安装/更新、托盘、系统通知与外部签名包桌面安装弹窗需桌面打包实操。
+  - **真模型联网路径与读屏实听**：真实第三方 OAuth/生图计费、真实 Agent 跑完后的长对话体验、以及 VoiceOver 读屏实听与 `[人工]` 主观流畅度（VUX-51～53、VUX-58）留在「待你验收」。

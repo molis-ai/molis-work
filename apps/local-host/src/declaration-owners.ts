@@ -53,10 +53,18 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
   const shippedIds = new Set(shipped.map(owner => owner.plugin_id));
   const packages = home ? new SandboxPackageStore(home) : undefined;
   const dual = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.dual_instance);
-  function ownsSettings(manifest: PluginManifest, scope: InstallScope) {
+  function ownsSettings(manifest: PluginManifest, scope: InstallScope, record?: PluginInstanceRecord) {
     const entry = dual.find(item => item.manifest.plugin_id === manifest.plugin_id);
     const ref = manifest.settings_entries?.read;
-    if (!ref || !entry || pluginManifestDigest(entry.manifest) !== pluginManifestDigest(manifest)) return true;
+    const sameDualHostBuild = Boolean(
+      entry && (
+        pluginManifestDigest(entry.manifest) === pluginManifestDigest(manifest)
+        || (record?.publisher_trust === "host"
+          && record.publisher_id === entry.manifest.publisher.publisher_id
+          && record.publisher_signature === entry.manifest.publisher.signature)
+      ),
+    );
+    if (!ref || !sameDualHostBuild) return true;
     const action = manifest.actions?.find(item => item.capability_id === ref.capability_id && item.version === ref.version);
     return action?.action.scope === scope.kind;
   }
@@ -80,7 +88,7 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
         if (!readable) throw unreadable(item.record);
         return { plugin_id: item.record.plugin_id,
           ...(artifactOwner(item.record) ? { artifacts: readable.artifacts } : {}),
-          ...(settingOwner(item.record, item.scope) && ownsSettings(readable, item.scope) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
+          ...(settingOwner(item.record, item.scope) && ownsSettings(readable, item.scope, item.record) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
         };
       })];
     } catch (error) {

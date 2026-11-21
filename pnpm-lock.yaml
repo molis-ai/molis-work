@@ -241,9 +241,6 @@ importers:
       '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:packages/ui-host
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
       ws:
         specifier: ^8.21.3
         version: 8.21.3
@@ -290,6 +287,10 @@ importers:
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
+    optionalDependencies:
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
 
   apps/cli:
     dependencies:
@@ -554,9 +555,6 @@ importers:
       mammoth:
         specifier: 1.11.0
         version: 1.11.0
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
       officeparser:
         specifier: 8.1.1
         version: 8.1.1
@@ -573,6 +571,10 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
+    optionalDependencies:
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
 
   apps/mcp:
     dependencies:
@@ -858,6 +860,7 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+    optionalDependencies:
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
@@ -4886,11 +4889,13 @@ snapshots:
 
   node-addon-api@4.3.0: {}
 
-  node-addon-api@7.1.1: {}
+  node-addon-api@7.1.1:
+    optional: true
 
   node-pty@1.1.0:
     dependencies:
       node-addon-api: 7.1.1
+    optional: true
 
   object-assign@4.1.1: {}
 

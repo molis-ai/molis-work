@@ -110,14 +110,23 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const ref = destRef(btnEl);
     if (dst === (sel.scene_id || "") && ref.scene_version === (sel.scene_version || null)
       && ref.scene_provider_id === (sel.scene_provider_id || null)) return;
+    const nextDest = destOf(dst, { ...sel, ...ref });
+    let nextSceneMap = dst && dst !== "agent.mcp" ? (sel.scene_map || {}) : {};
+    if (prim(sel) === "noul" && nextDest?.kind === "event" && (nextDest.option_ids || []).length >= 2 && !nextSceneMap.true && !nextSceneMap.false) {
+      const availableOpts = (nextDest.option_ids || []).filter((id) => optionOf(id, dst).availability?.available !== false);
+      if (availableOpts.length >= 2) {
+        nextSceneMap = { true: availableOpts[0], false: availableOpts[1] };
+      }
+    }
     sel = {
       ...sel,
       ...ref,
-      scene_map: dst && dst !== "agent.mcp" ? (sel.scene_map || {}) : {},
+      scene_map: nextSceneMap,
       action_map: dst === "agent.mcp" ? (sel.action_map || {}) : {},
     };
     renderRoute(sel);
     syncPanel();
+    renderReleaseFacts(sel);
     void paintUses(sel);
     queueSave();
   });
@@ -227,6 +236,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     previewing = true;
     bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = true; });
     pubBtn.disabled = true;
+    if (pubActivateBtn) pubActivateBtn.disabled = true;
     previewBtn.disabled = true;
     previewBtn.textContent = globalThis.t.text("workbench.client-events.testing");
     showNote(globalThis.t.text("workbench.client-events.requesting-judgment-usually-takes-few-seconds"), false);
@@ -259,11 +269,12 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       previewing = false;
       bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = false; });
       pubBtn.disabled = false;
+      if (pubActivateBtn) pubActivateBtn.disabled = false;
       previewBtn.disabled = false;
       previewBtn.textContent = globalThis.t.text("workbench.client-events.preview");
     }
   });
-  pubBtn.addEventListener("click", async () => {
+  const runPublish = async (activateInTarget) => {
     if (!sel || pubBtn.disabled || blocked()) return;
     if (destKey() && destKey() !== "agent.mcp" && !mappingReady({ ...sel, scene_id: destKey(), criteria: readCriteria(), scene_map: sceneMap() })) {
       setStep("fn", true);
@@ -272,19 +283,80 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     }
     const publishId = sel.id;
     pubBtn.disabled = true;
+    if (pubActivateBtn) pubActivateBtn.disabled = true;
     showNote("", false);
     try {
-      await saveDraft();
+      const targetDest = destOf(destKey(), sel);
+      if (activateInTarget && !readKinds().length && targetDest?.subject_kinds?.length) {
+        const wanted = new Set(targetDest.subject_kinds);
+        bench.querySelectorAll("[data-functions-source]").forEach((node) => {
+          if (wanted.has(node.dataset.functionsSource)) node.checked = true;
+        });
+      }
+      const saved = await saveDraft();
       if (sel?.id !== publishId) return;
+      const needsPreview = !saved?.last_preview || saved.last_preview.config_hash !== saved.config_hash;
+      if (activateInTarget && needsPreview) {
+        const previewInput = String(sampleText.value || "").trim();
+        if (!previewInput) {
+          sampleText.focus();
+          showNote(globalThis.t.text("workbench.client-events.preview-input-before-activate"), true);
+          return;
+        }
+        const previewed = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(publishId) + "/preview", {
+          input: previewInput,
+          ...revisionOf(sel),
+        }));
+        if (sel?.id !== publishId) return;
+        remember(previewed.function);
+      }
       const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
       const payload = await withKeep(() => api ? api(path, "POST", revisionOf(sel)) : req("POST", path, revisionOf(sel)));
       if (sel?.id !== publishId) return;
-      remember(payload.function);
+      const published = payload.function;
+      remember(published);
       await loadList();
+      if (!activateInTarget || sel?.id !== publishId) return;
+      const locations = await ruleRequest(published, "targets");
+      if (sel?.id !== publishId) return;
+      const matching = (locations.targets || []).filter((aim) => aim.scene_id === published.scene_id
+        && (!published.scene_version || aim.scene_version === published.scene_version)
+        && (!published.scene_provider_id || aim.provider_id === published.scene_provider_id)
+        && aim.availability?.available);
+      if (matching.length === 1) {
+        const aim = matching[0];
+        await ruleRequest(published, "configure", "POST", {
+          id: published.id,
+          scene_id: aim.scene_id,
+          scene_version: aim.scene_version,
+          provider_id: aim.provider_id,
+          binding_id: aim.binding_id,
+          expected_revision: aim.revision,
+          enabled: true,
+        });
+        if (sel?.id === publishId) {
+          await paintUses(sel);
+          showNote(globalThis.t.text("workbench.client-events.published-and-activated", { version: published.version || 1, target: aim.title || destTitle(published) }), false);
+        }
+      } else if (matching.length > 1) {
+        await paintUses(sel);
+        showNote(globalThis.t.text("workbench.client-events.published-pick-target", { version: published.version || 1 }), false);
+      } else {
+        await paintUses(sel);
+        showNote(globalThis.t.text("workbench.client-events.published-no-direct-target", { version: published.version || 1 }), false);
+      }
     } catch (error) {
-      if (sel?.id === publishId) { showNote(error, true); if (error?.keepEdits) toBand(); }
-    } finally { pubBtn.disabled = false; }
-  });
+      if (sel?.id === publishId) {
+        showNote(error, true);
+        if (error?.keepEdits) toBand();
+      }
+    } finally {
+      pubBtn.disabled = false;
+      if (pubActivateBtn) pubActivateBtn.disabled = false;
+    }
+  };
+  pubBtn.addEventListener("click", () => void runPublish(false));
+  pubActivateBtn?.addEventListener("click", () => void runPublish(true));
   const load = () => loadCatalog().then(loadList).catch((error) => {
     empty.hidden = false;
     molisWorkRequest.show(empty.querySelector("p"),error,globalThis.t.text("workbench.client-events.request-failed"));

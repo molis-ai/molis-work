@@ -34,7 +34,11 @@ export function syncParameters(page: ImagesPage): void {
   const connection = page.pickedConn();
   page.field("connected").hidden = !s.cid && !s.conns.length;
   page.field("connection-empty").hidden = s.conns.length > 0;
+  const dirEmpty = root.querySelector<HTMLElement>("[data-images-directory-connection-empty]");
+  if (dirEmpty) dirEmpty.hidden = s.conns.length > 0;
   // Until a service is connected, connecting is the step; the generate row waits.
+  const submitFacts = root.querySelector<HTMLElement>("[data-images-submit-facts]");
+  if (submitFacts) submitFacts.hidden = !s.conns.length;
   const submitRow = root.querySelector<HTMLElement>(".images-submit-row");
   if (submitRow) submitRow.hidden = !s.conns.length;
   page.field("service-label").textContent = connection ? `${connection.name} · ${connection.model}` : uiText.text("images.service.unavailable");

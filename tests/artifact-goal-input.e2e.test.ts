@@ -20,8 +20,9 @@ for (const width of [1440, 390]) {
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-links]').innerText"), /还没有引用这一版的对象/);
 
     await click("[data-artifact-goal-input] summary");
-    await waitFor("[...document.querySelectorAll('[data-artifact-goal-input] select option')].some(option => option.value === 'V1')", 10_000);
-    await evaluate("(() => { const select = document.querySelector('[data-artifact-goal-input] select'); select.value = 'V1'; select.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    const target = JSON.stringify({ kind: "goal", id: "V1" });
+    await waitFor(`[...document.querySelectorAll('[data-artifact-goal-input] select option')].some(option => option.value === ${JSON.stringify(target)})`, 10_000);
+    await evaluate(`(() => { const select = document.querySelector('[data-artifact-goal-input] select'); select.value = ${JSON.stringify(target)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
     await click("[data-artifact-goal-input-form] button[type=submit]");
     // The detail reloads and 「被谁引用」 names the Goal under Goals, as an input, opening it as a workbench item (RAC-2085).
     await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))", 15_000);

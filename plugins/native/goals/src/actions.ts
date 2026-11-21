@@ -58,6 +58,8 @@ export const goalsActions = {
   inputsConfirm: goalsInputActions.confirm,
   inputsAccept: goalsInputActions.accept,
   inputsRelease: goalsInputActions.release,
+  inputsReviewSource: goalEntryActions.inputsReviewSource,
+  inputsReviewChange: goalEntryActions.inputsReviewChange,
   inputsList: goalsInputActions.list,
   attachList: goalsAttachActions.list,
   attachBind: goalsAttachActions.bind,

@@ -58,6 +58,19 @@ export const datasetManifest: PluginManifest = {
     consumes: [],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "dataset.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "dataset.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "dataset.help.example-1" }, { key: "dataset.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "dataset.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "dataset.help.advanced-summary" }, body: { key: "dataset.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [DATASET_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", hue: "green", order: 58, group: "make" },

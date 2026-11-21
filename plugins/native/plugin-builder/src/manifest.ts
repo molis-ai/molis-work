@@ -12,5 +12,18 @@ export const builderManifest:PluginManifest={
  capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectDirectoryActions.get].map(x=>x.capability_id)},
  artifacts:{produces:[],consumes:[]},
  sync:builderSync,
- ui:{ locales: { default: "zh", available: ["zh", "en"] },contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',title_text: { key: "plugin-builder.directory.view-directory" },contribution_id:BUILDER_UI_ID,icon:'wand',hue:'indigo',order:57,rail:'extend'}]},
+ ui:{ locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "plugin-builder.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "plugin-builder.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "plugin-builder.help.example-1" }, { key: "plugin-builder.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "plugin-builder.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "plugin-builder.help.advanced-summary" }, body: { key: "plugin-builder.help.advanced" } },
+        ],
+      }],
+    },contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',title_text: { key: "plugin-builder.directory.view-directory" },contribution_id:BUILDER_UI_ID,icon:'wand',hue:'indigo',order:57,rail:'extend'}]},
 };

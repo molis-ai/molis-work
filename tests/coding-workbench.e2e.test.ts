@@ -101,13 +101,13 @@ test("QEA-186: Coding tools open real stages, preserve session tabs and read fix
   const compared = await evaluate<string>("document.querySelector('[data-companion=diff] [data-companion-content]').textContent");
   assert.match(compared, /first/); assert.match(compared, /second/, "Diff reads both versions fixed from the reader");
   const diffStage = await stage("diff");
-  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开资料"]);
+  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开资料", "帮助"]);
   assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
   await capture("diff-desktop");
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料"]);
+  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料", "帮助"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");

@@ -155,5 +155,77 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(uiText.text("common.child.view-entry-missing"));
-  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
+  childPresentation(port, scope);
+  childModal(port, scope);
+  factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>);
+  childPlacement(port, scope);
+  childFrameAssets(port, scope, root);
+  childNavigation(port, scope, config, () => itemTab);
+  mountDeclaredHelp(config.side, root);
+  context();
+  send({ type: "ready" });
+}
+
+/**
+ * Every framed plugin that declares `ui.help` gets a uniform Scheme A 「帮助」 trigger even if its own
+ * view does not place a custom `[data-mw-help-trigger]` button. Plugins that draw their own button keep it.
+ */
+function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
+  if (side || !document.querySelector("script[data-mw-help-declaration]")) return;
+  let floatingBtn: HTMLButtonElement | null = null;
+  const avoidOverlap = () => {
+    if (!floatingBtn || !floatingBtn.isConnected) return;
+    floatingBtn.classList.remove("mw-help-auto-trigger--top");
+    const rect = floatingBtn.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const points: Array<[number, number]> = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + 4, rect.top + rect.height / 2],
+      [rect.right - 4, rect.top + rect.height / 2],
+    ];
+    const blocked = points.some(([x, y]) => document.elementsFromPoint(x, y).some((el) => {
+      if (el === floatingBtn || floatingBtn?.contains(el)) return false;
+      return Boolean(el.closest('button, a, input, select, summary, [role="button"]'));
+    }));
+    if (blocked) floatingBtn.classList.add("mw-help-auto-trigger--top");
+  };
+  const ensure = () => {
+    if (document.querySelector("[data-mw-help-trigger]")) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mw-btn mw-btn--ghost";
+    btn.dataset.slot = "button";
+    btn.dataset.mwHelpTrigger = "true";
+    btn.dataset.mwHelpAuto = "true";
+    btn.dataset.helpTopic = "page";
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-controls", "mw-help-region");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#icon-question");
+    svg.append(use);
+    const label = document.createElement("span");
+    label.dataset.slot = "button-label";
+    label.textContent = uiText.text("common.help.title");
+    btn.append(svg, label);
+    const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome, .wb-head-actions");
+    if (slot) {
+      slot.append(btn);
+    } else {
+      btn.classList.add("mw-help-auto-trigger");
+      const host = document.createElement("div");
+      host.className = "mw-help-auto-host";
+      host.append(btn);
+      document.body.append(host);
+      floatingBtn = btn;
+      requestAnimationFrame(avoidOverlap);
+    }
+  };
+  ensure();
+  addEventListener("resize", avoidOverlap);
+  document.addEventListener("molis-work:language-changed", () => {
+    const auto = document.querySelector<HTMLElement>('[data-mw-help-auto="true"] [data-slot="button-label"]');
+    if (auto) auto.textContent = uiText.text("common.help.title");
+  });
 }

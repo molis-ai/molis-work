@@ -1966,7 +1966,7 @@
     "coding.round.rerun-prompt": "代码在检查后又有改动，请重新运行验证命令（{command}）并核对当前代码版本的结果。",
     "coding.commit.git-unavailable": "Git 面板暂不可用。",
     "coding.commit.original-directory-gone": "本轮的原工作目录已不在项目中，请重新添加该目录后再交接提交说明。",
-    "coding.commit.suggestion-saved": "建议已保存到 Git，手写说明已保留；需要替换时选择“采用建议说明”。",
+    "coding.commit.suggestion-saved": "建议已保存到 Git，手写说明已保留；需要替换时选择「采用建议说明」。",
     "coding.commit.handoff-failed": "提交说明未能交给 Git，可直接重试交接这份草稿：{reason}",
     "coding.images.size-mb": "{n} MB",
     "coding.images.size-kb": "{n} KB",
@@ -2084,6 +2084,13 @@
     "coding.results.changed": "改了什么",
     "coding.results.run-details": "运行详情",
     "coding.head.more": "更多",
-    "coding.board.empty-title": "还没有任务"
+    "coding.board.empty-title": "还没有任务",
+    "coding.help.title": "Coding",
+    "coding.help.what": "在当前项目关联的代码目录里读代码、提方案、改文件并跑检查命令，每一步改动和结果都清楚可回看。",
+    "coding.help.example-1": "先提出修改方案并按任务板拆分步骤，再逐步改动并验证",
+    "coding.help.example-2": "随时查看改动差异、回退不满意的检查点，或把资料附进本轮对话",
+    "coding.help.scope": "只在「项目设置 › 工作目录」授权的目录里读写和运行检查命令；受保护的写入与命令会先展示变化并由你确认，按所连模型服务商计费。",
+    "coding.help.advanced-summary": "多轮会话、子任务与代码检查",
+    "coding.help.advanced": "未关联工作目录时可先讨论思路，不执行本机文件改动；若某门语言的代码检查工具未安装，系统会明说未检查，不会谎称没有错误。"
   }
 }

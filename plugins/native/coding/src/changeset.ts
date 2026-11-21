@@ -2,7 +2,7 @@ import { codingFailure } from "./words.js";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentReviewRequest, AgentReviewReceipt, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CODING_CHANGESET_TYPE, parseCodingChangeSet, parseFilePath, type CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { CODING_CHANGESET_TYPE, parseCodingChangeSet, parseFilePath, type CodingChangeSet, type CodingFileChange } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareTexts, splitLines } from "@molis-ai/molis-work-plugin-sdk";
 
 export const codingChangeSetReference = (sessionId: string, runId: string) => ({ artifact_id: `coding-changeset:${encodeURIComponent(sessionId)}:${encodeURIComponent(runId)}`, version: 1 });
@@ -36,20 +36,46 @@ export function codingChangedLines(before: string | null, after: string): { adde
   return { added_lines: ops.filter(op => op.kind === "insert").length, removed_lines: ops.filter(op => op.kind === "delete").length };
 }
 
-export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows: Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>): CodingChangeSet {
+/** What became of an approved write, from its receipt alone: applied only once the effect owner confirmed it. */
+const executionOf = (receipt: AgentReviewReceipt) => receipt.effect_uncertain || receipt.delivery_error ? "unknown" as const
+  : receipt.effect_settled ? "applied" as const : receipt.effect_error ? "failed" as const
+    : receipt.status === "approved" ? "unknown" as const : "not-applied" as const;
+
+type ReviewRow = { request: AgentReviewRequest; receipt: AgentReviewReceipt | null };
+
+/**
+ * The round's change set: every text write it proposed, then each file a reviewed integration of this round's result removed
+ * from the main workspace. A deletion is listed only when that integration was approved and its effect confirmed; a delete
+ * command, an unknown or failed outcome, or a file that is simply gone is no proof the round removed it, so none is listed.
+ */
+export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows: ReviewRow[]): CodingChangeSet {
   if (!["completed", "failed", "stopped", "cancelled"].includes(run.phase)) throw new Error("请等待这一轮结束或先核对中断结果，再固定变更");
-  const files = rows.filter(row => row.request.document.kind === "text-edit").map(({ request, receipt }) => {
-    if (request.run?.run_id !== run.ref.run_id || request.run.session_id !== run.ref.session_id || request.document.kind !== "text-edit") throw new Error("审查不属于这一轮");
-    if (!receipt || receipt.review_id !== request.review_id) throw new Error("原执行回执不可读，暂不能固定变更");
+  const seen = new Set<string>();
+  const files = rows.flatMap(({ request, receipt }): CodingFileChange[] => {
     const document = request.document;
+    if (document.kind !== "text-edit" && document.kind !== "git-integration") return [];
+    // Read twice, one review still counts once.
+    if (seen.has(request.review_id)) return [];
+    seen.add(request.review_id);
+    const ofRound = document.kind === "text-edit"
+      ? request.run?.run_id === run.ref.run_id && request.run.session_id === run.ref.session_id
+      : request.run === null && document.source.run_id === run.ref.run_id && document.source.session_id === run.ref.session_id;
+    if (!ofRound) throw new Error("审查不属于这一轮");
+    if (!receipt || receipt.review_id !== request.review_id) throw new Error("原执行回执不可读，暂不能固定变更");
+    const execution = executionOf(receipt);
+    if (document.kind === "git-integration") {
+      if (receipt.status !== "approved" || execution !== "applied") return [];
+      return document.files.filter(file => file.after_text === null && file.before_text !== null).map(file => {
+        parseFilePath(file.path.split("/"));
+        return { path: file.path, kind: "deleted" as const, ...codingChangedLines(file.before_text, ""),
+          diff: "", review: { review_id: request.review_id, before_text: file.before_text, after_text: "", decision: receipt.status, execution } };
+      });
+    }
     parseFilePath(document.target_path.split("/"));
     if (document.exists !== (document.before_text !== null)) throw new Error("原审查文件状态不一致");
-    const execution = receipt.effect_uncertain || receipt.delivery_error ? "unknown" as const
-      : receipt.effect_settled ? "applied" as const : receipt.effect_error ? "failed" as const
-        : receipt.status === "approved" ? "unknown" as const : "not-applied" as const;
-    return { path: document.target_path, kind: document.exists ? "modified" as const : "added" as const,
+    return [{ path: document.target_path, kind: document.exists ? "modified" as const : "added" as const,
       ...codingChangedLines(document.before_text, document.after_text),
-      diff: "", review: { review_id: request.review_id, before_text: document.before_text, after_text: document.after_text, decision: receipt.status, execution } };
+      diff: "", review: { review_id: request.review_id, before_text: document.before_text, after_text: document.after_text, decision: receipt.status, execution } }];
   });
   return parseCodingChangeSet({ scope: "run-frozen", run_id: run.ref.run_id, files, applied: files.length > 0 && files.every(file => file.review.execution === "applied"),
     coverage: "text-reviews", origin: { session_id: sessionId, runtime_session_id: run.ref.session_id,

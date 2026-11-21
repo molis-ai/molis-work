@@ -54,7 +54,7 @@ function changeView(change: CodingChangeSet, index: number, version: number): Di
   const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
     path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
   return { ...compareChange(GROUP, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
-    created: chosen.review.before_text === null }), files };
+    created: chosen.review.before_text === null, removed: chosen.kind === "deleted" }), files };
 }
 
 /**
@@ -69,7 +69,8 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
   const requested = query.net, net = chosen && (requested === "1" || requested === "auto") ? codingNetChange(change, chosen.path) : null;
   const netFiles = net?.available ? (() => {
     const first = change.files[net.indices[0]!]!, last = change.files[net.indices.at(-1)!]!;
-    return [{ ...last, kind: first.kind, review: { ...last.review, before_text: net.before_text } }];
+    // The net change keeps how the round began with the file and, when its last write removed it, that it is gone.
+    return [{ ...last, kind: last.kind === "deleted" ? last.kind : first.kind, review: { ...last.review, before_text: net.before_text } }];
   })() : null;
   const view = changeView(netFiles ? { ...change, files: netFiles } : change, netFiles ? 0 : index, body.reference?.version ?? 1);
   const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);

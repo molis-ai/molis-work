@@ -8,7 +8,13 @@ const uiText = globalThis.t;
 export const ico = (name: string) => `<svg aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
 
 export const kindName = (kind: WorkflowLinkKind) =>
-  kind === "judgment" ? uiText.text("workflows.kind.judgment") : kind === "function" ? uiText.text("workflows.kind.function") : kind === "manual" ? uiText.text("workflows.kind.manual") : "AI";
+  kind === "judgment"
+    ? uiText.text("workflows.kind.judgment")
+    : kind === "function"
+      ? uiText.text("workflows.kind.function")
+      : kind === "manual"
+        ? uiText.text("workflows.kind.manual")
+        : uiText.text("workflows.kind.ai");
 export const kindHelp = (kind: WorkflowLinkKind) =>
   kind === "judgment" ? uiText.text("workflows.kind.judgment-help") : kind === "function" ? uiText.text("workflows.kind.function-help") : kind === "manual" ? uiText.text("workflows.kind.manual-help") : uiText.text("workflows.kind.ai-help");
 

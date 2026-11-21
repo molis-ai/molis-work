@@ -48,6 +48,19 @@ export const workBriefManifest: PluginManifest = {
     consumes: [],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "work-brief.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "work-brief.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "work-brief.help.example-1" }, { key: "work-brief.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "work-brief.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "work-brief.help.advanced-summary" }, body: { key: "work-brief.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [WORK_BRIEF_UI_CONTRIBUTION_ID],
     views: [
       // The project's brief. The home shows this view whole while the plugin runs (`presentation.overview.lead`).

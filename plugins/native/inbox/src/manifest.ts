@@ -66,6 +66,19 @@ export const inboxManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:/* @version sync.collection.inbox.attention */ 1,requires:[],sections:attentionSections}]},
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "inbox.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "inbox.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "inbox.help.example-1" }, { key: "inbox.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "inbox.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "inbox.help.advanced-summary" }, body: { key: "inbox.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", hue: "mint", order: 30, rail: "core", pinned_default: true, accepts_objects: true,

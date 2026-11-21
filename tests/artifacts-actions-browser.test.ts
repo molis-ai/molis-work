@@ -49,8 +49,9 @@ test("RAC-2345 actual platform Artifact import, exact Goal input, English naviga
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await click("[data-artifact-goal-input] summary");
-  await waitFor("Boolean(document.querySelector('[data-artifact-goal-input] select option[value=V1]'))");
-  await evaluate("document.querySelector('[data-artifact-goal-input] select').value='V1'");
+  const target = JSON.stringify({ kind: "goal", id: "V1" });
+  await waitFor(`[...document.querySelectorAll('[data-artifact-goal-input] select option')].some(option => option.value === ${JSON.stringify(target)})`);
+  await evaluate(`document.querySelector('[data-artifact-goal-input] select').value = ${JSON.stringify(target)}`);
   await click("[data-artifact-goal-input-form] button[type=submit]");
   await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))");
   // A fixed input is listed with the Goal's other inputs (artifact-positioning 五.1, one entry), opening its exact version.

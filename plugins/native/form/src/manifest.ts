@@ -62,6 +62,19 @@ export const formManifest: PluginManifest = {
     consumes: [],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "form.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "form.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "form.help.example-1" }, { key: "form.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "form.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "form.help.advanced-summary" }, body: { key: "form.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", hue: "orange", order: 57, group: "make" },

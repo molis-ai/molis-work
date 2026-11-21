@@ -1,6 +1,6 @@
 import { blankLeaving, dropBlank } from "./blank.js";
 import { clearPicked, paintPicked, reportFocus } from "./context.js";
-import { assertReadable, createPage, exportDocument, loadList, movePage, openDocument, persist, printDocument, publishPage, saveOpen, toggleStar } from "./document.js";
+import { assertReadable, createPage, exportDocument, loadList, movePage, openDocument, openVersionDiff, persist, printDocument, publishPage, saveOpen, toggleStar } from "./document.js";
 import { stop } from "./dom.js";
 import { closeEditor, draftOf, remember, storeDocument } from "./editor.js";
 import { closeCreate, closeMore, closeMove, openMove, toggleCreate, toggleMore } from "./menus.js";
@@ -164,6 +164,10 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
   if (hit("[data-pages-promote]") && page.sel) {
     closeMore(page);
     await publishPage(page, page.sel.id);
+    return;
+  }
+  if (hit("[data-pages-compare-versions]")) {
+    openVersionDiff(page);
     return;
   }
   const exported = hit("[data-pages-export]");

@@ -190,6 +190,11 @@ export function manualLink(): WorkflowLink {
   return { kind: "manual", title_template: "", body_template: "", instructions: "" };
 }
 
+/** Default outcome-first handoff (PF-A13): passes title and body straight to the next step with no template syntax required. */
+export function directHandoffLink(): WorkflowLink {
+  return { kind: "function", title_template: "", body_template: "{正文}", instructions: "" };
+}
+
 export function newStation(plugin: string): WorkflowStation {
   return { station_id: crypto.randomUUID(), plugin };
 }

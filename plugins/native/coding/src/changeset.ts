@@ -54,7 +54,7 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
   const files = rows.flatMap(({ request, receipt }): CodingFileChange[] => {
     const document = request.document;
     if (document.kind !== "text-edit" && document.kind !== "git-integration") return [];
-    // The Host's list could carry a review twice (a refresh between reads); one review is one entry.
+    // One review is one entry, whatever the list it came from: the change set does not rely on the reader never repeating one.
     if (seen.has(request.review_id)) return [];
     seen.add(request.review_id);
     const ofRound = document.kind === "text-edit"

@@ -47,8 +47,9 @@ export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles"
  * collaborators come through `link`.
  */
 export class AssistantWorkReads {
-  private readonly stateReads = repeatingFailure("assistant", "state_unreadable");
   constructor(private readonly store: Pick<AssistantStore, "get" | "objectTitleById" | "relations" | "rounds" | "roundsSince">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantWorkReadsLinks) {}
+  /** A failing state read is logged once per failing spell of each work. */
+  private readonly stateReads = repeatingFailure("assistant", "state_unreadable");
 
   /** Works started before scope titles were kept still show their project's name. */
   async named(work: StoredWork): Promise<StoredWork> {

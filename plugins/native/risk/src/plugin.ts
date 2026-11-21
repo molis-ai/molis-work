@@ -19,7 +19,7 @@ export function createRiskPlugin(): PluginDefinition {
     if (!projectId) throw new ActionError("actions.scope_mismatch", "风险只属于一个项目");
     if (!database || !directory) throw new ActionError("actions.unredeemed", "风险需要项目库与动作目录服务");
     const reader = new RiskStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters) }, projectId);
-    const subjects: ActionClient = { discover: () => directory.discover(), invoke: (_caller, reference, input) => directory.invoke(reference, input) };
+    const subjects: ActionClient = { discover: () => directory.discover(), discoverOne: (_caller, reference) => directory.discoverOne(reference), invoke: (_caller, reference, input) => directory.invoke(reference, input) };
     const read: RiskActionPorts["read"] = run => run(reader);
     const ports: RiskActionPorts = {
       read,

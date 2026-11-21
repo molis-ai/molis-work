@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -204,14 +205,14 @@ test("Web cache keeps the cursor of its authorized collection when a write lands
     await actions.invoke(goalsActions.create, { goal_id: "before", title: "原目标", idempotency_key: "before" });
     const runtime = await host.withProject(ref, r => r);
     let interleave = true;
-    const delayed: BoundActionClient = { discover: actions.discover, async invoke(definition, input) {
+    const delayed: BoundActionClient = fakeBoundActionClient({ discover: actions.discover, async invoke(definition, input) {
       const result = await actions.invoke(definition, input);
       if (interleave) {
         interleave = false;
         await actions.invoke(goalsActions.create, { goal_id: "after", title: "读取期间新增", idempotency_key: "after" });
       }
       return result;
-    } };
+    } });
     const first = await delayed.invoke(goalsActions.collection, {});
     assert.equal(first.goals.some(item => item.goal.goal_id === "after"), false);
     const next = await delayed.invoke(goalsActions.collection, {});

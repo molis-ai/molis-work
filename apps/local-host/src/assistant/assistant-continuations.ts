@@ -1,7 +1,7 @@
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCollaborationSessionView, AgentContinuationStartAnswer, AgentContinuationStartRequest } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState, assistantStateResumes } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { whenThere } from "./assistant-errors.js";
 import { inAssistantWorkEffect } from "./assistant-work-permissions.js";
@@ -50,7 +50,7 @@ export class AssistantContinuations {
   close(): void { this.stopped.abort(); this.withdraw_?.(); for (const off of this.observers) off(); this.observers.clear(); }
   private works() { return this.ports.store.list(this.ports.actorId, { limit: Number.MAX_SAFE_INTEGER }).filter(work => work.executor.kind === "assistant" && work.session_id && !work.reply_target); }
   /** The existing observed-state projection makes an interrupted or waiting work start the runtime on Host restart. */
-  pending(): boolean { return this.works().some(work => !work.continuation_hold && ["running", "waiting-input", "waiting-review"].includes(this.ports.store.observed.of(this.ports.actorId, work.work_id) ?? "")); }
+  pending(): boolean { return this.works().some(work => !work.continuation_hold && assistantStateResumes(this.ports.store.observed.of(this.ports.actorId, work.work_id))); }
   /**
    * Serve the Home's starter for the Assistant's sessions, then take up what may go on now: a continuation that became eligible
    * while nothing served the starter was answered `later`, and the runtime asks again only after the session's next round.

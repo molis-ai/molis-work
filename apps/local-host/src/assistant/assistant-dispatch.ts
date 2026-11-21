@@ -5,9 +5,9 @@ import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef, type AgentRunView, type AgentSessionRef, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
-import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer, assistantRoundOpen, assistantStateUnknown } from "@molis-ai/molis-work-contracts/services/assistant";
 import { replyLanguage } from "../reply-language.js";
 import { runBackgroundWork } from "../web-locale.js";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_REPORT_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
@@ -116,7 +116,8 @@ export class AssistantDispatch {
       const host = await this.ports.host();
       assertAssistantSessionSettled(host, work);
       const state = await this.link.stateSafely(work, true);
-      if (["running", "waiting-input", "waiting-review", "paused"].includes(state) || (work.executor.kind === "assistant" && state === "needs-check")) throw assistantErrors.state("请先结束这一轮或核对中断结果");
+      if (assistantStateUnknown(state) && !await this.executorGone(work)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再交接");
+      if (assistantRoundOpen(state) || (work.executor.kind === "assistant" && state === "needs-check")) throw assistantErrors.state("请先结束这一轮或核对中断结果");
       const control = assistantEndControl(this.store, work, caller);
       if (to.kind === "plugin") await this.handoverToPlugin(work, to.plugin_id, input.mode, control);
       else {
@@ -179,6 +180,19 @@ export class AssistantDispatch {
     if (!id) throw assistantErrors.invalid("这项工作不由执行方插件承担");
     const handed = dispatch?.original || dispatch?.skills?.length ? { original: dispatch.original, skills: dispatch.skills } : undefined;
     return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, handed, id), id, dispatch?.control);
+  }
+
+  /**
+   * A plugin-carried work whose executor is no longer in the project: its state cannot be read because nobody is left who could still
+   * be running a round, not because a read failed for now. Such a work can be taken back; giving it to that plugin again is refused as
+   * the executor being unavailable (S-62).
+   */
+  private async executorGone(work: StoredWork): Promise<boolean> {
+    if (work.executor.kind !== "plugin") return false;
+    try {
+      await this.executorOf(work);
+      return false;
+    } catch (error) { return error instanceof ActionError && error.code === "assistant.executor_unavailable"; }
   }
 
   /** The plugins that can carry a work in the project the page is on, with the ways each offers; none for personal work. */

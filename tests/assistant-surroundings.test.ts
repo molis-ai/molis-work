@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -15,7 +16,7 @@ const view = (capability_id: string, provider: string, available = true, reason 
 
 /** An owner's answers, carried by the person's bound client as an executor plugin's reads are. */
 const bound = (owner: { discover(): Promise<readonly ActionView[]>; invoke(reference: { capability_id: string }, input: unknown): Promise<unknown> }): BoundActionClient =>
-  ({ discover: owner.discover, invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => await owner.invoke(definition, input) as Output });
+  (fakeBoundActionClient({ discover: owner.discover, invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => await owner.invoke(definition, input) as Output }));
 
 const mcp = (id: string, label: string, health: AgentMcpServerView["health"], tools: string[]): AgentMcpServerView => ({ id, version: 1, label, enabled: true, transport: "stdio",
   timeout_ms: 1000, credential: "none", health, tools: tools.map(tool => ({ server: id, tool, version: "1", description: "" })), resources: [] });

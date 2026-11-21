@@ -47,8 +47,8 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
 export { readAssistantReviewWords } from "./assistant-review-html.js";
-export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
-export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
+export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, sidePlaces, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
+export { clientPluginDirectory, isPersonalPlugin, type ClientSidePlaces, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageOpeningView, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";

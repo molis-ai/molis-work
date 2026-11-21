@@ -17,6 +17,7 @@ import { roundModel, workView } from "./assistant-work-view.js";
 import { storedCharacter } from "./assistant-characters.js";
 import type { AssistantMethod, AssistantPendingReview, AssistantRound, AssistantWork, AssistantWorkState, AssistantWorkView, AssistantRelatedWork, AssistantWorkObject, AssistantDiagnostics, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
 import { identity } from "./assistant-relations.js";
+import { repeatingFailure } from "../host-log.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { PersonActions } from "./assistant-executor.js";
@@ -46,6 +47,7 @@ export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles"
  * collaborators come through `link`.
  */
 export class AssistantWorkReads {
+  private readonly stateReads = repeatingFailure("assistant", "state_unreadable");
   constructor(private readonly store: Pick<AssistantStore, "get" | "objectTitleById" | "relations" | "rounds" | "roundsSince">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantWorkReadsLinks) {}
 
   /** Works started before scope titles were kept still show their project's name. */
@@ -249,8 +251,11 @@ export class AssistantWorkReads {
   async stateFor(host: AgentHost, work: StoredWork, inspectActual = false): Promise<AssistantWorkState> {
     if (work.executor.kind === "plugin") {
       if (!work.executor.session_id) return "idle";
-      try { const read = await (await this.link.executorOf(work)).read(work.executor.session_id, 1); return stateOf(read.runs.at(-1)?.phase, Boolean(read.recovery)); }
-      catch { return "needs-check"; }
+      try {
+        const read = await (await this.link.executorOf(work)).read(work.executor.session_id, 1);
+        this.stateReads.worked(work.work_id);
+        return stateOf(read.runs.at(-1)?.phase, Boolean(read.recovery));
+      } catch (error) { return this.unreadable(work, error); }
     }
     if (!work.session_id) return "idle";
     const adapter = host.adapter(RUNTIME);
@@ -259,15 +264,23 @@ export class AssistantWorkReads {
     try {
       if (adapter.readSessionStatus) {
         const { status } = await adapter.readSessionStatus(sessionRef(work));
+        this.stateReads.worked(work.work_id);
         return await project(stateOf(status.latest_phase, status.recovery || status.checkpoint_busy));
       }
       const session = await adapter.readSession(sessionRef(work));
+      this.stateReads.worked(work.work_id);
       return await project(stateOf(session.latest_run?.phase, Boolean(session.recovery || session.checkpoint_busy)));
-    } catch { return "needs-check"; }
+    } catch (error) { return this.unreadable(work, error); }
   }
 
   async stateSafely(work: StoredWork, inspectActual = false): Promise<AssistantWorkState> {
-    try { return await this.stateFor(await this.ports.host(), work, inspectActual); } catch { return work.session_id ? "needs-check" : "idle"; }
+    try { return await this.stateFor(await this.ports.host(), work, inspectActual); } catch (error) { return work.session_id ? this.unreadable(work, error) : "idle"; }
+  }
+
+  /** A read of the run's state that failed: `unreadable`, never a check the person owes; the cause goes to the Host log once per failing spell. */
+  private unreadable(work: StoredWork, error: unknown): AssistantWorkState {
+    this.stateReads.failed(work.work_id, error, { work_id: work.work_id });
+    return "unreadable";
   }
 
   private async reviewsFor(host: AgentHost, work: StoredWork): Promise<AssistantPendingReview[]> {

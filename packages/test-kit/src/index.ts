@@ -15,4 +15,6 @@ export type {
   ImportObservation,
 } from "./boundaries.js";
 
+export { actionViewFor, fakeActionClient, fakeBoundActionClient } from "./action-fakes.js";
+
 /** F2 created the package boundary; F3 adds the first real, business-neutral capability; the `./browser` subpath adds the Chrome driver and `./local-host-http` the Host HTTP client. */

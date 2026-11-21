@@ -8,7 +8,7 @@ import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapabi
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow,
   runHasExpired, runExpiredUntold, runsExpiryBounds, withinRunsWindow, type ActionView,
   type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { assistantRoundOpen, assistantStateUnknown, type AssistantFollowUp, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantSavedText, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
@@ -278,8 +278,14 @@ export class AssistantFollowUps<W extends FollowUpWork> {
         if (!current()) return;
         const state = await ports.state(host, work);
         if (!current()) return;
-        if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.busy"); }
-        else {
+        // A round under way, an interrupted round the person has not checked, or a state that could not be read: a new round would bury what they owe.
+        const skipped = assistantRoundOpen(state) ? "workbench.assistant-followup.busy"
+          : state === "needs-check" ? "workbench.assistant-followup.needs-check"
+            : assistantStateUnknown(state) ? "workbench.assistant-followup.unreadable" : null;
+        if (skipped) {
+          outcome = "skipped";
+          detail = assistantWords(skipped);
+        } else {
           try { await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
           catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
         }
@@ -321,7 +327,9 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (decision.decision === "run_now") {
       if (!work || work.archived) { this.#forgetMissed(followUp.followup_id, due); return { state: "gone" }; }
       const host = await ports.host(), state = await ports.state(host, work);
-      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
+      if (assistantRoundOpen(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
+      if (state === "needs-check") throw assistantErrors.state("请先核对上一轮的中断结果再做");
+      if (assistantStateUnknown(state)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再试");
       await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${parsed.due}`, () => find() !== null);
     }
     return this.#forgetMissed(followUp.followup_id, due) ? { state: decision.decision === "run_now" ? "started" : "skipped" } : { state: "gone" };

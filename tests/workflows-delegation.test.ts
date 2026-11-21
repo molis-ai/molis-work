@@ -102,7 +102,7 @@ test("W5-01-WORKFLOWS-01 the Manifest asks for the permissions the plugin needs,
   for (const permission of [...FEED_PERMISSIONS.filter(item => item !== "model:invoke"), "projects:settings", "delegate:admin"]) assert.equal(workflowsManifest.permissions.some(item => item.permission === permission), false, permission);
 
   const database: PluginDatabase = { get: () => undefined, all: () => [], transaction: () => { throw new Error("no write is made while starting"); } };
-  const directory: PluginActionDirectory = { discover: async () => [], invoke: async () => { throw new Error("nothing is reached while starting"); }, check: async () => {} };
+  const directory: PluginActionDirectory = { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { throw new Error("nothing is reached while starting"); }, check: async () => {} };
   const contextWith = (grants: readonly string[], services: PluginStartContext["services"]): PluginStartContext => ({ install_id: "workflows-test", installation_generation: "1", plugin_id: WORKFLOWS_PLUGIN_ID,
     version: workflowsManifest.version, deployment: "local", grants: [...grants], project_id: "p", services,
     requireGrant: permission => { if (!grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`); } });

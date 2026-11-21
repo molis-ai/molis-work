@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -56,7 +57,7 @@ function catalog(options: { files?: boolean; pagesAvailable?: boolean; libraryAv
     view("one.read", goals, { kinds: ["twice"], reader: true }), view("two.read", pages, { kinds: ["twice"], reader: true }),
     view("mcp.read", { provider_id: "mcp.x", title: "X", kind: "mcp" }, { kinds: ["remote"], reader: true }),
   ];
-  const client: ActionClient = {
+  const client: ActionClient = fakeActionClient({
     discover: () => views,
     invoke: async (_context, reference, input) => {
       const id = (input as { subject_id: string }).subject_id;
@@ -67,7 +68,7 @@ function catalog(options: { files?: boolean; pagesAvailable?: boolean; libraryAv
       const kind = reference.capability_id === "goals.read" ? "goal" : reference.capability_id === "artifacts.read" ? "artifact" : "page";
       return { subject: { kind, id }, revision: "v2", title: id, content: "", truncated: false };
     },
-  };
+  });
   return { client, invoked };
 }
 
@@ -200,12 +201,12 @@ test("SSC-28: the items are read at the same time, four at most, and answered in
     const { client } = catalog();
     let running = 0, most = 0;
     const waiting: (() => void)[] = [];
-    const slow: ActionClient = { discover: client.discover, invoke: async (context, reference, input) => {
+    const slow: ActionClient = fakeActionClient({ discover: client.discover, invoke: async (context, reference, input) => {
       running += 1; most = Math.max(most, running);
       await new Promise<void>(resolve => waiting.push(resolve));
       running -= 1;
       return client.invoke(context, reference, input);
-    } };
+    } });
     const goal = (n: number): MaterialOriginQuery => ({ ref: { subject: { kind: "goal", id: `g${n}` }, pin: { mode: "current", read_revision: n % 2 ? "v2" : "v1" } } });
     const answering = readMaterialOrigins(caller("user"), [1, 2, 3, 4, 5, 6].map(goal), { compare: true }, ports(directories, slow).ports);
     const settle = () => new Promise(resolve => setImmediate(resolve));

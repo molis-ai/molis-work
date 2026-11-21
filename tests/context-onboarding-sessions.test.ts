@@ -27,7 +27,7 @@ const entry = (position: string, role: ExternalSessionEntry["role"], at: string 
 /** What `sessions.list@1` and `sessions.history.read@1` answer the project's AI; `off` is the permit turned off. */
 function sessionsClient(sessions: readonly Session[], options: { off?: boolean; reads?: string[]; stopAfter?: number } = {}): BoundActionClient {
   return {
-    discover: async () => [],
+    discoverOne: async () => undefined, discover: async () => [],
     invoke: (async (definition: { capability_id: string }, input: { session_key?: string; limit?: number; from?: { before: string } }) => {
       if (options.off) throw sessionsErrors.project_ai_read_off("当前项目的外部会话 AI 读取许可处于关闭状态", { next_step: "open_project_ai_read" });
       if (definition.capability_id === sessionsActions.historyAuthorize.capability_id) return { scope_revision: "permit-1", revision: "scope-1" };

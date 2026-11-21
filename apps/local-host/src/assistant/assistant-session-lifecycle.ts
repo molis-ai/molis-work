@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID, assistantStateUnknown, assistantUnderWay } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -30,7 +30,9 @@ export async function changeAssistantSessionLifecycle(store: AssistantStore, por
   const states = archived && host ? await Promise.all(group.map(member => reads.stateFor(host, member, true))) : [];
   // A running round is stopped first; one paused or waiting on the person or a check is dealt with first.
   if (states.includes("running")) throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
-  if (states.some(state => ["paused", "waiting-input", "waiting-review", "needs-check"].includes(state))) throw assistantErrors.state("这项工作还有一轮暂停着或在等处理，先处理它再归档");
+  if (states.some(assistantStateUnknown)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再归档");
+  // `running` and an unreadable state were refused above: what is still under way is paused or waiting on the person.
+  if (states.some(assistantUnderWay)) throw assistantErrors.state("这项工作还有一轮暂停着或在等处理，先处理它再归档");
   let sessionArchived = false;
   if (adapter) {
     if (!lifecycle || !adapter.withEffect) throw assistantErrors.unsupported("运行时未接通会话归档与恢复，业务状态未改变");

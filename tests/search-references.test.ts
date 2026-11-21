@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -41,9 +42,9 @@ test("QEA-13 reference reads preserve cancellation instead of calling it an unav
   const access = f.access({ ...person("a"), signal: abort.signal });
   const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
   const original = access.client.invoke.bind(access.client);
-  const reading = readReferences({ ...access, client: { ...access.client, discover: access.client.discover.bind(access.client),
+  const reading = readReferences({ ...access, client: fakeActionClient({ ...access.client, discover: access.client.discover.bind(access.client),
     invoke: async (...args) => { entered.resolve(); await released.promise; return original(...args); },
-  } }, [{ kind: "goal", id: "g1" }]);
+  }) }, [{ kind: "goal", id: "g1" }]);
   const rejected = assert.rejects(reading, error => error === reason);
   await entered.promise;
   abort.abort(reason); released.resolve();

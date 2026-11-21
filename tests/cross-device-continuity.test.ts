@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -44,12 +45,12 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
   let drop=false,hold:Promise<void>|null=null,entered:()=>void=()=>{};
   const factory:ActionFactory=({projectId,memberId,validate,signal})=>{
     const client=host.actionClient(ref);
-    return {caller:{actor_id:memberClientId(memberId),project_id:projectId,audience:'user',actor_kind:'user',permissions:['goals:read','goals:write','artifacts:read'],allowed_actions:CONTINUITY_ACTIONS,validate_authority:validate,signal},client:{discover:c=>client.discover(c),invoke:async(c,a,i)=>{
+    return {caller:{actor_id:memberClientId(memberId),project_id:projectId,audience:'user',actor_kind:'user',permissions:['goals:read','goals:write','artifacts:read'],allowed_actions:CONTINUITY_ACTIONS,validate_authority:validate,signal},client:fakeActionClient({discover:c=>client.discover(c),invoke:async(c,a,i)=>{
       if(hold && a.capability_id==='goals.progress.record'){entered();await hold;}
       const result=await client.invoke(c,a,i);
       if(drop && a.capability_id==='goals.progress.record'){drop=false;throw Object.assign(new Error('response lost after commit'),{code:'actions.delivery_unknown'});}
       return result;
-    }}};
+    }})};
   };
   let storage=openServerDatabase(join(directory,'server'));
   let identity=new Identity(storage.db),events=new ServerEvents(storage.db),service=new ContinuityService(storage.db,identity,events,factory);

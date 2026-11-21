@@ -422,3 +422,38 @@ test('RAC2874 a dispatched call retains process ownership until its asynchronous
       assert.ok(Date.now()<deadline,'the retired process exited');await new Promise(resolve=>setTimeout(resolve,20))}
   }finally{release.resolve();await f.close()}
 });
+
+test('102-2: concurrent sandbox runners share one batched /bin/ps monitor and stop polling once idle', { ...mac, timeout: 15_000 }, async t => {
+  const psPidBatches: string[] = [];
+  const realExecFile = childProcesses.execFile;
+  const spied = t.mock.method(childProcesses, 'execFile', ((file: string, args: readonly string[] | undefined, ...rest: unknown[]) => {
+    if (file === '/bin/ps' && Array.isArray(args)) {
+      const pIndex = args.indexOf('-p');
+      if (pIndex >= 0 && typeof args[pIndex + 1] === 'string') psPidBatches.push(args[pIndex + 1]!);
+    }
+    return (realExecFile as (...params: unknown[]) => unknown)(file, args, ...rest);
+  }) as typeof childProcesses.execFile);
+  syncBuiltinESMExports();
+  const runners = await Promise.all([
+    fixture(`export const operations={run:async(input)=>input};`),
+    fixture(`export const operations={run:async(input)=>input};`),
+    fixture(`export const operations={run:async(input)=>input};`),
+  ]);
+  try {
+    const pids = runners.map(entry => String(entry.runner.pid));
+    const deadline = Date.now() + 2500;
+    while (Date.now() < deadline && !psPidBatches.some(batch => pids.every(pid => batch.split(',').includes(pid)))) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    assert.ok(psPidBatches.some(batch => pids.every(pid => batch.split(',').includes(pid))),
+      `expected one batched /bin/ps poll containing all 3 runner pids (${pids.join(',')}), saw: ${JSON.stringify(psPidBatches)}`);
+    for (const entry of runners) await entry.close();
+    const callsAfterStop = psPidBatches.length;
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.equal(psPidBatches.length, callsAfterStop, 'shared monitor must stop polling once all runners exit');
+  } finally {
+    spied.mock.restore();
+    syncBuiltinESMExports();
+    for (const entry of runners) await entry.close().catch(() => undefined);
+  }
+});

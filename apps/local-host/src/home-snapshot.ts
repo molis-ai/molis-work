@@ -3,12 +3,13 @@ import { lstatSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { acquireStorageOwner, assertStorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { captureSnapshotStore } from "./home-snapshot-capture.js";
 import type { HomeSnapshotDirectory, HomeSnapshotManifest, HomeSnapshotResult, HomeSnapshotStoreManifest } from "./home-snapshot-contract.js";
 import { assertSnapshotHomeInventory, inventorySnapshotStore, snapshotDirectoryInfo, snapshotSourceInventory } from "./home-snapshot-inventory.js";
 import { snapshotDestination, syncSnapshotPath, writeSnapshotJson } from "./home-snapshot-publication.js";
+import { assertCurrentHomeStorageOwner, retainHomeStorageResources } from "./home-storage-lifetime.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { homeStores } from "./home-stores.js";
 import { homeUpgradeUnfinished } from "./home-upgrade-ledger.js";
@@ -22,19 +23,19 @@ export interface HomeSnapshotOptions {
   readonly signal?: AbortSignal;
 }
 
-/** An offline maintenance operation, never a business Host or an online quiesce/resume protocol. */
-export async function createHomeSnapshot(
+async function runHomeSnapshotUnderOwner(
+  home: string,
+  owner: StorageOwner,
+  assertOwnerCurrent: () => void,
   options: HomeSnapshotOptions,
+  online: boolean,
 ): Promise<HomeSnapshotResult> {
-  const home = resolveConfiguredHome(options.homeDirectory);
   const source = lstatSync(home);
   if (!source.isDirectory() || source.isSymbolicLink())
     throw homeSnapshotErrors.invalid("快照需要已经存在的普通 Home 目录");
   const mode = snapshotDirectoryInfo(home).mode & 0o777;
   const destination = snapshotDestination(home, options.destination);
   options.signal?.throwIfAborted();
-  const root = agentRuntimeDirectory(home),
-    owner = acquireStorageOwner(root);
   let publication: ReturnType<ReturnType<typeof snapshotDestination>["create"]> | undefined;
   try {
     assertHomeLibrarySnapshotReady(home, owner);
@@ -42,12 +43,12 @@ export async function createHomeSnapshot(
     const scope = snapshotSpaceDigest(home);
     const assertCurrent = () => {
       options.signal?.throwIfAborted();
-      assertStorageOwner(root, owner);
+      assertOwnerCurrent();
       if (snapshotSpaceDigest(home) !== scope) throw homeSnapshotErrors.changed("快照期间 Home 空间归属已变化");
     };
     const registry = homeStores(home);
     assertSnapshotHomeInventory(home, registry);
-    const inventory = registry.stores.map(store => inventorySnapshotStore(home, store));
+    const inventory = registry.stores.map(store => inventorySnapshotStore(home, store, online));
     assertCurrent();
     publication = destination.create();
     const stores: HomeSnapshotStoreManifest[] = [];
@@ -55,6 +56,7 @@ export async function createHomeSnapshot(
       stores.push(
         await captureSnapshotStore(home, publication.stage, store, {
           signal: options.signal,
+          online,
           assertCurrent,
         }),
       );
@@ -90,7 +92,7 @@ export async function createHomeSnapshot(
       ],
     };
     assertCurrent();
-    if (!isDeepStrictEqual(sourceInventory, snapshotSourceInventory(home, registry, inventory))) throw homeSnapshotErrors.changed("快照期间源目录条目发生变化");
+    if (!online && !isDeepStrictEqual(sourceInventory, snapshotSourceInventory(home, registry, inventory))) throw homeSnapshotErrors.changed("快照期间源目录条目发生变化");
     writeSnapshotJson(join(publication.stage, "manifest.json"), manifest);
     // Flush every new payload directory from leaves up before exposing the manifest's directory.
     const directories = new Set<string>([publication.stage]);
@@ -101,7 +103,7 @@ export async function createHomeSnapshot(
     for (const store of stores) if (store.owner_payload) directories.add(dirname(join(publication.stage, store.owner_payload.payload_path)));
     for (const directory of [...directories].sort((a, b) => b.length - a.length)) syncSnapshotPath(directory);
     assertCurrent();
-    if (!isDeepStrictEqual(sourceInventory, snapshotSourceInventory(home, registry, inventory))) throw homeSnapshotErrors.changed("发布前源目录条目发生变化");
+    if (!online && !isDeepStrictEqual(sourceInventory, snapshotSourceInventory(home, registry, inventory))) throw homeSnapshotErrors.changed("发布前源目录条目发生变化");
     const published = publication.publish();
     return {
       status: "created",
@@ -121,10 +123,47 @@ export async function createHomeSnapshot(
     }
     throw error;
   } finally {
-    try {
-      publication?.cleanup();
-    } finally {
-      owner.release();
-    }
+    publication?.cleanup();
+  }
+}
+
+/** An offline maintenance operation acquiring exclusive `storage-owner` when no resident Host is running. */
+export async function createHomeSnapshot(
+  options: HomeSnapshotOptions,
+): Promise<HomeSnapshotResult> {
+  const home = resolveConfiguredHome(options.homeDirectory);
+  const source = lstatSync(home);
+  if (!source.isDirectory() || source.isSymbolicLink())
+    throw homeSnapshotErrors.invalid("快照需要已经存在的普通 Home 目录");
+  // Validate destination before acquiring the storage lock so bad CLI paths never touch the lock.
+  snapshotDestination(home, options.destination);
+  options.signal?.throwIfAborted();
+  const root = agentRuntimeDirectory(home);
+  const owner = acquireStorageOwner(root);
+  try {
+    return await runHomeSnapshotUnderOwner(home, owner, () => assertStorageOwner(root, owner), options, false);
+  } finally {
+    owner.release();
+  }
+}
+
+/**
+ * Online backup inside the live resident Host that already holds `storage-owner` (102-2, S-07, S-upgrade-lock-only).
+ * Retains the Host's storage lifetime so `host.close()` waits until the online SQLite backup settles before releasing the lock.
+ */
+export async function createOnlineHomeSnapshot(
+  localHost: object,
+  options: HomeSnapshotOptions,
+): Promise<HomeSnapshotResult> {
+  const home = resolveConfiguredHome(options.homeDirectory);
+  const owner = assertCurrentHomeStorageOwner(localHost, home);
+  let resolveSettled!: () => void;
+  const settled = new Promise<void>(resolve => { resolveSettled = resolve; });
+  const release = retainHomeStorageResources(localHost, () => settled);
+  try {
+    return await runHomeSnapshotUnderOwner(home, owner, () => { assertCurrentHomeStorageOwner(localHost, home); }, options, true);
+  } finally {
+    resolveSettled();
+    release();
   }
 }

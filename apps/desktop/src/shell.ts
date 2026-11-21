@@ -40,6 +40,18 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
   };
+  let lastHostReconnect=0;
+  globalThis.molisWorkHostReconnected=()=>{
+    const now=Date.now();
+    if(now-lastHostReconnect<250)return;
+    lastHostReconnect=now;
+    if(typeof CustomEvent==="function"&&typeof document!=="undefined"&&typeof document.dispatchEvent==="function"){
+      document.dispatchEvent(new CustomEvent("molis-work:attention-refresh",{detail:{reconnected:true}}));
+    }
+    void globalThis.molisWorkRefreshShelfPreferences?.();
+    globalThis.molisWorkShelfRefresh?.();
+  };
+  globalThis.__TAURI__?.event?.listen?.("molis:host-reconnected",()=>{globalThis.molisWorkHostReconnected?.();})?.catch?.(()=>{});
   const shelfPanel=()=>{
     const tab=document.body.dataset.sideOpen==="true"&&document.querySelector('[data-side-tabs] [data-side-plugin^="shelf/"][aria-selected="true"]');
     const box=tab&&document.getElementById(tab.getAttribute("aria-controls"))?.getBoundingClientRect();

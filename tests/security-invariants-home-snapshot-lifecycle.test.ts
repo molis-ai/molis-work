@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
+import { createServer as createHttpServer, type Server } from "node:http";
 import { lstat, readFile, readdir, rm } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { createHomeSnapshot, createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { attachHostPresence, createHomeSnapshot, createMolisWorkLocalHost, HOME_MAINTENANCE_PATH, readHostEndpoint } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
+import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
 
 test("RAC-105-S-02: an idle real Host refuses the actual CLI before any backup file is created", { timeout: 30_000 }, async t => {
   const f = await smallSnapshotHome(t), host = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
@@ -141,4 +145,133 @@ test("RAC-105-S-02 RAC-109-S-05: SIGKILL releases ownership and leaves only an u
     assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
     assert.equal((await lstat(lock)).ino, identity.ino); assert.equal((await lstat(join(f.home, "agent-runtime"))).ino, directory.ino);
   } finally { kill(); await closed; }
+});
+
+test("102-2 S-07: live resident Host serves online CLI home snapshot via control gateway and refuses unauthenticated, foreign, mismatched, or impostor requests", { timeout: 60_000 }, async t => {
+  const f = await smallSnapshotHome(t);
+  const server: Server = createSingleHomeTestWebServer({ homeDirectory: f.home });
+  attachHostPresence(server, f.home);
+  await new Promise<void>(resolveListen => server.listen(0, "127.0.0.1", resolveListen));
+  t.after(() => new Promise<void>(resolveClose => { server.closeAllConnections(); server.close(() => resolveClose()); }));
+  const token = (await readFile(join(f.home, "config", "web-control-token"), "utf8")).trim();
+  await f.file("images/assets/kept.bin");
+  const endpoint = readHostEndpoint(f.home);
+  assert.ok(endpoint, "resident Host writes run/endpoint.json once listening");
+  const origin = `http://127.0.0.1:${endpoint.port}`;
+  const homeId = createHash("sha256").update(resolve(f.home)).digest("hex");
+
+  // S-07 refusals on /api/internal/home-maintenance: missing token, foreign Origin, wrong home_id, extra field, in-Home destination.
+  const missingToken = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": "k-no-token" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.area, "refused-1") }),
+  });
+  assert.equal(missingToken.status, 403);
+  const foreignOrigin = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin: "https://evil.example", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-foreign" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.area, "refused-2") }),
+  });
+  assert.equal(foreignOrigin.status, 403);
+  const wrongHome = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-wrong-home" },
+    body: JSON.stringify({ action: "snapshot", home_id: "0".repeat(64), destination: join(f.area, "refused-3") }),
+  });
+  assert.equal((await wrongHome.json() as { code?: string }).code, "actions.home_mismatch");
+  const extraField = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-extra" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.area, "refused-4"), extra: true }),
+  });
+  assert.equal(extraField.status, 400);
+  const insideHome = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-inside" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.home, "inside-snapshot") }),
+  });
+  assert.equal(insideHome.status, 400);
+  const relativeDest = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-relative" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: "relative-snapshot" }),
+  });
+  assert.equal(relativeDest.status, 400);
+  for (const name of ["refused-1", "refused-2", "refused-3", "refused-4"]) assert.equal(fs.existsSync(join(f.area, name)), false);
+  assert.equal(fs.existsSync(join(f.home, "inside-snapshot")), false);
+
+  const runCli = (args: string[], env: NodeJS.ProcessEnv) => new Promise<{ status: number | null; stdout: string; stderr: string }>((resolveRun, rejectRun) => {
+    const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url)), ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+    child.once("error", rejectRun);
+    child.once("close", status => resolveRun({ status, stdout, stderr }));
+  });
+
+  // Impostor server at MOLIS_WORK_WEB_URL must be rejected at HMAC /health?challenge= without leaking control token or falling back offline.
+  let impostorSawToken = false;
+  const impostor = createHttpServer((req, res) => {
+    if (req.headers["x-molis-work-control-token"]) impostorSawToken = true;
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", process_id: process.pid, desktop_tui: true }));
+  });
+  await new Promise<void>(resolveListen => impostor.listen(0, "127.0.0.1", resolveListen));
+  t.after(() => new Promise<void>(resolveClose => { impostor.closeAllConnections(); impostor.close(() => resolveClose()); }));
+  const impostorAddr = impostor.address();
+  assert.ok(impostorAddr && typeof impostorAddr === "object");
+  const impostorCli = await runCli(
+    ["home", "snapshot", "--home", f.home, "--to", join(f.area, "impostor-snapshot"), "--json"],
+    { ...process.env, MOLIS_WORK_TEST: "1", MOLIS_WORK_WEB_URL: `http://127.0.0.1:${impostorAddr.port}` },
+  );
+  assert.equal(impostorCli.status, 1, impostorCli.stderr);
+  assert.equal(impostorSawToken, false, "control token must never be sent to an unauthenticated impostor");
+  assert.equal(fs.existsSync(join(f.area, "impostor-snapshot")), false);
+
+  // Genuine CLI forwards via verified resident Host and creates an integrity-checked, secret-free online snapshot.
+  const cliEnv: NodeJS.ProcessEnv = { ...process.env, MOLIS_WORK_TEST: "1" };
+  delete cliEnv.MOLIS_WORK_WEB_URL;
+  const onlineCli = await runCli(
+    ["home", "snapshot", "--home", f.home, "--to", f.snapshot, "--json"],
+    cliEnv,
+  );
+  assert.equal(onlineCli.status, 0, onlineCli.stderr);
+  const created = JSON.parse(onlineCli.stdout) as { status: string; snapshot_directory: string; databases: number };
+  assert.equal(created.status, "created");
+  assert.ok(created.databases >= 1, "online snapshot captures SQLite databases");
+  const manifest = JSON.parse(await readFile(join(f.snapshot, "manifest.json"), "utf8")) as { stores: Array<{ entries: Array<{ sqlite?: { integrity_check: string } }> }> };
+  const sqliteEntries = manifest.stores.flatMap(store => store.entries).filter(entry => entry.sqlite);
+  assert.ok(sqliteEntries.length >= 1 && sqliteEntries.every(entry => entry.sqlite?.integrity_check === "ok"));
+  assert.equal(fs.existsSync(join(f.snapshot, "data", "config", "web-control-token")), false, "control token never enters snapshot");
+});
+
+test("102-2 S-07: production space-web-server serves root Home snapshots and lets inactive personal spaces snapshot cleanly under storage-owner", { timeout: 60_000 }, async t => {
+  const f = await smallSnapshotHome(t);
+  const server: Server = createDesktopWebHost({ ptyClientFilePath: () => "/unused-for-http-test" })({ homeDirectory: f.home });
+  await new Promise<void>(resolveListen => server.listen(0, "127.0.0.1", resolveListen));
+  t.after(() => new Promise<void>(resolveClose => { server.closeAllConnections(); server.close(() => resolveClose()); }));
+  const runCli = (args: string[], env: NodeJS.ProcessEnv) => new Promise<{ status: number | null; stdout: string; stderr: string }>((resolveRun, rejectRun) => {
+    const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url)), ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+    child.once("error", rejectRun);
+    child.once("close", status => resolveRun({ status, stdout, stderr }));
+  });
+  const cliEnv: NodeJS.ProcessEnv = { ...process.env, MOLIS_WORK_TEST: "1" };
+  delete cliEnv.MOLIS_WORK_WEB_URL;
+  // 1. Root installation Home while createSpaceWebServer is running succeeds via /api/internal/home-maintenance (no 401 login error).
+  const rootDest = join(f.area, "space-root-snapshot");
+  const rootCli = await runCli(["home", "snapshot", "--home", f.home, "--to", rootDest, "--json"], cliEnv);
+  assert.equal(rootCli.status, 0, rootCli.stderr);
+  assert.equal((JSON.parse(rootCli.stdout) as { status: string }).status, "created");
+
+  // 2. An initialized but currently inactive personal space under `<root>/spaces/<id>` verifies `<root>` HMAC (not an impostor) and snapshots cleanly offline under its own storage-owner lock.
+  const inactiveSpace = join(f.home, "spaces", "space_inactive_probe");
+  const seeded = createMolisWorkLocalHost({ homeDirectory: inactiveSpace, completeText: null });
+  await seeded.close();
+  const spaceDest = join(f.area, "inactive-space-snapshot");
+  const spaceCli = await runCli(["home", "snapshot", "--home", inactiveSpace, "--to", spaceDest, "--json"], cliEnv);
+  assert.equal(spaceCli.status, 0, spaceCli.stderr);
+  assert.equal((JSON.parse(spaceCli.stdout) as { status: string }).status, "created");
 });

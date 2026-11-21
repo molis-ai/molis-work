@@ -11,9 +11,8 @@
 // templates in `runtime-capabilities/` with `{port}` where the port goes; the shell grants them at start for the one port the Host
 // there proved (`host_port.rs`, Rust tests `res08_s14_…`), and nothing in `capabilities/` is granted statically any more.
 //
-// What it cannot show (needs a build of the shell; tracked in docs/system/SECURITY-INVARIANTS.md as open): whether a same-origin
-// iframe (a plugin frame, the plugin builder's trial) can invoke these commands, and what `csp: null` in tauri.conf.json means for
-// the pages the shell loads.
+// What is verified separately on a real macOS desktop build (tracked in docs/system/SECURITY-INVARIANTS.md S5): real WKWebView
+// command reachability for top-level main vs opaque plugin srcdoc iframes and non-blank rendering under the strict static placeholder CSP.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -131,9 +130,29 @@ test("S-14 the shell's own configuration does not turn on remote IPC for every d
   assert.deepEqual(configuration.app.windows.map(window => window.label).sort(), ["main"]);
   for (const window of configuration.app.windows) assert.equal(window.url, "index.html", `${window.label} starts from the local placeholder, not from a web address`);
   for (const key of Object.keys(configuration.app.security ?? {})) assert.ok(["csp"].includes(key), `app.security.${key}: a security setting was added; decide what it means for remote pages and update this test`);
+  const csp = configuration.app.security?.csp;
+  assert.equal(typeof csp, "string", "102-2 S-14/S-21: tauri.conf.json placeholder CSP must not be null");
+  assert.match(csp as string, /\bdefault-src 'none'/);
+  assert.match(csp as string, /\bstyle-src 'self'/);
+  assert.match(csp as string, /\bscript-src 'none'/);
+  assert.doesNotMatch(csp as string, /unsafe-inline|unsafe-eval/);
+  const placeholderHtml = readFileSync(new URL("../apps/desktop/webview-placeholder/index.html", import.meta.url), "utf8");
+  assert.doesNotMatch(placeholderHtml, /<style\b|<script\b/i, "placeholder HTML uses external placeholder.css with zero inline style/script");
+  assert.match(placeholderHtml, /<link\s+rel="stylesheet"\s+href="placeholder\.css"/);
   assert.equal(JSON.stringify(configuration).includes("dangerousRemoteDomainIpcAccess"), false);
   assert.equal(JSON.stringify(configuration).includes("dangerousDisableAssetCspModification"), false);
   assert.equal(configuration.build.frontendDist, "../webview-placeholder");
+});
+
+test("102-2 S-14 tiered IPC auth enforces main-window active-origin checks and fails closed to fresh HMAC for sensitive commands", () => {
+  const main = readFileSync(MAIN_RS, "utf8");
+  const identity = readFileSync(new URL("../apps/desktop/adapters/tauri/src/web_identity.rs", import.meta.url), "utf8");
+  assert.match(main, /ipc_caller_allowed\(/);
+  assert.match(main, /IpcAuthTier::LowRiskUi\s*=>\s*web_identity::low_risk_health_fresh\(\)/);
+  assert.match(main, /IpcAuthTier::HighRisk\s*=>\s*web_healthy\(\)/);
+  assert.match(main, /fn s14_tiered_ipc_auth_allows_only_explicit_low_risk_ui_and_fails_closed\(/);
+  assert.match(main, /fn s14_tiered_ipc_caller_check_accepts_only_main_window_on_active_origin\(/);
+  assert.match(identity, /fn s14_low_risk_health_lease_expires_and_rejects_port_change\(/);
 });
 
 // W2'-3 (specs/context-program §21.6): the page tells the shell where Shelf's side tab is, and the drop wheel treats that box

@@ -94,6 +94,7 @@ fn go_back(app: &tauri::AppHandle, save_current: bool) -> Result<String, String>
         args.extend(["--save-current", text.as_str()]);
     }
     let _going_back = GoingBack::start();
+    crate::web_identity::invalidate_health_lease();
     let state = app.state::<WebServiceState>();
     let owned = desktop_owns_web_service(state.inner());
     if owned {

@@ -77,3 +77,41 @@ test("native external links invoke the scoped host command with the complete URL
   await page.openExternal!("https://example.com/docs?q=1#section");
   assert.deepEqual(page.invocations, [{ command: "open_external_url", url: "https://example.com/docs?q=1#section" }]);
 });
+
+test("102-2 soft host reconnect refreshes attention and shelf state without reloading the page", () => {
+  const dispatched: Array<{ type: string; detail?: unknown }> = [];
+  const navigations: string[] = [];
+  let shelfRefreshed = 0;
+  let listener: (() => void) | undefined;
+  const context: Record<string, unknown> = {
+    URL,
+    Response,
+    CustomEvent: class MockCustomEvent {
+      type: string;
+      detail?: unknown;
+      constructor(type: string, init?: { detail?: unknown }) { this.type = type; this.detail = init?.detail; }
+    },
+    console: { warn: () => {} },
+    document: {
+      documentElement: { dataset: {}, style: { setProperty: () => {} } },
+      dispatchEvent: (event: { type: string; detail?: unknown }) => { dispatched.push({ type: event.type, detail: event.detail }); },
+    },
+    location: {
+      href: "http://127.0.0.1:4173/projects/test?desktop=1",
+      origin: "http://127.0.0.1:4173",
+      replace: (url: string) => navigations.push(url),
+    },
+    __TAURI__: {
+      core: { invoke: async () => ({}) },
+      event: { listen: async (name: string, fn: () => void) => { if (name === "molis:host-reconnected") listener = fn; return () => {}; } },
+      window: { getCurrentWindow: () => ({ isFullscreen: async () => false, onResized: async () => () => {} }) },
+    },
+  };
+  runInNewContext(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, context);
+  context.molisWorkRefreshShelfPreferences = () => { shelfRefreshed += 1; };
+  assert.ok(typeof listener === "function", "listens for molis:host-reconnected");
+  listener!();
+  assert.deepEqual(navigations, [], "soft reconnect never reloads or replaces location");
+  assert.equal(shelfRefreshed, 1);
+  assert.equal(JSON.stringify(dispatched), JSON.stringify([{ type: "molis-work:attention-refresh", detail: { reconnected: true } }]));
+});

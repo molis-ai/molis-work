@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-975 | 已完成并删除 | 2026-11-21：Feed 入库的标题（300）与摘要（2 000）、手工捕获的摘要（240）、来源同步预览的摘要（320）与正文（1 600）、错误摘要（400）各按原上限改用 SDK `cutHead`，边界上的两单元字整个保留或整个舍去，保存读取后不再有半个字（`tests/feed-whole-units.test.ts`），由 [#2195](https://github.com/molis-ai/molis-work/pull/2195) 合入。 |
+| BL-982 | 已完成并删除 | 2026-11-21：RAC-2711 的 capture 替身按端口合同返回 `write` 的结果，断言分成「调用方同步收到原拒绝对象」与「拒绝前写入的 source_rule 条目回滚」两组；Feed 的调用级拒绝改用 SDK 公开的 `actionErrorKind`，拒绝表去掉已由 forbidden 覆盖的 `actions.forbidden`、`actions.plugin_permission`，权限语义不变（RAC-2712 仍逐码钉住）。成果线被占的 `artifacts.plugin_denied` 仍按 forbidden，等实际案例另定。由 [#2195](https://github.com/molis-ai/molis-work/pull/2195) 合入。 |
 | BL-1006 | 已完成并删除 | [93-1](../specs/post-anticorruption-roadmap/reference/batches/93.md#batch-93-item-1) 由 [#2148](https://github.com/molis-ai/molis-work/pull/2148)（`59ab3bf6fd`，2026-11-19）合入。普通离开、带收尾动作的离开和撤权时，同页每个在途请求都获得自己的错误对象和正确原因码。 |
 | BL-browser-socket-close-pending-bind | 已完成并删除 | [93-2](../specs/post-anticorruption-roadmap/reference/batches/93.md#batch-93-item-2) 由 [#2149](https://github.com/molis-ai/molis-work/pull/2149)（`a87afa196b`，2026-11-19）合入。侧栏连接关闭后会释放已有监听，晚到的项目检查不会再挂监听。 |
 | BL-973 | 已完成并删除 | 2026-11-18：图片插件 README 的浏览器回归命令补列 `images-result-whole-characters.e2e.test.ts`（下载链接、实际文件名与 Shelf 留存回执里的两单元字），由 [#2144](https://github.com/molis-ai/molis-work/pull/2144) 合入，正式交付项 [92-1](../specs/post-anticorruption-roadmap/reference/batches/92.md#batch-92-item-1)；条目 2026-11-20 删除 |

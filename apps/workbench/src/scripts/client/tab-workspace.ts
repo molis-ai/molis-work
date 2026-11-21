@@ -367,7 +367,11 @@ ${TAB_WORKSPACE_DRAG_PART}
     discussionObjects: host.discussionObjects,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
-  document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });
+  document.addEventListener("molis-work:plugins-changed", (event) => {
+    if (event.detail?.next) directory = readDirectory(event.detail.next);
+    captureSurfaceTemplates();
+    apply();
+  });
   let cancelRecordJump = null;
   // Remember the record chosen on a plugin's own page (not inside one of its tabs).
   document.addEventListener("click", (event) => {
@@ -437,7 +441,31 @@ ${TAB_WORKSPACE_DRAG_PART}
   /* Which column the person is in, the focused main pane or the right side (§4.6 口径 1: one focus over both): the layout menu
      acts on it and the titlebar's arrows walk its way back. It follows where they press or move the focus, a frame included. */
   const columnOf = (node) => node?.closest?.("[data-side-panel], [data-side-tabs], [data-side-ear]") ? "side" : node?.closest?.("[data-tab-panes], [data-titlebar-tabs]") ? "main" : "";
-  const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); markFocus(); } };
+  const focusPane = (paneId) => {
+    if (!paneId || !paneById(paneId)) return;
+    column = "main";
+    if (state.focusedPaneId !== paneId) {
+      state.focusedPaneId = paneId;
+      apply();
+      persist();
+    }
+  };
+  const followColumn = (node) => {
+    const next = columnOf(node);
+    if (next && next !== column) {
+      column = next;
+      syncHistoryButtons();
+      markFocus();
+    }
+    if (next === "main" && node && !node.closest?.("[data-tab-strip], [data-tab-pane-close], [data-tab-edge], [data-tab-close], [data-tab-add]")) {
+      const paneId = node.closest?.("[data-tab-pane]")?.dataset.tabPane;
+      if (paneId && paneId !== state.focusedPaneId && paneById(paneId)) {
+        state.focusedPaneId = paneId;
+        apply();
+        persist();
+      }
+    }
+  };
   if (!embedded) {
     document.addEventListener("pointerdown", (event) => followColumn(event.target), true);
     document.addEventListener("focusin", (event) => followColumn(event.target));
@@ -706,8 +734,13 @@ ${TAB_WORKSPACE_DRAG_PART}
       return;
     }
     if (event.target.closest("[data-goal-collapse]")) {
-      const tab = ops.activeTab(state);
-      if (tab?.plugin === "goals" && tab.kind === "item") { writeView(ops.focused(state).id, undefined, tab.id); if (embedded) notifyParent("workbench-pane-view", { view: undefined }); }
+      const paneId = event.target.closest("[data-tab-pane]")?.dataset.tabPane || ops.focused(state).id;
+      const pane = paneById(paneId);
+      const tab = pane?.tabs.find((item) => item.id === pane.activeTabId);
+      if (tab?.plugin === "goals" && tab.kind === "item") {
+        writeView(pane.id, undefined, tab.id);
+        if (embedded) notifyParent("workbench-pane-view", { view: undefined });
+      }
     }
   });
   // Choosing another record inside an item tab (a directory or relation link) takes the tab with it, so its
@@ -726,7 +759,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (plugin === "goals" && loadingGoalId === itemId) loadingGoalId = loading;
   });
-  return { apply, readView, writeView, openView, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, focusPane, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.

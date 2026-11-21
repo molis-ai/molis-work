@@ -42,11 +42,12 @@ async function open(t: TestContext, layout: "single" | "split") {
   if (!browser) return null;
   await browser.setViewport(1440, 960);
   await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, browser.sessionId);
-  // In a split both pages are in pane frames (the page's own frame waits hidden in the pool): `pane` is the first pane's, `other` the
-  // second's, marked once the split is made.
-  const main = await pluginFrameBrowser(t, browser, SURFACE), pane = await pluginFrameBrowser(t, browser, SURFACE, "iframe.tab-content-frame");
+  // In a single-document CSS Grid split both panes host their own Layer 2 Schedule iframe in the top document:
+  // `pane` is the first pane's Schedule iframe, `other` is the second's.
+  const main = await pluginFrameBrowser(t, browser, SURFACE);
+  const pane = await pluginFrameBrowser(t, browser, SURFACE, undefined, `[data-tab-pane]:nth-of-type(1) iframe[data-plugin-frame=${JSON.stringify(SURFACE)}]`);
   const side = await pluginFrameBrowser(t, browser, "shelf", `[data-side-body=${JSON.stringify(SHELF_TAB)}] iframe`);
-  const other = await pluginFrameBrowser(t, browser, SURFACE, "iframe.tab-content-frame[data-test-other]");
+  const other = await pluginFrameBrowser(t, browser, SURFACE, undefined, `[data-tab-pane]:nth-of-type(2) iframe[data-plugin-frame=${JSON.stringify(SURFACE)}]`);
   await pluginFrameInitScript(t, browser, CATCH_HOST);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?desktop=1&openPlugin=${SURFACE}` }, browser.sessionId));
   await browser.surfaceReady(SURFACE);
@@ -54,9 +55,8 @@ async function open(t: TestContext, layout: "single" | "split") {
   if (layout === "split") {
     await browser.click("[data-layout-open]"); // 07-S2: the window's one layout button at the titlebar's end
     await browser.click("[data-layout-split=right]");
+    await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0", 10_000);
     await pane.waitFor("window.pageHost?.returns", 20_000);
-    await browser.waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 10_000);
-    await browser.evaluate("document.querySelectorAll('iframe.tab-content-frame')[1].setAttribute('data-test-other', '')");
     await other.waitFor("window.pageHost?.returns", 20_000);
   }
   /** The page the trip goes from: the split's own pane, or the page itself in the single pane. */
@@ -323,24 +323,36 @@ test("DRT-23 and DRT-03 the person closes the settings themselves: read once, th
 });
 
 test("S-return-trip-source ④ a pane naming another pane is put on its own, and a window that is no pane frame opens nothing", { timeout: 150_000 }, async t => {
-  const at = await open(t, "split");
+  const at = await open(t, "single");
   if (!at) return;
   const { browser, settingsShown, trips } = at;
-  /** Runs in the first pane frame's own document (a world of its own there, so the message's source is that pane's window). */
+  // Move the Schedule tab to the right side so the real embedded pane frame (`#side-panel iframe[data-pane-owner="side"]`, 07-S2) opens.
+  await browser.evaluate(`document.querySelector('[data-titlebar-tabs] .tab-item[aria-current]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 20 }))`);
+  await browser.waitFor("document.querySelector('[data-tab-menu-action=to-side]')?.checkVisibility()", 10_000);
+  await browser.click("[data-tab-menu-action=to-side]");
+  await browser.waitFor(`document.querySelector('#side-panel iframe[data-pane-owner="side"]')?.contentDocument?.readyState === 'complete'`, 20_000);
+  /** Runs in the side pane frame's own document (a world of its own there, so the message's source is that pane's window). */
   const inPane = async (expression: string) => {
-    const object = await browser.command<{ result: { objectId?: string } }>("Runtime.evaluate", { expression: "document.querySelectorAll('iframe.tab-content-frame')[0]" }, browser.sessionId);
+    const object = await browser.command<{ result: { objectId?: string } }>("Runtime.evaluate", { expression: `document.querySelector('#side-panel iframe[data-pane-owner="side"]')` }, browser.sessionId);
     const { node } = await browser.command<{ node: { frameId?: string } }>("DOM.describeNode", { objectId: object.result.objectId }, browser.sessionId);
     const world = await browser.command<{ executionContextId: number }>("Page.createIsolatedWorld", { frameId: node.frameId, worldName: "return-trip-test" }, browser.sessionId);
     await browser.command("Runtime.evaluate", { expression, contextId: world.executionContextId }, browser.sessionId);
   };
-  const own = await browser.evaluate<string>("document.querySelectorAll('iframe.tab-content-frame')[0].dataset.paneOwner");
+  const own = await browser.evaluate<string>(`document.querySelector('#side-panel iframe[data-pane-owner="side"]').dataset.paneOwner`);
   const asked = (paneId: string) => ({ type: "workbench-open-settings", paneId, href: "/settings/models", need: { kind: "setup", authorization_id: "a-1" },
     from: { kind: "page", mount: "m-1", scope: "forged-scope", plugin: "io.molis.work.schedule", surface: SURFACE, place: { pane: "forged-pane", surface: SURFACE } } });
-  // The outer document itself (no pane frame) posts the request: nothing opens.
-  await browser.evaluate(`window.postMessage(${JSON.stringify(asked(own))}, location.origin)`);
+  // Neither the outer document itself nor a forged iframe[data-pane-owner] outside #side-panel may open settings.
+  await browser.evaluate(`(() => {
+    window.postMessage(${JSON.stringify(asked(own))}, location.origin);
+    const forged = document.createElement('iframe'); forged.dataset.paneOwner = 'pane-1'; document.body.append(forged);
+    const script = forged.contentDocument.createElement('script');
+    script.textContent = 'parent.postMessage(' + ${JSON.stringify(JSON.stringify(asked("pane-1")))} + ', parent.location.origin)';
+    forged.contentDocument.body.append(script);
+    setTimeout(() => forged.remove(), 400);
+  })()`);
   await new Promise(resolve => setTimeout(resolve, 800));
-  assert.equal(await settingsShown(), false, "a message from no pane frame opens nothing");
-  // The pane's document names a forged pane and the platform's setup need: the trip is on its own pane, and asks for what the address says.
+  assert.equal(await settingsShown(), false, "a message from no trusted side pane frame opens nothing");
+  // The real side pane's document names a forged pane and the platform's setup need: the trip is put on its own pane ("side"), and asks for what the address says.
   await inPane(`window.parent.postMessage(${JSON.stringify(asked("forged-pane"))}, location.origin)`);
   await browser.waitFor("document.body.dataset.desktopSurface === 'settings' && document.querySelector('[data-settings-return-bar]')", 15_000);
   const [trip] = Object.values(JSON.parse(await trips()) as Record<string, Array<{ from: { place: { pane: string } }; need: { kind: string }; claim: boolean }>>)[0]!;

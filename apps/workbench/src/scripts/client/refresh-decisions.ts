@@ -66,7 +66,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       showError: (message) => showToast(message, true),
       afterReplace: () => {
         documentReplaceGeneration += 1;
-        documentCursor = undefined;
+        documentCursor = goalData?.boardCursor;
+        documentPane.dataset.boardCursor = documentCursor == null ? "" : String(documentCursor);
         updateAllRelationFormPreviews();
         bindGoalEventDocument(pendingEventRestore);
         pendingEventRestore = null;
@@ -74,6 +75,39 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         setGoalFactor(goalFactorFromHash() || "relations", false);
       },
     });
+    const cloneGoalLoaders = new WeakMap();
+    const loadGoalDocumentInto = (targetPane, goalId) => {
+      if (!targetPane || targetPane === documentPane) return loadGoalDocument(goalId);
+      let entry = cloneGoalLoaders.get(targetPane);
+      if (!entry) {
+        const eventApi = goalData ? (${GOALS_PAGE.goalsEventDocument})({
+          documentPane: targetPane, route, translate: globalThis.t.text, isAbortError,
+          showError: (message) => showToast(message, true),
+          showStatus: (message) => showToast(message, false),
+          reloadDocument: (id, restore) => entry.load(id, restore),
+          controlHeaders: () => (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" }),
+        }) : null;
+        let clonePendingRestore = null;
+        const loader = (${GOALS_PAGE.goalsDocument})({
+          documentPane: targetPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
+          showError: (message) => showToast(message, true),
+          afterReplace: () => {
+            targetPane.dataset.boardCursor = goalData?.boardCursor == null ? "" : String(goalData.boardCursor);
+            eventApi?.bindGoalEventDocument(clonePendingRestore);
+            clonePendingRestore = null;
+          },
+        });
+        entry = {
+          eventApi,
+          load: (id, restore) => {
+            clonePendingRestore = restore || null;
+            return loader.loadGoalDocument(id);
+          },
+        };
+        cloneGoalLoaders.set(targetPane, entry);
+      }
+      return entry.load(goalId);
+    };
     reloadGoalEventDocument = async (goalId, restore) => {
       pendingEventRestore = restore || null;
       return loadGoalDocument(goalId);
@@ -142,11 +176,46 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       for (let view = window; view.frameElement; view = view.parent) if (!shown(view.frameElement)) return false;
       return true;
     };
-    const goalDocumentVisible = () => goalRegionVisible([documentPane?.querySelector('[data-work-surface="goals"]')]);
-    const goalStageVisible = () => goalRegionVisible([document.querySelector("[data-goal-canvas-shell]"), document.querySelector("[data-goal-frame-surface]"), documentPane?.querySelector('[data-work-surface="goals"]')]);
+    const allGoalDocumentPanes = () => [documentPane, ...document.querySelectorAll("[data-tab-panes] [data-document-pane][data-pane-clone]")].filter(Boolean);
+    const visibleGoalDocumentPanes = () => allGoalDocumentPanes().filter((pane) => goalRegionVisible([pane.querySelector('[data-work-surface="goals"]')]));
+    const primaryDocumentVisible = () => goalRegionVisible([documentPane?.querySelector('[data-work-surface="goals"]')]);
+    const goalDocumentVisible = () => visibleGoalDocumentPanes().length > 0;
+    const goalStageVisible = () => goalRegionVisible([
+      ...document.querySelectorAll("[data-goal-canvas-shell], [data-goal-frame-surface]"),
+      ...allGoalDocumentPanes().map((pane) => pane.querySelector('[data-work-surface="goals"]')),
+    ]);
+    const refreshCloneGoalPanes = async (clones, cursor, primaryGoalId, primaryParsed, signal) => {
+      if (!clones.length) return;
+      const cache = new Map();
+      if (primaryGoalId && primaryParsed) cache.set(primaryGoalId, primaryParsed);
+      for (const pane of clones) {
+        if (!goalRegionVisible([pane.querySelector('[data-work-surface="goals"]')])) continue;
+        const paneGoalId = pane.querySelector("[data-goal-view]")?.dataset.goalView || pane.dataset.paneGoalId || "";
+        if (!paneGoalId) continue;
+        let docParsed = cache.get(paneGoalId);
+        if (!docParsed) {
+          const path = route("/api/board/refresh?view=" + documentCollection + "&goal_id=" + encodeURIComponent(paneGoalId));
+          const response = await molisWorkRequest(path, { scope: boardLifetime, signal, as: "response" });
+          boardLifetime.assertCurrent(signal);
+          if (!response.ok) continue;
+          docParsed = new DOMParser().parseFromString(await response.text(), "text/html");
+          cache.set(paneGoalId, docParsed);
+        }
+        if (!goalRegionVisible([pane.querySelector('[data-work-surface="goals"]')])) continue;
+        const nextSurface = docParsed.querySelector('[data-document-pane] [data-work-surface="goals"]');
+        const currentSurface = pane.querySelector('[data-work-surface="goals"]');
+        if (currentSurface && nextSurface) {
+          currentSurface.replaceChildren(...nextSurface.cloneNode(true).childNodes);
+          cloneGoalLoaders.get(pane)?.eventApi?.bindGoalEventDocument();
+          pane.dataset.boardCursor = String(cursor);
+        }
+      }
+    };
     const readBoard = async ({ force, signal, cursor: hint }) => {
       if (!goalData || document.hidden || !boardLifetime.visible || signal?.aborted) return;
-      const collectionOnly = !force && !goalDocumentVisible();
+      const visiblePanes = visibleGoalDocumentPanes();
+      const primaryVisible = primaryDocumentVisible();
+      const collectionOnly = !force && !primaryVisible;
       if (!force && searchInteractionActive()) {
         scheduleDeferredRefresh();
         return;
@@ -157,9 +226,15 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       try {
         const cursor = hint ?? (await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"})).observed_event_cursor;
         boardLifetime.assertCurrent(signal);
+        const staleClones = visiblePanes.filter((pane) => pane !== documentPane && (force || pane.dataset.boardCursor !== String(cursor)));
+        const primaryStale = primaryVisible && (force || documentCursor !== cursor || documentPane.dataset.boardCursor !== String(cursor));
         // The platform journal and the Goals plugin journal have independent sequence numbers.
         // Acknowledge the platform cursor only after its refresh was actually applied.
-        if (!force && cursor === (collectionOnly ? goalData.boardCursor : documentCursor)) {
+        if (!force && cursor === goalData.boardCursor && !primaryStale && !staleClones.length) {
+          return;
+        }
+        if (!force && cursor === goalData.boardCursor && !primaryStale && staleClones.length) {
+          await refreshCloneGoalPanes(staleClones, cursor, "", null, signal);
           return;
         }
         if (!force && searchInteractionActive()) {
@@ -184,7 +259,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");
         boardLifetime.assertCurrent(signal);
-        const applyCollectionOnly = collectionOnly || (!force && !goalDocumentVisible());
+        const applyCollectionOnly = collectionOnly || (!force && !primaryDocumentVisible());
         if (!force && liveUiInteractionActive(applyCollectionOnly)) return;
         if (parsed.body.dataset.boardView !== document.body.dataset.boardView) {
           if (applyCollectionOnly) { void refreshBoard(false, signal, cursor); return; }
@@ -221,6 +296,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         }
         const ui = readUiState();
         const treePosition = treeScroll?.scrollTop;
+        const cloneSnapshot = applyCollectionOnly ? null : parsed.cloneNode(true);
         goalRefresh.apply(() => {});
         state = nextState;
         projectHome?.sync();
@@ -249,8 +325,16 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           updateAllRelationFormPreviews();
           bindGoalEventDocument();
           documentCursor = cursor;
+          documentPane.dataset.boardCursor = String(cursor);
           requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
         }
+        const primaryStageList = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone]) [data-goal-stage-list]");
+        if (primaryStageList) {
+          document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => {
+            list.innerHTML = primaryStageList.innerHTML;
+          });
+        }
+        await refreshCloneGoalPanes(staleClones, cursor, applyCollectionOnly ? "" : refreshGoalId, cloneSnapshot, signal);
         goalData.boardCursor = cursor;
       } catch (error) {
         // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped.

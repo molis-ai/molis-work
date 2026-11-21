@@ -6,6 +6,7 @@ import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
 
 interface HomeHost {
+  root?: HTMLElement;
   read<Output>(suffix: string, body: unknown, signal: AbortSignal): Promise<Output>;
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
   market(): void;
@@ -179,7 +180,7 @@ function watchHome(holder: Element | null, visibility: () => void, reload: () =>
 }
 
 export function mountHome(host: HomeHost) {
-  const surface = document.querySelector<HTMLElement>('[data-work-surface="home"]');
+  const surface = host.root ?? document.querySelector<HTMLElement>('[data-work-surface="home"]');
   if (!surface) return null;
   const root = surface;
   const groups = root.querySelector<HTMLElement>("[data-home-groups]")!, status = root.querySelector<HTMLElement>("[data-home-status]")!;

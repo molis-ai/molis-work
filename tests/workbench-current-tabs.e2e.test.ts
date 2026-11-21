@@ -55,8 +55,8 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3", 15_000);
   assert.deepEqual(JSON.parse(await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), JSON.parse(saved));
   assert.equal(await browser.evaluate("document.querySelector('.tab-item[data-tab-kind=mother], .tab-item[data-preview]')"), null);
-  await browser.waitFor("document.querySelectorAll('.tab-content-frame').length === 3", 15_000);
-  await browser.waitFor("[...document.querySelectorAll('.tab-content-frame')].every(frame=>frame.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE')", 15_000);
+  await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3 && document.querySelectorAll('iframe.tab-content-frame').length === 0", 15_000);
+  await browser.waitFor("[...document.querySelectorAll('[data-tab-pane]')].every(pane=>pane.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal === 'CORE')", 15_000);
 
   for (const change of [
     "tab.kind='mother'", "tab.preview=true", "pane.collapsed=true",
@@ -208,7 +208,7 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     await page.wait(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)})),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.viewPlugin==='feed' && pane.tabs.find(tab=>tab.kind==='plugin' && tab.plugin==='feed')?.view===${JSON.stringify(source.source_id)};})()`);
     await page.click('[data-layout-open]');
     await page.click('[data-layout-split="right"]');
-    const feedPanes = "document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"] iframe[data-plugin-frame=feed]'))";
+    const feedPanes = "document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe.tab-content-frame').length===0 && [...document.querySelectorAll('[data-tab-pane]')].every(p=>p.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"]:not([hidden]) iframe[data-plugin-frame=feed]'))";
     await page.wait(feedPanes, { timeoutMs: 30_000 });
     const saved = await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
     const state = JSON.parse(saved) as { panes: Array<{ id: string; activeTabId: string; tabs: Array<{ id: string; plugin: string; kind: string; view?: string }> }> };
@@ -227,12 +227,10 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     await observeStorage('restart');
     await page.command("Page.addScriptToEvaluateOnNewDocument", { source: `if(window.top===window&&location.origin===${JSON.stringify(served.origin)})window.__restartPreboot={origin:location.origin,href:location.href,saved:localStorage.getItem(${JSON.stringify(key)}),marker:localStorage.getItem('molis-work-tab-workspace:other-project'),ui:Object.fromEntries(${JSON.stringify(uiKeys)}.map(key=>[key,sessionStorage.getItem(key)]))};` });
     const restoredFeeds = [];
-    // A plugin page has no active item tab: paneFrameKey uses this pane's ":view" owner.
-    for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", `iframe.tab-content-frame[data-pane-owner="${pane.id}"][data-pane-tab="${pane.activeTabId || pane.id + ":view"}"]`));
+    for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", undefined, `[data-tab-pane="${pane.id}"] iframe[data-plugin-frame="feed"]`));
     await load(prefix);
     try { await page.wait(feedPanes, { timeoutMs: 30_000,
-      describe: `JSON.stringify({preboot:window.__restartPreboot,closing:${JSON.stringify(closing)},expected:${JSON.stringify(saved)},goalsOffered:Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')),saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,
-        frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,readyState:f.contentDocument?.readyState,feed:f.contentDocument?.querySelectorAll('[data-feed-workbench]').length}))})` }); }
+      describe: `JSON.stringify({preboot:window.__restartPreboot,closing:${JSON.stringify(closing)},expected:${JSON.stringify(saved)},goalsOffered:Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')),saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-work-surface=feed]').length})` }); }
     catch (error) {
       const stored = await page.command('DOMStorage.getDOMStorageItems', { storageId: { securityOrigin: served.origin, isLocalStorage: true } }, 1500).catch(observation => ({ unavailable: String(observation) }));
       t.diagnostic('T405 restart Feed panes failed ' + JSON.stringify({ storageChanges, stored }));

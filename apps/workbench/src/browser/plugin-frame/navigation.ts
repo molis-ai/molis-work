@@ -52,7 +52,7 @@ export function normalizeChildShortcut(key: Pick<KeyboardEvent, "key" | "code" |
 }
 
 /** The trusted shell chooses which search, workspace navigation, and declared tool chords can cross this boundary. */
-export function pageNavigation(scope: FrameScope, port: MessagePort, side: boolean) {
+export function pageNavigation(scope: FrameScope, port: MessagePort, side: boolean, frame?: HTMLIFrameElement) {
   let owner = document;
   if (parent !== window) {
     try { owner = parent.document; } catch { /* A foreign parent supplies no shell shortcuts. */ }
@@ -68,7 +68,12 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   }
   shortcuts.push("Mod+Period");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
-  const focus = () => { if (side && scope.visible && document.hasFocus()) port.postMessage({ type: "focus" } satisfies FrameDown); };
+  // Hand DOM focus into the opaque child iframe first so Chromium 158+ allows its internal .focus() call.
+  const focus = () => {
+    if (!side || !scope.visible || !document.hasFocus()) return;
+    if (frame && frame.isConnected && document.activeElement !== frame) frame.focus({ preventScroll: true });
+    port.postMessage({ type: "focus" } satisfies FrameDown);
+  };
   scope.listen(window, "focus", focus);
   return { shortcuts, focus, receive(message: Extract<FrameUp, { type: "shortcut" | "close-side" }>) {
     if (!scope.visible) return;

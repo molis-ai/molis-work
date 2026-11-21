@@ -161,11 +161,11 @@ const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLL
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
   return `@layer reset, tokens, foundation, primitives, controls, stage;
-@layer reset { *, *::before, *::after { box-sizing: border-box; } [hidden] { display: none; } }
+@layer reset { *, *::before, *::after { box-sizing: border-box; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
 @layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
 @layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
 @layer primitives { ${PRIMITIVE_PLUGIN_STYLES} }
-@layer controls { ${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES} }
+@layer controls { ${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}.appearance-notice.mw-toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 22px; z-index: 31; max-width: min(38em, calc(100vw - 24px)); } }
 @layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }`;
 }
 

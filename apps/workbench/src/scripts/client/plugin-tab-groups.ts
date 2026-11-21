@@ -122,9 +122,11 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     if (reopen()) event.preventDefault();
   });
   /** Open a record as a tab in its plugin's group and keep the pane where it is; a split pane asks the workbench to. */
-  const openBehind = (plugin, itemId, title) => {
+  const openBehind = (plugin, itemId, title, targetPaneId) => {
     if (embedded) { notify("workbench-pane-open", { plugin, itemId, title, background: true }); return; }
-    const state = getState(), pane = ops.focused(state);
+    const state = getState();
+    const pane = (targetPaneId && state.panes.find((candidate) => candidate.id === targetPaneId)) || ops.focused(state);
+    if (pane) state.focusedPaneId = pane.id;
     const before = { activeTabId: pane.activeTabId, viewPlugin: pane.viewPlugin };
     ops.openItem(state, plugin, itemId, title);
     pane.activeTabId = before.activeTabId; pane.viewPlugin = before.viewPlugin;
@@ -144,7 +146,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     const itemId = row && scope.contains(row) ? row.dataset[spec[2]] : "";
     if (!itemId || event.type === "click" && scope.contains(row.closest("[aria-multiselectable=true]"))) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    openBehind(plugin, itemId, row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || itemId);
+    openBehind(plugin, itemId, row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || itemId, target.closest("[data-tab-pane]")?.dataset.tabPane);
   };
   window.addEventListener("click", openInBackground, true);
   window.addEventListener("auxclick", openInBackground, true);

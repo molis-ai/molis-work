@@ -207,7 +207,19 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     }
     const viewTab = event.target.closest("[data-goal-view-tab]");
     if (viewTab && frame?.contains(viewTab)) { setView(viewTab.dataset.goalViewTab, true); return; }
-    if (event.target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
+    const detailsToggle = event.target.closest("[data-goal-details-toggle]");
+    if (detailsToggle) {
+      const targetFrame = detailsToggle.closest("[data-goal-node-workspace]");
+      if (targetFrame && targetFrame !== frame) {
+        const nextOpen = targetFrame.dataset.detailsOpen !== "true";
+        targetFrame.dataset.detailsOpen = String(nextOpen);
+        const cloneDoc = targetFrame.querySelector("[data-document-pane]");
+        if (cloneDoc) cloneDoc.hidden = !nextOpen;
+        detailsToggle.setAttribute("aria-expanded", String(nextOpen));
+      } else {
+        setDetails(frame.dataset.detailsOpen !== "true", true);
+      }
+    }
     if (event.target.closest("[data-select-goal], [data-inbox-row]")) {
       if (narrow()) setMobileView("document");
       sync();

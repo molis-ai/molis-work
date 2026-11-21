@@ -14,7 +14,8 @@ export function renderedFrameText(page: ParentNode, root: HTMLElement): string |
     ? ["pluginOwner", "pluginContribution", "pluginSurface", "pluginSlot", "pluginProducer"] as const
     : ["workSurface", "directoryPanel"] as const;
   const matches = [...page.querySelectorAll<HTMLElement>(selectors)].filter(candidate =>
-    keys.every(key => candidate.dataset[key] === root.dataset[key]) && candidate.querySelector(":scope > script[data-plugin-document]"));
+    !candidate.hasAttribute("data-pane-clone")
+    && keys.every(key => candidate.dataset[key] === root.dataset[key]) && candidate.querySelector(":scope > script[data-plugin-document]"));
   if (matches.length !== 1) return null;
   return frameDocumentMarkup(matches[0]!);
 }
@@ -64,6 +65,6 @@ export function frameDocument(root: HTMLElement, pack: FramePack, challenge: str
   const sheet = appearance?.stylesheet ? `<link rel="stylesheet" data-ui-appearance-sheet href="${escape(new URL(appearance.stylesheet, origin).href)}">` : "";
   return '<!doctype html><html lang="' + escape(document.documentElement.lang) + '"' + attributes + '><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'
     + escape(policy) + '"><meta name="molis-work-frame-parent" content="' + escape(origin) + '"><meta name="molis-work-frame-mount" content="' + escape(challenge)
-    + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-plugin-base.css">' + sheet + headLinks + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body{container:plugin-stage / inline-size}body>:is([data-work-surface],[data-ui-client-root]){position:relative;width:100%;height:100%;min-width:0}body[hidden],body>:is([data-work-surface],[data-ui-client-root])[hidden]{display:none}</style></head><body class="immersive-workbench">'
+    + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-plugin-base.css">' + sheet + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body{container:plugin-stage / inline-size}body>:is([data-work-surface],[data-ui-client-root]){position:relative;width:100%;height:100%;min-width:0}body[hidden],body>:is([data-work-surface],[data-ui-client-root])[hidden]{display:none}</style>' + headLinks + '</head><body class="immersive-workbench">'
     + (document.querySelector("svg.icon-sprite")?.outerHTML ?? "") + bodyContent + helpTag + '<script src="' + script + '"></script></body></html>';
 }

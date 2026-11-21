@@ -39,12 +39,10 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
     queued=false;
     const pane=document.querySelector('[data-tab-pane].is-focused');
     const paneId=pane?.dataset.tabPane||'';
-    const frame=[...document.querySelectorAll('iframe[data-pane-owner]')].find(node=>node.dataset.paneOwner===paneId&&visible(node));
     let next=null,owner=null;
-    if(frame){
-      try{const doc=frame.contentDocument;if(doc?.body){watch(doc);next=inspect(doc,paneId,frame.dataset.paneTab);owner=frame;}}catch{/* A foreign document is never a context source. */}
-    }else if(pane&&visible(pane)){
-      next=inspect(pane,paneId,document.querySelector('[data-tab-id][aria-current="page"]')?.dataset.tabId||'');
+    if(pane&&visible(pane)){
+      const strip=pane.querySelector('[data-tab-strip]:not([hidden])')||document.querySelector('[data-titlebar-tabs]');
+      next=inspect(pane,paneId,strip?.querySelector('[data-tab-id][aria-current="page"]')?.dataset.tabId||'');
     }
     const key=JSON.stringify(next);
     if(key===signature&&owner===source){if(sendPending)send();return;}

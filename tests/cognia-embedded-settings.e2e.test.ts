@@ -7,19 +7,23 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // every settings link (tab-workspace.ts): Cognia's 「打开模型设置」 sends nothing of its own.
 test("Cognia's model settings link in a pane opens the settings of the Workbench it sits in, through the pane's one relay", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const child = await pluginFrameBrowser(t,browser,"cognia","#cognia-pane");
+  const child = await pluginFrameBrowser(t, browser, "cognia", "#cognia-pane");
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1` }, sessionId));
-  await waitFor("!!document.querySelector('[data-tab-workspace]')", 15_000);
+  await waitFor("!!document.querySelector('[data-tab-workspace]') && !!document.querySelector('#side-panel')", 15_000);
   await evaluate(`(() => {
     window.heardFromPane = [];
     window.addEventListener("message", event => { if (event.origin === location.origin && event.data && typeof event.data.type === "string") window.heardFromPane.push(event.data.type); });
     const frame = document.createElement("iframe");
     frame.id = "cognia-pane";
-    // Marked as the Workbench marks its panes: the page takes a pane's messages from a pane's frame only (S-30).
-    frame.dataset.paneOwner = "probe";
-    frame.src = ${JSON.stringify(`${origin}/projects/${projectId}/?workbenchPane=probe&panePlugin=cognia`)};
-    document.body.append(frame);
+    // Marked as the Workbench marks its side pane frame: the page takes embedded pane messages from #side-panel iframe[data-pane-owner="side"] only (S-30).
+    frame.dataset.paneOwner = "side";
+    frame.src = ${JSON.stringify(`${origin}/projects/${projectId}/?workbenchPane=side&panePlugin=cognia`)};
+    const panel = document.querySelector("#side-panel");
+    panel.hidden = false;
+    panel.inert = false;
+    document.body.dataset.sideOpen = "true";
+    panel.append(frame);
   })()`);
   const link = "document.querySelector('[data-cognia-action=model-settings]')";
   await child.waitFor(`Boolean(${link}) && !${link}.hidden`, 30_000);

@@ -210,9 +210,8 @@ export const PLUGIN_STAGE_STYLES = `
   }
 `;
 
-/** Layered plugin-frame stage rules: drops outer-shell prefixes and redundant !important so unlayered plugin sheets override cleanly (102-1). */
+/** Layered plugin-frame stage rules: drops outer-shell prefixes while preserving [hidden] and narrow-stage list visibility guards (102-1). */
 export const PLUGIN_STAGE_LAYER_STYLES = PLUGIN_STAGE_STYLES
   .replace(".immersive-plugin-stage > .plugin-stage-shell,\n  .tab-pane-body > .plugin-stage-shell {", "body > .plugin-stage-shell {")
   .replaceAll("body.immersive-workbench ", "")
-  .replaceAll(".plugin-stage-chrome .tree-create,\n  .plugin-stage-chrome .tree-create", ".plugin-stage-chrome .tree-create")
-  .replaceAll("display: none !important;", "display: none;");
+  .replaceAll(".plugin-stage-chrome .tree-create,\n  .plugin-stage-chrome .tree-create", ".plugin-stage-chrome .tree-create");

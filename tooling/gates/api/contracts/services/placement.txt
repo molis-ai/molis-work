@@ -93,6 +93,7 @@ export interface PlacementConvertRequest {
     payload?: {
         title: string;
         body: string;
+        url?: string | null;
     };
 }
 

@@ -108,8 +108,8 @@
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
 |  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
-| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1) |
-|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
+| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，PFG-19、PF-A12～15；本人验收 [BL-b40-governance-help-acceptance](../backlog/BL-b40-governance-help-acceptance.md)） |
+|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，VUX-51～56／58～59、ONB-47～48 入口与事实；VUX-57 准备返回接续归 45-1） |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
 |  | [在设置里写自己的技能](reference/batches/41.md#batch-41-item-3) |

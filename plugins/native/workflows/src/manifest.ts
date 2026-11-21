@@ -49,6 +49,19 @@ export const workflowsManifest: PluginManifest = {
   ],
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "workflows.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "workflows.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "workflows.help.example-1" }, { key: "workflows.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "workflows.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "workflows.help.advanced-summary" }, body: { key: "workflows.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [WORKFLOWS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "工作流程", title_text: { key: "workflows.directory.view-directory" }, contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", hue: "orange", order: 25, group: "advance", accepts_objects: true },

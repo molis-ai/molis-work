@@ -18,7 +18,7 @@ const questionInput = object({ ...questionFields, options: array(object(optionFi
 const recordFields = { id, project_id: id, title: text, description: text, status: { enum: ["draft", "published", "closed"] }, share_id: { type: ["string", "null"] }, questions: array(question), created_at: text, updated_at: text, version, artifact_id: text, artifact_version: { type: "integer", minimum: 0 } };
 const record = object({ ...recordFields, publication_pending: object({ version, source_version: version }) }, Object.keys(recordFields));
 const answers = { type: "object", additionalProperties: { ...text, maxLength: FORM_ANSWER_LIMIT } };
-const submission = object({ id, form_id: id, answers, submitted_at: text, form_version: { type: "integer", minimum: 1 }, questions: array(question),
+const submission = object({ id, form_id: id, request_id: { type: ["string", "null"], maxLength: 200 }, answers, submitted_at: text, form_version: { type: "integer", minimum: 1 }, questions: array(question),
   source: { enum: ["preview", "fill", "file", "agent", "mcp", "workflow", "plugin"] } }, ["id", "form_id", "answers", "submitted_at", "form_version", "questions", "source"]);
 const changed = object({ form: record }), identity = { id, expected_version: version };
 const read = ["form:read"], write = ["form:read", "form:write"];

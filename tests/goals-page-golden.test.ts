@@ -323,6 +323,10 @@ const pages: Record<string, Draw> = {
 // Batch 101 (101-1 item 5, on main cb03f3e196): `apps/workbench/src/plugin-event-recovery.ts` removed the raw JSON disclosure,
 // manual reason textarea, and self-accepted duplicate-risk radio group from the workbench shell dialog (−509 zh / −598 en on every
 // one of the 16 `page-*` whole-page records); all 36 fragment/settings records and JSON data blocks stayed byte-identical.
+// BL-b44-shell-goals-state (PCL-01, on main 2d8244c287): the shell finds its panes by generic marks instead of Goals' ids, and the
+// page client reads the project title from the page. Drawn independently from that main, the 16 `page-*` records differ only by
+// ` data-project-title="Golden project"` on <body> (+36), ` data-directory-pane` on the tree pane (+20), ` data-surface-stage` on each
+// stage (+19 each) and ` data-surface-host` on the canvas shell (+18): +75 on archive/trash, +131 on current. The other 36 records are unchanged.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

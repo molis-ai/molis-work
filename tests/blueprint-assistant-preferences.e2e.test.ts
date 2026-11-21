@@ -9,7 +9,7 @@ import { blueprintActions } from "@molis-ai/molis-work-contracts/services/bluepr
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookback and budget through retries and later edits", async t => {
+test("ONB-22/23/28, PWA-36, PF-A14, PF-A15: the scene, settings page and Assistant share lookback and budget through retries and later edits, with plain tiers, local app picker, and simplified prompt editing", async t => {
   const b = await openGoalBrowser(t, "user", undefined, null);
   if (!b) return;
   const { localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = b;
@@ -75,6 +75,45 @@ test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookbac
   assert.equal(updated?.state === "ok" && updated.source, "provider_default");
   assert.equal(store.setting(actor, "daily_tokens"), "");
   await assert.rejects(raw.invoke({ ...caller, actor_kind: "runtime" }, write, change), { code: "assistant.scope" });
+
+  // PF-A15: understandable daily cap tiers write through settings_entries and Computer Use shows pre-action facts + local app picker.
+  await click('[data-budget-preset="100000"]');
+  await waitFor("document.querySelector('[data-assistant-budget-input]')?.value === '100000' && document.querySelector('[data-budget-preset=\"100000\"]')?.getAttribute('aria-pressed') === 'true'");
+  assert.equal(store.setting(actor, "daily_tokens"), "100000");
+  assert.ok(await evaluate<boolean>("document.querySelectorAll('[data-assistant-computer] .mw-facts .mw-fact-row').length >= 2"), "Computer Use shows pre-action facts");
+  const computerApps = await b.web.get<{ apps: Array<{ bundle_id: string; name: string }> }>("/api/computer/apps");
+  assert.ok(Array.isArray(computerApps.apps), "GET /api/computer/apps returns verifiable app list");
+  await click("[data-budget-inherit]");
+  await waitFor("document.querySelector('[data-assistant-budget-input]')?.value === '' && document.querySelector('[data-budget-preset=\"0\"]')?.getAttribute('aria-pressed') === 'true'");
+
+  // PF-A14: simplified prompt editing preserves locked JSON format contracts and rejects broken full-text overrides with targeted errors.
+  const promptKey = "system:skills/skills.revise";
+  const promptDetail = await b.web.get<{ prompt: { key: string; body: string; user: { revision: number } | null }; editor: { editable: string; locked_format: string; required_keys: string[]; format_intact: boolean } }>(`/api/agent-definitions/prompt?key=${encodeURIComponent(promptKey)}`);
+  assert.ok(promptDetail.editor.locked_format.includes("JSON"), "server splits locked JSON contract");
+  assert.equal(promptDetail.editor.format_intact, true);
+  const savedSimple = await b.web.post<{ prompt: { body: string; effective: string; user: { revision: number } }; editor: { editable: string; format_intact: boolean } }>(`/api/agent-definitions/prompt?key=${encodeURIComponent(promptKey)}`, {
+    mode: "simplified",
+    guidance: "请用要点形式写出简洁的改动说明。",
+    expected_revision: promptDetail.prompt.user ? promptDetail.prompt.user.revision : null,
+  });
+  assert.equal(savedSimple.prompt.effective, "user");
+  assert.equal(savedSimple.editor.editable, "请用要点形式写出简洁的改动说明。");
+  assert.equal(savedSimple.editor.format_intact, true);
+  assert.ok(savedSimple.prompt.body.includes(promptDetail.editor.locked_format), "simplified edit preserves locked JSON format verbatim");
+  await assert.rejects(
+    () => b.web.post(`/api/agent-definitions/prompt?key=${encodeURIComponent(promptKey)}`, {
+      mode: "full",
+      body: "直接用纯文字回答即可",
+      validate_format: true,
+      expected_revision: savedSimple.prompt.user.revision,
+    }),
+    /JSON/u,
+    "full-text validation points out missing JSON format",
+  );
+  const resetRes = await b.web.post<{ prompt: { effective: string } }>(`/api/agent-definitions/prompt/reset?key=${encodeURIComponent(promptKey)}`, {
+    expected_revision: savedSimple.prompt.user.revision,
+  });
+  assert.equal(resetRes.prompt.effective, "default");
 });
 
 test("ONB-28/29: after a partial adoption the reopened page retries only the unconfirmed setting", async t => {

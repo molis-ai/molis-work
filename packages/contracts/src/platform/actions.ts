@@ -650,7 +650,8 @@ export interface ActionRegistryPort {
 
 export interface ActionClient {
   discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
-  discoverOne?(context: ActionCallContext, reference: ActionReference): ActionView | undefined | Promise<ActionView | undefined>;
+  /** The one view of `reference` this caller's directory shows. Every client answers it: no caller falls back to reading the whole directory. */
+  discoverOne(context: ActionCallContext, reference: ActionReference): ActionView | undefined | Promise<ActionView | undefined>;
   invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
@@ -678,21 +679,27 @@ export interface ActionInvokeTransport { readonly on_progress?: (event: ActionPr
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
+  discoverOne(reference: ActionReference): Promise<ActionView | undefined>;
   invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
-async function discoverOneAction(client: ActionClient, bound: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {
-  if (client.discoverOne) return await client.discoverOne(bound, reference);
-  return (await client.discover(bound)).find(view => view.capability_id === reference.capability_id
-    && view.version === reference.version
+/**
+ * The view a directory shows for `reference`: the same id and version, and the same provider when the reference names one. The one
+ * match rule, for a client whose directory has no lookup of one action (a transport that only lists) and for test doubles; a
+ * directory with two such providers names none (`actions.provider_ambiguous`).
+ */
+export function actionViewFor(views: readonly ActionView[], reference: ActionReference): ActionView | undefined {
+  const matches = views.filter(view => view.capability_id === reference.capability_id && view.version === reference.version
     && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+  // Two providers of the same id and version, the reference naming neither: none is picked for the caller.
+  if (matches.length > 1) throw new ActionError("actions.provider_ambiguous", "声明消费的动作在当前项目没有唯一提供方");
+  return matches[0];
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return {
     discover: async () => client.discover(context()),
-    discoverOne: async reference => discoverOneAction(client, context(), reference),
+    discoverOne: async reference => client.discoverOne(context(), reference),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context, locale: control.locale ?? caller.locale,

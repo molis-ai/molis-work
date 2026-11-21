@@ -2,7 +2,7 @@ import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantFollowUps } from "./assistant-followups.js";
 import type { AgentScheduleCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantDelegations } from "./assistant-delegation.js";
-import type { AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantWorkState, AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
+import { assistantAsksPerson, assistantRoundOpen, assistantStateUnknown, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantWorkState, type AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, type ScanLook } from "./assistant-material-scan.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { type AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
@@ -44,21 +44,23 @@ export class AssistantNotices {
    * awaited stops asking. Notices never start anything.
    */
   notice(work: StoredWork, state: AssistantWorkState): void {
+    // A state that could not be read says nothing happened: no notice is raised or settled, and the last seen state stays.
+    if (assistantStateUnknown(state)) return;
     const before = this.store.observed.of(this.actorId, work.work_id);
     if (before === state) return;
     this.store.observed.set(this.actorId, work.work_id, state);
     if (before === null) return;
-    if (!["waiting-input", "waiting-review"].includes(state)) this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["needs-decision"] }, "resolved");
+    if (!assistantAsksPerson(state)) this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["needs-decision"] }, "resolved");
     if (state === "running") this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["failed", "completed"] }, "resolved");
     const round = this.store.rounds(work.work_id).at(-1)?.run_id ?? "none";
     const raise = (kind: AssistantNoticeKind, key: `workbench.assistant-notice.${string}`) =>
       this.store.raiseNotice(this.actorId, { kind, work_id: work.work_id, work_title: work.title, text: assistantWords(key, { title: work.title }) }, `${work.work_id}:${round}:${kind}:${state}`);
     // A delegated work reports to the work that asked for it; only what the person must decide reaches them directly.
-    if (work.delegated_by && state !== "waiting-review" && state !== "waiting-input") return;
+    if (work.delegated_by && !assistantAsksPerson(state)) return;
     if (state === "failed") raise("failed", "workbench.assistant-notice.failed");
     else if (state === "waiting-review") raise("needs-decision", "workbench.assistant-notice.waiting-review");
     else if (state === "waiting-input") raise("needs-decision", "workbench.assistant-notice.waiting-input");
-    else if (state === "completed" && ["running", "paused", "waiting-input", "waiting-review"].includes(before)) raise("completed", "workbench.assistant-notice.completed");
+    else if (state === "completed" && assistantRoundOpen(before)) raise("completed", "workbench.assistant-notice.completed");
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")

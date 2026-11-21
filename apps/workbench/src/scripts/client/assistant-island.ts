@@ -5,7 +5,7 @@ import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
-import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_WORK_STATE_TRAITS, type AssistantPendingReview, type AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantNoticeText, renderAssistantSavedText } from "../../assistant-text-html.js";
 import type { AssistantReviewDisplay } from "@molis-ai/molis-work-ui-host";
@@ -69,7 +69,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || keyless?.matches ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   const STATE_LABELS = { idle: "workbench.assistant-island.not-started", running: "workbench.assistant-island.progress", "waiting-input": "workbench.assistant-island.needs-answer", "waiting-review": "workbench.assistant-island.needs-approval", paused: "workbench.assistant-island.paused",
-    completed: "workbench.assistant-island.done", failed: "workbench.assistant-island.not-finished", stopped: "workbench.assistant-island.stopped", "needs-check": "workbench.assistant-island.needs-checking" };
+    completed: "workbench.assistant-island.done", failed: "workbench.assistant-island.not-finished", stopped: "workbench.assistant-island.stopped", "needs-check": "workbench.assistant-island.needs-checking",
+    unreadable: "workbench.assistant-island.unreadable" };
   const store = {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
@@ -103,7 +104,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const executorsLoaded = loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
-  const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
+  const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", unreadable: "unavailable", completed: "round-ended" })[state] || state;
   const SUB_RING = { completed: "round-ended", "reconcile-required": "verify", cancelled: "stopped", "awaiting-input": "answer", "awaiting-review": "approval", compacting: "running", pausing: "paused" }; // a sub-agent's states the ring has no name for, as the ring's (one that waits for the person, in amber)
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
@@ -154,7 +155,7 @@ ${ASSISTANT_CONNECTION_PART}
 ${ASSISTANT_CONVERSATION_PART}
   /* ─── The side pane: what this work is, how it got here, what it used and what it made ─ */
   const usageBox = island.querySelector("[data-assistant-usage]");
-  const WAITING = new Set(["waiting-input", "waiting-review", "needs-check"]);
+  const WAITING = new Set(${JSON.stringify(Object.entries(ASSISTANT_WORK_STATE_TRAITS).flatMap(([state, traits]) => traits.waits_on_person ? [state] : []))});
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
   const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? readText("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Effect, ExactRef, Runtime } from "@prologue/sdk";
+import type { Effect, ExactRef, PolicyRule, Runtime } from "@prologue/sdk";
 import type { AgentGitIntegrationReviewDocument, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import type { AgentReviewQueue, ReviewAuthority, ReviewDecisionCommit } from "../reviews.js";
@@ -36,6 +36,8 @@ interface Ports {
   readDecision(key: string): Promise<Decision | undefined>;
 }
 const SUBJECT = "molis.git.index";
+/** Runtime policy rule allowing Host-initiated Git reviews to enter awaiting-approval (never auto-allowed). */
+export const GIT_REVIEW_RULE: PolicyRule = { source: "runtime", effect: "ask", match: { what: "tool", name: SUBJECT } };
 const APPROVAL_TTL = 10 * 60 * 1000;
 const assertHolds = (authority: ReviewAuthority, intent: GitReviewIntent) => {
   if (!authority.holds()) throw agentErrors.review_not_permitted(`插件 ${authority.plugin_id} 没有声明、没有获得或已不再持有 review:${intent.operation_kind ?? "git-index"}，这项 Git 操作不能发起，也不会执行`);

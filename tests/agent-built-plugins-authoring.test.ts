@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { assertContract, SANDBOX_SDK_CONTRACT_DECLARATIONS } from '@molis-ai/molis-work-plugin-sandbox';
 import { BUILDER_PROMPTS, expandDesign, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign } from '@molis-ai/molis-work-plugin-builder';
 
 const base = { id: 'quick', title: '随手记', description: '写一句就保存', rationale: '最短路径', journey: ['写', '看'] };
@@ -815,4 +817,24 @@ test('RAC-2934 explicit negative acceptance validates bindings, fields, outcomes
   assert.throws(() => expand(command), /query|查询/);
   const invalidProps = structuredClone(raw); Object.assign(invalidProps.pages[0]!.parts[0]!.props, { requiredText: 1 });
   assert.throws(() => expand(invalidProps), /requiredText 必须是文字/);
+});
+
+// In this file because it runs on every platform. The checks file is skipped off a Mac, and only a Mac has the isolated compiler, so a
+// declaration missing from the set showed nowhere but as G2's "Cannot find module" there (2026-11-19 to 2026-11-21, six of them).
+// Keep this comment free of the words the platform probe reads (scripts/ci-linux-probe/select.mjs), or this file is skipped too.
+test('every relative import in the SDK declarations written into a project names a declaration written beside it', () => {
+  // The Host copies exactly these files of the built contracts into a project (`sdkDeclarations`), and G2 compiles against them alone.
+  const root = dirname(dirname(fileURLToPath(import.meta.resolve('@molis-ai/molis-work-contracts/platform/plugin-sandbox'))));
+  const files: readonly string[] = SANDBOX_SDK_CONTRACT_DECLARATIONS;
+  assert.ok(files.includes('platform/plugin-sandbox.d.ts'), 'the SandboxSdk declaration is there');
+  const relative = /(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
+  for (const file of files) {
+    const text = readFileSync(join(root, file), 'utf8');
+    // G2 compiles with the ES2022 library alone and no types: the Host's service types name `AbortSignal`, which it does not have.
+    assert.ok(!text.includes('AbortSignal'), `${file} names AbortSignal, which the isolated compiler does not have`);
+    for (const [, specifier] of text.matchAll(relative)) {
+      const target = join(dirname(file), specifier).replace(/\.js$/, '.d.ts');
+      assert.ok(files.includes(target), `${file} imports ${specifier}, but ${target} is not among the project's declarations`);
+    }
+  }
 });

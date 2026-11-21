@@ -181,6 +181,8 @@ answers and validates every resulting address; it does not change production def
 
 创作台沙箱的 TypeScript SDK 只复制 `SANDBOX_SDK_CONTRACT_DECLARATIONS` 中当前类型需要的声明。固定读取协议复用动作 schema 和呈现数据形状，这些声明不带动作运行入口，开发者的代码仍走原 G1 和 G2 检查。
 
+`platform/plugin-sandbox.ts` 要用别的合同里的类型时，不直接引那个合同的整份文件（它会带进动作目录等上百个声明，Mac 上 G2 报「Cannot find module」）：把要用的类型放进一个不再引别处的小文件（如 `platform/material-ref.ts`、`services/conversation-attachments.ts`），原合同转出它，再把这个小文件加进 `SANDBOX_SDK_CONTRACT_DECLARATIONS`。清单里的声明也不能出现 `AbortSignal`（G2 只带 ES2022 库）。两条都由 `tests/agent-built-plugins-authoring.test.ts` 的「every relative import in the SDK declarations…」在各平台核对。
+
 
 - 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用、经平台的服务账号发请求、读自己手上的文件），以及宿主给这次激活建出来的服务哪些经 broker 送进沙箱（`sandboxServicesFor`），和沙箱不给的服务的启动期拒绝（`assertSandboxDeclarations`）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。

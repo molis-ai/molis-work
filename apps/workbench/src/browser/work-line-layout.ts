@@ -130,12 +130,39 @@ function installCountsRoom(slot: HTMLElement): void {
   const counts = slot.querySelector<HTMLElement>("[data-work-counts]"), line = slot.closest<HTMLElement>("[data-work-line]");
   if (!counts) return;
   let rest = 0;
+  let lastTop = "";
+  let lastLeft = "";
+  const noAnchor = !globalThis.CSS?.supports?.("anchor-name", "--x");
   const measure = () => {
     if (!line?.hasAttribute("data-dialog-open") || !rest) rest = counts.offsetWidth;
     slot.style.setProperty("--counts-room", `${Math.ceil(Math.max(rest, counts.offsetWidth)) + 16}px`);
+    if (noAnchor) {
+      const text = slot.querySelector<HTMLElement>(".mw-composer__text");
+      if (text) {
+        const at = slot.getBoundingClientRect(), box = text.getBoundingClientRect();
+        const top = `${Math.max(0, Math.round(box.top - at.top))}px`;
+        const left = `${Math.max(0, Math.round(box.left - at.left))}px`;
+        if (top !== lastTop) {
+          lastTop = top;
+          slot.style.setProperty("--counts-top", top);
+        }
+        if (left !== lastLeft) {
+          lastLeft = left;
+          slot.style.setProperty("--counts-left", left);
+        }
+      }
+    }
   };
   measure();
-  new ResizeObserver(nextFrame(measure)).observe(counts);
+  const run = nextFrame(measure);
+  const watch = new ResizeObserver(run);
+  watch.observe(counts);
+  if (noAnchor) {
+    watch.observe(slot);
+    const text = slot.querySelector<HTMLElement>(".mw-composer__text");
+    if (text) watch.observe(text);
+    new MutationObserver(run).observe(slot, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "data-rest"] });
+  }
 }
 
 /** The information column is as wide as the card stack it stands over (POLISH-72): the stack's own width, said to the dialog. */

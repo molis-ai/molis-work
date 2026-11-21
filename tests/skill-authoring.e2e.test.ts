@@ -290,6 +290,29 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   const desc = await page.evaluate<string>("document.querySelector('#au-description').value");
   await page.fill("#au-description", `${desc} `);
   await page.fill("#au-description", desc);
+  // Two placeholders given the same value survive manual body edits and draft reopen without losing the second slot.
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "飞书");
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "飞书");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 飞书，任务记进 飞书，别改项目进度。/);
+  const bodyWithSameValues = await page.evaluate<string>("document.querySelector('#au-body').value");
+  await page.fill("#au-body", `${bodyWithSameValues}\n补充说明。`);
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Linear");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 飞书，任务记进 Linear，别改项目进度。\n补充说明。/);
+  // Reopening a saved draft whose two placeholders share the same value still keeps both slots editable.
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "飞书");
+  await page.wait(saved, { describe: state });
+  const copyDraftForReopen = (await api<{ drafts: SkillDraftSummary[] }>("drafts/list")).drafts.find(item => item.name === "分析与决策")!;
+  await page.command("Page.navigate", { url: `${f.origin}/projects/${project.project_id}/settings/kit?draft=${copyDraftForReopen.draft_id}` });
+  await page.wait("!!document.querySelector('#au-body')", { describe: state });
+  await page.click(act("sk-side", "compare"));
+  await page.wait("document.querySelectorAll('[data-sk-placeholder]').length === 2", { describe: state });
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Linear");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 飞书，任务记进 Linear，别改项目进度。\n补充说明。/);
+  // Replacing one placeholder with another placeholder's literal survives manual body edits without dropping either slot.
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "");
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "~~项目管理工具");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 ~~项目管理工具，任务记进 ~~项目管理工具，别改项目进度。\n补充说明。/);
+  await page.fill("#au-body", (await page.evaluate<string>("document.querySelector('#au-body').value")).replace(/\n补充说明。$/u, ""));
   await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Jira");
   await page.fill('[data-sk-placeholder="~~聊天工具"]', "Slack");
   assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack，任务记进 Jira，别改项目进度。/);

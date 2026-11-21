@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
+import { latestMtime as computerLatestMtime } from "../apps/local-host/native/computer/build.mjs";
 
 // specs/archive/repository-anti-corruption §4.16 (W1-09): the checks for what is not TypeScript (scripts/gates/native-checks.mjs).
 // Each check is broken once on a scratch repository and must go red; the clean case must pass. A check whose tool is not on
@@ -313,4 +314,34 @@ test("a missing or unknown argument is exit 2", () => {
   assert.equal(spawnSync(process.execPath, [script], { encoding: "utf8" }).status, 2);
   assert.equal(spawnSync(process.execPath, [script, "ruby"], { encoding: "utf8" }).status, 2);
   assert.equal(spawnSync(process.execPath, [script, "rust", "--package"], { encoding: "utf8" }).status, 2);
+});
+
+test("computer native build helper tracks nested files and directory mtime on deletion", () => {
+  const dir = mkdtempSync(path.join(scratchRoot, "computer-build-"));
+  const sourcesDir = path.join(dir, "Sources");
+  const nestedDir = path.join(sourcesDir, "Nested");
+  mkdirSync(nestedDir, { recursive: true });
+  const mainFile = path.join(sourcesDir, "main.swift");
+  const removedFile = path.join(sourcesDir, "Obsolete.swift");
+  const nestedFile = path.join(nestedDir, "Extra.swift");
+  writeFileSync(mainFile, "// main\n");
+  writeFileSync(removedFile, "// obsolete\n");
+  writeFileSync(nestedFile, "// nested\n");
+
+  const baseline = new Date("2026-01-01T00:00:00.000Z");
+  const later = new Date("2026-01-02T00:00:00.000Z");
+  for (const target of [mainFile, removedFile, nestedFile, nestedDir, sourcesDir]) {
+    utimesSync(target, baseline, baseline);
+  }
+  assert.equal(computerLatestMtime([sourcesDir]), baseline.getTime());
+
+  // Nested file modification is observed recursively.
+  utimesSync(nestedFile, later, later);
+  assert.equal(computerLatestMtime([sourcesDir]), later.getTime());
+  utimesSync(nestedFile, baseline, baseline);
+  assert.equal(computerLatestMtime([sourcesDir]), baseline.getTime());
+
+  // Deleting a file updates the parent directory's mtime, which must trigger a rebuild.
+  rmSync(removedFile);
+  assert.ok(computerLatestMtime([sourcesDir]) > baseline.getTime(), "directory mtime after file deletion exceeds baseline");
 });

@@ -54,12 +54,14 @@ function collectionTables(collection: PluginSyncCollection): string[] {
   return [...new Set([...fromSections, ...fromTracking, ...fromAggregates])];
 }
 
-function defaultScope(manifest: Pick<PluginManifest, "databases">): "home" | "project" {
-  return manifest.databases?.home && !manifest.databases?.project ? "home" : "project";
+function defaultScope(manifest: Pick<PluginManifest, "databases" | "runtime">): "home" | "project" {
+  return !manifest.databases?.project && (manifest.databases?.home !== undefined || manifest.runtime?.scope === "home")
+    ? "home"
+    : "project";
 }
 
 function fallbackDataSections(
-  manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "owner_files">,
+  manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "owner_files" | "runtime">,
   files: readonly string[],
 ): PluginDataSectionDeclaration[] {
   const scopes = (["project", "home"] as const).flatMap(scope => manifest.databases?.[scope] ? [[scope, manifest.databases[scope]!] as const] : []);
@@ -67,13 +69,13 @@ function fallbackDataSections(
     return scopes.map(([scope, db]) => ({ plugin_id: manifest.plugin_id, section_id: db.store_name, title: manifest.name, scope, schema_version: db.version, tables: [], files }));
   }
   return manifest.owner_files
-    ? [{ plugin_id: manifest.plugin_id, section_id: manifest.owner_files.store_name, title: manifest.name, scope: "home", schema_version: /* @version format.plugin.data.export */ 1, tables: [], files }]
+    ? [{ plugin_id: manifest.plugin_id, section_id: manifest.owner_files.store_name, title: manifest.name, scope: defaultScope(manifest), schema_version: /* @version format.plugin.data.export */ 1, tables: [], files }]
     : [];
 }
 
 /** Derive a plugin's portable data sections once from its Manifest declarations (`sync.collections` and `databases`). */
 export function pluginDataSectionsFromManifest(
-  manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files">,
+  manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files" | "runtime">,
 ): PluginDataSectionDeclaration[] {
   const files = (manifest.owner_files?.entries ?? []).map(entry => entry.name);
   const collections = manifest.sync?.collections ?? [];

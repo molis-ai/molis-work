@@ -21,7 +21,7 @@ const EXECUTIONS = { applied: "已执行", failed: "执行失败", unknown: "执
 function codingChangeSetMarkdown(change: CodingChangeSet): string {
   return change.files.map((file, index) => {
     const review = file.review;
-    return `## 修改 ${index + 1} · ${file.path}\n\n批准决定：${DECISIONS[review.decision]}；保存时执行状态：${EXECUTIONS[review.execution]}\n原审查：${review.review_id}\n\n修改前${review.before_text === null ? "（文件不存在）" : ""}：\n${literal(review.before_text ?? "")}\n\n修改后：\n${literal(review.after_text)}`;
+    return `## 修改 ${index + 1} · ${file.path}\n\n批准决定：${DECISIONS[review.decision]}；保存时执行状态：${EXECUTIONS[review.execution]}\n原审查：${review.review_id}\n\n修改前${review.before_text === null ? "（文件不存在）" : ""}：\n${literal(review.before_text ?? "")}\n\n${file.kind === "deleted" ? "修改后：文件已删除" : `修改后：\n${literal(review.after_text)}`}`;
   }).join("\n\n") + (change.files.length ? "" : "这一轮没有可读取的文本改动审查；命令及外部操作请查看下方执行记录。");
 }
 

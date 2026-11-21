@@ -107,3 +107,51 @@ test("WLN-03: what the hand added stands above the composer, inside its specimen
   }
 });
 
+test("non-anchor fallback measures --counts-top and --counts-left when CSS Anchor Positioning is unsupported", { timeout: 120_000 }, async (t) => {
+  const browser = await openBoardBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await command("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      const orig = CSS.supports.bind(CSS);
+      CSS.supports = (...args) => {
+        if (String(args[0]).includes("anchor-name")) return false;
+        return orig(...args);
+      };
+    })();`,
+  }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}${FRAME}zh` }, sessionId));
+  await waitFor(`document.readyState === 'complete' && ${LINES}.length === 4`, 15_000);
+  await evaluate("document.fonts.ready.then(() => true)");
+  const settle = async () => { await evaluate(FRAMES); await evaluate(FRAMES); };
+  await settle();
+
+  // Inject an in-flow block above .mw-composer__text and a left-column sibling before .mw-composer (simulating non-anchor grid with .assistant-attention)
+  // and verify installCountsRoom sets --counts-top and --counts-left to match .mw-composer__text's offset inside .work-line-slot.
+  const measured = await evaluate<{ initialTop: number; afterNoticeTop: number; expectedTop: number; afterLeftShift: number; expectedLeft: number }>(`(async () => {
+    const line = ${LINES}[0];
+    const slot = line.querySelector('.work-line-slot');
+    const composer = slot.querySelector('.mw-composer');
+    const text = slot.querySelector('.mw-composer__text');
+    const initialTop = parseFloat(slot.style.getPropertyValue('--counts-top')) || 0;
+    const notice = document.createElement('div');
+    notice.className = 'mw-composer__notice';
+    notice.style.height = '32px';
+    notice.textContent = 'Notice line';
+    composer.prepend(notice);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const expectedTop = Math.max(0, Math.round(text.getBoundingClientRect().top - slot.getBoundingClientRect().top));
+    const afterNoticeTop = parseFloat(slot.style.getPropertyValue('--counts-top')) || 0;
+    composer.style.marginLeft = '52px';
+    composer.toggleAttribute('data-rest', false);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const expectedLeft = Math.max(0, Math.round(text.getBoundingClientRect().left - slot.getBoundingClientRect().left));
+    const afterLeftShift = parseFloat(slot.style.getPropertyValue('--counts-left')) || 0;
+    return { initialTop, afterNoticeTop, expectedTop, afterLeftShift, expectedLeft };
+  })()`);
+  assert.equal(measured.initialTop, 0, "baseline --counts-top starts at 0");
+  assert.ok(measured.expectedTop >= 30, `expected --counts-top >= 30 with notice line, got ${measured.expectedTop}`);
+  assert.equal(measured.afterNoticeTop, measured.expectedTop, "--counts-top tracks in-flow block above .mw-composer__text");
+  assert.ok(measured.expectedLeft >= 50, `expected --counts-left >= 50 when shifted right of column 1, got ${measured.expectedLeft}`);
+  assert.equal(measured.afterLeftShift, measured.expectedLeft, "--counts-left tracks horizontal offset of .mw-composer__text");
+});

@@ -13,10 +13,10 @@ const FIELD_KEYS: Record<string, string> = {
 };
 const WORK_STATE_KEYS: Record<string, string> = {
   idle: "todo.work.idle", running: "todo.status.doing", "waiting-input": "todo.work.waiting-input", "waiting-review": "todo.work.waiting-review", paused: "todo.work.paused",
-  completed: "todo.status.done", failed: "todo.work.failed", stopped: "todo.work.stopped", "needs-check": "todo.work.needs-check",
+  completed: "todo.status.done", failed: "todo.work.failed", stopped: "todo.work.stopped", "needs-check": "todo.work.needs-check", unreadable: "todo.work.unreadable",
 };
 const WORK_STATE_MARKS: Record<string, string> = {
-  running: "running", completed: "round-ended", "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", paused: "paused", failed: "failed", stopped: "stopped", idle: "idle",
+  running: "running", completed: "round-ended", "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", unreadable: "unavailable", paused: "paused", failed: "failed", stopped: "stopped", idle: "idle",
 };
 const RESULT_STATE_KEYS: Record<string, string> = {
   changed: "todo.result.changed", missing: "todo.result.missing", unavailable: "todo.result.unavailable", moved: "todo.result.moved",

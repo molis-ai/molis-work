@@ -665,9 +665,10 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     part("reload").addEventListener("click", () => { void (sessionMode ? load() : readPage(undefined, [])); });
     window.addEventListener("pagehide", invalidateRead);
     window.addEventListener("pageshow", event => { if (event.persisted && root.isConnected) void load().catch(fail); });
-    const memoryParent = root.parentElement;
-    if (memoryParent) {
-      new MutationObserver((_, observer) => { if (!root.isConnected) { invalidateRead(); observer.disconnect(); } }).observe(memoryParent, { childList: true });
+    const memoryObserver = new MutationObserver((_, observer) => { if (!root.isConnected) { invalidateRead(); observer.disconnect(); } });
+    for (let ancestor = root.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+      memoryObserver.observe(ancestor, { childList: true });
+      if (ancestor.matches("[data-settings-stage-body], main")) break;
     }
     $("[data-memory-add]").addEventListener("click", () => {
       const slot = $("[data-memory-new]"), write = mutation();

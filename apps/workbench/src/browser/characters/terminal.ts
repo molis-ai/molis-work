@@ -4,7 +4,7 @@ const uiText = globalThis.t;
 
 /** Runs `start` once `selector` is in the page: the Characters surface is filled in when it first opens (#150). */
 function whenPresent(selector: string, start: () => void): void {
-  const host = document.querySelector("[data-characters]") || document.querySelector("[data-tab-panes]") || document.querySelector("main") || document.body;
+  const host = document.querySelector("[data-characters]") || document.querySelector("[data-tab-workspace]") || document.querySelector("main") || document.body;
   const observer = new MutationObserver(() => {
     if (!document.querySelector(selector)) return;
     observer.disconnect();

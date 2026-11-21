@@ -695,32 +695,6 @@ ${TAB_WORKSPACE_DRAG_PART}
       else if (event.data.type === "workbench-pane-solo") { column = "side"; toggleSolo(); apply(); persist(); }
       return;
     }
-    const pane = paneById(frame?.dataset.paneOwner);
-    if (!pane) return;
-    if (event.data.type === "workbench-pane-invalidate") {
-      const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab);
-      const plugin = tab?.plugin || (frame.dataset.paneKey?.startsWith("plugin:") ? frame.dataset.paneKey.slice(7) : "");
-      const surface = topLevelSurface(plugin); if (surface) invalidateView(surface);
-    } else if (event.data.type === "workbench-pane-history") {
-      if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
-      if (event.data.delta === -1 || event.data.delta === 1) goHistory(event.data.delta);
-    } else if (event.data.type === "workbench-pane-view") {
-      const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab)
-        || (frame.dataset.paneTab === pane.id + ":view" && pane.tabs.find(tab => tab.kind === "plugin" && "plugin:" + tab.plugin === frame.dataset.paneKey));
-      if (tab) writeView(pane.id, event.data.view, tab.id);
-    } else if (event.data.type === "workbench-pane-solo") {
-      state.focusedPaneId = pane.id; toggleSolo(); apply(); persist();
-    } else if (event.data.type === "workbench-pane-focus") {
-      if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
-    } else if (event.data.type === "workbench-pane-open-beside") {
-      state.focusedPaneId = pane.id;
-      openBeside(event.data.plugin, event.data.itemId, event.data.title);
-    } else {
-      state.focusedPaneId = pane.id;
-      if (event.data.background === true && event.data.itemId) pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
-      else if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
-      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view, { from: event.data.from }); else { openPlugin(event.data.plugin); if (Object.hasOwn(event.data, "view")) selectPluginView(pane, event.data.plugin, { id: event.data.view, panel: event.data.panel, surface: event.data.surface, intent: event.data.viewIntent || "open" }); }
-    }
   });
   document.addEventListener("click", (event) => {
     const sourceItem = event.target.closest("[data-workbench-item-plugin][data-workbench-item-id]");

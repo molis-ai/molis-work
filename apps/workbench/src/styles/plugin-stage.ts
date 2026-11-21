@@ -210,8 +210,11 @@ export const PLUGIN_STAGE_STYLES = `
   }
 `;
 
-/** Layered plugin-frame stage rules: drops outer-shell prefixes while preserving [hidden] and narrow-stage list visibility guards (102-1). */
+/** Layered plugin-frame stage rules: drops outer-shell prefixes and shell-only artifact-detail rules while preserving [hidden] and narrow-stage list visibility guards (102-1). */
 export const PLUGIN_STAGE_LAYER_STYLES = PLUGIN_STAGE_STYLES
   .replace(".immersive-plugin-stage > .plugin-stage-shell,\n  .tab-pane-body > .plugin-stage-shell {", "body > .plugin-stage-shell {")
   .replaceAll("body.immersive-workbench ", "")
-  .replaceAll(".plugin-stage-chrome .tree-create,\n  .plugin-stage-chrome .tree-create", ".plugin-stage-chrome .tree-create");
+  .replaceAll(".plugin-stage-chrome .tree-create,\n  .plugin-stage-chrome .tree-create", ".plugin-stage-chrome .tree-create")
+  .replace("  .plugin-stage-workspace > .artifact-detail,\n  .plugin-stage-workspace > [data-artifact-detail],\n", "")
+  .replace(/  \.plugin-stage-workspace > \[data-artifact-detail\] \.artifact-detail \{[\s\S]*?\}\n/, "")
+  .replace("  .artifact-detail > .plugin-stage-detail-bar { border-bottom: 1px solid var(--line); }\n", "");

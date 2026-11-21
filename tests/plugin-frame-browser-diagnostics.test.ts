@@ -152,9 +152,17 @@ test("102-1 plugin-frame navigation normalizes and dispatches platform-aware sho
   assert.equal(linuxSolo.metaKey, false);
   assert.equal(linuxSolo.ctrlKey, true);
   assert.equal(linuxSolo.shiftKey, true);
+
+  // Reduced UA hints may report empty userAgentData.platform; fall back to navigator.platform (P2-4).
+  const reducedCtx: Record<string, unknown> = { navigator: { platform: "MacIntel", userAgentData: { platform: "" } } };
+  runInNewContext(bundled, reducedCtx);
+  const reducedNav = reducedCtx.frameNavMod as typeof ctx.frameNavMod & {
+    normalizeChildShortcut(key: Partial<KeyboardEvent>): string;
+  };
+  assert.equal(reducedNav.normalizeChildShortcut({ key: "[", code: "BracketLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }), "Mod+BracketLeft");
 });
 
-test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <head> and rejects foreign/non-asset links", () => {
+test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <head> and rejects foreign/non-asset/embedded links", () => {
   const bundled = buildSync({
     entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/document.ts", import.meta.url))],
     bundle: true,
@@ -169,11 +177,18 @@ test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <
     extractHeadStyleLinks(content: string, origin: string): { headLinks: string; bodyContent: string };
   };
   const origin = "http://127.0.0.1:4173";
-  const input = '<link rel="stylesheet" href="/assets/molis-work-plugins/coding.css"><link rel="stylesheet" href="https://evil.invalid/assets/x.css"><link rel="stylesheet" href="/api/other.css"><main>ok</main>';
+  const input = '<link rel="stylesheet" href="/assets/molis-work-plugins/coding.css">'
+    + '<link rel="stylesheet" href="https://evil.invalid/assets/x.css">'
+    + '<link rel="stylesheet" href="/api/other.css">'
+    + '<link data-rel="stylesheet" data-href="/assets/fake.css" rel="stylesheet" href="https://evil.invalid/b.css">'
+    + '<link rel="stylesheet" href="http://user:pass@127.0.0.1:4173/assets/cred.css">'
+    + '<main><textarea><link rel="stylesheet" href="/assets/in-body.css"></textarea></main>';
   const result = extractHeadStyleLinks(input, origin);
   assert.equal(result.headLinks, '<link rel="stylesheet" href="http://127.0.0.1:4173/assets/molis-work-plugins/coding.css">');
   assert.ok(!result.bodyContent.includes("coding.css"), "hoisted same-origin /assets/ link removed from body");
   assert.ok(result.bodyContent.includes("https://evil.invalid/assets/x.css"), "foreign-origin link never hoisted");
   assert.ok(result.bodyContent.includes("/api/other.css"), "non-/assets/ link never hoisted");
-  assert.ok(result.bodyContent.includes("<main>ok</main>"));
+  assert.ok(result.bodyContent.includes('data-href="/assets/fake.css"'), "data-rel/data-href attributes never falsely matched");
+  assert.ok(result.bodyContent.includes("user:pass@127.0.0.1:4173/assets/cred.css"), "credentialed URLs never hoisted");
+  assert.ok(result.bodyContent.includes('<textarea><link rel="stylesheet" href="/assets/in-body.css"></textarea>'), "body/textarea content never rewritten");
 });

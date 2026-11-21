@@ -41,15 +41,6 @@ const PRIMITIVE_SHELL_EXTRAS = `
   .mw-skill-why__label { margin: 0 0 2px; font-size: 11px; color: var(--muted); }
   .mw-skill-why .mw-alert { margin-top: 10px; }
 
-  .mw-progress {
-    height: 4px; border-radius: 99px; background: var(--control-fill); overflow: hidden;
-  }
-  .mw-progress > span { display: block; height: 100%; background: var(--action); }
-  .mw-avatar {
-    display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
-    background: var(--nav-active); color: var(--ink); font-size: 12px; font-weight: var(--weight-control, 500);
-  }
-
   dialog.mw-command { width: min(560px, calc(100vw - 32px)); }
   .mw-command__shell { display: flex; flex-direction: column; max-height: min(480px, 70dvh); }
   .mw-command__shell header { padding: 12px 12px 8px; }
@@ -60,18 +51,6 @@ const PRIMITIVE_SHELL_EXTRAS = `
   }
   .mw-command__list [role="option"]:hover { background: var(--nav-hover); }
 
-  dialog.mw-sheet {
-    position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0;
-    width: min(560px, 100vw); max-width: 100vw;
-    height: calc(100dvh - var(--tab-strip-h, 32px));
-    max-height: calc(100dvh - var(--tab-strip-h, 32px));
-    padding: 0; border: 0; border-radius: 16px 0 0 16px;
-    background: var(--paper); color: var(--ink); box-shadow: var(--shadow);
-    animation: none;
-  }
-  dialog.mw-sheet::backdrop {
-    background: var(--scrim);
-  }
   .mw-tooltip {
     padding: 4px 8px; border-radius: 6px; background: var(--action); color: var(--action-ink);
     font-size: 11px; line-height: 1.4;

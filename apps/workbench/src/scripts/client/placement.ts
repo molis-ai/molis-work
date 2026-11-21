@@ -723,7 +723,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]")))) { scheduleRepaint(); return; }
     }
   });
-  for (const target of [document.querySelector("[data-tab-panes]"), document.getElementById("side-panel"), document.querySelector("[data-assistant-panel]"), document.querySelector("main")].filter(Boolean)) {
+  const placementTargets = [document.querySelector("main") || document.querySelector("[data-tab-panes]"), document.getElementById("side-panel"), document.querySelector("[data-assistant-panel]")].filter(Boolean);
+  for (const target of placementTargets.filter((node, i, list) => !list.some((other, j) => j !== i && other.contains(node)))) {
     placementObserver.observe(target, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden", "data-expanded"] });
   }
   document.addEventListener("molis-work:place-changed", scheduleRepaint);

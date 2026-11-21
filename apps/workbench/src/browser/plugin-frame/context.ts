@@ -43,6 +43,12 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
     const value = (event as CustomEvent<ContextActionChosen & { _surface?: Element }>).detail;
     if (value?._surface && value._surface !== root) return;
     if (value?.plugin_id !== pluginId || !scope.visible || value.handled || typeof value.prepare !== "function") return;
+    if (!value._surface && value.object?.id) {
+      try {
+        const own = JSON.parse(root.getAttribute("data-assistant-context") || "null") as { object?: { id?: string } } | null;
+        if (own?.object?.id && own.object.id !== value.object.id) return;
+      } catch { /* Ignore unreadable assistant context while matching target object. */ }
+    }
     chosen?.reply(false);
     let reply!: (taken: boolean) => void;
     value.handled = new Promise<boolean>(resolve => { reply = resolve; });
@@ -59,7 +65,7 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (message.type === "context-key") {
       if (scope.visible) {
         const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-        const mac = typeof nav.userAgentData?.platform === "string" ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
+        const mac = typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0 ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
         document.dispatchEvent(new KeyboardEvent("keydown", { key: ".", code: "Period", metaKey: mac, ctrlKey: !mac, bubbles: true, cancelable: true }));
       }
       return;

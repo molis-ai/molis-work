@@ -9,8 +9,7 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
   :where(input, select, textarea) { accent-color: var(--action); }
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 
-  .tree-create,
-  [data-tree-filter-trigger] {
+  .tree-create {
     height: var(--control-h);
     min-height: var(--control-h);
     border: 1px solid transparent;
@@ -20,21 +19,10 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
     box-shadow: none;
     font-weight: var(--weight-control, 500);
   }
-  .tree-create:hover,
-  [data-tree-filter-trigger]:is(:hover, .is-active, [aria-expanded="true"]) {
+  .tree-create:hover {
     background: var(--nav-hover);
     color: var(--ink);
   }
-  [data-tree-filter-trigger] {
-    width: var(--control-h);
-    min-width: var(--control-h);
-    padding: 0;
-    display: inline-grid;
-    place-items: center;
-    flex: none;
-  }
-  [data-tree-filter-trigger] > span { display: none; }
-  [data-tree-filter-trigger] svg { width: 14px; height: 14px; color: inherit; }
 
   .dialog-body input:not([type=checkbox]):not([type=radio]),
   .dialog-body textarea,
@@ -73,7 +61,6 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
   :where(dialog[open])::backdrop { opacity: 1; transition-duration: var(--dur-move); }
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); } :where(dialog[open])::backdrop { opacity: 0; } }
   [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
-  .mw-modal-cover[popover] { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: var(--scrim); }
   .form-actions { --control-h: 36px; }
   .form-actions > button { min-height: 36px; }
   .feed-stage-leading strong { font-size: 13px; }

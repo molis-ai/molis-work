@@ -15,6 +15,7 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
   };
   const makeFramedTemplate = (surface) => {
     const clone = surface.cloneNode(false);
+    stripDuplicateIds(clone);
     RUNTIME_SURFACE_ATTRS.forEach((attr) => clone.removeAttribute(attr));
     clone.hidden = true;
     clone.inert = false;
@@ -23,6 +24,14 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       clone.append(child.cloneNode(true));
     });
     return clone;
+  };
+  const disposeClone = (node) => {
+    if (!node) return;
+    mountedHomeClones.get(node)?.dispose?.();
+    mountedHomeClones.delete(node);
+    artifactCloneRequests.get(node)?.abort();
+    artifactCloneRequests.delete(node);
+    node.remove();
   };
   const captureSurfaceTemplates = () => {
     document.querySelectorAll("[data-work-surface]:not([data-pane-clone])").forEach((surface) => {
@@ -34,6 +43,9 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       } else if (id === "home" || id === "artifacts" || id === "materials") {
         const copy = surface.cloneNode(true);
         stripDuplicateIds(copy);
+        if (id === "home") {
+          copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-lead], [data-home-lead-bar]").forEach((el) => el.replaceChildren());
+        }
         copy.hidden = true;
         surfaceTemplates.set(id, copy);
       }
@@ -55,6 +67,10 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     }
   };
   captureSurfaceTemplates();
+  document.addEventListener("molis-work:language-changed", () => {
+    surfaceTemplates.clear();
+    captureSurfaceTemplates();
+  });
   const isFramedSurface = (plugin, canonical) => Boolean(
     plugin
     && plugin !== "home"
@@ -101,24 +117,27 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     panesEl.querySelectorAll("[data-tab-pane]").forEach((section) => {
       const pane = paneById(section.dataset.tabPane);
       const activeKey = pane ? paneFrameKey(pane) : null;
+      const activeTab = pane ? pane.tabs.find((item) => item.id === pane.activeTabId) : null;
+      const activePaneKey = pane ? (activeTab ? ops.tabKey(activeTab) : "plugin:" + (pane.viewPlugin || "home")) : null;
       const body = section.querySelector("[data-tab-pane-body]");
       if (!pane || !body) return;
       [...body.children].forEach((node) => {
         if (!node.hasAttribute("data-pane-clone")) return;
         const tabKey = node.dataset.paneTab;
-        const kept = tabKey && (tabKey === activeKey || pane.tabs.some((item) => item.id === tabKey)
-          || (tabKey === pane.id + ":view" && pane.tabs.some((item) => item.kind === "plugin")));
+        const isViewClone = tabKey === pane.id + ":view";
+        const isActive = Boolean(tabKey && tabKey === activeKey && (!isViewClone || node.dataset.paneKey === activePaneKey));
+        const kept = isActive || Boolean(tabKey && (pane.tabs.some((item) => item.id === tabKey) || isViewClone));
         if (!kept) {
-          node.remove();
+          disposeClone(node);
           return;
         }
-        if (tabKey !== activeKey) hiddenClones.push(node);
+        if (!isActive) hiddenClones.push(node);
       });
     });
     hiddenClones
       .sort((a, b) => Number(b.dataset.shownAt || 0) - Number(a.dataset.shownAt || 0))
       .slice(KEPT_PANE_FRAMES)
-      .forEach((node) => node.remove());
+      .forEach((node) => disposeClone(node));
   };
   const loadArtifactClone = async (surface, itemId) => {
     const routeFn = typeof host.route === "function" ? host.route : (p) => p;
@@ -255,7 +274,7 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       if (canonical && !claimed.has(canonical) && (!canonicalHasLiveFrame || canonical.parentElement === body) && !canonicalInOtherPane && !canonicalInThisPaneOtherTab) {
         return canonical;
       }
-      const tpl = surfaceTemplates.get(plugin);
+      const tpl = surfaceTemplates.get(plugin) || (canonical ? makeFramedTemplate(canonical) : null);
       if (!tpl) return canonical;
       const clone = tpl.cloneNode(true);
       clone.setAttribute("data-pane-clone", "true");

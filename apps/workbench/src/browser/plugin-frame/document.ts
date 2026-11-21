@@ -20,27 +20,45 @@ export function renderedFrameText(page: ParentNode, root: HTMLElement): string |
   return frameDocumentMarkup(matches[0]!);
 }
 
-const PLUGIN_STYLE_LINK = /<link\b[^>]*\brel=(["'])stylesheet\1[^>]*>/gi;
-const LINK_HREF = /\bhref=(["'])([^"']+)\1/i;
+const LEADING_LINK_TAG = /^\s*(<link(?=\s|>)[^>]*>)/i;
+const LINK_REL_STYLESHEET = /(?:^|\s)rel=(["'])stylesheet\1(?=\s|>|\/)/i;
+const LINK_HREF = /(?:^|\s)href=(["'])([^"']+)\1(?=\s|>|\/)/i;
 
-/** Hoist same-origin `/assets/` plugin stylesheet links from body markup into `<head>` to eliminate FOUC and preserve cascade order (102-1). */
+/**
+ * Hoist contiguous leading same-origin `/assets/` plugin stylesheet `<link>` tags into `<head>` (102-1).
+ * Only inspects leading `<link>` tags (as prepended by `renderPluginFrameSurface`), never body text or embedded JSON,
+ * requires whitespace-delimited `rel`/`href` attributes (ignoring `data-rel`/`data-href`), and rejects credentials.
+ */
 export function extractHeadStyleLinks(content: string, origin: string): { headLinks: string; bodyContent: string } {
   const headLinks: string[] = [];
-  const bodyContent = content.replace(PLUGIN_STYLE_LINK, (tag) => {
-    const hrefMatch = LINK_HREF.exec(tag);
-    if (!hrefMatch) return tag;
+  let cursor = 0;
+  let keptLeading = "";
+  while (cursor < content.length) {
+    const match = LEADING_LINK_TAG.exec(content.slice(cursor));
+    if (!match) break;
+    const full = match[0]!;
+    const tag = match[1]!;
+    cursor += full.length;
+    const hrefMatch = LINK_REL_STYLESHEET.test(tag) ? LINK_HREF.exec(tag) : null;
+    if (!hrefMatch) {
+      keptLeading += full;
+      continue;
+    }
     const rawHref = hrefMatch[2]!;
     let resolved: URL;
     try {
       resolved = new URL(rawHref, origin);
     } catch {
-      return tag;
+      keptLeading += full;
+      continue;
     }
-    if (resolved.origin !== origin || !resolved.pathname.startsWith("/assets/")) return tag;
+    if (resolved.origin !== origin || resolved.username || resolved.password || !resolved.pathname.startsWith("/assets/")) {
+      keptLeading += full;
+      continue;
+    }
     headLinks.push(`<link rel="stylesheet" href="${escape(resolved.href)}">`);
-    return "";
-  });
-  return { headLinks: headLinks.join(""), bodyContent };
+  }
+  return { headLinks: headLinks.join(""), bodyContent: keptLeading + content.slice(cursor) };
 }
 
 /** The CSP permits the registered bundle, its declared static dependencies and the shared composer on demand. No child network or nested frame. */

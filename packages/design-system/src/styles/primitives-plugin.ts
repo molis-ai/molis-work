@@ -288,6 +288,22 @@ export const PRIMITIVE_PLUGIN_DIALOG_FORM = `
   }
   dialog.mw-dialog--form > .mw-form { height: auto; max-height: min(calc(100dvh - 96px), 720px); }
   dialog.mw-dialog--form .mw-form__body { overflow: auto; overscroll-behavior: contain; }
+  dialog.mw-sheet {
+    position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0;
+    width: min(560px, 100vw); max-width: 100vw;
+    height: calc(100dvh - var(--tab-strip-h, 32px));
+    max-height: calc(100dvh - var(--tab-strip-h, 32px));
+    padding: 0; border: 0; border-radius: 16px 0 0 16px;
+    background: var(--paper); color: var(--ink); box-shadow: var(--shadow);
+    animation: none;
+  }
+  dialog.mw-sheet::backdrop { background: var(--scrim); }
+  .mw-progress { height: 4px; border-radius: 99px; background: var(--control-fill); overflow: hidden; }
+  .mw-progress > span { display: block; height: 100%; background: var(--action); }
+  .mw-avatar {
+    display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--nav-active); color: var(--ink); font-size: 12px; font-weight: var(--weight-control, 500);
+  }
 
 `;
 

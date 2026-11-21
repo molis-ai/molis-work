@@ -384,10 +384,31 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "context-intake") { makeIntake(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
     if (message.type === "modal") { modal(message.open); return; }
-    if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
-    if (message.type === "shortcut" || message.type === "close-side") { navigation.receive(message); return; }
+    if (message.type === "interaction") {
+      if (scope.visible) {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+        window.dispatchEvent(new CustomEvent("molis:surface-interaction"));
+      }
+      return;
+    }
+    if (message.type === "shortcut" || message.type === "close-side") {
+      if (scope.visible && message.type === "shortcut") {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+      }
+      navigation.receive(message);
+      return;
+    }
     if (message.type === "terminal") { void terminal(message); return; }
-    if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
+    if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") {
+      if (scope.visible && message.type === "context-key") {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+      }
+      void contextMessage(message);
+      return;
+    }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (message.type === "knowledge-pick") { pickMaterials(message); return; }

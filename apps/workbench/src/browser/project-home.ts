@@ -160,15 +160,17 @@ function createHomeLead(root: HTMLElement, host: HomeHost) {
   return { show, toggle };
 }
 
-/** When the home is shown, hidden or has to read again: the page, its holder, the plugin list and the place. */
-function watchHome(holder: Element | null, visibility: () => void, reload: () => void, leave: () => void) {
+/** When the home is shown, hidden or has to read again: the root, its holder, the plugin list and the place. */
+function watchHome(root: Element, holder: Element | null, visibility: () => void, reload: () => void, leave: () => void) {
   const observer = new MutationObserver(visibility);
-  if (holder) {
-    observer.observe(holder, { attributes: true, attributeFilter: ["hidden"] });
-    for (let ancestor = holder.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
-      observer.observe(ancestor, { attributes: true, attributeFilter: ["hidden"] });
+  const observeChain = (node: Element | null) => {
+    const body = node?.ownerDocument?.body ?? null;
+    for (let current = node; current && current !== body; current = current.parentElement) {
+      observer.observe(current, { attributes: true, attributeFilter: ["hidden"] });
     }
-  }
+  };
+  observeChain(root);
+  observeChain(holder);
   const panes = document.querySelector("[data-tab-panes]");
   if (panes) observer.observe(panes, { childList: true });
   document.addEventListener("visibilitychange", visibility);
@@ -177,6 +179,14 @@ function watchHome(holder: Element | null, visibility: () => void, reload: () =>
   window.addEventListener("pagehide", leave);
   window.addEventListener("pageshow", visibility);
   queueMicrotask(visibility);
+  return () => {
+    observer.disconnect();
+    document.removeEventListener("visibilitychange", visibility);
+    document.removeEventListener("molis-work:plugins-changed", reload);
+    document.removeEventListener("molis-work:place-changed", visibility);
+    window.removeEventListener("pagehide", leave);
+    window.removeEventListener("pageshow", visibility);
+  };
 }
 
 export function mountHome(host: HomeHost) {
@@ -324,6 +334,13 @@ export function mountHome(host: HomeHost) {
     if (shown && needsRead) void sync();
     else if (!shown) cancel(true);
   };
-  watchHome(holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { shown = false; cancel(true); });
-  return { sync };
+  const unwatch = watchHome(root, holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { shown = false; cancel(true); });
+  return {
+    sync,
+    dispose() {
+      unwatch();
+      shown = false;
+      cancel(true);
+    },
+  };
 }

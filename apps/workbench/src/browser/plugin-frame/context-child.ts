@@ -12,7 +12,7 @@ export function childContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   scope.listen(document, "keydown", event => {
     const key = event as KeyboardEvent;
     const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-    const mac = typeof nav.userAgentData?.platform === "string" ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
+    const mac = typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0 ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
     const mod = mac ? (key.metaKey && !key.ctrlKey) : (key.ctrlKey && !key.metaKey);
     const inTerminal = key.target instanceof Element && Boolean(key.target.closest("[data-tui-pane],.xterm"));
     if (!key.defaultPrevented && !inTerminal && mod && !key.shiftKey && !key.altKey && key.key === ".") {

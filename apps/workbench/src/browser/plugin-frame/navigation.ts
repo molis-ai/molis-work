@@ -2,7 +2,7 @@ import type { FrameConfig, FrameDown, FrameScope, FrameUp } from "./types.js";
 
 function isMacPlatform(): boolean {
   const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-  if (typeof nav.userAgentData?.platform === "string") return nav.userAgentData.platform === "macOS";
+  if (typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0) return nav.userAgentData.platform === "macOS";
   return /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
 }
 
@@ -62,16 +62,20 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   // ⌘\ / Ctrl+\ collapses or opens the shell's right side wherever the keyboard is.
   if (owner.querySelector("[data-side-tabs]")) shortcuts.push("Mod+Backslash");
   // Workspace navigation shortcuts forwarded from inside Layer 2 plugin frames (102-1):
-  // ⌘[/⌘] (Alt+←/Alt+→ on non-Mac), ⌘⇧T reopen closed tab/group, ⌘⇧↵ maximize/restore pane, and ⌘. context bar.
-  if (owner.querySelector("[data-tab-workspace], .workspace-history")) {
-    shortcuts.push("Mod+BracketLeft", "Mod+BracketRight", "Alt+ArrowLeft", "Alt+ArrowRight", "Mod+Shift+T", "Mod+Shift+Enter");
-  }
+  // Advertise only when THIS document owns a tab workspace (top workbench or embedded side pane),
+  // so standalone side-view frames do not intercept and silently drop them.
+  const WORKSPACE_SHORTCUTS = ["Mod+BracketLeft", "Mod+BracketRight", "Alt+ArrowLeft", "Alt+ArrowRight", "Mod+Shift+T", "Mod+Shift+Enter"];
+  const ownsWorkspace = Boolean(document.querySelector("[data-tab-workspace], .workspace-history"));
+  if (ownsWorkspace) shortcuts.push(...WORKSPACE_SHORTCUTS);
   shortcuts.push("Mod+Period");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
-  // Hand DOM focus into the opaque child iframe first so Chromium 158+ allows its internal .focus() call.
+  // Hand DOM and WindowProxy focus into the opaque child iframe first so Chromium 158+ allows its internal .focus() call.
   const focus = () => {
     if (!side || !scope.visible || !document.hasFocus()) return;
-    if (frame && frame.isConnected && document.activeElement !== frame) frame.focus({ preventScroll: true });
+    if (frame && frame.isConnected) {
+      if (document.activeElement !== frame) frame.focus({ preventScroll: true });
+      try { frame.contentWindow?.focus(); } catch { /* Ignore cross-origin focus handoff refusal. */ }
+    }
     port.postMessage({ type: "focus" } satisfies FrameDown);
   };
   scope.listen(window, "focus", focus);
@@ -80,7 +84,8 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
     if (message.type === "close-side") {
       if (side && parent !== window) parent.postMessage({ type: "molis:side-close" }, location.origin);
     } else if (shortcuts.includes(message.keys)) {
-      if (parent !== window) parent.postMessage({ type: "molis:side-key", keys: message.keys }, location.origin);
+      const localWorkspaceChord = ownsWorkspace && (WORKSPACE_SHORTCUTS.includes(message.keys) || message.keys === "Mod+Period");
+      if (parent !== window && !localWorkspaceChord) parent.postMessage({ type: "molis:side-key", keys: message.keys }, location.origin);
       else {
         // Dispatch on `document` with `bubbles: true` so both `document` listeners (tab-workspace, plugin-tab-groups,
         // context-bar) and `window` listeners (global-search, side-panel) receive the forwarded shortcut.

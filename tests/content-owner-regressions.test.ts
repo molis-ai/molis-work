@@ -80,6 +80,53 @@ test("W2-18-DATASET-SCHEMA-02: legal large/long-title Forms refuse conversion at
   }
 });
 
+test("AC-T2-01 AC-T2-02 AC-T2-03 AC-T2-04: sending another batch of form responses appends unique rows to its original table", async t => {
+  const f = await owners(t);
+  const form = f.forms.receive(f.project, "form-batches", "回访问卷", [{ id: "name", title: "姓名" }]);
+  const submit = (name: string, requestId?: string) =>
+    f.forms.submit(form.id, { name }, f.project, { source: "preview", requestId });
+  const csv = () => formResultsCsv(form, f.forms.listSubmissions(form.id, f.project));
+  const receive = (requestId: string, body = csv()) => f.bound.invoke(datasetContentActions.receive, {
+    title: "答卷", body, url: "molis-source://form/" + form.id, request_id: requestId,
+  });
+  const get = async (id: string) => (await f.bound.invoke(datasetActions.get, { id })).dataset;
+  submit("甲", "answer-1");
+  submit("乙", "answer-2");
+  const { subject: { id } } = await receive("first-batch");
+  assert.deepEqual(f.datasets.list(f.project).map(table => table.id), [id]);
+  const first = await get(id);
+  const requestId = first.columns[0]!;
+  assert.equal(requestId.name, "request_id");
+  assert.deepEqual(first.rows.map(row => row.cells[requestId.id]).sort(), ["answer-1", "answer-2"]);
+  assert.equal((await receive("first-batch")).subject.id, id);
+
+  const withColumn = (await f.bound.invoke(datasetActions.generate, { id, prompt: "人工审核备注", expected_version: first.version })).dataset;
+  const manual = withColumn.columns.at(-1)!;
+  const annotated = (await f.bound.invoke(datasetActions.update, {
+    id, expected_version: withColumn.version,
+    rows: withColumn.rows.map((row, index) => index === 0 ? { ...row, cells: { ...row.cells, [manual.id]: "已电话回访" } } : row),
+  })).dataset;
+  submit("丙", "answer-3");
+  const fallback = submit("丁");
+  const body = csv();
+  const incoming = body.trimEnd() + "\r\nanswer-3,duplicate-time,试填,重复答卷";
+  assert.equal((await receive("second-batch", incoming)).subject.id, id);
+  const appended = await get(id);
+  assert.deepEqual(appended.columns, annotated.columns);
+  assert.deepEqual(appended.rows.slice(0, 2), annotated.rows);
+  assert.deepEqual(appended.rows.map(row => row.cells[requestId.id]).sort(), ["answer-1", "answer-2", "answer-3", fallback.id].sort());
+  assert.deepEqual(appended.rows.slice(2).map(row => row.cells[manual.id]), ["", ""]);
+  assert.deepEqual(f.datasets.list(f.project).map(table => table.id), [id]);
+
+  assert.equal((await receive("no-new-answers")).subject.id, id);
+  assert.equal((await get(id)).version, appended.version);
+  await f.bound.invoke(datasetActions.delete, { id, expected_version: appended.version });
+  const rebuilt = (await receive("after-delete")).subject.id;
+  assert.notEqual(rebuilt, id);
+  assert.deepEqual(f.datasets.list(f.project).map(table => table.id), [rebuilt]);
+  assert.equal((await receive("after-rebuild")).subject.id, rebuilt);
+});
+
 test("W2-18-FORM-ANSWER-01: the owner keeps the 4000 bound and checks required answers for every declared id", async t => {
   const f = await owners(t);
   const { form } = await f.bound.invoke(formActions.create, { title: "Answer boundary" });

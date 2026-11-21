@@ -7,7 +7,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("PG-026-S4-03 demo sample warning remains visible until manual refresh and normal success still reloads", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty");
   if (!browser) return;
-  const { origin, homeDirectory, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  const { origin, homeDirectory, sessionId, command, evaluate, waitFor, click, navigate, setViewport } = browser;
+  await setViewport(1280, 900);
   t.after(browser.on("Page.javascriptDialogOpening", (event, session) => {
     assert.equal(event.type, "confirm");
     void command("Page.handleJavaScriptDialog", { accept: true }, session).catch(() => undefined);

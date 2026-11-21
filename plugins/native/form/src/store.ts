@@ -289,7 +289,7 @@ export class FormStore {
       assertFormVersion(form, options.expectedVersion);
       const normalized = normalizeAnswers(form.questions, answers);
       const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
-        submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, source };
+        submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, request_id: options.requestId ?? null, source };
       this.db.run("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [submission.id, id, JSON.stringify(normalized), submission.submitted_at, form.version, JSON.stringify(form.questions), options.requestId ?? null, source]);
       return submission;
     });
@@ -333,7 +333,7 @@ export function fromRow(row: FormRow): FormRecord {
 }
 
 function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
-  return { id: row.id, form_id: row.form_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
+  return { id: row.id, form_id: row.form_id, request_id: row.request_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
     form_version: row.form_version, questions: JSON.parse(row.questions_json) as FormQuestion[], source: row.source as FormSubmissionSource };
 }
 

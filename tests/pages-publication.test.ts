@@ -13,7 +13,7 @@ const body = (text: string) => ({ type: "doc" as const, content: [{ type: "parag
 async function fixture(t: TestContext) {
   const f = await openTestHome(t), project = await f.createProject("Pages publication", ["pages"]);
   const ref = project.reference, caller = { ...await f.host.localPersonContext(ref), actor_id: "owner" }, client = f.host.actionClient(ref);
-  return { home: f.home, host: f.host, ref, projectId: project.project_id, caller, client, bound: bindActionClient(client, () => caller) };
+  return { home: f.home, host: f.host, createProject: f.createProject, origin: f.origin, ref, projectId: project.project_id, caller, client, bound: bindActionClient(client, () => caller) };
 }
 
 for (const failure of ["artifact write", "root update"] as const) {
@@ -124,4 +124,68 @@ test("BSH-01 a prior immutable Artifact for a different document cannot start a 
   await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id }), { code: "pages.publication_conflict" });
   const page = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
   assert.equal(page.artifact_version, 0); assert.equal(page.publication_pending, undefined); assert.deepEqual(page.body, original.body);
+});
+
+test("AC-T3-01 AC-T3-02 AC-T3-03 AC-T3-04: Pages compares exact fixed versions in either direction through the action and protected route", async t => {
+  const f = await fixture(t);
+  const id = (await f.bound.invoke(pagesActions.create, { title: "Original title",
+    markdown: "Original A\n\n# Keep this heading\n\nRemoved B\n\nKeep this paragraph" })).document.id;
+  const pin = () => f.bound.invoke(pagesActions.promote, { id });
+  const compare = (before: number, after: number) => f.bound.invoke(pagesActions.artifactDiff, { id, before_version: before, after_version: after });
+  await pin();
+  await f.bound.invoke(pagesActions.update, { id, markdown: "Edited A\n\n# Keep this heading\n\nKeep this paragraph\n\nNew C" });
+  await pin();
+  await f.bound.invoke(pagesActions.update, { id, title: "Revised title" });
+  await pin();
+  await f.bound.invoke(pagesActions.update, { id, title: "Unpublished draft", markdown: "Unpublished edits" });
+
+  const diff = await compare(1, 2);
+  assert.equal(diff.identical, false);
+  assert.equal(diff.title_changed, false);
+  assert.deepEqual(diff.summary, { equal: 2, modified: 1, added: 1, removed: 1 });
+  assert.deepEqual(diff.paragraphs.map(entry => [entry.kind, entry.before_index, entry.after_index, entry.before_text, entry.after_text]), [
+    ["modified", 1, 1, "Original A", "Edited A"],
+    ["equal", 2, 2, "# Keep this heading", "# Keep this heading"],
+    ["removed", 3, null, "Removed B", null],
+    ["equal", 4, 3, "Keep this paragraph", "Keep this paragraph"],
+    ["added", null, 4, null, "New C"],
+  ]);
+  const reverse = await compare(3, 2);
+  assert.equal(reverse.identical, false);
+  assert.equal(reverse.title_changed, true);
+  assert.deepEqual([reverse.before_title, reverse.after_title], ["Revised title", "Original title"]);
+  assert.deepEqual(reverse.summary, { equal: 4, modified: 0, added: 0, removed: 0 });
+
+  await assert.rejects(compare(2, 2), { code: "pages.invalid" });
+  await assert.rejects(compare(2, 99), { code: "pages.not_found" });
+  const other = await f.createProject("Outside the document's project", ["pages"]);
+  const caller = await f.host.localPersonContext(other.reference);
+  await assert.rejects(f.host.actionClient(other.reference).invoke(caller, pagesActions.artifactDiff,
+    { id, before_version: 1, after_version: 2 }), { code: "pages.not_found" });
+
+  const url = f.origin + "/projects/" + f.projectId + "/api/plugins/" + pagesManifest.plugin_id + "/pages/" + id + "/versions/diff";
+  const response = await fetch(url + "?before=1&after=2");
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), diff);
+  const badVersion = await fetch(url + "?before=1.5&after=2");
+  assert.equal(badVersion.status, 400);
+  assert.equal((await badVersion.json()).code, "pages.invalid");
+  const wrongProject = await fetch(url + "?before=1&after=2&project_id=" + other.project_id);
+  assert.equal(wrongProject.status, 403);
+  assert.equal((await wrongProject.json()).code, "actions.scope_mismatch");
+});
+
+test("AC-T3-01: a large version pair uses positional comparison, skips empty placeholders and keeps original block indexes", async t => {
+  const f = await fixture(t);
+  const makeBody = (edit: string) => ({ type: "doc" as const, content: [
+    { type: "paragraph" },
+    ...Array.from({ length: 449 }, (_, index) => body(index === 2 ? edit : `Paragraph ${index + 1}`).content[0]),
+  ] });
+  const id = (await f.bound.invoke(pagesActions.create, { title: "Long draft", body: makeBody("Original block") })).document.id;
+  await f.bound.invoke(pagesActions.promote, { id });
+  await f.bound.invoke(pagesActions.update, { id, body: makeBody("Revised block") });
+  await f.bound.invoke(pagesActions.promote, { id });
+  const diff = await f.bound.invoke(pagesActions.artifactDiff, { id, before_version: 1, after_version: 2 });
+  assert.deepEqual(diff.summary, { equal: 448, modified: 1, added: 0, removed: 0 });
+  assert.deepEqual(diff.paragraphs[2], { kind: "modified", before_index: 4, after_index: 4, block_kind: "paragraph", before_text: "Original block", after_text: "Revised block" });
 });

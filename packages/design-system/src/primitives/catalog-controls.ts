@@ -1,5 +1,5 @@
 // The catalog board's control specimens: buttons, fields, forms, feedback, overlays, menus and tabs.
-import { icon, renderAlert, renderAutocomplete, renderAvatar, renderBadge, renderButton, renderCalendar, renderCheckbox, renderCheckboxGroup, renderDatePicker, renderEmpty, renderField, renderFieldset, renderForm, renderInput, renderInputGroup, renderKbd, renderLabel, renderMeter, renderNumberField, renderOtpField, renderProgress, renderRadio, renderRadioGroup, renderSelect, renderSeparator, renderSeverityGrid, renderSkeleton, renderSlider, renderSpinner, renderStatusMark, renderSwitch, renderTextarea, renderToast, renderToggle } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderAlert, renderAutocomplete, renderAvatar, renderBadge, renderButton, renderCalendar, renderCheckbox, renderCheckboxGroup, renderDatePicker, renderEmpty, renderField, renderFieldset, renderForm, renderInput, renderInputGroup, renderKbd, renderLabel, renderMeter, renderNumberField, renderOtpField, renderProgress, renderRadio, renderRadioGroup, renderSelect, renderSeparator, renderSeverityGrid, renderSkeleton, renderSlider, renderSpinner, renderStatusMark, renderSwitch, renderTextarea, renderToast, renderToggle, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAccordion, renderBreadcrumb, renderCollapsible, renderCombobox, renderPagination, renderTabs, renderToggleGroup, renderToolbar } from "./navigation.js";
 import { renderAlertDialog, renderCommand, renderContextMenu, renderDialog, renderDrawer, renderMenu, renderMenuGroup, renderMenuItem, renderHint, renderPopover, renderPreviewCard, renderSheet, renderTooltip } from "./overlay.js";
 import type { Say } from "./catalog-composer.js";
@@ -120,10 +120,10 @@ export function formSection(say: Say): string {
   return section("form", "Form", form);
 }
 
-export function badgeSection(): string {
-  const badges = `<div class="mw-catalog__row">${([["草稿", "neutral"], ["workbench.assistant-delivery.progress", "info"], ["已完成", "success"], ["待复核", "warning"], ["workbench.assistant-delivery.failed", "danger"]] as const)
+export function badgeSection(say: Say = t): string {
+  const badges = `<div class="mw-catalog__row">${([["草稿", "neutral"], [say("workbench.assistant-delivery.progress"), "info"], ["已完成", "success"], ["待复核", "warning"], [say("workbench.assistant-delivery.failed"), "danger"]] as const)
     .map(([label, tone]) => renderBadge({ label, tone }))
-    .join("")}</div><div class="mw-catalog__row">${([["草稿", "draft", "idle"], ["workbench.assistant-delivery.progress", "doing", "progress"], ["已完成", "done", "done"], ["待复核", "verify", "attention"], ["workbench.assistant-delivery.failed", "failed", "blocked"]] as const)
+    .join("")}</div><div class="mw-catalog__row">${([["草稿", "draft", "idle"], [say("workbench.assistant-delivery.progress"), "doing", "progress"], ["已完成", "done", "done"], ["待复核", "verify", "attention"], [say("workbench.assistant-delivery.failed"), "failed", "blocked"]] as const)
     .map(([label, state, tone]) => renderStatusMark({ label, state, tone }))
     .join("")}</div>`;
   const alerts = renderAlert({ title: "保存失败", body: "连接中断，草稿仍在，可以重试。", tone: "danger" })
@@ -248,9 +248,9 @@ export function overlaySection(say: Say): string {
       ${mark("sheet", sheet)}${mark("dialog", dialog)}${mark("alert-dialog", alertDialog)}${mark("drawer", drawer)}`);
 }
 
-export function menuSection(): string {
-  return section("menu", "Menu / Context Menu / Popover / Tooltip / Command / Preview Card", `<div class="mw-catalog__specimens">${mark("menu", specimen("workbench.catalog-controls.menu", renderMenu({
-      items: renderMenuGroup({ items: renderMenuItem({ label: "重命名", iconName: "edit", shortcut: "F2" }) + renderMenuItem({ label: "复制链接", iconName: "link", shortcut: "⌘readText" }) + renderMenuItem({ label: "移到其他项目", iconName: "folder", disabled: true }) })
+export function menuSection(say: Say = t): string {
+  return section("menu", "Menu / Context Menu / Popover / Tooltip / Command / Preview Card", `<div class="mw-catalog__specimens">${mark("menu", specimen(say("workbench.catalog-controls.menu"), renderMenu({
+      items: renderMenuGroup({ items: renderMenuItem({ label: "重命名", iconName: "edit", shortcut: "F2" }) + renderMenuItem({ label: "复制链接", iconName: "link", shortcut: "⌘C" }) + renderMenuItem({ label: "移到其他项目", iconName: "folder", disabled: true }) })
         + renderMenuGroup({ items: renderMenuItem({ label: "删除", iconName: "trash", danger: true, shortcut: "⌘⌫" }) }),
     })))}${mark("context-menu", specimen("右键菜单", renderContextMenu({
       items: renderMenuGroup({ label: "显示", items: renderMenuItem({ label: "行号", checked: true }) + renderMenuItem({ label: "自动换行", checked: false }) })

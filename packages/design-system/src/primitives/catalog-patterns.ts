@@ -172,7 +172,7 @@ export function tagInputSection(): string {
   }${renderInput({ placeholder: "回车添加", attrs: { "aria-label": "添加标签", "data-tags-input": "" } })}</div><div class="mw-tags__suggest">${["周报", "客户", "待定"].map(suggest).join("")}</div>`)}</div>`);
 }
 
-export function dropZoneSection(): string {
+export function dropZoneSection(say: (key: string) => string = (k) => k): string {
   const zone = (attrs: string, mark: PluginIconName, title: string, meta: string, compact = false) =>
     `<div class="mw-drop${compact ? " mw-drop--compact" : ""}"${attrs}><span class="mw-mark">${icon(mark)}</span><p>${title}</p><p>${meta}</p></div>`;
   const pick = `拖到这里，或 ${renderButton({ label: "选择文件", variant: "link" })}`;
@@ -181,11 +181,11 @@ export function dropZoneSection(): string {
   const upload = (mark: PluginIconName, name: string, body: string, end: string, sample = false) =>
     `<li class="mw-upload"${sample ? " data-drop-sample" : ""}><span class="mw-mark">${icon(mark)}</span><span>${name}${body}</span>${end}</li>`;
   return section("drop-zone", "Drop Zone", `<div class="mw-catalog__specimens">${specimen("放下文件", zone(" data-drop-live", "upload", pick, "PDF、图片、表格 · 单个不超过 50 MB"))}${
-    specimen("workbench.context-onboarding.compact", compact)}${
+    specimen(say("workbench.context-onboarding.compact"), compact)}${
     specimen("上传", `<ul class="mw-uploads" data-drop-list>${
       upload("note", "访谈记录.docx", renderProgress({ value: 62, label: "访谈记录.docx 已上传 62%" }), `<small>62%</small>${ghostIcon("取消上传 访谈记录.docx", "x")}`)
       + upload("image", "首页草图.png", "<small>820 KB</small>", renderStatusMark({ label: "已上传", state: "done", tone: "done" }), true)
-      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: "common.control.retry", variant: "ghost", size: "sm" }))
+      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
     }</ul>`)}</div>`);
 }
 
@@ -233,13 +233,13 @@ const FILES: FileRow[] = [
   { name: "发布清单.md", mark: "text", where: "Pages", status: { label: "草稿", state: "draft", tone: "idle" }, updated: "上周", minutes: 10_080, size: "12 KB", bytes: 12_000 },
 ];
 
-export function dataTableSection(): string {
+export function dataTableSection(say: (key: string) => string = (k) => k): string {
   const sort = (key: string, label: string, order = "none", num = false) =>
     `<th aria-sort="${order}"${num ? ` class="is-num"` : ""}><button type="button" data-dt-sort="${key}">${label}${icon("chevron-down")}</button></th>`;
   const rows = FILES.map((file) => `<tr data-name="${file.name}" data-updated="${-file.minutes}" data-size="${file.bytes}">
     <td>${renderCheckbox({ attrs: { "aria-label": `选择 ${file.name}`, "data-dt-pick": "" } })}</td>
     <td><div><span class="mw-mark">${icon(file.mark)}</span><span><strong>${file.name}</strong><small>${file.where}</small></span></div></td>
-    <td>${renderStatusMark(file.status)}</td><td>${file.updated}</td><td class="is-num">${file.size}</td><td>${ghostIcon(`${file.name} 的更多操作`, "more")}</td></tr>`).join("");
+    <td>${renderStatusMark({ ...file.status, label: file.status.label.startsWith("workbench.") ? say(file.status.label) : file.status.label })}</td><td>${file.updated}</td><td class="is-num">${file.size}</td><td>${ghostIcon(`${file.name} 的更多操作`, "more")}</td></tr>`).join("");
   const search = (value = "") => renderInputGroup({ start: icon("search"), control: renderInput({ type: "search", placeholder: "搜索文件", value, attrs: { "aria-label": "搜索文件" } }) });
   const table = `<div class="mw-dt" data-dt><div class="mw-dt__bar"><div>${search()}${renderButton({ label: "状态", variant: "secondary", icon: "filter" })}<span>${FILES.length} 项</span></div>
     <div class="mw-dt__bulk"><strong aria-live="polite"><span data-dt-count>0</span> 项已选</strong>${renderButton({ label: "下载", variant: "secondary", icon: "download" })}${renderButton({ label: "归档", variant: "secondary", icon: "archive" })}${

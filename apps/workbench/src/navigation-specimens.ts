@@ -1,4 +1,5 @@
 import type { WebLocale } from "./i18n.js";
+import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { escapeHtml, icon, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -260,9 +261,10 @@ function sheetSpecimen(readText: Say): string {
  * The frame the board's 工作台导航 section loads, in the board's language. `sheet: "work-line"` is the same frame (a workbench
  * page with the workbench sheet) holding the 事项线 section's specimens instead (work-line-specimens.ts).
  */
-export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: string, sheet: "workbench" | "arrival" | "work-line" = "workbench"): string {
+export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: string, sheet: "workbench" | "arrival" | "work-line" = "workbench", appearance?: WorkbenchAppearance): string {
   // The arrival sheet has the glyph row but not the project page's tab rules, so its frame draws only that row.
-  const arrival = sheet === "arrival", workLine = sheet === "work-line";
+  const arrival = sheet === "arrival";
+  const workLine = sheet === "work-line";
   const top = specimen("titlebar", "", uiText.text("workbench.navigation-specimens.titlebar"), uiText.text("workbench.navigation-specimens.top-strip-tabs-on-paper"),
     `<p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.ok"))}</p>${titlebar(readText, "ok")}<p class="mw-navs__state">${escapeHtml(uiText.text("workbench.navigation-specimens.something-wrong"))}</p>${titlebar(readText, "wrong")}`);
   return `<!doctype html>
@@ -274,6 +276,7 @@ export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: strin
   ${renderLanguageHead(htmlLang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-${arrival ? "arrival" : "workbench"}.css">
+  ${appearanceHead(appearance)}
   <style>${FRAME_STYLES}${workLine ? WORK_LINE_FRAME_STYLES : ""}</style>
 </head>
 <body class="${arrival ? "arrival-page " : ""}immersive-workbench mw-navs-page" data-nav-sheet="${sheet}">

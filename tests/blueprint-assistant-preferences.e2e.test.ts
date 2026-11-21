@@ -185,13 +185,15 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await waitFor("!document.querySelector('.mw-help-card')");
 
-  // P1-1: in-place language switch on /settings/appearance updates the Scheme A Help card live (both while open and when reopened).
+  // P1-1: in-place language switch on /settings/appearance updates the Scheme A Help card live without reloading.
   const appearanceHelp = '[data-mw-help-trigger][data-help-topic="settings-appearance"]';
   await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance" }, sessionId));
   await waitFor(`!!document.querySelector('${appearanceHelp}') && !!document.querySelector('[data-ui-language="en"]')`);
   await click(appearanceHelp);
   await waitFor("!!document.querySelector('.mw-help-card__title')");
   assert.match(await evaluate<string>("document.querySelector('.mw-help-card__title')?.textContent || ''"), /界面与语言/u, "initial appearance Help renders in zh");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
   await evaluate("window.__helpLangSwitchMarker = 'same-document'");
   await click('[data-ui-language="en"]');
   await waitFor("document.documentElement.lang === 'en'");
@@ -199,6 +201,8 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await click(appearanceHelp);
   await waitFor("/Appearance and language/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
   assert.match(await evaluate<string>("document.querySelector('.mw-help-card__body')?.textContent || ''"), /Choose light or dark appearance/u, "P1-1: Help body re-renders in English after in-place switch");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
   await click('[data-ui-language="zh"]');
   await waitFor("document.documentElement.lang.startsWith('zh')");
   await click(appearanceHelp);

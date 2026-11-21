@@ -3311,3 +3311,9 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 - ② **P2 部分排批。** [决定 36](../post-anticorruption-roadmap/reference/decisions.md#decision-36) 定过「P2 不排批，测到问题才做」。本节依据 §15.1 已核实的代码缺口和 P0 对照结果，拟把 P2-01～P2-05 排进 31-2、62、63、64、76，P2-06 和语义、规模两项仍按触发；见 [决定 46](../post-anticorruption-roadmap/reference/decisions.md#decision-46)。
 - ③ **常驻层大小。** §5.7 写的是热缓存约 50–80 行。推荐改为按 token 设上限、起步更小，由整理维持；改的是 §5.7 的数字，要用户定。
 - ④ **主题导览的主人。** 试点触发前要定导览存在哪里、谁是写主人（Memory 的派生视图，还是交给文稿类插件）。
+
+### 15.10 2026-11-20 Harness 与红队终校增补（[决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ②、[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ②）
+
+- **上游与窗口落点（[62 批](../post-anticorruption-roadmap/reference/batches/62.md) 窗口 B → [63A](../post-anticorruption-roadmap/reference/batches/63a.md) 消费）**：`AuthenticatedEnvelopes` 改 LRU（替换 FIFO）与 Host 按 scope 区间列记忆行（关闭 `BL-1072`／`BL-1073`）落入第 62 批窗口 B，供 63A-2 消费。
+- **形成、去重、衰减与情景记忆（[63A-1／63A-2](../post-anticorruption-roadmap/reference/batches/63a.md)）**：先按既定 T-061 拆分 `MemoryService`；修复 `sameText()` 去标点导致比较符/否定词语义反转误合并；新增结构化情景记忆（`context → action → verified outcome → applicability`）；移除 `MEMORY_TIDY` 对 LLM 语义去重的 `similarity >= 0.3` 字面二次过滤门；将 0.70 底部时间衰减升级为真实指数半衰期衰减；常驻层（`63A-3`）置于静态 KV-Cache 前缀区；Dreaming 整理改动与效果对照记入第 63 批 SIM 账本。
+- **后台学习预算与频率上限（决定 57 ②／决定 58）**：形成每次工作最多一次提炼；Dreaming 每个范围每天最多一轮、每轮条目与模型用量有硬上限，触线即停（初始值开工时按 63 批样本核实）；整理结果默认只在记忆设置里一行摘要呈现。

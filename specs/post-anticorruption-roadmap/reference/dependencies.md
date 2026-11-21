@@ -193,6 +193,18 @@ flowchart LR
   CUI -.上游换包可选并入.-> W2
   CUI -.流式与滚动底座.-> DISPATCH
   CUI -.流式与滚动底座.-> QA
+  B100["100 路线书终校与门禁/CI 改革"] --> B101["101 现役 P0 与生命周期止血"]
+  B100 --> B102["102 前端壳层/CSS 与沙箱/Tauri 硬化"]
+  POLISH -.102-1 壳层依赖.-> B102
+  B101 --> B103["103 SQLite/Host/MCP/Sessions 提速"]
+  B101 --> CUI
+  B101 --> UXP
+  B101 --> B104["104 非 Agent AI 纳管与统一报错翻译"]
+  CUI --> B104
+  B100 --> B105["105 防链式 RCE 审批与热路径缓存"]
+  AUTH --> B105
+  W2 -.并行波原子审批.-> B105
+  B105 -.4 层防注入护栏.-> HB
 ```
 
 不带字虚线是只在阶段 1 核出当前 SDK 缺口时才成立的依赖；带字虚线表示可选并入、范围移交或非阻塞底座衔接，不作为硬前置。
@@ -446,14 +458,14 @@ flowchart LR
 
 <a id="deps-2026-11-19"></a>
 
-### 11-19 Harness 工程与 RSI 审阅后的批次与依赖调整（[决定 57](decisions.md#decision-57)）
+### 11-19 Harness 工程与 RSI 审阅后的批次与依赖调整（[决定 58](decisions.md#decision-58) ②）
 
-用户 2026-11-19 拍板 Prologue 与 Molis Work 双仓 Harness 系统化优化及 RSI 审阅（决定 57 ①～⑥），不新增批次号，按以下边界并入既有批次（只更新排期与范围，不改业务代码或提前换包）：
+用户 2026-11-19 拍板 Prologue 与 Molis Work 双仓 Harness 系统化优化及 RSI 审阅，并于 2026-11-20 经两轮红队终校补充强制护栏（决定 58 ②），按以下边界并入既有批次（只更新排期与范围，不改业务代码或提前换包）：
 
 | 批次／项 | 调整后的关键范围与前置 | 文件 |
 | --- | --- | --- |
-| 91（91A） | 91-2 获准随本批（或 91A 前单开小窗口）换入 Prologue P0 止血包（KV-Cache 失效指纹、Anthropic 多断点、`edit` 防 `$` 损坏与唯一性、流式落盘解耦、OpenAI `include_usage`、熔断与钩子/凭据技能修复），并同步落 Molis 侧 P0 热路径与缓存止血（去 `molis-child` 随机 UUID、技能短别名与取消 `.slice(0,20)`、`taskText` + `modelOrigin: "label"`、非思考 `maxOutputTokens: 16384`、默认 `prompt_cache: "best-effort"`、`stop-guard` 预筛与单轮 `discover()` 缓存） | [91](batches/91.md) |
-| 62 | 承接 SDK 窗口二 Harness 升级：`openai-responses` 内置协议与 DeepSeek `reasoning_content` 回放；全面静态化工具面（停 `parameterBranches`、Anthropic 按需 `defer_loading`、Coding 可读命名空间短名）；`apply_patch` + `read-resource`/`grep-resource` + 接通 `invokeAll` 并行波 + `code-mode` 结构化传递；`SKILL.md` Frontmatter + `FrozenCharacter.model` 子代理路由 + Cache-Safe Fork + 4 个未触发钩子；持久化跨轮压缩检查点 + Amp 风格 Clean Handoff + Assistant Host 事实续接与附件卸载为虚拟知识件 | [62](batches/62.md) |
+| 91（91A） | 91-2 获准随本批（或 91A 前单开小窗口）换入 Prologue P0 止血包（KV-Cache 失效指纹、Anthropic 多断点、`edit` 防 `$` 损坏与唯一性、流式落盘解耦、OpenAI `include_usage`、熔断与钩子/凭据技能修复），并同步落 Molis 侧 P0 热路径与缓存止血（去 `molis-child` 随机 UUID 且保留 Batch 59 `BUSINESS_SUBAGENT_HOST_TOOLS` 改幂等 `ensurePublishedChildRole`、技能短别名与取消 `.slice(0,20)`、`taskText` + `modelOrigin: "label"`、OpenAI `maxOutputTokens` 留 `undefined` 仅 Anthropic 按族夹逼、`prompt_cache` DB 留 `"off"` 仅已验证模板默认 `"best-effort"` 并放宽 `PA-24`、`runtime:clock` 保持 `developer` 层、`stop-guard` 预筛与用已有 `ActionService.discoverOne()` 禁盲整轮缓存、`ending-review` 保现状） | [91](batches/91.md) |
+| 62 | 承接 SDK 窗口二 Harness 升级：`openai-responses` 内置协议与 DeepSeek `reasoning_content` 回放；全面静态化工具面（过 MiniMax G1–G4 再停 `parameterBranches`、Anthropic 按需 `defer_loading`、Coding 可读命名空间短名保留 `act__` 守 `S-28`）；`apply_patch` + `read-resource`/`grep-resource` + 先修 `invokeAll` 漏传回调/信号且初期仅 `safe-read` 并行 + `code-mode` 结构化传递；`SKILL.md` Frontmatter + `FrozenCharacter.model` 子代理路由 + Cache-Safe Fork + 4 个未触发钩子；先落持久化跨轮压缩检查点再退 `history-digest.ts` + Amp 风格 Clean Handoff + Assistant Host 事实续接与附件卸载为虚拟知识件（保留 `attachments.forget()` 守 `S-conversation-attachments`）；`AuthenticatedEnvelopes` LRU + Host Scope 区间列行供 `63A` 消费 | [62](batches/62.md) |
 | 63 | 增设 Piece 0 硬前置修齐观测埋点断链（补接 7 类丢弃事件、TTFT/缓存口径与前缀哈希、`agent.tool`↔`action.call` 关联与守 `S-18` 的失败分类码、Assistant `agent.skill` 与 16 条材料截断修复、统一生产与评测漏斗词表）；随后落 Trace Bundle（收口 `BL-evaluation-read-cost`）、录制轨迹工具 Mock 回放、校准型混合裁判、三层 RRSI 门禁与 `evaluation.db` 的 `improvement_experiments`（SIM 账本，沿用 `use: "evaluation"`） | [63](batches/63.md) |
 | 63A | 叠加修 `sameText()` 符号误合并、去 `MEMORY_TIDY` 的 `0.3` 字面二次过滤、`AuthenticatedEnvelopes` 改 LRU + Host 按 Scope 区间列行（关 `BL-1072`）、真实半衰期衰减、情景记忆结构、常驻热层入静态前缀、Dreaming 改动记入 63 批 SIM 账本 | [63A](batches/63a.md) |
 | 64 | `horizontal/automation-recommender` 接入 `observation.db`（`use: "assistant"`）行为摩擦与返工检测，复用既有 `placeForPerson` + `automation.adoption.{adopt,undo}@1` 作为端侧本地 RSI 提案入口；主动与观察试用按 63 批统一漏斗词表落盘 | [64](batches/64.md) |
@@ -471,6 +483,31 @@ flowchart LR
 ### 11-20 精准修复入列、红队终校与 DAG 校准（[决定 58](decisions.md#decision-58)）
 
 2026-11-20 用户拍板按正式队列新增 `100`～`105` 六个横向修复与硬化批次（不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness & RSI 工程优化；因 `#2155` 第 44 批已合入 `origin/main`，`103` 不再等 44 且与 `102` 并行），同步修正 6 处既有 DAG 依赖并校准 `91`/`62` 红队护栏：
+
+```mermaid
+flowchart LR
+  B100_1["100-1 路线书终校与 100～105 入列"] --> B100_2["100-2 反效果门禁与 CI 改革"]
+  B100_2 --> B101["101 现役 P0 与生命周期止血"]
+  B100_2 --> B102_2["102-2 沙箱批量监控与 Tauri 硬化"]
+  B100_2 --> B102_1["102-1 去分屏双 iframe 与插件基础 CSS"]
+  S36A["36A 壳层第十三版"] --> B102_1
+  B101 --> B103["103 SQLite/Host/MCP/Sessions 提速"]
+  B101 --> B91["91/91A 流式底座与 Prologue P0"]
+  B101 --> B91B["91B 余下表面收口与确定性门禁"]
+  B91 --> B91B
+  B91 --> B104["104 非 Agent AI 纳管与统一报错翻译"]
+  B101 --> B104
+  B100_2 --> B105["105 防链式 RCE 审批与热路径缓存"]
+  B39["39 授权与审批（已合）"] --> B105
+  B62["62 SDK 窗口二（invokeAll）"] -.并行波原子审批.-> B105
+  B105 --> B65["65 受限命令/AI 审批/OS 沙箱"]
+  B100_1 --> B90["90 整条路线最终交付对账"]
+  B102_1 --> B90
+  B102_2 --> B90
+  B103 --> B90
+  B104 --> B90
+  B105 --> B90
+```
 
 | 批次／项 | 真实前置与精确范围 | 文件 |
 | --- | --- | --- |

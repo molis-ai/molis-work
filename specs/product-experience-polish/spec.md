@@ -160,3 +160,6 @@
   1. 将全产品界面打磨、空间与布局架构优化、用户行为反馈全链路优化及后续开发指引更新，与[对话与执行流式体验](../conversation-execution-ui/spec.md)合并为统一体验专项，在路线书中排为紧邻双段：**[第 91 批（91A）](../post-anticorruption-roadmap/reference/batches/91.md)**（1 个 PR，先落底座/流式/全部后续开发指引）→ **[第 91B 批](../post-anticorruption-roadmap/reference/batches/91b.md)**（全产品表面收口 + 三层门禁焊死，按正交模块可拆并行 PR 或 1 个 PR）；两段均以 `35-2 / 36A / 37-2` 为前置，**不等 `38～89`**。
   2. 显式剔除已定随 [44-7](../post-anticorruption-roadmap/reference/batches/44.md#batch-44-item-7) 删除的桌面菜单栏胶囊，避免与 [36A](../post-anticorruption-roadmap/reference/batches/36a.md) 和 [56-1／56-2](../post-anticorruption-roadmap/reference/batches/56.md) 撞车。
   3. 确认将全部后续开发指引更新（`91-5`）与三层防回归门禁收紧（`91B-4`）纳入正式交付与验收标准（`UXP-11`～`UXP-13`）。
+- **2026-11-20（前置 5 项真 P0 至 101 批与 `91B-4` 确定性门禁校准，[路线书决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ④、[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58)）**：
+  1. 原属 `91B` 的 5 个真 P0 功能故障（租户订阅 `"这句话暂时显示不了"`、Dataset/PPT 报错涂绿、Shelf/Cognia 永卡、Plugin Builder 深色白底弹窗、Artifacts/Sessions 首屏吞错）及 4 个文档壳微交互补挂由 **[第 101 批](../post-anticorruption-roadmap/reference/batches/101.md)** 提前抢修止血，`91B` 不再重复修补，仅补齐余下表面收口。
+  2. `91B-4` 门禁收紧改为确定性底线守卫：`tests/soft-workbench-refinement.test.ts` 按规范化后的 CSS 规则比对（不写空格敏感整段正则），`tests/visual-order.e2e.test.ts` 复用单 Chrome 实例、按就绪标记/`document.fonts.ready`/两帧布局一次读取，不加超过 `500ms` 固定等待，也不拉长既有 20 分钟时限。

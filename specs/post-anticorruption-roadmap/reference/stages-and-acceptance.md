@@ -84,3 +84,11 @@
 
 - [83](batches/83.md) 的创作台整项、[84～86](batches/84.md)、[89](batches/89.md) 对应产品原验收满足（87、88 已移到服务端批）
 - [90](batches/90.md) 逐项对账，未完成、暂停、未批准和服务端未开工分别保留，不能以路线目录填满结项。
+
+### 横向专项与加固批次（`91/91B`、`92`～`99`、`100`～`105`）
+
+以下按最大号追加的批次**不等 38～89**，各自满足真实前置即可并行推进，最终全部纳入 [90](batches/90.md) 统一对账：
+
+- **[91（91A）](batches/91.md) + [91B](batches/91b.md)**：对话与执行流式丝滑化、全平台体验深度打磨、开发指引同步及确定性底线门禁（[决定 54](decisions.md#decision-54)、[决定 55](decisions.md#decision-55)、[决定 57](decisions.md#decision-57) ④、[决定 58](decisions.md#decision-58)）。
+- **[92～99](batches/92.md)**：22 条独立 Backlog 归口（[决定 56](decisions.md#decision-56)）。
+- **[100～105](batches/100.md)**：双仓全量体检与两轮红队终校横向修复与硬化——路线书终校与反效果门禁/CI 改革（`100`）、现役 P0 与生命周期止血（`101`）、壳层/iframe/Tauri/沙箱硬化（`102`）、SQLite/Host/MCP/Sessions 热路径提速（`103`）、非 Agent AI 纳管与面向非技术用户报错翻译（`104`）、防链式 RCE 审批与子代理/Mainline 缓存（`105`）（[决定 58](decisions.md#decision-58)）。

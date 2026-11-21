@@ -2,7 +2,7 @@
 
 > 2026-11-13 从 `specs/prologue-context-strategy/spec.md` 并入本目录；正文保留，只改相对链接。
 
-状态：需求已整理（2026-10-21；2026-10-27 用户确定统一机制、按用户/任务/执行状态动态适配，并以真实长任务验证效果；**2026-11-19 [决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ①④ 已拍板 KV-Cache 前缀稳定性、持久跨轮压缩检查点、Amp 风格显式 Clean Handoff、Host 事实续接泛化及附件虚拟知识件卸载，排入 91A／62 实施，当前尚未写码**），其余策略仍待逐项评审，尚未实施本次决定。独立需求；来源、信任、打包和压缩沿用 [context-program](../context-program/spec.md) 与 Prologue `context/` 合同，本 spec 补充取材、保留、压缩、重读与适配要求，不把接口提案或文档检查当作已实现能力。
+状态：需求已整理（2026-10-21；2026-10-27 用户确定统一机制、按用户/任务/执行状态动态适配，并以真实长任务验证效果；**2026-11-19 / 11-20 [决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ② 已拍板 KV-Cache 前缀稳定性、持久跨轮压缩检查点、Amp 风格显式 Clean Handoff、Host 事实续接泛化及附件虚拟知识件卸载并补红队护栏，排入 91A／62 实施，当前尚未写码**），其余策略仍待逐项评审，尚未实施本次决定。独立需求；来源、信任、打包和压缩沿用 [context-program](../context-program/spec.md) 与 Prologue `context/` 合同，本 spec 补充取材、保留、压缩、重读与适配要求，不把接口提案或文档检查当作已实现能力。
 
 同系列：[Skill](skill.md) · [Tool](tool.md) · [MCP](mcp.md)。
 
@@ -176,12 +176,12 @@ Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 已有“Prompt 分�
 - 外部对照偏薄：Claude Code、Cline、Anthropic context editing、LangMem 四条主线；Codex AGENTS、Cursor rules、OpenHands condenser、Aider repo map 还没逐项对照。
 - 与 Tool/Memory 的边界：Tool 的 perTool 观察先裁原始结果，Context 的来源预算再决定打包；Memory 的单次召回预算与 Context 的窗口预算叠加，两处都可见。
 
-### 8.2 复查与拍板记录（2026-11-19，[决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ①④）
+### 8.2 复查与拍板记录（2026-11-19 / 11-20 红队终校，[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ②）
 
-本节仅记录已拍板排期，**尚未实施写码**：
+本节仅记录已拍板排期与红队强制护栏，**尚未实施写码**：
 
-- **第 91 批（91A）止血窗口**：修复 Prologue KV-Cache 失效指纹（去 `scope.history.length`）、Anthropic 多断点缓存、清理 Molis 侧 `molis-child-${randomUUID()}` 缓存杀手、供应商默认 `prompt_cache: "best-effort"`，并补齐 `context-remaining` 正确字段与上游流式热路径落盘解耦。
-- **第 62 批窗口二**：Prologue 持久化跨轮压缩检查点（阈值动态窗口 70–80%，保留失败工具轨迹、微压缩阶梯触发与真实 `visibleTokens` 计量）；引入 Amp 风格显式 Clean Handoff 取代 Coding 永久 `history: "digest"` 锁定；将 Coding 的 Host 事实续接（`codingContinuation`）泛化至个人助理；将 Assistant 上传附件卸载为可按需检索的虚拟知识件（不再提前 `attachments.forget` 与 60K 截断）；记忆常驻层（63A）排入静态 KV-Cache 前缀区。
+- **第 91 批（91A）止血窗口**：修复 Prologue KV-Cache 失效指纹（去 `scope.history.length`）、Anthropic 多断点缓存、清理 Molis 侧 `molis-child-${randomUUID()}` 缓存杀手（保留 Batch 59 `BUSINESS_SUBAGENT_HOST_TOOLS`，改幂等 `ensurePublishedChildRole`）；`prompt_cache` 数据库默认保持 `"off"`，仅已验证模板默认 `"best-effort"` 并放宽 `PA-24`；`runtime:clock` 保持 `developer` 层不搬入 `user` 尾；补齐 `context-remaining` 正确字段与上游流式热路径落盘解耦。
+- **第 62 批窗口二**：Prologue 先落地持久化跨轮压缩检查点（阈值动态窗口 70–80%，保留失败工具轨迹、微压缩阶梯触发与真实 `visibleTokens` 计量），再退役 `history-digest.ts`；引入 Amp 风格显式 Clean Handoff 取代 Coding 永久 `history: "digest"` 锁定；将 Coding 的 Host 事实续接（`codingContinuation`）泛化至个人助理；将 Assistant 上传附件卸载为可按需检索的虚拟知识件（**完整保留 `attachments.forget()` 守 `S-conversation-attachments`**）；记忆常驻层（63A）排入静态 KV-Cache 前缀区。
 
 ## 9. 参考
 

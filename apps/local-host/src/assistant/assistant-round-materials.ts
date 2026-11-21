@@ -23,6 +23,7 @@ import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
 import { promptTitle } from "./assistant-work-title.js";
+import { MATERIAL_PART_UNITS, materialParts } from "./assistant-material-parts.js";
 
 /** One chosen or listed method, whatever else the page sent with it: a Skill by its installation and id, a role by its installation and entry. */
 function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
@@ -31,12 +32,11 @@ function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
   return `skill\0${skillRefKey("skill" in method ? method.skill.ref : method.ref)}`;
 }
 
-/** Split a long text into materials the runtime accepts (each at most 20,000 characters with its header). */
+/** Split a long text into materials the runtime accepts (each at most 20,000 UTF-16 units with its header), whole characters per part. */
 function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: string): AgentTextMaterial[] {
-  const size = 18_000;
-  const parts = Math.max(1, Math.ceil(text.length / size));
-  return Array.from({ length: parts }, (_, index) => ({ material_id: parts === 1 ? id : `${id}.${index + 1}`,
-    title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
+  const parts = materialParts(text);
+  return parts.map((part, index) => ({ material_id: parts.length === 1 ? id : `${id}.${index + 1}`,
+    title: parts.length === 1 ? base.title : `${base.title}（${index + 1}/${parts.length}）`, text: part }));
 }
 
 /**
@@ -174,7 +174,7 @@ export class AssistantRoundMaterials {
     const listed: object[] = [];
     for (const method of methods.filter(item => !chosen.has(methodKey(item)) && (item.kind !== "skill" || (autoSkills && item.skill.state === "auto"))).slice(0, 20)) {
       const row = method.kind === "skill" ? { kind: "skill", ...skillChoiceRow(method.skill), plugin_title: method.skill.pack.title } : method;
-      if (JSON.stringify([...listed, row]).length > 18_000) break;
+      if (JSON.stringify([...listed, row]).length > MATERIAL_PART_UNITS) break;
       listed.push(row);
     }
     const skillRead = skillCatalogActions.readBodies;

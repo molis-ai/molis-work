@@ -153,11 +153,23 @@ async function until<T>(read: () => Promise<T>, accept: (value: T) => boolean): 
   throw new Error("expected thread state was not reached");
 }
 
-test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original thread; delivery retries do not call the model twice; stop prevents late comments", { timeout: 120000 }, async t => {
+/** Each part decodes alone: no lone half of a pair, and no replacement character where one was encoded (the input has none). */
+const decodesAlone = (text: string): boolean => text.isWellFormed() && !text.includes("\uFFFD") && Buffer.from(text, "utf8").toString("utf8") === text;
+/** The comment-context parts a provider request carries, in order, each without its material header. */
+function threadParts(request: string): Array<{ title: string; text: string }> {
+  const body = JSON.parse(request) as { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> };
+  return body.messages.flatMap(message => typeof message.content === "string" ? [message.content] : message.content.flatMap(part => part.type === "text" && part.text !== undefined ? [part.text] : []))
+    .filter(entry => entry.startsWith("Untrusted context data.")).map(entry => (JSON.parse(entry.slice(entry.indexOf("\n") + 1)) as { text: string }).text)
+    .map(entry => ({ header: JSON.parse(entry.split("\n")[0]!) as { title: string; material_id?: string }, text: entry.slice(entry.indexOf("\n\n") + 2) }))
+    .filter(entry => entry.header.material_id?.startsWith("thread-")).map(entry => ({ title: entry.header.title, text: entry.text }));
+}
+
+test("PAS-04 PAS-05 PAS-10 BL-974: real Host and Prologue keep replies in the original thread; a long comment context is split at whole characters; delivery retries do not call the model twice; stop prevents late comments", { timeout: 120000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "assistant-thread-"));
   const requests: string[] = [];let hold = false;let pending: ServerResponse | null = null;
   const model = createServer(async (req, res) => {
-    let text = "";for await (const chunk of req) text += String(chunk);
+    // Decoded once as a whole: a character split between two network chunks must not turn into a replacement character here.
+    const chunks: Buffer[] = [];for await (const chunk of req) chunks.push(chunk as Buffer);const text = Buffer.concat(chunks).toString("utf8");
     if (isKnowledgeOrganize(text)) { res.writeHead(200, { "content-type": "text/event-stream" });res.end(streamed(organizedCard));return; }
     requests.push(text);
     if (hold) { pending = res;return; }
@@ -201,7 +213,13 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
     assert.equal(requests.length, 0, "ordinary comments never start a model");
     const target = { provider_id: "io.molis.work.pages", subject_kind: "pages_document", subject_id: a.id, thread_id: thread.thread_id };
     assert.equal(await api<Status | null>("/api/assistant/threads/status", { target }), null, "a plain comment has no phantom assistant run");
-    const start = { target, message_id: thread.messages[0]!.message_id, draft: { text: "只属于 A 的明确未保存草稿", revision: String(a.version) } };
+    // BL-974: the owner's context is this head, then the draft, then the thread. The draft puts a 🟢 across units 17,999 and 18,000
+    // of that context, where a cut by unit index alone falls between its two halves.
+    const head = `Page: ${a.title}\n版本: ${a.version}（用户明确附上的未保存草稿）\n引用: ${thread.anchor.excerpt}\n正文:\n`;
+    const draft = "a".repeat(17_999 - head.length) + "🟢" + "只属于 A 的明确未保存草稿";
+    const context = `${head}${draft}\n\n本评论线程:\nuser [${thread.messages[0]!.message_id}]: 请回答 A 的问题`;
+    assert.equal(context.slice(17_999, 18_001), "🟢", "the 🟢 straddles the 18,000-unit boundary");
+    const start = { target, message_id: thread.messages[0]!.message_id, draft: { text: draft, revision: String(a.version) } };
     const db = openHomeSqliteDatabase(home, "pages");
     try {
       db.exec("CREATE TRIGGER refuse_reply BEFORE UPDATE ON page_comments BEGIN SELECT RAISE(ABORT, 'delivery fixture refuses'); END");
@@ -215,6 +233,11 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
       let status = await until(() => api<Status>("/api/assistant/threads/status", { target }), value => value.state === "delivery-pending" && !!value.error);
       assert.equal(requests.length, 1);assert.match(requests[0]!, /原文档 A/);assert.match(requests[0]!, /只属于 A 的明确未保存草稿/);assert.doesNotMatch(requests[0]!, /另一个文档 B/);
       const sent = JSON.parse(requests[0]!) as { tools?: unknown[] };assert.equal(sent.tools?.length ?? 0, 0, "comment role has no editing or global assistant tools");
+      const parts = threadParts(requests[0]!);
+      assert.deepEqual(parts.map(part => part.title), ["原文档 A · 原评论上下文 (1/2)", "原文档 A · 原评论上下文 (2/2)"], "part numbers and the part count");
+      for (const part of parts) { assert.ok(part.text.length <= 18000, "each part keeps the 18,000-unit limit");assert.ok(decodesAlone(part.text), "each part decodes alone"); }
+      assert.ok(parts[0]!.text.endsWith("a") && parts[1]!.text.startsWith("🟢"), "the 🟢 goes whole into the second part");
+      assert.equal(parts.map(part => part.text).join(""), context, "the parts joined in order are the owner's context exactly");
       assert.equal((await api<{ threads: PagesCommentThread[] }>(path(a.id))).threads[0]!.messages.length, 1);
       server!.closeAllConnections();await new Promise<void>(resolve => server!.close(() => resolve()));
       server = factory({ homeDirectory: home, controlToken: token });

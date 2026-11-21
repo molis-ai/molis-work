@@ -33,7 +33,20 @@ export const issuesManifest: PluginManifest = {
     { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write" },
     { route_id: "issues.delete", method: "POST", path: "/delete", permission: "issues:write" },
   ],
-  ui: { locales: { default: "zh", available: ["zh", "en"] }, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "issues.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "issues.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "issues.help.example-1" }, { key: "issues.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "issues.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "issues.help.advanced-summary" }, body: { key: "issues.help.advanced" } },
+        ],
+      }],
+    }, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
     { view_id: "directory", slot: "navigator", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert", order: 57 },
     { view_id: "issues", slot: "stage", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID },
     { view_id: "capture", slot: "side", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert" },

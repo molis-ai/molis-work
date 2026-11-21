@@ -67,10 +67,10 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   // RING-07: current human-led station is static doing; future station waits.
   await waitFor("document.querySelector('.wf-vstep.is-current .mw-state-ring')?.dataset.mwState === 'doing'");
   assert.equal(await evaluate("document.querySelector('.wf-vstep.is-pending .mw-state-ring')?.dataset.mwState"), 'waiting');
+  // PF-A13: a newly created link defaults to direct pass-through, so continuing runs the Shelf step without pausing for manual handoff confirmation.
   await click('[data-wf-action=continue]');
-  await waitFor("document.querySelector('[data-wf-manual]')").catch(async error=>{throw new Error(JSON.stringify(await evaluate("({view:document.querySelector('[data-wf-view]')?.innerText,toast:document.querySelector('[data-wf-toast]')?.innerText})")),{cause:error});});
-  await click('[data-wf-action=handoff-submit]');
-  await waitFor("document.querySelector('[data-wf-view]')?.textContent.includes('已走完')");
+  await waitFor("document.querySelector('[data-wf-view]')?.textContent.includes('已走完')").catch(async error=>{throw new Error(JSON.stringify(await evaluate("({view:document.querySelector('[data-wf-view]')?.innerText,toast:document.querySelector('[data-wf-toast]')?.innerText})")),{cause:error});});
+  assert.equal(await evaluate("document.querySelector('[data-wf-manual]')"), null);
   await b.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
   await waitFor("[...document.querySelectorAll('.wf-vstep .mw-state-ring')].length === 2 && [...document.querySelectorAll('.wf-vstep .mw-state-ring')].every(node => node.dataset.mwState === 'done')");
   assert.equal(await evaluate("document.querySelector('.wf-vlink__label .mw-state-ring')?.dataset.mwState"), 'done');

@@ -193,6 +193,18 @@ flowchart LR
   CUI -.上游换包可选并入.-> W2
   CUI -.流式与滚动底座.-> DISPATCH
   CUI -.流式与滚动底座.-> QA
+  B100["100 路线书终校与门禁/CI 改革"] --> B101["101 现役 P0 与生命周期止血"]
+  B100 --> B102["102 前端壳层/CSS 与沙箱/Tauri 硬化"]
+  POLISH -.102-1 壳层依赖.-> B102
+  B101 --> B103["103 SQLite/Host/MCP/Sessions 提速"]
+  B101 --> CUI
+  B101 --> UXP
+  B101 --> B104["104 非 Agent AI 纳管与统一报错翻译"]
+  CUI --> B104
+  B100 --> B105["105 防链式 RCE 审批与热路径缓存"]
+  AUTH --> B105
+  W2 -.并行波原子审批.-> B105
+  B105 -.4 层防注入护栏.-> HB
 ```
 
 不带字虚线是只在阶段 1 核出当前 SDK 缺口时才成立的依赖；带字虚线表示可选并入、范围移交或非阻塞底座衔接，不作为硬前置。
@@ -443,3 +455,67 @@ flowchart LR
 ```
 
 92、93、94、98、99 各从已有入口开始。92-1 先核已有图片手册 PR，其他两项能单独开展。96 与 95 只在 Schedule 存储或公用夹具上协调，98 与 47-1 只在公共合同或快照共写时串行。其余现有批次前置见各批交付行。[正式归属与逐项前置](backlog-dispatch-2026-11-18/README.md)
+
+<a id="deps-2026-11-19"></a>
+
+### 11-19 Harness 工程与 RSI 审阅后的批次与依赖调整（[决定 58](decisions.md#decision-58) ②）
+
+用户 2026-11-19 拍板 Prologue 与 Molis Work 双仓 Harness 系统化优化及 RSI 审阅，并于 2026-11-20 经两轮红队终校补充强制护栏（决定 58 ②），按以下边界并入既有批次（只更新排期与范围，不改业务代码或提前换包）：
+
+| 批次／项 | 调整后的关键范围与前置 | 文件 |
+| --- | --- | --- |
+| 91（91A） | 91-2 获准随本批（或 91A 前单开小窗口）换入 Prologue P0 止血包（KV-Cache 失效指纹、Anthropic 多断点、`edit` 防 `$` 损坏与唯一性、流式落盘解耦、OpenAI `include_usage`、熔断与钩子/凭据技能修复），并同步落 Molis 侧 P0 热路径与缓存止血（去 `molis-child` 随机 UUID 且保留 Batch 59 `BUSINESS_SUBAGENT_HOST_TOOLS` 改幂等 `ensurePublishedChildRole`、技能短别名与取消 `.slice(0,20)`、`taskText` + `modelOrigin: "label"`、OpenAI `maxOutputTokens` 留 `undefined` 仅 Anthropic 按族夹逼、`prompt_cache` DB 留 `"off"` 仅已验证模板默认 `"best-effort"` 并放宽 `PA-24`、`runtime:clock` 保持 `developer` 层、`stop-guard` 预筛与用已有 `ActionService.discoverOne()` 禁盲整轮缓存、`ending-review` 保现状） | [91](batches/91.md) |
+| 62 | 承接 SDK 窗口二 Harness 升级：`openai-responses` 内置协议与 DeepSeek `reasoning_content` 回放；全面静态化工具面（过 MiniMax G1–G4 再停 `parameterBranches`、Anthropic 按需 `defer_loading`、Coding 可读命名空间短名保留 `act__` 守 `S-28`）；`apply_patch` + `read-resource`/`grep-resource` + 先修 `invokeAll` 漏传回调/信号且初期仅 `safe-read` 并行 + `code-mode` 结构化传递；`SKILL.md` Frontmatter + `FrozenCharacter.model` 子代理路由 + Cache-Safe Fork + 4 个未触发钩子；先落持久化跨轮压缩检查点再退 `history-digest.ts` + Amp 风格 Clean Handoff + Assistant Host 事实续接与附件卸载为虚拟知识件（保留 `attachments.forget()` 守 `S-conversation-attachments`）；`AuthenticatedEnvelopes` LRU + Host Scope 区间列行供 `63A` 消费 | [62](batches/62.md) |
+| 63 | 增设 Piece 0 硬前置修齐观测埋点断链（补接 7 类丢弃事件、TTFT/缓存口径与前缀哈希、`agent.tool`↔`action.call` 关联与守 `S-18` 的失败分类码、Assistant `agent.skill` 与 16 条材料截断修复、统一生产与评测漏斗词表）；随后落 Trace Bundle（收口 `BL-evaluation-read-cost`）、录制轨迹工具 Mock 回放、校准型混合裁判、三层 RRSI 门禁与 `evaluation.db` 的 `improvement_experiments`（SIM 账本，沿用 `use: "evaluation"`） | [63](batches/63.md) |
+| 63A | 叠加修 `sameText()` 符号误合并、去 `MEMORY_TIDY` 的 `0.3` 字面二次过滤、`AuthenticatedEnvelopes` 改 LRU + Host 按 Scope 区间列行（关 `BL-1072`）、真实半衰期衰减、情景记忆结构、常驻热层入静态前缀、Dreaming 改动记入 63 批 SIM 账本 | [63A](batches/63a.md) |
+| 64 | `horizontal/automation-recommender` 接入 `observation.db`（`use: "assistant"`）行为摩擦与返工检测，复用既有 `placeForPerson` + `automation.adoption.{adopt,undo}@1` 作为端侧本地 RSI 提案入口；主动与观察试用按 63 批统一漏斗词表落盘 | [64](batches/64.md) |
+| 65 | macOS Seatbelt（`sandbox-exec`）+ Linux Bubblewrap（`bwrap`）／`seccomp` + Host 本地出站域控代理同步作为本批交付（便于 Linux CI 同步跑真实沙箱拒绝测试，替换双 Host `sandbox: "absent"`），Windows Job Object 紧随补齐；Hooks 消费 62 批完整触发链 | [65](batches/65.md) |
+| 66 | 补充 LSP 增量错误诊断回传模型观察（写后即自修）、`environment-prep` 脚本摘要注入 Coding 初始上下文、简化与安全专科评审消费 62 批子代理模型路由 | [66](batches/66.md) |
+| 67 | R12 真实完整任务评估样本集统一登记进 63 批 `horizontal/evaluation`（区分 `tuning`/`validation`）并落 SIM 基线 | [67](batches/67.md) |
+| 68 / 83 | Builder `designer` 改为同会话多轮修复、`coder` 接通压缩器、去重 60KB 重叠指令；`studio:replay` 去重复校验并扩隔离 `smoke` 至验收闭环；首次可用率与返修评测并入 63 批统一评测与 SIM 账本 | [68](batches/68.md)、[83](batches/83.md) |
+| 75 | 75-2 消费 62/63 批修齐的 `include_usage` 与 `prompt_includes_cache` 跨厂商口径，呈现缓存命中率与缓存省费估算 | [75](batches/75.md) |
+| 76 | 全平台与主动效果验收基于 63 批统一漏斗与 SIM 账本执行，整改附 `validation` 零回归证明 | [76](batches/76.md) |
+| 86 | 确定性 P0 缓存与热路径修复前移至 91A/62，本批升级为首个跑通 Meta-Harness + RRSI + SIM 闭环的标杆实验批次（实验入仓库 `evals/sim-ledger/`） | [86](batches/86.md) |
+| 89 | 89-3 升级为「全目录触发精度（正/负样本）× 隔离工具回放 × 真实任务产出」三段式 Skill 效果比较，接 63 批统一评测与 SIM 账本 | [89](batches/89.md) |
+
+<a id="deps-2026-11-20-harness"></a>
+
+### 11-20 精准修复入列、红队终校与 DAG 校准（[决定 58](decisions.md#decision-58)）
+
+2026-11-20 用户拍板按正式队列新增 `100`～`105` 六个横向修复与硬化批次（不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness & RSI 工程优化；因 `#2155` 第 44 批已合入 `origin/main`，`103` 不再等 44 且与 `102` 并行），同步修正 6 处既有 DAG 依赖并校准 `91`/`62` 红队护栏：
+
+```mermaid
+flowchart LR
+  B100_1["100-1 路线书终校与 100～105 入列"] --> B100_2["100-2 反效果门禁与 CI 改革"]
+  B100_2 --> B101["101 现役 P0 与生命周期止血"]
+  B100_2 --> B102_2["102-2 沙箱批量监控与 Tauri 硬化"]
+  B100_2 --> B102_1["102-1 去分屏双 iframe 与插件基础 CSS"]
+  S36A["36A 壳层第十三版"] --> B102_1
+  B101 --> B103["103 SQLite/Host/MCP/Sessions 提速"]
+  B101 --> B91["91/91A 流式底座与 Prologue P0"]
+  B101 --> B91B["91B 余下表面收口与确定性门禁"]
+  B91 --> B91B
+  B91 --> B104["104 非 Agent AI 纳管与统一报错翻译"]
+  B101 --> B104
+  B100_2 --> B105["105 防链式 RCE 审批与热路径缓存"]
+  B39["39 授权与审批（已合）"] --> B105
+  B62["62 SDK 窗口二（invokeAll）"] -.并行波原子审批.-> B105
+  B105 --> B65["65 受限命令/AI 审批/OS 沙箱"]
+  B100_1 --> B90["90 整条路线最终交付对账"]
+  B102_1 --> B90
+  B102_2 --> B90
+  B103 --> B90
+  B104 --> B90
+  B105 --> B90
+```
+
+| 批次／项 | 真实前置与精确范围 | 文件 |
+| --- | --- | --- |
+| 100（新） | 无业务前置，立即可在独立工作树 `batch/100` 开工（**不等 38～89**）：`100-1` 纯文档 PR 先落决定 57 红队终校纠偏、决定 58、`100`～`105` 及全路线书矛盾清零；`100-2` 经用户确认改动清单后松绑反效果门禁与合并 4 个碎 CI Job | [100](batches/100.md) |
+| 101（新） | 等 `100-2`（**不等 38～89**）：修英文中文正则路由、记忆跳设置 `window→document`（`dom-events.ts:303-306`）、提前从 `91B` 抢修 5 个真 P0 + 4 个文档壳微交互、`browser/sites.json` fail-closed、插件恢复去 JSON、零误报死文件清理与热路径/生命周期泄漏止血 | [101](batches/101.md) |
+| 102（新） | 等 `100-2`；`102-1` 另等 `36A` 壳层（`screen-polish-unified`），`102-2` 不等 `36A`（`#2155` 已删 `capsule`）；两者文件正交可并行，且与 `103` 并行（**不等 38～89**） | [102](batches/102.md) |
+| 103（新） | 等 `101`（同碰 `web-project-schedulers.ts`）；`#2155`（44 批 `discoverOne`）已合入不再阻塞；与 `102`、`91`、`Prologue 窗口 A/B` 并行（**不等 38～89**） | [103](batches/103.md) |
+| 104（新） | 等 `91`（多厂商修复与 `PROVIDER_SAYS_RETRY`）、`101-1`（动作键雏形）；与 `62`、`103`、`105` 并行（**不等 38～89**） | [104](batches/104.md) |
+| 105（新） | 等 `39`（已合）、`100-2`；仅 `105-1` 中「并行工具波原子审批」等 `62`（`invokeAll`），其余防链式 RCE 审批/分类跨重启/子代理缓存/Mainline/约定编辑均不等 `62`（**不等 38～89**） | [105](batches/105.md) |
+| 91 / 91B / 62 / 63 / 63A / 65 / 66 / 68 / 75 / 83 | 固化 6 处精确 DAG：`61 → 62`、`Prologue 窗口 A → 窗口 B → 62`（窗口 B 含 `ModelRequestObserved` 与 `AuthenticatedEnvelopes` LRU/Scope 供 `63`/`63A` 消费）、`56-3 → 57 → 75`、`64 → 68-4`、`LSP`/`environment-prep` 归位 `66`、`76 & 82 → 83`；`91` 另等 `101`；`91B` 标明 5 个真 P0 已由 `101` 前置收口且 `91B-4` 撤脆性正则与 20 分钟 `sleep` | [91](batches/91.md)、[91B](batches/91b.md)、[62](batches/62.md)、[63](batches/63.md)、[63A](batches/63a.md)、[65](batches/65.md)、[66](batches/66.md)、[68](batches/68.md)、[75](batches/75.md)、[83](batches/83.md) |
+| 90 | 最终交付对账覆盖全部非服务端批次 `01`～`105`（含 `36A`、`63A`、`91B`） | [90](batches/90.md) |

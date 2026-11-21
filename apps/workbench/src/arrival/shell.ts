@@ -4,7 +4,7 @@ import { t as uiText, escapeHtml, icon, type PluginIconName } from "@molis-ai/mo
 import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs } from "../home-plugin-navigation.js";
 import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
-import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderShellEnvironmentBadge, renderWorkbenchDocument } from "../document-shell.js";
 import { createWorkbenchLocale } from "../i18n.js";
 import { renderInlinePageText, renderLanguageHead, type InlinePageText } from "../language-resource.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "../appearance-document.js";
@@ -16,6 +16,7 @@ import { renderAppearanceRecovery } from "../settings-appearance.js";
  */
 export interface ArrivalShellPrimitives {
   accountRegistration?: boolean;
+  environmentName?(): "dev" | "test" | undefined;
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
@@ -120,7 +121,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     ${options.bar}
     ${side}
   </div>
-  ${options.after ?? ""}${renderAppearanceRecovery(readText, appearance)}
+  ${options.after ?? ""}${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(p.environmentName?.())}
   <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>${appearanceClientTag(appearance)}
 </body>
 </html>`;
@@ -131,14 +132,14 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
 /** The same workbench document and account controls, without opening an anonymous business Home. */
 export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
-  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "htmlLang"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = "", installationLogin = false): string {
+  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "htmlLang"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = "", installationLogin = false, environmentName?: "dev" | "test"): string {
   return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
     body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">${renderLanguageHead(locale.htmlLang())}`,
     body_html: `${renderIconSprite()}<div class="arrival" data-screen="welcome"><header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
       <main class="arrival-stage"><section class="mw-empty">
       <button type="button" data-unified-account-link hidden></button>
-      <p role="status" data-account-entry-status>${escapeHtml(message ?? (installationLogin ? "" : uiText.text("workbench.shell.opening-sign-in")))}</p><button class="mw-btn mw-btn--secondary" type="button" data-account-entry-retry${message ? "" : " hidden"}>${escapeHtml(uiText.text("common.control.retry"))}</button></section></main></div>
+      <p role="status" data-account-entry-status>${escapeHtml(message ?? (installationLogin ? "" : uiText.text("workbench.shell.opening-sign-in")))}</p><button class="mw-btn mw-btn--secondary" type="button" data-account-entry-retry${message ? "" : " hidden"}>${escapeHtml(uiText.text("common.control.retry"))}</button></section></main></div>${renderShellEnvironmentBadge(environmentName)}
       <script>${UI_REQUEST_CLIENT_SCRIPT}${message ? `document.querySelector('[data-account-entry-retry]').onclick=()=>location.reload();` : installationLogin ? ACCOUNT_CLIENT_SCRIPT : `
       (() => {
         const status=document.querySelector('[data-account-entry-status]'),retry=document.querySelector('[data-account-entry-retry]');

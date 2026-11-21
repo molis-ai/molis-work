@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {executeLocalProjectsCopy,listCopyableLocalProjects,previewLocalProjectsCopy} from '@molis-ai/molis-work-app-local-host';
+import {executeLocalProjectsCopy,listCopyableLocalProjects,previewLocalProjectsCopy,type LocalProjectsCopyContext} from '@molis-ai/molis-work-app-local-host';
 
 test('PCSYNC-OPT-15 foundation: copies project structure offline, rejects account changes, and replays without touching source files', async t => {
   const root = mkdtempSync(join(tmpdir(), 'molis-opt15-copy-'));
@@ -69,4 +69,93 @@ test('PCSYNC-OPT-15 foundation: copies project structure offline, rejects accoun
   // Original local projects and their database bytes remain untouched
   assert.deepEqual(readFileSync(p1.database_path), sourceSnapshot1);
   assert.deepEqual(readFileSync(p2.database_path), sourceSnapshot2);
+});
+
+test('PCSYNC-OPT-15 S-122: atomic hidden staging never exposes partial copies, reconciles exact plugin list, and recovers on retry', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'molis-opt15-atomic-stage-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const localHome = join(root, 'local');
+  const personalHome = join(root, 'personal');
+  ensureStorageSpace(localHome);
+  const personal = personalStorageSpace('https://auth.example.test', 'work', 'alice');
+  ensureStorageSpace(personalHome, personal);
+
+  // Create a local project, remove the default-enabled plugin (`schedule`), and add an optional plugin (`goals`).
+  const sourceProject = await withMolisWorkProjectCatalog({ homeDirectory: localHome }, async c => {
+    const p = await c.createProject({ display_name: '精确插件清单项目', actor_id: 'local-user' });
+    c.removeProjectPlugin({ project_id: p.project_id, plugin_id: 'schedule', actor_id: 'local-user' });
+    c.addProjectPlugin({ project_id: p.project_id, plugin_id: 'goals', actor_id: 'local-user' });
+    return p;
+  });
+  const expectedPlugins = await withMolisWorkProjectCatalog({ homeDirectory: localHome }, c => c.listProjectPlugins(sourceProject.project_id));
+  assert.equal(expectedPlugins.includes('schedule'), false);
+  assert.equal(expectedPlugins.includes('goals'), true);
+
+  let failOnce = true;
+  const ctx: LocalProjectsCopyContext = {
+    sourceHome: localHome,
+    targetHome: personalHome,
+    targetSpaceId: personal.spaceId,
+    actorId: 'alice',
+    sourceWithCatalog: withMolisWorkProjectCatalog,
+    targetWithCatalog: withMolisWorkProjectCatalog,
+    async extraSources() {
+      const owner = {
+        kinds: Object.freeze(['test.extra:item']),
+        read: () => null,
+        snapshot: (projectId: string) => [{ key: JSON.stringify([projectId, 'item']), value: { ok: true } }],
+        references: () => [],
+        fork: (asset: { key: string; value: unknown }, identity: { targetProjectId: string | null }) => ({ key: JSON.stringify([identity.targetProjectId, 'item']), value: asset.value }),
+        apply() {
+          if (failOnce) {
+            failOnce = false;
+            throw new Error('INTERRUPTED_DURING_STAGE');
+          }
+        },
+      };
+      return { sources: [{ ownerId: 'test.extra', owner }], close() {} };
+    },
+    extraTarget(ownerId: string) {
+      if (ownerId !== 'test.extra') return null;
+      return {
+        owner: {
+          kinds: Object.freeze(['test.extra:item']),
+          read: () => null,
+          snapshot: () => [],
+          references: () => [],
+          fork: (asset: { key: string; value: unknown }) => asset,
+          apply() {
+            if (failOnce) {
+              failOnce = false;
+              throw new Error('INTERRUPTED_DURING_STAGE');
+            }
+          },
+        },
+        close() {},
+      };
+    },
+    authorize() {},
+  };
+
+  const preview = await previewLocalProjectsCopy(ctx, [sourceProject.project_id]);
+  // First attempt fails after staging: staged target project MUST remain hidden (never in listProjects()).
+  await assert.rejects(
+    () => executeLocalProjectsCopy(ctx, { projectIds: [sourceProject.project_id], fingerprint: preview.preview.fingerprint, operationId: 'op-atomic-stage' }),
+    /INTERRUPTED_DURING_STAGE/,
+  );
+  await withMolisWorkProjectCatalog({ homeDirectory: personalHome }, c => {
+    const visible = c.listProjects().filter(p => p.project_id !== 'personal');
+    assert.equal(visible.length, 0, 'S-122 interrupted copy never exposes a partial project in listProjects()');
+    assert.equal(c.recycle.list().length, 1, 'staged project stays hidden in recycle state');
+  });
+
+  // Idempotent retry completes, reconciles exact plugin membership, and publishes atomically.
+  const finished = await executeLocalProjectsCopy(ctx, { projectIds: [sourceProject.project_id], fingerprint: preview.preview.fingerprint, operationId: 'op-atomic-stage' });
+  assert.equal(finished.receipt.state, 'complete');
+  await withMolisWorkProjectCatalog({ homeDirectory: personalHome }, c => {
+    const visible = c.listProjects().filter(p => p.project_id !== 'personal');
+    assert.equal(visible.length, 1);
+    const copiedId = visible[0]!.project_id;
+    assert.deepEqual(c.listProjectPlugins(copiedId), expectedPlugins, 'copied project matches source plugins exactly without excess defaults');
+  });
 });

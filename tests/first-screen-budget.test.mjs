@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { sampleFirstScreen } from "../scripts/first-screen/http.mjs";
 import { comparisonRows, GATED_PAGES, registeredPaths, removedManifestRows, requestKey, SSE_FIRST_EVENT } from "../scripts/first-screen/manifest.mjs";
-import { firstScreenMeasurementKey, firstScreenProblems, firstScreenReportMatches, measureFirstScreenApart } from "../scripts/gates/first-screen.mjs";
+import { CHECKER_SOURCES, firstScreenMeasurementKey, firstScreenProblems, firstScreenReportMatches, measureFirstScreenApart } from "../scripts/gates/first-screen.mjs";
 import { parsePageAssetBudgets } from "../scripts/gates/page-assets-policy.mjs";
 
 const arrival = { id: "arrival-empty", path: "/" };
@@ -302,6 +303,29 @@ test("FSS-BG-05 first-screen artifact cache keys depend on rows and validate cac
   const missingDemo = { ...pages };
   delete missingDemo["workbench-demo/en"];
   assert.equal(firstScreenReportMatches({ sha, key: keyA, pages: missingDemo }, sha, keyA), false);
+
+  // Every runtime helper executed by first-screen.mjs (including seed.mjs) is hashed into the cache key.
+  const firstScreenDir = fileURLToPath(new URL("../scripts/first-screen", import.meta.url));
+  const checkerPaths = CHECKER_SOURCES.map(source => (source instanceof URL ? fileURLToPath(source) : source));
+  const executedHelpers = readdirSync(firstScreenDir)
+    .filter(name => name.endsWith(".mjs") && name !== "audit.mjs")
+    .sort();
+  assert.deepEqual(
+    checkerPaths.filter(file => file.startsWith(firstScreenDir)).map(file => basename(file)).sort(),
+    executedHelpers,
+    "every scripts/first-screen/*.mjs executed by the gate must be part of CHECKER_SOURCES",
+  );
+  const mutatedSeedKey = firstScreenMeasurementKey(rowsA, {
+    read: file => {
+      const target = file instanceof URL ? fileURLToPath(file) : file;
+      const bytes = readFileSync(file);
+      if (basename(target) === "seed.mjs") {
+        return Buffer.concat([bytes, Buffer.from("\n// changed seed\n")]);
+      }
+      return bytes;
+    },
+  });
+  assert.notEqual(mutatedSeedKey, keyA, "editing scripts/first-screen/seed.mjs must invalidate the measurement cache key");
 });
 
 // FSS-BG-05: each build is measured by the candidate's checker, in a process of its own. A build's Host installs process-wide state

@@ -6,12 +6,15 @@ import { fileURLToPath } from 'node:url';
 function latestMtime(entries) {
   let latest = 0;
   for (const entry of entries) {
-    if (!existsSync(entry)) continue;
+    if (!existsSync(entry)) {
+      continue;
+    }
     const stat = statSync(entry);
+    latest = Math.max(latest, stat.mtimeMs);
     if (stat.isDirectory()) {
-      for (const child of readdirSync(entry)) latest = Math.max(latest, latestMtime([path.join(entry, child)]));
-    } else {
-      latest = Math.max(latest, stat.mtimeMs);
+      for (const child of readdirSync(entry)) {
+        latest = Math.max(latest, latestMtime([path.join(entry, child)]));
+      }
     }
   }
   return latest;

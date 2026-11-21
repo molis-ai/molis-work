@@ -5,7 +5,7 @@ import {
 
 import { resolveApiConnection } from "./connector-access.js";
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export function createGithubConnector(opts?: {
@@ -17,7 +17,7 @@ export function createGithubConnector(opts?: {
   fetchImpl?: GithubFetch;
   now?: () => Date;
 }): IntegrationProviderPort {
-  const home = opts?.home ?? resolveMolisWorkHome();
+  const home = opts?.home ?? resolveConfiguredHome();
   const id = opts?.connectionId;
   return createGithubProvider({
     ...opts,

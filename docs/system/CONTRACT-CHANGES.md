@@ -246,7 +246,7 @@
 | `projects/<project_id>/molis-work.db` | 4 → 5 | 同上（Coding 卡片结果转 `OwnedTextRef`） | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `projects/<project_id>/molis-work.db` | 5 → 6 | 第 38 批（保留项目运行时选择，补设置版本与采用回执） | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `work-brief/work-brief.db` | 1 → 2 | 存键和参数、不存译文（BL-work-brief-source-name-text） | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
-| `projects/<project_id>/molis-work.db` | 6 → 1 | 2026-11-19 发布前迁移清理（用户批准拍平回 v1） | 保留现行完整基线（含 `project_runtime_settings` 与回执表，移除 Files 退役旧日志与历史升级段），删旧开发金样并重新生成干净 0.1.0 v1 金样；见 `tooling/gates/schemas/v1-reset-exceptions.json`。 |
+| `projects/<project_id>/molis-work.db` | 6 → 1 | 2026-11-19 发布前迁移清理（用户批准拍平回 v1） | 保留现行完整基线（含 `project_runtime_settings` 与回执表，移除 Files 退役旧日志与历史升级段），删旧开发金样并重新生成干净 0.1.0 v1 金样（一次性复位白名单已于全量落定 v1 后清退）。 |
 | `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
 | `projects/<project_id>/molis-work.db#goals` | 5 → 1 | 同上 | 保留现行完整基线，清空历史升级段与旧审批移交源，`project_goals` 同步集合回归 v1，重新生成干净 0.1.0 v1 金样。 |
 | `projects/<project_id>/molis-work.db#schedule` | 3 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |

@@ -20,9 +20,14 @@ export function launcherSource(
   if (useBundledNode) {
     const nodePath = path.join(releaseDirectory, "runtime", "node");
     const entryPath = path.join(releaseDirectory, target);
-    const serviceEnvironment = entry === "web" ? "/usr/bin/env MOLIS_WORK_WEB_SERVICE_PROCESS_ID=$$ " : "";
+    const homeDirectory = path.resolve(releaseDirectory, "..", "..");
+    const envVars = [
+      ...(entry === "web" ? ["MOLIS_WORK_WEB_SERVICE_PROCESS_ID=$$"] : []),
+      `MOLIS_WORK_HOME=${shellQuote(homeDirectory)}`,
+    ];
+    const environment = `/usr/bin/env ${envVars.join(" ")} `;
     return `${BUNDLED_NODE_LAUNCHER_HEADER}
-exec ${serviceEnvironment}${shellQuote(nodePath)} ${shellQuote(entryPath)} "$@"
+exec ${environment}${shellQuote(nodePath)} ${shellQuote(entryPath)} "$@"
 `;
   }
   const childEnvironment = entry === "web"

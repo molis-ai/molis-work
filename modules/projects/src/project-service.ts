@@ -231,6 +231,25 @@ export class ProjectService {
     return this.repository.projects.removeProject(this.requiredProjectId(projectId));
   }
 
+  /** Synchronize a staged (hidden) project's stored plugin membership to match its source project exactly. */
+  syncStagedPlugins(projectId: string, desiredPlugins: readonly ProjectPluginId[]): void {
+    const id = this.requiredProjectId(projectId);
+    const alwaysOn = new Set(this.plugins.alwaysOn?.() ?? []);
+    const desired = new Set(desiredPlugins);
+    this.repository.transaction(() => {
+      for (const existing of this.repository.projects.listProjectPlugins(id)) {
+        if (!desired.has(existing) && !alwaysOn.has(existing)) {
+          this.repository.projects.removeProjectPlugin(id, existing);
+        }
+      }
+      const at = this.now();
+      for (const pluginId of desired) {
+        if (this.plugins.isPersonal?.(pluginId) === true || !this.plugins.has(pluginId)) continue;
+        this.repository.projects.addProjectPlugin(id, pluginId, at);
+      }
+    });
+  }
+
   listDeletions(): ProjectDeletionReceipt[] {
     return this.repository.deletions.listProjectDeletions();
   }

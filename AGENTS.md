@@ -3,7 +3,7 @@
 Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**及**多插件能力基座**。
 
 - **Agent OS**：一个 Home 的常驻宿主、统一动作服务与授权护栏、Plugin Runtime、同一个 Prologue AI 运行时（个人助理、子代理、后台任务、记忆、工作记录与评测、技能与能力包），以及外部 AI 开发工具会话（`horizontal/sessions`）的接入与治理。
-- **协作工作台**：工作台外壳围绕项目、主线与事项线（`horizontal/mainline`）组织人机持续协作（明确交办、结果回流、项目指导 `modules/projects`、可信用户决定 `horizontal/project-approvals`、要求/证据/逐项认可 `modules/acceptance`、对象工作终端 `horizontal/runtime-host`、项目讨论 IM），并向个人同步与多人实时团队协作演进（当前以单 Home 本机协作为主，团队共享项目与团队记忆仍在演进中）。
+- **协作工作台**：工作台外壳围绕项目、主线与事项线（`horizontal/mainline`）组织人机持续协作（明确交办、结果回流、项目指导 `modules/projects`、可信用户决定 `horizontal/project-approvals`、要求/证据/逐项认可 `modules/acceptance`、对象工作终端服务 `apps/local-host/src/work-terminal-service.ts` 与底层 PTY 宿主 `horizontal/runtime-host`、项目讨论 IM），并向个人同步与多人实时团队协作演进（当前以单 Home 本机协作为主，团队共享项目与团队记忆仍在演进中）。
 - **多插件基座**：业务内容与事实归插件或 Module，每项事实只有一个主人（`docs/SSOT-MATRIX.md`）。Goals 与其他项目插件同等地位（新项目不默认安装，可按需添加与移除，移除后数据保留），拥有 Goal 的事实；新平台能力不得绑定任何特定插件（见 `specs/plugin-equal-standing/spec.md`）。
 
 ## 先读哪里

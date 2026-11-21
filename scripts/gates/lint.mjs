@@ -412,10 +412,21 @@ const JS_EXT = /\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/;
 
 const resolveRelativeLintTargets = (fromFile, specifier, allFiles) => {
   const normalized = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), specifier));
-  const stem = normalized.replace(JS_EXT, "");
+  const base = normalized.replace(/\/+$/, "");
+  const stem = base.replace(JS_EXT, "");
   const out = [];
-  for (const candidate of [normalized, `${stem}.ts`, `${stem}.mts`, `${stem}.mjs`, `${normalized}/index.ts`, `${normalized}/index.mts`, `${normalized}/index.mjs`]) {
-    if (allFiles.has(candidate)) out.push(candidate);
+  for (const candidate of [
+    base,
+    `${stem}.ts`,
+    `${stem}.mts`,
+    `${stem}.mjs`,
+    path.posix.join(base, "index.ts"),
+    path.posix.join(base, "index.mts"),
+    path.posix.join(base, "index.mjs"),
+  ]) {
+    if (allFiles.has(candidate)) {
+      out.push(candidate);
+    }
   }
   return out;
 };

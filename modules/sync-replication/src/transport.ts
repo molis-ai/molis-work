@@ -7,6 +7,7 @@ export function syncTransport(ports:{
   endpoint():string;
   fetch():typeof fetch;
   abort():AbortSignal;
+  cycleAbort?():AbortSignal|undefined;
   authority():SyncAuthority;
   assert():void;
   backoff:ReturnType<typeof syncTransportBackoff>;
@@ -15,14 +16,19 @@ export function syncTransport(ports:{
   const send=async(route:string,body?:string|Buffer,method=body===undefined?'GET':'POST',type='application/json',check=ports.assert)=>{
     const canSend=()=>{
       check();
+      if(ports.cycleAbort?.()?.aborted)throw ports.backoff.currentError();
       ports.backoff.assertReady();
     };
     canSend();
-    const authority=ports.authority(),token=await authority.accessToken();
+    const authority=ports.authority();
+    const token=await authority.accessToken();
     canSend();
     if(method!=='GET')ports.onWrite();
     const timeout=type==='application/octet-stream'?45_000:15_000;
-    const signal=AbortSignal.any([authority.signal,ports.abort(),AbortSignal.timeout(timeout)]);
+    const cycleSignal=ports.cycleAbort?.();
+    const signals=[authority.signal,ports.abort(),AbortSignal.timeout(timeout)];
+    if(cycleSignal)signals.push(cycleSignal);
+    const signal=AbortSignal.any(signals);
     let response:Response;
     try{
       response=await ports.fetch()(new URL(route,ports.endpoint()),{
@@ -31,6 +37,7 @@ export function syncTransport(ports:{
       });
     }catch(error){
       check();
+      if(cycleSignal?.aborted)throw ports.backoff.currentError();
       throw ports.backoff.offline(error);
     }
     check();

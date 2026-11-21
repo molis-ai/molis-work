@@ -14,7 +14,8 @@ import { createServer } from 'node:http';
 import { PersonalAuth, personalReturnPath } from '@molis-ai/molis-work-app-local-host';
 import { PERSONAL_ACCOUNT_CLIENT_SCRIPT } from '@molis-ai/molis-work-app-workbench';
 import { PersonalWebSessions } from '@molis-ai/molis-work-app-local-host';
-import { createPersonalNativeSession, NATIVE_SESSION_FILE, NATIVE_SESSION_HEADER } from '@molis-ai/molis-work-app-local-host';
+import { createPersonalNativeSession, NATIVE_SESSION_FILE, NATIVE_SESSION_HEADER, changeMcpClientCredential } from '@molis-ai/molis-work-app-local-host';
+import { MolisWorkServer, withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 
 test('native identity requires an owner-only header capability, never a cookie or desktop hint',()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-native-proof-'));
@@ -172,6 +173,10 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
   try{
     await login();const initial=await(await request('/api/sync')).json();
     assert.deepEqual(initial.device,{automatic:null});assert.equal(syncRequests,0);
+    const projectsCol=initial.collections.find((c:{selection:{plugin_id:string;collection_id:string}})=>c.selection.plugin_id==='io.molis.work.module.projects.v1');
+    const artifactsCol=initial.collections.find((c:{selection:{plugin_id:string;collection_id:string}})=>c.selection.plugin_id==='io.molis.work.artifacts');
+    assert.equal(projectsCol?.group,'platform','Host marks project catalog collection as platform');
+    assert.equal(artifactsCol?.group,'platform','Host marks platform artifacts collection as platform');
     const stale=await fetch(origin+'/api/sync/run',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'stale-sync-space','x-molis-sync-space':'another-account-space'},body:'{}'});
     assert.equal(stale.status,409);assert.equal(syncRequests,0,'a stale dialog cannot start another space sync');
     for(const state of [undefined,'', 'not-a-comparison', 'A'.repeat(64)]){
@@ -399,4 +404,139 @@ for(const replacement of ['native','same-browser'] as const)test(`ASR-03 delayed
   const stale=await fetch(f.origin+'/api/personal/status',{headers:{Cookie:originalCookie}});assert.equal((await stale.json()).identity,null);
   assert.equal((await(await native('/api/personal/status')).json()).identity.userId,'bob','rejecting A does not revoke the current native account');
  }finally{release();await f.close();}
+});
+
+test('PCSYNC-OPT-06 internal forwarded writes and /api/sync/copy/execute immediately notify personal sync', async t => {
+  const home = mkdtempSync(join(tmpdir(), 'sync-notify-internal-'));
+  const peer = v2AccountPeer(() => 'alice');
+  const upstream = peer.server;
+  const listen = async (value: ReturnType<typeof createServer>) => {
+    await new Promise<void>(resolve => value.listen(0, '127.0.0.1', resolve));
+    const address = value.address();
+    assert.ok(address && typeof address === 'object');
+    return 'http://127.0.0.1:' + address.port;
+  };
+  const close = async (value: ReturnType<typeof createServer>) => new Promise<void>(resolve => value.close(() => resolve()));
+  await listen(upstream);
+  const previousAccount = process.env.MOLIS_WORK_ACCOUNT_CONFIG;
+  const previousLocal = process.env.MOLIS_WORK_SYNC_LOCAL;
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG = '';
+  process.env.MOLIS_WORK_SYNC_LOCAL = '1';
+  let spaceId = '';
+  let policyRevision = 0;
+  let selections: unknown[] = [];
+  let rev = 0;
+  const originalFetch = fetch;
+  t.mock.method(globalThis, 'fetch', (async (input, init) => {
+    const url = new URL(String(input));
+    if (url.origin !== 'http://127.0.0.1:8788') return originalFetch(input, init);
+    if (url.pathname === '/v1/policy' && init?.method === 'PUT') {
+      const body = JSON.parse(String(init.body)) as { selections: unknown[] };
+      policyRevision++;
+      selections = body.selections;
+      return Response.json({ spaceId, revision: policyRevision, selections });
+    }
+    if (url.pathname === '/v1/round') {
+      return syncRoundResponse({ spaceId, revision: policyRevision, selections: selections as never[] }, rev);
+    }
+    if (url.pathname === '/v1/quota') {
+      return Response.json({ limitBytes: 100000000, usedBytes: 0 });
+    }
+    if (url.pathname === '/v1/changes' && init?.method === 'POST') {
+      rev++;
+      return Response.json({ accepted: true, revision: rev });
+    }
+    if (url.pathname === '/v1/changes') {
+      return Response.json({ events: [], more: false });
+    }
+    return Response.json({ ok: true });
+  }) as typeof fetch);
+
+  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let mcpServer: MolisWorkServer | undefined;
+  try {
+    server = createMolisWorkWebServer({ homeDirectory: home });
+    const rootToken = readFileSync(join(home, 'config/web-control-token'), 'utf8').trim();
+    const origin = await listen(server);
+    process.env.MOLIS_WORK_ACCOUNT_CONFIG = peer.configure(origin);
+    let cookie = '';
+    let token = rootToken;
+    let seq = 0;
+    const req = async (path: string, method = 'GET', body: object = {}, extra: Record<string, string> = {}) => {
+      const response = await fetch(origin + path, {
+        method,
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          'content-type': 'application/json',
+          'x-molis-work-control-token': token,
+          'x-molis-work-idempotency-key': 'notify-' + (++seq),
+          ...extra,
+        },
+        ...(method === 'GET' ? {} : { body: JSON.stringify(body) }),
+        redirect: 'manual',
+      });
+      if (response.headers.get('set-cookie')?.startsWith('molis-work-session=')) {
+        cookie = response.headers.get('set-cookie')!.split(';')[0]!;
+      }
+      assert.ok(response.status < 400, `HTTP ${response.status} on ${path}: ${response.status >= 400 ? await response.clone().text() : ''}`);
+      return response;
+    };
+    const localProject = await withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.createProject({ display_name: '待复制本地项目', actor_id: 'local-user' }));
+    changeMcpClientCredential(home, 'runtime:codex', 'connect');
+    const begun = await req('/api/personal/login', 'POST');
+    await completeInstallationLogin((path, init) => req(path, 'POST', JSON.parse(String(init?.body)), Object.fromEntries(new Headers(init?.headers))), (await begun.json()).loginUrl, 'alice@example.test');
+    await req('/api/personal/space?kind=personal', 'POST');
+    const scopes = await (await req('/api/spaces')).json();
+    spaceId = scopes.current.spaceId;
+    token = readFileSync(join(home, 'spaces', spaceId, 'config/web-control-token'), 'utf8').trim();
+    const initial = await (await req('/api/sync')).json();
+    const projectSelection = initial.collections.find((c: { selection: { plugin_id: string } }) => c.selection.plugin_id === 'io.molis.work.module.projects.v1')!.selection;
+    await req('/api/sync/device', 'PUT', { automatic: false });
+    await req('/api/sync/policy', 'PUT', { spaceId, revision: 0, selections: [projectSelection] });
+    await req('/api/sync/run', 'POST');
+    const settledBeforeCopy = await (await req('/api/sync?view=indicator')).json();
+    assert.equal(settledBeforeCopy.progress.pending, 0);
+
+    // 1) POST /api/sync/copy/execute must trigger notifySyncChange so indicator immediately sees the copied project.
+    const preview = await (await req('/api/sync/copy/preview', 'POST', { projectIds: [localProject.project_id] })).json();
+    await req('/api/sync/copy/execute', 'POST', { projectIds: [localProject.project_id], fingerprint: preview.preview.fingerprint, operationId: 'copy-notify-1' });
+    const afterCopy = await (await req('/api/sync?view=indicator')).json();
+    assert.ok(afterCopy.progress.pending >= 1, `POST /api/sync/copy/execute must notify sync indicator, got ${JSON.stringify(afterCopy.progress)}`);
+
+    // Drain pending uploads so indicator returns to 0.
+    await req('/api/sync/run', 'POST');
+    const settledBeforeMcp = await (await req('/api/sync?view=indicator')).json();
+    assert.equal(settledBeforeMcp.progress.pending, 0);
+
+    // 2) Internal forwarded write (MCP_CONTEXT_PATH) to personal space must also trigger notifySyncChange.
+    mcpServer = new MolisWorkServer('runtime', null, {
+      homeDirectory: home,
+      webBaseUrl: origin,
+      runtimeContext: { runtime_id: 'codex', stable_work_context_id: 'notify-session', host_declares_stable: true, workspace: null },
+      molisWorkSessionId: null,
+      nativeRuntimeSessionId: null,
+      hostWorkContextId: 'notify-session',
+      focus: null,
+      panelId: null,
+      projectSuggestionClues: [],
+    }, undefined, origin);
+    const created = await mcpServer.callTool('molis_work_v1_context_create_and_bind', {
+      display_name: 'MCP转发触发同步项目',
+      user_confirmed: true,
+      idempotency_key: 'mcp-notify-create',
+    });
+    assert.equal((JSON.parse(created) as { status: string }).status, 'bound');
+    const afterMcp = await (await req('/api/sync?view=indicator')).json();
+    assert.ok(afterMcp.progress.pending >= 1, `internal forwarded MCP write must notify sync indicator, got ${JSON.stringify(afterMcp.progress)}`);
+  } finally {
+    await mcpServer?.close();
+    if (server) await close(server);
+    await close(upstream);
+    if (previousAccount === undefined) delete process.env.MOLIS_WORK_ACCOUNT_CONFIG;
+    else process.env.MOLIS_WORK_ACCOUNT_CONFIG = previousAccount;
+    if (previousLocal === undefined) delete process.env.MOLIS_WORK_SYNC_LOCAL;
+    else process.env.MOLIS_WORK_SYNC_LOCAL = previousLocal;
+    rmSync(home, { recursive: true, force: true });
+  }
 });

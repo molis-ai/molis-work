@@ -5,7 +5,8 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { hostErrors } from "./host-errors.js";
-import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
 import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin-inputs.js";
 import { runningProjectPlatform } from "./project-plugins.js";
@@ -29,7 +30,7 @@ export function artifactLinkSubjectsPort(client: ActionClient | undefined, decla
 }
 
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor" | "prepareDirectory">, client?: ActionClient): ActionProviderRegistration {
-  const home = options.homeDirectory ?? resolveMolisWorkHome();
+  const home = options.homeDirectory ?? resolveConfiguredHome();
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
   const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id };
   return {

@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { AgentHostComposition } from "./agent-host-composition.js";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { PrologueInferenceError, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 
 /** References the existing Home owner. This registry never constructs a Runtime. */
@@ -11,7 +11,7 @@ export function bindPrologueInference(home: string, inference: PrologueInference
   bindings.set(key, inference);
   return () => { if (bindings.get(key) === inference) bindings.delete(key); };
 }
-export async function resolvePrologueInference(homeDirectory = resolveMolisWorkHome()): Promise<PrologueInferenceClient> {
+export async function resolvePrologueInference(homeDirectory = resolveConfiguredHome()): Promise<PrologueInferenceClient> {
   const client = bindings.get(path.resolve(homeDirectory));
   if (!client) throw new PrologueInferenceError("agent.inference.unbound", "这个 Home 的推理服务尚未装配");
   return client;
@@ -24,7 +24,7 @@ export function bindPrologueBuilder(home: string, create: AgentHostComposition["
   builderBindings.set(key, create);
   return () => { if (builderBindings.get(key) === create) builderBindings.delete(key); };
 }
-export async function resolvePrologueBuilder(homeDirectory = resolveMolisWorkHome()): Promise<AgentHostComposition["createBuilderAgent"]> {
+export async function resolvePrologueBuilder(homeDirectory = resolveConfiguredHome()): Promise<AgentHostComposition["createBuilderAgent"]> {
   const create = builderBindings.get(path.resolve(homeDirectory));
   if (!create) throw new Error("这个 Home 的构建服务尚未装配");
   return create;

@@ -92,7 +92,7 @@
 - [onboarding-coverage](onboarding-coverage/spec.md)：先接通真实文件选择、模型整理、失败恢复与材料进入项目/Coding；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与 AI 交互首页；2026-11-02 补页面帮助与下一步进入引导、复用配置并返回原任务（ONB-47～49）。第 33 批已交 ONB-35～46 的混合材料、大清单、密钥扣留、增量改范围、错误分类、重启接续与 `onboarding.takes`（#2082，`91962f651c`，2026-11-15）；工程与自动化实操已过，本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)，其余场景与后续批次照旧。F 轨统筹；需求维护：Codex。
 - [plugin-frame-desktop-load](plugin-frame-desktop-load/spec.md)：桌面 WebKit 里沙箱插件框要能加载脚本；页面策略写上本次请求自己的回环 origin。2026-10-26，待验收。
 - [prologue-strategies](prologue-strategies/spec.md)：Prologue Context、MCP、Skill、Tool 四份策略合并为一份总纲 + 四份子文档；需求已整理，尚未实施。
-- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～91B 与服务端批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017、16 #2031、17 #2058、22 #2038、25 #2034、27 #2010、31 #2087、41 #2086；实时认领与分支看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～105（含 36A、63A、91B）、服务端批与发行批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017、16 #2031、17 #2058、22 #2038、25 #2034、27 #2010、31 #2087、41 #2086；实时认领与分支看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。
 
 - [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
 

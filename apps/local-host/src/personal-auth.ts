@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { assertSecretStoreWritable, createFileSecretStore, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { accountErrors, createAccountSessionManager, createAccountAuthentication, parseAccountEnvironment, type AccountSessionManager } from "@molis-ai/molis-work-service-account";
 import { configuredAccountEnvironment, localAccountGeneration } from "./active-release-profile.js";
 import type { AccountEnvironmentConfig, AccountCallControl, AccountView, UserView } from "@molis-ai/molis-work-contracts/services/account";
@@ -12,7 +13,8 @@ export interface AccountSecrets extends Pick<SecretStore,'get'|'put'|'delete'> {
 
 /** The vault of the Home the store is opened on, asked as its own writes ask it (`assertSecretStoreWritable`). */
 export function fileAccountSecrets(): AccountSecrets {
-  const store=createFileSecretStore(),home=resolveMolisWorkHome();
+  const home = resolveConfiguredHome();
+  const store = runWithMolisWorkHome(home, () => createFileSecretStore());
   return {get:ref=>store.get(ref),put:(ref,value)=>store.put(ref,value),delete:ref=>store.delete(ref),assertWritable:()=>assertSecretStoreWritable(home)};
 }
 

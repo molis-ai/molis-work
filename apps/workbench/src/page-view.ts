@@ -5,6 +5,7 @@ import type { PluginDirectory } from "./plugin-directory.js";
 /** A prepared contribution and its original producer, valid only while the Host composes this page. */
 export interface PreparedStageView extends UiContribution {
   readonly producer?: string;
+  readonly viewRevision?: string;
   readonly textPacks?: () => readonly UiLocalePack[];
   readonly drawText?: <T>(draw: () => T) => T;
 }

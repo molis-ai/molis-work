@@ -168,4 +168,27 @@ test("BL-985: what the page submits is within the service's limits: a prompt of 
   assert.equal(images.received.length, 1, "nothing more was sent");
   await images.type(SIZE, "1024x1024");
   assert.equal(await images.validity(SIZE), "", "a size within the limit clears the message");
+
+  // 32,000+ chars followed by 5,000 trailing spaces cuts in linear time without freezing, and mid-surrogate caret produces no lone surrogate.
+  const hugeWithSpaces = `${"a".repeat(32_000)}b${" ".repeat(5_000)}`;
+  const elapsedMs = await images.evaluate<number>(`(() => {
+    const field = document.querySelector('[data-images-prompt]');
+    const start = performance.now();
+    field.value = ${JSON.stringify(hugeWithSpaces)};
+    field.setSelectionRange(field.value.length, field.value.length);
+    field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+    return performance.now() - start;
+  })()`);
+  assert.equal(await images.value(PROMPT), "a".repeat(32_000));
+  assert.ok(elapsedMs < 1_000, `linear cutToLimit should finish well under 1s, took ${elapsedMs}ms`);
+
+  const surrogateMidValue = await images.evaluate<string>(`(() => {
+    const field = document.querySelector('[data-images-size]');
+    field.value = ${JSON.stringify(wide.repeat(65))};
+    field.setSelectionRange(3, 3);
+    field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+    return field.value;
+  })()`);
+  assert.equal([...surrogateMidValue].length, 64);
+  assert.equal(LONE_HALF.test(surrogateMidValue), false, "aligned caret never splits a UTF-16 surrogate pair");
 });

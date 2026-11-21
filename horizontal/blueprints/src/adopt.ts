@@ -3,6 +3,7 @@ import type { EffectiveSetting } from "@molis-ai/molis-work-contracts/platform/s
 import { blueprintsErrors, type BlueprintAdoptionApplyInput, type BlueprintAdoptionApplyResult, type BlueprintAdoptionReadResult,
   type BlueprintAdoptionUndoInput, type BlueprintAdoptionUndoResult, type BlueprintApplyStep, type BlueprintOwnerReceipt,
   type UndoResult, type UndoStep } from "@molis-ai/molis-work-contracts/services/blueprints";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import type { AdoptionStore, DiscoveredSetting, SettingPlan, StepRecord } from "./store.js";
 import { readOwnerValues, sameBinding, type SettingsAccess } from "./preview.js";
 
@@ -196,17 +197,20 @@ export class AdoptionExecution {
     await beforeWrite(caller);
     const problem = (plan: SettingPlan | null) => ownerProblem(owners, plan);
     const pending = record.steps.filter(step => step.apply.state === "pending_verification");
-    if (!record.row.undo_request && pending.length && pending.every(step => step.plan && !problem(step.plan)))
+    if (!record.row.undo_request && pending.length && pending.some(step => step.plan && !problem(step.plan))) {
       throw blueprintsErrors.step_conflict("有一步的结果还没确认，请先继续核对，再撤销");
+    }
     this.store.startUndo(caller, input.adoption_id, op, input.request_id);
-    record.row.undo_operation = op; record.row.undo_request = input.request_id;
+    record.row.undo_operation = op;
+    record.row.undo_request = input.request_id;
     const results: UndoStep[] = [];
     for (const step of record.steps) {
       assertCurrent(caller);
       const { plan, apply, part_id } = step;
       const unavailable = problem(plan);
       if (step.undo?.state === "restored" || step.undo?.state === "detached" || step.undo?.state === "skipped" && (step.undo.reason === "shared" || apply.state === "pending_verification" && step.undo.reason === "revision_changed")) {
-        results.push(step.undo); continue;
+        results.push(step.undo);
+        continue;
       }
       let result: UndoStep;
       if (!plan || apply.state !== "pending_verification" && !(apply.state === "applied" && "receipt" in apply)) result = { part_id, state: "detached" };
@@ -214,11 +218,13 @@ export class AdoptionExecution {
         result = step.undo?.state === "pending_verification" ? step.undo : apply.state === "pending_verification" ? apply : { part_id, state: "skipped", reason: "owner_unavailable" };
       }
       else {
+        const undoOf = input.adoption_id + ":" + part_id;
         const requestId = input.adoption_id + ":undo:" + part_id;
-        const pending = { part_id, state: "pending_verification" as const, request_id: requestId };
+        const pendingStep = { part_id, state: "pending_verification" as const, request_id: requestId };
         let writing = step.undo?.state === "pending_verification" && step.undo.request_id === requestId;
+        let current: EffectiveSetting | undefined;
         try {
-          const current = (await access.read(plan.binding, [plan.key]))[0];
+          current = (await access.read(plan.binding, [plan.key]))[0];
           assertCurrent(caller);
           if (!current || current.key !== plan.key) throw new ActionError("actions.output_invalid", "设置读回缺失");
           if (!writing && apply.state === "applied" && !sameObservedLayer(plan, apply.receipt.revision, current, plan.applied_layer_revision)) result = { part_id, state: "skipped", reason: "revision_changed" };
@@ -229,11 +235,11 @@ export class AdoptionExecution {
           else {
             if (!writing) {
               plan.undo_expected_revision = current.revision;
-              await this.change(caller, record, step, pending, "undo");
+              await this.change(caller, record, step, pendingStep, "undo");
             }
             writing = true;
             const saved = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.previous,
-              recovery: { undo_of: input.adoption_id + ":" + part_id }, expected_revision: plan.undo_expected_revision ?? current.revision, request_id: requestId });
+              recovery: { undo_of: undoOf }, expected_revision: plan.undo_expected_revision ?? current.revision, request_id: requestId });
             if (saved.key !== plan.key) throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
             result = { part_id, state: "restored", receipt: ownerReceipt(plan, saved) };
           }
@@ -241,12 +247,27 @@ export class AdoptionExecution {
           assertCurrent(caller);
           const failure = knownFailure(error);
           if (error instanceof ActionError && error.kind === "conflict") {
-            const originalChanged = error.details?.reason === "revision_changed" && error.details.undo_of === input.adoption_id + ":" + part_id;
-            if (!originalChanged && apply.state === "pending_verification") result = apply;
-            else if (!originalChanged && typeof error.details?.revision === "string" && plan.applied_layer_revision !== undefined)
+            const originalChanged = error.details?.reason === "revision_changed" && error.details.undo_of === undoOf;
+            const receiptMissing = error.details?.reason === "receipt_missing" && error.details.undo_of === undoOf;
+            if (receiptMissing && apply.state === "pending_verification") {
+              const prior = current?.state === "ok" && current.layers
+                ? (Object.hasOwn(current.layers, plan.layer) ? { set: current.layers[plan.layer] } : { inherit: true })
+                : undefined;
+              const unchanged = current?.state === "ok"
+                && sameObservedLayer(plan, plan.expected_revision, current, plan.original_layer_revision)
+                && prior !== undefined
+                && canonicalJsonText(prior) === canonicalJsonText(plan.previous);
+              result = unchanged ? { part_id, state: "detached" } : { part_id, state: "skipped", reason: "revision_changed" };
+            } else if (!originalChanged && apply.state === "pending_verification") {
+              result = apply;
+            } else if (!originalChanged && typeof error.details?.revision === "string" && plan.applied_layer_revision !== undefined) {
               result = { part_id, state: "failed", error: { code: error.code, message: error.message } };
-            else result = { part_id, state: "skipped", reason: "revision_changed" };
-          } else result = failure ? { part_id, state: "failed", error: failure } : writing ? pending : { part_id, state: "skipped", reason: "owner_unavailable" };
+            } else {
+              result = { part_id, state: "skipped", reason: "revision_changed" };
+            }
+          } else {
+            result = failure ? { part_id, state: "failed", error: failure } : writing ? pendingStep : { part_id, state: "skipped", reason: "owner_unavailable" };
+          }
         }
       }
       await this.change(caller, record, step, result, "undo", unavailable);

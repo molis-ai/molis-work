@@ -98,7 +98,7 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
     if (judgesReply && ((role !== undefined && role !== "reply") || facts.some(fact => fact !== "agent.reply"))) {
       throw evaluationErrors.invalid("评判模型交付须使用 agent.reply 的 reply 正文。已冻结的样本请用新版本登记正确来源。");
     }
-    if (!judgesReply && facts.length && role !== undefined && !isPluginDeliveryRole(role)) {
+    if (!judgesReply && role !== undefined && !isPluginDeliveryRole(role) && !(facts.length === 0 && input.work_mode === "mixed" && role === "reply")) {
       throw evaluationErrors.invalid("评判业务插件交付须使用 output 产出或 body 正文。已冻结的样本请用新版本登记正确来源。");
     }
   }

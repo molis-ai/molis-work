@@ -6,6 +6,8 @@ import { el, request } from "./common.js";
 const uiText = globalThis.t;
 
 const MAX_FILES = 200;
+const MAX_DROPPED_FILES = 2_000;
+const MAX_DROPPED_DEPTH = 16;
 /** What one request carries inline; a bigger file that is not text goes as its raw body (`/import/original`), any size. */
 const MAX_BYTES = 6 * 1024 * 1024;
 const TEXT_FILE = /\.(md|markdown|txt|html|htm)$/iu;
@@ -18,24 +20,49 @@ interface ImportSources { sources: Record<string, boolean>; connections: Array<{
 /** A folder's files keep their path inside it; hidden ones and build or dependency folders are left out, as the workspace listing does. */
 const wanted = (path: string) => !path.split("/").some((segment, index, all) => segment.startsWith(".") || (index < all.length - 1 && skipped.has(segment)));
 
-async function dropped(items: DataTransferItemList): Promise<Picked[]> {
+async function dropped(items: DataTransferItemList): Promise<{ items: Picked[]; truncated: boolean }> {
   const out: Picked[] = [];
-  const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
+  let truncated = false;
+  const walk = async (entry: FileSystemEntry, prefix: string, depth: number): Promise<void> => {
+    if (out.length >= MAX_DROPPED_FILES) {
+      truncated = true;
+      return;
+    }
     if (!wanted(prefix + entry.name + (entry.isDirectory ? "/" : ""))) return;
     if (entry.isFile) {
       const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+      if (out.length >= MAX_DROPPED_FILES) {
+        truncated = true;
+        return;
+      }
       out.push({ file, path: prefix + file.name });
+      return;
+    }
+    if (depth >= MAX_DROPPED_DEPTH) {
+      truncated = true;
       return;
     }
     const reader = (entry as FileSystemDirectoryEntry).createReader();
     for (;;) {
       const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
       if (!batch.length) break;
-      for (const child of batch) await walk(child, prefix + entry.name + "/");
+      for (const child of batch) {
+        if (out.length >= MAX_DROPPED_FILES) {
+          truncated = true;
+          return;
+        }
+        await walk(child, prefix + entry.name + "/", depth + 1);
+      }
     }
   };
-  for (const entry of [...items].map(item => item.webkitGetAsEntry()).filter((item): item is FileSystemEntry => !!item)) await walk(entry, "");
-  return out;
+  for (const entry of [...items].map(item => item.webkitGetAsEntry()).filter((item): item is FileSystemEntry => !!item)) {
+    if (out.length >= MAX_DROPPED_FILES) {
+      truncated = true;
+      break;
+    }
+    await walk(entry, "", 0);
+  }
+  return { items: out, truncated };
 }
 
 async function bodyOf(file: File): Promise<Record<string, unknown>> {
@@ -133,11 +160,14 @@ function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (r
 }
 
 /** Browser file/folder inputs and both drop surfaces feed the import owner's current selection. */
-function bindFileSelection(root: HTMLElement, dialog: HTMLDialogElement, take: (items: Picked[]) => void, open: () => void): void {
+function bindFileSelection(root: HTMLElement, dialog: HTMLDialogElement, take: (items: Picked[], truncated?: boolean) => void, open: () => void): void {
   const $ = <T extends Element = HTMLElement>(selector: string) => dialog.querySelector<T>(selector)!;
   for (const selector of ["[data-knowledge-import-pick]", "[data-knowledge-import-folder]"]) {
     const input = $<HTMLInputElement>(selector);
-    input.addEventListener("change", () => { take([...input.files ?? []].map(file => ({ file, path: file.webkitRelativePath || file.name }))); input.value = ""; });
+    input.addEventListener("change", () => {
+      take([...input.files ?? []].map(file => ({ file, path: file.webkitRelativePath || file.name })));
+      input.value = "";
+    });
   }
   // Files dropped on the dialog's area, or on the side panel's list (which opens the dialog with them).
   const drop = $("[data-knowledge-import-drop]");
@@ -149,7 +179,7 @@ function bindFileSelection(root: HTMLElement, dialog: HTMLDialogElement, take: (
       if (!event.dataTransfer?.items.length || !event.dataTransfer.types.includes("Files")) return;
       event.preventDefault();
       if (opens && !dialog.open) open();
-      void dropped(event.dataTransfer.items).then(take);
+      void dropped(event.dataTransfer.items).then(result => take(result.items, result.truncated)).catch(() => undefined);
     });
   };
   accept(drop, false);
@@ -171,7 +201,11 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const pickedList = $("[data-knowledge-import-picked]");
   const submit = $<HTMLButtonElement>("[data-knowledge-import-submit]");
   const cancel = $<HTMLButtonElement>("footer [data-knowledge-import-close]");
-  let picked: Picked[] = [], active: ImportBatch | null = null, sources: ImportSources | null = null, connected = false;
+  let picked: Picked[] = [];
+  let truncatedSelection = false;
+  let active: ImportBatch | null = null;
+  let sources: ImportSources | null = null;
+  let connected = false;
   const kind = () => (dialog.querySelector<HTMLInputElement>("input[name=kind]:checked")?.value ?? "files");
   const controls = () => {
     submit.disabled = !!active || (kind() === "online" ? !connected : !picked.length);
@@ -200,12 +234,20 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       return row;
     }));
     if (kind() !== "online") submit.disabled = !!active || !picked.length;
-    status.textContent = picked.length > MAX_FILES ? uiText.text("workbench.import.count-chosen-only-first-max-imported-time", { count: picked.length, max: MAX_FILES })
+    status.textContent = picked.length > MAX_FILES || truncatedSelection
+      ? uiText.text("workbench.import.count-chosen-only-first-max-imported-time", { count: picked.length, max: MAX_FILES })
       : picked.length ? uiText.text("workbench.import.count-count-chosen", { count: picked.length }) : "";
   };
-  const take = (items: Picked[]) => {
+  const take = (items: Picked[], truncated = false) => {
     // A display path can name different files; content reuse belongs to the import service.
-    picked = [...picked, ...items.filter(item => wanted(item.path))];
+    const next = [...picked, ...items.filter(item => wanted(item.path))];
+    if (next.length > MAX_DROPPED_FILES) {
+      picked = next.slice(0, MAX_DROPPED_FILES);
+      truncatedSelection = true;
+    } else {
+      picked = next;
+      if (truncated) truncatedSelection = true;
+    }
     // The running batch owns its result rows; new selections wait for the next batch.
     if (!active) drawPicked();
   };
@@ -264,6 +306,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     }
     // Keep the unattempted tail ahead of failures, so a rejected batch cannot block later files forever.
     picked = [...queue.slice(attempted), ...picked.slice(queue.length), ...queue.slice(0, attempted).filter(item => !imported.has(item))];
+    truncatedSelection = false;
     const result = failed ? uiText.text("workbench.import.done-imported-failed-not-imported-reasons-above", { done, failed }) : uiText.text("workbench.import.done-imported-organizing-now", { done });
     const remaining = picked.length - failed;
     status.textContent = batch.phase === "stopping" ? uiText.text("workbench.import.stopped", { done, failed, remaining }) : result + (remaining ? " " + uiText.text("workbench.import.remaining-files", { count: remaining }) : "");
@@ -282,7 +325,14 @@ export function bindKnowledgeImport(root: HTMLElement): void {
 
   submit.addEventListener("click", () => void (kind() === "online" ? exclusive("online", importOnline) : exclusive("files", importFiles)));
   cancel.addEventListener("click", () => {
-    if (!active) { picked = []; consent.reset(); drawPicked(); dialog.close(); return; }
+    if (!active) {
+      picked = [];
+      truncatedSelection = false;
+      consent.reset();
+      drawPicked();
+      dialog.close();
+      return;
+    }
     if (active.kind === "online") { dialog.close(); return; }
     active.phase = "stopping"; controls();
     status.textContent = uiText.text("workbench.import.stopping");

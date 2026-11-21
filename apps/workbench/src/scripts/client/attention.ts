@@ -30,6 +30,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
   const list = document.querySelector("[data-background-tasks-list]");
   let background = { tasks: [], incomplete: true }, key = "", reading = null, scheduled = null, again = false, readSequence = 0;
+  globalThis.molisWorkAttentionSequence = () => readSequence;
   // These are this page's command attempts, not the provider's task states. A refreshed row keeps the same in-flight attempt.
   const commands = new Map();
   const commandKey = (task, command) => JSON.stringify([task.project_id, task.id, command.role, command.action, command.input]);
@@ -135,7 +136,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const data = await molisWorkRequest(address, { signal: current.controller.signal });
       if (reading !== current || address !== readAddress()) return;
       showTasks(data.background_tasks, sequence);
-      document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
+      document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started, sequence }) }));
       heard = new Date().toISOString();
     } catch (error) {
       if (reading !== current || address !== readAddress()) return;

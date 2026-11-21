@@ -47,4 +47,41 @@ export class PersonalProjectProvisioner {
     if (input.project_id === PERSONAL_SPACE_PROJECT_ID) return this.ensurePersonalSpace(input.actor_id, beforeEffect);
     return this.files.createProject(input, true, beforeEffect);
   }
+
+  /**
+   * Atomically provision a copied personal project in hidden (recycled) state and synchronize its exact
+   * plugin membership in one catalog transaction so partial copies are never visible (S-122) and retries
+   * reconcile missing or excess plugins idempotently.
+   */
+  async stageHiddenProject(
+    input: CreateMolisWorkProjectInput & { plugins: readonly string[] },
+    beforeEffect: () => void,
+  ): Promise<ProjectRecord> {
+    beforeEffect();
+    if (ensureStorageSpace(this.home).kind !== 'personal') {
+      throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
+    }
+    const projectId = input.project_id?.trim();
+    if (!projectId || !/^project-(?:onboarding-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(projectId)) {
+      throw new Error('无效的恢复项目标识');
+    }
+    if (this.projects.query.listProjectDeletions().some(row => row.project_id === projectId)) {
+      throw new Error('已删除的项目不能重新暂存');
+    }
+    return this.files.provisionCreatedProject(
+      { displayName: input.display_name, actorId: input.actor_id, projectId },
+      record => this.projects.lifecycle.transaction(() => {
+        beforeEffect();
+        const visible = this.projects.query.listProjects().find(item => item.project_id === record.project_id);
+        if (visible) return visible;
+        if (!this.projects.recycle.isRecycled(record.project_id)) {
+          this.projects.lifecycle.register(record, 'project.copy_staged', input.actor_id);
+          this.projects.recycle.stageHidden(record.project_id);
+        }
+        this.projects.lifecycle.syncStagedPlugins(record.project_id, input.plugins);
+        return record;
+      }),
+      beforeEffect,
+    );
+  }
 }

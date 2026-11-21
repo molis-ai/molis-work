@@ -45,12 +45,26 @@ interface ReportPorts {
 
 /** The least time between two reads of one project's table. */
 const LOOK_MS = 1000;
+/** Maximum tasks reported in one combined round so the message stays well under MAX_TEXT. */
+const REPORT_BATCH_LIMIT = 20;
+/** Bounded transient retries per project before waiting for the next real project change. */
+const MAX_TRANSIENT_RETRIES = 5;
+const BUSY_REPORT_CODES = new Set(["assistant.state", "assistant.busy", "agent.session_busy", "assistant.runtime_busy"]);
+const NOTICE_ONLY_REPORT_CODES = new Set([
+  "agent.model_not_configured",
+  "assistant.model_missing",
+  "assistant.budget",
+  "assistant.character_unavailable",
+  "assistant.executor_unavailable",
+  "assistant.unsupported",
+]);
 
 export class AssistantTaskReports {
   readonly #told = new Set<string>();
   readonly #pending = new Set<string>();
   readonly #queue = new Set<string>();
   readonly #lastAt = new Map<string, number>();
+  readonly #failures = new Map<string, number>();
   #off: (() => void) | undefined;
   #looking: Promise<void> | undefined;
   #closed = false;
@@ -60,12 +74,23 @@ export class AssistantTaskReports {
     if (this.#off || this.#closed) return;
     this.#off = this.ports.changes(projectId => {
       // The Assistant's own store changed (a round ended, a work moved): what waited for an idle conversation is looked at again.
-      if (projectId === null) { for (const waiting of this.#pending) this.#queue.add(waiting); }
-      else this.#queue.add(projectId);
+      if (projectId === null) {
+        for (const waiting of this.#pending) this.#queue.add(waiting);
+      } else {
+        this.#failures.delete(projectId);
+        this.#queue.add(projectId);
+      }
       if (this.#queue.size) this.#look();
     });
   }
-  close(): void { this.#closed = true; this.#off?.(); this.#off = undefined; this.#queue.clear(); this.#pending.clear(); }
+  close(): void {
+    this.#closed = true;
+    this.#off?.();
+    this.#off = undefined;
+    this.#queue.clear();
+    this.#pending.clear();
+    this.#failures.clear();
+  }
   /** Settled once what was asked to be looked at has been (for tests and for the Host's own shutdown). */
   async idle(): Promise<void> { while (this.#looking) await this.#looking; }
 
@@ -80,25 +105,55 @@ export class AssistantTaskReports {
         if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait).unref?.());
         if (this.#closed) return;
         this.#lastAt.set(projectId, Date.now());
-        await this.#lookAt(projectId).catch(() => undefined);
+        try {
+          await this.#lookAt(projectId);
+          this.#failures.delete(projectId);
+        } catch {
+          const failures = (this.#failures.get(projectId) ?? 0) + 1;
+          this.#failures.set(projectId, failures);
+          if (!this.#closed && failures <= MAX_TRANSIENT_RETRIES) {
+            this.#pending.add(projectId);
+          } else {
+            this.#pending.delete(projectId);
+          }
+        }
       }
-    })().finally(() => { this.#looking = undefined; if (this.#queue.size && !this.#closed) this.#look(); });
+    })().finally(() => {
+      this.#looking = undefined;
+      if (this.#queue.size && !this.#closed) this.#look();
+    });
   }
 
   async #lookAt(projectId: string): Promise<void> {
-    if (!this.ports.reportsTo(projectId)) { this.#pending.delete(projectId); return; }
+    if (!this.ports.reportsTo(projectId)) {
+      this.#pending.delete(projectId);
+      return;
+    }
     const table = await this.ports.table(projectId);
-    // What ended in one read goes in one report: the same end of the same task is reported once, by this process, then by the notice
-    // the report raises for it (across restarts).
+    // What ended in one read goes in one report (bounded per batch): the same end of the same task is reported once,
+    // by this process, then by the notice the report raises for it (across restarts).
     const ended = table.tasks.flatMap(row => {
-      const end = row.reports_to === "assistant" ? reportedEnd(row) : null, key = JSON.stringify([projectId, row.id, end, row.updated_at]);
+      const end = row.reports_to === "assistant" ? reportedEnd(row) : null;
+      const key = JSON.stringify([projectId, row.id, end, row.updated_at]);
       return end && !this.#told.has(key) ? [{ row, end, key }] : [];
     });
-    if (!ended.length || this.#closed) { this.#pending.delete(projectId); return; }
-    const answer = await this.ports.report({ project_id: projectId, tasks: ended.map(({ row, end }) => ({ row, end })) });
-    if (answer === "later") { this.#pending.add(projectId); return; }
-    for (const { key } of ended) this.#told.add(key);
-    this.#pending.delete(projectId);
+    if (!ended.length || this.#closed) {
+      this.#pending.delete(projectId);
+      return;
+    }
+    const batch = ended.slice(0, REPORT_BATCH_LIMIT);
+    const answer = await this.ports.report({ project_id: projectId, tasks: batch.map(({ row, end }) => ({ row, end })) });
+    if (answer === "later") {
+      this.#pending.add(projectId);
+      return;
+    }
+    for (const { key } of batch) this.#told.add(key);
+    if (ended.length > batch.length) {
+      if (answer === "none") this.#queue.add(projectId);
+      else this.#pending.add(projectId);
+    } else {
+      this.#pending.delete(projectId);
+    }
   }
 }
 
@@ -148,28 +203,44 @@ export class AssistantReportRounds {
     }
     // A job a conversation started and follows returns to it (assistant-jobs.ts): its provider may not know who started it.
     const followed = await this.ports.followed(report.project_id);
-    const news = unseen.filter(task => !followed.has(task.row.subject.id));
+    const news = unseen.filter(task => !followed.has(task.row.subject.id)).slice(0, REPORT_BATCH_LIMIT);
     if (!news.length) return "none";
     try {
       await this.ports.start(main, reportWords(news));
     } catch (error) {
-      // A round began in between: the report waits for it. Any other refusal (no model, budget) leaves the person told only.
-      if (["assistant.state", "assistant.busy", "agent.session_busy"].includes(String((error as { code?: unknown } | undefined)?.code))) return "later";
+      const code = String((error as { code?: unknown } | undefined)?.code ?? "");
+      // A round began in between: the report waits for it.
+      if (BUSY_REPORT_CODES.has(code)) return "later";
+      // Permanent refusals (no model, budget, unavailable character/executor) cannot start a round: still tell the person once.
+      // Any other error is transient: propagate so neither noticeReceipts nor #told silently swallows the report.
+      if (!NOTICE_ONLY_REPORT_CODES.has(code)) throw error;
     }
-    for (const { row, end, key } of news) this.ports.store.raiseNotice(this.ports.actorId, { kind: end === "failed" ? "failed" : "completed", work_id: main.work_id, work_title: main.title,
-      text: assistantWords(`workbench.assistant-notice.task-report-${end}`, { title: row.title, from: row.origin.title }) }, key);
+    for (const { row, end, key } of news) {
+      this.ports.store.raiseNotice(this.ports.actorId, {
+        kind: end === "failed" ? "failed" : "completed",
+        work_id: main.work_id,
+        work_title: main.title,
+        text: assistantWords(`workbench.assistant-notice.task-report-${end}`, { title: row.title, from: row.origin.title }),
+      }, key);
+    }
     return "reported";
   }
 }
 
+function clipReportField(value: string, max: number): string {
+  const chars = [...value];
+  return chars.length <= max ? value : `${chars.slice(0, max - 1).join("")}…`;
+}
+
 /** What the report's round is told: the one task as it always was, or each of several on a line of its own. */
 function reportWords(tasks: readonly EndedTask[]): string {
-  const ended = ({ row, end }: EndedTask) => `「${row.title}」${end === "failed" ? "没有办成" : "已经办完"}${row.step ? `：${row.step.text}` : ""}`;
+  const ended = ({ row, end }: EndedTask) =>
+    `「${clipReportField(row.title, 200)}」${end === "failed" ? "没有办成" : "已经办完"}${row.step ? `：${clipReportField(row.step.text, 300)}` : ""}`;
   if (tasks.length === 1) {
     const task = tasks[0]!;
-    return `（Molis 转告）后台任务${ended(task)}。这项任务由「${task.row.origin.title}」发起，不是从这段对话派出的。请用一两句话向用户汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`;
+    return `（Molis 转告）后台任务${ended(task)}。这项任务由「${clipReportField(task.row.origin.title, 100)}」发起，不是从这段对话派出的。请用一两句话向用户汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`;
   }
-  const lines = tasks.map(task => `- ${ended(task)}（由「${task.row.origin.title}」发起）`).join("\n");
+  const lines = tasks.map(task => `- ${ended(task)}（由「${clipReportField(task.row.origin.title, 100)}」发起）`).join("\n");
   return `（Molis 转告）这个项目有 ${tasks.length} 项后台任务同时结束了：\n${lines}\n这些任务都不是从这段对话派出的。请在一次回复里向用户逐项简要汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`;
 }
 

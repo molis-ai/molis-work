@@ -56,7 +56,12 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       copied: text => send(ws, { type: "copied", text }),
     };
     let closed = false;
-    ws.on("close", () => { closed = true; detach?.(); detach = null; });
+    ws.on("close", () => {
+      closed = true;
+      page = null;
+      detach?.();
+      detach = null;
+    });
     // Binding the page (watch, attach) waits on the project check, and the panel sends what follows (visible, a queued
     // navigate) right behind it: each message waits for the bindings sent before it, so none finds no page and is dropped.
     let bound: Promise<void> = Promise.resolve();
@@ -93,26 +98,87 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
           return;
         }
         await bound;
-        if (!authority?.valid()) { ws.close(); return; }
-        if (!page) return;
+        if (closed) return;
+        if (!authority?.valid()) {
+          ws.close();
+          return;
+        }
+        const activePage = page;
+        if (!activePage) return;
         switch (message.type) {
-          case "visible": page.setVisible(listener, !!message.visible); return;
-          case "resize": await page.resize(message.viewport); return;
-          case "navigate": await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.navigate(String(message.input ?? "")); return;
-          case "history": await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.history(message.delta === 1 ? 1 : -1); return;
-          case "reload": await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.reload(); return;
-          case "stop": await page.stop(); return;
-          case "restart": await browsers().restart(); return;
-          case "popup-close": await page.closePopup(); return;
-          case "takeover": page.setControl({ mode: "taken-over", work_id: page.snapshot().control.work_id, activity: null }); await options.onTakeover?.(page); return;
-          case "handback": if (page.controlMode === "taken-over") page.setControl({ mode: "person", work_id: null, activity: null }); return;
-          case "mouse": case "key": case "text": case "compose":
-            if (message.type === "mouse" && message.event === "move" && page.controlMode === "assistant") return;
-            await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.input(message); return;
-          case "copy": listener.copied?.(await page.selectedText()); return;
-          case "dialog": await page.answerDialog(String(message.id), !!message.accept, message.prompt_text); return;
-          case "file-chooser-cancel": page.cancelFileChooser(String(message.id)); return;
-          default: return;
+          case "visible":
+            activePage.setVisible(listener, !!message.visible);
+            return;
+          case "resize":
+            await activePage.resize(message.viewport);
+            return;
+          case "navigate":
+            await takeoverFirst(activePage);
+            if (closed) return;
+            if (!authority?.valid()) {
+              ws.close();
+              return;
+            }
+            await activePage.navigate(String(message.input ?? ""));
+            return;
+          case "history":
+            await takeoverFirst(activePage);
+            if (closed) return;
+            if (!authority?.valid()) {
+              ws.close();
+              return;
+            }
+            await activePage.history(message.delta === 1 ? 1 : -1);
+            return;
+          case "reload":
+            await takeoverFirst(activePage);
+            if (closed) return;
+            if (!authority?.valid()) {
+              ws.close();
+              return;
+            }
+            await activePage.reload();
+            return;
+          case "stop":
+            await activePage.stop();
+            return;
+          case "restart":
+            await browsers().restart();
+            return;
+          case "popup-close":
+            await activePage.closePopup();
+            return;
+          case "takeover":
+            activePage.setControl({ mode: "taken-over", work_id: activePage.snapshot().control.work_id, activity: null });
+            await options.onTakeover?.(activePage);
+            return;
+          case "handback":
+            if (activePage.controlMode === "taken-over") activePage.setControl({ mode: "person", work_id: null, activity: null });
+            return;
+          case "mouse":
+          case "key":
+          case "text":
+          case "compose":
+            if (message.type === "mouse" && message.event === "move" && activePage.controlMode === "assistant") return;
+            await takeoverFirst(activePage);
+            if (closed) return;
+            if (!authority?.valid()) {
+              ws.close();
+              return;
+            }
+            await activePage.input(message);
+            return;
+          case "copy":
+            listener.copied?.(await activePage.selectedText());
+            return;
+          case "dialog":
+            await activePage.answerDialog(String(message.id), !!message.accept, message.prompt_text);
+            return;
+          case "file-chooser-cancel":
+            activePage.cancelFileChooser(String(message.id));
+            return;
+          default:
+            return;
         }
       } catch (error) {
         send(ws, { type: "error", message: error instanceof Error ? error.message : String(error) });

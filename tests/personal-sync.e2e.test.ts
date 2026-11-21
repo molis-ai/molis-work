@@ -271,7 +271,7 @@ test('PCSYNC-OPT-18 grouped collections, transfer progress, and local project st
         available:true,device:{automatic:true},policy:{spaceId:'opt18-space',revision:1,selections:[platformSel,pluginSel]},
         running:true,transfer:{done:2500000,total:10000000},error:null,lastSuccess:null,
         progress:{selected:2,pending:1,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},
-        collections:[{selection:platformSel,title:'项目目录',pending:0,conflicts:[],failures:[]},{selection:pluginSel,title:'文档与文件夹',pending:1,conflicts:[],failures:[]}],
+        collections:[{selection:platformSel,title:'项目目录',group:'platform',pending:0,conflicts:[],failures:[]},{selection:pluginSel,title:'文档与文件夹',group:'plugin',pending:1,conflicts:[],failures:[]}],
         unavailable:[],
       });
     };

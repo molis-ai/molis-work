@@ -109,7 +109,12 @@ for (const order of [[RESEARCH, WRITING], [WRITING, RESEARCH]] as const) {
     assert.equal(reader.listConsumable({ producer_plugin_id: RESEARCH }).some(row => row.artifact_id === "research:other-person"), false);
     assert.deepEqual(started.get(WRITING)!.artifacts!.listConsumable({ producer_plugin_id: RESEARCH }), [], "the writing plugin does not declare that it reads excerpts");
     assert.deepEqual(started.get(WRITING)!.artifacts!.listConsumable({ artifact_type_id: EXCERPT }), [], "nor by type, though excerpts are there");
-    for (const bad of [{ producer_plugin_id: "" }, null, RESEARCH, [EXCERPT], 123, { producer_id: RESEARCH }, { type: EXCERPT }, { actor_id: "forged" }, { project_id: "other" }]) {
+    // P2: declared optional filter keys set to undefined are omitted before validation, while undeclared keys and null stay rejected.
+    const optionalFilter: import("@molis-ai/molis-work-plugin-sdk").PluginConsumableFilter = { producer_plugin_id: undefined, artifact_type_id: undefined };
+    const listedWithUndefined: import("@molis-ai/molis-work-plugin-sdk").PluginConsumableVersion[] = reader.listConsumable(optionalFilter);
+    assert.deepEqual(rows(listedWithUndefined), [["research:1", RESEARCH], ["writing:1", WRITING]]);
+    assert.deepEqual(rows(reader.listConsumable({ artifact_type_id: EXCERPT, producer_plugin_id: undefined })), [["research:1", RESEARCH], ["writing:1", WRITING]]);
+    for (const bad of [{ producer_plugin_id: "" }, { producer_plugin_id: null }, { unknown_key: undefined }, null, RESEARCH, [EXCERPT], 123, { producer_id: RESEARCH }, { type: EXCERPT }, { actor_id: "forged" }, { project_id: "other" }]) {
       assert.throws(() => Reflect.apply(reader.listConsumable, null, [bad]), { code: "actions.input_invalid" }, `invalid filter must not widen to all: ${JSON.stringify(bad)}`);
     }
   });

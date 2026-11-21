@@ -190,12 +190,33 @@ function indentation(text: string): { readonly tabSize: number; readonly insertS
 
 /** Apply LSP text edits (non-overlapping, positions in the original text) from the end backwards. */
 export function applyEdits(text: string, edits: readonly TextEditLike[]): string {
-  const starts = [0];
-  for (let i = 0; i < text.length; i += 1) if (text[i] === "\n") starts.push(i + 1);
-  const offset = (at: Position) => Math.min(text.length, (starts[at.line] ?? text.length) + at.character);
-  const sorted = [...edits].sort((x, y) => offset(y.range.start) - offset(x.range.start));
+  const starts: number[] = [0];
+  const ends: number[] = [];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === "\r") {
+      ends.push(i);
+      if (text[i + 1] === "\n") i += 1;
+      starts.push(i + 1);
+    } else if (text[i] === "\n") {
+      ends.push(i);
+      starts.push(i + 1);
+    }
+  }
+  ends.push(text.length);
+  const offset = (at: Position) => {
+    if (at.line < 0) return 0;
+    if (at.line >= starts.length) return text.length;
+    const lineStart = starts[at.line]!;
+    const lineEnd = ends[at.line]!;
+    return Math.min(lineEnd, lineStart + Math.max(0, at.character));
+  };
+  const sorted = edits
+    .map((edit, index) => ({ edit, index, start: offset(edit.range.start), end: offset(edit.range.end) }))
+    .sort((x, y) => (y.start - x.start) || (y.end - x.end) || (y.index - x.index));
   let result = text;
-  for (const edit of sorted) result = result.slice(0, offset(edit.range.start)) + edit.newText + result.slice(offset(edit.range.end));
+  for (const { edit, start, end } of sorted) {
+    result = result.slice(0, start) + edit.newText + result.slice(end);
+  }
   return result;
 }
 

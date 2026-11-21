@@ -15,7 +15,7 @@ for (const phase of ["prepare", "cancel", "cancel-unresolved"] as const) test(`A
   t.after(() => rm(root, { recursive: true, force: true }));
   const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(new URL("./fixtures/surface-close-unknown.mjs", import.meta.url)), root, phase],
     { timeout: 20_000, maxBuffer: 512 * 1024 });
-  assert.deepEqual(JSON.parse(stdout), { state: phase === "cancel-unresolved" ? "ready" : "stopped", lost: 1, inputs: 0, unsubscribed: 1,
+  assert.deepEqual(JSON.parse(stdout), { state: phase === "cancel-unresolved" ? "failed" : "stopped", lost: 1, inputs: 0, unsubscribed: 1,
     ownerRetained: phase !== "cancel", confirmedCancellations: phase === "cancel" ? 1 : 0 });
   const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
   const sdk: { createNodeHost(input: { storageRoot: string }): { storage: {

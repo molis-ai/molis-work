@@ -1,0 +1,37 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.1.0-rc.2",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "ae1639977e73f51114e2dd673ddaf1086142629c",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "note": "Official main commit ae163997 (Prologue PR #140 on top of PR #139 ba7e4942 and PR #138 cfb842e4): security & harness audit hardening (P0-1 ui-control destination deny/ask tightening with origin propagation; P1-A1 synchronous shutdown admission latch and retryable pre-drain failure state; P1-A3 Tauri x-goog-api-key header alignment; P1-A4 ScopedStorage commit/commitBatch StorageGuard sync fence routing through commitGuarded; P2-1/P2-2 destructive command and Tauri process executable suffix/path hardening; P2-3 NodeHost reserved bare dispatch storage kind rejection; P2-4 test title alignment) and 0.1.0-rc.2 release bump. No vendor patch."
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.1.0-rc.2.tgz",
+    "bytes": 1496047,
+    "sha256": "4dda9ec9700cdb90a59fb43e62d642f46db17637319d479a3abfb6328ee13b3e",
+    "integrity": "sha512-Z8EF6iv13ptyl8bUke8JQCZBi250xHsp2MyN+9DcBbsl/wABTQcpb/PjfWgPQsQTjqVHAQ61dXgANfp7AoqKag=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "Extract two independent clean archives from official main commit ae1639977e73f51114e2dd673ddaf1086142629c (Prologue PR #140) via git archive.",
+      "Run pnpm install --frozen-lockfile --offline, pnpm build, and pnpm -C packages/sdk pack in both clean archives using Node 24.14.0 and pnpm 11.9.0.",
+      "Confirm both produced prologue-sdk-0.1.0-rc.2.tgz tarballs are byte-identical via cmp -s and record exact bytes, SHA-256, and SHA-512 integrity."
+    ],
+    "packedOn": "2026-11-21",
+    "note": "Official 0.1.0-rc.2 package incorporating Prologue PR #140 security & harness audit hardening."
+  }
+}

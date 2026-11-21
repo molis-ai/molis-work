@@ -1,7 +1,7 @@
 import { renderKitSettings } from "./settings-kit.js";
 import { renderWebSearchSettings } from "./settings-web-search.js";
 import { renderModelSettingsDocument } from "./settings-models.js";
-import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderShellEnvironmentBadge } from "./document-shell.js";
 import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { t as uiText, icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
@@ -40,6 +40,7 @@ const NETWORK_DOC_HREF = {
 } as const;
 export interface SettingsRenderPrimitives {
   accountRegistration?: boolean;
+  environmentName?(): "dev" | "test" | undefined;
   catalogTextPacks: ProjectSettingsPagePorts["catalogTextPacks"];
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
@@ -153,7 +154,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     <div class="settings-content">${withSettingsHelp(capabilities ? "capabilities" : view.section, content)}</div>
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(primitives.environmentName?.())}
   ${settingsText(pluginPage, primitives.catalogTextPacks)}${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${view.section === "authorizations" ? '<script defer src="/assets/molis-work-capabilities.js"></script>' : ""}${appearanceClientTag(appearance)}
 </body></html>`;
 }

@@ -37,6 +37,18 @@ test('ENV-02/03: properties are strict and are the sole business configuration i
     writeFileSync(file, content);
     assert.throws(() => read(), error => !error.message.includes('fake-test-sentinel'));
   }
+  // Empty secretRules allows a fresh checkout without a gitignored secrets/<env>.properties file,
+  // while still strictly validating the file when it is present.
+  writeFileSync(file, 'target=ok\n');
+  const emptyDir = mkdtempSync(join(tmpdir(), 'molis-env-empty-secrets-'));
+  t.after(() => rmSync(emptyDir, { recursive: true, force: true }));
+  mkdirSync(join(emptyDir, 'config'));
+  writeFileSync(join(emptyDir, 'config', 'dev.properties'), 'target=fresh-clone\n');
+  const emptyRoot = pathToFileURL(emptyDir + '/');
+  assert.deepEqual(loadProperties(emptyRoot, 'dev', rules, {}), { config: { target: 'fresh-clone' }, secrets: {} });
+  mkdirSync(join(emptyDir, 'secrets'));
+  writeFileSync(join(emptyDir, 'secrets', 'dev.properties'), 'unexpected=1\n');
+  assert.throws(() => loadProperties(emptyRoot, 'dev', rules, {}), /Invalid configuration/u);
 });
 
 test('ENV-12: a local environment switch changes the session generation on every transition', t => {

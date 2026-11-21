@@ -159,6 +159,13 @@
     "work-brief.version.none": "还没有别的版本。下次有变化时会生成新的一版，这一版保持不变。",
     "work-brief.version.open": "查看",
     "work-brief.version.shown": "正在看",
-    "work-brief.view.brief": "简报"
+    "work-brief.view.brief": "简报",
+    "work-brief.help.title": "工作简报",
+    "work-brief.help.what": "汇总项目近期变化、待决事项和下一步建议的综合工作首页，帮你一眼看清现在该接着做什么。",
+    "work-brief.help.example-1": "回到项目首页，先扫一眼今天的变化与等待你确认的事项",
+    "work-brief.help.example-2": "直接点卡片上的入口跳回原插件继续，不必四处翻找",
+    "work-brief.help.scope": "只读取本项目已有插件的公开摘要与状态，不复制或改写原插件数据；停用后项目自动回到基础首页，所有资料完整保留。",
+    "work-brief.help.advanced-summary": "项目视角与个人汇总",
+    "work-brief.help.advanced": "在项目里显示本项目进展，在个人空间里汇总你关心的跨项目事项；未连接文字模型时基础概览照常可用。"
   }
 }

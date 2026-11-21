@@ -8,9 +8,10 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser } from "./fixtures/board-browser.js";
 
-test("ONB-22/23/28, PWA-36, PF-A14, PF-A15: the scene, settings page and Assistant share lookback and budget through retries and later edits, with plain tiers, local app picker, and simplified prompt editing", async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null);
+test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prompt simplification, and Scheme A on-demand help work end-to-end", async t => {
+  const b = await openBoardBrowser(t, "user", undefined, null);
   if (!b) return;
   const { localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = b;
   assert.ok(localHost);
@@ -114,6 +115,43 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15: the scene, settings page and Assista
     expected_revision: savedSimple.prompt.user.revision,
   });
   assert.equal(resetRes.prompt.effective, "default");
+
+  // VUX-55 / ONB-48: settings page mounts Scheme A Help, Esc closes and returns focus to trigger without losing input.
+  await waitFor("!!document.querySelector('[data-mw-help-trigger]')");
+  await click("[data-mw-help-trigger]");
+  await waitFor("!!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'true'");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'false'");
+  const focusDiag = await evaluate<{ same: boolean; hasFocus: boolean; active: string; count: number }>("({ same: document.activeElement === document.querySelector('[data-mw-help-trigger]'), hasFocus: document.hasFocus(), active: document.activeElement?.outerHTML.slice(0, 120) || '', count: document.querySelectorAll('[data-mw-help-trigger]').length })");
+  assert.equal(focusDiag.same, true, `Esc returns focus to the Help trigger (${JSON.stringify(focusDiag)})`);
+
+  // VUX-54 / VUX-55 / VUX-56: catalog specimens prove pre-action facts stay visible when closed, skipped tip persists across reload, failure recovers on retry, and 390px has no overflow.
+  await navigate(() => command("Page.navigate", { url: origin + "/__ui/catalog#on-demand-help" }, sessionId));
+  await waitFor("!!document.querySelector('#on-demand-help [data-mw-help-tip]') && !!document.querySelector('#on-demand-help .mw-facts')");
+  assert.equal(await evaluate<boolean>("document.querySelector('#on-demand-help .mw-facts').getBoundingClientRect().height > 0"), true, "pre-action facts stay visible while Help is closed");
+  await click("#on-demand-help [data-mw-help-tip-skip]");
+  await waitFor("document.querySelector('#on-demand-help [data-mw-help-tip]')?.hidden === true");
+  await b.reloadPage();
+  await waitFor("!!document.querySelector('#on-demand-help [data-mw-help-trigger]')");
+  assert.equal(await evaluate<boolean>("document.querySelector('#on-demand-help [data-mw-help-tip]')?.hidden === true"), true, "skipped first-visit tip stays hidden across reload");
+  await click("#on-demand-help [data-help-specimen-fail]");
+  await click("#specimen-help-entry");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-empty--error [data-mw-help-retry]')");
+  await click(".mw-help-card [data-mw-help-retry]");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section') && !document.querySelector('.mw-help-card .mw-empty--error')");
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await waitFor("document.documentElement.clientWidth <= 390");
+  assert.equal(await evaluate<boolean>("document.documentElement.scrollWidth <= 390"), true, "Scheme A Help fits 390px without horizontal overflow");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+  await command("Emulation.clearDeviceMetricsOverride", {}, sessionId);
+
+  // VUX-59: live generated-plugin example on /__ui/catalog mounts Scheme A Help automatically via PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT.
+  await waitFor("!!document.querySelector('[data-presentation-example] [data-mw-help-trigger]')");
+  await click("[data-presentation-example] [data-mw-help-trigger]");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section')");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
 });
 
 test("ONB-28/29: after a partial adoption the reopened page retries only the unconfirmed setting", async t => {

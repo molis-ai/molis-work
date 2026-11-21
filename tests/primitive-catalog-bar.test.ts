@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { uiHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
 installHostUiText();
@@ -70,5 +72,39 @@ test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help s
     assert.match(html, /class="mw-help-tip"/, `${lang}: skippable first-visit tip`);
     assert.match(html, /aria-expanded="true"/, `${lang}: expanded button specimen`);
     assert.match(html, /aria-pressed="true"/, `${lang}: pressed button specimen`);
+  }
+});
+
+test("VUX-55 VUX-58: every native built-in plugin manifest declares valid bilingual ui.help with all zh/en keys", () => {
+  const wbZh = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
+  const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
+  assert.ok(BUILTIN_PLUGIN_CATALOG.length >= 24, `expected at least 24 built-in plugins, got ${BUILTIN_PLUGIN_CATALOG.length}`);
+  const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    const help = entry.manifest.ui.help;
+    assert.ok(help && help.topics.length > 0, `${entry.project_plugin_id}: manifest.ui.help must be declared`);
+    assert.deepEqual(uiHelpDeclarationProblems(entry.manifest), [], `${entry.project_plugin_id}: ui.help must pass SDK validation`);
+    const zhPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/zh.json`, import.meta.url);
+    const enPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/en.json`, import.meta.url);
+    const zh = JSON.parse(readFileSync(zhPath, "utf8")).messages as Record<string, unknown>;
+    const en = JSON.parse(readFileSync(enPath, "utf8")).messages as Record<string, unknown>;
+    for (const topic of help.topics) {
+      const keys = [
+        ...readKey(topic.title),
+        ...readKey(topic.first_visit_tip),
+        ...topic.sections.flatMap((section) => [
+          ...readKey(section.heading),
+          ...readKey(section.body),
+          ...readKey(section.summary),
+          ...(section.items ?? []).flatMap(readKey),
+        ]),
+      ];
+      for (const key of keys) {
+        const hasZh = key.startsWith("common.") ? Object.hasOwn(wbZh, key) : Object.hasOwn(zh, key);
+        const hasEn = key.startsWith("common.") ? Object.hasOwn(wbEn, key) : Object.hasOwn(en, key);
+        assert.ok(hasZh, `${entry.project_plugin_id}: missing zh key ${key}`);
+        assert.ok(hasEn, `${entry.project_plugin_id}: missing en key ${key}`);
+      }
+    }
   }
 });

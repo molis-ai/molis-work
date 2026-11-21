@@ -370,6 +370,13 @@
     "shelf.agent-prompt.shelf-shortcut.title": "置物架快捷动作",
     "shelf.agent-prompt.shelf-shortcut.purpose": "按用户选择的快捷动作处理材料",
     "shelf.capability-library.shelf-items-admit-v1.title": "放进 Shelf",
-    "shelf.capability-library.shelf-material-save-v1.title": "存到项目资料"
+    "shelf.capability-library.shelf-material-save-v1.title": "存到项目资料",
+    "shelf.help.title": "置物架",
+    "shelf.help.what": "你的跨项目材料暂存与剪贴板历史工作区，随手收集文字、图片和文件，需要时拖进任意项目使用。",
+    "shelf.help.example-1": "用粘贴快捷键收下正在浏览的段落或截图，稍后再整理",
+    "shelf.help.example-2": "在项目侧栏打开置物架，把准备好的材料直接交给助理或文档",
+    "shelf.help.scope": "默认只存在本机个人空间里；只有你明确复制到某个项目或发出时，材料才会离开置物架。",
+    "shelf.help.advanced-summary": "快捷动作与剪贴板历史",
+    "shelf.help.advanced": "可在「设置 › 插件 › 置物架」里调整快捷动作、快捷键和剪贴板保留规则。"
   }
 }

@@ -464,12 +464,13 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && active) {
+    if (event.key === "Escape" && active && !document.querySelector("dialog[open]")) {
       event.preventDefault();
+      event.stopImmediatePropagation();
       event.stopPropagation();
       close(true);
     }
-  });
+  }, true);
 
   addEventListener("resize", () => {
     if (!active) return;

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { build } from 'esbuild';
 import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-packs.js';
 import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
-import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, ON_DEMAND_HELP_STYLES, ON_DEMAND_HELP_CLIENT_SCRIPT } from '@molis-ai/molis-work-design-system';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { packageContract } from './fixtures/sandbox-package.js';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
@@ -382,4 +382,86 @@ test('RAC-2926: enums, dates and URLs retain their semantics ahead of text wordi
   await page.evaluate(`(async()=>{view=structuredClone(view);const fields={id:{type:'string',description:'编号文本'},title:{type:'string',description:'标题文本'},name:{type:'string',description:'名称文本'},date:{type:'string',format:'date',description:'日期文本'},instant:{type:'string',format:'date-time',description:'时间文本'},url:{type:'string',format:'uri',description:'网址文本'},choice:{type:'string',enum:['短文本','长文本'],description:'选择文本'}};Object.assign(view.contract.operations[0].input.properties,fields);for(const field of Object.keys(fields))view.nodes[0].submit.input[field]={source:'form',field};await app.update(view)})()`);
   assert.deepEqual(await page.evaluate('["id","title","name","date","instant","url"].map(name=>{const e=document.querySelector(`[name=${name}]`);return [name,e.tagName,e.type]})'), [['id', 'INPUT', 'text'], ['title', 'INPUT', 'text'], ['name', 'INPUT', 'text'], ['date', 'INPUT', 'date'], ['instant', 'INPUT', 'datetime-local'], ['url', 'INPUT', 'url']]);
   assert.equal(await page.evaluate('document.querySelector("[name=choice]").tagName==="TEXTAREA"'), false);
+});
+
+test('VUX-55 VUX-56 VUX-59: generated plugins mount Scheme A Help (declared or truthful derived fallback) and render .mw-facts before model/external/irreversible operations', { timeout: 60_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'generated-help-facts-'));
+  let browser: Awaited<ReturnType<typeof openStudioChrome>>;
+  t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  browser = await openStudioChrome(directory);
+  assert.ok(browser, 'dedicated Chrome is required');
+  const page = await componentPage(browser);
+
+  const billedContract: SandboxPluginContract = {
+    version: 1, pluginId: 'test.summary-mailer', revision: 'one', entities: [], acceptance: [],
+    help: {
+      default_topic: 'overview',
+      topics: [{
+        id: 'overview',
+        title: '周报整理助手',
+        sections: [
+          { id: 'what', heading: '这是什么', body: '根据你填写的要点生成摘要并发送到指定地址。' },
+          { id: 'scope', heading: '权限与范围', body: '只发送本次提交的正文，不读取其他项目。' },
+        ],
+      }],
+    },
+    operations: [{
+      id: 'digest.send', kind: 'command',
+      input: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'], additionalProperties: false },
+      output: { type: 'string' }, errors: [],
+      effects: { model: ['invoke'], networkDomains: ['api.example.com'] },
+      external: true,
+      examples: [{ input: { summary: 'done' }, output: 'sent' }],
+    }],
+    pages: [{ id: 'home', title: '周报整理', regions: [{ id: 'main', title: '主区', operationIds: ['digest.send'] }] }],
+  };
+  const billedNodes = [
+    { id: 'head', pageId: 'home', regionId: 'main', intent: 'heading', kind: 'frame', purpose: '周报整理', props: { title: '周报整理' } },
+    { id: 'send', pageId: 'home', regionId: 'main', intent: 'input', kind: 'form', purpose: '生成并发送', props: { submitLabel: '生成并发送' }, submit: { operationId: 'digest.send', input: { summary: { source: 'form', field: 'summary' } } } },
+  ];
+
+  await page.evaluate(`(async()=>{
+    document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES + ON_DEMAND_HELP_STYLES)}+'</style><main id="root"></main>';
+    ${ON_DEMAND_HELP_CLIENT_SCRIPT}
+    globalThis.app=(${PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT})({root:document.querySelector('#root'),call:async()=>'sent'});
+    await app.update(${JSON.stringify({ contract: billedContract, nodes: billedNodes, connected: ['digest.send'] })});
+  })()`);
+
+  // Pre-action facts stay visible before the submit button even while Help is closed.
+  const factText = await page.evaluate<string>(`document.querySelector('[data-pc-facts]')?.innerText || ''`);
+  assert.match(factText, /AI 模型/, 'model billing fact is visible before submit');
+  assert.match(factText, /api\.example\.com/, 'declared external domain fact is visible before submit');
+  assert.equal(await page.evaluate(`document.querySelector('.mw-help-card')`), null, 'Help starts closed');
+  await page.click('.pc-app-actions [data-mw-help-trigger]');
+  await page.wait(`!!document.querySelector('.mw-help-card')`);
+  const cardText = await page.evaluate<string>(`document.querySelector('.mw-help-card').innerText`);
+  assert.match(cardText, /周报整理助手/, 'declared contract.help title is rendered');
+  assert.match(cardText, /只发送本次提交的正文/, 'declared contract.help section body is rendered');
+  await page.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await page.wait(`!document.querySelector('.mw-help-card')`);
+  assert.equal(await page.evaluate(`document.activeElement === document.querySelector('[data-mw-help-trigger]')`), true, 'Esc returns focus to generated plugin Help trigger');
+
+  // Without contract.help and with purely local effects: zero unnecessary .mw-facts clutter, truthful local-only fallback Help.
+  const localContract: SandboxPluginContract = {
+    version: 1, pluginId: 'test.local-notes', revision: 'two', entities: [], acceptance: [],
+    operations: [{
+      id: 'notes.add', kind: 'command',
+      input: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
+      output: { type: 'string' }, errors: [],
+      effects: { storage: ['write'] },
+      examples: [{ input: { text: 'hello' }, output: 'ok' }],
+    }],
+    pages: [{ id: 'home', title: '本地速记', regions: [{ id: 'main', title: '主区', operationIds: ['notes.add'] }] }],
+  };
+  const localNodes = [
+    { id: 'add', pageId: 'home', regionId: 'main', intent: 'input', kind: 'form', purpose: '记一条', props: { submitLabel: '保存' }, submit: { operationId: 'notes.add', input: { text: { source: 'form', field: 'text' } } } },
+  ];
+  await page.evaluate(`(async()=>{ await app.update(${JSON.stringify({ contract: localContract, nodes: localNodes, connected: ['notes.add'] })}); })()`);
+  assert.equal(await page.evaluate(`document.querySelector('[data-pc-facts]')`), null, 'purely local CRUD form does not add unnecessary warning facts');
+  await page.click('[data-mw-help-trigger]');
+  await page.wait(`!!document.querySelector('.mw-help-card')`);
+  const fallbackText = await page.evaluate<string>(`document.querySelector('.mw-help-card').innerText`);
+  assert.match(fallbackText, /本地速记/, 'fallback Help derives title from declared pages');
+  assert.match(fallbackText, /不向外发送内容/, 'fallback Help truthfully states local-only scope');
+  assert.doesNotMatch(fallbackText, /api\.example\.com/, 'fallback Help never leaks stale or undeclared capabilities');
 });

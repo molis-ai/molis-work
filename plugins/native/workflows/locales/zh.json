@@ -233,6 +233,13 @@
     "workflows.verdict.no-result": "结果「无」",
     "workflows.verdict.result": "结果「{choice}」",
     "workflows.agent-prompt.workflows-ai-handoff.title": "AI 交接",
-    "workflows.agent-prompt.workflows-ai-handoff.purpose": "把上一步的结果按这段交接的要求整理成下一步能接着用的内容"
+    "workflows.agent-prompt.workflows-ai-handoff.purpose": "把上一步的结果按这段交接的要求整理成下一步能接着用的内容",
+    "workflows.help.title": "工作流程",
+    "workflows.help.what": "把几个插件按顺序串成一条固定流程，定好每一步结果怎么交给下一步；每走一次都保留各自记录，互不串扰。",
+    "workflows.help.example-1": "从 Feed 挑一条内容，直接交过去或请 AI 整理成文档要点",
+    "workflows.help.example-2": "在关键一步改成「由我亲手定」，先核对改好再交给下一站",
+    "workflows.help.scope": "默认「直接交过去」完全在本机运行、不调用模型；只有你选了「请 AI 整理」或「按条件筛选」时才调用对应模型或判断规则，并按服务商计费。",
+    "workflows.help.advanced-summary": "自定义格式、运行中改链与停止",
+    "workflows.help.advanced": "需要拼接标题、来源或日期时，展开「自定义传递格式（高级）」即可；随时可结束某次运行，已经交到各插件的内容会完整保留。"
   }
 }

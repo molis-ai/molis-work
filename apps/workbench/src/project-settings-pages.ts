@@ -25,6 +25,7 @@ import { PLUGIN_RETAINED_ICONS, PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPlugi
 import { renderTaskGrantsSettings, TASK_GRANTS_SETTINGS_CLIENT_SCRIPT } from "./settings-task-grants.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
+import { withSettingsHelp } from "./settings-help-topics.js";
 import { renderLanguageHead } from "./language-resource.js";
 
 export interface ProjectSettingsPagePorts {
@@ -63,6 +64,11 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
+    const raw = renderHubSectionBody(view, guidance, section, desktopShell);
+    return withSettingsHelp(section, raw);
+  }
+
+  function renderHubSectionBody(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderGuidance(guidance ?? { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });

@@ -121,6 +121,13 @@
     "cognia.agent-prompt.cognia-answer.title": "Organize knowledge and answer questions",
     "cognia.agent-prompt.cognia-answer.purpose": "Organize or answer using only the selected fixed material versions and cite sources with markers such as [S1]",
     "cognia.agent-prompt.cognia-evidence.title": "Knowledge assistant role",
-    "cognia.agent-prompt.cognia-evidence.purpose": "Role instructions for Cognia’s knowledge organization and question answering"
+    "cognia.agent-prompt.cognia-evidence.purpose": "Role instructions for Cognia’s knowledge organization and question answering",
+    "cognia.help.title": "Cognia",
+    "cognia.help.what": "Your personal knowledge base shared across projects: import local Markdown folders or reference files and search with exact citations.",
+    "cognia.help.example-1": "Import a local notes folder into a domain with source-backed lookup",
+    "cognia.help.example-2": "Search full text by topic and jump straight to the original passage",
+    "cognia.help.scope": "Reads only the folders you pick; full-text search runs locally, and model-assisted answers are billed by your connected model provider.",
+    "cognia.help.advanced-summary": "Imports and snapshots",
+    "cognia.help.advanced": "Preserves Markdown, folder layout, and attachments; unsupported formats are skipped and listed rather than dropped silently."
   }
 }

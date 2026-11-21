@@ -15,6 +15,13 @@
     "text-stats.stage.retry": ". Select Refresh to try again.",
     "text-stats.empty.waiting": "Pin a file version to see its word, byte, and line counts",
     "text-stats.empty.unavailable": "The pinned file version is no longer available",
-    "text-stats.empty.recapture": "Capture it again or choose another input in Sources"
+    "text-stats.empty.recapture": "Capture it again or choose another input in Sources",
+    "text-stats.help.title": "Text Stats",
+    "text-stats.help.what": "Computes word counts, paragraph counts, and structural stats for a fixed text deliverable in your project.",
+    "text-stats.help.example-1": "Save a Pages doc as a fixed version, then inspect its length and structure here",
+    "text-stats.help.example-2": "Compare word counts across two frozen revisions",
+    "text-stats.help.scope": "Purely local and read-only — no network calls, no model cost, and never edits your document.",
+    "text-stats.help.advanced-summary": "Choosing an input deliverable",
+    "text-stats.help.advanced": "Requires a fixed text deliverable from Pages or Deliverables; never silently swaps versions."
   }
 }

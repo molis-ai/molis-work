@@ -67,6 +67,19 @@ export const pagesManifest: PluginManifest = {
     consumes: [...IMPORTED_DOCUMENT_READ_TYPES],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "pages.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "pages.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "pages.help.example-1" }, { key: "pages.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "pages.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "pages.help.advanced-summary" }, body: { key: "pages.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", title_text: { key: "pages.directory.view-comments" }, contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },

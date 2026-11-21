@@ -218,12 +218,12 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   document.addEventListener("molis-work:attention-refresh", (event) => {
     if (event?.detail?.reconnected === true) {
-      clearTimeout(retry);
       delay = 1000;
       lost = false;
       if (!document.hidden && !gone.has(route("/api/attention"))) {
-        if (!listening) listen();
-        else if (!stream) void connect();
+        // Re-enter via close()+listen() so navigator.locks single-leader ownership is preserved and any wedged stream is replaced.
+        close();
+        listen();
       }
     }
     void read(true);

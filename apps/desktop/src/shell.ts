@@ -40,7 +40,11 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
   };
+  let lastHostReconnect=0;
   globalThis.molisWorkHostReconnected=()=>{
+    const now=Date.now();
+    if(now-lastHostReconnect<250)return;
+    lastHostReconnect=now;
     if(typeof CustomEvent==="function"&&typeof document!=="undefined"&&typeof document.dispatchEvent==="function"){
       document.dispatchEvent(new CustomEvent("molis-work:attention-refresh",{detail:{reconnected:true}}));
     }

@@ -8,6 +8,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { attachHostPresence, createHomeSnapshot, createMolisWorkLocalHost, HOME_MAINTENANCE_PATH, readHostEndpoint } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
@@ -190,6 +191,12 @@ test("102-2 S-07: live resident Host serves online CLI home snapshot via control
     body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.home, "inside-snapshot") }),
   });
   assert.equal(insideHome.status, 400);
+  const relativeDest = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-relative" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: "relative-snapshot" }),
+  });
+  assert.equal(relativeDest.status, 400);
   for (const name of ["refused-1", "refused-2", "refused-3", "refused-4"]) assert.equal(fs.existsSync(join(f.area, name)), false);
   assert.equal(fs.existsSync(join(f.home, "inside-snapshot")), false);
 
@@ -236,4 +243,35 @@ test("102-2 S-07: live resident Host serves online CLI home snapshot via control
   const sqliteEntries = manifest.stores.flatMap(store => store.entries).filter(entry => entry.sqlite);
   assert.ok(sqliteEntries.length >= 1 && sqliteEntries.every(entry => entry.sqlite?.integrity_check === "ok"));
   assert.equal(fs.existsSync(join(f.snapshot, "data", "config", "web-control-token")), false, "control token never enters snapshot");
+});
+
+test("102-2 S-07: production space-web-server serves root Home snapshots and lets inactive personal spaces snapshot cleanly under storage-owner", { timeout: 60_000 }, async t => {
+  const f = await smallSnapshotHome(t);
+  const server: Server = createDesktopWebHost({ ptyClientFilePath: () => "/unused-for-http-test" })({ homeDirectory: f.home });
+  await new Promise<void>(resolveListen => server.listen(0, "127.0.0.1", resolveListen));
+  t.after(() => new Promise<void>(resolveClose => { server.closeAllConnections(); server.close(() => resolveClose()); }));
+  const runCli = (args: string[], env: NodeJS.ProcessEnv) => new Promise<{ status: number | null; stdout: string; stderr: string }>((resolveRun, rejectRun) => {
+    const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url)), ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+    child.once("error", rejectRun);
+    child.once("close", status => resolveRun({ status, stdout, stderr }));
+  });
+  const cliEnv: NodeJS.ProcessEnv = { ...process.env, MOLIS_WORK_TEST: "1" };
+  delete cliEnv.MOLIS_WORK_WEB_URL;
+  // 1. Root installation Home while createSpaceWebServer is running succeeds via /api/internal/home-maintenance (no 401 login error).
+  const rootDest = join(f.area, "space-root-snapshot");
+  const rootCli = await runCli(["home", "snapshot", "--home", f.home, "--to", rootDest, "--json"], cliEnv);
+  assert.equal(rootCli.status, 0, rootCli.stderr);
+  assert.equal((JSON.parse(rootCli.stdout) as { status: string }).status, "created");
+
+  // 2. An initialized but currently inactive personal space under `<root>/spaces/<id>` verifies `<root>` HMAC (not an impostor) and snapshots cleanly offline under its own storage-owner lock.
+  const inactiveSpace = join(f.home, "spaces", "space_inactive_probe");
+  const seeded = createMolisWorkLocalHost({ homeDirectory: inactiveSpace, completeText: null });
+  await seeded.close();
+  const spaceDest = join(f.area, "inactive-space-snapshot");
+  const spaceCli = await runCli(["home", "snapshot", "--home", inactiveSpace, "--to", spaceDest, "--json"], cliEnv);
+  assert.equal(spaceCli.status, 0, spaceCli.stderr);
+  assert.equal((JSON.parse(spaceCli.stdout) as { status: string }).status, "created");
 });

@@ -25,9 +25,10 @@ export function parsePsCpuMs(raw: string): number {
   let rest = trimmed;
   const dash = rest.indexOf('-');
   if (dash >= 0) {
-    days = Number(rest.slice(0, dash));
+    const daysPart = rest.slice(0, dash);
+    if (!/^\d+$/.test(daysPart)) return Number.NaN;
+    days = Number(daysPart);
     rest = rest.slice(dash + 1);
-    if (!Number.isFinite(days) || days < 0) return Number.NaN;
   }
   const parts = rest.split(':').map(Number);
   if (parts.length < 2 || parts.length > 3 || parts.some(value => !Number.isFinite(value) || value < 0)) {
@@ -106,21 +107,22 @@ export function createBatchProcessMonitor(options?: {
       stopTimerIfIdle();
       return;
     }
-    const pids = [...entries.keys()];
+    const watched = new Map(entries);
+    const pids = [...watched.keys()];
     sampling = true;
     polls++;
     batchedPids += pids.length;
     void sample(pids)
       .then(samples => {
         for (const [pid, measured] of samples) {
-          const entry = entries.get(pid);
-          if (!entry) continue;
-          if (measured.rssKb > entry.rssLimitKb) {
+          const snapshotEntry = watched.get(pid);
+          if (!snapshotEntry || entries.get(pid) !== snapshotEntry) continue;
+          if (measured.rssKb > snapshotEntry.rssLimitKb) {
             entries.delete(pid);
-            entry.onExceeded('memory');
-          } else if (measured.cpuMs > entry.cpuLimitMs) {
+            try { snapshotEntry.onExceeded('memory'); } catch { /* isolate callback failure across batched PIDs */ }
+          } else if (measured.cpuMs > snapshotEntry.cpuLimitMs) {
             entries.delete(pid);
-            entry.onExceeded('cpu');
+            try { snapshotEntry.onExceeded('cpu'); } catch { /* isolate callback failure across batched PIDs */ }
           }
         }
       })

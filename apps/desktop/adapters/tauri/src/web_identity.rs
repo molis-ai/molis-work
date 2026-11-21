@@ -20,7 +20,6 @@ pub(crate) const LOW_RISK_HEALTH_LEASE: Duration = Duration::from_millis(2500);
 #[derive(Clone, Copy, Debug)]
 struct HealthLease {
     port: u16,
-    #[allow(dead_code)]
     process_id: Option<u32>,
     verified_at: Instant,
 }
@@ -93,6 +92,15 @@ fn health_lease_valid(
     })
 }
 
+pub(crate) fn last_verified_process_id() -> Option<u32> {
+    let active_port = crate::host_port::port();
+    HEALTH_LEASE
+        .lock()
+        .ok()
+        .and_then(|slot| (*slot).filter(|entry| entry.port == active_port))
+        .and_then(|entry| entry.process_id)
+}
+
 /// Low-risk UI IPC commands reuse a verified active-port health lease for up to 2.5 s so resize/locale
 /// events do not block the main thread on TCP; an expired or invalidated lease falls back to a fresh HMAC probe.
 pub(crate) fn low_risk_health_fresh() -> bool {
@@ -118,26 +126,25 @@ pub(crate) fn answer() -> Result<Answer, String> {
     answer_at(crate::host_port::port())
 }
 
-/// Bounded `/health` probe on the active port for background quit checks (`<= 400ms` total budget).
+/// Bounded `/health` probe on the active port for background quit checks (`<= 400ms` cumulative budget).
 pub(crate) fn answer_with_timeout(total_budget: Duration) -> Result<Answer, String> {
-    let started = Instant::now();
+    let deadline = Instant::now() + total_budget;
     let port = crate::host_port::port();
-    let connect_timeout = total_budget.min(Duration::from_millis(150));
-    let token = control_token()?;
-    let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-    let mut stream =
-        TcpStream::connect_timeout(&address, connect_timeout).map_err(|_| REFUSED.to_string())?;
-    let remaining = total_budget.saturating_sub(started.elapsed());
-    if remaining.is_zero() {
-        return Err(REFUSED.into());
+    let result = (|| {
+        let connect_timeout = total_budget.min(Duration::from_millis(150));
+        let token = control_token()?;
+        let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+        let mut stream = TcpStream::connect_timeout(&address, connect_timeout)
+            .map_err(|_| REFUSED.to_string())?;
+        prove_until(&mut stream, &token, &format!("127.0.0.1:{port}"), deadline)
+    })();
+    if port == crate::host_port::port() {
+        match &result {
+            Ok(Answer::Ready(health)) => record_health_lease(port, health.process_id),
+            Ok(Answer::Upgrading) | Err(_) => invalidate_health_lease(),
+        }
     }
-    let io_timeout = remaining.min(Duration::from_millis(250));
-    prove_with_timeout(
-        &mut stream,
-        &token,
-        &format!("127.0.0.1:{port}"),
-        io_timeout,
-    )
+    result
 }
 
 /// `/health` on a port not yet adopted: the address file's, proved before anything uses it.
@@ -160,45 +167,75 @@ pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
 
 /// A socket kept for a native request: only a ready service is sent one.
 pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health, String> {
-    match prove(stream, token, &crate::host_port::host())? {
-        Answer::Ready(health) => Ok(health),
-        Answer::Upgrading => Err(REFUSED.into()),
+    let port = crate::host_port::port();
+    match prove(stream, token, &crate::host_port::host()) {
+        Ok(Answer::Ready(health)) => {
+            record_health_lease(port, health.process_id);
+            Ok(health)
+        }
+        Ok(Answer::Upgrading) | Err(_) => {
+            invalidate_health_lease();
+            Err(REFUSED.into())
+        }
     }
 }
 
 fn prove(stream: &mut TcpStream, token: &str, host: &str) -> Result<Answer, String> {
-    prove_with_timeout(stream, token, host, Duration::from_millis(400))
+    prove_until(
+        stream,
+        token,
+        host,
+        Instant::now() + Duration::from_millis(400),
+    )
 }
 
-fn prove_with_timeout(
+fn prove_until(
     stream: &mut TcpStream,
     token: &str,
     host: &str,
-    io_timeout: Duration,
+    deadline: Instant,
 ) -> Result<Answer, String> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err(REFUSED.into());
+    }
     let mut random = [0_u8; 32];
     File::open("/dev/urandom")
         .and_then(|mut source| source.read_exact(&mut random))
         .map_err(|_| REFUSED.to_string())?;
     let challenge = URL_SAFE_NO_PAD.encode(random);
     stream
-        .set_read_timeout(Some(io_timeout))
-        .map_err(|_| REFUSED.to_string())?;
-    stream
-        .set_write_timeout(Some(io_timeout))
+        .set_write_timeout(Some(remaining))
         .map_err(|_| REFUSED.to_string())?;
     write!(
         stream,
         "GET /health?challenge={challenge} HTTP/1.1\r\nHost: {host}\r\nConnection: keep-alive\r\n\r\n"
     )
     .map_err(|_| REFUSED.to_string())?;
-    verify_response(stream, token, &challenge).ok_or_else(|| REFUSED.into())
+    let read_remaining = deadline.saturating_duration_since(Instant::now());
+    if read_remaining.is_zero() {
+        return Err(REFUSED.into());
+    }
+    stream
+        .set_read_timeout(Some(read_remaining))
+        .map_err(|_| REFUSED.to_string())?;
+    verify_response_until(stream, token, &challenge, Some(deadline)).ok_or_else(|| REFUSED.into())
 }
 
+#[cfg(test)]
 fn verify_response(stream: &mut impl Read, token: &str, challenge: &str) -> Option<Answer> {
+    verify_response_until(stream, token, challenge, None)
+}
+
+fn verify_response_until(
+    stream: &mut impl Read,
+    token: &str,
+    challenge: &str,
+    deadline: Option<Instant>,
+) -> Option<Answer> {
     let mut head = Vec::new();
     while !head.ends_with(b"\r\n\r\n") {
-        if head.len() == MAX_HEAD {
+        if head.len() == MAX_HEAD || deadline.is_some_and(|limit| Instant::now() >= limit) {
             return None;
         }
         let mut byte = [0];

@@ -3,7 +3,7 @@ import path from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorFromResponse, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId } from "./action-gateway.js";
-import { createOnlineHomeSnapshot } from "./home-snapshot.js";
+import { createHomeSnapshot, createOnlineHomeSnapshot } from "./home-snapshot.js";
 import type { HomeSnapshotResult } from "./home-snapshot-contract.js";
 import { readHostEndpoint } from "./host-endpoint.js";
 import { probeMcpResident } from "./mcp-resident-health.js";
@@ -23,7 +23,7 @@ export async function handleHomeMaintenanceHttp(
   response: ServerResponse,
   url: URL,
   home: string,
-  host: MolisWorkLocalHost,
+  host: MolisWorkLocalHost | null,
 ): Promise<boolean> {
   if (url.pathname !== HOME_MAINTENANCE_PATH) return false;
   if (request.method !== "POST") {
@@ -44,17 +44,24 @@ export async function handleHomeMaintenanceHttp(
       || typeof body.home_id !== "string"
       || typeof body.destination !== "string"
       || !body.destination.trim()
+      || !path.isAbsolute(body.destination)
     ) {
       throw new ActionError("actions.input_invalid", "Home 维护请求参数无效");
     }
     if (body.home_id !== actionGatewayHomeId(home)) {
       throw new ActionError("actions.home_mismatch", "Home 维护调用属于另一个 Home");
     }
-    const result = await createOnlineHomeSnapshot(host, {
-      homeDirectory: home,
-      destination: body.destination,
-      signal: controller.signal,
-    });
+    const result = host
+      ? await createOnlineHomeSnapshot(host, {
+        homeDirectory: home,
+        destination: body.destination,
+        signal: controller.signal,
+      })
+      : await createHomeSnapshot({
+        homeDirectory: home,
+        destination: body.destination,
+        signal: controller.signal,
+      });
     if (!response.destroyed) sendJson(response, 200, { result });
   } catch (error) {
     const refused = actionErrorResponse(error);
@@ -77,13 +84,31 @@ export async function requestResidentHomeSnapshot(options: {
 }): Promise<HomeSnapshotResult | null> {
   const home = resolveConfiguredHome(options.homeDirectory);
   const explicitUrl = process.env[RESIDENT_HOST_URL_ENV]?.trim();
-  const installationRoot = path.basename(path.dirname(home)) === "spaces" ? path.dirname(path.dirname(home)) : null;
-  const endpoint = explicitUrl ? null : (readHostEndpoint(home) ?? (installationRoot ? readHostEndpoint(installationRoot) : null));
+  const ownEndpoint = explicitUrl ? null : readHostEndpoint(home);
+  const installationRoot = !explicitUrl && !ownEndpoint && path.basename(path.dirname(home)) === "spaces"
+    ? path.dirname(path.dirname(home))
+    : null;
+  const endpoint = ownEndpoint ?? (installationRoot ? readHostEndpoint(installationRoot) : null);
   const address = explicitUrl || (endpoint ? `http://127.0.0.1:${endpoint.port}` : null);
   if (!address) return null;
   const origin = residentHostOrigin(address);
   const probeSignal = options.signal ?? new AbortController().signal;
-  const health = await probeMcpResident(home, origin, probeSignal);
+  let health: Awaited<ReturnType<typeof probeMcpResident>>;
+  try {
+    health = await probeMcpResident(home, origin, probeSignal);
+  } catch (error) {
+    // A personal space under `<root>/spaces/<spaceId>` may be logged out / inactive while the genuine
+    // installation Host answers on `<root>/run/endpoint.json` using `<root>`'s token. Only if `<root>`
+    // itself passes HMAC verification may we treat this space as unmounted and proceed offline under `storage-owner`.
+    if (installationRoot && error instanceof ActionError && error.code === "actions.transport_invalid") {
+      const rootHealth = await probeMcpResident(installationRoot, origin, probeSignal).catch(() => null);
+      if (rootHealth === "ready") return null;
+      if (rootHealth === "upgrading") {
+        throw new ActionError("actions.service_unavailable", "Molis Work 正在升级这个 Home 的数据，请等待升级完成后再做快照");
+      }
+    }
+    throw error;
+  }
   if (health === "absent") return null;
   if (health === "upgrading") {
     throw new ActionError("actions.service_unavailable", "Molis Work 正在升级这个 Home 的数据，请等待升级完成后再做快照");

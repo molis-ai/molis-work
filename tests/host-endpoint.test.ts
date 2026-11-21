@@ -105,4 +105,17 @@ test("102-2: port negotiation skips occupied loopback ports and LaunchAgent heal
   const realManager = new MolisWorkWebServiceManager({ homeDirectory: realHome, platform: "darwin" });
   const realEnv = Reflect.get(realManager, "environment") as { healthCheck(expectedPid?: number): Promise<boolean> };
   assert.equal(await realEnv.healthCheck(process.pid), true, "real Host with HMAC proof on endpoint.json port passes healthCheck");
+
+  // Wildcard 0.0.0.0 listener must also be detected as occupied on macOS (SO_REUSEADDR bind-only probes miss it).
+  const wildcard = createNetServer();
+  await new Promise<void>(resolve => wildcard.listen(0, "0.0.0.0", resolve));
+  t.after(() => new Promise<void>(resolve => wildcard.close(() => resolve())));
+  const wildcardAddr = wildcard.address();
+  assert.ok(wildcardAddr && typeof wildcardAddr === "object");
+  const freeServer = createNetServer();
+  await new Promise<void>(resolve => freeServer.listen(0, "127.0.0.1", resolve));
+  const freeAddr = freeServer.address();
+  assert.ok(freeAddr && typeof freeAddr === "object");
+  await new Promise<void>(resolve => freeServer.close(() => resolve()));
+  assert.equal(await selectAvailableHostPort([wildcardAddr.port, freeAddr.port]), freeAddr.port, "0.0.0.0 wildcard listener must be skipped");
 });

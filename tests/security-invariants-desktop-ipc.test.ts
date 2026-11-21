@@ -11,9 +11,8 @@
 // templates in `runtime-capabilities/` with `{port}` where the port goes; the shell grants them at start for the one port the Host
 // there proved (`host_port.rs`, Rust tests `res08_s14_…`), and nothing in `capabilities/` is granted statically any more.
 //
-// What it cannot show (needs a build of the shell; tracked in docs/system/SECURITY-INVARIANTS.md as open): whether a same-origin
-// iframe (a plugin frame, the plugin builder's trial) can invoke these commands, and what `csp: null` in tauri.conf.json means for
-// the pages the shell loads.
+// What is verified separately on a real macOS desktop build (tracked in docs/system/SECURITY-INVARIANTS.md S5): real WKWebView
+// command reachability for top-level main vs opaque plugin srcdoc iframes and non-blank rendering under the strict static placeholder CSP.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

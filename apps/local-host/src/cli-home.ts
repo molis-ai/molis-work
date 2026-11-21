@@ -13,7 +13,7 @@ const usage = "molis-work home snapshot --to DIRECTORY [--home PATH] [--json]\n"
   + "molis-work home restore --from DIRECTORY [--home PATH] [--json]\n"
   + "molis-work home restore --recover [--home PATH] [--json]\n"
   + "molis-work home rollback --check | --confirm [--save-current DIRECTORY] [--home PATH] [--json]\n\n"
-  + "停止使用该 Home 的宿主与所有写入者后，在原 Home 的离线窗口操作。快照目标必须是 Home 外尚不存在的目录；原密钥不会导出。恢复限原 Home 路径，预检通过后完整替换业务集合并保留私有原件。未完成恢复会阻断正常启动，先用 --recover 回滚或收尾。"
+  + "Home 运行时，`home snapshot` 自动通过校验过身份的常驻宿主执行在线快照，未运行时在原 Home 的离线窗口操作；`restore` 与 `rollback` 须先停止宿主后在离线窗口操作。快照目标必须是 Home 外尚不存在的目录；原密钥不会导出。恢复限原 Home 路径，预检通过后完整替换业务集合并保留私有原件。未完成恢复会阻断正常启动，先用 --recover 回滚或收尾。"
   + "回到上一版：--check 只看能不能回；--confirm 把这一版升级过的库放回升级前的样子、换回上一版程序，--save-current 先把现在的 Home 整份存到给出的目录。";
 
 const ALLOWED = { snapshot: ["--home", "--to", "--json"], restore: ["--home", "--from", "--recover", "--json"],

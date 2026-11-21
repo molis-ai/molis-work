@@ -18,7 +18,7 @@ import { authorizeLocalWebRequest, refuseForeignRequest, refuseLocalWebRequest, 
 import type { WebServerOptions } from './web-types.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
 import { MCP_CONTEXT_PATH } from './mcp-context-envelope.js';
-import { HOME_MAINTENANCE_PATH } from './home-maintenance-gateway.js';
+import { handleHomeMaintenanceHttp, HOME_MAINTENANCE_PATH } from './home-maintenance-gateway.js';
 import { MANAGEMENT_ACTION_PATH } from './management-action-client.js';
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId } from './action-gateway.js';
 import { createPersonalSync } from './personal-sync.js';
@@ -386,6 +386,11 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           sendLocalWebJson(response,200,{homeDirectory:entry.home,controlToken:entry.token});return;
         }
         if(internal&&account.preparing()){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
+        if(url.pathname===HOME_MAINTENANCE_PATH && (!gatewayHome || gatewayHome===actionGatewayHomeId(home))){
+          if(!authorizeLocalWebRequest(request,response,url,rootToken,mutations))return;
+          await handleHomeMaintenanceHttp(request,response,url,home,null);
+          return;
+        }
         if(internal && gatewayHome && gatewayHome!==actionGatewayHomeId(home)){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome);
           const active=()=>!!entry && [...entry.users.values()].some(valid=>valid());

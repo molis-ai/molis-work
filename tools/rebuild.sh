@@ -4,13 +4,14 @@
 set -eu
 TOOLS=$(cd "$(dirname "$0")" && pwd)
 REPO=$1
+REF=${2:-origin/main}
 ROAD=specs/post-anticorruption-roadmap
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-git -C "$REPO" fetch -q origin main
-git -C "$REPO" archive origin/main "$ROAD" | tar -x -C "$TMP"
-COMMIT=$(git -C "$REPO" log -1 --format=%h --abbrev=9 origin/main -- "$ROAD")
-FULL_SHA=$(git -C "$REPO" rev-parse origin/main)
+if [ "$REF" = "origin/main" ]; then git -C "$REPO" fetch -q origin main; fi
+git -C "$REPO" archive "$REF" "$ROAD" | tar -x -C "$TMP"
+COMMIT=$(git -C "$REPO" log -1 --format=%h --abbrev=9 "$REF" -- "$ROAD")
+FULL_SHA=$(git -C "$REPO" rev-parse "$REF")
 gh api repos/molis-ai/molis-work/issues/1743 > "$TMP/issue.json"
 python3 -I "$TOOLS/claimers.py" "$TMP/claimers.json"
 python3 -I "$TOOLS/build_data.py" "$TOOLS" "$TMP/$ROAD/reference" "$TMP/data.json" "$FULL_SHA"

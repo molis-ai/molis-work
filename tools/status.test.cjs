@@ -99,7 +99,7 @@ test('RAR-04 generated contract dependencies separate partial prerequisites from
 test('RAR-03 live-board snapshot releases batch 70 without marking it done or removing its hard blockers', () => {
   const D = apply(snapshot);
   const batch70 = D.batches.find(b => b.id === '70');
-  assert.equal(D.state['70'], 'open');
+  assert.ok(['open', 'doing'].includes(D.state['70']), `expected batch 70 to be released (open or doing), got ${D.state['70']}`);
   assert.ok(batch70.ready.length > 0);
   assert.ok(batch70.ready.length < batch70.items.length);
   assert.equal(batch70.merged, 0);
@@ -137,19 +137,42 @@ test('RAR-05 generated page uses the tested template algorithm', () => {
   assert.equal(generated.slice(generated.indexOf('const STAGES='), generated.indexOf('// 上次读到的进展')), algorithm);
 });
 
-test('moved redirect batches stay non-claimable and batch 91 dependencies and conditions stay well-formed', () => {
+test('moved redirect batches stay non-claimable and batch 91/92-105 dependencies and conditions stay well-formed', () => {
   const D = apply(snapshot);
   assert.notEqual(D.state['72'], 'open');
   const nodes = Object.fromEntries(snapshot.batches.flatMap(b => b.nodes.map(n => [n.id, n])));
   assert.deepEqual(nodes['91.1'].hard, ['36A.7']);
-  assert.deepEqual(nodes['91.2'].hard, ['31.1']);
+  assert.deepEqual(nodes['91.2'].hard, ['31.1', '101.1', '101.2']);
   assert.deepEqual(nodes['91.3'].hard, ['91.1', '91.2', '36A.1', '36A.2', '36A.3', '37.2']);
   assert.deepEqual(nodes['91.4'].hard, ['91.1', '91.2', '35.2', '36A.4']);
   assert.deepEqual(nodes['91.5'].hard, ['91.1', '36A.1', '36A.2', '36A.3', '36A.4', '36A.5', '36A.6', '36A.7']);
-  for (const id of ['91B.1', '91B.2', '91B.3']) assert.deepEqual(nodes[id].hard, ['91.1']);
+  for (const id of ['91B.1', '91B.2', '91B.3']) assert.deepEqual(nodes[id].hard, ['91.1', '101.1']);
   assert.deepEqual(nodes['91B.4'].hard, ['91B.1', '91B.2', '91B.3']);
-  for (const id of ['91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4']) {
+  assert.deepEqual(nodes['100.1'].hard, []);
+  assert.deepEqual(nodes['100.2'].hard, ['100.1']);
+  assert.deepEqual(nodes['101.1'].hard, ['100.2']);
+  assert.deepEqual(nodes['101.2'].hard, ['100.2']);
+  assert.deepEqual(nodes['102.1'].hard, ['100.2', '36A.1', '36A.2', '36A.3']);
+  assert.deepEqual(nodes['102.2'].hard, ['100.2']);
+  assert.deepEqual(nodes['103.1'].hard, ['101.1', '101.2']);
+  assert.deepEqual(nodes['103.2'].hard, ['101.1', '101.2']);
+  assert.deepEqual(nodes['104.1'].hard, ['91.2']);
+  assert.deepEqual(nodes['104.2'].hard, ['104.1', '101.1']);
+  assert.deepEqual(nodes['105.1'].hard, ['39.1', '39.2', '100.2']);
+  assert.ok(nodes['105.1'].partial.includes('62.1'));
+  assert.deepEqual(nodes['105.2'].hard, ['100.2']);
+  assert.ok(nodes['65.2'].hard.includes('105.1'));
+  for (const id of [
+    '91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4',
+    '92.1', '92.2', '92.3', '93.1', '93.2', '94', '95.1', '95.2', '95.3', '96.1', '96.2', '97.1', '97.2', '98', '99',
+    '100.1', '100.2', '101.1', '101.2', '102.1', '102.2', '103.1', '103.2', '104.1', '104.2', '105.1', '105.2',
+  ]) {
     assert.ok(nodes['90'].hard.includes(id), `90.hard missing ${id}`);
+  }
+  for (const bid of ['92', '93', '94', '95', '96', '97', '98', '99', '100', '101', '102', '103', '104', '105']) {
+    const b = snapshot.batches.find(x => x.id === bid);
+    assert.ok(b, `missing batch ${bid}`);
+    assert.notEqual(b.stage, 'S', `batch ${bid} must not be classified as server stage S`);
   }
   for (const b of snapshot.batches) {
     for (const c of b.cond) assert.ok(!/决定 \d+（待定）：\s*$/.test(c), `empty pending decision in ${b.id}: ${c}`);

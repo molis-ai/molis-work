@@ -1546,7 +1546,7 @@
 "basis": "两路都在 C 轨（C3／C）"
 },
 "63-1": {
-"title": "全平台评测扩展",
+"title": "全平台评测扩展（含 Piece 0 埋点补齐与 RSI／SIM 底座）",
 "main": "C3",
 "also": [
 "A"
@@ -2112,7 +2112,7 @@
 "basis": "两路一致"
 },
 "86-1": {
-"title": "Harness 效率实验",
+"title": "Harness 效率与 RSI 标杆实验",
 "main": "B",
 "also": [
 "C2"
@@ -2148,7 +2148,7 @@
 "basis": "回执阶段 6 几乎都是插件；记录说各场景另写小 spec，未点轨道"
 },
 "89-3": {
-"title": "Skill 效果比较",
+"title": "Skill 效果比较（三段式评测）",
 "main": "A",
 "also": [
 "C3"
@@ -2671,7 +2671,7 @@
 "basis": "tracks.md 逐项表（决定 55）"
 },
 "91-2": {
-"title": "平台运行流合同、Prologue 与 Agent Host 热路径减负",
+"title": "平台运行流合同、Prologue 窗口 A 换包与 Agent Host 热路径减负",
 "main": "C2",
 "also": [
 "C1",
@@ -2751,7 +2751,7 @@
 "basis": "tracks.md 逐项表（决定 55）"
 },
 "91B-4": {
-"title": "全站轻动效收口与三层自动化防回归门禁焊死",
+"title": "全站轻动效收口与确定性底线防回归门禁",
 "main": "无",
 "also": [
 "B",
@@ -2761,6 +2761,293 @@
 "kind": "收口与门禁",
 "occupy": false,
 "status": "定",
-"basis": "tracks.md 逐项表（决定 55）"
+"basis": "tracks.md 逐项表（决定 55、决定 57、决定 58）"
+},
+"92-1": {
+"title": "把图片下载的漏测命令补进手册",
+"main": "E",
+"also": [],
+"kind": "文档",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"92-2": {
+"title": "把「打开数据库会不会创建文件」写准确",
+"main": "无",
+"also": [
+"C1"
+],
+"kind": "文档",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"92-3": {
+"title": "让 Goals 测试即使报错也关干净",
+"main": "E",
+"also": [],
+"kind": "测试",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"93-1": {
+"title": "确认页面关掉时，两个正在做的请求各收到自己的取消原因",
+"main": "无",
+"also": [
+"C1"
+],
+"kind": "测试",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"93-2": {
+"title": "关掉侧栏浏览器后，清掉还没挂好的监听",
+"main": "A",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"94-1": {
+"title": "重新安装同版本开发 App 后，用上刚编出来的版本",
+"main": "F",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"95-1": {
+"title": "把 Feed 连数据库的旧函数名改准确",
+"main": "E",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"95-2": {
+"title": "资讯更新点过「现在做」，睡醒后直接做",
+"main": "E",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"95-3": {
+"title": "错过的任务统一留七天，到期一次说清跳过了几件",
+"main": "A",
+"also": [
+"E",
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"96-1": {
+"title": "编辑一项定时任务时，只查这一项",
+"main": "C",
+"also": [
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"96-2": {
+"title": "定时任务失败时，开着的详情立刻显示原因",
+"main": "E",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"97-1": {
+"title": "助理只汇报结果时，别占用继续干活的次数",
+"main": "A",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"97-2": {
+"title": "同一项目同时办完几件事，助理合起来报一次",
+"main": "A",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"98-1": {
+"title": "让两家插件都能提供同一种材料，还能按来源挑",
+"main": "C1",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"99-1": {
+"title": "在 Coding 的本轮变更里列出确实删掉的文件",
+"main": "B",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 56）"
+},
+"100-1": {
+"title": "路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列",
+"main": "无",
+"also": [],
+"kind": "文档",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"100-2": {
+"title": "反效果门禁精准松绑与 CI 碎作业合并",
+"main": "无",
+"also": [],
+"kind": "收口与门禁",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"101-1": {
+"title": "现役 P0 功能故障、英文模式断链与安全异常修复",
+"main": "D",
+"also": [
+"A",
+"C1",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"101-2": {
+"title": "零误报死文件清理与热路径/生命周期泄漏止血",
+"main": "C2",
+"also": [
+"A",
+"C1",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"102-1": {
+"title": "工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径",
+"main": "D",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"102-2": {
+"title": "沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化",
+"main": "F",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"103-1": {
+"title": "休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发",
+"main": "C1",
+"also": [
+"C3",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"103-2": {
+"title": "Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理",
+"main": "C1",
+"also": [
+"C3",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"104-1": {
+"title": "15+ 插件非 Agent 单次 AI 调用纳管",
+"main": "C2",
+"also": [
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"104-2": {
+"title": "面向非技术用户的全站统一报错翻译与安全重试",
+"main": "A",
+"also": [
+"B",
+"C2",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"105-1": {
+"title": "防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批",
+"main": "C2",
+"also": [
+"A",
+"B",
+"C1",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
+},
+"105-2": {
+"title": "双子代理终态缓存、Mainline 增量校验与日常高频交互润色",
+"main": "A",
+"also": [
+"C2",
+"C3",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 58）"
 }
 }

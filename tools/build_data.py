@@ -26,7 +26,7 @@ def load(b):
     t=open(f'{B}/{fn}.md').read()
     head=t.split('\n')[0]
     title=clean(head.split('·',1)[1])
-    m=re.search(r'阶段 (\d)',t[:400]); stage=m.group(1) if m else 'S'
+    m=re.search(r'阶段 (\d)',t[:400]); stage=m.group(1) if m else ('S' if b.startswith(('SRV','REL')) else '2')
     intro=re.search(r'^## 给人讲清楚\n(.*?)^## ',t,re.S|re.M).group(1).strip().replace('\n',' ')
     ask=''
     if '需要你做的' in intro:

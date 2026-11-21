@@ -112,4 +112,3 @@ export function requireManagementDefinition(reference: ManagementActionReference
   return definition;
 }
 
-export { bindManagementActions as bindGoalsManagementActions };

@@ -9,6 +9,7 @@ import { bindStandaloneManagementActions, catalogManagementProject, residentMana
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
 import { preflightMemoryHome } from "./memory/memory-initialization.js";
 import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
+import { MANAGEMENT_MCP_TOOLS, managementToolOpensNewDatabase } from "./mcp-platform-tools.js";
 import path from "node:path";
 
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => {
@@ -46,9 +47,9 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     return dispatchMcpProjectTool(residentManagementActions({ home: caller.resident.home, origin: caller.resident.origin, controlToken:caller.resident.controlToken, signal: caller.resident.signal,
       ensureResident: caller.resident.ensureResident, databasePath: path.resolve(location),
       projectId: String(arguments_.project_id), fallback: () => { throw new ActionError("actions.service_unavailable", "生产 MCP 不在本地执行管理操作"); } }),
-      name, arguments_, { audience, createError: createPresentationError });
+      name, arguments_, { audience, createError: createPresentationError, declared: MANAGEMENT_MCP_TOOLS });
   }
-  const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
+  const storage = prepareLocalProjectStorage(location, managementToolOpensNewDatabase(name) ? "create" : "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
     throw mcpErrors.not_found(`Molis Work 数据库不存在: ${databasePath}`);
@@ -69,7 +70,7 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
   if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
   if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });
-  if (!owned && name === "molis_work_v1_initialize" && audience === "management") await ensureStandaloneProjectRoot(caller.localHost, reference);
+  if (!owned && managementToolOpensNewDatabase(name) && audience === "management") await ensureStandaloneProjectRoot(caller.localHost, reference);
   if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
   const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
     home: caller.resident.home, origin: caller.resident.origin, controlToken:caller.resident.controlToken, signal: caller.resident.signal,
@@ -78,5 +79,6 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   return dispatchMcpProjectTool(actions, name, arguments_, {
     audience,
     createError: createPresentationError,
+    declared: MANAGEMENT_MCP_TOOLS,
   });
 }

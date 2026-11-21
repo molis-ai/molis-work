@@ -2,7 +2,6 @@ import { projectDeletionLabels } from "./web-project-deletion.js";
 import type { IncomingMessage } from "node:http";
 import type { WorkbenchRenderer, WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
-import { isTerminalRuntime } from "./plugin-terminal-runtimes.js";
 import { createLocalProjectSettingsHttp, type LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalArtifactHttp } from "./artifact-library-http.js";
@@ -43,7 +42,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   const projectPagesHttp = createLocalProjectPagesHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const handleOnboarding = createLocalOnboardingHttp({
     withCatalog, renderOnboarding: workbenchRenderer.renderMolisWorkOnboarding,
-    isRuntimeKind: isTerminalRuntime, cliAvailability: platform.cliAvailability,
+    cliAvailability: platform.cliAvailability,
     isDesktopShellRequest, pageCsp: PAGE_CSP,
   });
   const periodicTasks = createPeriodicTasks();

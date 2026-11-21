@@ -32,6 +32,9 @@ export function projectGuidanceActionProvider(projectId: string, db: SqliteDatab
  * person on this machine, pinned to the platform's provider so no installation that registered the same id answers it. A refusal
  * leaves the caller to start without the layer.
  */
+/** The platform's guidance read, pinned to its own provider: every Host reader uses this, never the bare definition (S-project-guidance). */
+export const pinnedProjectGuidanceRead = { ...a.read, provider_id: PROJECT_GUIDANCE_PROVIDER_ID };
+
 export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
   const provider_id = PROJECT_GUIDANCE_PROVIDER_ID;
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id,

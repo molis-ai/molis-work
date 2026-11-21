@@ -150,7 +150,7 @@ function productionMcpBranch(file, text) {
   };
   if (fn?.body) find(fn.body);
   const valid = purePrefix && !branch.elseStatement && dispatch?.arguments.length === 4 && text(dispatch.arguments[1]) === "name"
-    && text(dispatch.arguments[2]) === "arguments_" && text(dispatch.arguments[3]) === "{audience,createError:createPresentationError}"
+    && text(dispatch.arguments[2]) === "arguments_" && text(dispatch.arguments[3]) === "{audience,createError:createPresentationError,declared:MANAGEMENT_MCP_TOOLS}"
     && input && ts.isObjectLiteralExpression(input) && input.properties.length === Object.keys(expected).length
     && values.size === Object.keys(expected).length && Object.entries(expected).every(([key, value]) => values.get(key) === value)
     && firstPreparation && branch.end < firstPreparation.pos && missingLocation && missingLocation.end <= branch.pos;

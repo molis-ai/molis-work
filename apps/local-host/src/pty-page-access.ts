@@ -44,12 +44,12 @@ export function pageTerminalOwnership(home?: string) {
           throw new ActionError("actions.forbidden", "终端不属于当前插件页面");
         if (owner.project_id === page.project_id) return;
         // A Home-scoped plugin page (`page.project_id === null`) may attach to its own project work terminal
-        // only while that plugin remains enabled/visible in `owner.project_id`.
+        // only while that plugin is proven enabled/visible in `owner.project_id`; no catalog or an undecided judge refuses (fails closed).
         if (page.project_id === null && owner.project_id !== null) {
           const catalog = pluginCatalogFor(home);
-          if (!catalog) return;
-          const allowed = await catalog({ homeDirectory: home }, projects =>
-            projectPluginJudge(projects, owner.project_id!, home)(page.plugin_id) !== false);
+          const allowed = catalog
+            ? await catalog({ homeDirectory: home }, projects => projectPluginJudge(projects, owner.project_id!, home)(page.plugin_id) === true)
+            : false;
           if (allowed) return;
         }
         throw new ActionError("actions.forbidden", "终端不属于当前插件页面");

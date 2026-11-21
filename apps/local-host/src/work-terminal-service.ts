@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { ActionError, bindActionHandler, defineErrorCodes, isWorkTerminalPromptAction, requireSynchronous, WORK_TERMINAL_ACTIONS, WORK_TERMINAL_PROVIDER_ID, workTerminalActions, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration, type ActionSubject, type ActionView, type WorkTerminalCloseInput, type WorkTerminalListInput, type WorkTerminalListResult, type WorkTerminalOpenInput, type WorkTerminalOpenResult, type WorkTerminalPanelRow, type WorkTerminalPromptActionInput, type WorkTerminalPromptActionResult, type WorkTerminalPromptView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { projectGuidanceActions, type ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { assembleWorkTerminalPrompt, workTerminalDeclarationFor } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { assertPassiveProjectAvailable } from "./passive-sync-execution.js";
@@ -14,6 +14,7 @@ import { projectPluginJudge } from "./project-action-availability.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { withTerminalPageOwner } from "./pty-page-access.js";
+import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 const workTerminalErrors = defineErrorCodes("host", { work_terminal_read_only: "conflict" });
 
@@ -367,7 +368,7 @@ async function buildWorkTerminalPrompt(ports: WorkTerminalProviderPorts, input: 
   const info = await readWorkTerminalSubjectPrompt(caller, client, target, input.subject, input.onboarding);
   assertLive();
   if (info.read_only) throw workTerminalErrors.work_terminal_read_only(info.read_only_reason ?? "当前对象为只读，不能直接推进。");
-  const guidance = await client.invoke(caller, projectGuidanceActions.read, {}) as ProjectGuidanceView;
+  const guidance = await client.invoke(caller, pinnedProjectGuidanceRead, {}) as ProjectGuidanceView;
   assertLive();
   return {
     plugin_id: input.plugin_id,

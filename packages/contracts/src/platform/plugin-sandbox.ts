@@ -1,8 +1,11 @@
-import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentUploadRequest } from '../services/materials.js';
-import type { MaterialRef } from './project-materials.js';
+import type { ConversationAttachment, ConversationAttachmentContent } from '../services/conversation-attachments.js';
+import type { TrustedReviewRow } from '../services/trusted-review-row.js';
+import type { MaterialRef } from './material-ref.js';
 import type { ActionSchema } from './action-schema.js';
-import type { IntakeStart } from './item-intake.js';
+import type { IntakeStart } from './intake-start.js';
+import type { PlacementRelationRole, PlacementRelationTarget } from './placement-relation.js';
 import type { PresentationDeclaration } from './presentation-declaration.js';
+import type { SettingEntryDeclaration } from './setting-entry.js';
 import type { PluginLocalesDeclaration, TextRef, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
 
 /** JSON-only contract shared by generated plugins and the trusted host. */
@@ -125,7 +128,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
   start?: SandboxOperationStart;
   /** The package's own read-only review query and the kinds of objects it can review. */
   trusted_review?: { readonly reader: string; readonly subject_kinds: readonly string[];
-    readonly row: import("../services/project-approvals.js").TrustedReviewRow };
+    readonly row: TrustedReviewRow };
   /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
   background_job?: {
     status: string;
@@ -157,7 +160,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
 
 /** Fixed platform action protocols whose operations may be queries or commands (`placement_relation` and `settings`). */
 export type SandboxActionProtocol =
-  | { kind: 'placement_relation'; relation: string; role: import("./placement.js").PlacementRelationRole; target?: import("./placement.js").PlacementRelationTarget; subject_kinds?: readonly string[] }
+  | { kind: 'placement_relation'; relation: string; role: PlacementRelationRole; target?: PlacementRelationTarget; subject_kinds?: readonly string[] }
   | { kind: 'settings'; role: 'read' | 'write' };
 
 export interface SandboxProtocolOperation extends SandboxOperationFields {
@@ -177,7 +180,7 @@ export type SandboxVisibleText = string | TextRef;
 
 /** Sandbox contract settings declaration pointing to this contract's own `action_protocol: { kind: 'settings' }` operations. */
 export interface SandboxSettingsDeclaration {
-  readonly entries: import("./settings.js").SettingEntryDeclaration[];
+  readonly entries: SettingEntryDeclaration[];
   readonly read_operation: string;
   readonly write_operation: string;
 }
@@ -449,7 +452,7 @@ export interface SandboxSdk {
     readOriginal(record_key: string, request?: { maxBytes?: number }): Promise<{ bytes: Uint8Array }>;
     releaseOriginal(record_key: string): Promise<void>;
     /** A file the person brought into this plugin's conversation, kept as this installation's attachment in this project (`materials:read`). */
-    attach(file: SandboxMaterialFile, request?: Pick<ConversationAttachmentUploadRequest, 'expected_kind'>): Promise<ConversationAttachment>;
+    attach(file: SandboxMaterialFile, request?: { expected_kind?: 'image' }): Promise<ConversationAttachment>;
     /** One of this installation's attachments read back: its text, or a picture's bytes (read in parts of at most 256 KiB). */
     readAttachment(ref: MaterialRef, request: { as: 'text' | 'image' }): Promise<ConversationAttachmentContent>;
   };

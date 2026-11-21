@@ -1,4 +1,5 @@
 import { inputSchemaFor } from "./action-input.js";
+import type { ActionSubject } from "./action-subject.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionView, type ExactActionReference, type RetainedActionAuthority } from "./actions.js";
 
 export const SUBJECT_REFERENCE_TYPE = /* @version type.molis.subject-reference "molis.subject-reference.v{version}" */ "molis.subject-reference.v1";
@@ -27,7 +28,7 @@ export const SUBJECT_STATE_OUTPUT_SCHEMA = { type: "object", properties: {
   subject: { type: "object", properties: { kind: stateId, id: stateId }, required: ["kind", "id"], additionalProperties: false },
   state: { enum: ["active", "archived", "deleted"] },
 }, required: ["subject", "state"], additionalProperties: false };
-export interface ActionSubject { kind: string; id: string }
+export type { ActionSubject } from "./action-subject.js";
 export interface ActionSubjectContext {
   subject: ActionSubject;
   revision: string;

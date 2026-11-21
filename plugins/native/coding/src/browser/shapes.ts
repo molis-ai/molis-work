@@ -1,8 +1,8 @@
 /** The JSON the Coding routes answer, as far as the page reads it (src/routes-*.ts write it). */
-import type { AgentStepBoard, AgentStepProgressSummary } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentStepBoard, AgentStepProgressSummary, AgentStepReportAuthor } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** Who the Host says made a report: a kind the page words itself, the Host's own label, and a subtask's title. */
-export type StepReportAuthor = NonNullable<AgentStepBoard["nodes"][number]["reports"][number]["by"]>;
+export type StepReportAuthor = AgentStepReportAuthor;
 
 export interface StepReport { readonly by?: StepReportAuthor; readonly note: string; readonly at_ms?: number; readonly inputs?: readonly { readonly input_id: string }[] }
 

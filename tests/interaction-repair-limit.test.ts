@@ -29,7 +29,7 @@ test("a question refused twice stops the round, and the round says so live and a
   const open = () => adapterIn(home);
 
   let adapter = await open();
-  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Repair limit" });
+  const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "helper", title: "Repair limit" });
   const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "让 src/config.js 也能读 YAML，先问我用哪个库" });
   const deadline = Date.now() + 40_000;
   let live = await adapter.read(handle.ref);
@@ -66,7 +66,7 @@ test("ISSUE-34 a question refused once is told why, its original shape kept, and
   const adapter = await adapterIn(home);
   // Closed before its storage goes: closing withdraws the waiting question, which writes.
   t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Repair once" });
+  const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "helper", title: "Repair once" });
   const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "记录 Issue：111" });
   const deadline = Date.now() + 40_000;
   let run = await adapter.read(handle.ref);
@@ -107,7 +107,7 @@ test("101-2: round terminal cleanup runs exactly once whether zero or multiple o
 
   for (const observerCount of [0, 3]) {
     released.length = 0;
-    const session = await adapter.createSession({ ...owner, workspace: "business", title: `Observe ${observerCount}` });
+    const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "helper", title: `Observe ${observerCount}` });
     const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "简短回复" });
     const seen = Array.from({ length: observerCount }, () => 0);
     const offs = seen.map((_, index) => adapter.observe(handle.ref, view => {

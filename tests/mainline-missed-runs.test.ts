@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -21,7 +22,7 @@ const run = (id: string, extra: Record<string, unknown> = {}) => ({ run_id: id, 
 type Call = [capability: string, input: unknown, queryOnly: boolean];
 function clientOf(views: ActionView[], answer: (capability: string, input: unknown) => unknown): { client: ActionClient; calls: Call[] } {
   const calls: Call[] = [];
-  const client: ActionClient = { discover: async () => views, invoke: async (caller, action, input) => { calls.push([action.capability_id, input, caller.query_only === true]); return answer(action.capability_id, input); } };
+  const client: ActionClient = fakeActionClient({ discover: async () => views, invoke: async (caller, action, input) => { calls.push([action.capability_id, input, caller.query_only === true]); return answer(action.capability_id, input); } });
   return { calls, client };
 }
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;

@@ -82,7 +82,7 @@ interface Answer { readonly status: number; readonly body: Record<string, unknow
 async function failingEdge(owner: "feed" | "inbox" | "schedule") {
   installHostUiText();
   const failure: { current: unknown } = { current: undefined };
-  const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
+  const actions: BoundActionClient = { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { throw failure.current; } };
   const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedTestHttp(request, response, url, actions)
     : owner === "inbox" ? handleInboxTestHttp(request, response, url, actions)
       : handleScheduleTestHttp(request, response, url, actions);

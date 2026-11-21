@@ -131,7 +131,7 @@ export function createGoalsPlugin(): PluginDefinition {
     const snapshot = () => readMolisWorkSnapshot({ goals: goals.query, governance: governanceModule.query }, projectId);
     const events = () => sqlite.journalReader().readEventsDescending();
 
-    const clientFor = (caller: ActionExecutionContext): ActionClient => ({ discover: () => directory.discover(), invoke: (_context, reference, input) => directory.invoke(reference, input, controlOf(caller)) });
+    const clientFor = (caller: ActionExecutionContext): ActionClient => ({ discover: () => directory.discover(), discoverOne: (_context, reference) => directory.discoverOne(reference), invoke: (_context, reference, input) => directory.invoke(reference, input, controlOf(caller)) });
     const materials: Pick<GoalsInputPorts, "readMaterial" | "pinned"> = {
       readMaterial: (caller, ref) => directory.invoke<MaterialsReadResult>(READ_MATERIAL, { ref, mode: "head" }, controlOf(caller)),
       pinned: (caller, versions) => directory.invoke<MaterialsPinnedResult>(READ_PINNED, { versions }, controlOf(caller)),
@@ -221,6 +221,6 @@ export function createGoalsPlugin(): PluginDefinition {
         // 「建成目标」 is Goals' own create, in its own write window; the next step is a read like the presentation values.
         ...createGoalItemHandlers(projectId, windowed(handlers.find(binding => binding.capability_id === goalEntryActions.create.capability_id)!), goals.query, application.goalEvents,
           window.read, ready)],
-      routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
+      routes: goalsRoutes({ actions: request => ({ discover: async () => [], discoverOne: async () => undefined, invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };
 }

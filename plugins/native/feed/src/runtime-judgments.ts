@@ -60,8 +60,10 @@ const sceneClientOf = (scenes: PluginSceneClient): ActionSceneClient => ({
   runScene: (_caller, scene, bindingId, event) => scenes.runScene(scene, bindingId, event),
 });
 
-const actionClientOf = (directory: PluginActionDirectory): ActionClient => ({
+/** The delegation directory as an `ActionClient`: it runs as the directory's own caller, so the one given here is not used. */
+export const actionClientOf = (directory: PluginActionDirectory): ActionClient => ({
   discover: () => directory.discover(),
+  discoverOne: (_caller, reference) => directory.discoverOne(reference),
   invoke: (_caller, reference, input) => directory.invoke(reference, input),
 });
 

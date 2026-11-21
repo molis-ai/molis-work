@@ -40,6 +40,8 @@ export interface PluginUiClient {
  */
 export interface PluginActionDirectory {
   discover(): Promise<readonly import("./actions.js").ActionView[]>;
+  /** The one view of `reference` that `discover` would show, read without the whole directory. */
+  discoverOne(reference: import("./actions.js").ActionReference): Promise<import("./actions.js").ActionView | undefined>;
   invoke<Output = unknown>(reference: import("./actions.js").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
   /** Refuses as `invoke` would before the target runs (a target this caller cannot reach, an input its schema rejects); runs and logs nothing. */
   check(reference: import("./actions.js").ActionReference, input: unknown): Promise<void>;

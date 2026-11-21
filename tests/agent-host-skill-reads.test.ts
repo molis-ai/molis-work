@@ -82,7 +82,7 @@ test("SKC-07: a round of twenty catalog Skills reads the catalog once and the bo
 test("SKC-07: five Skills the Host's delegation named and five the page chose are read in two groups, each once", async () => {
   const seen: Array<{ actor: string; action: string; refs?: number; named: number }> = [];
   const client: ActionClient = {
-    discover: () => [],
+    discoverOne: async () => undefined, discover: () => [],
     async invoke(caller, action, input) {
       const refs = (input as { refs?: SkillRef[] }).refs;
       seen.push({ actor: caller.actor_id, action: action.capability_id, ...(refs ? { refs: refs.length } : {}), named: caller.skill_round!.named.length });

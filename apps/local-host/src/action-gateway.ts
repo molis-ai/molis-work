@@ -3,7 +3,7 @@ import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 import { actionGatewayHomeId } from "./action-gateway-identity.js";
 import { createMcpClientProof } from "./mcp-client-credentials.js";
-import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionViewFor, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
@@ -36,6 +36,10 @@ export class LocalActionGatewayClient implements ActionClient {
     if (typeof reply.instance_id !== "string" || !Array.isArray(reply.actions)) throw new ActionError("actions.transport_invalid", "系统动作目录响应无效");
     this.instance = reply.instance_id;
     return reply.actions as ActionView[];
+  }
+  /** The gateway's protocol only lists the directory, so one action is found in the list it returns. */
+  async discoverOne(caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {
+    return actionViewFor(await this.discover(caller), reference);
   }
   async invoke<Output = unknown>(caller: ActionCallContext, reference: ActionReference, input: unknown): Promise<Output> {
     this.checkCaller(caller);

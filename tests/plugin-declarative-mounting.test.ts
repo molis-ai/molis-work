@@ -356,6 +356,32 @@ test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area 
   assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
 });
 
+test("OPEN-PLACE-01 RISK-04 a plugin installed at run time is placed by its Manifest as a built-in is: the page reads the places from the runtime directory", async () => {
+  const { CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory, sanitizePluginDirectory, sideOpenedItemPlugins, sideOpenedPlugins, sidePlaces } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, views: Array<{ view_id: string; slot: "side" | "stage"; opens_items?: boolean }>) => ({ id, plugin_id: `io.example.${id}`, name: id, chosen: false,
+    ui: { views: views.map(view => ({ ...view, title: id })) } });
+  const installed = sanitizePluginDirectory([
+    entry("sidecar", [{ view_id: "pad", slot: "side" }]),
+    entry("tracker", [{ view_id: "board", slot: "stage" }, { view_id: "one", slot: "side", opens_items: true }]),
+    entry("plain", [{ view_id: "board", slot: "stage" }, { view_id: "aside", slot: "side" }]),
+    { ...entry("listed", [{ view_id: "aside", slot: "side" }]), ui: { views: [{ view_id: "list", slot: "navigator" as const, title: "listed" }, { view_id: "aside", slot: "side" as const, title: "listed" }] } },
+  ]);
+  const places = sidePlaces([...builtinPluginDirectory(), ...installed]);
+  // Only a side view: opening the plugin lands in it. A stage too: the work area, and an item first in the `opens_items` view.
+  assert.equal(places.side.sidecar, "plugin:sidecar/pad");
+  assert.equal(["tracker", "plain", "listed"].some(id => Object.hasOwn(places.side, id)), false, "a stage or a navigator view is a work-area place");
+  assert.equal(places.items.tracker, "plugin:tracker/one");
+  assert.equal(Object.hasOwn(places.items, "plain"), false);
+  // The built-ins are placed as before.
+  assert.deepEqual(sidePlaces(builtinPluginDirectory()), { side: sideOpenedPlugins(), items: sideOpenedItemPlugins() });
+  // The page's directory data carries them; the tab workspace keeps no map of its own, so a plugin added in place is placed too.
+  const client = clientPluginDirectory(installed, [], places);
+  assert.deepEqual(client.filter(row => row.side || row.side_item).map(({ id, side, side_item }) => ({ id, side, side_item })),
+    [{ id: "sidecar", side: "plugin:sidecar/pad", side_item: undefined }, { id: "tracker", side: undefined, side_item: "plugin:tracker/one" }]);
+  assert.doesNotMatch(CLIENT_SCRIPT, /plugin:shelf\/side|plugin:risk\/record/u, "no built-in side tab is written into the script");
+  assert.ok(CLIENT_SCRIPT.includes("placeOf(plugin)?.side"), "the side open reads the page's directory");
+});
+
 test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
   const { builtinPluginDirectory, clientPluginDirectory, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
   // What the page's scripts read is the directory's `accepts_objects` per plugin; the same projection serves a plugin installed at run time.

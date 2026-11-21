@@ -1,28 +1,27 @@
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 /**
  * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
- * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle and the same sandboxed definition, over the Home's Runtime
+ * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle (`installed-plugin-common.ts`) and the same sandboxed definition, over the Home's Runtime
  * and the Home's action service instead of a project's. What differs is only what has no project to hang on: the person's approval, the
  * secrets and the prompt registrations sit under one Home key. Its sandbox identity keeps `project_id` null; a Host-issued invocation
  * may reach its triggering project only with that project's current agreement. Its pages remain personal plugins every project reaches.
  */
 import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { holdsFailedDatabaseUpgrade } from '@molis-ai/molis-work-plugin-runtime';
+import type { SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { CallConnectionsPort, PluginLocaleReader, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
-import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
+import { publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
-import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
+import { installedLifecycle, type InstalledPluginPlatform, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
+import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
 import { HOME_INSTALL_SCOPE, installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { isPluginTableRefusal } from './home-unavailable-owners.js';
 import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
 import { configuredModelChoices } from './configured-models.js';
-import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
-import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { declaredOnlyHolds, pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
@@ -72,31 +71,22 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const { home, platform, integrations } = options;
   const actions: ProjectActions = { ...options.actions, project_id: null };
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
-  const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
-  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new RecoveryErrors();
-  let closed = false, exposureRevision = 0;
+  const packages = new SandboxPackageStore(home), declared = declaredOnlyHolds(pluginHomeFor(home));
+  const offers = installedOffers(), { exposed } = offers, recoveryErrors = new RecoveryErrors();
+  let closed = false;
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
-  const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
-  /** `retryUninstall`: also the one signed tombstone of this plugin whose uninstall has not finished its clean-up (BL-915), never another. */
-  const pendingUninstalls = () => platform.runtime.list().filter(isPendingUninstall);
-  const recordFor = (pluginId: string, retryUninstall = false) => records().find(item => item.plugin_id === pluginId)
-    ?? (retryUninstall ? onlyOne(pendingUninstalls().filter(item => item.plugin_id === pluginId)) : undefined);
+  const { records, pendingUninstalls, recordFor } = installedRecords(() => platform.runtime.list(), item => item.publisher_trust === 'pinned' && item.execution === 'sandbox');
   /** A package runs only while its publisher's pin stands (S-84, S-87): the ledger is asked at the start, at every effect, and before it is enabled again. */
   const standing = publisherStanding({ publishers: () => platform.consents?.publishers() ?? [] });
-  /** A package is read back (and checked again) from the Home's package store the first time an installation asks for it. */
+  const packagedFor = packagedReleases(packages, standing);
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
     if (!record) return undefined;
-    const key = JSON.stringify([record.plugin_id, record.publisher_signature, record.version]);
-    try {
-      if (!standing.trusted(record)) throw pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE);
-      let release = packaged.get(key);
-      if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
-      return release;
-    } catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
+    try { return packagedFor(record); }
+    catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
   };
-  const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
+  const approvedFor = installedApprovals(storage);
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     // The Home's instance has no project: an identity that names one is another instance's, and is never taken for this.
@@ -105,21 +95,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     }
   };
   const reach = platform.consents ? projectReachConsents({ ledger: platform.consents, records, releaseFor, assertInstalled }) : undefined;
-  const catalog = installedCapabilityCatalog(home, async () => {
-    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-    let snapshot: CatalogCapability[], revision: number;
-    for (;;) {
-      revision = exposureRevision;
-      try { snapshot = await capabilityCatalog(actions, options.actorId); }
-      catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
-      if (isClosed()) return [];
-      if (revision !== exposureRevision) continue;
-      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-      let changed = false;
-      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-      if (!changed) return snapshot;
-    }
-  });
+  const catalog = installedCatalog(home, offers, () => capabilityCatalog(actions, options.actorId), isClosed);
   const resolveCall = async (context: SandboxServiceContext) => {
     context.signal.throwIfAborted(); assertInstalled(context.identity);
     if (context.projectReach) reach?.captureCall(context.projectReach, context.identity);
@@ -170,9 +146,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     if (!attached.delete(pluginId)) return;
     void integrationRegistry().then(registry => registry.detach(pluginId)).catch(() => undefined);
   };
-  const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; detach(pluginId); };
-  const exposeActions = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw,
-    changed: () => { exposureRevision++; }, catalog });
+  const withdraw = (pluginId: string) => { offers.withdraw(pluginId); detach(pluginId); };
+  const exposeActions = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw, changed: offers.changed, catalog });
   const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
     if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);
     const pluginId = release.pluginId, record = recordFor(pluginId), installId = record?.install_id;
@@ -202,28 +177,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   try {
     // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).
     disposePlatform = registerPlatformCapabilities(actions, { generate });
-    // One package that cannot start leaves its reason with its installation and starts nothing else less: the built-in plugins and the other packages go on.
-    for (const record of records()) {
-      try {
-        if (!standing.trusted(record)) { await stops.suspend(record); continue; }
-        const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
-        if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
-        if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
-        assertHomePackageAllowed(release.packaged!.manifest);
-        const blocked = installedHomeUpgradeBlocked(home, record);
-        registerPrompts(release, blocked || record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
-        if (blocked) throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
-        if (record.state === 'disabled' || record.state === 'quarantined') {
-          const restored = definition(release, approved); platform.runtime.register(restored);
-          await platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
-        }
-        // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
-        const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
-        if (report.running.includes(record.plugin_id)) await expose(release);
-        else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      } catch (error) { recoveryErrors.set(record.plugin_id, error); }
-    }
+    await recoverInstalledRecords({ records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose,
+      unapproved: '找不到此安装的批准记录，请先卸载并重新确认安装',
+      admit: release => assertHomePackageAllowed(release.packaged!.manifest),
+      blocked: record => installedHomeUpgradeBlocked(home, record) ? pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复') : undefined });
   } catch (error) { close(); throw error; }
 
   const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };

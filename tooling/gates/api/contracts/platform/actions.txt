@@ -477,7 +477,7 @@ export interface ActionCallOrigin {
 
 export interface ActionClient {
     discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
-    discoverOne?(context: ActionCallContext, reference: ActionReference): ActionView | undefined | Promise<ActionView | undefined>;
+    discoverOne(context: ActionCallContext, reference: ActionReference): ActionView | undefined | Promise<ActionView | undefined>;
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
@@ -2104,7 +2104,7 @@ export interface BackgroundTaskPhrase {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
+    discoverOne(reference: ActionReference): Promise<ActionView | undefined>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
@@ -5919,6 +5919,8 @@ export declare function actionResultSubject(action: Pick<ActionDefinition["actio
     subject: ActionSubject;
     revision: string | null;
 } | null;
+
+export declare function actionViewFor(views: readonly ActionView[], reference: ActionReference): ActionView | undefined;
 
 export declare function artifactLineHeadOf(latest: {
     version: number;

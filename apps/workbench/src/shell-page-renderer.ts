@@ -12,7 +12,7 @@ import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { directoryPanelIdentity, renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { directoryWidthPreferenceScript } from "./directory-width.js";
-import { islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
+import { islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sidePlaces } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, renderPluginTabTitlesData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
@@ -169,7 +169,7 @@ function renderMolisWorkWeb(
   const primitives = { readText, escapeHtml, icon, htmlLang };
   const appearance = owners.appearance?.current();
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
-  const directory = pluginDirectoryFor(view.plugin_directory);
+  const directory = pluginDirectoryFor(view.plugin_directory), places = sidePlaces(directory);
   // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
   const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
   const requested = view.pane_plugin ?? view.initial_plugin;
@@ -177,7 +177,7 @@ function renderMolisWorkWeb(
   const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory)];
   const contributions = requested ? [view.plugin_stage_views?.[`home:${requested}`], view.plugin_stage_views?.[`project:${requested}`],
     ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
-  const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(sideOpenedPlugins(), requested)
+  const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(places.side, requested)
     && !(view.unavailable_plugin_stages ?? []).some(stage => stage.surface === requested)
     && contributions.some(contribution => contribution?.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"
       && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html"
@@ -222,7 +222,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     },
     body_html: `
   ${renderIconSprite()}
-  ${renderPluginDirectoryData(directory, offered.map(entry => entry.id))}
+  ${renderPluginDirectoryData(directory, offered.map(entry => entry.id), places)}
   ${renderPluginTabTitlesData(pluginTabTitles(directory))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">

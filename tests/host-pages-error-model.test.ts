@@ -88,7 +88,7 @@ const FUNCTIONS_STATUS: Readonly<Record<string, number>> = {
 
 async function failingFunctionsEdge(t: TestContext) {
   const failure: { current: unknown } = { current: undefined };
-  const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
+  const actions: BoundActionClient = { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { throw failure.current; } };
   const home = await mkdtemp(join(tmpdir(), "host-pages-error-model-functions-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const server = await serveNativeHttp((request, response, url) => hostModule.handleFunctionsHttp(request, response, url, home, { actions }));
@@ -268,7 +268,7 @@ test("the plugin routes of the settings tell a missing project from every other 
 // ---- 3. The artifact edge --------------------------------------------------------------------------------------------
 
 async function artifactEdge(t: TestContext, failure: { current: unknown }, invoke: BoundActionClient["invoke"] = async () => { throw failure.current; }) {
-  const actions: BoundActionClient = { discover: async () => [], invoke };
+  const actions: BoundActionClient = { discoverOne: async () => undefined, discover: async () => [], invoke };
   const handle = hostModule.createLocalArtifactHttp();
   return serve((request, response, url) => hostModule.runWithLocale(request.headers["accept-language"] === "en" ? "en" : "zh", () => handle(request, response, url.pathname, {
     projectId: "p1", routePrefix: "/projects/p1", projectTitle: "项目", actions, controlToken: "token", desktopShell: false, pageCsp: "default-src 'none'",
@@ -449,7 +449,7 @@ test("a project reference that cannot be opened is a coded failure of the Host's
 
 test("the project-reference route answers by kind, and an escape that does not decode is the caller's mistake, not a 500", async t => {
   const failure: { current: unknown } = { current: undefined };
-  const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
+  const actions: BoundActionClient = { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { throw failure.current; } };
   const edge = await serve((request, response, url) => hostModule.handleLocalProjectReferenceHttp(request, response, url, actions), t);
   const get = (reference: string) => edge.send("GET", `/api/project-references/${reference}`);
   failure.current = new ActionError("actions.forbidden", "没有权限");

@@ -252,11 +252,21 @@ interface PlacedPluginDeclarations {
   readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string; readonly opens_items?: boolean }[] } };
   readonly workbench?: { readonly contributions: readonly { readonly descriptor: { readonly surfaces?: readonly { readonly target_slot_id: string }[] } }[] };
 }
+/**
+ * Whether a plugin has a place in the work area: its Manifest declares a `navigator` or `stage` view (every built-in with a main or
+ * directory surface does, and a plugin installed at run time has only its Manifest), or a built-in's client registration has such a
+ * surface.
+ */
+function hasWorkAreaPlace(entry: PlacedPluginDeclarations): boolean {
+  return entry.manifest.ui.views?.some((view) => view.slot === "navigator" || view.slot === "stage") === true
+    || (entry.workbench?.contributions ?? []).flatMap((contribution) => contribution.descriptor.surfaces ?? [])
+      .some((surface) => surface.target_slot_id === "workbench.main" || surface.target_slot_id === "workbench.directory");
+}
+
 export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
   const placed: Record<string, string> = {};
   for (const entry of entries) {
-    const surfaces = (entry.workbench?.contributions ?? []).flatMap((contribution) => contribution.descriptor.surfaces ?? []);
-    if (surfaces.some((surface) => surface.target_slot_id === "workbench.main" || surface.target_slot_id === "workbench.directory")) continue;
+    if (hasWorkAreaPlace(entry)) continue;
     const side = entry.manifest.ui.views?.find((view) => view.slot === "side");
     if (side) placed[entry.project_plugin_id] = `plugin:${entry.project_plugin_id}/${side.view_id}`;
   }
@@ -275,6 +285,23 @@ export function sideOpenedItemPlugins(entries: readonly PlacedPluginDeclarations
     if (side) placed[entry.project_plugin_id] = `plugin:${entry.project_plugin_id}/${side.view_id}`;
   }
   return placed;
+}
+
+/**
+ * The runtime directory as the two rules above read it: what each Manifest declares there, and for a built-in its client
+ * registration's surfaces. A plugin installed at run time is placed by its Manifest alone, as a built-in one would be.
+ */
+function directoryPlacements(directory: PluginDirectory): PlacedPluginDeclarations[] {
+  return directory.map((entry) => {
+    const builtin = BUILTIN_PLUGIN_CATALOG.find((candidate) => candidate.project_plugin_id === entry.id && candidate.manifest.plugin_id === entry.plugin_id);
+    return { project_plugin_id: entry.id, manifest: { ui: { views: entry.ui.views } }, ...(builtin ? { workbench: builtin.workbench } : {}) };
+  });
+}
+
+/** Where opening each plugin of the runtime directory lands in the side panel: the page's tab workspace reads these, not the built-in catalog. */
+export function sidePlaces(directory: PluginDirectory): { readonly side: Record<string, string>; readonly items: Record<string, string> } {
+  const placements = directoryPlacements(directory);
+  return { side: sideOpenedPlugins(placements), items: sideOpenedItemPlugins(placements) };
 }
 
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
@@ -334,9 +361,9 @@ export function pluginTabGlyphs(): Record<string, string> {
   ]);
 }
 
-/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin that opens in the side panel has none (`sideOpenedPlugins`). */
+/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin of `directory` that opens in the side panel has none (`sidePlaces`). */
 export function pluginStageSummaries(directory: PluginDirectory = builtinPluginDirectory()): Record<string, { readonly plugin_id: string; readonly summary: string }> {
-  const side = sideOpenedPlugins();
+  const { side } = sidePlaces(directory);
   return Object.fromEntries(directory.flatMap(entry => entry.summary && !Object.hasOwn(side, entry.id)
     ? [[entry.id, { plugin_id: entry.plugin_id, summary: entry.summary }]] : []));
 }

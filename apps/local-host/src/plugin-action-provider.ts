@@ -11,18 +11,10 @@ export async function pluginActionProvider(client: HostActionClient, caller: Act
 export async function pluginActionView(client: HostActionClient, caller: ActionCallContext, reference: ActionReference): Promise<ActionView> {
   caller.signal?.throwIfAborted();
   assertPluginConsentActionEntry(caller, reference);
-  if (client.discoverOne) {
-    const view = await client.discoverOne(caller, reference);
-    caller.signal?.throwIfAborted();
-    if (!view || (reference.provider_id && view.provider.provider_id !== reference.provider_id)) {
-      throw new ActionError("actions.dependency_missing", "声明消费的动作或版本未在当前项目登记");
-    }
-    return view;
-  }
-  const matches = (await client.discover(caller)).filter(view => view.capability_id === reference.capability_id && view.version === reference.version
-    && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+  const view = await client.discoverOne(caller, reference);
   caller.signal?.throwIfAborted();
-  if (!matches.length) throw new ActionError("actions.dependency_missing", "声明消费的动作或版本未在当前项目登记");
-  if (matches.length !== 1) throw new ActionError("actions.provider_ambiguous", "声明消费的动作在当前项目没有唯一提供方");
-  return matches[0]!;
+  if (!view || (reference.provider_id && view.provider.provider_id !== reference.provider_id)) {
+    throw new ActionError("actions.dependency_missing", "声明消费的动作或版本未在当前项目登记");
+  }
+  return view;
 }

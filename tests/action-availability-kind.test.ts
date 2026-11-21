@@ -52,3 +52,18 @@ test("W3-02-G1-02 SDK owner binding preserves dependency and before-write availa
   await assert.rejects(Promise.resolve(beforeWrite.handle(caller, {})), rejected);
   assert.equal(writes, 0);
 });
+
+test("registry dispatch keys a call by id, version and project without copying the definition's schemas", async () => {
+  const registry = new CapabilityRegistry<ActionCallContext>();
+  let calls = 0;
+  registry.register(action, () => { calls++; return null; });
+  // A definition whose contract cannot be read: a dispatch that copied it would throw here.
+  const keyOnly: Parameters<typeof registry.invoke>[1] = { capability_id: ` ${action.capability_id} `, version: action.version, operation: action.operation,
+    get action(): never { throw new Error("the call copied the action contract"); } };
+  for (let i = 0; i < 50; i++) await registry.invoke(caller, keyOnly, {});
+  assert.equal(calls, 50);
+  await assert.rejects(registry.invoke(caller, { ...action, operation: "query" }, {}), (error: unknown) => (error as { code?: string }).code === "kernel.capability_missing");
+  await assert.rejects(registry.invoke(caller, { ...action, action_provider: { provider_id: "elsewhere", title: "Elsewhere", kind: "plugin", project_id: "other-project" } }, {}),
+    (error: unknown) => (error as { code?: string }).code === "kernel.capability_missing");
+  assert.equal(calls, 50);
+});

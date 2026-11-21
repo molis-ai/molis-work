@@ -174,6 +174,13 @@
     "form.capability-library.form-placement-copy-v1.title": "Form",
     "form.capability-library.form-placement-move-v1.title": "Form",
     "form.capability-library.form-questions-add-v1.title": "Add this question",
-    "form.capability-library.form-questions-draft-v1.title": "Draft questions with AI"
+    "form.capability-library.form-questions-draft-v1.title": "Draft questions with AI",
+    "form.help.title": "Forms",
+    "form.help.what": "Build structured questionnaires, collect responses, summarize results, and optionally draft questions with a text model.",
+    "form.help.example-1": "Create a form with choice and text fields, then start collecting responses",
+    "form.help.example-2": "Export collected replies or save a fixed version to deliverables",
+    "form.help.scope": "Forms and replies stay in this project’s local database; AI question drafting runs only when clicked and is billed by your text model provider.",
+    "form.help.advanced-summary": "Drafting and imports",
+    "form.help.advanced": "Manual form authoring and collection work without any model connected; importing responses skips duplicates automatically."
   }
 }

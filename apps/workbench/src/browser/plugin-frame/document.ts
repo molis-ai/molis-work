@@ -27,6 +27,8 @@ export function frameDocument(root: HTMLElement, pack: FramePack, challenge: str
     + "/assets/; img-src data: blob: " + origin + "/assets/; connect-src 'none'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
   const content = frameDocumentMarkup(root);
   if (content === null) throw new Error("Missing plugin document");
+  const helpJson = root.querySelector(":scope > script[data-plugin-help]")?.textContent?.trim();
+  const helpTag = helpJson ? `<script type="application/json" data-mw-help-declaration>${helpJson.replaceAll("<", "\\u003c")}</script>` : "";
   const dataset = document.documentElement.dataset;
   const device = [["theme", dataset.theme], ["resolved-theme", dataset.resolvedTheme], ["density", dataset.density],
     ["terminal-theme", dataset.terminalTheme], ["resolved-terminal-theme", dataset.resolvedTerminalTheme]];
@@ -38,5 +40,5 @@ export function frameDocument(root: HTMLElement, pack: FramePack, challenge: str
   return '<!doctype html><html lang="' + escape(document.documentElement.lang) + '"' + attributes + '><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'
     + escape(policy) + '"><meta name="molis-work-frame-parent" content="' + escape(origin) + '"><meta name="molis-work-frame-mount" content="' + escape(challenge)
     + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-workbench.css">' + sheet + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body{container:plugin-stage / inline-size}body>:is([data-work-surface],[data-ui-client-root]){position:relative;width:100%;height:100%;min-width:0}body[hidden],body>:is([data-work-surface],[data-ui-client-root])[hidden]{display:none}</style></head><body class="immersive-workbench">'
-    + (document.querySelector("svg.icon-sprite")?.outerHTML ?? "") + content + '<script src="' + script + '"></script></body></html>';
+    + (document.querySelector("svg.icon-sprite")?.outerHTML ?? "") + content + helpTag + '<script src="' + script + '"></script></body></html>';
 }

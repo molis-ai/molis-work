@@ -1971,12 +1971,12 @@
     "coding.code-intel.from-machine": "Found {command} on this machine",
     "coding.code-intel.from-tools": "Found {command} in Molis’s tools folder",
     "coding.code-intel.missing": "{command} isn’t on this machine",
-    "coding.code-intel.not-checked": "Not checked this round",
+    "coding.code-intel.not-checked": "Not checked this turn",
     "coding.code-intel.recovery-title": "{language} code understanding isn’t ready",
-    "coding.code-intel.recovery-body": "Everything else continues: search, reading files, changing other parts. This round can’t look up definitions or errors in {language} files, and won’t call that “no errors”. Once {command} is installed on this machine, the next round uses it.",
+    "coding.code-intel.recovery-body": "Everything else continues: search, reading files, changing other parts. This turn can’t look up definitions or errors in {language} files, and won’t call that “no errors”. Once {command} is installed on this machine, the next turn uses it.",
     "coding.code-intel.config": "Settings file",
-    "coding.code-intel.config-title": "Code understanding is off this round",
-    "coding.code-intel.config-body": "language-servers.json in the Molis folder can’t be read, so no language is checked for definitions or errors, and nothing is called “no errors”. Once the file is fixed, the next round uses the new settings.",
+    "coding.code-intel.config-title": "Code understanding is off this turn",
+    "coding.code-intel.config-body": "language-servers.json in the Molis folder can’t be read, so no language is checked for definitions or errors, and nothing is called “no errors”. Once the file is fixed, the next turn uses the new settings.",
     "coding.env.deps-none": "No package manifest",
     "coding.field.plan-estimate-reason": "Estimate reason",
     "coding.material.delivery.inline": "Full text",
@@ -2217,12 +2217,12 @@
     "coding.server.image-only": "Only PNG, JPEG, GIF and WebP images can be sent",
     "coding.server.images-unavailable": "Images can’t be kept here yet",
     "coding.server.image-too-large": "The image is over {mb} MB",
-    "coding.server.image-not-in-round": "This round didn’t carry that image",
+    "coding.server.image-not-in-round": "This turn didn’t carry that image",
     "coding.images.sent": {
       "plural_arg": "n",
       "forms": {
-        "one": "The {n} image this round carried",
-        "other": "The {n} images this round carried"
+        "one": "The {n} image this turn carried",
+        "other": "The {n} images this turn carried"
       }
     },
     "coding.images.unreadable": "{name} can’t be read",
@@ -2320,6 +2320,13 @@
     "coding.results.changed": "What changed",
     "coding.results.run-details": "Run details",
     "coding.head.more": "More",
-    "coding.board.empty-title": "No tasks yet"
+    "coding.board.empty-title": "No tasks yet",
+    "coding.help.title": "Coding",
+    "coding.help.what": "Reads code, proposes plans, edits files, and runs checks inside the project’s linked workspace directory, with every step traceable.",
+    "coding.help.example-1": "Draft a plan on the TaskBoard, then apply and verify changes step by step",
+    "coding.help.example-2": "Inspect diffs, rewind a checkpoint, or attach reference materials to a turn",
+    "coding.help.scope": "Reads, writes, and runs commands only inside folders linked under Project settings › Workspaces; guarded writes and commands ask your confirmation first and are billed by your model provider.",
+    "coding.help.advanced-summary": "Sessions, delegated work, and code checks",
+    "coding.help.advanced": "Without a linked workspace you can still discuss ideas with no local edits; if a language server is missing, Coding states it was not checked rather than claiming zero errors."
   }
 }

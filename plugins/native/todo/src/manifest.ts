@@ -58,6 +58,19 @@ export const todoManifest: PluginManifest = {
   // Offered to other Agents for business work; bodies in ./roles.ts.
   methods: todoSkills.map(({ body: _body, body_by_locale: _localized, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "todo.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "todo.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "todo.help.example-1" }, { key: "todo.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "todo.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "todo.help.advanced-summary" }, body: { key: "todo.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "todo", slot: "navigator", title: "待办", title_text: { key: "todo.directory.view-todo" }, contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },

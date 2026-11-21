@@ -104,6 +104,19 @@ export const goalsManifest: PluginManifest = {
   routes: GOALS_ROUTES,
   sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "goals.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "goals.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "goals.help.example-1" }, { key: "goals.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "goals.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "goals.help.advanced-summary" }, body: { key: "goals.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,
     views: [

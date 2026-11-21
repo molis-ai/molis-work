@@ -22,6 +22,8 @@
 | <a id="srv-2-item-2"></a>附件、大对象与冲突恢复 | 再交附件实际字节、大对象分片／一致提交、丢回执和重启续传、冲突版本保留 | 本批传输核心就绪 |
 | <a id="srv-2-item-3"></a>首批插件同步与附件字节验收 | 随后接首批声明了同步集合的插件（待办、Pages、成果库；Goals 装着时按它自己的声明同样接入），项目指导与决定记录经各自平台主人的集合同步，落实配额／保留与跨版本接入。附件未就绪不得显示全部已同步，核心成果库验收必须有字节往返；没有 Goals 的项目同步、恢复完整（2026-11-13，[决定 42](../decisions.md#decision-42)） | 本批传输、附件与冲突能力完成；44-2、44-5、39-2（平台事实的同步集合与宿主同步代码按声明） |
 
+**与底栏第十三版的衔接（2026-11-20，[决定 53](../decisions.md#decision-53)，[逐屏打磨方案「受影响的批次」](../../../screen-polish/spec.md)）**：「账号／同步状态差异」定样里，同步状态按决定 53 ⑧ 放在账户条头像上一个点、账户菜单里一行写状态，不再在顶条最右。
+
 <a id="goal-prompt"></a>
 
 ## Goal Prompt
@@ -33,7 +35,7 @@
 
 服务端批：我没明确说开工之前，只做只读核查和设计（手册「服务端批」）。
 
-原需求（行为与验收以它们为准）：https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md；https://github.com/molis-ai/molis-work/blob/personal/specs/plugin-sync-foundation/spec.md；https://github.com/molis-ai/molis-work/blob/personal/specs/personal-plugin-replication/spec.md；specs/upgrade-continuity/spec.md
+原需求（行为与验收以它们为准）：specs/personal-cloud-sync/spec.md；specs/personal-cloud-sync/foundation.md；specs/personal-cloud-sync/plugin-replication.md；specs/upgrade-continuity/spec.md
 
 本批交付：
 1. 同步服务、账号与传输核心（本批文件 #srv-2-item-1）
@@ -43,10 +45,10 @@
 界面：本批文件的界面要求是「复用 SRV-1；账号／同步状态差异先定样」。写「先定样」的部分，按手册第五节的「定样怎么走」先出样，我确认后再写产品代码（组件板有新增部件的，还要先在本批分支上补成组件板标本、D 轨合审过）；写「复用」的部分沿已定交互。
 
 本批另有：
-- 当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)；下面的 `personal` 分支 URL 保留为历史来源。
+- 当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)（`personal` 分支已删，原需求都指向这里）。
 ```
 
-[SYNC]: https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md
-[SYNCF]: https://github.com/molis-ai/molis-work/blob/personal/specs/plugin-sync-foundation/spec.md
-[SYNCP]: https://github.com/molis-ai/molis-work/blob/personal/specs/personal-plugin-replication/spec.md
+[SYNC]: ../../../personal-cloud-sync/spec.md
+[SYNCF]: ../../../personal-cloud-sync/foundation.md
+[SYNCP]: ../../../personal-cloud-sync/plugin-replication.md
 [UPG]: ../../../upgrade-continuity/spec.md

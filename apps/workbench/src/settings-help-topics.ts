@@ -84,5 +84,9 @@ export function withSettingsHelp(sectionId: string, html: string): string {
       decorated = `<div class="mw-settings-help-bar">${button}</div>${html}`;
     }
   }
-  return `${decorated}${renderHelpDataScript([topic])}`;
+  const dataScript = renderHelpDataScript([topic]);
+  const lastClose = decorated.lastIndexOf("</section>");
+  return lastClose >= 0
+    ? `${decorated.slice(0, lastClose)}${dataScript}${decorated.slice(lastClose)}`
+    : `${decorated}${dataScript}`;
 }

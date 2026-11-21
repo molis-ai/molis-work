@@ -29,7 +29,7 @@ export const ON_DEMAND_HELP_STYLES = `
   .mw-help-next__fact{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
   .mw-help-next__actions{display:flex;flex-wrap:wrap;gap:8px}
 
-  .mw-help-card{position:fixed;z-index:60;width:min(380px,calc(100vw - 24px));max-height:min(72dvh,540px);background:var(--popover,var(--paper));border:1px solid var(--line);border-radius:var(--r-card,12px);box-shadow:var(--lift-3);display:flex;flex-direction:column;overflow:hidden;color:var(--ink);animation:craft-fade-in var(--dur-move,200ms) var(--ease-quint)}
+  .mw-help-card{position:fixed;z-index:60;width:min(380px,calc(100vw - 24px));max-height:min(72dvh,540px);background:var(--paper);border:1px solid var(--line);border-radius:var(--r-card,12px);box-shadow:var(--lift-3);display:flex;flex-direction:column;overflow:hidden;color:var(--ink);animation:craft-fade-in var(--dur-move,200ms) var(--ease-quint)}
   .mw-help-card:focus{outline:none}
   .mw-help-card__head{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 14px;border-bottom:1px solid var(--line);flex:none}
   .mw-help-card__head svg{width:14px;height:14px;color:var(--muted);flex:none}
@@ -54,7 +54,8 @@ export const ON_DEMAND_HELP_STYLES = `
   .mw-help-side__ctx{font-size:12px;color:var(--muted);padding:8px 16px;border-bottom:1px solid var(--line);background:var(--surface);flex:none}
   .mw-help-side__body{padding:16px;overflow:auto;flex:1;min-height:0}
 
-  .mw-help-auto-trigger{position:fixed;top:10px;right:12px;z-index:20}
+  .mw-btn.mw-help-auto-trigger{position:fixed;top:10px;right:14px;z-index:20;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(6px)}
+  @media(max-width:600px){.mw-btn.mw-help-auto-trigger{top:auto;bottom:10px;right:10px}}
   .mw-settings-help-btn{margin-left:auto;flex:none}
   .mw-settings-help-bar{display:flex;justify-content:flex-end;margin-bottom:8px}
   @media(prefers-reduced-motion:reduce){.mw-help-card{animation:none!important}}

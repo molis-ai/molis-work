@@ -68,8 +68,7 @@ export const BUTTON_STYLES = `
     border-color: transparent;
     background: var(--nav-hover);
   }
-  .mw-btn--secondary:is([aria-expanded="true"], [aria-pressed="true"]):not(:disabled),
-  .mw-btn--ghost:is([aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
+  :where(.mw-btn--secondary, .mw-btn--ghost):where([aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
     background: var(--nav-active);
     color: var(--ink);
   }

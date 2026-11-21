@@ -523,8 +523,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           else void molisWorkRequest(route("/api/materials/read"), { body: { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: digest.slice(7) } }, mode: "head" }, fallback: "" })
             .then((read) => {
               if (read.state !== "changed") return;
-              const bindingId = row.dataset.goalInputBinding;
-              if (!bindingId || !read.comparable || !/^[0-9a-f]{64}$/.test(read.read_revision)) {
+              const bindingId = row.dataset.goalInputBinding, reviewAction = row.dataset.goalSourceReviewAction;
+              if (!bindingId || !reviewAction || !read.comparable || !/^[0-9a-f]{64}$/.test(read.read_revision)) {
                 state.textContent += " · " + readText("workbench.placement.changed"); return;
               }
               const latestDigest = "sha256:" + read.read_revision, normalState = state.textContent;
@@ -543,7 +543,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
                   unlink.disabled = true;
                   try {
                     if (!reference) ({ reference } = await post("request", {
-                      action: { capability_id: "goals.inputs.review_change", version: 1, provider_id: "io.molis.work.goals" }, request_id: bindingId,
+                      action: JSON.parse(reviewAction), request_id: bindingId,
                       draft: { goal_id: row.dataset.goalId, expected_old_digest: digest, observed_new_digest: latestDigest },
                     }));
                     if (!requestKeys.has(decision)) requestKeys.set(decision, crypto.randomUUID());

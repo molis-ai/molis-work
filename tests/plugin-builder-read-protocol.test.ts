@@ -55,7 +55,7 @@ test("SSC-06: Builder keeps the sandbox's rejection of changed schemas, write ef
   const invalid = [
     [(operation: SandboxReadOperation) => { operation.output = { type: "object" }; }, /input and output must be the platform schemas/u],
     [(operation: SandboxReadOperation) => { operation.effects.artifacts = ["write"]; }, /only accepts local read effects/u],
-    [(operation: SandboxReadOperation) => { operation.examples[0]!.output = { items: "not an array" }; }, /does not match the fixed read protocol output/u],
+    [(operation: SandboxReadOperation) => { operation.examples[0]!.output = { items: "not an array" }; }, /^Error: 功能合同不成立：Value does not match the fixed protocol output$/u],
   ] as const;
   for (const [change, refusal] of invalid) {
     const { design, protocol } = mixedDesign();

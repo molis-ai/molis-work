@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
+import { expandDesign } from "@molis-ai/molis-work-plugin-builder";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { uiHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -166,4 +167,35 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
   assert.match(rendered.html, /<script type="application\/json" data-plugin-help>/u, "non-builtin manifest.ui.help flows through renderStagePage as a sibling help payload");
   assert.match(rendered.html, /tracker\.help\.title/u, "non-builtin help topic keys are preserved verbatim");
   assert.doesNotMatch(rendered.html, /data-plugin-document>[^<]*data-mw-help-declaration/u, "plugin owner document markup stays untouched");
+
+  // P1-3 & P2-10 hygiene guards: platform frame child has zero plugin-private class hooks, and side-panel has no duplicate data-side-help-body.
+  const childSource = readFileSync(new URL("../apps/workbench/src/browser/plugin-frame/child.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(childSource, /\.wb-head-actions|\.as-head-actions/u, "P1-3: child.ts relies on [data-help-slot], not plugin-private CSS classes");
+  const sidePanelSource = readFileSync(new URL("../apps/workbench/src/side-panel.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(sidePanelSource, /data-side-help-body/u, "P2-10: outer side-panel body does not duplicate data-side-help-body");
+
+  // P2-9: Studio expandDesign forwards valid design.help to contract.help and gracefully drops invalid declarations.
+  const base = { id: "p1", title: "Demo", description: "Desc", rationale: "Why", journey: ["Open"] };
+  const sampleDesign = {
+    title: "Demo",
+    description: "Desc",
+    operations: [{ id: "items.list", kind: "query", description: "List", input: {}, output: [{ id: "string", title: "string" }], effects: { storage: ["read"] }, examples: [{ input: {}, output: [] }] }],
+    pages: [{ id: "home", title: "Home", parts: [{ id: "list", intent: "collection", purpose: "Show", props: { idField: "id", titleField: "title", emptyText: "Empty" }, read: "items.list" }] }],
+    acceptance: [{ id: "empty", description: "Empty", steps: [{ action: "page", pageId: "home" }, { action: "expectWord", componentId: "list", word: "emptyText" }] }],
+  };
+  const droppedValid: string[] = [];
+  const validExpanded = expandDesign({
+    ...sampleDesign,
+    help: { default_topic: "page", topics: [{ id: "page", title: "Demo help", sections: [{ id: "what", heading: "What", body: "Lists saved items." }] }] },
+  }, base, "io.molis.generated.demo", "rev-1", droppedValid);
+  assert.equal(validExpanded.contract.help?.default_topic, "page");
+  assert.equal(validExpanded.contract.help?.topics[0]?.title, "Demo help");
+
+  const droppedInvalid: string[] = [];
+  const invalidExpanded = expandDesign({
+    ...sampleDesign,
+    help: { default_topic: "missing", topics: [] },
+  }, base, "io.molis.generated.demo", "rev-1", droppedInvalid);
+  assert.equal(invalidExpanded.contract.help, undefined);
+  assert.ok(droppedInvalid.some((note) => note.includes("按需帮助")));
 });

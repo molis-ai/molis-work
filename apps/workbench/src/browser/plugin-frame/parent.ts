@@ -439,7 +439,9 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
     nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, bar: task ? false : barTakes(Boolean(host.side), mount?.target_slot_id), ...(task ? { task: task.input() } : {}), appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
     stage: frameStageWords(root, pack.id),
-    projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: page ?? host.page?.() ?? null,
+    projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side),
+    sideHelp: !host.side && (Boolean(document.querySelector('[data-side-tab="help"]')) || document.body.hasAttribute("data-pane-embedded")),
+    page: page ?? host.page?.() ?? null,
     storage,
   }), fail);
   own = root.dataset.uiClientState !== "loading";

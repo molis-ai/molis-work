@@ -1,5 +1,5 @@
 import type { OwnedTextRef, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { t as uiText, icon, say } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon, renderHelpButton, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { artifactSubjectId, isImportedDocumentVersion } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactVersionPath, type ArtifactBrowserView, type ArtifactPluginInput } from "./browser-view.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
@@ -42,7 +42,8 @@ export interface ArtifactBrowserUiModel {
 // Importing files and documents is the side panel's 资料 tab (specs/project-knowledge §9); they show here once saved.
 function directory({ view, routePrefix, primitives: p, typeTitle, languagePreview }: ArtifactBrowserUiModel): string {
   const glyph = languagePreview ? () => "" : icon;
-  if (!view.versions.length) return `<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">${glyph("package")}</span><strong>${uiText("workbench.browser-ui.no-artifacts-yet")}</strong><p>${uiText("workbench.browser-ui.versions-keep-save-fixed-version-pages-questionnaires-decks")}</p></div>`;
+  const helpBar = `<div class="artifact-dir-head">${renderHelpButton({ topic: "workbench-artifacts", label: uiText.text("common.help.title"), size: "sm" })}</div>`;
+  if (!view.versions.length) return `${helpBar}<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">${glyph("package")}</span><strong>${uiText("workbench.browser-ui.no-artifacts-yet")}</strong><p>${uiText("workbench.browser-ui.versions-keep-save-fixed-version-pages-questionnaires-decks")}</p></div>`;
   const groups = new Map<string, Array<(typeof view.versions)[number]>>();
   for (const artifact of view.versions) {
     const list = groups.get(artifact.artifact_type_id);
@@ -87,7 +88,7 @@ function directory({ view, routePrefix, primitives: p, typeTitle, languagePrevie
       <div class="artifact-stage-group-body" role="list">${rows}</div>
     </details>`;
   }).join("");
-  return `<nav aria-label="${uiText("workbench.browser-ui.artifact-versions")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
+  return `${helpBar}<nav aria-label="${uiText("workbench.browser-ui.artifact-versions")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
 }
 
 function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, model: ArtifactBrowserUiModel): string {
@@ -148,7 +149,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
   const versionLabel = `v${artifact.version}${model.relationship ? ` · ${uiText.text(model.relationship === "input" ? "workbench.browser-ui.inputs" : "workbench.browser-ui.deliverable")}` : ""}`;
   const heading = embedded
     ? `<header><h3 translate="no"><a href="${p.escape(href)}">${p.escape(title)}</a></h3><span>${versionLabel}</span></header>`
-    : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${uiText("workbench.browser-ui.back-artifact-list")}" title="${uiText("workbench.browser-ui.back-artifact-list")}">${languagePreview ? "" : icon("chevron-right")}</button><h1 translate="no">${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
+    : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${uiText("workbench.browser-ui.back-artifact-list")}" title="${uiText("workbench.browser-ui.back-artifact-list")}">${languagePreview ? "" : icon("chevron-right")}</button><h1 translate="no">${p.escape(title)}</h1><span>${versionLabel}</span>${renderHelpButton({ topic: "workbench-artifacts", label: uiText.text("common.help.title"), size: "sm" })}</header>`;
   const detailNotice = embedded && !preview && view.compatibility?.reason === "consumer_missing"
     ? uiText.text("workbench.browser-ui.no-compatible-plugin-open-version-inspect-its-information")
     : (artifact.lifecycle_state !== "archived" ? model.presentation?.notice : undefined) ?? uiText.text(notice);

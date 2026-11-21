@@ -21,6 +21,7 @@ export const ARTIFACT_EMBED_STYLES = `
 `;
 
 export const ARTIFACT_WORKBENCH_STYLES = `${FILE_PREVIEW_STYLES}
+  .artifact-dir-head { display:flex; justify-content:flex-end; margin-bottom:8px; }
   .artifact-version-list { display:flex; flex-direction:column; gap:4px; }
   /* 「被谁引用」, 「从这一版继续」 and 「作为 Goal 的输入」 (artifact-positioning A4b). */
   .artifact-links ul { margin:8px 0; padding-left:20px; }

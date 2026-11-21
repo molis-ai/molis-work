@@ -506,7 +506,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         const item = el("li");
         item.dataset.computerAppId = app.bundle_id;
         const isUserForbidden = userSet.has(app.bundle_id);
-        const isBuiltinForbidden = app.tier === "forbidden" && !isUserForbidden;
+        const isBuiltinForbidden = Boolean(app.built_in);
         let control;
         if (isBuiltinForbidden) {
           control = el("span", "mw-status mw-status--quiet", globalThis.t.text("workbench.settings-assistant.builtin-forbidden-tag"));

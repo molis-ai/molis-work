@@ -37,7 +37,10 @@ export class ManagedProjectDeletion {
     /** This Home's `outputs`, derived from the trusted Home when the catalog opens (S-102). */
     private readonly outputsDirectory: string) {}
 
-  async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
+  async deleteProject(
+    input: DeleteMolisWorkProjectInput,
+    options?: { allowRecycled?: boolean; beforeCommit?: () => void },
+  ): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
     requireDeletionConfirmed(input.delete_confirmed);
@@ -57,10 +60,20 @@ export class ManagedProjectDeletion {
     }
 
     const deletion = await this.commit(() => this.projects.lifecycle.transaction(() => {
+      options?.beforeCommit?.();
       if (this.projects.lifecycle.findDeletion(actorId, idempotencyKey)) {
         throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求正在或已经由另一个调用处理，请重新读取项目列表");
       }
-      const project = this.projects.query.getProject(projectId);
+      let project: { project_id: string; display_name: string };
+      if (options?.allowRecycled) {
+        const recycled = this.projects.recycle.inspect(projectId);
+        if (!recycled.recycled) {
+          throw catalogErrors.project_storage_invalid("项目尚未进入回收状态，不能执行最终清理");
+        }
+        project = recycled;
+      } else {
+        project = this.projects.query.getProject(projectId);
+      }
       const stagedDirectory = planProjectStage(this.projectsDirectory, projectId,
         () => this.projects.query.listProjectDeletions().some(entry => entry.project_id === projectId));
       const now = new Date().toISOString();
@@ -68,6 +81,9 @@ export class ManagedProjectDeletion {
       const deletedWorkspaceMembershipCount =
         this.projects.lifecycle.removeWorkspaceMembershipsForProject(project.project_id);
       this.cleanup.removePanels(project.project_id);
+      if (options?.allowRecycled) {
+        this.projects.recycle.clear(project.project_id);
+      }
       this.projects.lifecycle.removeFacts(project.project_id);
       const record: StoredProjectDeletion = {
         deletion_id: `project-deletion-${randomUUID()}`,

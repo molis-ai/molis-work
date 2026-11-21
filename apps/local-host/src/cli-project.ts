@@ -1,7 +1,8 @@
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { readProductEnv, readStorageSpace, resolveHomeDirectory, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { readProductEnv, readStorageSpace, resolveHomeDirectory } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { bindStandaloneReviewActions, catalogManagementProject, residentManagementActions, reviewOnly, upgradeOlderCatalog } from "./management-action-client.js";
 import {connectResidentAccount,type ResidentAccountConnection} from "./resident-account-connection.js";
 import {NATIVE_SESSION_FILE} from "./personal-native-session.js";
@@ -32,7 +33,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const flagValue = value(args, "--db");
   const location = flagValue?.startsWith("--") ? undefined : namedDatabasePath(flagValue);
   if (!location) throw new Error("Molis Work 命令需要 --db PATH 指明项目数据库；没有默认路径，不会按当前目录猜一个。");
-  let home = options.homeDirectory ?? resolveMolisWorkHome();
+  let home = options.homeDirectory ?? resolveConfiguredHome();
   const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??homeHostUrl(home);
   let connected:ResidentAccountConnection|undefined;
   let allowLocalFallback=!!options.localHost||options.homeDirectory!==undefined;

@@ -128,18 +128,11 @@ pub(crate) async fn complete(
     let mut checksums = Vec::with_capacity(expected_count);
     for (index, part) in parts.iter().enumerate() {
         require(part["part"] == index, 409, "SYNC_BLOB_INCOMPLETE")?;
-        let checksum = string(part, "checksum", 64)?;
-        store::head_part(
-            bucket,
-            store::key(space, digest, generation, index as i64, checksum),
-            (size - index * store::CHUNK).min(store::CHUNK),
-        )
-        .await?;
-        checksums.push(checksum);
+        checksums.push(string(part, "checksum", 64)?);
     }
-    // Single-part blobs match the whole-object SHA-256 directly. Multi-part blobs anchor on the
-    // ordered chunk SHA-256 manifest digest without re-reading up to 100 MB from R2.
     if expected_count == 1 {
+        // Single-part blobs match the whole-object SHA-256 directly from the verified part checksum
+        // and confirm R2 object presence/length via metadata-only HEAD.
         require(checksums[0] == digest, 409, "SYNC_BLOB_DIGEST_MISMATCH")?;
         if let Some(expected_manifest) = parts_digest {
             require(
@@ -148,10 +141,31 @@ pub(crate) async fn complete(
                 "SYNC_BLOB_DIGEST_MISMATCH",
             )?;
         }
+        store::head_part(
+            bucket,
+            store::key(space, digest, generation, 0, checksums[0]),
+            size,
+        )
+        .await?;
     } else {
+        // Fast-fail on missing or mismatched partsDigest before touching R2, then stream parts
+        // chunk-by-chunk (<= 4 MiB resident) to enforce S-126 whole-object SHA-256 == digest.
         let expected_manifest = parts_digest.ok_or(Failure(409, "SYNC_BLOB_DIGEST_MISMATCH"))?;
         require(
             store::parts_manifest_digest(size, &checksums).await? == expected_manifest,
+            409,
+            "SYNC_BLOB_DIGEST_MISMATCH",
+        )?;
+        let (stream, writer) = store::hasher()?;
+        for (index, checksum) in checksums.iter().enumerate() {
+            let expected_size = (size - index * store::CHUNK).min(store::CHUNK);
+            let bytes =
+                store::read(bucket, space, digest, generation, index as i64, checksum).await?;
+            require(bytes.len() == expected_size, 409, "SYNC_BLOB_INCOMPLETE")?;
+            store::feed(&writer, &bytes).await?;
+        }
+        require(
+            store::finish(stream, writer).await? == digest,
             409,
             "SYNC_BLOB_DIGEST_MISMATCH",
         )?;

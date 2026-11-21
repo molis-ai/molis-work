@@ -3,7 +3,7 @@ import { handleKitSettingsHttp } from "./kit-settings-http.js";
 import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { ownerUnavailableCard, refusedOwner, sendOwnerUnavailablePage, withOwnerUnavailablePage } from "./web-owner-unavailable.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
@@ -269,7 +269,7 @@ const projectPagesAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
-    homeDirectory: serverOptions.homeDirectory ?? resolveMolisWorkHome(),
+    homeDirectory: serverOptions.homeDirectory ?? resolveConfiguredHome(),
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),

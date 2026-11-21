@@ -5,6 +5,7 @@ export const APPEARANCE_RECOVERY_STYLES = `
   body.immersive-workbench > .appearance-notice { bottom: calc(var(--dock-h, 0px) + 14px); }
   .appearance-notice [data-appearance-dismiss] { padding-inline: 8px; }
   .appearance-notice [data-appearance-dismiss] svg { width: var(--icon-size, 16px); height: var(--icon-size, 16px); vertical-align: middle; }
+  .mw-env-badge { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 1000; margin: 0; padding: 3px 9px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--ink); color: var(--paper); font: 500 11px/16px var(--font); letter-spacing: .02em; white-space: nowrap; pointer-events: none; user-select: none; }
 `;
 export const SETTINGS_STYLES = `
   html:has(> body.settings-page), body.settings-page { height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior: none; background: var(--page); }

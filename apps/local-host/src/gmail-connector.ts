@@ -1,7 +1,7 @@
 import { createGmailProvider, type GmailFetch } from "@molis-ai/molis-work-integration-gmail";
 
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { ApiOAuthError } from "./connector-api-oauth.js";
 import { resolveApiConnection } from "./connector-access.js";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -16,7 +16,7 @@ export function createGmailConnector(opts?: {
   fetchImpl?: GmailFetch;
   getNowMs?: () => number;
 }): IntegrationProviderPort {
-  const home = opts?.home ?? resolveMolisWorkHome();
+  const home = opts?.home ?? resolveConfiguredHome();
   const id = opts?.connectionId;
   const request = opts?.fetchImpl ?? globalThis.fetch;
   return createGmailProvider({

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 
 export function selectEnvironment(args, operation, extra = []) {
@@ -39,9 +39,18 @@ function readProperties(url, rules) {
 
 export function loadProperties(root, name, configRules, secretRules) {
   if (!['dev', 'test', 'prod'].includes(name)) throw new Error('Choose dev, test or prod explicitly');
+  const secretsUrl = new URL(`secrets/${name}.properties`, root);
+  let secrets;
+  if (secretRules === null) {
+    secrets = Object.freeze({});
+  } else if (Object.keys(secretRules).length === 0 && !existsSync(secretsUrl)) {
+    secrets = Object.freeze({});
+  } else {
+    secrets = readProperties(secretsUrl, secretRules);
+  }
   return Object.freeze({
     config: readProperties(new URL(`config/${name}.properties`, root), configRules),
-    secrets: secretRules === null ? Object.freeze({}) : readProperties(new URL(`secrets/${name}.properties`, root), secretRules),
+    secrets,
   });
 }
 

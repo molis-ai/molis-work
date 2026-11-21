@@ -5,7 +5,8 @@ import {
   type PluginSourcePullClient, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { createPluginSourcePullClient, type PluginSourcePullPort } from "@molis-ai/molis-work-plugin-runtime";
-import { createEvidenceContentStore, createLazyFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome, type EvidenceContentStore, type SecretStore, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createEvidenceContentStore, createLazyFileSecretStore, runWithMolisWorkHome, type EvidenceContentStore, type SecretStore, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 import type { PluginDatabaseConnection } from "./plugin-database-client.js";
 import { readResearchRepository, type ResearchGit } from "./research-repository-read.js";
@@ -54,7 +55,7 @@ function isEvidenceKeyUnavailable(error: unknown): boolean {
  * Every body is announced to the plugin (`run.hold`) before it is written, so what the plugin keeps always includes every body that exists.
  */
 export function createSourcePullPort(options: SourcePullPortOptions): PluginSourcePullPort {
-  const home = options.home ?? resolveMolisWorkHome();
+  const home = options.home ?? resolveConfiguredHome();
   // The bodies and the key that seals them are the Home's this port serves, whichever Home the process itself resolves to.
   const secretStore = options.secretStore ?? createLazyFileSecretStore(home);
   const content = options.content ?? runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore }));

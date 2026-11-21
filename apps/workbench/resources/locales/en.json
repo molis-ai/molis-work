@@ -4596,6 +4596,7 @@
     "workbench.import.connection-state-cannot-be-loaded": "Connection state cannot be loaded",
     "workbench.import.count-audio-video-files-have-no-text-yet": "{count} audio or video files have no text yet. ",
     "workbench.import.count-chosen-only-first-max-imported-time": "{count} chosen; only the first {max} are imported at a time.",
+    "workbench.import.folder-scan-truncated": "The folder was too deep or had too many files, so only part of it was scanned.",
     "workbench.import.count-count-chosen": {
       "plural_arg": "count",
       "forms": {
@@ -8940,6 +8941,7 @@
     "workbench.runtime-panel.expired-source": "{title}: {count}",
     "workbench.runtime-panel.assistant-source": "Assistant follow-ups",
     "workbench.runtime-panel.expired-seen": "Got it",
+    "workbench.runtime-panel.expired-updated": "The summary just updated. Click again to confirm.",
     "workbench.runtime-panel.run-now": "Run now",
     "workbench.runtime-panel.skip": "Skip",
     "workbench.runtime-panel.decide-failed": "That did not go through. Try again.",

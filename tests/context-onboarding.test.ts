@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ActionError, bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -77,10 +78,10 @@ test('adoption resumes after the summary action fails without replacing imported
     // The summary is kept by the plugin that keeps documents, through a client bound to its declared action (contract-design §2.5).
     take: async (home: string, projectId: string, definition: ActionDefinition): Promise<BoundActionClient> => {
       const client = await base.take(home, projectId, definition);
-      return { discover: () => client.discover(), invoke: async (definition, input) => {
+      return fakeBoundActionClient({ discover: () => client.discover(), invoke: async (definition, input) => {
         if ((input as { request_id?: string }).request_id === id + ':summary') throw new Error('Summary storage temporarily unavailable');
         return client.invoke(definition, input);
-      } };
+      } });
     },
   });
   assert.equal(failed.phase, 'failed'); assert.match(failed.error!, /temporarily unavailable/);
@@ -613,8 +614,8 @@ test('RAC-661 adoption writes no document and makes no project when no plugin de
     actions: async (home: string, projectId: string, original_file?: { path: string; install_id: string }): Promise<BoundActionClient> => {
       const client = await base.actions(home, projectId, original_file);
       // The directory shows Pages' actions only under another provider's id.
-      return { discover: async () => (await client.discover()).map(view => view.capability_id.startsWith('pages.') ? { ...view, provider: { ...view.provider, provider_id: 'com.example.pages' } } : view),
-        invoke: async (definition, input, control) => { invoked.push(definition.capability_id); return client.invoke(definition, input, control); } };
+      return fakeBoundActionClient({ discover: async () => (await client.discover()).map(view => view.capability_id.startsWith('pages.') ? { ...view, provider: { ...view.provider, provider_id: 'com.example.pages' } } : view),
+        invoke: async (definition, input, control) => { invoked.push(definition.capability_id); return client.invoke(definition, input, control); } });
     },
     take: async (home: string, projectId: string, definition: ActionDefinition) => { invoked.push(definition.capability_id); return base.take(home, projectId, definition); } };
   await assert.rejects(adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, noKeeper), /没有能保存文档的插件，项目没有建/);

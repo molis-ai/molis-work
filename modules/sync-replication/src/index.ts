@@ -72,6 +72,7 @@ export class PersonalSync {
   private transport=syncTransport({
     endpoint:()=>this.options.endpoint,fetch:()=>this.options.fetch??fetch,abort:()=>this.controller.signal,
     cycleAbort:()=>this.cycleAbort?.signal,
+    onBackoff:()=>{this.cycleAbort?.abort();},
     authority:()=>this.options.authority,assert:()=>this.assert(),
     backoff:this.backoff,onWrite:()=>{this.writes++;},
   });

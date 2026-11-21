@@ -5,12 +5,19 @@ import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
 import {executeLocalProjectsCopy,listCopyableLocalProjects,previewLocalProjectsCopy,type LocalProjectsCopyContext} from './personal-project-copy.js';
 
 /** The caller has already checked the current space, Origin, control token and mutation key. */
-export async function serveSpaceSync(input:{request:IncomingMessage;response:ServerResponse;url:URL;local:boolean;service():Promise<PersonalSync|null>;copy?():LocalProjectsCopyContext|null}){
+export async function serveSpaceSync(input:{request:IncomingMessage;response:ServerResponse;url:URL;local:boolean;service():Promise<PersonalSync|null>;copy?():Promise<LocalProjectsCopyContext|null>|LocalProjectsCopyContext|null}){
   const {request,response,url}=input,query=url.searchParams,namespace=query.get('namespace')??'',key=query.get('key')??'';
   try{
-    if(url.pathname.startsWith('/api/sync/copy/')){
-      const copyCtx=input.copy?.()??null;
-      if(input.local||!copyCtx){sendLocalWebJson(response,409,{error:'请先切换到个人空间再从本地空间复制项目。'});return;}
+    if (url.pathname.startsWith('/api/sync/copy/')) {
+      if (input.local) {
+        sendLocalWebJson(response, 409, { error: '请先切换到个人空间再从本地空间复制项目。' });
+        return;
+      }
+      const copyCtx = (await input.copy?.()) ?? null;
+      if (!copyCtx) {
+        sendLocalWebJson(response, 409, { error: '请先切换到个人空间再从本地空间复制项目。' });
+        return;
+      }
       if(request.method==='GET'&&url.pathname==='/api/sync/copy/projects'){
         sendLocalWebJson(response,200,{projects:await listCopyableLocalProjects(copyCtx.sourceHome,copyCtx.sourceWithCatalog,copyCtx.authorize)});return;
       }
@@ -72,5 +79,9 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
       }
     }else{sendLocalWebJson(response,404,{error:'接口不存在。'});return;}
     sendLocalWebJson(response,200,{available:true,...service.status(),device_label:hostname()});
-  }catch(error){sendLocalWebJson(response,409,{error:error instanceof Error?error.message:'同步暂时不可用'});}
+  } catch (error) {
+    if (!response.headersSent && !response.destroyed) {
+      sendLocalWebJson(response, 409, { error: error instanceof Error ? error.message : '同步暂时不可用' });
+    }
+  }
 }

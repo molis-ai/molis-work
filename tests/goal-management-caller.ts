@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
@@ -23,11 +24,11 @@ export function managementGoals(client: ActionClient, projectId: string): BoundA
     const key = (input as { idempotency_key?: unknown } | null | undefined)?.idempotency_key;
     return typeof key === "string" && key ? key : undefined;
   };
-  return {
+  return fakeBoundActionClient({
     discover: async () => client.discover(managementCaller(projectId)),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
       await client.invoke(managementCaller(projectId, keyOf(input), [...new Set(["goals:read", "goals:write", ...definition.action.permissions])]), definition, input) as Output,
-  };
+  });
 }
 
 /**
@@ -42,9 +43,9 @@ export function mcpRuntimeCaller(projectId: string, actorId = "runtime:client", 
 
 /** A client whose every call is made as `mcpRuntimeCaller`. */
 export function mcpRuntimeGoals(client: ActionClient, projectId: string, actorId?: string, session?: string): BoundActionClient {
-  return {
+  return fakeBoundActionClient({
     discover: async () => client.discover(mcpRuntimeCaller(projectId, actorId, session)),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
       await client.invoke(mcpRuntimeCaller(projectId, actorId, session), definition, input) as Output,
-  };
+  });
 }

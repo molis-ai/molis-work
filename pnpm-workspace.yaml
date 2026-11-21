@@ -59,4 +59,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@adeptify/intelligence-client@0.2.2'
   - '@adeptify/search-evidence-layer@0.4.1'
-  - '@prologue/sdk@0.1.0-rc.2'
+  - '@prologue/sdk@0.1.0-rc.3'

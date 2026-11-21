@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -19,7 +20,7 @@ const PLUGIN = "io.molis.work.fixture-agent", KIND = "fixture_session", PROJECT 
 /** A directory of executor providers; every call that reaches a role is counted by the plugin it reached. */
 function directory(rows: Array<{ plugin: string; views: ActionView[] }>) {
   const reached = new Map<string, string[]>();
-  const actions: BoundActionClient = { discover: async () => rows.flatMap(row => row.views),
+  const actions: BoundActionClient = fakeBoundActionClient({ discover: async () => rows.flatMap(row => row.views),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
       const row = rows.find(one => one.views.some(view => view.capability_id === definition.capability_id))!;
       const role = roleOfCapability(row.plugin, definition.capability_id);
@@ -29,7 +30,7 @@ function directory(rows: Array<{ plugin: string; views: ActionView[] }>) {
       if (role === "session.read") return { session_id: "session-1", title: "会话", mode: null, runs: [], runtime_session_id: null, recovery: null } as Output;
       if (role === "run.start") return { run_id: "run-1" } as Output;
       return { accepted: true } as Output;
-    } };
+    } });
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not used"); },

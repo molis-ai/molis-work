@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ActionError, WORKFLOW_CONTENT_SCHEMAS, type ActionClient, type ActionExecutionContext, type ActionSubjectContext, type ActionView, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, WORKFLOW_CONTENT_SCHEMAS, actionViewFor, type ActionClient, type ActionExecutionContext, type ActionSubjectContext, type ActionView, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import { placementActions, PLACEMENT_PROVIDER_ID, type PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
@@ -51,8 +51,10 @@ export function surfacePlacementCallPorts(ports: PlacementPorts, origin: ActionE
   const safe = placementCallPorts({ ...ports, surfaceSource: source, async scope(project) {
     const forSource = project === source.project_id, forReceiver = receiver && project === bound.project;
     if (!forSource && !forReceiver) throw homeChanged();
+    const views = () => [...new Set([...(forSource ? [reader] : []), ...(forReceiver ? [receiver.action, receiver.reader] : [])])];
     return { caller: origin, client: {
-      discover: () => [...new Set([...(forSource ? [reader] : []), ...(forReceiver ? [receiver.action, receiver.reader] : [])])],
+      discover: views,
+      discoverOne: (_caller, reference) => actionViewFor(views(), reference),
       async invoke(caller, reference, input) {
         if (forSource && sameReference(reference, ref(reader)) && isRecord(input) && input.subject_id === source.id)
           return sourceRead({ ...origin, ...caller });

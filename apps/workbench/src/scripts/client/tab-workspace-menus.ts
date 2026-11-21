@@ -153,7 +153,8 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
   ["pointerdown", "focusin"].forEach((type) => document.addEventListener(type, (event) => { if (!plusMenu.contains(event.target) && !plusAnchor?.contains(event.target)) closePlus(false); }));
   // Where a plugin is open, as seen from a column: the ＋ list and the start page say the same (PFG-24).
   const placeText = (plugin, paneId) => {
-    const at = Object.hasOwn(SIDE_OPENED, plugin) ? state.side.tabs.some((tab) => tab.itemId === SIDE_OPENED[plugin]) && { side: true } : ops.locate(state, plugin);
+    const side = placeOf(plugin)?.side;
+    const at = side ? state.side.tabs.some((tab) => tab.itemId === side) && { side: true } : ops.locate(state, plugin);
     return !at ? "" : at.side ? globalThis.t.text("workbench.tab-workspace-menus.right") : at.paneId === paneId ? globalThis.t.text("workbench.tab-workspace-menus.pane") : globalThis.t.text("workbench.tab-workspace-menus.pane-n", { n: ops.paneNumber(state, at.paneId) });
   };
   /* The start page (the top strip's ＋) says what this list says, while the top strip's own ＋ is put away (specs/work-line §6.5):

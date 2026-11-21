@@ -378,7 +378,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
 });
 
 test("Inbox declares its page routes in the Manifest, the Runtime matches them, and each has a handler", async () => {
-  const handlers = createInboxRouteHandlers({ actions: { discover: async () => [], invoke: async () => { throw new Error("unused"); } }, changed() {} });
+  const handlers = createInboxRouteHandlers({ actions: { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { throw new Error("unused"); } }, changed() {} });
   const routes = inboxManifest.routes ?? [];
   assert.ok(routes.length > 0);
   assert.deepEqual(routes.filter(route => !handlers[route.route_id]).map(route => route.route_id), []);

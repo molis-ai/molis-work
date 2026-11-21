@@ -6,7 +6,7 @@ import { createScheduleActionHandlers, scheduleManifest, type SchedulePluginRout
 export function directScheduleActions(ports: ScheduleActionPorts, projectId = "schedule-project"): BoundActionClient {
   const handlers = createScheduleActionHandlers(projectId, ports);
   return {
-    discover: async () => [],
+    discoverOne: async () => undefined, discover: async () => [],
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
       const handler = handlers.find(row => row.capability_id === definition.capability_id && row.version === definition.version);
       if (!handler) throw new Error(`missing ${definition.capability_id}`);

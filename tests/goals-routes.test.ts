@@ -13,7 +13,7 @@ interface Invocation { capability_id: string; input: Record<string, unknown> }
 function stubPorts(answers: Record<string, unknown> = {}) {
   const invocations: Invocation[] = [];
   const actions: BoundActionClient = {
-    discover: async () => [],
+    discoverOne: async () => undefined, discover: async () => [],
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
       invocations.push({ capability_id: definition.capability_id, input: input as Record<string, unknown> });
       return (Object.hasOwn(answers, definition.capability_id) ? answers[definition.capability_id] : { ok: true }) as Output;

@@ -18,7 +18,7 @@ export { onboardingIntentFrame, onboardingPlanningHint, type OnboardingIntentFra
 export type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsDataAction, pluginSettingsNavItemsFrom } from "./plugin-settings-catalog.js";
 export type { ChooserArrival } from "./arrival/chooser.js";
-export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
+export { composeProjectBrief, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
 export type { DynamicPluginSettingsNavItem, WebSettingsProject, WebInstallationDiagnostics, WebPeriodicTask, MolisWorkSettingsView } from "./settings-view.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export { renderMcpAccessRows, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";

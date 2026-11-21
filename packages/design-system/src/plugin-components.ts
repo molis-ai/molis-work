@@ -107,7 +107,8 @@ function checkBinding(binding: PluginOperationBinding, contract: SandboxPluginCo
   if (!plain(binding) || Object.keys(binding).some(key => !['operationId', 'input', 'outputPath'].includes(key))) fail('操作绑定包含未知属性');
   const operation = contract.operations.find(item => item.id === binding.operationId);
   if (!operation) return fail('操作不存在：' + binding.operationId);
-  if (operation.read_protocol !== undefined || operation.action_protocol !== undefined) return fail('平台协议动作不能绑定到页面组件：' + binding.operationId);
+  if (operation.read_protocol !== undefined) return fail('平台读取协议不能绑定到页面组件：' + binding.operationId);
+  if (operation.action_protocol !== undefined) return fail('平台协议动作不能绑定到页面组件：' + binding.operationId);
   if (reading && operation!.kind !== 'query') fail('自动读取只能绑定查询操作');
   if (operation!.input.type !== 'object' || !plain(binding.input)) fail('界面操作的输入必须是对象');
   for (const [name, source] of Object.entries(binding.input)) {

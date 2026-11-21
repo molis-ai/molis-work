@@ -139,7 +139,7 @@ export class AcceptanceService {
         ports.assertCurrent?.();
       }
     }
-    await ports.beforeCommit?.();
+    if (ports.beforeCommit) await ports.beforeCommit();
     if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");
     ports.assertCurrent?.();
     this.store.write(() => {
@@ -176,7 +176,7 @@ export class AcceptanceService {
       const delivery = before.deliveries.find(item => item.version === report.checked.version.trim());
       findings.push(!delivery || (report.checked.subject && !sameSubject(report.checked.subject, subject.subject)) ? null : await weigh(report, delivery, caller, ports));
     }
-    await ports.beforeCommit?.();
+    if (ports.beforeCommit) await ports.beforeCommit();
     if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");
     ports.assertCurrent?.();
     this.store.write(() => {

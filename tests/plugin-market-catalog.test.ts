@@ -78,9 +78,9 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   // Inspect the tab map before string pooling substitutes literal values.
   let tabIcons: Record<string, string> | undefined;
   const visit = (node: ts.Node) => {
-    if (ts.isObjectLiteralExpression(node)) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "PLUGIN_TAB_ICON" && node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
       const fields: Record<string, string> = {};
-      for (const property of node.properties) {
+      for (const property of node.initializer.properties) {
         if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
           && ts.isStringLiteral(property.initializer)) fields[property.name.text] = property.initializer.text;
       }

@@ -118,7 +118,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     const arrival = readProjectArrival(homeDirectory);
     const remembered = arrival.projects[project.project_id];
     const readResume = async (): Promise<{ items: BriefGoal[]; detail: string | null } | null> => {
-      const views = (await lookingForArea(() => actions.discover())).filter(view => view.availability.available && isResumeSummaryAction(view.action));
+      const views = await lookingForArea(() => actions.declaredMatching(definition => isResumeSummaryAction(definition.action)));
       if (!views.length) return null;
       const settled = await Promise.all(views.map(view => settle(lookingForArea(() => actions.invoke(
         { capability_id: view.capability_id, version: view.version, operation: view.operation, provider_id: view.provider.provider_id, action: view.action } as ActionDefinition<Record<string, never>, ResumeSummary>,

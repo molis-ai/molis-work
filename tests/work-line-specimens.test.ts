@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderMolisWorkNavigationSpecimen, renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchRenderer, renderMolisWorkNavigationSpecimen, renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
 import { installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -183,4 +183,28 @@ test("every button in the specimens has a name, in both languages, and no key is
   assert.match(en, /New event “Fix/u);
   assert.match(en, /aria-label="1 needs you"/u);
   assert.doesNotMatch(en.replace(/林夏|Lin Xia/gu, ""), /[一-鿿]/u, "the English frame has no Chinese left");
+});
+
+test("work-line CSS keeps static fallbacks before CSS Anchor Positioning overrides", () => {
+  const css = createWorkbenchRenderer({
+    locale: {
+      readText: key => key,
+      currentLocale: () => "zh",
+      htmlLang: () => "zh-CN",
+      dateTimeLocale: () => "zh-CN",
+      listJoin: items => items.join("、"),
+      localeSwitchHref: () => "/",
+    },
+    desktop: {
+      appendDesktopQueryToLocalHrefs: html => html,
+      withDesktopQuery: path => path,
+      bootstrapScript: "",
+    },
+    catalogTextPacks: () => [],
+  }).renderMolisWorkWorkbenchStylesheet();
+  assert.match(css, /\.work-counts\{[^}]*top:6px;/u, "desktop .work-counts has static top:6px fallback");
+  assert.match(css, /@media \(max-width:760px\),\(pointer:coarse\)\{[^@]*\.work-counts\{[^}]*top:4px;/u, "compact .work-counts has static top:4px fallback");
+  assert.match(css, /@supports \(anchor-name:--x\)\{[\s\S]*?\.assistant-attention\{[^}]*position-anchor:--assistant-receiver/u, "anchor positioning for .assistant-attention is guarded by @supports");
+  assert.match(css, /@supports \(anchor-name:--x\)\{[^}]*\.work-counts\{[^}]*top:calc\(anchor\(top,0px\) \+ 6px\)/u, "desktop anchor() for .work-counts is guarded by @supports");
+  assert.match(css, /@supports \(anchor-name:--x\)\{[^}]*\.work-counts\{[^}]*top:calc\(anchor\(top,0px\) \+ 4px\)/u, "compact anchor() for .work-counts is guarded by @supports");
 });

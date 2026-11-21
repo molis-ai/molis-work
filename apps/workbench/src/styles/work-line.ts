@@ -52,16 +52,24 @@ ${REST_COMPOSER}{
     &>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) minmax(0,1fr) auto auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:0 4px 4px}
     & .mw-composer__text{grid-area:1/1/2/-1;padding:6px var(--counts-room,176px) 0 8px}
     & .mw-compose__anchor{grid-area:2/1}
-    & .mw-composer__to{grid-area:2/2;anchor-name:--assistant-receiver}
+    & .mw-composer__to{grid-area:2/2}
     & :is(.mw-composer__more,.mw-composer__controls){grid-area:2/4}
     & .mw-composer__end{grid-area:2/5}
-    &~.assistant-attention{position:absolute;position-anchor:--assistant-receiver;top:anchor(center);right:auto;left:calc(anchor(right) + 6px);translate:0 -50%}
   }
-  &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden])){display:block}
-  &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden]))>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto minmax(44px,max-content) minmax(72px,1fr) auto auto}
+}
+@supports (anchor-name:--x){
+  ${REST_COMPOSER}{
+    &>.mw-composer[data-rest]{
+      & .mw-composer__to{anchor-name:--assistant-receiver}
+      &~.assistant-attention{position:absolute;position-anchor:--assistant-receiver;top:anchor(center);right:auto;left:calc(anchor(right) + 6px);translate:0 -50%}
+    }
+    &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden])){display:block}
+    &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden]))>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto minmax(44px,max-content) minmax(72px,1fr) auto auto}
+  }
 }
 /* The words stop before the counts; anchoring the counts to the text row keeps notices and files uncovered. */
-${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room,176px);anchor-name:--work-text}
+${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room,176px)}
+@supports (anchor-name:--x){${SHELL} .work-line-slot .mw-composer__text{anchor-name:--work-text}}
 /* The account bar: who you are (sync is a dot on the avatar), then 通知, 插件 and 设置 as round keys; no ink-blue solid here. */
 .bar-account{grid-column:1;grid-row:1;justify-self:end;display:flex;align-items:center;gap:8px;width:100%;max-width:400px;height:74px;min-width:0;box-sizing:border-box;padding:0 14px 0 10px;border-radius:20px;background:color-mix(in srgb,var(--popover) 62%,var(--desk));box-shadow:0 0 0 1px var(--line)}
 .bar-account-me{flex:1 1 auto;display:flex;align-items:center;gap:11px;min-width:0;height:54px;padding:0 12px 0 6px;border:0;border-radius:14px;background:none;color:var(--ink);font:inherit;text-align:start;cursor:pointer;transition:background-color ${HOVER}}
@@ -85,7 +93,8 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 /* 办完, 在办, 接下来 inside the input's top right while the dialog is closed (POLISH-67, POLISH-74), then a hairline and the dialog's own row. */
 /* The row is drawn 24px high (§4「底栏第十三版」第 3 条) but its keys are the bar's 28px floor on a fine pointer (DESIGN.md, the desktop
    chrome's exception) and 44px for a finger, so the row stands 6px from the top and centres on the same line. */
-.work-counts{position:absolute;position-anchor:--work-text;z-index:3;top:calc(anchor(top,0px) + 6px);right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
+.work-counts{position:absolute;z-index:3;top:6px;right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
+@supports (anchor-name:--x){.work-counts{position-anchor:--work-text;top:calc(anchor(top,0px) + 6px)}}
 .work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:8px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .work-count>svg{flex:none;width:14px;height:14px}
 .work-count[data-zero]{color:var(--faint)}
@@ -150,7 +159,8 @@ button.work-stack-more:hover{background:var(--amber-soft)}
   :is(.work-count,.work-stack-more,.work-stack-open){min-height:44px;min-width:44px;justify-content:center}
   .work-stack,.work-stack-card{height:auto;min-height:74px}
   .work-stack-card{padding:6px 12px 6px 14px}
-  .work-counts{top:calc(anchor(top,0px) + 4px);height:44px}
+  .work-counts{top:4px;height:44px}
+  @supports (anchor-name:--x){.work-counts{top:calc(anchor(top,0px) + 4px)}}
   .work-counts>.work-reply-mini{height:44px}
   .work-counts>.work-reply-mini::before{top:12px;bottom:12px}
   .work-counts>.work-reply-mini :is(.work-task-mark,.mw-btn.mw-btn--icon-only){height:44px;min-height:44px;min-width:44px}

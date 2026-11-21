@@ -61,9 +61,12 @@ export async function syncReadIdentity(origin, application, authorization, token
   const cacheKey = JSON.stringify([origin, application, tokenHash]);
   const cached = proofs.get(cacheKey);
   if (cached?.expires > Math.floor(Date.now() / 1000)) {
-    return (await verify(origin, application, tokenHash, cached.proof))?.sub ?? null;
+    const verified = await verify(origin, application, tokenHash, cached.proof);
+    if (verified) return verified.sub;
+    proofs.delete(cacheKey);
+  } else {
+    proofs.delete(cacheKey);
   }
-  proofs.delete(cacheKey);
   const response = await fetch(origin + '/api/v2/auth/sync-read-proof', {
     redirect: 'manual', headers: {Authorization: authorization},
   });

@@ -156,13 +156,13 @@ Runtime 只在 Session 启动时读取 MCP 和 Skill，因此刚完成接入后�
 
 ### 一键启动（开发日常）
 
-仓库检出后的日常入口是根目录的 `Start.sh`：先清理残留实例（常驻 LaunchAgent 服务、占用 4173 的旧 Web、运行中的桌面端），按需补装依赖、在构建产物缺失或落后于源码时重新构建，然后启动桌面端——其 Web 界面直接来自仓库刚构建的 `dist`，改完代码重启即可看到。交互终端会进入逐步向导（选目标、确认清理、确认重建）；脚本化场景可加参数跳过向导。
+仓库检出后的日常入口是根目录的 `Start.sh`：按显式指定的账号环境（`dev` 或 `test`）在 `http://127.0.0.1:4207` 启动隔离 Home（`~/.molis-work-environments/<env>`）的本地 Work 宿主。启动前需先完成构建（`pnpm install --frozen-lockfile && pnpm build`），也可以用 `pnpm dev` 直接启动 `dev` 环境。
 
 ```bash
-./Start.sh              # 向导，默认启动桌面端 App
-./Start.sh --web        # 只启动 Web 服务并打开浏览器
-./Start.sh --build      # 启动前强制重建
-./Start.sh --no-clean   # 跳过清理
+./Start.sh --env dev            # 连接本地 Auth（http://127.0.0.1:8787）与 dev Home
+./Start.sh --env dev --desktop  # 同上，并同步启动 Tauri 桌面壳
+./Start.sh --env test           # 连接远端测试 Auth（https://auth.test.molis.ai）与 test Home
+pnpm dev                        # 等同于 ./Start.sh --env dev
 ```
 
 ### 构建、安装和启动 macOS Desktop

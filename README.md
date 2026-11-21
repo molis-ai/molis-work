@@ -156,13 +156,13 @@ Runtimes read MCP and Skill manifests at Session startup, so a newly connected R
 
 ### One-command start (development)
 
-`Start.sh` in the repository root is the daily entry for a checkout: it first cleans up leftover Molis Work processes (the resident LaunchAgent service, an old Web on port 4173, a running desktop app), installs dependencies and rebuilds when build artifacts are missing or older than the sources, then launches the desktop app — its Web UI is served straight from the freshly built repository `dist`, so a restart picks up your code changes. An interactive terminal gets a step-by-step wizard (pick the target, confirm cleanup, confirm rebuild); scripted runs can skip the wizard with flags.
+`Start.sh` in the repository root launches the local Work Host against an explicitly selected account environment (`dev` or `test`) on `http://127.0.0.1:4207` using its isolated Home (`~/.molis-work-environments/<env>`). Build the workspace first (`pnpm install --frozen-lockfile && pnpm build`), or run `pnpm dev` as shorthand for `--env dev`.
 
 ```bash
-./Start.sh              # wizard; starts the desktop app by default
-./Start.sh --web        # Web service only, opens the browser
-./Start.sh --build      # force a rebuild before starting
-./Start.sh --no-clean   # skip cleanup
+./Start.sh --env dev            # local Auth (http://127.0.0.1:8787) + dev Home
+./Start.sh --env dev --desktop  # same, and also launch the Tauri desktop shell
+./Start.sh --env test           # remote test Auth (https://auth.test.molis.ai) + test Home
+pnpm dev                        # shorthand for ./Start.sh --env dev
 ```
 
 ### Build, install, and start macOS Desktop

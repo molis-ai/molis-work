@@ -110,10 +110,23 @@ export function disposeWorkTerminalsForOwner(input: { home: string; install_id: 
   }
 }
 
+function pruneDeadPanels(): void {
+  for (const [bucketKey, existingBucket] of livePanels) {
+    for (const [existingId, existingHost] of existingBucket) {
+      if (!existingHost.alive(existingId)) existingBucket.delete(existingId);
+    }
+    if (!existingBucket.size) livePanels.delete(bucketKey);
+  }
+}
+
 function trackLivePanel(home: string, owner: TerminalOwner, panelId: string, host: MolisWorkPtyHost): void {
+  pruneDeadPanels();
   const key = ownerBucket(home, owner.install_id, owner.project_id);
   let bucket = livePanels.get(key);
-  if (!bucket) livePanels.set(key, bucket = new Map());
+  if (!bucket) {
+    bucket = new Map();
+    livePanels.set(key, bucket);
+  }
   bucket.set(panelId, host);
 }
 

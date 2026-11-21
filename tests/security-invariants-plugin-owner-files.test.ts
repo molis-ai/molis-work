@@ -3,7 +3,13 @@ import fs, { chmodSync, existsSync, linkSync, mkdirSync, readFileSync, readdirSy
 import { syncBuiltinESMExports } from "node:module";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_DATA_EXPORT_PERMISSION, PLUGIN_DATA_PROVIDER_ID, pluginDataActions, type HomePluginDatabaseDeclaration, type PluginDataExportResult, type PluginDataSectionDeclaration, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginManifestDigest, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { homeStores, openSandboxHomeLibrary } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantOwnerFiles, ownerFileActions, ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
@@ -155,4 +161,239 @@ test("SHF-IO-S06 atomic rename failure keeps old bytes and removes only its temp
     assert.ok(returned instanceof Uint8Array); assert.deepEqual(returned, large);
     return returned.byteLength;
   }), large.byteLength, "the service reads all bytes; the action's diagnostic result stays small");
+});
+
+test("S-plugin-data plugins.data refuses non-person, delegated, quarantined, unowned Home DB, and non-partitioned Home tables without project_id under project scope", async t => {
+  const ownedDecl: HomePluginDatabaseDeclaration = {
+    store_name: "p06data",
+    version: 1,
+    read_permission: "p06data:read",
+    write_permission: "p06data:write",
+    schema: "CREATE TABLE p06_notes (id INTEGER PRIMARY KEY, label TEXT NOT NULL); CREATE TABLE p06_kv (k TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID;",
+  };
+  const unownedDecl: HomePluginDatabaseDeclaration = {
+    store_name: "p06unowned",
+    version: 1,
+    read_permission: "p06unowned:read",
+    write_permission: "p06unowned:write",
+    schema: "CREATE TABLE orphan_rows (id INTEGER PRIMARY KEY, body TEXT NOT NULL);",
+  };
+  const quarantinedDecl: HomePluginDatabaseDeclaration = {
+    store_name: "p06quarantined",
+    version: 1,
+    read_permission: "p06q:read",
+    write_permission: "p06q:write",
+    schema: "CREATE TABLE q_rows (id INTEGER PRIMARY KEY, body TEXT NOT NULL);",
+  };
+
+  const makeManifest = (pluginId: string, signature: string, homeDb: HomePluginDatabaseDeclaration): PluginManifest => ({
+    schema_version: 1,
+    host_api_version: 1,
+    plugin_id: pluginId,
+    version: "1.0.0",
+    name: pluginId,
+    kind: "app",
+    publisher: { publisher_id: "third-party", signature },
+    entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
+    permissions: [
+      { permission: "storage:private", required: true, reason: "private storage" },
+      { permission: homeDb.read_permission, required: true, reason: "read" },
+      { permission: homeDb.write_permission, required: true, reason: "write" },
+    ],
+    capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] },
+    runtime: { scope: "home" },
+    databases: { home: homeDb },
+  });
+
+  const ownedId = "io.molis.work.example.p06data";
+  const unownedId = "io.molis.work.example.p06unowned";
+  const quarantinedId = "io.molis.work.example.p06quarantined";
+  const ownedManifest = makeManifest(ownedId, "sig-p06-owned", ownedDecl);
+  const unownedManifest = makeManifest(unownedId, "sig-p06-unowned", unownedDecl);
+  const quarantinedManifest = makeManifest(quarantinedId, "sig-p06-quarantined", quarantinedDecl);
+
+  const f = await serveHomeRuntime(t);
+  const project = await f.project("Plugin Data Boundary");
+  const projectClient = f.host.actionClient(project.reference);
+  const homeClient = f.host.homeActionClient();
+  const sectionsRef = { ...pluginDataActions.sections, provider_id: PLUGIN_DATA_PROVIDER_ID };
+  const exportRef = { ...pluginDataActions.export, provider_id: PLUGIN_DATA_PROVIDER_ID };
+
+  // Ensure plugin-runtime DB exists, then record three third-party installed plugins (running, unowned, quarantined).
+  await f.host.homePlugins!.ready();
+  {
+    const db = new DatabaseSync(homeSqlitePath(f.home, "plugin-runtime"));
+    try {
+      const installs = new SqlitePluginRuntimeRepository(db);
+      const releases = new SqlitePluginRuntimeReleaseArtifactRepository(db);
+      const now = new Date().toISOString();
+      const seedInstall = (manifest: PluginManifest, state: PluginInstanceRecord["state"]) => {
+        const digest = pluginManifestDigest(manifest);
+        releases.save({
+          plugin_id: manifest.plugin_id,
+          publisher_signature: manifest.publisher.signature,
+          version: manifest.version,
+          manifest_digest: digest,
+          manifest,
+          module_source: "export default {};",
+        });
+        installs.save({
+          install_id: `install-${manifest.plugin_id}`,
+          installation_generation: "1",
+          plugin_id: manifest.plugin_id,
+          version: manifest.version,
+          publisher_id: manifest.publisher.publisher_id,
+          publisher_signature: manifest.publisher.signature,
+          publisher_trust: "pinned",
+          manifest_digest: digest,
+          deployment: "local",
+          selected_entrypoint: "./index.js",
+          execution: "sandbox",
+          state,
+          recovery_count: 0,
+          last_error_code: null,
+          grants: ["storage:private"],
+          installed_at: now,
+          updated_at: now,
+          uninstalled_at: null,
+          retain_private_data: false,
+        });
+      };
+      seedInstall(ownedManifest, "running");
+      seedInstall(unownedManifest, "running");
+      seedInstall(quarantinedManifest, "quarantined");
+    } finally {
+      db.close();
+    }
+  }
+
+  // 1. Non-person audiences, delegated callers, and plugin identities are refused and not offered.
+  const basePerson: ActionCallContext = {
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    audience: "user",
+    project_id: project.project_id,
+    permissions: [PLUGIN_DATA_EXPORT_PERMISSION],
+  };
+  const forbiddenCallers: Array<[string, ActionCallContext]> = [
+    ["agent", { ...basePerson, audience: "agent", actor_kind: "runtime" }],
+    ["plugin", { ...basePerson, audience: "plugin", actor_kind: "runtime" }],
+    ["workflow", { ...basePerson, audience: "workflow", actor_kind: "runtime" }],
+    ["mcp", { ...basePerson, audience: "mcp", actor_kind: "runtime" }],
+    ["delegated", { ...basePerson, delegated_by: "io.molis.work.todo" }],
+    ["calling_plugin_id", { ...basePerson, calling_plugin_id: "io.molis.work.todo" }],
+    ["host_plugin", {
+      ...basePerson,
+      host_plugin: {
+        plugin_id: "io.molis.work.todo",
+        install_id: "builtin:io.molis.work.todo",
+        actor_id: LOCAL_PERSON_ACTOR_ID,
+        project_id: project.project_id,
+        declaration: { manifest: {} as never },
+        assertActive: () => {},
+      },
+    }],
+  ];
+  for (const [label, caller] of forbiddenCallers) {
+    let discovered: Awaited<ReturnType<typeof projectClient.discover>> | null = null;
+    try {
+      discovered = await projectClient.discover(caller);
+    } catch (error) {
+      assert.ok(error instanceof ActionError && (error.code === "actions.forbidden" || error.kind === "forbidden"), `${label} discover refused`);
+    }
+    if (discovered) {
+      for (const cap of [pluginDataActions.sections.capability_id, pluginDataActions.export.capability_id]) {
+        const view = discovered.find(entry => entry.capability_id === cap);
+        assert.ok(!view || !view.availability.available, `${label} must not see ${cap} as available`);
+      }
+    }
+    await assert.rejects(
+      projectClient.invoke(caller, sectionsRef, {}),
+      (error: unknown) => error instanceof ActionError && (error.code === "actions.forbidden" || error.kind === "forbidden"),
+      `${label} refused sections`,
+    );
+    await assert.rejects(
+      projectClient.invoke(caller, exportRef, { plugin_id: ownedId }),
+      (error: unknown) => error instanceof ActionError && (error.code === "actions.forbidden" || error.kind === "forbidden"),
+      `${label} refused export`,
+    );
+  }
+
+  // 2. Quarantined plugin is excluded from sections discovery and refused by export.
+  const homePerson: ActionCallContext = {
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    audience: "user",
+    project_id: null,
+    permissions: [PLUGIN_DATA_EXPORT_PERMISSION],
+  };
+  const listed = await homeClient.invoke(homePerson, sectionsRef, {}) as { sections: PluginDataSectionDeclaration[] };
+  assert.equal(listed.sections.some(section => section.plugin_id === quarantinedId), false, "quarantined plugin omitted from sections");
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: quarantinedId }),
+    (error: unknown) => error instanceof ActionError && error.code === "host.plugin_data_not_found",
+  );
+
+  // 3. Unowned Home DB file on disk without a plugin-libraries ledger row is refused.
+  const unownedDbPath = homeSqlitePath(f.home, unownedDecl.store_name);
+  mkdirSync(join(f.home, unownedDecl.store_name), { recursive: true });
+  {
+    const db = new DatabaseSync(unownedDbPath);
+    try {
+      db.exec(unownedDecl.schema);
+      db.prepare("INSERT INTO orphan_rows(id, body) VALUES (1, 'forged')").run();
+    } finally {
+      db.close();
+    }
+  }
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: unownedId }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "unowned Home DB without ledger ownership row is refused",
+  );
+
+  // 4. Ledger-owned non-partitioned Home DB without project_id column: refused under project scope, deterministic under Home scope.
+  const ownedLib = await openSandboxHomeLibrary(
+    f.home,
+    { plugin_id: ownedId, publisher_signature: ownedManifest.publisher.signature },
+    ownedDecl,
+    homeStores(),
+    () => {},
+    { install_id: `install-${ownedId}`, installation_generation: "1" },
+  );
+  await ownedLib.close();
+  {
+    const db = new DatabaseSync(homeSqlitePath(f.home, ownedDecl.store_name));
+    try {
+      db.prepare("INSERT INTO p06_notes(id, label) VALUES (10, 'second'), (2, 'first')").run();
+      db.prepare("INSERT INTO p06_kv(k, v) VALUES ('b', 'two'), ('a', 'one')").run();
+    } finally {
+      db.close();
+    }
+  }
+  await assert.rejects(
+    projectClient.invoke(basePerson, exportRef, { plugin_id: ownedId, project_id: project.project_id }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.scope_mismatch",
+    "non-partitioned Home table lacking project_id must fail closed under project scope",
+  );
+  const homeExport = await homeClient.invoke(homePerson, exportRef, { plugin_id: ownedId }) as PluginDataExportResult;
+  assert.equal(homeExport.sections.length, 1);
+  const items = homeExport.sections[0]!.items as Array<{ table: string; rows: Array<Record<string, unknown>> }>;
+  assert.deepEqual(items.find(item => item.table === "p06_notes")?.rows.map(row => row.label), ["first", "second"]);
+  assert.deepEqual(items.find(item => item.table === "p06_kv")?.rows.map(row => row.k), ["a", "b"]);
+
+  // 5. Cross-publisher mismatch in plugin-libraries ledger is refused.
+  {
+    const ledgerDb = new DatabaseSync(homeSqlitePath(f.home, "plugin-libraries"));
+    try {
+      ledgerDb.prepare("UPDATE plugin_home_libraries SET publisher_signature = 'other-publisher' WHERE plugin_id = ?").run(ownedId);
+    } finally {
+      ledgerDb.close();
+    }
+  }
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: ownedId }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "cross-publisher Home DB ledger mismatch is refused",
+  );
 });

@@ -110,8 +110,11 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     }
     const reuse = "set" in previous && canonicalJsonText(previous.set) === canonicalJsonText(proposal.value);
     if (reuse && current.value_unavailable) return { ...details, decision: "skip", reason: "value_unavailable" };
-    plans.set(part_id, { binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,
-      ...(current.layer_revisions?.[layer] !== undefined && { original_layer_revision: current.layer_revisions[layer] }) });
+    plans.set(part_id, {
+      binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,
+      ...(entry.layers.includes("project") && { has_project_layer: true as const }),
+      ...(current.layer_revisions?.[layer] !== undefined && { original_layer_revision: current.layer_revisions[layer] }),
+    });
     return { ...details, decision: reuse ? "reuse" : "update" };
   });
   const preview = { preview_id: randomUUID(), expires_at: new Date(now + lifetime).toISOString(), source: draft.source,

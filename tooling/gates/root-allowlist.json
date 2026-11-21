@@ -16,7 +16,7 @@
     "PRODUCT.md": "the product promise (AGENTS.md reading order)",
     "README.md": "repository front page",
     "README.zh.md": "repository front page, Chinese",
-    "Start.sh": "one-click start wizard, same as pnpm start",
+    "Start.sh": "source environment launcher (./Start.sh --env dev|test [--desktop])",
     "apps": "applications: local host, workbench, CLI, MCP, desktop (docs/system/ARCHITECTURE.md)",
     "biome.jsonc": "static checks: the Biome rule set and its per-package exceptions (tooling/gates/README.md \"Static checks\"; counted by scripts/gates/lint.mjs). Biome reads its configuration from the root, as editors do",
     "config": "shared public environment profiles (dev/test/prod) read by local launch scripts, desktop runtime payload packaging and sync environment bindings",

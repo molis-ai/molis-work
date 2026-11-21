@@ -193,6 +193,7 @@ export class AssistantDispatch {
 
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, handoff?: MethodHandoff): Promise<AssistantSendResult> {
+    if (intent?.report_only) throw assistantErrors.unsupported("执行方插件不能运行只汇报轮次");
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
     if (carriesExternalSessionInput(materials, context)) throw assistantErrors.unsupported("这项工作由执行方插件承担，不能附带仅限本轮可见的外部会话内容；请交给助理执行，或去掉外部会话内容后再发");
     // The Skills the person chose go to the executor by their exact references, named by the Host on its `run.start` (§2.3); the
@@ -225,7 +226,7 @@ export class AssistantDispatch {
     const runId = await executor.start(sessionId, this.inputs.compose(task, told, context), skills, intent?.resume_answer);
     handoff?.accepted();
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
-    this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(intent?.report_only ? { report_only: true as const } : {}) });
+    this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
     return this.result(work, "started", runId, stillCurrent, intent?.draftCurrent);
   }
 

@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decideRuntimeRun, expiredOwnerKey, expiredSeen, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type HomeAggregatePorts, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionCallContext, type ActionDefinition, type ActionView, type RunsOverview,
+import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type HomeAggregatePorts, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
+import { desktopWorkbenchRendererPorts, isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, RUN_MISSED_KEPT_MS, type ActionCallContext, type ActionDefinition, type ActionView, type RunsOverview,
   type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 /**
  * RES-05: the Host finds every owner of runs by type — the project ones in each open project, the Home ones in the Home — asks each once,
@@ -153,4 +156,98 @@ test("BL-missed-runs-never-expire the marks are kept in the Home owner by owner:
   assert.deepEqual(expiredSeen(home), {}, "a torn file counts as nothing told");
   writeFileSync(join(home, "run", "expired-seen.json"), JSON.stringify({ schema_version: 2, seen: { [a]: NOW } }));
   assert.deepEqual(expiredSeen(home), {}, "a version this one did not write is not read");
+});
+
+test("BL-missed-runs-never-expire /api/runtime/expired/seen isolates homes, ignores empty polls, and returns 409 on cache miss without writing", async t => {
+  const homeA = mkdtempSync(join(tmpdir(), "molis-work-rt-http-a-"));
+  const homeB = mkdtempSync(join(tmpdir(), "molis-work-rt-http-b-"));
+  const token = "runtime-overview-http-test-token-0123456789";
+  const create = createLocalWebCoreFactory({
+    withCatalog: withMolisWorkProjectCatalog,
+    desktopRenderer: desktopWorkbenchRendererPorts,
+    cliAvailability: () => ({}),
+    isDesktopShellRequest,
+    nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
+    ptyClientFilePath: () => "unused.js",
+  });
+  const serverA = create({ homeDirectory: homeA, controlToken: token });
+  const serverB = create({ homeDirectory: homeB, controlToken: token });
+  t.after(async () => {
+    serverA.closeAllConnections();
+    serverB.closeAllConnections();
+    await new Promise<void>(resolve => serverA.close(() => resolve()));
+    await new Promise<void>(resolve => serverB.close(() => resolve()));
+    rmSync(homeA, { recursive: true, force: true });
+    rmSync(homeB, { recursive: true, force: true });
+  });
+  await new Promise<void>(resolve => serverA.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>(resolve => serverB.listen(0, "127.0.0.1", resolve));
+  const addrA = serverA.address();
+  const addrB = serverB.address();
+  assert.ok(addrA && typeof addrA === "object" && addrB && typeof addrB === "object");
+  const originA = `http://127.0.0.1:${addrA.port}`;
+  const originB = `http://127.0.0.1:${addrB.port}`;
+  const webA = new LocalHostHttpClient({ origin: originA, controlToken: token });
+  const project = await createProject(webA, "Expired Summary Project");
+  // Open project in Host A first so Schedule initializes its own tables and baseline cleanly.
+  const openRes = await fetch(`${originA}/projects/${project.project_id}/?openPlugin=schedule`);
+  assert.equal(openRes.status, 200);
+  const db = new LocalProjectDatabase(project.database_path);
+  try {
+    const dueAt = new Date(Date.now() - RUN_MISSED_KEPT_MS - 2 * 86_400_000).toISOString();
+    const missedAt = new Date(Date.now() - 86_400_000).toISOString();
+    db.db.prepare(
+      "INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)",
+    ).run(project.project_id, `reminder:r1:${dueAt}`, "r1", "过期提醒", dueAt, missedAt);
+  } finally {
+    db.close();
+  }
+
+  const postSeen = async (origin: string, through: string) => {
+    const response = await fetch(`${origin}/api/runtime/expired/seen`, {
+      method: "POST",
+      headers: {
+        origin,
+        "content-type": "application/json",
+        "x-molis-work-control-token": token,
+        "x-molis-work-idempotency-key": randomUUID(),
+      },
+      body: JSON.stringify({ through }),
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+
+  // Cache miss refuses with 409 and does not create run/expired-seen.json.
+  const stale = await postSeen(originA, "2026-11-11T09:00:00.000Z");
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.applied, false);
+  assert.equal(stale.body.code, "runtime.expired_summary_stale");
+  assert.equal(existsSync(join(homeA, "run", "expired-seen.json")), false);
+
+  // Read non-empty summary for homeA.
+  const overviewRes = await fetch(`${originA}/api/runtime/overview`);
+  assert.equal(overviewRes.status, 200);
+  const first = await overviewRes.json() as { expired: { count: number; through: string } };
+  assert.equal(first.expired.count, 1, JSON.stringify(first));
+  const through = first.expired.through;
+
+  // 260 empty polls on homeB must not evict homeA's cached non-empty summary.
+  for (let i = 0; i < 260; i++) {
+    const emptyRes = await fetch(`${originB}/api/runtime/overview`);
+    assert.equal(emptyRes.status, 200);
+  }
+
+  // Different home cannot consume homeA's cached through.
+  const wrongHome = await postSeen(originB, through);
+  assert.equal(wrongHome.status, 409);
+  assert.equal(wrongHome.body.applied, false);
+
+  // homeA's cached entry survived all 260 empty polls and persists owner marks.
+  const ok = await postSeen(originA, through);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.applied, true);
+  assert.ok(Object.keys(expiredSeen(homeA)).length > 0, "owner marks persisted to run/expired-seen.json");
+  const afterRes = await fetch(`${originA}/api/runtime/overview`);
+  const after = await afterRes.json() as { expired: { count: number } };
+  assert.equal(after.expired.count, 0, "acknowledged expired summary is not repeated");
 });

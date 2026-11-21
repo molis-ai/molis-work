@@ -12,7 +12,7 @@ function packagedReleaseProfile(): string | undefined {
 const packaged = packagedReleaseProfile();
 
 export function activeReleaseProfile(env: NodeJS.ProcessEnv = process.env) {
-  return releaseProfile(packaged ?? (env.NODE_TEST_CONTEXT ? env.MOLIS_WORK_RELEASE_PROFILE : undefined) ?? "dev");
+  return releaseProfile(packaged ?? env.MOLIS_WORK_RELEASE_PROFILE ?? "dev");
 }
 
 let localAccount: Readonly<{ encoded: string; generation: string; name: "dev" | "test"; syncOrigin: string }> | undefined;
@@ -38,8 +38,9 @@ export function packagedDesktopHome(): string | undefined {
 }
 
 export function configuredAccountEnvironment(env?: NodeJS.ProcessEnv): string | undefined {
-  return localAccount?.encoded ?? (packagedAccount ? JSON.stringify(packagedAccount.account) : undefined) ??
-    (env ?? (process.env.NODE_TEST_CONTEXT ? process.env : undefined))?.MOLIS_WORK_ACCOUNT_CONFIG;
+  if (localAccount) return localAccount.encoded;
+  if (packagedAccount) return JSON.stringify(packagedAccount.account);
+  return (env ?? process.env).MOLIS_WORK_ACCOUNT_CONFIG;
 }
 
 export function configuredSyncOrigin(): string | undefined {

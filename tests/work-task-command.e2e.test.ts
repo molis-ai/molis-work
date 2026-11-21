@@ -24,6 +24,7 @@ test("QEA-17 a project task uses the owner's new command input and returns a suc
     } };
   const b = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { project: [definition] });
   assert.ok(b); assert.ok(b.localHost);
+  await b.setViewport(1440, 900);
   const project = await createProject(b.web, "Command owner");
   await startProjectPlugins(b.localHost, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${project.project_id}/` }, b.sessionId));
@@ -47,4 +48,13 @@ test("QEA-17 a project task uses the owner's new command input and returns a suc
   await b.click(stop);
   await b.waitFor(`window.__taskCommands.length === 2 && document.querySelector('${stop}')?.disabled === false`, 15_000);
   assert.deepEqual(plugin.state.stops, [{ project: project.project_id, job: "export-2" }, { project: project.project_id, job: "export-2" }]);
+  // Even if performance.now() is coarse/frozen (WKWebView 1ms resolution), monotonic attention sequence still unlocks the stop button.
+  await b.evaluate("const frozen = performance.now(); performance.now = () => frozen;");
+  await b.click(stop);
+  await b.waitFor(`window.__taskCommands.length === 3 && document.querySelector('${stop}')?.disabled === false`, 15_000);
+  assert.deepEqual(plugin.state.stops, [
+    { project: project.project_id, job: "export-2" },
+    { project: project.project_id, job: "export-2" },
+    { project: project.project_id, job: "export-2" },
+  ]);
 });

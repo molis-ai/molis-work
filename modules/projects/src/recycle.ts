@@ -56,6 +56,17 @@ export class ProjectRecycle {
     return !!this.db.prepare('SELECT 1 FROM project_recycle WHERE project_id=? AND recycled=1').get(projectId);
   }
 
+  /** Mark a newly staged project hidden inside its creation transaction so incomplete copies never surface. */
+  stageHidden(projectId: string): void {
+    this.db.prepare(`INSERT INTO project_recycle(project_id,recycled,generation,observed_at) VALUES(?,1,1,?)
+      ON CONFLICT(project_id) DO UPDATE SET recycled=1,observed_at=excluded.observed_at`).run(projectId, this.now());
+  }
+
+  /** Clear recycle metadata inside a single physical-deletion transaction without emitting a restore event. */
+  clear(projectId: string): void {
+    this.db.prepare('DELETE FROM project_recycle WHERE project_id=?').run(projectId);
+  }
+
   list(): ProjectRecycleObservation[] {
     return (this.db.prepare('SELECT project_id FROM project_recycle WHERE recycled=1 AND EXISTS(SELECT 1 FROM projects WHERE projects.project_id=project_recycle.project_id) ORDER BY project_id').all() as { project_id: string }[])
       .map(row => this.inspect(row.project_id));

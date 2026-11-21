@@ -53,8 +53,8 @@ export interface Workshop {
   draft: SkillDraft;
   fields: Fields;
   replacements: Record<string, string>;
-  /** Snapshot of the wording fields with placeholders unexpanded, kept while editing placeholders so typing never rewrites unrelated text. */
-  placeholderBase?: Record<"description" | "when_not_to_use" | "body", string>;
+  /** Snapshot of the wording fields with placeholders unexpanded, kept per-field while editing placeholders so typing never rewrites unrelated text. */
+  placeholderBase?: Partial<Record<"description" | "when_not_to_use" | "body", string>>;
   /** The Skill or source it was opened from, by name, for the heading. */
   name: string;
   /** The version the draft becomes when adopted (absent: a new Skill). */
@@ -117,18 +117,30 @@ const replaceAll = (text: string, pairs: ReadonlyArray<readonly [string, string]
 };
 /** Every replaced placeholder written out in the fields: renders from a placeholder template so keystroke-by-keystroke typing never touches unrelated text. */
 export function applyReplacements(w: Workshop, placeholder: string, value: string): void {
-  if (!w.placeholderBase) {
-    const inverse = Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [own, ph] as const);
-    w.placeholderBase = {
-      description: replaceAll(w.fields.description, inverse),
-      when_not_to_use: replaceAll(w.fields.when_not_to_use, inverse),
-      body: replaceAll(w.fields.body, inverse),
-    };
+  const base = w.placeholderBase ??= {};
+  const allPlaceholders = placeholdersOf(w);
+  const missingKeys = WORDING_KEYS.filter(key => base[key] === undefined);
+  if (missingKeys.length) {
+    // Include existing placeholders as identity entries so longest-match-first preserves
+    // unreplaced placeholders when another placeholder's replacement is a substring of them.
+    const inverse: Array<readonly [string, string]> = [
+      ...allPlaceholders.map(ph => [ph, ph] as const),
+      ...Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [own, ph] as const),
+    ];
+    for (const key of missingKeys) {
+      base[key] = replaceAll(w.fields[key], inverse);
+    }
   }
   const trimmed = value.trim();
-  if (trimmed) w.replacements[placeholder] = trimmed; else delete w.replacements[placeholder];
-  const forward = Object.entries(w.replacements).filter(([, own]) => Boolean(own));
-  for (const key of WORDING_KEYS) w.fields[key] = replaceAll(w.placeholderBase[key], forward);
+  if (trimmed) w.replacements[placeholder] = trimmed;
+  else delete w.replacements[placeholder];
+  const forward: Array<readonly [string, string]> = [
+    ...Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [ph, own] as const),
+    ...allPlaceholders.filter(ph => !w.replacements[ph]).map(ph => [ph, ph] as const),
+  ];
+  for (const key of WORDING_KEYS) {
+    w.fields[key] = replaceAll(base[key]!, forward);
+  }
 }
 
 export const failureOf = (cause: unknown) => cause as UiRequestFailure;

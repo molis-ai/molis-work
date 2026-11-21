@@ -146,7 +146,7 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
   t.after(()=>rmSync(root,{recursive:true,force:true}));
   const space=personalStorageSpace('https://auth.example.test','work','alice');
   ensureStorageSpace(root,space);
-  const selections=Array.from({length:7},(_,i)=>({plugin_id:`io.example.col${i}`,publisher_id:'example',publisher_signature:'example-key',collection_id:i===0?'projects':`items-${i}`,schema_version:1}));
+  const selections=Array.from({length:7},(_,i)=>({plugin_id:i===0?'io.molis.work.module.projects.v1':`io.example.col${i}`,publisher_id:i===0?'molis':'example',publisher_signature:i===0?'official-project-catalog-binding':'example-key',collection_id:i===0?'projects':`items-${i}`,schema_version:1}));
   const order:string[]=[];
   let active=0,peak=0,baseDone=false;
   const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
@@ -208,4 +208,77 @@ test('PCSYNC-OPT-09 indicatorStatus reflects local edits when automatic sync is 
   assert.equal(updated.progress.pending,2);
   assert.equal(updated.progress.complete,false);
   assert.equal(refreshes,afterRun,'local change refresh still avoids full catalog discovery');
+});
+
+test('PCSYNC-OPT-07 transport_backoff aborts concurrent sibling requests in the same layer instead of hammering the server', async t => {
+  t.mock.timers.reset();
+  const root = mkdtempSync(join(tmpdir(), 'molis-sync-backoff-abort-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
+  ensureStorageSpace(root, space);
+  const selections = Array.from({ length: 5 }, (_, i) => ({
+    plugin_id: `io.example.backoff${i}`,
+    publisher_id: 'example',
+    publisher_signature: 'example-key',
+    collection_id: i === 0 ? 'projects' : `items-${i}`,
+    schema_version: 1,
+  }));
+  const registrations = selections.map((selection, i) => ({
+    selection,
+    title: `Backoff ${i}`,
+    async refresh() {},
+    async prepare() {},
+    withReplica: <T>(run: (replica: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => run({
+      cursor: () => 0,
+      next: () => null,
+      receive() {},
+      acknowledge() {},
+      counts: () => ({ pending: 0, conflicts: 0 }),
+      conflicts: () => [],
+      resolve() {},
+    }),
+  }));
+  let changeCalls = 0;
+  let abortedSiblings = 0;
+  const sync = new PersonalSync({
+    home: root,
+    spaceId: space.spaceId,
+    endpoint: 'http://127.0.0.1:8788',
+    authority: { signal: new AbortController().signal, assertCurrent() {}, async accessToken() { return 'synthetic'; } },
+    registrations,
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/v1/round') {
+        return Response.json({
+          format: 1,
+          policy: { spaceId: space.spaceId, revision: 1, selections },
+          quota: { limitBytes: 100000000, usedBytes: 0 },
+          heads: selections.map(s => ({ namespace: syncNamespace(s), revision: 1 })),
+        });
+      }
+      changeCalls++;
+      if (changeCalls === 1) {
+        return Response.json({ error: 'SYNC_RATE_LIMITED' }, { status: 429, headers: { 'Retry-After': '60' } });
+      }
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+          abortedSiblings++;
+          reject(new Error('aborted'));
+          return;
+        }
+        signal?.addEventListener('abort', () => {
+          abortedSiblings++;
+          reject(new Error('aborted'));
+        }, { once: true });
+      });
+    },
+  });
+  t.after(() => sync.close());
+  await sync.run();
+  assert.ok(sync.status().error !== null);
+  // Non-platform collection_id='projects' must run in parallel with siblings (not isolated as platform catalog),
+  // and when one sibling hits 429, remaining in-flight siblings abort without starting collections 4 & 5.
+  assert.ok(changeCalls <= 3, `expected <= 3 requests before backoff abort, got ${changeCalls}`);
+  assert.ok(abortedSiblings >= 1, 'in-flight sibling requests must be aborted on transport_backoff');
 });

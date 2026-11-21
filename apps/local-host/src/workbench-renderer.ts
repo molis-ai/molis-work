@@ -1,3 +1,4 @@
+import { localEnvironmentName } from "./active-release-profile.js";
 import { installHostUiText, projectTextPacks, registeredBuiltinText } from "./ui-text-provider.js";
 import { createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage, renderWorkbenchRefreshDocument,
   type OwnerUnavailableCard, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
@@ -11,7 +12,7 @@ export function createLocalHostWorkbenchRenderer(desktop: WorkbenchRendererPorts
   installHostUiText();
   return createWorkbenchRenderer({
     locale: { readText, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref },
-    desktop, accountRegistration, appearance, projectDeletionLabels,
+    desktop, accountRegistration, appearance, projectDeletionLabels, environmentName: localEnvironmentName,
     catalogTextPacks(manifest) {
       const reader = registeredBuiltinText(manifest), locale = currentLocale();
       return reader ? projectTextPacks(reader, locale, reader.available.includes(locale)) : [];

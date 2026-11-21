@@ -162,9 +162,11 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
   try {
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
     const manifest = state.platform?.supervisor.manifest(pluginId) ?? entry.manifest;
+    const viewRevision = prepared?.viewRevision ?? state.platform?.viewRevision(pluginId);
     return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, pageOwner,
       request => view.render(request), { manifest, rendered: drawn, client: entry.workbench,
-        producer: prepared?.producer ?? captureRuntimeStageOwner(state.platform, "project", entry)?.producer });
+        producer: prepared?.producer ?? captureRuntimeStageOwner(state.platform, "project", entry)?.producer,
+        ...(viewRevision ? { viewRevision } : {}) });
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
     return unavailableStage(state, entry, uiText.text("workbench.project-plugin-stages.plugin-page-could-not-be-loaded"));
@@ -357,11 +359,12 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
     try { stageSurfaceDescriptors(owner.entry.manifest, owner.view); }
     catch (error) { hostLog.warn("plugins", "stage_surface_invalid", error, { plugin_id: entry.manifest.plugin_id }); continue; }
     try {
+      const viewRevision = selected.scope === "project" ? state.platform?.viewRevision(owner.entry.manifest.plugin_id) : undefined;
       const result = await readRuntimeStageOwner(owner, bind, requests[entry.project_plugin_id] ?? {}, false, false);
       owner.assertCurrent();
       if (result === undefined && stageDataAction(owner.entry.manifest)) continue;
       if (result !== undefined) data[entry.project_plugin_id] = result;
-      views[key] = { producer: owner.producer, get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); },
+      views[key] = { producer: owner.producer, ...(viewRevision ? { viewRevision } : {}), get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); },
         drawText: draw => {
           owner.assertCurrent();
           const reader = pluginViewText(owner.view);

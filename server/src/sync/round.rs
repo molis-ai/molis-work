@@ -12,9 +12,10 @@ pub(crate) async fn read(db: &D1Database, space: &str) -> ApiResult<Value> {
     let selected = policy["selections"]
         .as_array()
         .ok_or(Failure(503, "INVALID_STORAGE"))?;
-    // The existing pull index finds the last ordinary event for each selected namespace; archives are not downloads.
+    // Include sync_heads high-water mark so cascading expired-project event pruning never causes
+    // the namespace head revision to regress below an already-synced client cursor.
     // Pin the same policy revision. A concurrent selection change refuses rather than returning a partial summary.
-    let heads = db.prepare("SELECT n.value AS namespace,COALESCE((SELECT e.revision FROM sync_events e WHERE e.space=p.space AND e.namespace=n.value AND e.action<>'archive' ORDER BY e.revision DESC LIMIT 1),0) AS revision FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND p.revision=? ORDER BY CAST(n.key AS INTEGER)")
+    let heads = db.prepare("SELECT n.value AS namespace,MAX(COALESCE((SELECT e.revision FROM sync_events e WHERE e.space=p.space AND e.namespace=n.value AND e.action<>'archive' ORDER BY e.revision DESC LIMIT 1),0),COALESCE((SELECT MAX(h.revision) FROM sync_heads h WHERE h.space=p.space AND h.namespace=n.value),0)) AS revision FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND p.revision=? ORDER BY CAST(n.key AS INTEGER)")
         .bind(&[space.into(),JsValue::from_f64(revision as f64)])?.all().await?.results::<Value>()?;
     require(heads.len() == selected.len(), 409, "POLICY_CONFLICT")?;
     Ok(

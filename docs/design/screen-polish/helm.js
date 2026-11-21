@@ -8,7 +8,7 @@
   const PROJECT = "目录交互验证";
   const PROJ = [{ id: "p0", nm: PROJECT }, { id: "p1", nm: "Molis 官网改版", ts: [["首页改版", "1 件等你"], ["案例页", "2 件在办"]] }, { id: "p2", nm: "客户成功周报", ts: [["第 46 周周报", "停在第 2 段"]] }];
   const KIND = { doc: "文稿", code: "Coding 会话", task: "助理在办", cal: "日程", todo: "待办", mail: "Inbox 邮件" };
-  // 原型没画的两处（第 36A 批壳层开工时补，给用户选）：主对话等你确认时卡叠里那张卡（S.ma），没有自己页面的事件点开后平台画的那一页（S.np）
+  // 原型没画的两处（第 36A 批壳层开工时补；用户 2026-11-21 定：卡用 A、页用 B，别的方案留在代码里可用 ?do=mainask:C、?do=nopage:A 看）：主对话等你确认时卡叠里那张卡（S.ma），没有自己页面的事件点开后平台画的那一页（S.np）
   const MQ = "要把周报发给销售组的 12 个人吗？发出去以后撤不回。";
   const mk = () => ({
     a: { nm: "发布 v2.3", grp: "现在", ev: [
@@ -36,7 +36,7 @@
     ] },
   });
   let T, S, tick = 0, sendSeq = 0, newSeq = 0, doneSeq = 10, swap = true;
-  const fresh = () => { T = mk(); S = { topic: "a", ev: null, open: false, threads: {}, notes: {}, drafts: {}, spawn: {}, chips: [], look: false, pm: false, wm: false, tm: null, rp: null, all: false, sub: null, subT: {}, pick: false, hint: "", dot: null, ma: null, np: S ? S.np : "A", mav: S ? S.mav : "A", opened: {}, dk: false, sb: false, pin: null, sidePane: null, max: false, rpAuto: false, um: false, mm: false, free: false, askAI: false, gx: { "现在": true }, swp: "p0", w: S ? S.w : 1440, way: "作为补充", scene: 0, flip: 0, pulse: null, marks: S ? S.marks : false, narrow: S ? S.narrow : false }; };
+  const fresh = () => { T = mk(); S = { topic: "a", ev: null, open: false, threads: {}, notes: {}, drafts: {}, spawn: {}, chips: [], look: false, pm: false, wm: false, tm: null, rp: null, all: false, sub: null, subT: {}, pick: false, hint: "", dot: null, ma: null, np: S ? S.np : "B", mav: S ? S.mav : "A", opened: {}, dk: false, sb: false, pin: null, sidePane: null, max: false, rpAuto: false, um: false, mm: false, free: false, askAI: false, gx: { "现在": true }, swp: "p0", w: S ? S.w : 1440, way: "作为补充", scene: 0, flip: 0, pulse: null, marks: S ? S.marks : false, narrow: S ? S.narrow : false }; };
   const find = (id) => { for (const k of Object.keys(T)) { const e = T[k].ev.find((x) => x.id === id); if (e) return { k, e }; } return null; };
   const cur = () => (S.ev ? find(S.ev).e : null);
   const subOf = () => (S.sub ? find(S.sub[0]).e.subs.find((x) => x.id === S.sub[1]) : null);

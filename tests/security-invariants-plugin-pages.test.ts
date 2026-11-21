@@ -1,7 +1,8 @@
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import type { IncomingMessage } from "node:http";
+import { EventEmitter } from "node:events";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -546,6 +547,42 @@ test("RAC-2442 a page without install_id cancels its in-flight requests when the
     authority.close(revoked.page_id);
     assert.equal((refused.reason as { code?: string } | undefined)?.code, "actions.forbidden",
       "a withdrawn page still ends its requests as refused");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+// B12 (specs/plugin-builder-upgrade/reproduction-2026-11.md): a studio page that only held its build's progress stream for more than
+// thirty minutes had its next request refused. A page with a request still in flight has not been left; idle time counts from the end
+// of its last request, and a page that really lapsed is refused with what to do next.
+test("B12 S-47 a page holding its own stream open keeps its authority; an idle page lapses thirty minutes after its last request ended and is refused", async t => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const home = mkdtempSync(join(tmpdir(), "molis-work-page-authority-"));
+  try {
+    const authority = pluginPagesFor(home);
+    const manifest = { plugin_id: "io.example.registered", ui: {}, actions: [], routes: [] } as PluginManifest;
+    const page = authority.open("io.example.registered", null, "web-user", undefined,
+      { manifest, install_id: null, project_id: null, actor_id: "web-user", assertCurrent() {}, requestAllowed: () => true });
+    const send = async () => {
+      const request = { headers: { "x-molis-plugin-page": page.page_id }, method: "GET" } as IncomingMessage, response = new EventEmitter();
+      await authority.bind(request, new URL("http://127.0.0.1/api/anything"), response as unknown as ServerResponse);
+      return () => { response.emit("close"); };
+    };
+    const minutes = (count: number) => t.mock.timers.tick(count * 60_000);
+
+    const endStream = await send();
+    minutes(45);
+    const endAction = await send();
+    endAction();
+    minutes(45);
+    (await send())();
+    endStream();
+
+    minutes(29);
+    (await send())();
+    minutes(31);
+    await assert.rejects(send(), (error: { code?: string; message?: string }) => error.code === "actions.forbidden" && /刷新/.test(error.message ?? ""),
+      "an idle page is refused, and told to refresh");
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

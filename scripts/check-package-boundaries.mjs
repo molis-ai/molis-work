@@ -1147,11 +1147,6 @@ export function checkNoGoalTypedAdapters(files) {
 
 /** The entry packages' source files the `entries` part reads: TypeScript and JavaScript in any module flavour or with JSX, not only `.ts`. */
 export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
-/**
- * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
- * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
- */
-const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
 const PROJECT_REVIEW_CONTRACT = "@molis-ai/molis-work-contracts/services/project-approvals";
 const CLI_DISPATCHER_MODULES = new Set([PROJECT_REVIEW_CONTRACT, "@molis-ai/molis-work-contracts/platform/actions", "./protocol.js"]);
@@ -1195,11 +1190,11 @@ export function checkStandaloneManagementPort(source) {
   const [spread, invoke] = returned && ts.isObjectLiteralExpression(returned) ? returned.properties : [];
   const calls = invoke && ts.isMethodDeclaration(invoke) ? invoke.body?.statements ?? [] : [];
   const valid = parameters === "host,project,signal" && fn.body.statements.length === 2
-    && compact(bind) === "constgoals=bindGoalsManagementActions(host.actionClient(project),project,{signal});"
+    && compact(bind) === "constport=bindManagementActions(host.actionClient(project),project,{signal});"
     && returned && ts.isObjectLiteralExpression(returned) && returned.properties.length === 2
-    && compact(spread) === "...goals" && compact(invoke?.name) === "invoke"
+    && compact(spread) === "...port" && compact(invoke?.name) === "invoke"
     && calls.length === 4 && compact(calls[0]) === "constname=reviewOperation(reference);"
-    && compact(calls[1]) === "if(!name)returngoals.invoke<Output>(reference,input,evidence);"
+    && compact(calls[1]) === "if(!name)returnport.invoke<Output>(reference,input,evidence);"
     && compact(calls[2])?.startsWith('if(evidence!==undefined)thrownewActionError("actions.input_invalid",')
     && compact(calls[3]) === "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;";
   return valid ? [] :
@@ -1231,7 +1226,7 @@ export function checkStandaloneReviewPort(source) {
       "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;"])
     && narrowed?.parameters.length === 1
     && JSON.stringify(invokeBody(narrowed)) === JSON.stringify(["requireReview(reference,evidence);", "returnawaitport.invoke<Output>(reference,input);"])
-    && !/bindGoalsManagementActions/u.test(compact(standalone) ?? "") && !/bindGoalsManagementActions/u.test(compact(narrowed) ?? "");
+    && !/bind(Goals)?ManagementActions/u.test(compact(standalone) ?? "") && !/bind(Goals)?ManagementActions/u.test(compact(narrowed) ?? "");
   return valid ? [] : [file.fileName + ": the command line's port must refuse everything but the platform's review operations before it runs, and bind no Goals port"];
 }
 
@@ -1342,21 +1337,6 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
   return errors;
 }
 
-/** Whether the file declares `const <name> = { … }` itself (an import of the same name is another module's and is refused elsewhere). */
-function tableDeclared(file, name) {
-  let found = false;
-  const visit = node => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name && node.initializer) {
-      let initializer = node.initializer;
-      while (ts.isAsExpression(initializer) || ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
-      if (ts.isObjectLiteralExpression(initializer)) found = true;
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
-  return found;
-}
-
 /** The MCP transport holds no Host client; only its Host composition can build the management port. */
 function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) {
   const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts";
@@ -1364,23 +1344,26 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
   for (const { kind, specifier } of moduleReferences(file)) {
     if (!MCP_DISPATCHER_MODULES.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract and the presentation error type belong to the transport, and no Goals contract`);
   }
-  const actions = new Set(); let port = false;
+  // Batch 44 recheck: the transport names no plugin. A plugin's management tool is the one the Host found by name among the declared
+  // tools (`ports.declared`), and it invokes that tool's own action; the rest are the platform's review actions.
+  let port = false, declaredLookup = false, declaredInvoke = false;
   const visit = node => {
     if (ts.isInterfaceDeclaration(node) && node.name.text === "McpManagementActions") port = true;
     if (ts.isIdentifier(node) && HOST_CLIENT_NAMES.has(node.text)) errors.push(`${toolPath}: ${node.text} is a Host client; use McpManagementActions`);
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) errors.push(`${toolPath}: ${node.argumentExpression.text} is a Host client`);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "declared" && node.initializer
+      && node.initializer.getText(file).replace(/\s+/gu, "") === "ports.declared.find(tool=>tool.name===name)") declaredLookup = true;
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
-      const action = node.arguments[0];
-      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === MCP_GOALS_TABLE) actions.add(action.name.text);
-      else if (action?.getText(file) !== "trustedReviewActions.read" && action?.getText(file) !== "trustedReviewActions.decide")
-        errors.push(`${toolPath}: invoke must name a Goals action or a platform review action, never a typed descriptor or caller`);
+      const action = node.arguments[0]?.getText(file);
+      if (action === "declared.action") declaredInvoke = true;
+      else if (action !== "trustedReviewActions.read" && action !== "trustedReviewActions.decide")
+        errors.push(`${toolPath}: invoke must name the declared tool's action or a platform review action, never a typed descriptor, a plugin's table or a caller`);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
-  if (!tableDeclared(file, MCP_GOALS_TABLE)) errors.push(`${toolPath}: declare the ${MCP_GOALS_TABLE} table of Goals action ids and versions the management tools call`);
-  if (!actions.has("initialize")) errors.push(`${toolPath}: the management tool must invoke ${MCP_GOALS_TABLE}.initialize`);
+  if (declaredInvoke && !declaredLookup) errors.push(`${toolPath}: a declared management tool's action is the one found by name in ports.declared`);
 
   errors.push(...checkTrustedReviewRoutes(file, "mcp"));
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));

@@ -14,7 +14,6 @@ export { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./scripts/client/assistan
 export { WORK_RECORDS_FACTORY_SCRIPT } from "./scripts/client/work-records.js";
 export { ASSISTANT_STEP_ROW_FACTORY_SCRIPT, ASSISTANT_THREAD_REPLY_SCRIPT } from "./scripts/client/assistant-step-row.js";
 export type { MolisWorkOnboardingRenderOptions } from "./onboarding-renderer.js";
-export { onboardingIntentFrame, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";
 export type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsDataAction, pluginSettingsNavItemsFrom } from "./plugin-settings-catalog.js";
 export type { ChooserArrival } from "./arrival/chooser.js";

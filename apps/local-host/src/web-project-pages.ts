@@ -7,7 +7,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
 import { matchPageRoute } from "./page-routes.js";
 import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
-import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,6 +22,7 @@ import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, stageErrorsOf, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
+import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 /** The project settings page each path opens; `/settings` alone opens 常规. */
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "characters", "grants", "rules", "general"] as const)
@@ -154,7 +154,7 @@ export function createLocalProjectPagesHttp(ports: {
       if (open === "rules") return redirectProjectRules(response, view.project.project_id, isDesktopShellRequest(request, url));
       let guidance;
       if (open === "guidance") {
-        try { guidance = await actions.invoke(projectGuidanceActions.read, {}); }
+        try { guidance = await actions.invoke(pinnedProjectGuidanceRead, {}); }
         catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       }
       const html = renderMolisWorkProjectSettingsHub(

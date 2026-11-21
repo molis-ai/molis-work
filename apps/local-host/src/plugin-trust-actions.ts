@@ -1,4 +1,5 @@
 import { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
+import { hostLog } from "./host-log.js";
 import { homedir } from "node:os";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -160,11 +161,12 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller, source),
     onPublisherRevoked: keyId => {
       disposeWorkTerminalsForPublisher(home, keyId);
-      void source.homePlugins()?.reconcilePublishers().catch(() => undefined);
+      // Stopping what it signed continues after this returns; a failure is logged (the next entry or restart reconciles again), never lost.
+      void source.homePlugins()?.reconcilePublishers().catch(error => hostLog.warn("plugin-trust", "publisher_revoke_reconcile_failed", error, { scope: "home" }));
       for (const project of source.host.projects()) {
         void source.host.withExistingRuntime(project, async runtime => {
           await currentInstalledPluginHost(runtime.store, runtime.project_id)?.reconcilePublishers();
-        }).catch(() => undefined);
+        }).catch(error => hostLog.warn("plugin-trust", "publisher_revoke_reconcile_failed", error, { scope: "project", project_id: project.project_id }));
       }
     },
     bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory(),

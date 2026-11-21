@@ -166,6 +166,10 @@ export interface PluginManagementActionDeclaration {
     readonly capability_id: string;
     readonly version: number;
     readonly refused_identity_fields?: readonly string[];
+    readonly mcp_tool?: {
+        readonly name: string;
+        readonly opens_new_database?: true;
+    };
 }
 
 export interface PluginObservationCoverageDeclaration {

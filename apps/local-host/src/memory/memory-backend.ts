@@ -16,7 +16,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
       ...(caller.candidate_access ? { candidate_access: structuredClone(caller.candidate_access) } : {}),
       ...(caller.class_restrictions ? { class_restrictions: structuredClone(caller.class_restrictions) } : {}),
       ...(caller.character ? { character_id: caller.character.id } : {}),
-      current_scene: caller.current_scene ?? (caller.plugin_id ? pluginMemoryScene(caller.plugin_id) : caller.consumer === "assistant" ? "assistant" : "common"), purpose: caller.purpose ?? "management" });
+      current_scene: caller.current_scene ?? (caller.plugin_id ? pluginMemoryScene(caller.plugin_id, undefined, caller.project_id) : caller.consumer === "assistant" ? "assistant" : "common"), purpose: caller.purpose ?? "management" });
     if (!control) return memory;
     if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
     return memory.withExecution(control);

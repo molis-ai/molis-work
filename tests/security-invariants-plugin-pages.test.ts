@@ -78,6 +78,15 @@ test("SYS-15 S-47 page authority allows declared routes and refuses other plugin
     assert.equal(response.status, 403, `${path}: ${await response.text()}`);
   }
   assert.equal((await f.request("/api/host/directory-grants", { method: "POST", body: { plugin_id: a.id }, headers })).status, 403, "undeclared directory permission");
+  // S-plugin-page-person-routes: a plugin page cannot write another plugin's settings, the project's guidance, or drive work terminals as the person.
+  for (const [path, body] of [
+    ["/api/settings/plugin-entries/write", { plugin_id: b.id, key: "k", layer: "home", change: { set: "x" }, expected_revision: "1", request_id: "r" }],
+    ["/api/project-guidance", { kind: "context", content: "from a plugin page" }],
+    [`/api/work-terminals/${b.id}/item/one`, { runtime: "codex" }],
+  ] as const) {
+    const response = await f.request(path, { method: "POST", body, headers });
+    assert.equal(response.status, 403, `${path}: ${await response.text()}`);
+  }
   assert.equal((await f.request(`/api/plugins/${a.id}/state`, { headers: { "x-molis-plugin-page": "invented" } })).status, 403);
   await grantHomeProbe(f.host, a);
   assert.equal((await f.request(`/api/plugins/${a.id}/state`, { headers })).status, 403, "same installation after activation restart");

@@ -15,7 +15,7 @@ export function managementCaller(projectId: string, key = "management", permissi
 
 /**
  * A client whose every call is made as the management caller; the message reference follows the call's idempotency key. As the Host
- * builds the real one (`bindGoalsManagementActions`), the caller holds the permissions of the one action it calls, so an action that
+ * builds the real one (`bindManagementActions`), the caller holds the permissions of the one action it calls, so an action that
  * writes through a platform service (Attention, the Context Ledger) is reached with the permission it declares for that.
  */
 export function managementGoals(client: ActionClient, projectId: string): BoundActionClient {

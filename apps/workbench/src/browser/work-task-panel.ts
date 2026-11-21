@@ -52,6 +52,7 @@ function installDecisionAnswers(host: WorkBarHost, request: TaskPanelLine["reque
   let revising = "";
   const deciding = new Set<string>(), asked = (task: BackgroundTaskRow, id: string) => `${task.id}\n${id}`;
   const answer = (part: HTMLElement, target: Element) => {
+    if (part.closest("[data-work-stack]") && part.closest("[data-work-line][data-checking]")) return;
     const task = ports.task(part.dataset.task), id = part.dataset.taskDecision ?? "";
     if (!task) return;
     const key = asked(task, id), root = part.closest<HTMLElement>("[data-event-card],[data-work-task-float]") ?? document.body;
@@ -182,37 +183,69 @@ function installDecisionKeys(close: () => boolean): void {
   });
 }
 
-/** One page-local attempt for all views of a task. The task's owner still decides its state and available commands. */
+type StopAttempt =
+  | { state: "pending" }
+  | { state: "succeeded"; afterSequence: number | null; afterTime: number; source: BackgroundTaskRow["source"] };
+
+function stopCommandKey(task: BackgroundTaskRow, command: BackgroundTaskRow["commands"][number]): string {
+  return JSON.stringify([task.id, command.role, command.action, command.input]);
+}
+
+/** One page-local attempt per offered stop command across all views of a task. The task's owner still decides its state and available commands. */
 function installTaskStops(host: WorkBarHost, { request, again }: Pick<TaskPanelLine, "request" | "again">, repaint: () => void, failed: (error: unknown) => void) {
-  const attempts = new Map<string, { state: "pending" } | { state: "succeeded"; after: number; source: BackgroundTaskRow["source"] }>();
+  const attempts = new Map<string, StopAttempt>();
+  const readSequence = () => (globalThis as { molisWorkAttentionSequence?: () => number }).molisWorkAttentionSequence?.();
   return {
-    busy: (id: string) => attempts.has(id),
-    observe(issues: BackgroundTasksReadResult["issues"], started: number): boolean {
+    busy(task: BackgroundTaskRow): boolean {
+      const command = task.commands.find(one => one.role === "stop");
+      return command ? attempts.has(stopCommandKey(task, command)) : false;
+    },
+    observe(issues: BackgroundTasksReadResult["issues"], started: number, sequence?: number): boolean {
       let changed = false;
-      for (const [id, attempt] of attempts) {
-        if (attempt.state !== "succeeded" || !(started > attempt.after)) continue;
+      for (const [key, attempt] of attempts) {
+        if (attempt.state !== "succeeded") continue;
+        const fresher = attempt.afterSequence !== null && typeof sequence === "number"
+          ? sequence > attempt.afterSequence
+          : started > attempt.afterTime;
+        if (!fresher) continue;
         const { provider_id, capability_id, version } = attempt.source;
         if (issues.some(({ source }) => source.provider_id === provider_id && source.capability_id === capability_id && source.version === version)) continue;
-        attempts.delete(id);
+        attempts.delete(key);
         changed = true;
       }
       return changed;
     },
     stop(task: BackgroundTaskRow): void {
       const command = task.commands.find(one => one.role === "stop");
-      if (!command || attempts.has(task.id)) return;
-      attempts.set(task.id, { state: "pending" });
+      if (!command) return;
+      const key = stopCommandKey(task, command);
+      if (attempts.has(key)) return;
+      attempts.set(key, { state: "pending" });
       repaint();
       // Mainline confirms that the task's owner still offers this exact command (WLN-39).
       void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } })
-        .then(() => { attempts.set(task.id, { state: "succeeded", after: performance.now(), source: task.source }); })
-        .catch(error => { attempts.delete(task.id); failed(error); })
-        .finally(() => { repaint(); again(); });
+        .then(() => {
+          const current = readSequence();
+          attempts.set(key, {
+            state: "succeeded",
+            afterSequence: typeof current === "number" ? current : null,
+            afterTime: performance.now(),
+            source: task.source,
+          });
+        })
+        .catch(error => {
+          attempts.delete(key);
+          failed(error);
+        })
+        .finally(() => {
+          repaint();
+          again();
+        });
     },
   };
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult, started: number): boolean; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string>; brief(subject: ActionSubject): { title: string; ring: StateRingState; step: string }[]; questions(subject: ActionSubject): { task: string; id: string; ask: string; answers: BackgroundTaskRow["decisions"][number]["answers"][number]["role"][]; hasChanges: boolean; busy: boolean }[] } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult, started: number, sequence?: number): boolean; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string>; brief(subject: ActionSubject): { title: string; ring: StateRingState; step: string }[]; questions(subject: ActionSubject): { task: string; id: string; ask: string; answers: BackgroundTaskRow["decisions"][number]["answers"][number]["role"][]; hasChanges: boolean; busy: boolean }[] } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
@@ -236,7 +269,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   const row = (task: BackgroundTaskRow): TaskRowView => {
     const event = task.serves.map(subject => [...events.values()].find(one => one.subject.kind === subject.kind && one.subject.id === subject.id)?.title).find(Boolean);
     return { id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), serves: event ?? null,
-      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task.id) } : {}) };
+      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task) } : {}) };
   };
   const servedBy = (task: BackgroundTaskRow) => task.serves.map(subject => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
   const card = (task: BackgroundTaskRow): string => {
@@ -245,7 +278,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const actions = placing
       ? renderPlaceMenu({ task: task.id, own, none: task.serves.length === 0,
           events: [...events.values()].filter(one => keyOf(one.subject) !== keyOf(task.subject)).map(one => ({ id: one.id, title: one.title, current: one === event && !own })) })
-      : (task.commands.some(command => command.role === "stop") ? button(uiText.text("workbench.work-line.stop"), { "data-task-control": "stop", "data-task": task.id, ...(stops.busy(task.id) ? { disabled: "" } : {}) }) : "")
+      : (task.commands.some(command => command.role === "stop") ? button(uiText.text("workbench.work-line.stop"), { "data-task-control": "stop", "data-task": task.id, ...(stops.busy(task) ? { disabled: "" } : {}) }) : "")
         + (event ? button(uiText.text("workbench.work-line.go-to-event"), { "data-task-event": task.id }) : "") + (task.open ? button(task.open.label, { "data-task-go": task.id }) : "");
     return renderTaskCard({ id: task.id, panel: PANEL, decisions: decisionsOf([task], () => false), title: task.title, ring: task.state, state: [task.step?.text, ...task.details.map(line => line.text)].filter(Boolean).join(" · "),
       owner: { name: task.origin.title, glyph: task.origin.icon as PluginIconName, hue: hue.get(task.origin.surface) ?? "" }, who: task.executor.label,
@@ -272,13 +305,15 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (shown && slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
   };
   let unread: ReadonlySet<string> = new Set();
-  const takeTasks = (result: BackgroundTasksReadResult, started: number): boolean => {
+  const takeTasks = (result: BackgroundTasksReadResult, started: number, sequence?: number): boolean => {
     unread = new Set(result.issues.map(issue => issue.source.provider_id));
-    const commandChanged = stops.observe(result.issues, started);
+    const commandChanged = stops.observe(result.issues, started, sequence);
     // Same command count need not mean the same command, details or navigation target.
     const next = JSON.stringify(result.tasks);
     if (next === tasksShown && !commandChanged) return false;
-    tasksShown = next; tasks = result.tasks; paintTasks();
+    tasksShown = next;
+    tasks = result.tasks;
+    paintTasks();
     return true;
   };
   const showTasks = (open: boolean) => open ? shell.show() : shell.hide();

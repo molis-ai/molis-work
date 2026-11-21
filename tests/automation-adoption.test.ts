@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { homeAgentDefinitions, homeConnectorDirectory, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { homeAgentDefinitions, homeConnectorDirectory, homeIntegrationRegistry, offerProjectAutomation, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AUTOMATION_ADOPTION_PROVIDER_ID, automationAdoptionActions, type AutomationOfferResult, type AutomationReport } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
@@ -292,3 +292,128 @@ async function adoptionSample(fixture: TestHome, project: TestProject) {
   return { path, read, on, hide, run: (values = { adopt: [on.value, linear.value], never: [hide.value], skill_state: "auto" }) =>
     fixture.web.post<{ status: string }>(path + "/cards/" + card.card_id + "/run", { revision: card.revision, values }) };
 }
+
+test("B61 P1-E5: Home-scoped skill packs can be adopted and undone per project, while CLI-only services stay off the proactive card", { timeout: 120_000 }, async t => {
+  const fixture = await openTestHome(t);
+  const project = await fixture.createProject("Home skill & CLI");
+  const other = await fixture.createProject("Other untouched");
+  const folder = join(fixture.home, "home-skill-cli");
+  await mkdir(folder);
+  await writeFile(join(folder, "package.json"), JSON.stringify({ scripts: { test: "fixture" }, devDependencies: { vitest: "*" } }));
+  await attachAutomationWorkspace(fixture, project, folder);
+
+  // 1. Register a CLI-only service (no token, no ready OAuth) and verify offerProjectAutomation never puts CLI-only or MCP-only services onto a proactive card.
+  const registry = await homeIntegrationRegistry(fixture.home);
+  const attached = await registry.attach({
+    schema_version: 1,
+    host_api_version: 1,
+    plugin_id: "io.molis.work.example.clionly",
+    version: "1.0.0",
+    name: "CLI Only Fixture",
+    kind: "integration",
+    publisher: { publisher_id: "example", signature: newPublisher().identity },
+    entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
+    permissions: [],
+    capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] },
+    runtime: { scope: "home" },
+    connection_services: [{
+      service_id: "cli-only-fixture",
+      title: "CLI Only Service",
+      group_id: "work",
+      summary: "CLI-only service fixture",
+      auth_kind: "none",
+      auth: { methods: [{ kind: "cli" }] },
+      capabilities: [{ label: "阅读", fulfillment: "live" }],
+      project_hints: { files: ["cli-only.marker"] },
+    }],
+    integrations: [{ integration_id: "cli-only-fixture", kind: "source", service_id: "cli-only-fixture" }],
+  }, "install-cli-only", () => null, () => true);
+  assert.equal(attached, true);
+
+  let placedCards = 0;
+  const cliOnlyReport: AutomationReport = {
+    evidence: [{ workspace_id: "ws-cli", workspace: "home-skill-cli", path: "cli-only.marker", signals: [], hints: [{ service_id: "cli-only-fixture", kind: "file", hint: "cli-only.marker" }] }],
+    groups: [{
+      category: "connections",
+      suggestions: [{
+        id: "connection:cli-only-fixture",
+        category: "connections",
+        title: "CLI Only Service",
+        confidence: "high",
+        reason: "CLI-only service",
+        effect: "Reads via CLI",
+        requirements: ["CLI login"],
+        risk: "Uses CLI rules",
+        evidence: [{ workspace_id: "ws-cli", workspace: "home-skill-cli", path: "cli-only.marker", signals: [], hints: [{ service_id: "cli-only-fixture", kind: "file", hint: "cli-only.marker" }] }],
+        next: { kind: "connection", service_id: "cli-only-fixture" },
+      }, {
+        id: "connection:loom",
+        category: "connections",
+        title: "Loom",
+        confidence: "high",
+        reason: "MCP-only service",
+        effect: "Reads via MCP",
+        requirements: ["MCP"],
+        risk: "Uses MCP rules",
+        evidence: [{ workspace_id: "ws-cli", workspace: "home-skill-cli", path: "cli-only.marker", signals: [] }],
+        next: { kind: "connection", service_id: "loom" },
+      }],
+    }],
+    gaps: [],
+    preferences: null,
+    save_token: "save-token-cli-only",
+  };
+  const cliOffer = await offerProjectAutomation(
+    fixture.home,
+    { actor: LOCAL_PERSON_ACTOR_ID, project: project.project_id, incarnation: "inc-cli-only" },
+    cliOnlyReport,
+    {
+      place: async () => {
+        placedCards += 1;
+        return { work_id: "unexpected" };
+      },
+      notify: () => {},
+    },
+    () => {},
+  );
+  assert.deepEqual(cliOffer, { offered: false, reason: "nothing-new" }, "CLI-only and MCP-only services are excluded from proactive adoption cards");
+  assert.equal(placedCards, 0);
+
+  // 2. Install a skill pack at Home scope (not project scope), then offer & adopt in project: succeeds and stays isolated to this project.
+  const homeBundle = signedContentPackage(newPublisher(), { scope: "home", skills: [{ id: "home-review-tests" }] });
+  const preview = await fixture.web.post<{ preview_id: string }>(base(project) + "/api/plugin-trust/install/preview", { bundle: homeBundle });
+  await fixture.web.post(base(project) + "/api/plugin-trust/install/confirm", { preview_id: preview.preview_id, consent: true, pin_label: "Home Skill Publisher" });
+
+  const offered = await offer(fixture, project);
+  assert.equal(offered.offered, true);
+  if (!offered.offered) return;
+  const workPath = `${base(project)}/api/assistant/works/${offered.work_id}`;
+  const view = await fixture.web.get<AssistantWorkView>(workPath);
+  const card = view.cards.find(row => row.capability_id === automationAdoptionActions.adopt.capability_id)!;
+  const options = card.fields.find(field => field.key === "adopt")!.options ?? [];
+  assert.equal(options.some(option => /CLI Only Service|Loom/u.test(option.label)), false, "CLI-only service is never placed on the proactive card");
+  assert.equal(options.length, 1);
+
+  const ran = await fixture.web.post<{ status: string }>(
+    `${workPath}/cards/${card.card_id}/run`,
+    { revision: card.revision, values: { adopt: [options[0]!.value], never: [], skill_state: "auto" } },
+  );
+  assert.equal(ran.status, "done", JSON.stringify(ran));
+
+  const listSkillsIn = async (targetProject: TestProject | null) => {
+    const client = targetProject ? fixture.host.actionClient(targetProject.reference) : fixture.host.homeActionClient();
+    const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: targetProject?.project_id ?? null, audience: "user" as const, permissions: [...SKILLS_PERMISSIONS] };
+    return ((await client.invoke(caller, skillCatalogActions.list, {}) as { skills: SkillCatalogEntry[] }).skills)
+      .find(row => row.ref.skill_id === "home-review-tests");
+  };
+  assert.equal((await listSkillsIn(project))?.state, "auto", "Home-scoped skill pack enabled for this project");
+  assert.equal((await listSkillsIn(other))?.state, "off", "other project stays off");
+  assert.equal((await listSkillsIn(null))?.state, "off", "Home scope stays off");
+
+  const undoable = (await fixture.web.get<AssistantWorkView>(workPath)).undoable?.find(row => row.state === "available");
+  assert.ok(undoable);
+  await fixture.web.post(`${workPath}/undo/${undoable.undo_id}`, {});
+  assert.equal((await listSkillsIn(project))?.state, "off", "undo turns the Home-scoped skill pack back off for this project");
+});

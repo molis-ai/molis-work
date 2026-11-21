@@ -39,12 +39,14 @@ export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: st
 }
 
 /**
- * The owners that answered each recent summary, by its `through`: 「知道了」 names only the summary, and the Host moves the marks of the
- * owners it heard from. A summary this Host did not make (it was restarted since), or one left open past this many summaries (the menu
- * bar reads every 30 seconds), moves none: it is said once more rather than lost.
+ * The owners that answered each recent non-empty summary, keyed by home directory and `through`: 「知道了」 names only the summary,
+ * and the Host moves the marks of the owners it heard from. Empty polls do not evict real summaries, and a missing cache entry
+ * refuses with 409 so the client reloads instead of hiding the banner without persisting anything.
  */
-const told = new Map<string, { home: string; owners: readonly string[] }>();
+const told = new Map<string, readonly string[]>();
 const TOLD_KEPT = 256;
+
+const toldKey = (homeDirectory: string, through: string) => `${homeDirectory}\u0000${through}`;
 
 /**
  * `GET /api/runtime/overview`: what runs on its own here, for the menu-bar panel, the quit confirmation and the Home's missed notice.
@@ -55,8 +57,15 @@ export async function handleRuntimeOverviewHttp(request: IncomingMessage, respon
   if (!homeDirectory) return false;
   if (request.method === "GET" && url.pathname === "/api/runtime/overview") {
     const { expired: { owners, ...expired }, ...overview } = await runtimeOverview(runtimeOverviewPorts(host, homeDirectory));
-    told.set(expired.through, { home: homeDirectory, owners });
-    for (const through of told.keys()) { if (told.size <= TOLD_KEPT) break; told.delete(through); }
+    if (expired.count > 0 && owners.length > 0) {
+      const key = toldKey(homeDirectory, expired.through);
+      told.delete(key);
+      told.set(key, owners);
+      for (const entry of told.keys()) {
+        if (told.size <= TOLD_KEPT) break;
+        told.delete(entry);
+      }
+    }
     sendLocalWebJson(response, 200, { ...overview, expired });
     return true;
   }
@@ -67,9 +76,21 @@ export async function handleRuntimeOverviewHttp(request: IncomingMessage, respon
   }
   if (request.method === "POST" && url.pathname === "/api/runtime/expired/seen") {
     const { through } = runtimeExpiredSeenRequest(await readLocalWebBody(request));
-    const summary = told.get(through), now = new Date();
-    markExpiredSeen(homeDirectory, through, summary?.home === homeDirectory ? summary.owners : [], now);
-    sendLocalWebJson(response, 200, { seen_through: new Date(Math.min(Date.parse(through), now.getTime())).toISOString() });
+    const owners = told.get(toldKey(homeDirectory, through));
+    if (!owners || owners.length === 0) {
+      sendLocalWebJson(response, 409, {
+        applied: false,
+        code: "runtime.expired_summary_stale",
+        error: "这份汇总已失效，请刷新后再确认",
+      });
+      return true;
+    }
+    const now = new Date();
+    markExpiredSeen(homeDirectory, through, owners, now);
+    sendLocalWebJson(response, 200, {
+      applied: true,
+      seen_through: new Date(Math.min(Date.parse(through), now.getTime())).toISOString(),
+    });
     return true;
   }
   return false;

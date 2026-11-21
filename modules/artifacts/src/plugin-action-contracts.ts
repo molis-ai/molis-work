@@ -28,6 +28,20 @@ export const pluginArtifactContracts = {
 
 // Project before validating: Javascript callers cannot replace trusted identity or add authority.
 export const referenceInput = (value: ArtifactReference): ArtifactReference => ({ artifact_id: value.artifact_id, version: value.version });
+const CONSUMABLE_FILTER_KEYS = new Set(["artifact_type_id", "producer_plugin_id"]);
+
+/** Strips `undefined` values from declared optional filter keys before schema validation while keeping invalid or undeclared fields intact. */
+export function normalizeConsumableFilter(value: unknown): unknown {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  const normalized: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (entry === undefined && CONSUMABLE_FILTER_KEYS.has(key)) continue;
+    normalized[key] = entry;
+  }
+  return normalized;
+}
+
 // Copies only the filter's own declared fields after the closed schema has validated the input.
 export const filterInput = (value: PluginConsumableFilter = {}): PluginConsumableFilter => ({
   ...(Object.hasOwn(value, "artifact_type_id") && value.artifact_type_id !== undefined ? { artifact_type_id: value.artifact_type_id } : {}),

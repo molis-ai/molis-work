@@ -40,10 +40,22 @@ function listen(c: WritingContext, edit: DraftEditing, turns: DraftTurns): () =>
       return;
     }
     if (!w) return;
+    if (target.dataset?.auField) {
+      if (!(event as InputEvent).isComposing) edit.typedField(w, target);
+    } else if (target.dataset?.skPlaceholder) {
+      if (!(event as InputEvent).isComposing) edit.typedPlaceholder(w, target as HTMLInputElement);
+    } else if (target.dataset?.skAskInput !== undefined) {
+      w.ask = target.value;
+    } else if (target.dataset?.skCase && w.caseForm) {
+      w.caseForm[target.dataset.skCase as "title"] = target.value;
+    }
+  });
+  root.addEventListener("compositionend", event => {
+    const target = event.target as HTMLInputElement | HTMLTextAreaElement;
+    const w = view.workshop;
+    if (!w) return;
     if (target.dataset?.auField) edit.typedField(w, target);
     else if (target.dataset?.skPlaceholder) edit.typedPlaceholder(w, target as HTMLInputElement);
-    else if (target.dataset?.skAskInput !== undefined) w.ask = target.value;
-    else if (target.dataset?.skCase && w.caseForm) w.caseForm[target.dataset.skCase as "title"] = target.value;
   });
   root.addEventListener("change", event => {
     const target = event.target as HTMLInputElement;

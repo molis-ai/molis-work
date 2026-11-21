@@ -455,3 +455,48 @@ test("S-skill-authoring the Assistant replays and takes back only a draft it ope
     assert.deepEqual((await h.drafts()).map(item => item.draft_id), [persons.draft_id]);
   } finally { await h.close(); }
 });
+
+test("PWA-104 SkillWorkshop.list aggregates verdicts across all known answers on the current revision", mac, async () => {
+  let nextVerdict: "match" | "differs" | "unknown" = "differs";
+  const model = modelDouble(prompt => {
+    if (!isJudge(prompt)) return "周报结果";
+    const results = [...prompt.matchAll(/\{"index":(\d+),"output":"((?:[^"\\]|\\.)*)"\}/gu)].map(([, index]) => ({
+      index: Number(index),
+      verdict: nextVerdict,
+      ...(nextVerdict === "differs" ? { differences: ["仍有差异"] } : { differences: [] }),
+    }));
+    return JSON.stringify({ results });
+  });
+  const h = await harness(model);
+  try {
+    const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("多用例汇总"), case: KNOWN });
+    const second = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, {
+      draft_id: opened.draft_id,
+      title: "第二个样本",
+      task: "整理第二个周报",
+      material: "材料 B",
+      expected: "预期 B",
+    });
+    const firstCaseId = opened.cases[0]!.case_id;
+    const secondCaseId = second.case_id;
+
+    // Case 1 differs, then Case 2 matches later: aggregate verdict MUST remain differs.
+    nextVerdict = "differs";
+    await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: firstCaseId });
+    nextVerdict = "match";
+    await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: secondCaseId });
+    assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, "differs");
+
+    // Case 1 becomes unknown while Case 2 is match: aggregate verdict MUST be unknown.
+    nextVerdict = "unknown";
+    await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: firstCaseId });
+    assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, "unknown");
+
+    // Both cases match: aggregate verdict becomes match.
+    nextVerdict = "match";
+    await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: firstCaseId });
+    assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, "match");
+  } finally {
+    await h.close();
+  }
+});

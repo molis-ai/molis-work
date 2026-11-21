@@ -144,10 +144,16 @@ function verifyRecovery(owner: SettingsOwner | SettingsFileOwner, tx: SettingsTr
     return false;
   }
   const original = requireSynchronous(tx.readReceipt({ key, layer, request_id: recovery.undo_of }), synchronous);
-  const proof = original?.request.recovery, written = original?.result.values[0];
-  if (!original || original.request.key !== key || original.request.layer !== layer || original.request.request_id !== recovery.undo_of
+  if (!original) {
+    throw owner.errors.setting_conflict("原设置写入回执不存在", { reason: "receipt_missing", undo_of: recovery.undo_of });
+  }
+  const proof = original.request.recovery;
+  const written = original.result.values[0];
+  if (original.request.key !== key || original.request.layer !== layer || original.request.request_id !== recovery.undo_of
     || !proof || !("previous" in proof) || canonicalJsonText(proof.previous) !== canonicalJsonText(input.change)
-    || !written || written.key !== key || written.state !== "ok") throw owner.errors.setting_conflict("原设置写入回执与撤销不符");
+    || !written || written.key !== key || written.state !== "ok") {
+    throw owner.errors.setting_conflict("原设置写入回执与撤销不符");
+  }
   const applied = written.layer_revisions?.[layer], now = current.layer_revisions?.[layer];
   if (applied !== undefined && now !== undefined ? applied !== now : written.revision !== current.revision)
     throw owner.errors.setting_conflict("采用后这项设置已改变", { undo_of: recovery.undo_of, reason: "revision_changed" });

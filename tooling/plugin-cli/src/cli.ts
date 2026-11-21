@@ -37,7 +37,12 @@ function usage(host: PluginCliHost | undefined): string {
  * `unsigned_development_required`: `dev` without `--allow-unsigned-development`, refused before the Host reads anything.
  * `development_failed`: a `dev` run that stopped for a reason with no code of its own (the plugin's code threw, say); never a Manifest verdict.
  */
-const cliErrors = defineErrorCodes("plugin", { host_required: "unavailable", unsigned_development_required: "invalid", development_failed: "internal" });
+const cliErrors = defineErrorCodes("plugin", {
+  host_required: "unavailable",
+  unsigned_development_required: "invalid",
+  development_failed: "internal",
+  command_failed: "internal",
+});
 
 export interface PluginCliOutput {
   stdout(value: string): void;
@@ -149,10 +154,26 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
     return 0;
   } catch (error) {
     // Only `validate` reads a Manifest and nothing else, so only its uncoded failures are a Manifest verdict.
-    const dev = args[0] === "dev";
-    const message = error instanceof Error ? error.message : dev ? "Plugin development run failed" : "Plugin Manifest validation failed";
-    const code = error && typeof error === "object" && "code" in error ? error.code : dev ? cliErrors.development_failed(message).code : "plugin.manifest_invalid";
-    output.stderr(`${JSON.stringify({ ...(dev ? { developed: false } : { valid: false }), code, message })}\n`);
+    const command = args[0];
+    const dev = command === "dev";
+    const validate = command === "validate";
+    const fallbackMessage = dev
+      ? "Plugin development run failed"
+      : validate
+        ? "Plugin Manifest validation failed"
+        : "Plugin CLI command failed";
+    const message = error instanceof Error ? error.message : fallbackMessage;
+    const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+      ? error.code
+      : dev
+        ? cliErrors.development_failed(message).code
+        : validate
+          ? "plugin.manifest_invalid"
+          : cliErrors.command_failed(message).code;
+    const rawDetails = error && typeof error === "object" && "details" in error ? error.details : undefined;
+    const details = rawDetails && typeof rawDetails === "object" && !Array.isArray(rawDetails) ? rawDetails : undefined;
+    const status = dev ? { developed: false } : validate ? { valid: false } : { ok: false };
+    output.stderr(`${JSON.stringify({ ...status, code, message, ...(details ? { details } : {}) })}\n`);
     return 1;
   }
 }

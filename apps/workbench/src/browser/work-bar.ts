@@ -290,10 +290,13 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // The last line this tab knew, kept for this tab only: after a reload it stands at once, said to be checked, until the read confirms it (WLN-29).
   const kept = `molis.work-line.last:${document.body.dataset.projectId ?? ""}`;
   let knownAt: string | null = null;
-  const checking = (since: string | null) => {
+  const checking = (since: string | null, repaintStack = true) => {
+    const was = line.hasAttribute("data-checking");
+    const next = since !== null;
     for (const chip of counts.querySelectorAll("[data-work-line-checking]")) chip.remove();
-    line.toggleAttribute("data-checking", since !== null);
-    if (since !== null) counts.insertAdjacentHTML("afterbegin", renderLineChecking(since ? format.date(since, "time") : ""));
+    line.toggleAttribute("data-checking", next);
+    if (next) counts.insertAdjacentHTML("afterbegin", renderLineChecking(since ? format.date(since, "time") : ""));
+    if (repaintStack && was !== next) cardStack.paint();
   };
 
   const view = (event: WorkLineEvent, fresh: boolean): LineEventView => {
@@ -322,9 +325,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const cardOf = (event: WorkLineEvent, more: number) => {
     const qs = panel.questions(event.subject), ask = qs[0], said = view(event, false);
     const direct = qs.length === 1 && ask && !ask.hasChanges && !ask.answers.includes("revise") && ask.answers.length > 0 && ask.answers.length <= 2 ? ask : undefined;
+    const busy = Boolean(direct?.busy) || line.hasAttribute("data-checking");
     return renderStackCard({ id: event.id, title: event.title, owner: said.owner, more,
       ask: ask?.ask ?? (said.stateLabel || event.summary || uiText.text("workbench.work-line.waiting-for-you")),
-      ...(direct ? { decision: { task: direct.task, id: direct.id, busy: direct.busy, answers: direct.answers as ("approve" | "reject")[] } } : {}) });
+      ...(direct ? { decision: { task: direct.task, id: direct.id, busy, answers: direct.answers as ("approve" | "reject")[] } } : {}) });
   };
   const cardStack = installStack({ line, counts, stack }, { waiting: waitingEvents, card: cardOf, closeLists: list.close });
 
@@ -395,11 +399,22 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   });
   // A part the read could not get is null: adopt events first so panel.take sees them, then paint line & cards with live tasks.
   document.addEventListener("molis-work:attention", event => {
-    const { line: read, tasks: table, started } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null; started: number }>).detail;
-    const before = read ? adopt(read) : events, tasksChanged = table ? panel.take(table, started) : false, lineDrawn = read ? draw(read, before) : false;
-    if (read) { checking(null); knownAt = new Date().toISOString(); try { sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: read })); } catch { /* a convenience of this tab */ } }
-    if (tasksChanged && !lineDrawn) {
-      list.draw();
+    const { line: read, tasks: table, started, sequence } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null; started?: number; sequence?: number }>).detail;
+    const before = read ? adopt(read) : events;
+    const wasChecking = line.hasAttribute("data-checking");
+    if (read) {
+      checking(null, false);
+      knownAt = new Date().toISOString();
+      try {
+        sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: read }));
+      } catch {
+        /* a convenience of this tab */
+      }
+    }
+    const tasksChanged = table ? panel.take(table, started ?? 0, sequence) : false;
+    const lineDrawn = read ? draw(read, before) : false;
+    if (!lineDrawn && (tasksChanged || (read && wasChecking))) {
+      if (tasksChanged) list.draw();
       cardStack.paint();
     }
     panel.offline(null);

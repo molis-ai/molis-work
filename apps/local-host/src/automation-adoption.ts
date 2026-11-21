@@ -74,7 +74,7 @@ async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput
   let catalog: SkillCatalogEntry[] = [];
   if (skills.length) catalog = (await client.invoke(caller, skillsRef, {}) as { skills: SkillCatalogEntry[] }).skills;
   const current = skills.map(item => {
-    const row = catalog.find(entry => sameSkill(entry, item) && entry.pack.scope !== "home");
+    const row = catalog.find(entry => sameSkill(entry, item));
     if (!row || row.ref.installation_generation !== item.installation_generation) throw new ActionError("actions.conflict", `「${item.title}」已经变化，请让助理重新看看`);
     if (!row.availability.available) throw new ActionError("actions.conflict", `「${item.title}」现在用不了，没有开启`);
     return { item, row };

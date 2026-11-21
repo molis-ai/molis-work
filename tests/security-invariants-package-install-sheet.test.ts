@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
 import { connectionsProbe } from "./fixtures/connections-runtime.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { mac } from "./fixtures/home-sandbox.js";
-import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import { SHEET_KEY_VALUE as KEY_VALUE, SHEET_PLUGIN_ID as ID, pinSheetPublisher, sheetPackage } from "./fixtures/install-sheet.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // S-package-install-sheet (docs/system/security-invariants/S-package-install-sheet.md), the Host's half of the in-place install sheet
 // (specs/plugin-builder-upgrade/spec.md §7.0, batch 47): a plugin page hands the trusted shell a signed package, and the shell previews and
@@ -15,19 +13,6 @@ import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 // provider as any package is; the page decides nothing. Every refusal below asserts that nothing was installed and no publisher pinned.
 
 const PATH = "/api/host/plugin-page-install";
-const ID = "io.molis.work.example.sheet";
-const KEY_VALUE = "fixture-key-value-for-install-sheet";
-
-/** The notes package asking for a site and a key, which the Host projects as two optional switches (`network:request`, `secret:use`). */
-const sheetPackage = (publisher = newPublisher(), version = "1.0.0", more: (contract: SandboxPluginContract) => void = () => undefined): PluginPackageBundle =>
-  signedPackage(publisher, (files, manifest) => {
-    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
-    contract.operations.find(operation => operation.id === "notes.list")!.effects = { storage: ["read"], networkDomains: ["api.example.test"], secretRefs: ["calendar-key"] };
-    more(contract);
-    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-    if (version !== "1.0.0") manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
-  }, { pluginId: ID, version });
-
 async function sheetHome(t: TestContext) {
   const owner = connectionsProbe("sheetowner"), second = connectionsProbe("sheetsecond");
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [owner.definition, second.definition] } });
@@ -48,8 +33,7 @@ async function sheetHome(t: TestContext) {
   };
   /** Everything a sheet could write: the project's installations with their grants, and the Home's publisher pins. */
   const state = async () => { const { plugins, publishers } = await overview(); return JSON.stringify([plugins.map(row => [row.plugin_id, row.version, row.state, row.permissions.filter(item => item.granted).map(item => item.permission)]), publishers.map(pin => pin.key_id)]); };
-  const pin = (publisher: ReturnType<typeof newPublisher>) => new HomeConsentLedger(f.home).pinPublisher({ key_id: publisher.identity, public_key_spki_base64: publisher.signer.public_key_spki_base64,
-    label: "Sheet publisher", pinned_at: new Date().toISOString(), pinned_by: "test" });
+  const pin = (publisher: ReturnType<typeof newPublisher>) => pinSheetPublisher(f.home, publisher);
   return { f, project, other, prefix, open, sheet, overview, state, pin, owner, second };
 }
 

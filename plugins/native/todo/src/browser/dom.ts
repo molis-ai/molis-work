@@ -16,6 +16,13 @@ export function arrive(node: HTMLElement | null): void {
   node.classList.add("is-arriving");
 }
 
+/** A text area as tall as what it holds (where the browser does not size it by its content itself). */
+export function fitArea(area: HTMLInputElement | HTMLTextAreaElement): void {
+  area.style.height = "auto";
+  // Not laid out yet (the page is hidden): leave the height to the styles until it is.
+  area.style.height = area.scrollHeight ? `${area.scrollHeight}px` : "";
+}
+
 export const pad = (value: number) => String(value).padStart(2, "0");
 export const isoDay = (at: Date) => `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
 export const toLocalInput = (iso: string | null) => {

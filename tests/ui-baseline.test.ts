@@ -82,10 +82,47 @@ test("FSS-54 a skin that writes one surface carries the rest of that surface wit
 test("FSS-54 hex letter case, the stacks and the unset terminal are what the files say", () => {
   assert.equal(BASELINE_SKIN.light["content-tty"], "#F8F7F4");
   assert.equal(BASELINE_SKIN.dark["mark-slate-fill"], "#3A4155");
-  assert.ok(FONT_STACK.startsWith('-apple-system, BlinkMacSystemFont, "SF Pro Text"'));
-  assert.ok(FONT_STACK.includes('"Inter Variable", Inter, "Noto Sans SC", system-ui, sans-serif'));
+  assert.ok(FONT_STACK.startsWith('"Inter Variable", Inter, "Noto Sans SC"'));
+  assert.ok(FONT_STACK.includes('"PingFang SC", "Hiragino Sans GB"'));
   assert.ok(MONO_FONT_STACK.startsWith('ui-monospace, "SF Mono", SFMono-Regular'));
   assert.equal(BASELINE_SKIN.terminal.unset.terminal, "#171719");
+});
+
+test("DECISION-60 all four built-in skins meet WCAG AA (>= 4.5:1) across Light and Dark including dark on-accent", () => {
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: string, b: string) => {
+    const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (l1! + 0.05) / (l2! + 0.05);
+  };
+  const baseFile = parseSkinFile(read("packages/design-system/resources/skins/soft-workbench.json"), BASELINE_SPEC);
+  assert.ok(baseFile.ok);
+  const skinFiles = ["soft-workbench", "pure-studio", "warm-atelier", "folio"];
+  for (const id of skinFiles) {
+    const parsed = parseSkinFile(read(`packages/design-system/resources/skins/${id}.json`), BASELINE_SPEC);
+    assert.ok(parsed.ok, id);
+    const resolved = id === "soft-workbench" ? { ok: true as const, value: BASELINE_SKIN } : resolveSkin(BASELINE_SPEC, baseFile.value, parsed.value);
+    assert.ok(resolved.ok, id);
+    for (const mode of ["light", "dark"] as const) {
+      const m = resolved.value[mode];
+      const hex = (role: string) => {
+        const val = m[role];
+        assert.equal(typeof val, "string", `${id}.${mode}.${role} must be hex`);
+        return val as string;
+      };
+      for (const [fg, bg] of [
+        ["ink", "paper"], ["ink", "page"], ["ink-soft", "paper"], ["muted", "paper"], ["muted", "page"],
+        ["action-ink", "action"], ["action-ink", "action-hover"], ["on-accent", "accent"], ["on-accent", "accent-strong"],
+        ["accent", "paper"], ["green", "paper"], ["green", "green-soft"], ["amber", "paper"], ["amber", "amber-soft"], ["red", "paper"], ["red", "red-soft"],
+      ] as const) {
+        const cr = ratio(hex(fg), hex(bg));
+        assert.ok(cr >= 4.5, `${id}.${mode} ${fg} (${hex(fg)}) on ${bg} (${hex(bg)}) = ${cr.toFixed(2)}:1 < 4.5:1`);
+      }
+    }
+  }
 });
 
 test("FSS-56 no token block holds a value of its own, and there is no second table", () => {
@@ -119,7 +156,7 @@ test("FSS-54 a broken baseline stops the Host at import with ui.baseline_invalid
     writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module" }));
     symlinkSync(new URL("node_modules", packageRoot), path.join(directory, "node_modules"), "dir");
     const skinPath = path.join(directory, "resources", "skins", "soft-workbench.json");
-    writeFileSync(skinPath, readFileSync(skinPath, "utf8").replace('"page": "#eef3f7"', '"page": "url(evil)"'));
+    writeFileSync(skinPath, readFileSync(skinPath, "utf8").replace('"page": "#f5f7fa"', '"page": "url(evil)"'));
     await assert.rejects(exec(process.execPath, [path.join(directory, "dist", "baseline.js")]), (error: { stderr?: string }) => {
       assert.match(error.stderr ?? "", /ui\.baseline_invalid/u);
       assert.match(error.stderr ?? "", /resources\/skins\/soft-workbench\.json \$\.light\.page/u);

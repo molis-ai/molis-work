@@ -88,13 +88,13 @@ test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
   assert.match(settings, /:not\(\[type="range"\]\):not\(\.mw-slider\):not\(\.mw-input\):not\(\.mw-textarea\):not\(\.mw-select\)/);
 });
 
-// Soft Workbench (DESIGN.md → Shapes): 10px control corners, 14px surfaces, 32px controls from the shared helpers.
+// Soft Workbench (DESIGN.md → Shapes): 8px control corners, 10px item corners, 14px surfaces, 32px controls from the shared helpers.
 test("shared tokens describe control radius, height, and translucent borders", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-control: 10px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-item: 8px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-control: 8px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-item: 10px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--control-h: 32px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 10%, transparent\)/);
   assert.match(COSS_CONTROL_STYLES, /border-radius: var\(--radius-control\);/);
 });
 
@@ -156,10 +156,10 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
 test("the way in shares the workbench tokens in both themes", () => {
   const arrival = renderMolisWorkArrivalStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(workbench, /--page: #eef3f7/);
-  assert.match(workbench, /--page: #141a20/);
-  assert.match(arrival, /--page: #eef3f7/);
-  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #141a20/);
+  assert.match(workbench, /--page: #f5f7fa/);
+  assert.match(workbench, /--page: #0f1318/);
+  assert.match(arrival, /--page: #f5f7fa/);
+  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #0f1318/);
   assert.match(arrival, /\.arrival \{[^}]*background: var\(--desk\)/);
   assert.match(arrival, /\.stage-sheet \{[^}]*background: var\(--paper\)/);
   assert.doesNotMatch(arrival, /--ob-page|--ob-window|--onboarding-/);

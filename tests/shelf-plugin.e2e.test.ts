@@ -91,7 +91,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#f5f8fb");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#66709e");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#3c6e98"); // mist-blue accent, 4.5:1 on paper (spec → 第三轮 · 对比度)
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#316896"); // mist-blue accent, 4.5:1 on paper (spec → 第三轮 · 对比度 + 决定 60)
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "请先在「模型设置」里连接文字模型");
   // 整合 stays on the bar and greys out until a second material joins.

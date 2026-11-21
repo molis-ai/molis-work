@@ -52,10 +52,14 @@ export {
   TYPEFACE_STYLES,
   INTER_VARIABLE_ASSET_PATH,
   NOTO_SANS_SC_ASSET_PATH,
+  NOTO_SANS_SC_500_ASSET_PATH,
+  NOTO_SANS_SC_600_ASSET_PATH,
   FONT_STACK,
   MONO_FONT_STACK,
   interVariableFontFilePath,
   notoSansScFontFilePath,
+  notoSansSc500FontFilePath,
+  notoSansSc600FontFilePath,
 } from "./typeface.js";
 
 export { projectMonogram, renderProjectMonogram, type ProjectMonogramHue } from "./monogram.js";

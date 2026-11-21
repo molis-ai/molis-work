@@ -45,3 +45,4 @@ export * from "./ui/recovery-parts.js";
 export * from "./ui/coding-basics.js";
 
 export { renderSubtaskConversation, type MwSubtaskContent, type MwSubtaskLink, type MwSubtaskAction, type MwSubtaskMessage, type MwSubtaskDetail, type MwSubtaskConversationView, type MwSubtaskConversationLabels } from "./ui/subtask-conversation.js";
+export * from "./ui/on-demand-help.js";

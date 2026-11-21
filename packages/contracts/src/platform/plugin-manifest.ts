@@ -220,6 +220,8 @@ export interface PluginManifest {
     subject_context?: UiSubjectContextDeclaration[];
     /** The Plugin's languages, provided as one file per declared language. */
     locales?: PluginLocalesDeclaration;
+    /** On-demand help topics for this Plugin's pages, resolved from its language files (VUX-55). */
+    help?: import("./ui-help.js").UiHelpDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;

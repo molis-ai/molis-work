@@ -96,6 +96,12 @@ function samples(): readonly string[] {
     sdkUi.renderMaterialIssueRow({ reason: "疑似密钥", error: true, actions: [{ label: "只发变量名" }] }),
     sdkUi.renderScopeDeltaCard({ title: "这次只做这些", subtitle: "复用", items: [{ kind: "add", glyph: "plus", title: "新加", detail: "a.md" }, { kind: "rem", glyph: "x", title: "移出" }, { kind: "keep", glyph: "check", title: "保留" }, { kind: "redo", glyph: "refresh", title: "重写" }] }),
     sdkUi.renderCodingRoundMaterials({ title: "材料", summaryLabel: "全文", summaryTone: "done", items: [{ state: "done", name: "a.md", how: "#r1", statusLabel: "全文", statusTone: "done" }], recovery: { title: "读不到", body: "已删", actions: [{ label: "去掉" }] }, footer: { title: "其余", detail: "按需读" } }),
+    sdkUi.renderHelpButton({ label: "帮助", topic: "page", expanded: true }),
+    sdkUi.renderHelpButton({ label: "了解此项", topic: "page", focus: "who", variant: "link" }),
+    sdkUi.renderPreActionFacts({ heading: "每次运行会", rows: [{ icon: "file", text: "读取材料", detail: "只读一份" }, { tone: "ok", icon: "sparkles", text: "使用模型", detail: "按服务商计费" }, { tone: "warn", icon: "alert", text: "还没连模型", action: { label: "连接模型" } }, { tone: "out", icon: "mail", text: "发给 3 人", detail: "发出后收不回" }] }),
+    sdkUi.renderHelpContent({ focusId: "who", sections: [{ id: "who", heading: "权限", body: "用你的授权", items: ["仅限本任务"] }, { id: "adv", heading: "高级", collapsible: true, summary: "更多", body: "按本机时区" }], nextStep: { title: "还差一步", fact: "看帮助不改设置", action: { label: "连接模型" } } }),
+    sdkUi.renderHelpContent({ sections: [], error: { title: "没读出来", body: "照常能用", retryLabel: "再试一次" } }),
+    sdkUi.renderHelpFirstVisitTip({ storageKey: "demo", text: "第一次用？", actionLabel: "看帮助", skipLabel: "跳过" }),
   ];
 }
 
@@ -265,4 +271,32 @@ test("RISK-01 the severity grid lights one place, reads without colour, and carr
   assert.match(large, /aria-label="&lt;b&gt;"/);
   assert.match(large, /<span class="mw-severity-grid__row-label">Impact &lt;medium&gt;<\/span>/);
   assert.match(large, /mw-severity-grid--neutral/);
+});
+
+test("VUX-55: ui.help and sandbox help declarations validate structure, owner keys, and default_topic", () => {
+  const validManifest = {
+    plugin_id: "io.molis.work.native.schedule",
+    ui: {
+      help: {
+        default_topic: "page",
+        topics: [{
+          id: "page",
+          title: { key: "schedule.help.title" },
+          sections: [
+            { id: "what", heading: { key: "schedule.help.what" }, body: { key: "schedule.help.what-body" } },
+            { id: "adv", heading: { key: "schedule.help.adv" }, items: [{ key: "schedule.help.adv-1" }], collapsible: true },
+          ],
+        }],
+      },
+    },
+  };
+  assert.deepEqual(sdkUi.uiHelpDeclarationProblems(validManifest), []);
+  assert.ok(sdkUi.uiHelpDeclarationProblems({
+    plugin_id: "io.molis.work.native.schedule",
+    ui: { help: { default_topic: "missing", topics: [{ id: "page", title: { key: "other.help.title" }, sections: [{ id: "s1", heading: { key: "schedule.help.h" } }] }] } },
+  }).length >= 3, "rejects foreign key prefix, section without body/items, and unknown default_topic");
+  assert.deepEqual(sdkUi.sandboxHelpDeclarationProblems({
+    pluginId: "io.molis.generated.tracker",
+    help: { topics: [{ id: "page", title: "进度表", sections: [{ id: "what", heading: "这是什么", body: "记录每周进展" }] }] },
+  }), []);
 });

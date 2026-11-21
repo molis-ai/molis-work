@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen } from "@molis-ai/molis-work-app-workbench";
+import { builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
@@ -54,4 +54,21 @@ test("RAC-82: the developer plugin stays out of the bar specimen, as it stays ou
   assert.equal(pluginMarketCards().some(card => card.id === "text-stats"), false, "Text Stats is not in the directory");
   assert.doesNotMatch(html, /data-plugin-tile="text-stats"/, "and not in the specimen's tiles");
   assert.doesNotMatch(html, /data-plugin-toggle="text-stats"/, "nor its add control");
+});
+
+test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help specimens in zh and en", () => {
+  for (const lang of ["zh-CN", "en"] as const) {
+    const html = renderMolisWorkPrimitiveCatalog((key) => key, lang);
+    assert.match(html, /id="on-demand-help"/, `${lang}: has on-demand help section`);
+    assert.match(html, /href="#on-demand-help"/, `${lang}: indexed in catalog sidebar`);
+    assert.match(html, /class="mw-facts"/, `${lang}: pre-action facts block`);
+    assert.match(html, /mw-fact-row--ok/, `${lang}: ready fact row`);
+    assert.match(html, /mw-fact-row--warn/, `${lang}: missing fact row`);
+    assert.match(html, /mw-fact-row--out/, `${lang}: external-send fact row`);
+    assert.match(html, /class="mw-help-content"/, `${lang}: help content block`);
+    assert.match(html, /mw-help-section is-highlighted/, `${lang}: highlighted help section`);
+    assert.match(html, /class="mw-help-tip"/, `${lang}: skippable first-visit tip`);
+    assert.match(html, /aria-expanded="true"/, `${lang}: expanded button specimen`);
+    assert.match(html, /aria-pressed="true"/, `${lang}: pressed button specimen`);
+  }
 });

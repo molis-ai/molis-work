@@ -197,3 +197,73 @@ wireCatalogAppearance();
 wireCatalogSplit();
 wireCatalogCapabilityPacks();
 wireCatalogLanguage();
+wireCatalogOnDemandHelp();
+
+function wireCatalogOnDemandHelp(): void {
+  const host = document.querySelector<HTMLElement>("[data-help-specimen]");
+  if (!host) return;
+  let failMode = false;
+  const sidePreview = host.querySelector<HTMLElement>("[data-help-specimen-side]");
+  const failToggle = host.querySelector<HTMLButtonElement>("[data-help-specimen-fail]");
+  const resetTip = host.querySelector<HTMLButtonElement>("[data-help-specimen-reset-tip]");
+  failToggle?.addEventListener("click", () => {
+    failMode = !failMode;
+    failToggle.setAttribute("aria-pressed", String(failMode));
+    if (failMode) {
+      globalThis.molisOnDemandHelp?.register("specimen-page", () => {
+        throw new Error("simulated");
+      });
+    } else {
+      globalThis.molisOnDemandHelp?.unregister("specimen-page");
+    }
+  });
+  document.addEventListener("molis:help-retry", (event) => {
+    const detail = (event as CustomEvent<{ topic?: string }>).detail;
+    if (detail?.topic !== "specimen-page") return;
+    failMode = false;
+    failToggle?.setAttribute("aria-pressed", "false");
+    globalThis.molisOnDemandHelp?.unregister("specimen-page");
+  });
+  resetTip?.addEventListener("click", () => {
+    try {
+      localStorage.removeItem("molis-work:help-tip-skipped:catalog-help-demo");
+    } catch {
+      // Ignore storage restriction.
+    }
+    const tip = host.querySelector<HTMLElement>('[data-mw-help-tip="catalog-help-demo"]');
+    if (tip) tip.hidden = false;
+  });
+  document.addEventListener("molis:side-open", (event) => {
+    const detail = (event as CustomEvent<{
+      tab?: string;
+      target?: { context?: string; focusId?: string | null; sections?: Array<{ id: string; heading: string; body?: string }> };
+    }>).detail;
+    if (detail?.tab !== "help" || !sidePreview || !detail.target) return;
+    const payload = detail.target;
+    const body = sidePreview.querySelector<HTMLElement>("[data-help-specimen-side-body]");
+    const ctx = sidePreview.querySelector<HTMLElement>("[data-help-specimen-side-ctx]");
+    if (ctx) ctx.textContent = payload.context || "";
+    if (body) {
+      body.replaceChildren();
+      const wrap = document.createElement("div");
+      wrap.className = "mw-help-content";
+      for (const section of payload.sections || []) {
+        const sec = document.createElement("section");
+        sec.className = `mw-help-section${payload.focusId && section.id === payload.focusId ? " is-highlighted" : ""}`;
+        const h4 = document.createElement("h4");
+        h4.className = "mw-help-section__heading";
+        h4.textContent = section.heading;
+        sec.append(h4);
+        if (section.body) {
+          const p = document.createElement("p");
+          p.className = "mw-help-section__body";
+          p.textContent = section.body;
+          sec.append(p);
+        }
+        wrap.append(sec);
+      }
+      body.append(wrap);
+    }
+    sidePreview.hidden = false;
+  });
+}

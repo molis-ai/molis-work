@@ -82,7 +82,7 @@ export function startWebProjectSchedulers(options: {
     stopped = true;
     cancel();
     await opening?.catch(() => undefined);
-    await Promise.all([...inFlight]);
     await unbind();
+    await Promise.all([...inFlight]);
   })() };
 }

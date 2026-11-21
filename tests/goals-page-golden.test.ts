@@ -316,6 +316,9 @@ const pages: Record<string, Draw> = {
 // (2) Item 5 (tree-ui.ts): treeColumns() uses @molis-ai/molis-work-plugin-sdk/ui renderListColumns (−2 on refresh-trash; −131 en / −111 zh = −129/−109 − 2 on refresh-current/none/archive);
 // (3) Item 4 (terminal/pane.ts, documents.ts) & Item 6 (shell-page-renderer.ts, immersive-shell.ts): platform work-terminal attributes and clientData terminal_read_only, pluginShellStyleLinks goals.css, removal of data-feed-preset="feed", and platform-owned project settings (+792 en / +748 zh on page-archive-none/trash-none/trash; +663 en / +639 zh = +792/+748 − 129/−109 on page-archive; −340 en / −188 zh on page-current/none; −370 en / −218 zh on page-current-desktop; +424 en / +522 zh on page-current-decision).
 // The underlying frozen view.json and view-words-en.json stayed untouched.
+// Batch 101 (101-1 item 5, on main cb03f3e196): `apps/workbench/src/plugin-event-recovery.ts` removed the raw JSON disclosure,
+// manual reason textarea, and self-accepted duplicate-risk radio group from the workbench shell dialog (−509 zh / −598 en on every
+// one of the 16 `page-*` whole-page records); all 36 fragment/settings records and JSON data blocks stayed byte-identical.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

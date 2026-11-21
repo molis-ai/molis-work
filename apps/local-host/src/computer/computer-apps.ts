@@ -43,9 +43,11 @@ async function readAppBundle(appPath: string): Promise<AppIdentity | null> {
     if (head.subarray(0, 6).toString("ascii") !== "bplist") {
       const xml = head.toString("utf8");
       const bundleId = xmlPlistString(xml, "CFBundleIdentifier");
-      if (!bundleId) return null;
-      const name = xmlPlistString(xml, "CFBundleDisplayName") ?? xmlPlistString(xml, "CFBundleName") ?? fallbackName;
-      return { bundle_id: bundleId, name };
+      if (bundleId) {
+        const name = xmlPlistString(xml, "CFBundleDisplayName") ?? xmlPlistString(xml, "CFBundleName") ?? fallbackName;
+        return { bundle_id: bundleId, name };
+      }
+      // Fall through to `plutil` on macOS for XML plists with comments, CDATA, or atypical formatting.
     }
     if (process.platform !== "darwin") return null;
     const { stdout } = await execFileAsync("/usr/bin/plutil", ["-convert", "json", "-o", "-", plistPath], { timeout: 1500, maxBuffer: 512_000 });

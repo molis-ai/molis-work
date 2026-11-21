@@ -31,7 +31,7 @@ function versionControl(page: BriefPage, view: BriefView): string {
 
 function headerActions(page: BriefPage, view: BriefView | null): string {
   const refreshing = page.state.busy === "refresh";
-  return `<div class="wb-head-actions">${modeToggle(page)}${view?.version ? versionControl(page, view) : ""}${
+  return `<div class="wb-head-actions" data-help-slot>${modeToggle(page)}${view?.version ? versionControl(page, view) : ""}${
     act(refreshing ? text("page.refreshing") : text("page.refresh"), "refresh", { icon: "refresh", loading: refreshing, disabled: Boolean(page.state.busy) })}</div>`;
 }
 
@@ -198,7 +198,7 @@ export function renderBrief(page: BriefPage): string {
 
 export function renderPersonal(page: BriefPage): string {
   const { state, host } = page, view = state.personal, here = host.projectId();
-  const action = `<div class="wb-head-actions">${modeToggle(page)}${act(state.busy === "refresh" ? text("page.refreshing") : text("personal.refresh"), "refresh-personal", { icon: "refresh", loading: state.busy === "refresh", disabled: Boolean(state.busy) })}</div>`;
+  const action = `<div class="wb-head-actions" data-help-slot>${modeToggle(page)}${act(state.busy === "refresh" ? text("page.refreshing") : text("personal.refresh"), "refresh-personal", { icon: "refresh", loading: state.busy === "refresh", disabled: Boolean(state.busy) })}</div>`;
   const frame = (panel: string, description = text("personal.note")) => renderFrame({ className: "wb-frame", title: text("personal.title"), description, action, panel });
   if (state.personalError) return frame(renderAlert({ tone: "danger", role: "alert", title: text("page.failed"), body: state.personalError, actions: [actOptions(text("page.retry"), "reload-personal", { icon: "refresh" })] }));
   if (!view) return frame(`<p class="wb-muted" aria-busy="true">${esc(text("page.loading"))}</p>`);

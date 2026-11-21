@@ -56,7 +56,7 @@ export {
   clearExternalSessionsProjectRows,
   sessionsProjectData,
 } from "./schema.js";
-export { identifySessionDirectory, type IdentifySessionDirectoryOptions, type SessionDirectoryIdentity } from "./git-files.js";
+export { identifySessionDirectory, identifySessionDirectoryAsync, type IdentifySessionDirectoryOptions, type SessionDirectoryIdentity } from "./git-files.js";
 export {
   readSessionSourceFailure,
   sessionSourceFailure,

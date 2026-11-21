@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { readFileSync } from "node:fs";
-import { installHostUiText, AssistantService, AssistantStore, LocalHost, assistantAuthority, composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, runWithLocale, AssistantService, AssistantStore, LocalHost, assistantAuthority, composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody } from "@molis-ai/molis-work-app-local-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 
@@ -375,4 +375,21 @@ test("PF-A14: prompt guidance splits cleanly from locked JSON output contracts a
   assert.throws(() => validateFullPromptBody(sample, "直接用自然语言回答即可"), /JSON/u, "rejects dropping JSON contract");
   assert.throws(() => validateFullPromptBody(sample, '只输出 JSON：{"name":string}'), /body/u, "names missing required JSON fields");
   assert.doesNotThrow(() => validateFullPromptBody(sample, updated));
+
+  // P1-5: defensive deduplication prevents appending locked_format twice if a client sends the full prompt in simplified mode.
+  const deduped = composeSimplifiedPrompt(sample, updated);
+  assert.equal(deduped, updated, "composeSimplifiedPrompt does not duplicate an already-present locked format block");
+  assert.equal(deduped.split(split.locked_format).length - 1, 1);
+
+  // P1-5: validation errors follow the active UI locale (zh and en).
+  installHostUiText();
+  runWithLocale("en", () => {
+    assert.throws(() => composeSimplifiedPrompt(sample, "   "), /Restore default/u, "English empty guidance error");
+    assert.throws(() => validateFullPromptBody(sample, "plain text"), /missing the required JSON output format/u, "English missing JSON error");
+    assert.throws(() => validateFullPromptBody(sample, 'Output JSON {"name":string}'), /missing required fields: .*body/u, "English missing key error");
+  });
+  runWithLocale("zh", () => {
+    assert.throws(() => composeSimplifiedPrompt(sample, "   "), /恢复默认/u, "Chinese empty guidance error");
+    assert.throws(() => validateFullPromptBody(sample, "纯文本"), /缺少 JSON 输出格式要求/u, "Chinese missing JSON error");
+  });
 });

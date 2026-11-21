@@ -14,6 +14,7 @@ CREATE TABLE external_sessions (
     last_activity_at TEXT NOT NULL,
     forked_from TEXT,
     gone_at TEXT,
+    subagent INTEGER NOT NULL DEFAULT 0,
     UNIQUE (entry_id, location_key, native_id)
   );
   CREATE INDEX external_sessions_activity_idx

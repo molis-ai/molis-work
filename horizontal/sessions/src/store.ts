@@ -34,6 +34,8 @@ export interface StoredExternalSessionRow {
   reported_project_id: string | null;
   last_activity_at: string;
   forked_from: string | null;
+  /** A subagent's trajectory, kept with the session it belongs to (`forked_from`); the list and the search leave it out (batch 103-2). */
+  subagent?: true;
   gone_at: string | null;
 }
 
@@ -119,6 +121,7 @@ function parseSessionRow(raw: Record<string, unknown>): StoredExternalSessionRow
     reported_project_id: typeof raw.reported_project_id === "string" ? raw.reported_project_id : null,
     last_activity_at: String(raw.last_activity_at),
     forked_from: typeof raw.forked_from === "string" ? raw.forked_from : null,
+    ...(raw.subagent === 1 ? { subagent: true as const } : {}),
     gone_at: typeof raw.gone_at === "string" ? raw.gone_at : null,
   };
 }
@@ -314,21 +317,21 @@ export class SessionsStore {
     this.db.prepare(`
       INSERT INTO external_sessions (
         session_key, entry_id, location_key, native_id, seen_via, title, directory_key, directory_path,
-        activity, return_target_kind, return_target_label, reported_project_id, last_activity_at, forked_from, gone_at
+        activity, return_target_kind, return_target_label, reported_project_id, last_activity_at, forked_from, subagent, gone_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(session_key) DO UPDATE SET
         seen_via = excluded.seen_via, title = excluded.title,
         directory_key = excluded.directory_key, directory_path = excluded.directory_path,
         activity = excluded.activity, return_target_kind = excluded.return_target_kind,
         return_target_label = excluded.return_target_label, reported_project_id = excluded.reported_project_id,
         last_activity_at = excluded.last_activity_at,
-        forked_from = COALESCE(excluded.forked_from, external_sessions.forked_from), gone_at = NULL
+        forked_from = COALESCE(excluded.forked_from, external_sessions.forked_from), subagent = excluded.subagent, gone_at = NULL
     `).run(
       row.session_key, row.entry_id, row.location_key, row.native_id, JSON.stringify(mergedSeen),
       row.title, row.directory_key, row.directory_path, row.activity,
       row.return_target?.kind ?? null, row.return_target?.label ?? null,
-      row.reported_project_id, row.last_activity_at, row.forked_from,
+      row.reported_project_id, row.last_activity_at, row.forked_from, row.subagent ? 1 : 0,
     );
   }
 
@@ -344,7 +347,7 @@ export class SessionsStore {
 
   countActiveSessionsForSource(entryId: ExternalToolId, locationKey: string): number {
     const row = this.db.prepare(
-      "SELECT COUNT(*) AS count FROM external_sessions WHERE entry_id = ? AND location_key = ? AND gone_at IS NULL",
+      "SELECT COUNT(*) AS count FROM external_sessions WHERE entry_id = ? AND location_key = ? AND gone_at IS NULL AND subagent = 0",
     ).get(entryId, locationKey) as { count: number };
     return Number(row.count);
   }
@@ -366,9 +369,11 @@ export class SessionsStore {
     return raw ? parseSessionRow(raw) : null;
   }
 
-  activeSessionsOrdered(): StoredExternalSessionRow[] {
-    const rows = this.db.prepare(
-      "SELECT * FROM external_sessions WHERE gone_at IS NULL ORDER BY last_activity_at DESC, session_key ASC",
+  /** The sessions still there, newest first; a subagent's trajectory only when `subagents` asks for it. */
+  activeSessionsOrdered({ subagents = false }: { subagents?: boolean } = {}): StoredExternalSessionRow[] {
+    const rows = this.db.prepare(subagents
+      ? "SELECT * FROM external_sessions WHERE gone_at IS NULL ORDER BY last_activity_at DESC, session_key ASC"
+      : "SELECT * FROM external_sessions WHERE gone_at IS NULL AND subagent = 0 ORDER BY last_activity_at DESC, session_key ASC",
     ).all() as Record<string, unknown>[];
     return rows.map(parseSessionRow);
   }

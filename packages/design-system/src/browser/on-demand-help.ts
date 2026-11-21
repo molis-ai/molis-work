@@ -149,10 +149,8 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     }
   };
 
-  const collectTopics = (trigger?: HTMLElement): Map<string, ResolvedTopic> => {
-    const map = new Map<string, ResolvedTopic>();
-    // Declarations load first so more specific runtime data (`data-mw-help-data`, e.g. generated plugins) wins.
-    for (const node of document.querySelectorAll("script[data-mw-help-declaration]")) {
+  const readDeclarationScripts = (root: ParentNode, map: Map<string, ResolvedTopic>, overridePage: boolean): void => {
+    for (const node of root.querySelectorAll("script[data-mw-help-declaration]")) {
       try {
         const decl = JSON.parse(node.textContent || "null") as { default_topic?: string; topics?: RawDeclarationTopic[] } | null;
         if (decl && Array.isArray(decl.topics)) {
@@ -173,15 +171,22 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
               })),
             };
             map.set(raw.id, resolved);
-            if (raw.id === defId && !map.has("page")) map.set("page", resolved);
+            if (raw.id === defId && (overridePage || !map.has("page"))) map.set("page", resolved);
           }
         }
       } catch {
         // Ignore malformed declaration.
       }
     }
+  };
+
+  const collectTopics = (trigger?: HTMLElement): Map<string, ResolvedTopic> => {
+    const map = new Map<string, ResolvedTopic>();
+    const localScope = trigger?.closest(".pc-view, [data-installed-plugin], [data-settings-panel], [data-work-surface], [data-goal-canvas-shell]");
+    // Declarations load first so more specific runtime data (`data-mw-help-data`, e.g. generated plugins) wins.
+    readDeclarationScripts(document, map, false);
+    if (localScope) readDeclarationScripts(localScope, map, true);
     readDataScripts(document, map);
-    const localScope = trigger?.closest(".pc-view, [data-installed-plugin], [data-settings-panel], [data-work-surface]");
     if (localScope) readDataScripts(localScope, map);
     for (const [id, value] of providers) {
       try {
@@ -315,10 +320,32 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
 
   const canMoveToSide = (): boolean => {
     if (document.body?.hasAttribute("data-standalone-help")) return false;
-    return Boolean(document.querySelector("[data-side-panel], [data-help-specimen-side]")) || window.parent !== window;
+    if (window.parent !== window) {
+      if (document.body?.dataset.sideHelpAvailable !== undefined) return document.body.dataset.sideHelpAvailable === "1";
+      if (document.body?.hasAttribute("data-pane-embedded")) return true;
+      return Boolean(document.querySelector('[data-side-tab="help"], [data-help-specimen-side]'));
+    }
+    return Boolean(document.querySelector('[data-side-tab="help"], [data-help-specimen-side]'));
+  };
+
+  const syncSideButtonPlacement = (card: HTMLDivElement): void => {
+    const sideBtn = card.querySelector<HTMLButtonElement>("[data-mw-help-to-side]");
+    if (!sideBtn) return;
+    const compact = innerWidth <= 760;
+    const closeBtn = card.querySelector<HTMLElement>("[data-mw-help-close]");
+    const foot = card.querySelector<HTMLElement>(".mw-help-card__foot");
+    const labelEl = sideBtn.querySelector<HTMLElement>('[data-slot="button-label"]');
+    sideBtn.classList.toggle("mw-btn--icon-only", compact);
+    if (labelEl) labelEl.classList.toggle("mw-sr-only", compact);
+    if (compact && closeBtn) {
+      if (sideBtn.parentElement !== closeBtn.parentElement) closeBtn.before(sideBtn);
+    } else if (!compact && foot) {
+      if (sideBtn.parentElement !== foot) foot.append(sideBtn);
+    }
   };
 
   const place = (card: HTMLDivElement, trigger: HTMLElement): number => {
+    syncSideButtonPlacement(card);
     const r = trigger.getBoundingClientRect();
     const colEl = trigger.closest<HTMLElement>(".mw-help-anchor-col, form, .settings-page-shell, main, [data-work-surface]");
     const col = colEl ? colEl.getBoundingClientRect() : null;
@@ -367,6 +394,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     const closeBtn = mk("button", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only");
     closeBtn.type = "button";
     closeBtn.dataset.slot = "button";
+    closeBtn.dataset.mwHelpClose = "true";
     closeBtn.setAttribute("aria-label", word("common.help.close", "关闭帮助", "Close help"));
     closeBtn.append(iconSvg("x"));
     closeBtn.addEventListener("click", (event) => {
@@ -386,11 +414,16 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     const foot = mk("div", "mw-help-card__foot");
     foot.append(mk("span", "mw-help-card__hint", word("common.help.esc-closes", "Esc 关闭", "Esc closes")));
     if (canMoveToSide() && topic && !topic.failed) {
+      const sideLabel = word("common.help.keep-reading-side", "在右栏继续看", "Keep reading in the side pane");
       const sideBtn = mk("button", "mw-btn mw-btn--ghost mw-btn--sm");
       sideBtn.type = "button";
       sideBtn.dataset.slot = "button";
       sideBtn.dataset.mwHelpToSide = "true";
-      sideBtn.append(iconSvg("sidebar"), mk("span", "", word("common.help.keep-reading-side", "在右栏继续看", "Keep reading in the side pane")));
+      sideBtn.setAttribute("aria-label", sideLabel);
+      sideBtn.title = sideLabel;
+      const sideText = mk("span", "", sideLabel);
+      sideText.dataset.slot = "button-label";
+      sideBtn.append(iconSvg("sidebar"), sideText);
       sideBtn.addEventListener("click", () => {
         const payload = {
           title: topic.title,
@@ -406,7 +439,11 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
           })),
         };
         close(false);
-        document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "help", target: payload, focus: true }, cancelable: true }));
+        const sideEvent = new CustomEvent("molis:side-open", { detail: { tab: "help", target: payload, focus: true }, cancelable: true });
+        document.dispatchEvent(sideEvent);
+        if (!sideEvent.defaultPrevented && window.parent !== window && document.body?.hasAttribute("data-pane-embedded")) {
+          window.parent.postMessage({ type: "molis:side-open", tab: "help", target: payload, focus: true }, location.origin);
+        }
       });
       foot.append(sideBtn);
     }

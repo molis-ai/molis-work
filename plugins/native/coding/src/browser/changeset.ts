@@ -260,7 +260,8 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     const file = files[n];
     if (!file) return;
     const button = pickButton(r, runValue, n);
-    button.append(el("span", uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 || file.kind === "deleted" ? " · " + kindLabel(file.kind) : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
+    button.append(el("span", file.kind === "deleted" ? kindLabel(file.kind)
+      : uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + kindLabel(file.kind) : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
     group.append(button);
   });
 }

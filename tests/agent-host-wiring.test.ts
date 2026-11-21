@@ -61,7 +61,7 @@ test("Run review reads refresh original receipts and isolate project, session, r
   unavailable = true; await assert.rejects(read(context, [session, run]), /original ledger unavailable/);
 });
 
-// specs/backlog/BL-coding-changeset-deleted-kind DEL-07: a round's reviews also carry the reviewed integrations that name that round as
+// specs/post-anticorruption-roadmap/reference/batches/99.md#acceptance DEL-07: a round's reviews also carry the reviewed integrations that name that round as
 // their source (they have no run of their own); another round's, another session's or another plugin's integration does not come along.
 test("DEL-07: run reviews carry the integrations sourced from that round, and only those", async () => {
   const host = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), adapter = readOnlyAdapter("reviews"), session = { runtime_id: "reviews", session_id: "session-1" }, run = { session_id: "session-1", run_id: "r" };

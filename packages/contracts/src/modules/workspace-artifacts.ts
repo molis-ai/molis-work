@@ -685,8 +685,8 @@ export interface CodingFileChange {
   /** Always empty: `review` carries both ends of the file. */
   diff: string;
   /**
-   * Original immutable review text. Multiple edits to one path stay separate. A `deleted` file's review is the approved and
-   * confirmed integration that removed it: `before_text` is the file it removed, `after_text` is empty.
+   * Original immutable review text. Multiple edits to one path stay separate. A file a subtask brought back is the approved and
+   * confirmed integration of its result: its texts are that file's before and after there; a `deleted` file's `after_text` is empty.
    */
   review: {
     review_id: string;
@@ -711,8 +711,8 @@ export interface CodingChangeSet {
   applied: boolean;
   origin: { session_id: string; runtime_session_id: string; workspace_id: string; workspace_name: string };
   /**
-   * This set covers original text reviews, and the deletions a confirmed integration of this round's result made; commands
-   * and external effects are separate receipts, and a deletion they may have made stays unlisted.
+   * This set covers original text reviews, and the files a confirmed integration of this round's subtasks brought back (added,
+   * modified or deleted); commands and external effects are separate receipts, and what they may have changed stays unlisted.
    */
   coverage: "text-reviews";
 }

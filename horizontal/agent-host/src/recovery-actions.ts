@@ -109,8 +109,7 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
     }),
 
     register(agentHostCapabilities.readRunReviews, async (context, [session, run]) => {
-      await requireRun(context, session, run);
-      const view = await readScopedSession(context, session);
+      const view = await requireRun(context, session, run);
       const queue = ports.agentHost(context).reviews, projectId = ports.projectId(context);
       await queue.refresh(projectId);
       // The round's own reviews, and the reviewed integrations that brought this round's result back to the main

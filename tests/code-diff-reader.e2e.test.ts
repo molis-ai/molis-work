@@ -120,7 +120,7 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
   await waitFor(`${copyPatch}.dataset.copy === 'failed' && !${copyPatch}.hasAttribute('aria-busy') && ${copyPatch}.querySelector('[data-copy-face=failed]').textContent === '复制失败'`, 5_000);
 });
 
-// specs/backlog/BL-coding-changeset-deleted-kind DEL-06: in the fixed change set, a file the round removed reads as 删除 beside its path,
+// specs/post-anticorruption-roadmap/reference/batches/99.md#acceptance DEL-06: in the fixed change set, a file the round removed reads as 删除 beside its path,
 // done, in the same row as the others; opened, it shows every line it had as removed. Three widths, light and dark.
 
 const content = { scope: "run-frozen", run_id: "run-del", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [

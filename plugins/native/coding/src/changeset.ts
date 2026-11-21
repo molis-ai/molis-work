@@ -54,7 +54,7 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
   const files = rows.flatMap(({ request, receipt }): CodingFileChange[] => {
     const document = request.document;
     if (document.kind !== "text-edit" && document.kind !== "git-integration") return [];
-    // Read twice, one review still counts once.
+    // The Host's list could carry a review twice (a refresh between reads); one review is one entry.
     if (seen.has(request.review_id)) return [];
     seen.add(request.review_id);
     const ofRound = document.kind === "text-edit"
@@ -64,11 +64,16 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
     if (!receipt || receipt.review_id !== request.review_id) throw new Error("原执行回执不可读，暂不能固定变更");
     const execution = executionOf(receipt);
     if (document.kind === "git-integration") {
-      if (receipt.status !== "approved" || execution !== "applied") return [];
-      return document.files.filter(file => file.after_text === null && file.before_text !== null).map(file => {
+      // A child writes in its own session, so its own reviews are not this round's; what it brought back is proven here, file by
+      // file, once the person approved and the Host confirmed the integration. Only a child's: the Host made its worktree for
+      // this round. A worktree the session ran in may hold several rounds, and its integration brings all of them back, so it
+      // names no single round (and that round's own writes are already its reviews).
+      if (document.source.subagent_id === undefined || receipt.status !== "approved" || execution !== "applied") return [];
+      return document.files.filter(file => file.before_text !== null || file.after_text !== null).map(file => {
         parseFilePath(file.path.split("/"));
-        return { path: file.path, kind: "deleted" as const, ...codingChangedLines(file.before_text, ""),
-          diff: "", review: { review_id: request.review_id, before_text: file.before_text, after_text: "", decision: receipt.status, execution } };
+        const kind = file.before_text === null ? "added" as const : file.after_text === null ? "deleted" as const : "modified" as const;
+        return { path: file.path, kind, ...codingChangedLines(file.before_text, file.after_text ?? ""),
+          diff: "", review: { review_id: request.review_id, before_text: file.before_text, after_text: file.after_text ?? "", decision: receipt.status, execution } };
       });
     }
     parseFilePath(document.target_path.split("/"));

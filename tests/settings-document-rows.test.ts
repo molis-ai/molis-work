@@ -174,7 +174,7 @@ test("网页搜索: broken default keeps its fix link ready for switch-away; cli
       default_source: "conn-1", default_unusable: true, last_use: null,
       sources: [
         { source_id: "builtin:anysearch", kind: "builtin", title: "AnySearch", state: "ready", is_default: false },
-        { source_id: "conn-1", kind: "connection", service_id: "tavily", title: "Tavily", account_label: "Work", state: "needs_auth", is_default: true },
+        { source_id: "conn-1", kind: "connection", service_id: "tavily", title: "Tavily", account_label: "Work", state: "needs_attention", is_default: true },
       ],
     },
   }));

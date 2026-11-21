@@ -1,0 +1,118 @@
+/* 47 · 创作台做的插件怎样安装、升级和恢复 — 原型自己的样式，只有两类：
+   1. 原型条与页面骨架（不是产品界面）；
+   2. 版式：把组件板已有的部件（mw-btn、mw-alert、mw-dialog、mw-switch、mw-toast、mw-empty、mw-badge、设置页「插件」的行）按方案排好。
+   颜色、圆角、阴影、时长与曲线只用 kit.css／settings.css 里的令牌。创作台「对话加阶段」的版面沿第 03 批已定的方案 A。
+   「组件板新增」只有一处：带图标的权限行（.proto-grant，见 README）。 */
+
+/* ---------- 1. 原型条与骨架 ---------- */
+html, body.proto-body { height: 100%; }
+body.proto-body { margin: 0; display: flex !important; flex-direction: column; overflow: hidden; background: var(--desk); color: var(--ink); font-size: 13px; }
+#app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.proto { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--paper); border-bottom: 1px solid var(--line-strong); font-size: 12px; color: var(--muted); }
+.proto b { color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); margin-right: 8px; }
+.proto label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proto .mw-select { width: auto; min-width: 0; max-width: 60vw; height: 28px; font-size: 12px; }
+.proto #reset { margin-left: auto; }
+.proto-note { flex: none; margin: 0; padding: 6px 16px; font-size: 12px; line-height: 18px; color: var(--muted); background: var(--paper); border-bottom: 1px solid var(--line); }
+.proto-toasts { position: fixed; inset-inline: 16px; bottom: 24px; z-index: 60; display: flex; justify-content: center; pointer-events: none; }
+.proto-toasts .mw-toast { pointer-events: auto; }
+.proto-grow { flex: 1; }
+
+/* ---------- 2. 版式 ---------- */
+/* 创作台：一张纸，上面是标题与阶段，下面左对话右阶段。 */
+.proto-studio, .proto-plugin { flex: 1; min-height: 0; margin: 12px 16px 16px; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
+.proto-studio__head, .proto-plugin__head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.proto-studio__head h1, .proto-plugin__head h1 { margin: 0; min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proto-studio__mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-strong); flex: none; }
+.proto-studio__mark svg { width: 14px; height: 14px; }
+.proto-studio__head .proto-studio__switch.mw-toggle-group { display: none; margin-left: auto; flex: none; }
+.proto-studio__switch .mw-toggle { white-space: nowrap; }
+.proto-steps { flex: none; list-style: none; margin: 0; padding: 0 12px; display: flex; align-items: center; gap: 4px; height: 40px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.proto-steps li { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.proto-steps li i { font-style: normal; font-variant-numeric: tabular-nums; }
+.proto-steps li svg { width: 12px; height: 12px; }
+.proto-steps li.is-done { color: var(--ink-soft); }
+.proto-steps li[aria-current=step] { background: var(--accent-soft); color: var(--accent-strong); }
+.proto-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 360px minmax(0, 1fr); }
+.proto-chat { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.proto-thread { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.proto-say { margin: 0; max-width: 92%; padding: 8px 12px; border-radius: 12px; line-height: 20px; align-self: flex-end; background: var(--accent-soft); color: var(--ink); overflow-wrap: anywhere; }
+.proto-say.is-ai { align-self: flex-start; background: var(--soft); }
+.proto-compose { flex: none; display: flex; gap: 8px; padding: 12px 16px 16px; }
+.proto-compose .mw-input { flex: 1; min-width: 0; }
+.proto-main { min-width: 0; min-height: 0; overflow: auto; }
+.proto-stage { max-width: 720px; padding: 24px 24px 32px; display: flex; flex-direction: column; gap: 16px; }
+.proto-stage h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.proto-lead { margin: 0; line-height: 20px; color: var(--ink-soft); }
+.proto-stage > .proto-lead { margin-top: -8px; }
+.proto-package { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: 12px; box-shadow: 0 0 0 1px var(--line-strong); }
+.proto-package header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.proto-package header svg { width: 16px; height: 16px; color: var(--muted); }
+.proto-package header strong { font-size: 14px; font-weight: 600; }
+.proto-package dl { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.proto-package dl div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; line-height: 20px; }
+.proto-package dt { color: var(--muted); }
+.proto-package dd { margin: 0; overflow-wrap: anywhere; }
+.proto-go { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.proto-go .settings-muted { flex: 1 1 240px; }
+
+/* 确认内容：谁做的、装在哪里两行事实，然后按「一定要用／可以选／后台」分组。 */
+.proto-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.proto-facts li { display: grid; grid-template-columns: 16px 72px minmax(0, 1fr); gap: 8px; align-items: start; line-height: 20px; }
+.proto-facts li svg { width: 16px; height: 16px; margin-top: 2px; color: var(--muted); }
+.proto-facts li span { color: var(--muted); }
+.proto-facts li strong { font-weight: 500; overflow-wrap: anywhere; }
+/* 组件板新增：带图标的权限行。图标在前，名字与理由在中间，可选的在行尾有开关。 */
+.plugin-trust-rows > li.proto-grant { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 8px 0; }
+.plugin-trust-rows > li.proto-grant + li.proto-grant { border-top: 1px solid var(--line); }
+.proto-grant__mark svg { width: 16px; height: 16px; margin-top: 2px; color: var(--muted); }
+.proto-grant__copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.proto-grant__copy > :first-child { font-weight: 500; }
+.plugin-trust-rows > li.proto-grant > .mw-switch { align-self: center; margin-top: 0; }
+.plugin-trust-review, .plugin-trust-group { display: flex; flex-direction: column; }
+.plugin-trust-review { gap: 16px; }
+.plugin-trust-group { gap: 4px; }
+.plugin-trust-group > strong { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+.plugin-trust-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.plugin-trust-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.plugin-trust-actions.proto-start { justify-content: flex-start; }
+.plugin-trust-preview { display: flex; flex-direction: column; gap: 16px; }
+.plugin-trust-preview:focus { outline: none; }
+.plugin-trust-preview .settings-muted svg { width: 14px; height: 14px; vertical-align: -2px; }
+
+/* A：确认框。框高不够时只滚中间。 */
+.mw-dialog.proto-consent { width: min(560px, calc(100vw - 32px)); }
+.mw-dialog.proto-consent .mw-form__body { max-height: min(56vh, 520px); overflow: auto; }
+
+/* C：嵌在阶段里的确认区，一圈细线加一行「由 Molis Work 显示」。 */
+.proto-trusted { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 12px; box-shadow: 0 0 0 1px var(--line-strong); background: var(--paper); }
+.proto-trusted header { display: flex; flex-direction: column; gap: 8px; }
+.proto-trusted h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.proto-trusted__by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.proto-trusted__by svg { width: 14px; height: 14px; }
+
+/* 设置页与插件自己的位置。 */
+.proto-settings { flex: 1; min-height: 0; display: grid; grid-template-rows: 44px minmax(0, 1fr); }
+.proto-settings .mw-alert { margin-top: 16px; }
+.proto-plugin__body { padding: 24px; display: flex; flex-direction: column; gap: 12px; max-width: 560px; }
+.proto-plugin__body h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.proto-names { list-style: none; margin: 0; padding: 0; }
+.proto-names li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.proto-names li + li { border-top: 1px solid var(--line); }
+.proto-plugin .mw-empty { flex: 1; align-self: center; justify-content: center; align-items: center; text-align: center; max-width: 480px; padding: 24px 16px; }
+.proto-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
+.proto-stage .mw-alert:focus, .proto-settings .mw-alert:focus { outline: none; }
+
+/* 窄屏：对话与阶段一次看一个。 */
+@media (max-width: 860px) {
+  .proto-studio, .proto-plugin { margin: 8px; }
+  .proto-studio__head .proto-studio__switch.mw-toggle-group { display: inline-flex; }
+  .proto-cols { grid-template-columns: minmax(0, 1fr); }
+  .proto-studio[data-pane=stage] .proto-chat, .proto-studio[data-pane=chat] .proto-main { display: none; }
+  .proto-chat { border-right: 0; }
+  .proto-stage { padding: 16px 16px 24px; }
+  .proto-facts li { grid-template-columns: 16px minmax(0, 1fr); }
+  .proto-facts li strong { grid-column: 2; }
+  .plugin-trust-actions { justify-content: stretch; }
+  .plugin-trust-actions > .mw-btn { flex: 1 1 auto; }
+}

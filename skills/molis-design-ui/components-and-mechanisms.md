@@ -4,7 +4,33 @@
 
 ---
 
-## 1. 核心 `mw-*` 控件材质与规范
+## 1. 对齐六律、容器层次、三层标签栏与图示优先
+
+### 对齐六律（Six Laws of Alignment — 整洁感的第一公理）
+1. **共享网格轴**：同页所有区块共享唯一左边缘与版心宽度（`--measure-reading: 700px` / `--measure-form: 760px` / `--measure-stage: 960px` / `--measure-wide: 1152px`），左轨固定 `--master-w: 240px`（设置页固定 `228px`），严禁切页或跨区左右跳轴。
+2. **首行光学轴**：每行左侧图标与状态环锁定 `22px` 首行光学中心（多行折行时不垂直居中飘离标题）。
+3. **单一起笔文本轴（`--text-start: 44px`）**：带图标列表与内嵌分组行（`.mw-inset-row`、`.mw-object-row__body`）的分隔线与展开抽屉统一从 `44px` 文本起点对齐，**绝不横切左侧图标**。
+4. **数值列齐（`tabular-nums`）**：时间、计数、比例、耗时与状态列一律 `font-variant-numeric: tabular-nums` 并固定右对齐列宽，杜绝数字跳动与歪斜。
+5. **同心圆角（`R_outer − padding = R_inner`）**：外层槽容器 `.mw-section-well`（`14px`）+ `4px` 内边距 → 内层纸卡（`10px`）；分段控件外槽（`10px`）+ `3px` 内边距 → 滑块（`7px`），严禁圆角倒挂。
+6. **无刷新连续位移**：列表切换、增删与展开坚持持久化 DOM + FLIP（`molisListTransition` / `molisReflow` 容器高度呼吸；自然高度 `0fr → 1fr` 仅限白名单 `<details class="mw-collapsible">::details-content`，内嵌行抽屉 `.mw-inset-row__drawer` 使用纯合成层 `craft-rise` 展开），拒绝整块销毁重建闪白。
+
+### 容器与边界三层体系（区分区域与 Item）
+- **连续白纸（主工作面）**：`--paper`，普通内容靠留白与字重分隔，不画卡套卡。
+- **凹槽区块（`.mw-section-well`）**：`--surface-soft` + `1px solid var(--line)` + `14px` 圆角 + `4px` 内垫，用来收拢相关控制条、工具组或状态摘要，内嵌纸卡自然取 `10px` 同心圆角。
+- **内嵌分组列表（`.mw-inset-group` + `.mw-inset-row`）**：外围一张 `--paper` 卡片（`12px` 圆角 + `1px solid var(--line)` + 深色 `--edge-highlight` 顶光），内部行间 `44px` 齐线分隔，单行支持原位展开详情抽屉（`.mw-inset-row__drawer`）。
+
+### 三层标签栏体系（不混用）
+- **T1 页面级工作标签**：顶栏方案 C「纸上的页签耳」（`.tab-item`，当前页签与纸面相连 + `2px --accent` 顶冠）。
+- **T2 视图 / 筛选切换**：`.mw-toggle-group`（带弹性滑块的紧凑分段控件，用于 2–5 项互斥视图切换）。
+- **T3 区域内平级页签**：`.mw-tabs__list--underline`（底部 `2px` 雾蓝滑条 + `1px` 底线，用于详情页内多子面板切换，避免与按钮混淆）。
+
+### 列表项换行规则与「图示+色彩优先、零状态赘字」
+- **何时换行**：标题单行截断（超长在聚焦/悬停通过平台提示显全）；说明文字仅在帮助用户做决定时占第二行（最多 2 行）；常规信息按三槽排布——**左槽（图标/状态环）→ 中槽（标题 + 必要的一行摘要/标签）→ 右槽（等宽元数据 + 悬停/聚焦操作）**。
+- **图示 + 色彩先于状态文字**：优先用清晰语义矢量图标（`.mw-glyph-status`、`.mw-signal-dot`、`.mw-signal`、`renderStateRing`）+ 色彩 + 克制动效表达「正常 / 进行中 / 待你处理 / 异常」，**不把「状态：运行中」「说明：当前已连接成功」这类废话铺满每一行**；解释性说明收进按需披露（内嵌详情抽屉、`<details class="mw-collapsible">` 或右上「帮助」）。
+
+---
+
+## 2. 核心 `mw-*` 控件材质与规范
 
 | 控件 | 类名 / 渲染器 | 质感与行为要求 | 禁用反例 |
 | --- | --- | --- | --- |
@@ -22,7 +48,7 @@
 
 ---
 
-## 2. 九大共享客户端机制（直接调用，绝不重造）
+## 3. 九大共享客户端机制（直接调用，绝不重造）
 
 1. **`window.molisCopy(btn, text, { done, failed })`**：剪贴板真正写入后才切「已复制」，自动锁宽防横跳（文案走 `t()`，绝不硬编码中文）。
 2. **`window.molisFollow(container)`**：对话与长日志的唯一滚动主人——到底跟随，用户首个 `wheel`/`touchmove`/向上滚/选字当即交权 `detached`；新内容调 `pin()`、回底调 `toLatest()`、切会话保存/恢复 `{ scrollTop, followState }`，卸载 `dispose()`。
@@ -38,7 +64,7 @@
 
 ---
 
-## 3. 空间布局：`@container plugin-stage` 三档断点 + 四档标准版心
+## 4. 空间布局：`@container plugin-stage` 三档断点 + 四档标准版心
 
 ### 窗格级容器查询（插件内严禁视口布局 `@media`）
 所有舞台与插件页响应 `.tab-pane-body` / `.tab-workspace-exclusive` 提供的 `plugin-stage` 容器宽（仅外壳顶底栏与 `(pointer: coarse)` / `(hover: none)` / `(prefers-reduced-motion)` 可用 `@media`）：

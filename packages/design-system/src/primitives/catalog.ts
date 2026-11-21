@@ -74,7 +74,7 @@ function catalogIndex(sections: string, say: Say, extraChapters: readonly Catalo
   const totalCount = coreCount + extraChapters.reduce((sum, item) => sum + item.count, 0);
   const chips = [
     `<button type="button" class="mw-catalog__chip is-active" data-catalog-chapter="" aria-pressed="true">全部</button>`,
-    ...chapterNames.map((name) => `<button type="button" class="mw-catalog__chip" data-catalog-chapter="${escapeHtml(name)}" aria-pressed="false">${escapeHtml(name)}</button>`),
+    ...chapterNames.map((name) => `<button type="button" class="mw-catalog__chip" data-catalog-chapter="${escapeHtml(name)}" aria-pressed="false"> ${escapeHtml(name)} </button>`),
   ].join("");
   const find = `<div class="mw-catalog__index-find"><input class="mw-input" type="search" data-catalog-find placeholder="找标本" aria-label="在目录里找标本" autocomplete="off"><div class="mw-catalog__chips" role="group" aria-label="章节筛选">${chips}</div></div>`;
   return `<nav class="mw-catalog__index" data-catalog-index aria-label="控件目录" style="grid-row: 1 / span ${totalCount}">${find}${coreLinks}${extraLinks}<p class="mw-catalog__index-none" data-catalog-none hidden>没有这个名字的标本</p></nav>`;
@@ -137,7 +137,7 @@ function craftSection(): string {
     ["--dur-arrive", "420ms", "内容到达：上浮 7px 同时淡入"],
     ["引导步骤", "130 + 420ms", "离开向后淡出 130ms，进入按方向滑入 420ms"],
     ["--dur-moment", "640ms", "只属于完成与落地的一刻"],
-    ["--dur-stagger", "22ms", "错开：几张卡片一起到达时，微弱流动节奏（至多四张）"],
+    ["--dur-stagger", "60ms", "错开：几张卡片一起到达时，微弱流动节奏（至多四张）"],
   ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("") +
     `<tr><td><code>--ease-quint</code></td><td>cubic-bezier(.22, 1, .36, 1)</td><td>到达、移动、展开、离开——除按下回弹外的一切</td></tr><tr><td><code>--ease-spring</code></td><td>cubic-bezier(.2, 1.35, .4, 1)</td><td>只用于按下后的回弹与勾选落定</td></tr>`;
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
@@ -157,7 +157,7 @@ function craftSection(): string {
       <div class="mw-craft-stage" data-craft-demo-target><span class="mw-craft-stage__title">让第一次使用的人顺利完成一轮目标协作</span><span class="goal-status goal-status--in_progress" data-craft-demo-status>${icon("play")}<span>正在推进</span></span></div>`)}
       ${specimen("项目徽标 · 首字母 + 由 id 决定的色", `<div class="mw-craft-row">${monograms}</div>`)}
       ${specimen("标签 · 提示", `<div class="mw-craft-row mw-craft-strip"><span class="mw-craft-tab">${icon("home")}<span>项目主页</span></span><span class="craft-tip mw-craft-tip" data-shown>Inbox<kbd>⌥5</kbd></span></div>`)}
-      ${specimen("Inset Grouped · 对齐六律（同心圆角、22px 首行光学轴、44px 发丝线、图标+色彩优先、0fr→1fr 抽屉）", `<div class="mw-section-well" style="max-width:560px"><div class="mw-inset-group">
+      ${specimen("Inset Grouped · 对齐六律（同心圆角、22px 首行光学轴、44px 发丝线、图标+色彩优先、平滑内嵌抽屉）", `<div class="mw-section-well" style="max-width:560px"><div class="mw-inset-group">
         <div class="mw-inset-row" data-catalog-inset-row data-open="false">
           <span class="mw-inset-row__lead mw-glyph-status mw-status--progress" title="进行中">${icon("play")}</span>
           <div class="mw-inset-row__body">

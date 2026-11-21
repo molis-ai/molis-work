@@ -21,4 +21,4 @@ export function freshStart(text: string, from: number, segments?: (text: string)
  * `pretty` may move earlier lines as text is added (WebKit lays out the whole paragraph), so they wait for the reply to be
  * opened again from history.
  */
-export const STREAM_TEXT_STYLES = `[data-streamed] :is(h1,h2,h3,p,blockquote,li,figcaption){text-wrap:wrap}.mw-fresh{animation:mw-fresh var(--dur-reveal,200ms) var(--ease-reveal,cubic-bezier(.22,1,.36,1)) both}@keyframes mw-fresh{from{opacity:0;filter:blur(1.8px)}}@media (prefers-reduced-motion:reduce){.mw-fresh{animation:none}}`;
+export const STREAM_TEXT_STYLES = `[data-streamed] :is(h1,h2,h3,p,blockquote,li,figcaption){text-wrap:wrap}.mw-fresh{animation:mw-fresh var(--dur-reveal) var(--ease-reveal) both}@keyframes mw-fresh{from{opacity:0;filter:blur(2px)}}@media (prefers-reduced-motion:reduce){.mw-fresh{animation:none}}`;

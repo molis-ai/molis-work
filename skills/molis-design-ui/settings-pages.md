@@ -8,10 +8,10 @@
 
 | 区域 | 唯一规范 | 禁用反例 |
 | --- | --- | --- |
-| **左列导航轨** | 固定 `228px`、`--surface-soft` 底、`1px solid var(--line)` 右分割线；顶部提供 **「全局设置 / 本项目：\<项目名\>」作用域切换段**（项目内打开时可见；记忆/能力包/角色/授权 4 个双端页一键跨作用域切换）+ **侧栏快捷过滤框** | 50px 巨高旧行、`5px` 野生圆角、`inset 2px` 左侧蓝竖条、无搜索让用户手动翻 21+ 页 |
-| **导航项** | 标准高 `32px`、`var(--r-control, 8px)` 圆角、`13px`；当前页用 `--nav-active` + `500` 字重；分组头 `11px / 500 / --muted` | 覆盖层与独立页两套不同选中样式 |
-| **右列文档区** | 左缘固定 `max-width: 760px`（`--measure-form`）纵向流；如有来路先摆 `mw-return-bar` 往返条；页头为 **`24px / 600` 标题 + 最多一句直白引言（无重底线）** | `30px` 标题加粗横线、`960px` 居中导致跨页左右跳轴 |
-| **桌面安全区** | 独立设置页左侧安全区一律读 `var(--desktop-window-safe-inline-start, 88px)`（全屏态自动归 `0`） | `project-settings-page.ts` 硬编码 `padding-left: 84px` |
+| **左列导航轨** | 固定 `228px`（独立设置页与项目设置页统一，不再 `248px` / `220px` 割裂）、`--nav-bg` 底、`1px solid var(--line)` 右分割线；全局设置顶部自带 **`[data-settings-nav-filter]` 侧栏实时过滤框**（自动隐藏空分组、`Escape` 清空，窄屏 `≤760px` 收起不干扰横向滚动条） | 50px 巨高旧行、`5px` 野生圆角、`inset 2px` 左侧竖条、无搜索让用户手动翻 20+ 页 |
+| **导航项** | 标准高 `32px`、`var(--r-control, 8px)` 圆角、`13px`、固定 `16px` 图标位 + `10px` 间距；当前页用 `--accent-soft` + `500` 字重 + `--accent-strong` 图标着色；分组头 `11px / 500 / --muted` | 覆盖层与独立页两套不同选中样式 |
+| **右列文档区** | 左缘固定 `max-width: 760px`（`--measure-form`）纵向流；如有来路先摆 `mw-return-bar` 往返条；页头为 **`24px / 600` 标题 + 最多一句直白引言（无重底线）**；卡片在深色模式下带 `1px` `--edge-highlight` 顶部高光；行内展开主体左齐 `var(--text-start, 44px)`，数值列一律 `tabular-nums` | `30px` 标题加粗横线、`960px` 居中导致跨页左右跳轴 |
+| **桌面安全区** | 独立设置页（同时匹配 `html[data-native-desktop="true"]` 与 `body[data-native-desktop="true"]`）左侧安全区一律读 `var(--desktop-window-safe-inline-start, 88px)`（全屏态自动归 `0`） | `project-settings-page.ts` 硬编码 `padding-left: 84px` |
 
 ---
 

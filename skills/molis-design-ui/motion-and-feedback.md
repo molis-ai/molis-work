@@ -4,12 +4,16 @@
 
 ---
 
-## 1. 动效令牌与「一变一动」六大原语
+## 1. 动效令牌、无刷新连续感与「一变一动」六大原语
 
 ### 统一时长与曲线（禁止任何非令牌数字与私造 JS `cubic-bezier`）
-- 时长令牌：`--dur-press: 110ms`、`--dur-move: 220ms`、`--dur-arrive: 280ms`、`--dur-moment: 640ms`
-- 曲线令牌：`--ease-quint`（主位移与展开，利落刹停）、`--ease-spring`（轻回弹，仅用于按压与分段滑块）
-- **铁律**：仅动画合成层属性（`transform`、`opacity`）；位距 `≤ 16px`；**退场总比进场快 30–40%**；所有动画在 `prefers-reduced-motion: reduce`、`[data-craft-still]`、`navigator.webdriver` 下归零或单帧直达；绝不留空转的 `.is-arriving` 类。
+- 时长令牌：`--dur-press: 130ms`、`--dur-hover: 130ms`、`--dur-move: 250ms`、`--dur-arrive: 420ms`、`--dur-moment: 640ms`、`--dur-stagger: 60ms`、`--dur-reveal: 90ms`
+- 曲线令牌：`--ease-quint`（`cubic-bezier(.22, 1, .36, 1)`，主位移与展开，利落刹停）、`--ease-spring`（`cubic-bezier(.2, 1.35, .4, 1)`，轻回弹，仅用于按压与分段滑块）、`--ease-reveal`（流式浸润）
+- **无页面刷新感四铁律**：
+  1. **持久化 DOM + FLIP**：切换筛选/视图/增删条目调用 `window.molisListTransition` / `window.molisReflow`（自带容器高度呼吸），绝不整块 `innerHTML` 闪烁重建。
+  2. **平滑展开**：折叠明细使用 `<details class="mw-collapsible">` 的 `::details-content` 自然高度过渡（`0fr → 1fr` 仅限白名单折叠原语）；`.mw-inset-row__drawer` 使用纯合成层 `craft-rise` 轻浮展开，避免触发布局属性动画门禁。
+  3. **仅合成层动画**：只动 `transform`、`opacity`、`filter`（仅流式末梢微焦）；位距 `≤ 16px`；**退场总比进场快 30–40%**；在 `prefers-reduced-motion: reduce`、`[data-craft-still]`、`navigator.webdriver` 下归零或单帧直达。
+  4. **单次克制**：绝不留空转 `.is-arriving`，绝不整屏级联超过 5 项或拉长总入场超过 `360ms`。
 
 ### 六大语法与唯一触发时机
 
@@ -30,12 +34,13 @@
 2. **`250ms` 静默阈值与 `window.molisBusy(btn, work, opts?)`**：
    - 任何耗时 `< 250ms` 的请求**不闪骨架、不闪转圈**；超过 `250ms` 才淡入 `.mw-spinner` 并设 `data-loading` + `aria-busy="true"` + 防连点锁，有图标时原位等宽替换不抖动，弹窗内自动拦截 `Esc` 并在 `finally` 释放。
    - **禁止**手写 `button.disabled = true` 灰死僵住、**禁止**整页 `workspace.inert = true` 无声冻屏、**禁止**绕开 `250ms` 立刻渲染 `.mw-loading`。
-3. **唯一宿主 Toast（`host.showToast(message, options?)`）**：
+3. **唯一宿主 Toast（`host.showToast` / `window.molisToast(message, options?)`）**：
    - 全产品只走这一条队列，底距统一 `calc(var(--helm-h, 74px) + 14px)` 避让底栏与控件，每次触发清前序定时器。
-   - 三档规范时长：纯确认 `2800ms`（`role="status"`）；带撤销/后续动作 `6500ms`（鼠标悬停或焦点暂停倒计时，用于 Inbox 分拣、Feed 忽略、归档、回收站恢复等**高频可逆操作，替代多余阻塞确认框**）；错误态常驻（`role="alert"` + 单次轻颤，允许折行不截断）。
-4. **统一五态自动保存（7 大编辑器共享）**：
-   - `idle`（静默隐退，常态不刷绿也不占位）→ `dirty`（中性灰「未保存」）→ `saving`（超 `250ms` 显微环「保存中…」）→ `saved`（轻亮 `640ms` 后 `2s` 淡隐）→ `failed`（红字常驻 + 保留草稿 + 就地 `mw-btn--link`「重试」）。
-5. **乐观开关回滚（`optimisticToggle`）**：切换立即生效，请求失败自动弹回原值、恢复交互并在区块内就地 `role="alert"`。
+   - 三档规范时长：`short: 2600ms`（纯确认，`role="status"`）；`normal: 4200ms`（警告/信息）；`long: 7000ms`（带 `undo` / `action` 按钮或错误提示，鼠标悬停或键盘焦点自动暂停倒计时，离开后平滑续跑，用于高频可逆操作替代多余阻塞确认框）。
+4. **统一五态自动保存（`window.molisAutosave(el, save, opts?)`）**：
+   - `idle`（静默隐退，常态不刷绿也不占位）→ `dirty`（中性灰「未保存」）→ `saving`（超 `250ms` 显微环「保存中…」）→ `saved`（轻亮后 `2.2s` 淡隐）→ `error`（红字常驻 + 保留草稿 + `retry()`）。
+5. **乐观开关回滚（`window.molisOptimisticToggle(control, work, opts?)`）**：切换立即生效，请求失败自动弹回原值、恢复交互并经 `molisToast` 报错。
+6. **危险确认与日期增强**：不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式与 `Escape` 行为。
 
 ---
 
@@ -43,7 +48,7 @@
 
 | AI 时刻 | 唯一视觉与交互表达 | 严禁 |
 | --- | --- | --- |
-| **1. 正在干活** | 恒定 `20px` 状态环原地切换 `[data-mw-state]`（不销毁 DOM、不归零相位）；`molisStreamText` v2 平滑吐字 + 连续波浪 `.mw-fresh` + 内联闭合零重闪；代码块原地生长；思考流独立轻量折行（用户点开后不自动合上 `VUX-13`）；超 20 秒给一句安静状态说明；`molisFollow` 跟随但用户滚轮首帧让权 | `500ms` 轮询顿挫；把 20px 状态环硬换成 13px 图标造成 7px 横跳；劫持用户向上滚动 |
+| **1. 正在干活** | 恒定 `20px` 状态环（`.mw-state-ring--fixed`）原地切换 `[data-mw-state]`（不销毁 DOM、不归零相位）；`molisStreamText` v2 仅对**当前变更节点**执行 `finishDirect()`，不打断前段正在完成的光影浸润波浪 `.mw-fresh`（`blur(2px)` 90ms 快速渐显，收尾时立即收齐）；代码块原地生长；思考流独立轻量折行（用户点开后不自动合上 `VUX-13`）；`molisFollow` 真人交互走柔和微阻尼追底、用户滚轮/触控首帧让权（减动效与自动化单帧直达） | `500ms` 轮询顿挫；掐断前段在途淡入导致闪字；把 20px 状态环硬换成 13px 图标造成 7px 横跳；劫持用户向上滚动 |
 | **2. 等你拍板** | 统一进入右下角「该你」卡叠（并关联信息栏与原位上下文）；唯一琥珀色 + 一次 `molisCraft.ask`；卡片写清影响与具体动词按钮 | 在 4 处同时画 4 种不同长相的审批弹窗；二次确认套娃 |
 | **3. 结果不确定** | 琥珀提示「结果暂不确定 · 请先核对」+ 跳转核对记录入口（对齐 Prologue `reconcile-required / unknown` 合同） | 假装成功，或提供「再点一次」自动盲重放外部副作用 |
 | **4. 失败 / 阻断** | 红色明确白话原因 + **原样保留草稿、输入与已附材料** + 下一步动作（缺模型走 `host.returns.go`、普通错误原位重试、可复制诊断号） | 静默关闭弹窗/吞错；把 `401`/`MODEL_CONTEXT_OVERFLOW` 等裸错误码甩给普通用户 |

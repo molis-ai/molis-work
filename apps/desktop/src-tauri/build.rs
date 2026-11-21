@@ -19,6 +19,11 @@ fn tray_words() {
         "syncing-tip",
         "open",
         "quit",
+        "quit-confirm-title",
+        "quit-confirm-body",
+        "quit-confirm-active-body",
+        "quit-confirm-upgrading-body",
+        "quit-confirm-cancel",
         "quit-keep-service",
         "restore-appearance",
         "stopped",
@@ -90,12 +95,13 @@ fn tray_words() {
             })
             .collect::<String>()
     };
-    let css = format!(
-        ":root{{--font:{families};{}}}@media(prefers-color-scheme: dark){{:root{{{}}}}}",
-        colors("light"),
+    let light_rule = format!(":root{{--font:{families};{}}}", colors("light"));
+    let dark_rule = format!(
+        "@media(prefers-color-scheme: dark){{:root{{{}}}}}",
         colors("dark")
     );
-    code.push_str(&format!("const BOOTSTRAP_TOKENS: &str = {css:?};\n"));
+    let rules = serde_json::json!([light_rule, dark_rule]).to_string();
+    code.push_str(&format!("const BOOTSTRAP_TOKEN_RULES: &str = {rules:?};\n"));
     let out = env::var_os("OUT_DIR").expect("Cargo output directory");
     fs::write(Path::new(&out).join("tray-words.rs"), code).expect("native tray words");
 }

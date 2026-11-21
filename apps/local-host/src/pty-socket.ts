@@ -73,12 +73,20 @@ function upgradeTerminal(wss: WebSocketServer, request: IncomingMessage, socket:
     });
 }
 
+const ptyActiveCounters = new WeakMap<MolisWorkPtyHost, () => number>();
+
+/** O(1) count of live PTY panels owned by this Host, used by `/health` for desktop quit checks. */
+export function activePtyCount(host: MolisWorkPtyHost | null | undefined): number {
+  return host ? (ptyActiveCounters.get(host)?.() ?? 0) : 0;
+}
+
 export function attachMolisWorkPtySocket(
   server: http.Server,
   controlToken: string,
   homeDirectory?: string,
 ): MolisWorkPtyHost {
   const sockets = new Set<WebSocket>();
+  const activePanels = new Set<string>();
   const pageSockets = new Map<WebSocket, { access: PageTerminalAccess; panels: Set<string>; sending: Promise<void> }>();
   const ownership = pageTerminalOwnership(homeDirectory);
   const spawnHome = resolveConfiguredHome(homeDirectory);
@@ -92,19 +100,30 @@ export function attachMolisWorkPtySocket(
   class RecordedPtyHost extends MolisWorkPtyHost {
     override spawn(request: PtySpawnRequest) {
       ownership.record(request.panelId, request.attachOnly === true, this.alive(request.panelId));
-      return super.spawn({ ...request, env: { ...request.env, MOLIS_WORK_HOME: spawnHome } });
+      const result = super.spawn({ ...request, env: { ...request.env, MOLIS_WORK_HOME: spawnHome } });
+      if (this.alive(request.panelId)) activePanels.add(request.panelId);
+      return result;
     }
     override kill(panelId: string) {
       const wasAlive = this.alive(panelId);
+      activePanels.delete(panelId);
       super.kill(panelId);
       // Runtime Host suppresses the later process exit after an explicit kill.
       if (wasAlive) broadcast(panelId, { type: "exit", panelId, exitCode: -1, signal: 15 });
     }
+    override killAll() {
+      activePanels.clear();
+      super.killAll();
+    }
   }
   const host = new RecordedPtyHost({
     onData: (panelId, data) => broadcast(panelId, { type: "data", panelId, data }),
-    onExit: (panelId, exit) => broadcast(panelId, { type: "exit", panelId, exitCode: exit.exitCode, signal: exit.signal }),
+    onExit: (panelId, exit) => {
+      activePanels.delete(panelId);
+      broadcast(panelId, { type: "exit", panelId, exitCode: exit.exitCode, signal: exit.signal });
+    },
   });
+  ptyActiveCounters.set(host, () => activePanels.size);
   const wss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (request, socket, head) => upgradeTerminal(wss, request, socket, head));

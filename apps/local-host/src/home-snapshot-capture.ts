@@ -6,7 +6,7 @@ import type { SnapshotSourceEntry, SnapshotStoreInventory } from "./home-snapsho
 import { homeSnapshotErrors, type SnapshotKeyDependency } from "./home-store-snapshot.js";
 import { syncSnapshotPath, writeSnapshotJson } from "./home-snapshot-publication.js";
 
-interface CaptureControl { readonly signal?: AbortSignal; assertCurrent(): void }
+interface CaptureControl { readonly signal?: AbortSignal; readonly online?: boolean; assertCurrent(): void }
 const sourcePath = (inventory: SnapshotStoreInventory, entry: SnapshotSourceEntry) => entry.relative ? inventory.store.path + "/" + entry.relative : inventory.store.path;
 
 /** All key identities are references; no key's contents enter the staging directory. */
@@ -60,7 +60,7 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
       keys.add({ kind: "master-key", ...payload.key_reference });
       writeSnapshotJson(destination, { schema_version: /* @version format.home.snapshot.file-wrapper */ 1, binding, payload });
       captured = { ...snapshotFileDigest(destination), mode: entry.info.mode & 0o777 };
-    } else captured = entry.database ? await backupSnapshotSqlite(entry.path, destination, { ...entry.database, signal: control.signal })
+    } else captured = entry.database ? await backupSnapshotSqlite(entry.path, destination, { ...entry.database, signal: control.signal, online: control.online })
       : await copySnapshotFile(entry.path, destination, control.signal, !deferFlush);
     control.assertCurrent(); control.signal?.throwIfAborted();
     entries.push({ kind: entry.disposition.kind === "sealed" ? "sealed" : "file", path, payload_path: payloadPath, ...captured, ...(binding ? { binding } : {}) });

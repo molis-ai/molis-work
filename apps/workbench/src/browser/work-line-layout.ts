@@ -1,11 +1,11 @@
 /**
  * How the work line and the task panel sit (specs/work-line §4.1, §4.5, §4.9, §4.10; rules in styles/work-line.ts), in one
- * place for the component board's frame and the product's line: where a wing rests, which of its events show, how the hidden
- * ones are reached, where the phone's track rests, which capsule gives up its note, which dialog tab stays in sight, and where
- * the task panel floats. Call it after each draw of a line or a dialog under `root`; it keeps itself right when sizes change.
+ * place for the component board's frame and the product's line: which capsule gives up its note, how much room the counts
+ * take from the words, how wide the information column is, how far a long input rises, and where the task float stands. Call it after each draw of a line or a dialog under `root`; it keeps itself right when sizes change.
  * It reads no data and changes no state but scroll positions, a count, and the attributes and properties the sheet reads.
  */
-const FADE = 24;
+/** The narrowest a float is drawn: a task card's facts and a conversation's input need this much. */
+const FLOAT_MIN = 320;
 /**
  * Run on the next frame, once however many sizes changed: what rises over the input changes the box its observer measures (a
  * Coding stage loops its ResizeObservers otherwise); the line's other observers mark in place.
@@ -25,21 +25,14 @@ function fitEvents(scope: ParentNode): void {
   events.forEach(({ event }, index) => event.toggleAttribute("data-tight", tight[index]));
 }
 
-function installTabs(tabs: HTMLElement): void {
-  const rest = () => {
-    const current = tabs.querySelector<HTMLElement>(".assistant-tab[data-current]");
-    if (!current) return;
-    const box = tabs.getBoundingClientRect(), tab = current.getBoundingClientRect();
-    if (tab.right > box.right) tabs.scrollLeft += tab.right - box.right + FADE;
-    else if (tab.left < box.left) tabs.scrollLeft -= box.left - tab.left + FADE;
-  };
-  rest(); new ResizeObserver(rest).observe(tabs);
-}
-
 /**
- * The task panel floats beside its dialog, top edges level; where there is no room beside it, it lies over the dialog's right
- * side under the tab bar. The sheet places it from these properties; on a phone the sheet makes it a layer that stands clear
- * of the line (`--line-clear`) and ignores the others. It stops watching once the panel is gone from the page.
+ * A task's card and a sub-agent's conversation take the information column's place (specs/work-line §2「后台任务在哪看」,
+ * decision 49): over the column while the conversation is open, and where the column would stand — right above the card
+ * stack and as wide — while it is closed. A column narrower than the float needs (it stands inside the conversation under
+ * 960px) lets the float grow leftwards from its right edge. A dialog with no information column (Home's Assistant) keeps the
+ * float beside it, top edges level, or over its right side where there is no room. The sheet places it from these properties;
+ * on a phone the sheet makes it a layer that stands clear of the line (`--line-clear`) and ignores the others. It stops
+ * watching once the float is gone from the page.
  */
 export function installTaskFloatLayout(float: HTMLElement): () => void {
   if (installed.has(float)) return () => {};
@@ -58,8 +51,21 @@ export function installTaskFloatLayout(float: HTMLElement): () => void {
     if (found !== line) { if (line) watch.unobserve(line); line = found; if (line) watch.observe(line); }
     const within = frame?.getBoundingClientRect() ?? new DOMRect(0, 0, document.documentElement.clientWidth, document.documentElement.clientHeight);
     const shut = dialog.hidden, box = (shut ? dialog.parentElement ?? dialog : dialog).getBoundingClientRect(), panel = float.getBoundingClientRect();
-    // With the dialog closed the panel stands above the input, its right edge on the composer's (WLN-35).
-    float.dataset.place = shut ? "closed" : within.right - box.right >= (panel.width || 340) + 12 ? "beside" : "over";
+    const column = shut ? null : dialog.querySelector<HTMLElement>("[data-assistant-side]"), stack = shut ? line?.querySelector<HTMLElement>(".work-side") : null;
+    // In the column the float stands under its tabs, inside its 12px margin: the tabs stay in reach while a task is open.
+    const tabs = column?.offsetWidth ? column.querySelector<HTMLElement>("[data-info-tabs]") : null, whole = column?.offsetWidth ? column.getBoundingClientRect() : null;
+    const under = whole && tabs?.offsetHeight ? tabs.getBoundingClientRect().bottom + 8 : 0;
+    const at = whole ? under ? new DOMRect(whole.left + 12, under, whole.width - 24, Math.max(120, whole.bottom - 12 - under)) : whole : stack?.offsetWidth ? stack.getBoundingClientRect() : null;
+    if (at) {
+      const width = Math.min(Math.max(at.width, FLOAT_MIN), within.width - 20);
+      float.style.setProperty("--col-left", `${Math.max(10, at.right - width - within.left)}px`);
+      float.style.setProperty("--col-width", `${width}px`);
+      float.style.setProperty("--col-top", `${at.top - within.top}px`);
+      float.style.setProperty("--col-height", `${at.height}px`);
+      float.style.setProperty("--col-bottom", `${within.bottom - at.top + 12}px`);
+    }
+    // With no column to stand in: closed, above the input with its right edge on the composer's (WLN-35); open, beside the dialog or over its right side.
+    float.dataset.place = at ? column?.offsetWidth ? "column" : "stack" : shut ? "closed" : within.right - box.right >= (panel.width || 340) + 12 ? "beside" : "over";
     float.style.setProperty("--dialog-top", `${box.top - within.top}px`);
     float.style.setProperty("--dialog-right", `${box.right - within.left}px`);
     float.style.setProperty("--dialog-inset", `${within.right - box.right + 8}px`);
@@ -71,7 +77,7 @@ export function installTaskFloatLayout(float: HTMLElement): () => void {
   const changed = new MutationObserver(place);
   place();
   watch.observe(dialog); watch.observe(float); watch.observe(frame ?? document.documentElement);
-  changed.observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
+  changed.observe(dialog, { attributes: true, attributeFilter: ["hidden", "data-max", "data-side"] });
   // The viewport growing taller or shorter moves a dialog fixed to its bottom without resizing anything watched.
   window.addEventListener("resize", place, { passive: true });
   return stop;
@@ -116,23 +122,29 @@ function installRise(slot: HTMLElement): void {
 
 /**
  * The words in the input wrap before the counts in its top right (13th version): the room they leave is the counts' own width,
- * which changes with 该你 N, a count's digits and a finger's 44px keys, so it is measured, not guessed. Keeping the last
- * `[data-reply-mini]` width while the dialog is open prevents the input column from jumping horizontally on send (VUX-16).
+ * which changes with 该你 N, a count's digits and a finger's 44px keys, so it is measured, not guessed. While the conversation
+ * is open the three counts are the information column's tabs and only the expand key stays; the room keeps its last width so
+ * the words do not move sideways when the conversation opens or a message is sent (VUX-16).
  */
 function installCountsRoom(slot: HTMLElement): void {
-  const counts = slot.querySelector<HTMLElement>("[data-work-counts]");
+  const counts = slot.querySelector<HTMLElement>("[data-work-counts]"), line = slot.closest<HTMLElement>("[data-work-line]");
   if (!counts) return;
-  let miniWidth = 0;
+  let rest = 0;
   const measure = () => {
-    const mini = counts.querySelector<HTMLElement>("[data-reply-mini]");
-    if (mini && mini.offsetWidth > 0) {
-      const gap = Number.parseFloat(getComputedStyle(counts).columnGap) || Number.parseFloat(getComputedStyle(counts).gap) || 0;
-      miniWidth = mini.offsetWidth + (Number.parseFloat(getComputedStyle(mini).marginLeft) || 0) + gap;
-    }
-    slot.style.setProperty("--counts-room", `${Math.ceil(counts.offsetWidth + (mini ? 0 : miniWidth)) + 16}px`);
+    if (!line?.hasAttribute("data-dialog-open") || !rest) rest = counts.offsetWidth;
+    slot.style.setProperty("--counts-room", `${Math.ceil(Math.max(rest, counts.offsetWidth)) + 16}px`);
   };
   measure();
   new ResizeObserver(nextFrame(measure)).observe(counts);
+}
+
+/** The information column is as wide as the card stack it stands over (POLISH-72): the stack's own width, said to the dialog. */
+function installInfoWidth(line: HTMLElement): void {
+  const side = line.querySelector<HTMLElement>(".work-side");
+  if (!side) return;
+  const measure = () => { if (side.offsetWidth) line.style.setProperty("--info-w", `${side.offsetWidth}px`); else line.style.removeProperty("--info-w"); };
+  measure();
+  new ResizeObserver(nextFrame(measure)).observe(side);
 }
 
 const installed = new WeakSet<Element>();
@@ -145,7 +157,7 @@ export function installWorkLineLayout(root: ParentNode = document): void {
     }
   };
   fitEvents(root);
-  each(".assistant-tabs[data-work-tabs]", installTabs);
+  each(".work-line[data-work-line]", installInfoWidth);
   for (const node of root.querySelectorAll<HTMLElement>("[data-work-task-float]")) installTaskFloatLayout(node);
   each(".work-line-slot", (slot) => { installRise(slot); installCountsRoom(slot); });
 }

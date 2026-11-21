@@ -6,9 +6,9 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 
-// The side panel takes its width from the plugin stage. In an 860px window with the panel open, the stage is about 470px:
-// beside a 240px list an open document would get some 200px. The record takes the whole stage instead, as on a phone,
-// and the list comes back when the panel closes.
+// The side panel takes its width from the plugin stage. In an 860px window with the panel open, the stage is about 470px.
+// An open record takes the whole plugin page at every width (36A-3: no list stands beside an open record; the back key is
+// the way to the list), so the document keeps a readable width beside the panel too.
 test("an open record keeps a readable width when the side panel narrows the stage", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const child = await pluginFrameBrowser(t,browser,"pages");
@@ -29,7 +29,8 @@ test("an open record keeps a readable width when the side panel narrows the stag
   })()`);
 
   const wide = await layout();
-  assert.equal(wide.list, true, "without the side panel the list stays beside the document");
+  assert.equal(wide.list, false, "an open record takes the plugin page: no list stands beside it");
+  assert.ok(await child.evaluate("Boolean(document.querySelector('[data-pages=workbench] .plugin-stage-detail-bar')?.getClientRects().length)"), "the back key is the way to the list");
   assert.equal(wide.overflow, false);
 
   // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
@@ -53,5 +54,5 @@ test("an open record keeps a readable width when the side panel narrows the stag
   // It closes from the layout menu at the titlebar's end (收起右侧), the bar's side button being gone (07-1 S4b).
   await click("[data-layout-open]"); await click("[data-layout-action=side]");
   await waitFor("document.body.dataset.sideOpen !== 'true'");
-  await child.waitFor("document.querySelector('[data-pages=workbench] .plugin-stage-list').getClientRects().length > 0");
+  assert.equal((await layout()).list, false, "and closed again, the record still has the page to itself");
 });

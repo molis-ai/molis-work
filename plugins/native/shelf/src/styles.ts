@@ -57,13 +57,6 @@ export const SHELF_STYLES = `
     background: var(--da-panel); overflow: hidden;
   }
   [data-shelf-stage-shell][data-expanded="true"] > [data-shelf="directory"] { display: none; }
-  @container shelf (min-width: 640px) {
-    [data-shelf-stage-shell][data-expanded="true"] > [data-shelf="directory"] { display: flex; right: auto; width: 213px; border-right: 1px solid var(--da-line); }
-    [data-shelf-stage-shell][data-expanded="true"] > .plugin-stage-workspace { left: 213px; }
-    /* Beside an open file the list keeps its search; adding stays one icon away. */
-    [data-shelf-stage-shell][data-expanded="true"] .shelf-side-op--add { width: 30px; padding: 0; }
-    [data-shelf-stage-shell][data-expanded="true"] .shelf-side-op--add b { display: none; }
-  }
   [data-shelf-stage-shell] .plugin-stage-workspace > .shelf-stage {
     flex: 1; min-height: 0; border: 0; border-radius: 0;
   }

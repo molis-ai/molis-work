@@ -53,7 +53,8 @@ test("PWA-71 D0309 the chooser resumes the original project work after switching
     "the other project cannot display the original project's thread as its own");
   await click("[data-assistant-panel-close]");
   await click("#row-" + projectId);
-  await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)} && ${CURRENT_WORK} === ${JSON.stringify(original.work_id)} && document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')`);
+  await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)} && ${CURRENT_WORK} === ${JSON.stringify(original.work_id)} && document.querySelector('[data-assistant-head]')?.dataset.about !== 'new'`);
+  // (The main conversation's tag has no cross since 36A-3: 另起一件 is in the conversation's 更多 menu.)
   await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
@@ -63,7 +64,7 @@ test("PWA-71 D0309 the chooser resumes the original project work after switching
   assert.deepEqual((await works()).map(work => [work.work_id, work.scope]), [[original.work_id, { kind: "project", project_id: projectId }]],
     "continuing never creates a new work or rebinds the old one to the other project");
 
-  await click("[data-assistant-new]");
+  await click("[data-assistant-more]"); await click("[data-assistant-new]");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
   await click("#row-personal");

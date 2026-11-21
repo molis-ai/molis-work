@@ -82,7 +82,9 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
   assert.deepEqual(await evaluate("window.openedObject.open"), { surface: "pages", id: page.id });
   // The same text is projected on reload; bindings are restored once, so folding works in both directions.
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor("document.querySelector('.assistant-code-more')");
+  // A page loads with the conversation put away (POLISH-51): opened from the foot, it is where it was.
+  const OPENED = "(() => { const panel = document.querySelector('[data-assistant-panel]'); if (panel?.hidden) document.querySelector('[data-work-counts] [data-dialog-open]')?.click(); return Boolean(document.querySelector('.assistant-code-more')); })()";
+  await waitFor(OPENED);
   await evaluate("document.querySelector('.assistant-code-more').click();document.querySelector('.assistant-code-more').click()");
   assert.equal(await evaluate("document.querySelector('.assistant-code').hasAttribute('data-folded')"), true);
 
@@ -92,7 +94,7 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
   assert.equal(await evaluate("document.querySelector('.assistant-rich .assistant-inline-object') === null"), true);
   assert.match(await evaluate<string>("document.querySelector('.assistant-rich').textContent"), /「代码验证文档」/);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('.assistant-code-more')");
+  await waitFor(OPENED);
   await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
@@ -108,7 +110,7 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
   for (const decision of ["reject", "approve"]) {
     const title = `投影测试-${decision}`;
     model.review(title);
-    await click("[data-assistant-new]");
+    await click("[data-assistant-more]"); await click("[data-assistant-new]");
     await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text: `添加待办：${title}` }, sessionId);
     await click("[data-assistant-composer] [data-composer-send]");

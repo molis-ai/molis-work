@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -8,22 +7,13 @@ import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { recordingTextModel } from "./fixtures/recording-text-model.js";
+import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 
-// specs/work-line §4.4 and §4.2: the card of something done, the reply left above the input with the dialog closed, and 手边.
+// specs/work-line §4.4 and §4.2: what is known of something done, the conversation closed (a reply is a dot on its key), and 手边.
 // The done event is an installed plugin's, so nothing here knows its kind.
 
-const TAB = "document.querySelector('.assistant-tab[data-current]')";
+const ABOUT = "document.querySelector('[data-assistant-head]')?.dataset.about";
 const shots = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
-const appendReply = (id: string, words: string, rendered = "") => `(() => {
-  const round = document.createElement('section'), bubble = document.createElement('div');
-  round.dataset.round = ${JSON.stringify(id)};
-  bubble.className = 'assistant-msg assistant-msg--assistant';
-  bubble.dataset.replyId = ${JSON.stringify(id)};
-  bubble.dataset.text = ${JSON.stringify(words)};
-  bubble.innerHTML = ${JSON.stringify(rendered)};
-  round.append(bubble);
-  document.querySelector('[data-assistant-thread]').append(round);
-})()`;
 
 test("WLN-11: a done event's card shows what came of it in its owner's words, 「打开」 as a tab and 「放到 Shelf」 as the person, with the event's name, words and address", { timeout: 150_000 }, async t => {
   // An installed plugin the workbench has never heard of registers the done event; it opens a todo, a place the workbench has.
@@ -49,7 +39,7 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   await waitFor(`document.querySelector(${JSON.stringify(PRESS)})?.textContent.includes('季度预算已整理')`, 20_000);
   // The demo project's other events stand nearer now, so this one is scrolled out of the run: pressed as a key would.
   await evaluate(`document.querySelector(${JSON.stringify(PRESS)}).click()`);
-  await waitFor(`${TAB}?.dataset.tab === 'event:homebg_item:b1'`);
+  await waitFor(`${ABOUT} === 'event:homebg_item:b1'`);
   const CARD = "document.querySelector('[data-assistant-event-card] [data-event-card=\"homebg_item:b1\"]')";
   await waitFor(`${CARD} && !${CARD}.querySelector('[data-card-result]').hidden && ${CARD}.querySelector('.work-card-preview')?.textContent === '三档预算与对比表，附常见问题。'`, 15_000);
   assert.deepEqual(await evaluate(`Array.from(${CARD}.querySelectorAll('[data-card-result] .mw-btn')).map(button => [button.textContent.trim(), button.disabled])`), [["打开", false], ["放到 Shelf", false]]);
@@ -70,118 +60,12 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 });
 
-test("WLN-35: with the dialog closed the latest reply stays above the input beside the task mark, folds to the mark once the work is pressed, and a new reply shows again", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, true, undefined, null);
-  if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-panel]')?.hidden && Boolean(document.querySelector('[data-reply-mini]'))", 20_000);
-  // No model runs in this fixture: a reply is written into the conversation as the conversation draws one.
-  await evaluate(appendReply("work:run:budget", "预算表已经整理好，放在项目资料里。"));
-  await waitFor("document.querySelector('[data-reply-peek] .work-reply-peek-body')?.textContent === '预算表已经整理好，放在项目资料里。' && !document.querySelector('[data-reply-mini]')");
-  assert.equal(await evaluate("document.querySelector('[data-reply-peek] [role=status]') !== null"), true, "only the reply itself is announced");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-reply-peek] .work-task-mark')) && Boolean(document.querySelector('[data-reply-peek] [data-dialog-open]'))"), true, "the task mark and the way back stay beside it");
-  await mkdir(shots, { recursive: true });
-  await writeFile(new URL("reply-peek-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-
-  // Pressing the work folds it to the mark; the same reply does not come back, a new one does.
-  await evaluate("document.querySelector('main, [data-tab-workspace], body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))");
-  await waitFor("!document.querySelector('[data-reply-peek]') && Boolean(document.querySelector('[data-reply-mini]'))");
-  await evaluate(appendReply("work:run:meeting", "王总约在明天下午三点。"));
-  await waitFor("document.querySelector('[data-reply-peek] .work-reply-peek-body')?.textContent === '王总约在明天下午三点。'");
-  // Opening the dialog puts the row away.
-  await evaluate("document.querySelector('[data-reply-peek] [data-dialog-open]').click()");
-  await waitFor("!document.querySelector('[data-assistant-panel]').hidden && !document.querySelector('[data-reply-peek]') && !document.querySelector('[data-reply-mini]')");
-});
-
-// screen-polish P0, three defects of the row above the input (WLN-35), each seen in the product before:
-// 1. it showed the reply's Markdown source (`## 现状 - …`) where the dialog shows the rendered reply;
-// 2. a press inside a plugin's page (its own document) did not fold it;
-// 3. folded, it came back over the next page the person opened (settings), though no new reply had come.
-// Review of #2110: a named object is a button in the dialog whose words belong to the sentence; the row keeps those words.
-test("WLN-35: the reply above the input reads as the dialog draws it, folds on a press inside a plugin's page, and stays folded when the page loads again", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, true, undefined, null);
-  if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  const load = async () => {
-    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor("document.querySelector('[data-assistant-panel]')?.hidden && Boolean(document.querySelector('[data-reply-mini]'))", 20_000);
-  };
-  await load();
-  // A reply as the conversation draws one: its Markdown source in data-text, the Host's rendered blocks inside, its copy button.
-  const SOURCE = "## 现状\n\n- 发布说明写进 `CHANGELOG.md`\n- **没有**按版本分节，已把「发布说明」放进项目";
-  const RENDERED = "<h2>现状</h2><ul><li>发布说明写进 <code>CHANGELOG.md</code></li><li><strong>没有</strong>按版本分节，已把<button class=\"assistant-inline-object\" type=\"button\" data-assistant-object=\"0\">发布说明</button>放进项目</li></ul><button type=\"button\" class=\"assistant-copy\">复制</button>";
-  const BODY = "document.querySelector('[data-reply-peek] .work-reply-peek-body')";
-  await evaluate(appendReply("work:run:report", SOURCE, RENDERED));
-  await waitFor(`Boolean(${BODY}?.querySelector('h2'))`);
-  assert.deepEqual(await evaluate(`[${BODY}.querySelector('h2').textContent, ${BODY}.querySelectorAll('li').length, ${BODY}.querySelector('strong').textContent, ${BODY}.querySelector('code').textContent]`),
-    ["现状", 2, "没有", "CHANGELOG.md"], "the reply's own blocks are drawn");
-  assert.equal(await evaluate(`/[#*\`]|^- /m.test(${BODY}.textContent)`), false, "no Markdown marks are shown");
-  assert.equal(await evaluate(`${BODY}.querySelector('button')`), null, "the reply's buttons stay in the dialog");
-  assert.equal(await evaluate(`${BODY}.querySelectorAll('li')[1].textContent`), "没有按版本分节，已把发布说明放进项目", "a named object keeps its words in the sentence");
-  // WLN-35 / VUX-33: a syntax pass changes nodes in the dialog, while a genuine revision changes the preview.
-  const message = "document.querySelector('[data-reply-id=\"work:run:report\"]')";
-  await evaluate(`const figure = document.createElement('figure'); figure.className = 'assistant-code';
-    figure.innerHTML = '<pre><code>const x = 1</code></pre>'; ${message}.append(figure);`);
-  await waitFor(`${BODY}.querySelector('pre code')?.textContent === 'const x = 1'`);
-  await evaluate(`window.previewHeading = ${BODY}.querySelector('h2');
-    const code = ${message}.querySelector('pre code'), token = document.createElement('span');
-    token.className = 'tok-keyword'; token.textContent = 'const'; code.replaceChildren(token, ' x = 1');`);
-  assert.equal(await evaluate(`${BODY}.querySelector('h2') === window.previewHeading`), true, "new syntax nodes leave the preview and its live region in place");
-  // Three lines: a heading stands at the words' own size, and nothing of the reply runs out of the row.
-  assert.deepEqual(await evaluate(`(() => { const body = ${BODY}, h = body.querySelector('h2'); return [getComputedStyle(h).fontSize === getComputedStyle(body).fontSize, body.getBoundingClientRect().height <= parseFloat(getComputedStyle(body).fontSize) * 4.95 + 1]; })()`), [true, true]);
-  await mkdir(shots, { recursive: true });
-  await writeFile(new URL("reply-peek-rendered-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-
-  await evaluate(`${message}.dataset.text += '!'; ${message}.querySelector('h2').textContent = '最新进展'`);
-  await waitFor(`${BODY}.querySelector('h2')?.textContent === '最新进展'`);
-  await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.querySelector('h2').textContent = '现状'`);
-  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
-
-  // QEA-203: HTML highlighting can split CRLF across two tokens. Update the same reply, then restore its original rendering.
-  const htmlCode = '<a\r\nhref="x">\r\nthird\r\nfourth', fenced = "```html\n" + htmlCode + "\n```";
-  await evaluate(`${message}.dataset.text = ${JSON.stringify(fenced)}; ${message}.innerHTML = ${JSON.stringify(assistantTextHtml(fenced, [], key => key))}`);
-  await waitFor(`${BODY}.querySelector('pre code')?.textContent === ${JSON.stringify(htmlCode.slice(0, htmlCode.lastIndexOf("\r\n")))}`);
-  await evaluate(`${message}.dataset.text = ${JSON.stringify(SOURCE)}; ${message}.innerHTML = ${JSON.stringify(RENDERED)}`);
-  await waitFor(`${BODY}.querySelector('h2')?.textContent === '现状'`);
-
-  // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts): the row folds.
-  await evaluate("window.dispatchEvent(new CustomEvent('molis:surface-interaction'))");
-  await waitFor("!document.querySelector('[data-reply-peek]') && Boolean(document.querySelector('[data-reply-mini]'))");
-
-  // The page loads again with the same reply the latest: it stays folded. Another reply shows.
-  await load();
-  await evaluate(appendReply("work:run:report", SOURCE, RENDERED));
-  await new Promise(resolve => setTimeout(resolve, 600));
-  assert.deepEqual(await evaluate("[Boolean(document.querySelector('[data-reply-peek]')), Boolean(document.querySelector('[data-reply-mini]'))]"), [false, true], "the reply the person put away does not come back with the page");
-  // QEA-198: another reply still appears even when its words are identical.
-  await evaluate(appendReply("work:other-run:report", SOURCE, RENDERED));
-  await waitFor(`Boolean(${BODY}?.querySelector('h2'))`);
-  await evaluate(appendReply("work:other-run:done", "改好了。", "<p>改好了。</p>"));
-  await waitFor(`${BODY}?.textContent === '改好了。' && !document.querySelector('[data-reply-mini]')`);
-
-  // Settings comes over the work without a press on it (as a key opens it): the row folds, and nothing stands over settings.
-  await evaluate("document.querySelector('[data-directory-open=settings]').click()");
-  await waitFor("document.querySelector('.tab-workspace')?.dataset.exclusive === 'settings' && !document.querySelector('[data-reply-peek]') && Boolean(document.querySelector('[data-reply-mini]'))");
-
-  // The workbench opened at a settings address, in a window that never put the reply away: the reply found under the cover
-  // stays folded, and one that comes while settings stands (the person asked from there) shows.
-  await evaluate("sessionStorage.removeItem('molis.assistant.reply-folded')");
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?settings=appearance` }, sessionId));
-  await waitFor("document.querySelector('.tab-workspace')?.dataset.exclusive === 'settings' && document.querySelector('[data-assistant-panel]')?.hidden", 20_000);
-  await evaluate(appendReply("work:run:report", SOURCE, RENDERED));
-  await new Promise(resolve => setTimeout(resolve, 600));
-  assert.deepEqual(await evaluate("[Boolean(document.querySelector('[data-reply-peek]')), Boolean(document.querySelector('[data-reply-mini]'))]"), [false, true], "nothing of an earlier reply stands over settings opened by its address");
-  await evaluate(appendReply("work:other-run:done", "改好了。", "<p>改好了。</p>"));
-  await waitFor(`${BODY}?.textContent === '改好了。'`);
-});
-
-test("QEA-198: a second persisted assistant reply with the same words still shows after the first is folded", { timeout: 150_000 }, async t => {
-  const words = "检查完成，资料已核对。";
+// POLISH-20, POLISH-21 (as §16 rewrote them) and QEA-198. With the conversation closed nothing of a reply stands above the
+// input: a reply that came then is said once, by a dot on the key that opens the conversation — once for each reply, also one
+// whose words are those of the last. Opening the conversation takes the dot away and shows the reply as its Markdown draws it.
+// A press in the work, a press inside a plugin's page, and settings coming over the work each put the conversation away whole.
+test("POLISH-20 POLISH-21 QEA-198: closed, a reply is a dot on the expand key and nothing above the input; opened, it is drawn from its Markdown; the work, a plugin's page and settings close the conversation whole", { timeout: 180_000 }, async t => {
+  const words = "## 现状\n\n- 发布说明写进 `CHANGELOG.md`\n- **没有**按版本分节";
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
     prepareHome: async home => { await recordingTextModel(t, home, () => cogniaScriptedResponse(undefined, words)); },
   });
@@ -189,28 +73,61 @@ test("QEA-198: a second persisted assistant reply with the same words still show
   const { command, sessionId, navigate, origin, projectId, click, evaluate, waitFor } = browser;
   assert.ok(projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  const replies = `[...document.querySelectorAll('[data-assistant-thread] [data-reply-id]')].filter(reply => reply.dataset.text === ${JSON.stringify(words)}).map(reply => reply.dataset.replyId)`;
+  const PANEL = "document.querySelector('[data-assistant-panel]')", KEY = "document.querySelector('[data-work-counts] [data-dialog-open]')", DOT = `${KEY}.querySelector('[data-work-expand-dot]')`;
+  const replies = `[...document.querySelectorAll('[data-assistant-thread] [data-reply-id]')].filter(reply => reply.dataset.text === ${JSON.stringify(words)})`;
+  // Only the three keys and the expand key stand in the input while the conversation is closed.
+  const RESTING = `(() => { const counts = document.querySelector('[data-work-counts]'); return ${PANEL}.hidden && !document.querySelector('[data-info-tabs]')?.getClientRects().length
+    && [...counts.querySelectorAll('[data-work-list]')].filter(key => key.getClientRects().length).length === 3 && ${KEY}.getClientRects().length > 0; })()`;
+  await waitFor(`${PANEL}?.hidden && Boolean(${KEY})`, 20_000);
+  assert.equal(await evaluate(`${DOT}.hidden`), true, "nothing new: no dot");
+  await command("Network.enable", {}, sessionId);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  t.after(() => barrier.close().catch(() => undefined));
+  // Sending opens the conversation. It is closed before the Host's answer to the Send is let through, so the reply comes while it is closed.
   const send = async (text: string, count: number) => {
     await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
     await click("[data-assistant-composer] [data-composer-send]");
+    const held = await barrier.next();
+    await evaluate(`${PANEL}.hidden || document.querySelector('[data-assistant-panel-close]').click()`);
+    await barrier.release(held);
     await waitFor(`${replies}.length === ${count}`, 30_000);
-    if (!await evaluate("document.querySelector('[data-assistant-panel]').hidden")) await click("[data-assistant-panel-close]");
-    await waitFor(`document.querySelector('[data-reply-peek] .work-reply-peek-body')?.textContent.trim() === ${JSON.stringify(words)}`);
+    await waitFor(`${PANEL}.hidden && !${DOT}.hidden`, 10_000);
   };
 
   await send("请先核对第一份资料。", 1);
-  const [first] = await evaluate<string[]>(replies);
-  assert.ok(first);
-  await click("[data-directory-open=settings]");
-  await waitFor(`!document.querySelector('[data-reply-peek]') && sessionStorage.getItem('molis.assistant.reply-folded') === ${JSON.stringify(first)}`);
-  await click("[data-cover-close]");
-  await waitFor("!document.querySelector('.tab-workspace')?.dataset.exclusive");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-reply-peek]'))"), false);
+  assert.equal(await evaluate(`${KEY}.getAttribute('aria-label')`), "展开对话，有新回复", "the dot is said in words");
+  assert.equal(await evaluate(RESTING), true, "POLISH-21: closed, the input holds the three keys and the expand key");
+  assert.equal(await evaluate(`[...document.querySelectorAll('[data-work-line] *')].some(node => !node.closest('[data-assistant-panel]') && !node.children.length && /CHANGELOG|现状/u.test(node.textContent))`), false,
+    "POLISH-20: no line of the reply is left above the input");
+  await mkdir(shots, { recursive: true });
+  await writeFile(new URL("reply-dot-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
+  // Opened: the dot is gone, and the reply is its own blocks with no Markdown marks.
+  await evaluate(`${KEY}.click()`);
+  await waitFor(`!${PANEL}.hidden && ${DOT}.hidden`);
+  const BODY = `${replies}[0]`;
+  assert.deepEqual(await evaluate(`[${BODY}.querySelector('h4').textContent, ${BODY}.querySelectorAll('li').length, ${BODY}.querySelector('strong').textContent, ${BODY}.querySelector('code').textContent]`),
+    ["现状", 2, "没有", "CHANGELOG.md"], "POLISH-20: the reply's own blocks are drawn");
+  assert.equal(await evaluate(`/[#*\`]|^- /mu.test([...${BODY}.querySelectorAll('h4, li')].map(node => node.textContent).join('\\n'))`), false, "POLISH-20: no Markdown marks are shown");
+
+  // POLISH-21: a press in the work puts the conversation away whole; seen, the reply leaves no dot.
+  const [first] = await evaluate<string[]>(`${replies}.map(reply => reply.dataset.replyId)`);
+  assert.ok(first);
+  await evaluate("document.querySelector('[data-tab-workspace]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))");
+  await waitFor(RESTING);
+  assert.equal(await evaluate(`${DOT}.hidden`), true, "a reply that was read is not news");
+  // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts).
+  await evaluate(`${KEY}.click()`);
+  await waitFor(`!${PANEL}.hidden`);
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:surface-interaction'))");
+  await waitFor(RESTING);
+
+  // QEA-198: a second reply with the same words is another reply: the dot comes again, and the Host keeps both.
   await send("再核对第二份资料。", 2);
-  const [unchanged, second] = await evaluate<string[]>(replies);
+  const [unchanged, second] = await evaluate<string[]>(`${replies}.map(reply => reply.dataset.replyId)`);
   assert.equal(unchanged, first);
   assert.ok(second && second !== first);
   const workId = second.split(":")[0]!;
@@ -220,6 +137,14 @@ test("QEA-198: a second persisted assistant reply with the same words still show
     .filter(turn => turn.kind === "assistant" && turn.text === words)
     .map(turn => `${view.work.work_id}:${round.run_id}:${turn.turn_id}`));
   assert.deepEqual(stored, [first, second]);
+
+  // POLISH-21: settings comes over the work without a press on it (as a key opens it): the conversation closes, and nothing
+  // of it — no float, no list — stands over settings.
+  await evaluate(`${KEY}.click()`);
+  await waitFor(`!${PANEL}.hidden`);
+  await evaluate("document.querySelector('[data-directory-open=settings]').click()");
+  await waitFor(`document.querySelector('.tab-workspace')?.dataset.exclusive === 'settings' && ${RESTING}`, 15_000);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-work-task-float]')) || Boolean(document.querySelector('[data-work-lists]')?.getClientRects().length)"), false, "nothing floats over settings");
 });
 
 test("specs/work-line §4.2 手边: the input's ＋ lists Shelf, 灵光 and 项目资料, and one opens beside the work", { timeout: 120_000 }, async t => {

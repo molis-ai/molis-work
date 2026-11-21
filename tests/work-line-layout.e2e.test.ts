@@ -62,28 +62,28 @@ for (const lang of ["zh", "en"]) test(`§4「底栏第十三版」(${lang}): the
   }
 });
 
-// WLN-37 and WLN-24 (as §16 rewrote them): a source that cannot be read stays fixed under the open list's title, out of the rows
-// that scroll; 办完 ends in 更早 N; the list opens right above the stack and as wide (§4「底栏第十三版」第 4 条).
-test("WLN-37, WLN-24: an unreadable source stays under the open list's title while its rows scroll; 更早 N ends 办完; the list stands right above the stack, as wide", { timeout: 120_000 }, async (t) => {
+// WLN-37 and WLN-24 (as §16 rewrote them): the lists are the information column's, under its tabs (§4「底栏第十三版」第 4 条). A
+// source that cannot be read stays fixed above the rows, which scroll under it; 办完 ends in 更早 N.
+test("WLN-37, WLN-24: an unreadable source stays under the information column's tabs while the open list's rows scroll; 更早 N ends 办完", { timeout: 120_000 }, async (t) => {
   const page = await open(t, 1440); if (!page) return;
   const { evaluate, size, settle } = page;
   for (const width of [1440, 1100]) {
     await size(width); await settle(); await settle();
-    const view = await evaluate<{ shown: boolean; above: boolean; wide: boolean; under: boolean; fixed: boolean; scrolled: boolean; last: boolean }>(`(() => {
-      const line = ${LINES}[3], lists = line.querySelector('[data-work-lists]'), stack = line.querySelector('[data-work-stack]').getBoundingClientRect();
-      const head = lists.querySelector('.work-lists-head'), source = lists.querySelector('[data-work-lists-sources] > *'), body = lists.querySelector('[data-work-lists-body]');
-      const rows = body.querySelector('[data-work-list-rows="done"]'), at = lists.getBoundingClientRect();
+    const view = await evaluate<{ shown: boolean; inside: boolean; under: boolean; fixed: boolean; scrolled: boolean }>(`(() => {
+      const side = [...document.querySelectorAll('[data-nav-specimen="wl-dialog"] .assistant-side')].at(-1), column = side.getBoundingClientRect();
+      const lists = side.querySelector('[data-work-lists]'), tabs = side.querySelector('[data-info-tabs]').getBoundingClientRect();
+      const source = lists.querySelector('[data-work-lists-sources] > *'), body = lists.querySelector('[data-work-lists-body]'), rows = body.querySelector('[data-work-list-rows="now"]'), at = lists.getBoundingClientRect();
       // Rows enough to scroll: the specimen's own, again.
       const extra = [...rows.querySelectorAll('.work-list-item')].map((row) => row.cloneNode(true));
-      for (let i = 0; i < 4; i += 1) for (const row of extra) rows.prepend(row.cloneNode(true));
+      for (let i = 0; i < 6; i += 1) for (const row of extra) rows.prepend(row.cloneNode(true));
       const before = source.getBoundingClientRect().top; body.scrollTop = body.scrollHeight;
-      // The list grows upwards with its rows, so the title is measured once they are in.
-      const after = source.getBoundingClientRect(), title = head.getBoundingClientRect(), last = rows.lastElementChild;
-      return { shown: lists.checkVisibility() && at.height > 0, above: at.bottom <= stack.top + 1 && at.bottom >= stack.top - 16, wide: Math.abs(at.left - stack.left) <= 1 && Math.abs(at.width - stack.width) <= 1,
-        under: after.top >= title.bottom - 1 && after.bottom <= body.getBoundingClientRect().top + 1, fixed: Math.abs(after.top - before) <= 0.5, scrolled: body.scrollTop > 0,
-        last: Boolean(last?.matches('[data-work-lists-earlier]')) && /更早 \\d+/u.test(last.textContent) }; })()`);
-    assert.deepEqual(view, { shown: true, above: true, wide: true, under: true, fixed: true, scrolled: true, last: true }, `${width}px`);
+      const after = source.getBoundingClientRect();
+      return { shown: lists.checkVisibility() && at.height > 0, inside: at.left >= column.left - 1 && at.right <= column.right + 1 && at.bottom <= column.bottom + 1,
+        under: after.top >= tabs.bottom - 1 && after.bottom <= body.getBoundingClientRect().top + 1, fixed: Math.abs(after.top - before) <= 0.5, scrolled: body.scrollTop > 0 }; })()`);
+    assert.deepEqual(view, { shown: true, inside: true, under: true, fixed: true, scrolled: true }, `${width}px`);
   }
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-nav-specimen="wl-lists"] .work-list')].filter(list => list.querySelector('[data-work-lists-earlier]')).map(list => [list.lastElementChild.matches('[data-work-lists-earlier]'), /更早 \\d+/u.test(list.lastElementChild.textContent)])`),
+    [[true, true]], "办完 alone ends in 更早 N");
 });
 
 test("WLN-03: what the hand added stands above the composer, inside its specimen", { timeout: 120_000 }, async (t) => {
@@ -99,40 +99,3 @@ test("WLN-03: what the hand added stands above the composer, inside its specimen
   }
 });
 
-test("WLN-35, WLN-18: the task panel floats beside its dialog, over its right side where there is no room, and above the line on a phone", { timeout: 120_000 }, async (t) => {
-  const page = await open(t, 1340); if (!page) return;
-  const { evaluate, size, settle } = page;
-  const view = (kind: string) => evaluate<{ place: string; top: number; gap: number; inDialog: boolean; inStage: boolean; aboveLine: boolean | null }>(`(() => {
-    const float = document.querySelector('[data-work-task-float="wl-dialog-${kind}"]'), panel = float.firstElementChild.getBoundingClientRect();
-    const dialog = document.getElementById('wl-dialog-${kind}').getBoundingClientRect(), stage = float.closest('[data-work-float-frame]'), frame = stage.getBoundingClientRect();
-    const line = stage.querySelector('.work-line[data-work-line]')?.getBoundingClientRect();
-    return { place: float.dataset.place, top: Math.round(panel.top - dialog.top), gap: Math.round(panel.left - dialog.right), inDialog: panel.left >= dialog.left - 1 && panel.right <= dialog.right + 1,
-      inStage: panel.left >= frame.left - 1 && panel.right <= frame.right + 1 && panel.top >= frame.top - 1 && panel.bottom <= frame.bottom + 1, aboveLine: line ? panel.bottom <= line.top + 1 : null }; })()`);
-  const beside = await view("main");
-  assert.deepEqual([beside.place, beside.top, beside.gap, beside.inStage], ["beside", 0, 12, true], "beside the dialog, top edges level");
-  const over = await view("narrow");
-  assert.deepEqual([over.place, over.inDialog, over.inStage], ["over", true, true], "over the dialog where the stage has no room beside it");
-  assert.ok(over.top >= 44, "under the tab bar");
-
-  // Before: over the dialog the panel ran past its foot and "reconnect" was cut off.
-  const foot = (kind: string) => evaluate<{ place: string; inDialog: boolean; reconnect: boolean }>(`(() => { const float = document.querySelector('[data-work-task-float="wl-dialog-${kind}"]'), panel = float.firstElementChild.getBoundingClientRect();
-    const dialog = document.getElementById('wl-dialog-${kind}').getBoundingClientRect(), frame = float.closest('[data-work-float-frame]').getBoundingClientRect(), button = float.querySelector('.work-task-banner .mw-btn')?.getBoundingClientRect();
-    return { place: float.dataset.place, inDialog: panel.bottom <= dialog.bottom + 1 && panel.bottom <= frame.bottom + 1, reconnect: Boolean(button && button.height > 0 && button.bottom <= panel.bottom + 1 && button.top >= panel.top) }; })()`);
-  assert.deepEqual(await foot("offline"), { place: "beside", inDialog: true, reconnect: true }, "1340: the offline panel, beside");
-  for (const width of [900, 800]) {
-    await size(width); await settle(); await settle();
-    assert.deepEqual(await foot("offline"), { place: "over", inDialog: true, reconnect: true }, `${width}px: the offline panel over its dialog ends inside it, with reconnect in reach`);
-    assert.deepEqual([(await view("main")).place, (await view("main")).inStage], ["over", true], `${width}px: the panel over the main dialog`);
-  }
-
-  await size(390); await settle();
-  assert.equal((await view("main")).inStage, true, "390: the panel is a layer inside its frame");
-  // The board's dialog stage has no line; with one in the frame (as in the product) the layer stands clear of it. Before, the
-  // script measured the dialog's tab bar instead of the line.
-  await evaluate(`(() => { const stage = document.getElementById('wl-dialog-main').closest('[data-work-float-frame]'), line = document.createElement('div');
-    line.className = 'work-line'; line.setAttribute('data-work-line', ''); line.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:120px;display:block';
-    stage.append(line); window.dispatchEvent(new Event('resize')); return true; })()`);
-  await settle();
-  const phone = await view("main");
-  assert.deepEqual([phone.inStage, phone.aboveLine], [true, true], "390: the layer stands above the line");
-});

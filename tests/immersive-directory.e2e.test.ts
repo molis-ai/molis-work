@@ -342,7 +342,7 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
       reset: Boolean(composer.querySelector('.mw-composer__to [data-tag-remove]')?.getClientRects().length),
       controls: [...composer.querySelectorAll('[data-composer-control]')].map(control => control.dataset.composerControl),
     };
-  })()`), { receiver: "目录交互验证 · 助理", reset: false, controls: ["character"] },
+  })()`), { receiver: "助理", reset: false, controls: ["character"] },
   "a new work goes to the Assistant and exposes the role picker without another work control");
   await click("[data-assistant-composer] [data-composer-add]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
@@ -377,13 +377,16 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input')?.value"), "hello", "a failed question stays in the input");
   // What is typed on the line goes to the main conversation (specs/work-line §4.2): it makes no new work.
   assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /主对话/, "the question is in the main conversation");
-  assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0;})()`), "the panel opens above the input, inside the window");
-  // The main conversation is the first tab; a wide window shows its side pane beside the conversation, which stays right above the input.
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('.assistant-tab')].map((tab) => [tab.textContent.trim(), tab.hasAttribute('data-current')])"), [["主对话", true]], "the main conversation is the only tab, and the current one");
+  const stands = await evaluate<{ bottom: number; input: number; top: number }>(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return { bottom: p.bottom, input: c.top, top: p.top };})()`);
+  // The conversation stands on the input and the two share the one hairline between them (对话栏与输入框同宽，连成一体).
+  assert.ok(stands.bottom <= stands.input + 1.5 && stands.top >= 0, `the panel opens above the input, inside the window (${JSON.stringify(stands)})`);
+  // POLISH-19 (the tab row is gone), POLISH-72: one line names whom the words are said to; a wide window shows the information
+  // column at the conversation's right, and the conversation stays right above the input.
+  assert.deepEqual(await evaluate("[document.querySelectorAll('.assistant-tab').length, document.querySelector('[data-assistant-head-title]').textContent, document.querySelector('[data-assistant-head]').dataset.about]"), [0, "助理", "main"], "no tab row: the line says it is the main conversation with the Assistant");
   assert.ok(await evaluate(`(()=>{const s=document.querySelector('[data-assistant-side]').getBoundingClientRect(),m=document.querySelector('.assistant-main').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect(),p=document.querySelector('[data-assistant-panel]').getBoundingClientRect();
-    return s.width>0 && s.right<=m.left+1 && m.left<=c.left && m.right>=c.right && p.left>=0;})()`), "side pane on the left, the conversation over the input, all inside the window");
+    return s.width>0 && s.left>=m.right-1 && Math.abs(m.left-c.left)<=1 && Math.abs(m.right-c.right)<=1 && p.left>=0 && s.right<=innerWidth;})()`), "the information column at the right, the conversation as wide as the input, all inside the window");
   assert.match(await evaluate("document.querySelector('[data-assistant-meta]')?.textContent || ''"), /属于/, "the side pane says where the work belongs");
-  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent || ''"), /发给：主对话/, "with the panel open the receiver row names where the next message goes");
+  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent || ''"), /发给：助理/, "with the panel open the receiver row names who the next message goes to (POLISH-11: the main conversation is named by who it is with)");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
   // With the panel open and the bar crowded, the input still keeps a place, and nothing runs under the bar's end.
   await command("Emulation.setDeviceMetricsOverride", { width: 900, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -394,8 +397,7 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
   assert.ok(await evaluate("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][aria-current]'))"), "Goals' page is the current tab");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
-  await click("[data-assistant-panel-close]");
+  // POLISH-21 (as rewritten for 底栏第十三版): switching the page puts the conversation away; the input keeps only its keys.
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
   // Shelf and 灵光 are views of the side panel (side-shelf §3.1). Since specs/screen-polish §3 方案 C the side opens and closes from
   // its switch at the right end of the top strip, and the foot has no side button.

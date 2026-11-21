@@ -495,49 +495,57 @@ export const CRAFT_BAR_STYLES = `
   html ${SHELL} .workbench-header .plugin-picker-search > span { flex: 1; text-align: left; }
   html ${SHELL} .workbench-header .plugin-picker-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; }
   @media (hover: none) { html ${SHELL} .workbench-header .plugin-picker-search kbd { display: none; } }
-  /* Its answers open above the bar and stay until closed: one tab per open work, the work's side pane on the left
-     (what it is, how it got here, what it used, what it made) and the conversation on the right, right above the input. */
+  /* The conversation opens upward from the input in two columns (DESIGN.md「The conversation」): the conversation column —
+     one line that names what is talked about, then only what was said — and the information column to its right: what is
+     known about the thing in front, or one of the three lists, chosen by the tabs at its top. There is no tab row. Its height
+     follows what it holds, between a floor and the work surface's top. Where it stands against the input and the card stack
+     is the work line's (apps/workbench styles/work-line.ts); here it is one sheet a little wider than the input. */
   ${ASSIST} .assistant-panel {
     --assistant-side-w: 272px;
-    /* --assistant-room: space left before the platform side panel, set only while it is open. */
-    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px) + var(--context-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
     /* No higher than the title bar, or than a settings return bar's foot while one shows (--return-bar-bottom, settings-return.ts), so 回去 stays in reach. */
-    height: min(620px, calc(100dvh - max(var(--desktop-titlebar-height, 0px), var(--return-bar-bottom, 0px)) - var(--dock-h, 76px) - 32px));
+    --assistant-room-y: calc(100dvh - max(var(--desktop-titlebar-height, 0px), var(--return-bar-bottom, 0px)) - var(--dock-h, 76px) - 32px);
+    position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px + var(--next-row, 0px) + var(--context-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
+    min-height: min(480px, var(--assistant-room-y)); max-height: min(620px, var(--assistant-room-y));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
   ${ASSIST} .assistant-panel[hidden] { display: none; }
-  /* A wide window keeps the conversation over the input and opens the side pane to its left. */
-  @media (min-width: 1240px) {
-    ${ASSIST} .assistant-panel[data-layout="split"][data-side="open"] { left: calc(-1 * var(--assistant-side-w) - 24px); right: calc(-1 * min(24px, var(--assistant-room, 24px))); }
-  }
-  /* The tab strip: the open works, a new one, then all works, the side pane and minimise. */
-  ${ASSIST} .assistant-tabbar { flex: none; display: flex; align-items: flex-end; gap: 4px; height: 42px; padding: 6px 6px 0 8px; background: var(--desk); box-shadow: inset 0 -1px 0 var(--line); }
-  ${ASSIST} .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; }
-  ${ASSIST} .assistant-tab { position: relative; flex: 0 1 184px; width: 184px; min-width: 96px; display: flex; align-items: center; height: 34px; border-radius: 9px 9px 0 0; color: var(--muted); }
-  ${ASSIST} .assistant-tab:hover { background: var(--nav-hover); color: var(--ink-soft); }
-  ${ASSIST} .assistant-tab[data-current] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); clip-path: inset(-1px -1px 0 -1px); }
-  ${ASSIST} .assistant-tab-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 4px 0 10px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
-  ${ASSIST} .assistant-tab-main:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-tab[data-current] .assistant-tab-main { font-weight: 500; }
-  ${ASSIST} .assistant-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* The marks, shared by tabs and the list of works: waiting on you, running, news not yet seen, did not finish. */
+  /* Maximised: up to the tab strip (the height is measured, assistant-stage.ts); the work surface and the side give way and come back as they were. */
+  ${ASSIST} .assistant-panel[data-max] { height: var(--assistant-max-h, 620px); max-height: none; animation: none; }
+  ${ASSIST}[data-assistant-max] :is([data-plugin-stage], [data-side-panel], .side-panel-divider) { visibility: hidden; }
+  /* The conversation column's one line (helm.html .lv-t): the state mark, whose words these are, then what it is and where it is
+     kept in a smaller hand; its three 28px keys stand at the top right, 8px in. */
+  ${ASSIST} .assistant-head { position: relative; flex: none; display: flex; align-items: center; gap: 7px; height: 44px; min-width: 0; padding: 0 8px 0 20px; box-shadow: inset 0 -1px 0 var(--line); white-space: nowrap; }
+  ${ASSIST} .assistant-head-mark { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
+  ${ASSIST} .assistant-head-mark:empty { display: none; }
+  ${ASSIST} .assistant-head-mark svg { width: 14px; height: 14px; }
+  ${ASSIST} .assistant-head-title { flex: 0 1 auto; min-width: 0; max-width: 62%; margin: 0; overflow: hidden; color: var(--ink); font-size: 12.5px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-head-note { flex: 0 1000 auto; min-width: 0; overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-head-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  ${ASSIST} .assistant-head .dock-window-action { position: relative; flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-head .dock-window-action[hidden] { display: none; }
+  ${ASSIST} .assistant-head .dock-window-action:hover, ${ASSIST} .assistant-head .dock-window-action[aria-expanded="true"] { background: var(--control-fill, var(--nav-hover)); color: var(--ink); }
+  ${ASSIST} .assistant-head .dock-window-action:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-head .dock-window-action svg { width: 14px; height: 14px; }
+  /* The marks of a work in a list of works: waiting on you, running, news not yet seen, did not finish. */
   ${ASSIST} .assistant-tab-mark { flex: none; display: none; width: 20px; height: 20px; }
   ${ASSIST} [data-mark] .assistant-tab-mark { display: inline-block; }
-  ${ASSIST} .assistant-tab-close { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; }
-  ${ASSIST} .assistant-tab:is(:hover, [data-current], :focus-within) .assistant-tab-close { opacity: 1; }
-  ${ASSIST} .assistant-tab-close:hover { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
-  ${ASSIST} .assistant-tab-new { margin-bottom: 3px; }
-  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action):hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) svg { width: 14px; height: 14px; }
-  ${ASSIST} .assistant-tabbar-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; }
-  ${ASSIST} .assistant-tabbar .dock-window-action:is([aria-expanded="true"]) { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} .assistant-side-toggle { position: relative; }
+  ${ASSIST} .assistant-more { position: absolute; z-index: 6; top: 40px; right: 8px; min-width: 168px; }
+  ${ASSIST} .assistant-more[hidden] { display: none; }
   ${ASSIST} .assistant-side-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--tone-attention, var(--amber, #c27c0e)); }
   ${ASSIST} .assistant-side-dot[hidden], ${ASSIST} .assistant-panel[data-side="open"] .assistant-side-dot { display: none; }
-  /* All works: a dropdown under the tabs, grouped by what waits on you, what runs, and the rest. */
-  ${ASSIST} .assistant-works { position: absolute; z-index: 6; top: 44px; right: 8px; display: flex; flex-direction: column; gap: 1px; width: min(340px, calc(100% - 16px)); max-height: min(440px, 70%); overflow: auto; padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
+  /* The information column is always there on a window; a phone opens it over the conversation from this key, and has no maximise. */
+  ${ASSIST} .assistant-panel[data-layout="split"] [data-assistant-side-toggle], ${ASSIST} .assistant-panel[data-layout="drawer"] :is([data-assistant-expand], [data-assistant-retract]) { display: none; }
+  /* A page that takes the words itself is not repeated here (helm.html .dd-own): one card at the conversation's foot says so,
+     with the way to ask the Assistant instead. */
+  ${ASSIST} .assistant-page-takes { flex: none; display: flex; align-items: flex-start; gap: 10px; min-width: 0; margin: auto 22px 18px; padding: 12px 14px; border-radius: 12px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 12.5px; }
+  ${ASSIST} .assistant-page-takes[hidden] { display: none; }
+  ${ASSIST} .assistant-page-takes > svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+  ${ASSIST} .assistant-page-takes > p { flex: 1 1 auto; min-width: 0; margin: 0; line-height: 1.5; }
+  ${ASSIST} .assistant-page-takes > p > b { display: block; color: var(--ink); font-weight: 600; }
+  ${ASSIST} .assistant-page-takes > .mw-btn { flex: none; align-self: center; }
+  ${ASSIST} .assistant-main[data-page-takes] :is(.assistant-thread, .assistant-strip, .assistant-jump) { display: none; }
+  /* All works: a dropdown under the head's 更多, grouped by what waits on you, what runs, and the rest. */
+  ${ASSIST} .assistant-works { position: absolute; z-index: 6; top: 46px; right: 8px; display: flex; flex-direction: column; gap: 1px; width: min(340px, calc(100% - 16px)); max-height: min(440px, 70%); overflow: auto; padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
   ${ASSIST} .assistant-works[hidden] { display: none; }
   ${ASSIST} .assistant-works-group { margin: 8px 12px 2px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-works-item {
@@ -551,13 +559,52 @@ export const CRAFT_BAR_STYLES = `
   ${ASSIST} .assistant-works-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   ${ASSIST} .assistant-works-meta { font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
-  /* The body: side pane and conversation. A narrow panel lays the side pane over the conversation as a drawer. */
-  ${ASSIST} .assistant-body { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: var(--assistant-side-w) minmax(0, 1fr); }
-  ${ASSIST} .assistant-panel:is([data-side="closed"], [data-layout="drawer"]) .assistant-body { grid-template-columns: minmax(0, 1fr); }
-  ${ASSIST} .assistant-side { min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px; padding: 14px 12px 16px 14px; background: var(--paper); box-shadow: inset -1px 0 0 var(--line); font-size: 12px; line-height: 1.5; }
-  ${ASSIST} .assistant-panel[data-side="closed"] .assistant-side { display: none; }
-  ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; top: 0; bottom: 0; left: 0; width: min(var(--assistant-side-w), 100%); box-shadow: var(--lift-3); }
-  ${ASSIST} .assistant-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* The body: the conversation, then the information column. On a phone the column lies over the conversation when asked for. */
+  ${ASSIST} .assistant-body { position: relative; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--assistant-side-w); }
+  ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-body { grid-template-columns: minmax(0, 1fr); }
+  ${ASSIST} .assistant-main { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* The information column (helm.html .lz): a shade back from the conversation, its cards 8px apart. It never sets the
+     conversation's height (POLISH-17: the height follows what was said): its own content scrolls inside it. */
+  ${ASSIST} .assistant-side { --sidebg: color-mix(in srgb, var(--ink) 3.5%, var(--popover)); container: info-col / size; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--sidebg); box-shadow: inset 1px 0 0 var(--line); color: var(--ink-soft); font-size: 12.5px; line-height: 1.5; }
+  ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; inset: 44px 0 0; display: none; }
+  ${ASSIST} .assistant-panel[data-layout="drawer"]:is([data-side="open"]) .assistant-side, ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side:not([data-info="info"]) { display: flex; }
+  /* The column's tabs (.zt): 信息, then the three lists with their counts, words on the column's own ground; the chosen one is a
+     white pill. ← → move between them. */
+  ${ASSIST} .info-tabs { flex: none; display: flex; gap: 2px; margin: -2px 0 -2px; white-space: nowrap; }
+  ${ASSIST} .info-tab { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 28px; padding: 0 6px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .info-tab > em { font-style: normal; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--faint); }
+  ${ASSIST} .info-tab:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+  ${ASSIST} .info-tab[aria-selected="true"] { background: var(--popover); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), var(--lift-1); }
+  ${ASSIST} .info-tab[aria-selected="true"] > em { color: var(--muted); }
+  ${ASSIST} .info-tab:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .info-tab[data-arrived] { animation: craft-done var(--dur-move) var(--ease-quint); }
+  /* Too narrow for four names: only the chosen tab keeps its name; the others are their mark and count. */
+  @container info-col (max-width: 300px) { ${ASSIST} .info-tab:not([aria-selected="true"]):not([data-info-tab="info"]) > span:not(.work-dg) { display: none; } }
+  /* 信息: what is asked of you, how it stands, then what the words carry — in that order, always. */
+  ${ASSIST} .info-pane { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; margin: 0 -12px -12px; padding: 1px 12px 12px; }
+  ${ASSIST} .info-pane > * { flex: none; }
+  ${ASSIST} .assistant-side:is(:not([data-info="info"]), [data-details]) .info-pane { display: none; }
+  ${ASSIST} .assistant-event-card[hidden] { display: none; }
+  /* 上下文 (.zc.ctx): four quiet rows on the column's ground — the name, then its value at the right. */
+  ${ASSIST} .info-context { padding: 4px 12px 0; }
+  ${ASSIST} .info-context > h4 { margin: 0 0 5px; color: var(--muted); font-size: 11.5px; font-weight: 600; line-height: 16px; }
+  ${ASSIST} .info-context > dl { margin: 0; }
+  ${ASSIST} .info-context-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 25px; font-size: 12.5px; }
+  ${ASSIST} .info-context-row[hidden] { display: none; }
+  ${ASSIST} .info-context-row > dt { flex: none; color: var(--muted); }
+  ${ASSIST} .info-context-row > dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  /* 「⋯ › 详情」: the rest of what is known about the work, in the column's place, with the way back. */
+  ${ASSIST} .info-details { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; border-radius: 12px; background: var(--popover); box-shadow: 0 0 0 1px var(--line), var(--shadow-raised, var(--lift-1)); overflow: hidden; }
+  ${ASSIST} .info-details[hidden] { display: none; }
+  ${ASSIST} .info-details-head { flex: none; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px 0 6px; border-bottom: 1px solid var(--line); }
+  ${ASSIST} .info-details-head > strong { color: var(--ink); font-size: 13px; }
+  ${ASSIST} .info-details-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+  ${ASSIST} .info-details-body > * { flex: none; }
+  ${ASSIST} .info-details-body > .assistant-summary { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+  ${ASSIST} .info-details-body > .assistant-summary > .mw-btn { align-self: flex-start; }
+  ${ASSIST} .assistant-side[data-details] > .work-lists { display: none; }
+  /* On a phone the column lies over the conversation with what is asked and how it stands only. */
+  ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side[data-info="info"] > .info-tabs, ${ASSIST} .assistant-panel[data-layout="drawer"] .info-pane > .info-context { display: none; }
   /* The conversation's top line, shown only while the side pane is out of sight and something needs a hand. */
   ${ASSIST} .assistant-strip { flex: none; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px 6px 12px; background: var(--paper); box-shadow: inset 0 -1px 0 var(--line); }
   ${ASSIST} .assistant-strip[hidden] { display: none; }

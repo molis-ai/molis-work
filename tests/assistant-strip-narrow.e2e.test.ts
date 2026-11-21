@@ -46,9 +46,10 @@ function attachReviewDocuments(browser: NonNullable<Awaited<ReturnType<typeof op
   return { stop, queue };
 }
 
-// PMR-12 (post-merge-review; fixed in c48a8608 and guarded only by hand until now): at about 800px the Assistant keeps its
+// PMR-12 (post-merge-review; fixed in c48a8608 and guarded only by hand until now): up to 540px the Assistant keeps its
 // side pane in a closed drawer, so the conversation's top line must carry what the pane would: 去确认 for a change that
 // waits on the person, landing on the card's own decision, and 继续 and 停止 once the work is paused.
+// (Since 底栏第十三版 the information column stands inside the conversation from 541px up, so this is the drawer's width: 520.)
 test("with the side pane out of sight, the top line offers 去确认, then 继续 and 停止 for paused work", { timeout: 120_000 }, async t => {
   const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
@@ -85,7 +86,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const { stop, queue } = attachReviewDocuments(browser); t.after(stop);
 
-  await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 520, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
   const say = async (text: string) => {
@@ -103,30 +104,30 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   const review = `[data-assistant-next-row] [data-ix-step-id^="review:"]`;
   await waitFor(`${shown(strip)} && ${shown(review)} && document.querySelector('${review} [data-ix-step-label]').textContent === '去确认'`, 30_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').dataset.side"), "closed", "at this width the side pane is a closed drawer");
-  await waitFor("document.querySelector('.assistant-tab[data-current] .assistant-tab-mark .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
-  // The opened panel ends at least 8px above the row of next steps, and the row ends above the input, here and at a phone's width
-  // (touch steps are 44px tall), so neither covers the panel's last line.
+  // (The tab row and its ring are gone, POLISH-19: that this conversation waits is said by the review's own card — RING-07 below — and by the stack.)
+  // The next steps never cover the conversation's last line. Up to 540px the conversation fills the work down to the row of next
+  // steps, and the row sits on the bar's own ground down to the input (touch steps are 44px tall): the page does not show in the
+  // gap or between the steps. From 541px the row stands inside the conversation column, which keeps its room under the thread.
   const clear = `(() => { const box = selector => document.querySelector(selector).getBoundingClientRect(), panel = box('[data-assistant-panel]'), row = box('[data-assistant-next-row]'), input = box('[data-assistant-composer]');
-    // At a phone's width the band from the panel's edge to the input is the bar's own ground: the page does not show in the gap or between the steps.
     const band = [[4, panel.bottom + 4], [innerWidth - 4, row.bottom - 2]].every(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-assistant-next-row]'));
-    return { gap: Math.round(row.top - panel.bottom), under: Math.round(input.top - row.bottom), band }; })()`;
-  for (const width of [800, 390]) {
+    return { gap: Math.round(row.top - panel.bottom), under: Math.round(input.top - row.bottom), band, thread: Math.round(row.top - box('[data-assistant-panel] .assistant-thread').bottom) }; })()`;
+  for (const width of [800, 520, 390]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await waitFor(`!document.querySelector('[data-assistant-panel]').hidden && ${shown(review)}`, 10_000);
-    const { gap, under, band } = await evaluate<{ gap: number; under: number; band: boolean }>(clear);
-    if (width === 390) assert.ok(band && gap >= 0 && under >= 0, `at 390px the next steps sit on a solid band from the panel (${gap}px) down to the input (${under}px)`);
-    else assert.ok(gap >= 8 && under >= 0, `at ${width}px the panel ends ${gap}px above the next steps, which end ${under}px above the input`);
+    const { gap, under, band, thread } = await evaluate<{ gap: number; under: number; band: boolean; thread: number }>(clear);
+    if (width > 540) assert.ok(thread >= 0 && under >= 0, `at ${width}px the thread ends ${thread}px above the next steps, which end ${under}px above the input`);
+    else assert.ok(band && gap >= 0 && under >= 0, `at ${width}px the next steps sit on a solid band from the panel (${gap}px) down to the input (${under}px)`);
   }
-  await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 520, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await click(review);
   // It lands on the card's own decision, not on a copy button inside the code it shows.
   await waitFor("Boolean(document.activeElement?.closest('[data-review]')) && !document.activeElement.classList.contains('assistant-code-copy')", 10_000);
 
   await waitFor("document.querySelector('[data-review] .assistant-card-kicker .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
-  // RING-08: the compact tab and card styles keep a ring as tall as its words (1em + 2px), not squeezed below them.
+  // RING-08: the compact card style keeps a ring as tall as its words (1em + 2px), not squeezed below them.
   const asTallAsItsWords = (selector: string) => `(() => { const ring = document.querySelector(${JSON.stringify(selector)}), box = ring.getBoundingClientRect();
     return Math.abs(box.height - parseFloat(getComputedStyle(ring).fontSize) - 2) <= 1 && box.width === box.height && box.height >= 13; })()`;
-  for (const selector of [".assistant-tab[data-current] .mw-state-ring", "[data-review] .assistant-card-kicker .mw-state-ring"]) {
+  for (const selector of ["[data-review] .assistant-card-kicker .mw-state-ring"]) {
     assert.ok(await evaluate(asTallAsItsWords(selector)), selector);
   }
   // FSS-36: the running Prologue's real Todo review remains pending through both language changes.
@@ -227,7 +228,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   assert.equal(writes.length, 1);
   assert.ok(writes[0]?.endsWith(`/cards/${cardId}/dismiss`));
   await evaluate("reviewDraft.value = ''");
-  await click("[data-assistant-new]");
+  await click("[data-assistant-more]"); await click("[data-assistant-new]");
   await say("写一份周报草稿");
   await waitFor(`${shown(`${strip} [data-assistant-control=pause]`)}`, 30_000);
   await click(`${strip} [data-assistant-control=pause]`);

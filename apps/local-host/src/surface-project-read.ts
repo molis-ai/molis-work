@@ -120,8 +120,9 @@ function positionAccess(sample: HomeReadSample, context: SurfaceProjectContext, 
     },
     count() {
       current();
-      return { count: groups.flatMap(group => group.items).filter(item => item.state === "ok" || item.state === "stale" && item.read_at).length,
-        can_restore: sample.description.corrections_revision !== "0" };
+      // The objects counted, as the display read gives them to this same caller: the foot leaves out the ones its card stack already shows.
+      const counted = groups.flatMap(group => group.items).filter(item => item.state === "ok" || item.state === "stale" && item.read_at);
+      return { count: counted.length, subjects: counted.map(item => ({ kind: item.subject.kind, id: item.subject.id })), can_restore: sample.description.corrections_revision !== "0" };
     },
     async display(recovery?: ActionSubject) {
       const display = await projectPositionDisplay(sample, groups, signal, values);

@@ -6,6 +6,7 @@ import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { NOTICES_KEY, NOTICES_WAIT, PRESS_NOTICES } from "./fixtures/attention-ways.js";
 
 // W2'-2 (specs/context-program §21.6): `openPlugin`, a search hit's `open.surface` and an Assistant notice's `open` name a
 // plugin, and the workbench opens it where its declarations put it. Shelf has only a side view, so the three values stored
@@ -83,21 +84,21 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   assert.ok(stored, "the notices API lists the stored notice");
   assert.equal(stored.kind, "reminder");
   assert.deepEqual(stored.open, { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId }, "with the `open` it was stored with");
-  const bell = "[data-assistant-attention]";
-  await waitFor(`!document.querySelector(${JSON.stringify(bell)}).hidden && document.querySelector(${JSON.stringify(bell)}).checkVisibility()`, 30_000);
-  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^\d+ 件事等你处理$/u, "the bell shows the line's waiting count");
-  // WLN-39 (user decision 2026-11-15): the project bell counts only the line's waiting events. The stored Shelf notice
-  // remains reachable from its list, but settling it must not subtract from that independent count.
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-top-corner-toggle]'))"), "this project page has the first place, whose amber count the bell reads (POLISH-15)");
-  const waiting = `(() => { const node = document.querySelector(${JSON.stringify(bell)}); return node.hidden ? 0 : Number(/^(\\d+) 件事等你处理$/u.exec(node.getAttribute('aria-label') ?? '')?.[1] ?? 0); })()`;
+  // The notice is on the notices key (the account bar's; under 960px the bell beside the input), which says how many want a hand.
+  await waitFor(NOTICES_WAIT, 30_000);
+  assert.match(String(await evaluate(`${NOTICES_KEY}.getAttribute('aria-label')`)), /^\d+ 件事等你处理$/u, "the key says how many notices want a hand");
+  // WLN-39 (user decision 2026-11-15): what waits on the line is counted by the first place alone (POLISH-15). The stored Shelf
+  // notice is reached from the notices key, and settling it must not subtract from that independent count.
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-top-corner-toggle]'))"), "this project page has the first place");
+  const waiting = "(() => { const node = document.querySelector('[data-top-corner-toggle] .top-corner-count'); return node && !node.hidden ? Number(node.textContent) : 0; })()";
   const waitingBefore = await evaluate<number>(waiting);
   assert.ok(waitingBefore >= 1, "the seeded line has waiting events");
   // The main area as it is before the notice is opened.
   const mainArea = `({ surface: document.body.dataset.desktopSurface ?? null, tabs: [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-id]')].map((tab) => tab.textContent.trim() + ':' + String(tab.hasAttribute('aria-current'))),
     shelf: Boolean(document.querySelector('[data-work-surface=shelf], [data-titlebar-tabs] [data-plugin=shelf]')) })`;
   const before = await evaluate<object>(mainArea);
-  // As a person does: the bell, then the notice's own 打开 button.
-  await click(bell);
+  // As a person does: the notices key, then the notice's own 打开 button.
+  await evaluate(PRESS_NOTICES);
   const open = `[data-assistant-notices]:not([hidden]) [data-notice-id=${JSON.stringify(seeded.notice_id)}][data-notice-action="open"]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(open)}))`, 10_000);
   assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(open)}).closest('.assistant-notice').textContent`)), new RegExp(item.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the list shows the notice's words");
@@ -107,7 +108,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   // Opened, the notice is settled by the product itself: it leaves the API and, when reopened, the list. Hidden lists do
   // not repaint; reopen as a person would, then check that the line's count stays independent of this notice.
   await waitFor(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => !body.notices.some((one) => one.notice_id === ${JSON.stringify(seeded.notice_id)}))`, 10_000);
-  await click(bell);
+  await evaluate(`document.querySelector('[data-assistant-notices]').hidden && ${PRESS_NOTICES}`);
   await waitFor(`!document.querySelector('[data-assistant-notices] [data-notice-id=${JSON.stringify(seeded.notice_id)}]')`, 10_000);
   assert.equal(await evaluate(waiting), waitingBefore, "settling a notice outside the line leaves its waiting count unchanged");
 });

@@ -8,7 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
-  test(`Pages ${width}px: an interrupted pin leaves no partial version, and a new pin after reload includes later edits`, { timeout: 90_000 }, async t => {
+  test(`AC-T3-04 Pages ${width}px: an interrupted pin leaves no partial version, and a new pin after reload includes later edits`, { timeout: 90_000 }, async t => {
     const browser = await openGoalBrowser(t, true, undefined, null);
     if (!browser) return;
     const {evaluate, waitFor, click} = await pluginFrameBrowser(t, browser, "pages");
@@ -63,6 +63,24 @@ for (const width of [1440, 390]) {
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
       await waitFor("document.querySelector('.pages-doc-row .mw-entry-status .mw-state-ring')?.dataset.mwState === 'saved'"); // RING-07
       await screenshot("recovered");
+
+      const compare = "[data-pages-compare-versions]", modal = "[data-pages-version-diff]";
+      assert.equal(await evaluate(`document.querySelector('${compare}').hidden`), true, "only one version is fixed");
+      await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '第二版标题'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+      await click("[data-pages-artifact-bar]");
+      await waitFor(`!document.querySelector('${compare}').hidden`);
+      await click(compare);
+      await waitFor(`document.querySelector('${modal}').open && document.querySelector('[data-pages-version-result]').textContent.includes('第二版标题')`);
+      assert.deepEqual(await evaluate("[document.querySelector('[data-pages-version-before]').value, document.querySelector('[data-pages-version-after]').value]"), ["1", "2"]);
+      assert.match(await evaluate<string>("document.querySelector('[data-pages-version-status]').textContent"), /未变 1 段 · 修改 0 段/);
+      assert.match(await evaluate<string>("document.querySelector('[data-pages-version-result]').textContent"), /后续编辑仍在文稿中/);
+      await evaluate(`(() => { const after = document.querySelector('[data-pages-version-after]'); after.value = '1'; after.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+      await waitFor("document.querySelector('[data-pages-version-status]').textContent.includes('两个不同的固定版本')");
+      await evaluate(`(() => { const before = document.querySelector('[data-pages-version-before]'); before.value = '2'; before.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+      await waitFor("document.querySelector('[data-pages-version-result]').textContent.includes('改后标题 · 后续编辑仍在文稿中')");
+      await click(`${modal} button[type=submit]`);
+      assert.equal(await evaluate(`document.querySelector('${modal}').open`), false);
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     } finally { db.close(); pages.close(); }
   });
 }

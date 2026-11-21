@@ -173,7 +173,13 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
     const rawDetails = error && typeof error === "object" && "details" in error ? error.details : undefined;
     const details = rawDetails && typeof rawDetails === "object" && !Array.isArray(rawDetails) ? rawDetails : undefined;
     const status = dev ? { developed: false } : validate ? { valid: false } : { ok: false };
-    output.stderr(`${JSON.stringify({ ...status, code, message, ...(details ? { details } : {}) })}\n`);
+    let serialized: string;
+    try {
+      serialized = JSON.stringify({ ...status, code, message, ...(details ? { details } : {}) });
+    } catch {
+      serialized = JSON.stringify({ ...status, code, message });
+    }
+    output.stderr(`${serialized}\n`);
     return 1;
   }
 }

@@ -126,10 +126,11 @@ test("ENV-13: packaged test runtime isolates MCP, CLI, and Host home resolution 
   const directory = await mkdtemp(join(tmpdir(), "molis-test-env-isolation-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const testSettings = workSettings("test", pathToFileURL(root), { publicOnly: true, installed: true });
+  // Reject invalid release configuration before walking or fingerprinting the runtime source.
   for (const badSyncOrigin of ["https://work.molis.ai", "https://auth.test.molis.ai", "http://127.0.0.1:8788", "https://work.test.molis.ai/api"]) {
     await assert.rejects(
       createMolisWorkRuntimePayload({
-        sourceDirectory: root,
+        sourceDirectory: join(directory, "unread-source"),
         destinationDirectory: join(directory, "bad-payload"),
         nodeExecutablePath: process.execPath,
         desktopDistribution: { profile: "test", account: testSettings.account, syncOrigin: badSyncOrigin },

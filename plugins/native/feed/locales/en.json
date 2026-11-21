@@ -459,6 +459,13 @@
     "feed.add-source.other-account": "Another service account",
     "feed.add-source.other-account-hint": "Other accounts from Service connections",
     "feed.ui.other-account-explain": "Accounts are managed in Settings › Service connections. Create the source, then choose which account it uses in its settings. Only services Feed can pull by account are listed.",
-    "feed.ui.account-service": "Service"
+    "feed.ui.account-service": "Service",
+    "feed.help.title": "Feed",
+    "feed.help.what": "Collects updates from RSS, web search, email, or code repositories in one stream so you can save what matters to Materials, Inbox, or Goals.",
+    "feed.help.example-1": "Add an RSS feed or search topic to scan fresh updates in one place",
+    "feed.help.example-2": "Save a useful item to project materials, send it to Inbox, or turn it into a goal",
+    "feed.help.scope": "Fetching sources contacts only the URLs or connected accounts you added; Feed never posts or replies on your behalf, and removing a source keeps saved items.",
+    "feed.help.advanced-summary": "Deduplication and judgment rules",
+    "feed.help.advanced": "Repeated syncs skip duplicates automatically; bind a published judgment rule when you want automatic triage."
   }
 }

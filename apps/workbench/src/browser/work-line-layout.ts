@@ -123,6 +123,9 @@ function installCountsRoom(slot: HTMLElement): void {
   const counts = slot.querySelector<HTMLElement>("[data-work-counts]");
   if (!counts) return;
   let miniWidth = 0;
+  let lastTop = "";
+  let lastLeft = "";
+  const noAnchor = !globalThis.CSS?.supports?.("anchor-name", "--x");
   const measure = () => {
     const mini = counts.querySelector<HTMLElement>("[data-reply-mini]");
     if (mini && mini.offsetWidth > 0) {
@@ -130,9 +133,33 @@ function installCountsRoom(slot: HTMLElement): void {
       miniWidth = mini.offsetWidth + (Number.parseFloat(getComputedStyle(mini).marginLeft) || 0) + gap;
     }
     slot.style.setProperty("--counts-room", `${Math.ceil(counts.offsetWidth + (mini ? 0 : miniWidth)) + 16}px`);
+    if (noAnchor) {
+      const text = slot.querySelector<HTMLElement>(".mw-composer__text");
+      if (text) {
+        const at = slot.getBoundingClientRect(), box = text.getBoundingClientRect();
+        const top = `${Math.max(0, Math.round(box.top - at.top))}px`;
+        const left = `${Math.max(0, Math.round(box.left - at.left))}px`;
+        if (top !== lastTop) {
+          lastTop = top;
+          slot.style.setProperty("--counts-top", top);
+        }
+        if (left !== lastLeft) {
+          lastLeft = left;
+          slot.style.setProperty("--counts-left", left);
+        }
+      }
+    }
   };
   measure();
-  new ResizeObserver(nextFrame(measure)).observe(counts);
+  const run = nextFrame(measure);
+  const watch = new ResizeObserver(run);
+  watch.observe(counts);
+  if (noAnchor) {
+    watch.observe(slot);
+    const text = slot.querySelector<HTMLElement>(".mw-composer__text");
+    if (text) watch.observe(text);
+    new MutationObserver(run).observe(slot, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "data-rest"] });
+  }
 }
 
 const installed = new WeakSet<Element>();

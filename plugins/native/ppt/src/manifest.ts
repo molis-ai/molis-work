@@ -57,6 +57,19 @@ export const pptManifest: PluginManifest = {
     consumes: [],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "ppt.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "ppt.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "ppt.help.example-1" }, { key: "ppt.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "ppt.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "ppt.help.advanced-summary" }, body: { key: "ppt.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", hue: "red", order: 59, group: "make" },

@@ -84,6 +84,10 @@
     {
       "path": "evaluation/evaluation.db",
       "reason": "第 30 批新增的端到端评测 Home 库（按需懒打开，普通使用不产生空文件）；现有历史金样生成时未跑评测样本，由 tests/evaluation-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖建库、读写、离线快照和删项目。"
+    },
+    {
+      "path": "blueprints/blueprints.db",
+      "reason": "第 38 批新增的场景草稿与采用记录 Home 库（按需首次保存草稿或采用预览时建库）；现有 0.1.0 金样未执行场景采用，建库、读写、撤销、离线快照与删项目由 tests/blueprint-adoption-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖。"
     }
   ],
   "writes": {
@@ -230,6 +234,12 @@
     },
     "evaluation/evaluation.db": {
       "none": "端到端评测库只在调用 evaluation.*@1 登记样本或执行评测时懒打开写入；现有金样未登记评测样本，读写与删项目由 tests/evaluation-service.test.ts 和 tests/home-snapshot-cli.test.ts 覆盖。"
+    },
+    "blueprints/blueprints.db": {
+      "none": "场景草稿与采用库只在调用 blueprints.*@1 保存草稿或采用预览时按需建库；现有金样未执行场景采用，读写、撤销与删项目由 tests/blueprint-adoption-service.test.ts 和 tests/home-snapshot-cli.test.ts 覆盖。"
+    },
+    "observation/observation.db": {
+      "none": "工作记录按并发调用结束的先后编号，金样生成时不写记录，由主人按现行结构建空库（清单 imports）；读写、清理与删项目由 tests/observation-layer.test.ts 和 tests/observation-management.test.ts 覆盖。"
     },
     "plugin-runtime/plugin-runtime.db": {
       "none": "没有最小写入用例：回放的第三方样本那一步装、写、升级，这个库就写过了（§4 第 7 步）"

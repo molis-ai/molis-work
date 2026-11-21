@@ -25,6 +25,7 @@ import { PLUGIN_RETAINED_ICONS, PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPlugi
 import { renderTaskGrantsSettings, TASK_GRANTS_SETTINGS_CLIENT_SCRIPT } from "./settings-task-grants.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
+import { withSettingsHelp } from "./settings-help-topics.js";
 import { renderLanguageHead } from "./language-resource.js";
 
 export interface ProjectSettingsPagePorts {
@@ -64,6 +65,11 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
+    const raw = renderHubSectionBody(view, guidance, section, desktopShell);
+    return withSettingsHelp(section, raw);
+  }
+
+  function renderHubSectionBody(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderGuidance(guidance ?? { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });
@@ -75,7 +81,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "plugins") return renderPluginTrustSettings({ readText, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down"), kinds: Object.fromEntries(Object.entries(PLUGIN_RETAINED_ICONS).map(([kind, name]) => [kind, icon(name)])) });
     if (section === "grants") return renderTaskGrantsSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
     const href = `/settings/authorizations?view=project-rules&project=${encodeURIComponent(view.project!.project_id)}`;
-    return `<a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a>`;
+    return `<section class="settings-section"><header class="settings-heading"><div class="settings-heading-title"><h1>${uiText("workbench.settings-navigation.access-approvals")}</h1></div></header><p><a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a></p></section>`;
   }
 
   function renderMolisWorkProjectSettingsHub(

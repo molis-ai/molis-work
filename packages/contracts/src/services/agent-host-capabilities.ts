@@ -563,10 +563,13 @@ export const agentHostCapabilities = {
     action: { title: "请求回退到检查点", description: "为自己会话的一个检查点准备文件回退，交本人审批。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, entryId, entryId], additionalItems: false }, output_schema: reviewRequestOutput },
   } as ActionDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
-  /** Read the approval queue. Deciding is a user action and is not exposed to Plugins. */
+  /**
+   * Read the approval queue: what a round submitted, and the reviewed integrations that brought that round's result back to the
+   * main workspace (they name the round as their source and have no run of their own). Deciding is a user action and is not exposed to Plugins.
+   */
   readRunReviews: {
     capability_id: "agent.run.reviews", version: /* @version action.agent.run.reviews */ 1, operation: "query",
-    action: { title: "读一轮的审批", description: "自己会话里一轮提交的审批与结果。", kind: "query", ...pluginOnly,
+    action: { title: "读一轮的审批", description: "自己会话里一轮提交的审批与结果，以及把这一轮成果整合回主工作区的审批与结果。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false },
       output_schema: { type: "array", items: { type: "object", required: ["request", "receipt"], additionalProperties: false, properties: {
         request: { type: "object", required: ["review_id"], properties: { review_id: { type: "string" } } }, receipt: { anyOf: [object, { type: "null" }] } } } } },

@@ -1,11 +1,12 @@
 import { syncBindings } from "./sync-binding.js";
 import { bindPluginActionRoute, projectRouteFields } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactClient, PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pagesManifest } from "./manifest.js";
-import { createPagesActionHandlers, pagesActions, type PagesActionPorts } from "./actions.js";
+import { createPagesActionHandlers, pagesActions, PAGES_SUBJECT_KIND, type PagesActionPorts } from "./actions.js";
 import { pagesCommentActions } from "./comment-actions.js";
 import { createPagesContentHandlers } from "./content-actions.js";
+import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "./contract.js";
 import { pagesErrors } from "./error.js";
 import { preparePagesImport, type PagesImportFile, type PreparedPagesImport } from "./import-files.js";
 import { PagesStore, type PagesSql, type PagesStores } from "./store.js";
@@ -35,6 +36,7 @@ export function createPagesPlugin(): PluginDefinition {
     };
     const model = context.services?.model;
     const ports: PagesActionPorts = { ...stores,
+      readFixedVersion: (id, version) => readFixedVersion(artifacts, id, version),
       ...(database.transactionProjectRow && artifacts.join ? {
         promote: (id: string, expectedVersion?: number, goalId?: string) => promotePagesDocument(database, artifacts, id, expectedVersion, goalId),
       } : {}),
@@ -46,6 +48,28 @@ export function createPagesPlugin(): PluginDefinition {
       actions: [...createPagesActionHandlers(ports), ...createPagesContentHandlers(actions)],
       routes: pagesRoutes(context) };
   } };
+}
+
+function readFixedVersion(artifacts: PluginArtifactClient, id: string, version: number) {
+  let artifact: ReturnType<PluginArtifactClient["readOwn"]>;
+  try { artifact = artifacts.readOwn({ artifact_id: "pages-" + id, version }); }
+  catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "artifacts.plugin_denied") return null;
+    throw error;
+  }
+  if (!artifact || artifact.artifact_type_id !== PAGES_ARTIFACT_TYPE_ID || artifact.schema_version !== PAGES_ARTIFACT_SCHEMA_VERSION
+    || artifact.availability !== "available" || artifact.lifecycle_state === "archived" || artifact.content_kind !== "inline"
+    || artifact.origin.kind !== "pinned" || artifact.origin.subject.kind !== PAGES_SUBJECT_KIND || artifact.origin.subject.id !== id) return null;
+  const payload = artifact.payload;
+  if (!payload || typeof payload !== "object" || !("title" in payload) || typeof payload.title !== "string"
+    || !("page_id" in payload) || payload.page_id !== id || !("body" in payload) || !payload.body) return null;
+  return { title: payload.title, body: payload.body };
+}
+
+function versionFromQuery(value: string | undefined): number {
+  const version = Number(value);
+  if (!value || !/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(version)) throw pagesErrors.invalid("请选择有效的固定版本");
+  return version;
 }
 
 /** The platform's reader of uploaded files; whatever it refuses is the person's file, said the way Pages says it. */
@@ -85,6 +109,9 @@ function pagesRoutes(context: PluginStartContext) {
     route(pagesActions.ai, "pages.ai", identified),
     route(pagesActions.promote, "pages.promote", identified),
     route(pagesActions.extract, "pages.extract", identified),
+    route(pagesActions.artifactDiff, "pages.versions.diff", request => ({
+      id: request.params.id, before_version: versionFromQuery(request.query.before), after_version: versionFromQuery(request.query.after),
+    })),
     route(pagesActions.get, "pages.get", id),
     route(pagesActions.update, "pages.update", identified),
     route(pagesActions.delete, "pages.delete", identified),

@@ -56,9 +56,11 @@ function promptDetail(kit: Kit, entry: Of<"prompt">, pack: KitPack): string {
   const change = entry.version.change;
   const words = change?.kind === "default_updated" ? readText("workbench.kit.edited-with-new-default", { base: change.base_version, latest: change.default_version })
     : readText(entry.prompt.edited ? "workbench.kit.uses-edit" : "workbench.kit.uses-default");
-  const now = renderNowBlock({ status: owner + (unavailable(entry) || statusLine(entryMark(entry), words)), note: readText("workbench.kit.prompts-edit-elsewhere"),
-    actions: manage(entry, readText("workbench.kit.edit-prompts")) });
-  return `${entryHeader(entry)}${section(readText("workbench.kit.now"), now)}${usageBlock(entry)}${section(readText("workbench.kit.where-used"), whereBlock(entry))}${versionBlock(entry)}`;
+  const promptKey = `${entry.ref.owner_id}/${entry.ref.prompt_id}`;
+  const now = renderNowBlock({ status: owner + (unavailable(entry) || statusLine(entryMark(entry), words)), note: readText("workbench.settings-prompts.permission-unchanged-note"),
+    actions: manage(entry, readText("workbench.kit.open-all-prompts")) });
+  const editorBox = section(readText("workbench.settings-prompts.edit-here-title"), `<div class="kit-prompt-editor" data-kit-prompt-editor="${esc(promptKey)}"></div>`);
+  return `${entryHeader(entry)}${section(readText("workbench.kit.now"), now)}${editorBox}${usageBlock(entry)}${section(readText("workbench.kit.where-used"), whereBlock(entry))}${versionBlock(entry)}`;
 }
 
 function roleDetail(kit: Kit, entry: Of<"role">, pack: KitPack): string {

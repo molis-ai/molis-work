@@ -119,7 +119,12 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     let statusHtml='';
     const box=(h,p)=>'<h3>'+esc(globalThis.t.text(h))+'</h3><p>'+esc(p)+'</p>';
     if(!state.enabled){
-      statusHtml=box("workbench.side-panel-computer.assistants-use-computer-off",globalThis.t.text("workbench.side-panel-computer.needs-system-permissions-affects-whole-computer-so-off"));
+      const qs=new URLSearchParams();
+      if(projectId)qs.set('project',projectId);
+      if(document.body.dataset.nativeDesktop==='true'||new URLSearchParams(location.search).get('desktop')==='1')qs.set('desktop','1');
+      const settingsHref='/settings/assistant'+(qs.size?'?'+qs.toString():'')+'#assistant-computer-title';
+      statusHtml=box("workbench.side-panel-computer.assistants-use-computer-off",globalThis.t.text("workbench.side-panel-computer.needs-system-permissions-affects-whole-computer-so-off"))
+        +'<p><a class="mw-btn mw-btn--secondary mw-btn--sm" href="'+esc(settingsHref)+'">'+esc(globalThis.t.text("workbench.side-panel-computer.open-assistant-settings"))+'</a></p>';
     }else if(state.helper?.state==='unsupported'){
       statusHtml=box("workbench.side-panel-computer.unavailable",globalThis.t.text(problem?.message||"workbench.side-panel-computer.using-computer-needs-mac-os-14-later"));
     }else if(state.helper?.state==='missing'){

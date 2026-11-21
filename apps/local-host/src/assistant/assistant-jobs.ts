@@ -108,6 +108,18 @@ export class AssistantJobs {
   }
 
   /**
+   * Job IDs this work follows on its graph, for report deduplication: skips cards storage and propagates graph read
+   * failures so unreadable graphs are retried rather than misread as empty.
+   */
+  async followedJobIds(work: StoredWork): Promise<string[]> {
+    const graph = AssistantJobs.graphOf(work);
+    if (!graph) return [];
+    return (await this.#steps(graph))
+      .filter(step => step.node_id.startsWith(`job.${work.work_id}.`))
+      .map(step => step.job.job_id);
+  }
+
+  /**
    * What the round about to start hears of the work's jobs: those still running, and those that ended since its latest
    * round began. A round is recorded only once it has started, so a job's end reaches exactly the first round that
    * starts after it.

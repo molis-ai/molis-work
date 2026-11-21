@@ -59,6 +59,7 @@ const entry = (packagePath, contract, status = {}) => {
     // on exactly those plugin packages; the generator writes them into its package.json, so they are not written here (PG-069).
     extraWorkspaceDependencies: [...(status.extraWorkspaceDependencies ?? []), ...(status.registeredPluginDependencies ? REGISTERED_PLUGINS.map(plugin => plugin.name) : [])],
     extraDependencies: status.extraDependencies ?? {},
+    extraOptionalDependencies: status.extraOptionalDependencies ?? {},
   };
 };
 
@@ -226,8 +227,8 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage",
       "@molis-ai/molis-work-ui-host"
     ],
+    extraOptionalDependencies: { "node-pty": "1.1.0" },
     extraDependencies: {
-      "node-pty": "^1.1.0",
       "@modelcontextprotocol/sdk": "^1.31.0",
       typescript: "^5.8.0",
       "pdfjs-dist": "6.3.289",
@@ -433,7 +434,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ],
     extraDependencies: {
-      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.2.tgz"
+      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.3.tgz"
     }
   }),
   entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {
@@ -449,9 +450,7 @@ export const WORKSPACE_PACKAGES = [
       "runtime.host.v1",
       "runtime.terminal-pty.v1"
     ],
-    extraDependencies: {
-      "node-pty": "1.1.0"
-    }
+    extraOptionalDependencies: { "node-pty": "1.1.0" }
   }),
   entry("horizontal/scheduler", "@molis-ai/molis-work-contracts/services/scheduler", {
     maturity: "production",
@@ -703,6 +702,11 @@ export function checkWorkspacePackages(repositoryRoot) {
         ].sort(([left], [right]) => left.localeCompare(right));
     if (JSON.stringify(dependencies) !== JSON.stringify(expectedDependencies)) {
       errors.push(`${item.path}: workspace dependency boundary does not match its declared migration slice`);
+    }
+    const optionalDependencies = Object.entries(manifest.optionalDependencies ?? {}).sort(([left], [right]) => left.localeCompare(right));
+    const expectedOptionalDependencies = Object.entries(item.extraOptionalDependencies ?? {}).sort(([left], [right]) => left.localeCompare(right));
+    if (JSON.stringify(optionalDependencies) !== JSON.stringify(expectedOptionalDependencies)) {
+      errors.push(`${item.path}: optional dependency boundary does not match its declared migration slice`);
     }
     if (!manifest.scripts?.build || !manifest.scripts?.typecheck) {
       errors.push(`${item.path}: missing build/typecheck scripts`);

@@ -60,7 +60,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
           ${VIEWS.map((view, index) => toggle("data-todo-view", view, index === 0, ` data-todo-view-label="${uiText(view[1])}"`)).join("")}
           <button class="mw-toggle todo-review-toggle" type="button" data-todo-view="review" data-todo-view-label="${p.escape(uiText.text("todo.view.review"))}" aria-pressed="false" hidden>${uiText("todo.view.review")}</button>
         </nav>
-        <div class="todo-chrome-tools">
+        <div class="todo-chrome-tools" data-help-slot>
           <label class="mw-input-group todo-search">${icon("search")}<input class="mw-input" type="search" data-todo-search placeholder="${uiText("todo.chrome.search")}" aria-label="${uiText("todo.chrome.search")}"></label>
           <button class="mw-btn mw-btn--ghost" type="button" data-todo-scope aria-pressed="false" title="${uiText("todo.chrome.all-projects-hint")}">${uiText("todo.chrome.all-projects")}</button>
         </div>

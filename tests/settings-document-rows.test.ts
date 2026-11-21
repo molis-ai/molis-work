@@ -99,7 +99,7 @@ test("助理: the places a rule may name are one row that opens in place, not a 
   const closed = html.replace(/<div class="mw-setting-open">[\s\S]*?<\/details>/g, "</details>");
   const boxes = (text: string) => (text.match(/type="checkbox"/g) ?? []).length;
   assert.ok(boxes(closed) <= 5, `${boxes(closed)} checkboxes before anything is opened`);
-  assert.equal((html.match(/<details class="mw-setting-fold" data-slot="setting-fold"/g) ?? []).length, 3, "the two rule rows and the capabilities open in place");
+  assert.equal((html.match(/<details class="mw-setting-fold" data-slot="setting-fold"/g) ?? []).length, 4, "the two rule rows, the capabilities and the allowed local apps open in place (PF-A15)");
   assert.doesNotMatch(html, /<details class="mw-setting-fold" data-slot="setting-fold" open/, "and start closed");
   assert.doesNotMatch(html, /mw-settings-section__note">[^<]{40,}/, "no paragraph of explanation under a title; a row's own sentence says it");
   assert.match(html, /data-assistant-rule-surfaces><\/div>/, "the places are filled in as a multiple choice by the page");
@@ -128,7 +128,8 @@ test("对外接入: who, where and what are rows of one card; each capability is
   assert.equal((empty.match(/data-slot="setting-row"/g) ?? []).length, 4, "client, its identity (hidden), scope, and the row that says what to do next");
   assert.match(empty, /选择一个客户端，查看它能使用的能力/);
   assert.doesNotMatch(empty, /capability-filters|mcp-access-context|settings-empty|data-mcp-access-result/, "no label-over-select form, no footnote, no second empty block");
-  assert.equal((empty.match(/<button/g) ?? []).length, 1, "one thing to press: 查看能力");
+  assert.match(empty, /data-mw-help-trigger\b[^>]*data-help-topic="settings-mcp"/, "VUX-55: quiet Scheme A help trigger sits in the page header");
+  assert.equal((empty.replace(/<button\b[^>]*data-mw-help-trigger[^>]*>[\s\S]*?<\/button>/g, "").match(/<button/g) ?? []).length, 1, "one content action to press: 查看能力");
 
   const chosen = access("runtime:codex", [entry("notes.tidy", "ungranted"), entry("notes.read", "enabled"), entry("notes.sync", "stale"), entry("notes.gone", "unavailable", "服务未连接")]);
   assert.equal((chosen.match(/class="mw-settings-section__rows"/g) ?? []).length, 2, "the scope card, then the capabilities card");

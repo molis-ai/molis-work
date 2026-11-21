@@ -203,7 +203,7 @@ export function compareRunChangeSet(
   const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
     path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
   return { ...compareChange(group, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
-    created: chosen.review.before_text === null }), files };
+    created: chosen.review.before_text === null, removed: chosen.kind === "deleted" }), files };
 }
 
 function sideOf(snapshot: FileSnapshot, input: DiffInputSnapshot): DiffSide {

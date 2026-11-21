@@ -142,6 +142,7 @@ async function format(client: LspClient, uri: string, languageId: string, input:
     const edits = whole
       ? await client.request<readonly TextEditLike[] | null>("textDocument/formatting", { textDocument: { uri }, options }, 8_000)
       : await client.request<readonly TextEditLike[] | null>("textDocument/rangeFormatting", { textDocument: { uri }, range, options }, 8_000);
+    if (edits !== null && edits !== undefined && !Array.isArray(edits)) throw new Error("invalid LSP formatting edits");
     const text = applyEdits(input.after, edits ?? []);
     if (text === input.after) return { text, fact: { state: "unchanged", source: name } };
     return { text, fact: { state: "formatted", source: name, lines: changedLineCount(input.after, text), as_written: input.after } };
@@ -203,7 +204,10 @@ export function applyEdits(text: string, edits: readonly TextEditLike[]): string
     }
   }
   ends.push(text.length);
-  const offset = (at: Position) => {
+  const offset = (at: Position | undefined): number => {
+    if (!at || !Number.isInteger(at.line) || !Number.isInteger(at.character)) {
+      throw new Error("invalid LSP edit position");
+    }
     if (at.line < 0) return 0;
     if (at.line >= starts.length) return text.length;
     const lineStart = starts[at.line]!;
@@ -211,10 +215,27 @@ export function applyEdits(text: string, edits: readonly TextEditLike[]): string
     return Math.min(lineEnd, lineStart + Math.max(0, at.character));
   };
   const sorted = edits
-    .map((edit, index) => ({ edit, index, start: offset(edit.range.start), end: offset(edit.range.end) }))
+    .map((edit, index) => {
+      if (!edit || !edit.range || typeof edit.newText !== "string") {
+        throw new Error("invalid LSP text edit");
+      }
+      const start = offset(edit.range.start);
+      const end = offset(edit.range.end);
+      const rawInverted = edit.range.start.line > edit.range.end.line
+        || (edit.range.start.line === edit.range.end.line && edit.range.start.character > edit.range.end.character);
+      if (rawInverted || start > end) {
+        throw new Error("inverted LSP edit range");
+      }
+      return { edit, index, start, end };
+    })
     .sort((x, y) => (y.start - x.start) || (y.end - x.end) || (y.index - x.index));
   let result = text;
+  let lastStart = Number.POSITIVE_INFINITY;
   for (const { edit, start, end } of sorted) {
+    if (end > lastStart) {
+      throw new Error("overlapping LSP text edits");
+    }
+    lastStart = start;
     result = result.slice(0, start) + edit.newText + result.slice(end);
   }
   return result;

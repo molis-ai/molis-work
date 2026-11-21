@@ -55,7 +55,7 @@ CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKI
     for (const [from, to] of MOVED_PROMPT_KEYS) for (const table of ["prompt_overrides", "prompt_history", "prompt_uses"]) db.prepare(`UPDATE ${table} SET key = ? WHERE key = ?`).run(to, from);
   } }] };
 
-const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
+export const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 
 /** A running signed package's role in one installation, with the signed default its material is read by. */
 export interface SignedRoleView {

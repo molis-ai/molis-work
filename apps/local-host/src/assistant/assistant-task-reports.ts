@@ -36,11 +36,16 @@ interface ReportPorts {
   /** Which project changed (`null`: the Assistant's own store). */
   changes(listener: (projectId: string | null) => void): () => void;
   /**
-   * Report the ended tasks one read found in a project, together: `reported` (one round started, or the person was told once of each),
-   * `later` (the main conversation is busy: all of them wait for its next pause), `none` (nothing to report to, or each reported
-   * before — once only per task, across restarts).
+   * Report the ended tasks one read found in a project, together: `reported` (one round started), `noticed` (permanent
+   * refusal prevented starting a round, so the person was told once of each by notice), `later` (the main conversation
+   * is busy: all of them wait for its next pause), `none` (nothing to report to, or each reported before — once only
+   * per task, across restarts).
    */
-  report(report: TaskReport): Promise<"reported" | "later" | "none">;
+  report(report: TaskReport): Promise<"reported" | "noticed" | "later" | "none">;
+  /** Optional minimum spacing between reads of one project's table (defaults to LOOK_MS). */
+  lookMs?: number;
+  /** Optional base backoff delay for transient failure retries (defaults to lookMs / LOOK_MS). */
+  retryDelayMs?: number;
 }
 
 /** The least time between two reads of one project's table. */
@@ -65,8 +70,10 @@ export class AssistantTaskReports {
   readonly #queue = new Set<string>();
   readonly #lastAt = new Map<string, number>();
   readonly #failures = new Map<string, number>();
+  readonly #retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   #off: (() => void) | undefined;
   #looking: Promise<void> | undefined;
+  #waitCancel: (() => void) | undefined;
   #closed = false;
   constructor(private readonly ports: ReportPorts) {}
 
@@ -75,8 +82,12 @@ export class AssistantTaskReports {
     this.#off = this.ports.changes(projectId => {
       // The Assistant's own store changed (a round ended, a work moved): what waited for an idle conversation is looked at again.
       if (projectId === null) {
-        for (const waiting of this.#pending) this.#queue.add(waiting);
+        for (const waiting of this.#pending) {
+          this.#clearRetry(waiting);
+          this.#queue.add(waiting);
+        }
       } else {
+        this.#clearRetry(projectId);
         this.#failures.delete(projectId);
         this.#queue.add(projectId);
       }
@@ -87,6 +98,9 @@ export class AssistantTaskReports {
     this.#closed = true;
     this.#off?.();
     this.#off = undefined;
+    this.#waitCancel?.();
+    for (const timer of this.#retryTimers.values()) clearTimeout(timer);
+    this.#retryTimers.clear();
     this.#queue.clear();
     this.#pending.clear();
     this.#failures.clear();
@@ -94,26 +108,65 @@ export class AssistantTaskReports {
   /** Settled once what was asked to be looked at has been (for tests and for the Host's own shutdown). */
   async idle(): Promise<void> { while (this.#looking) await this.#looking; }
 
+  #clearRetry(projectId: string): void {
+    const timer = this.#retryTimers.get(projectId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.#retryTimers.delete(projectId);
+    }
+  }
+
+  #scheduleRetry(projectId: string, failures: number): void {
+    this.#clearRetry(projectId);
+    const baseMs = this.ports.retryDelayMs ?? this.ports.lookMs ?? LOOK_MS;
+    const delay = Math.max(0, baseMs * failures);
+    const timer = setTimeout(() => {
+      this.#retryTimers.delete(projectId);
+      if (this.#closed) return;
+      this.#queue.add(projectId);
+      this.#look();
+    }, delay);
+    timer.unref?.();
+    this.#retryTimers.set(projectId, timer);
+  }
+
   #look(): void {
     if (this.#looking || this.#closed) return;
     this.#looking = (async () => {
+      const lookMs = this.ports.lookMs ?? LOOK_MS;
       while (this.#queue.size && !this.#closed) {
         const projectId = this.#queue.values().next().value!;
         this.#queue.delete(projectId);
         // A project that keeps writing is read at most once a second: what changed meanwhile is in the next read.
-        const wait = (this.#lastAt.get(projectId) ?? -Infinity) + LOOK_MS - Date.now();
-        if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait).unref?.());
+        const wait = (this.#lastAt.get(projectId) ?? -Infinity) + lookMs - Date.now();
+        if (wait > 0) {
+          await new Promise<void>(resolve => {
+            const done = () => {
+              this.#waitCancel = undefined;
+              resolve();
+            };
+            const timer = setTimeout(done, wait);
+            timer.unref?.();
+            this.#waitCancel = () => {
+              clearTimeout(timer);
+              done();
+            };
+          });
+        }
         if (this.#closed) return;
         this.#lastAt.set(projectId, Date.now());
         try {
           await this.#lookAt(projectId);
+          this.#clearRetry(projectId);
           this.#failures.delete(projectId);
         } catch {
           const failures = (this.#failures.get(projectId) ?? 0) + 1;
           this.#failures.set(projectId, failures);
           if (!this.#closed && failures <= MAX_TRANSIENT_RETRIES) {
             this.#pending.add(projectId);
+            this.#scheduleRetry(projectId, failures);
           } else {
+            this.#clearRetry(projectId);
             this.#pending.delete(projectId);
           }
         }
@@ -149,8 +202,12 @@ export class AssistantTaskReports {
     }
     for (const { key } of batch) this.#told.add(key);
     if (ended.length > batch.length) {
-      if (answer === "none") this.#queue.add(projectId);
-      else this.#pending.add(projectId);
+      if (answer === "none" || answer === "noticed") {
+        this.#pending.delete(projectId);
+        this.#queue.add(projectId);
+      } else {
+        this.#pending.add(projectId);
+      }
     } else {
       this.#pending.delete(projectId);
     }
@@ -188,7 +245,7 @@ export class AssistantReportRounds {
   /** Whether a project has a main conversation a report could go to. */
   reportsTo(projectId: string): boolean { return this.#main(projectId) !== undefined; }
 
-  async report(report: TaskReport): Promise<"reported" | "later" | "none"> {
+  async report(report: TaskReport): Promise<"reported" | "noticed" | "later" | "none"> {
     const main = this.#main(report.project_id);
     if (!main) return "none";
     const keyOf = ({ row, end }: EndedTask) => `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
@@ -205,8 +262,10 @@ export class AssistantReportRounds {
     const followed = await this.ports.followed(report.project_id);
     const news = unseen.filter(task => !followed.has(task.row.subject.id)).slice(0, REPORT_BATCH_LIMIT);
     if (!news.length) return "none";
+    let startedRound = false;
     try {
       await this.ports.start(main, reportWords(news));
+      startedRound = true;
     } catch (error) {
       const code = String((error as { code?: unknown } | undefined)?.code ?? "");
       // A round began in between: the report waits for it.
@@ -223,7 +282,7 @@ export class AssistantReportRounds {
         text: assistantWords(`workbench.assistant-notice.task-report-${end}`, { title: row.title, from: row.origin.title }),
       }, key);
     }
-    return "reported";
+    return startedRound ? "reported" : "noticed";
   }
 }
 

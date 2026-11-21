@@ -83,6 +83,19 @@ export const feedManifest: PluginManifest = {
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "feed.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "feed.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "feed.help.example-1" }, { key: "feed.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "feed.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "feed.help.advanced-summary" }, body: { key: "feed.help.advanced" } },
+        ],
+      }],
+    },
     page_routes: [{ route_id: "feed-stage", path: "/api/stage/feed", query: FEED_PAGE_INPUTS }],
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [

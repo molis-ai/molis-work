@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readdirSync,readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {personalStorageSpace} from '@molis-ai/molis-work-storage';
+
+const MIGRATIONS_DIR=new URL('../../server/migrations/sync/',import.meta.url);
 
 /** Run one sync migration file as separate statements, in file order (D1's local binding takes one statement per prepare). */
 export async function applySql(db,file){
   const sql=readFileSync(new URL('../../server/migrations/sync/'+file,import.meta.url),'utf8');
   for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;|DROP TRIGGER \w+;|INSERT INTO sync_schema[\s\S]*?;/g))await db.prepare(statement).run();
+}
+
+/** Run every server D1 migration in filename order (`0001_sync.sql`, `0002_...`, ...). */
+export async function applyMigrations(db){
+  for(const file of readdirSync(MIGRATIONS_DIR).filter(name=>name.endsWith('.sql')).sort()){
+    await applySql(db,file);
+  }
 }
 
 /** Synthetic upstream + ephemeral D1 only. No Cloudflare credentials or live Auth. */
@@ -27,7 +36,7 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   const mf=new Miniflare(convertV4MiniflareOptions(options));
   t.after(()=>mf.dispose());
   let db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('FILES');
-  if(schema)await applySql(db,'0001_sync.sql');
+  if(schema)await applyMigrations(db);
   const call=(path,user='alice',body,method=body===undefined?'GET':'POST',origin='https://sync.example.test',ip='192.0.2.1')=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:'Bearer '+user,'Content-Type':'application/json','CF-Connecting-IP':ip},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const space=user=>personalStorageSpace(authOrigin,'work',user).spaceId;
   const selection={plugin_id:'io.example.quota',publisher_id:'example',publisher_signature:'synthetic-only',collection_id:'records',schema_version:1};

@@ -28,12 +28,13 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     promptInput.value = rec.instructions;
     deleteBtn.hidden = locked;
     pubBtn.hidden = locked;
-    pubBtn.textContent = globalThis.t.text("workbench.client-records.publish-first-version");
+    if (pubActivateBtn) pubActivateBtn.hidden = locked;
     if (switching) sampleText.value = rec.last_preview?.input || "";
     renderRoute(rec);
     renderCriteria(rec);
     renderSamples(rec);
     renderPreview(rec);
+    renderReleaseFacts(rec);
     void paintUses(rec);
     showNote(locked ? globalThis.t.text("workbench.client-records.published") : "", false);
     list.querySelectorAll("[data-function-id]").forEach((row) => {

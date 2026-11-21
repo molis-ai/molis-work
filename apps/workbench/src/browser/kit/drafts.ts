@@ -54,8 +54,8 @@ export interface Workshop {
   draft: SkillDraft;
   fields: Fields;
   replacements: Record<string, string>;
-  /** Snapshot of the wording fields with placeholders unexpanded, kept per-field while editing placeholders so typing never rewrites unrelated text. */
-  placeholderBase?: Partial<Record<"description" | "when_not_to_use" | "body", string>>;
+  /** Segmented wording fields tracking each placeholder slot's rendered span, so manual edits, duplicate values, and literal collisions never lose slots. */
+  placeholderBase?: Partial<Record<WordingKey, PlaceholderSegment[]>>;
   /** The Skill or source it was opened from, by name, for the heading. */
   name: string;
   /** The version the draft becomes when adopted (absent: a new Skill). */
@@ -105,42 +105,236 @@ export const replayCalls = (w: Workshop) => consumersOf(w.fields).length * (w.dr
 export function placeholdersOf(w: Workshop): string[] {
   if (w.draft.target.kind !== "custom" && !Object.keys(w.replacements).length) return [];
   const original = w.draft.base?.fields;
-  const found = skillPlaceholders([original?.description ?? "", original?.when_not_to_use ?? "", original?.body ?? "", w.fields.description, w.fields.when_not_to_use, w.fields.body].join("\n"));
+  const textOf = (key: WordingKey) => w.placeholderBase?.[key] ? templateOf(w.placeholderBase[key]!) : w.fields[key];
+  const found = skillPlaceholders([original?.description ?? "", original?.when_not_to_use ?? "", original?.body ?? "", textOf("description"), textOf("when_not_to_use"), textOf("body")].join("\n"));
   return [...new Set([...Object.keys(w.replacements), ...found])];
 }
 const WORDING_KEYS = ["description", "when_not_to_use", "body"] as const;
-const replaceAll = (text: string, pairs: ReadonlyArray<readonly [string, string]>): string => {
-  const map = new Map<string, string>();
-  for (const [from, to] of pairs) if (from && !map.has(from)) map.set(from, to);
-  if (!map.size) return text;
-  const pattern = new RegExp([...map.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|"), "gu");
-  return text.replace(pattern, match => map.get(match) ?? match);
-};
-/** Every replaced placeholder written out in the fields: renders from a placeholder template so keystroke-by-keystroke typing never touches unrelated text. */
+export type WordingKey = (typeof WORDING_KEYS)[number];
+export interface PlaceholderSegment { text: string; placeholder?: string }
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+const templateOf = (segments: readonly PlaceholderSegment[]) => segments.map(seg => seg.placeholder ?? seg.text).join("");
+const renderedOf = (segments: readonly PlaceholderSegment[]) => segments.map(seg => seg.text).join("");
+
+function compactSegments(segments: readonly PlaceholderSegment[]): PlaceholderSegment[] {
+  const out: PlaceholderSegment[] = [];
+  for (const seg of segments) {
+    if (!seg.text) continue;
+    const prev = out.at(-1);
+    if (!seg.placeholder && prev && !prev.placeholder) prev.text += seg.text;
+    else out.push({ ...seg });
+  }
+  return out;
+}
+
+function tokenizeTemplate(template: string, placeholders: readonly string[], replacements: Readonly<Record<string, string>>): PlaceholderSegment[] {
+  if (!template) return [];
+  const unique = [...new Set(placeholders.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!unique.length) return [{ text: template }];
+  const pattern = new RegExp(unique.map(escapeRegExp).join("|"), "gu");
+  const out: PlaceholderSegment[] = [];
+  let last = 0;
+  for (const match of template.matchAll(pattern)) {
+    const index = match.index!;
+    if (index > last) out.push({ text: template.slice(last, index) });
+    const ph = match[0];
+    out.push({ text: replacements[ph] || ph, placeholder: ph });
+    last = index + ph.length;
+  }
+  if (last < template.length) out.push({ text: template.slice(last) });
+  return out;
+}
+
+function reconstructInverse(text: string, placeholders: readonly string[], replacements: Readonly<Record<string, string>>): PlaceholderSegment[] {
+  if (!text) return [];
+  const tokenToPlaceholders = new Map<string, string[]>();
+  const add = (token: string, ph: string) => {
+    if (!token) return;
+    const list = tokenToPlaceholders.get(token);
+    if (list) {
+      if (!list.includes(ph)) list.push(ph);
+    } else {
+      tokenToPlaceholders.set(token, [ph]);
+    }
+  };
+  // Unreplaced placeholders keep their own slot first so a shorter replacement (e.g. "工具") never slices inside "~~项目管理工具".
+  for (const ph of placeholders) if (!replacements[ph]) add(ph, ph);
+  for (const [ph, own] of Object.entries(replacements)) if (own) add(own, ph);
+  if (!tokenToPlaceholders.size) return [{ text }];
+  const pattern = new RegExp([...tokenToPlaceholders.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp).join("|"), "gu");
+  const seen = new Map<string, number>();
+  const out: PlaceholderSegment[] = [];
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index!;
+    if (index > last) out.push({ text: text.slice(last, index) });
+    const found = match[0];
+    const candidates = tokenToPlaceholders.get(found)!;
+    const occurrence = seen.get(found) ?? 0;
+    seen.set(found, occurrence + 1);
+    out.push({ text: found, placeholder: candidates[Math.min(occurrence, candidates.length - 1)]! });
+    last = index + found.length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+function projectEdit(segments: readonly PlaceholderSegment[], next: string): PlaceholderSegment[] {
+  const prev = renderedOf(segments);
+  if (next === prev) return segments.map(seg => ({ ...seg }));
+  const minLen = Math.min(prev.length, next.length);
+  let prefix = 0;
+  while (prefix < minLen && prev.charCodeAt(prefix) === next.charCodeAt(prefix)) prefix++;
+  let suffix = 0;
+  while (suffix < minLen - prefix && prev.charCodeAt(prev.length - 1 - suffix) === next.charCodeAt(next.length - 1 - suffix)) suffix++;
+  let delStart = prefix;
+  let delEnd = prev.length - suffix;
+  let inserted = next.slice(prefix, next.length - suffix);
+  // Shift a pure insertion/deletion that landed inside a placeholder span due to greedy prefix matching back to its boundary when valid.
+  if (delStart === delEnd || inserted.length === 0) {
+    let pos = 0;
+    for (const seg of segments) {
+      const start = pos, end = pos + seg.text.length;
+      pos = end;
+      if (!seg.placeholder) continue;
+      if (delStart === delEnd && start < delStart && delStart < end) {
+        if (next.slice(start + inserted.length, end + inserted.length) === seg.text) {
+          delStart = start;
+          delEnd = start;
+          inserted = next.slice(start, start + inserted.length);
+          break;
+        }
+      } else if (inserted.length === 0 && start <= delStart && delStart < end && delEnd <= end) {
+        const removed = delEnd - delStart;
+        if (start >= removed && prev.slice(0, start - removed) + prev.slice(start) === next) {
+          delStart = start - removed;
+          delEnd = start;
+          break;
+        }
+      }
+    }
+  }
+  const out: PlaceholderSegment[] = [];
+  let pos = 0;
+  let emitted = false;
+  const emitInserted = () => {
+    if (emitted) return;
+    emitted = true;
+    if (inserted) out.push({ text: inserted });
+  };
+  for (const seg of segments) {
+    const start = pos, end = pos + seg.text.length;
+    pos = end;
+    if (end <= delStart) {
+      out.push({ ...seg });
+      continue;
+    }
+    if (start >= delEnd) {
+      emitInserted();
+      out.push({ ...seg });
+      continue;
+    }
+    const left = seg.text.slice(0, Math.max(0, delStart - start));
+    const right = seg.text.slice(Math.min(seg.text.length, delEnd - start));
+    if (left) out.push({ text: left });
+    emitInserted();
+    if (right) out.push({ text: right });
+  }
+  emitInserted();
+  return compactSegments(out);
+}
+
+function reconstructFromOrigin(
+  origin: string | undefined,
+  current: string,
+  placeholders: readonly string[],
+  replacements: Readonly<Record<string, string>>,
+): PlaceholderSegment[] {
+  if (!current) return [];
+  if (!origin) return reconstructInverse(current, placeholders, replacements);
+  const origSegs = tokenizeTemplate(origin, placeholders, replacements);
+  if (!origSegs.some(seg => seg.placeholder)) return reconstructInverse(current, placeholders, replacements);
+  if (renderedOf(origSegs) === current) return origSegs;
+  const origLines = origin.split("\n").map(line => {
+    const segs = tokenizeTemplate(line, placeholders, replacements);
+    return { segs, rendered: renderedOf(segs), hasSlot: segs.some(seg => seg.placeholder) };
+  });
+  const curLines = current.split("\n");
+  const out: PlaceholderSegment[] = [];
+  let cursor = 0;
+  for (let i = 0; i < curLines.length; i++) {
+    if (i > 0) out.push({ text: "\n" });
+    const line = curLines[i]!;
+    let matched: PlaceholderSegment[] | undefined;
+    for (let j = cursor; j < origLines.length; j++) {
+      if (origLines[j]!.rendered === line) {
+        matched = origLines[j]!.segs.map(seg => ({ ...seg }));
+        cursor = j + 1;
+        break;
+      }
+    }
+    if (!matched) {
+      for (let j = cursor; j < origLines.length; j++) {
+        if (!origLines[j]!.hasSlot) continue;
+        const projected = projectEdit(origLines[j]!.segs, line);
+        if (projected.some(seg => seg.placeholder)) {
+          matched = projected;
+          cursor = j + 1;
+          break;
+        }
+      }
+    }
+    out.push(...(matched ?? reconstructInverse(line, placeholders, replacements)));
+  }
+  return compactSegments(out);
+}
+
+function renderSegments(segments: readonly PlaceholderSegment[], placeholders: readonly string[], replacements: Readonly<Record<string, string>>): PlaceholderSegment[] {
+  const out: PlaceholderSegment[] = [];
+  for (const seg of segments) {
+    if (seg.placeholder) {
+      out.push({ text: replacements[seg.placeholder] || seg.placeholder, placeholder: seg.placeholder });
+    } else {
+      out.push(...tokenizeTemplate(seg.text, placeholders, replacements));
+    }
+  }
+  return compactSegments(out);
+}
+
+/** Keeps tracked placeholder slots aligned when the person edits a wording field directly. */
+export function syncPlaceholderField(w: Workshop, key: WordingKey, nextValue: string): void {
+  const current = w.placeholderBase?.[key];
+  if (current) {
+    w.placeholderBase![key] = projectEdit(current, nextValue);
+    return;
+  }
+  if (Object.keys(w.replacements).length) {
+    const base = w.placeholderBase ??= {};
+    const initial = reconstructFromOrigin(w.draft.base?.fields[key], w.fields[key], placeholdersOf(w), w.replacements);
+    base[key] = projectEdit(initial, nextValue);
+  }
+}
+
+/** Every replaced placeholder written out in the fields: renders from tracked placeholder segments so keystroke-by-keystroke typing, duplicate values, and literal collisions never drop slots or rewrite unrelated text. */
 export function applyReplacements(w: Workshop, placeholder: string, value: string): void {
   const base = w.placeholderBase ??= {};
   const allPlaceholders = placeholdersOf(w);
-  const missingKeys = WORDING_KEYS.filter(key => base[key] === undefined);
-  if (missingKeys.length) {
-    // Include existing placeholders as identity entries so longest-match-first preserves
-    // unreplaced placeholders when another placeholder's replacement is a substring of them.
-    const inverse: Array<readonly [string, string]> = [
-      ...allPlaceholders.map(ph => [ph, ph] as const),
-      ...Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [own, ph] as const),
-    ];
-    for (const key of missingKeys) {
-      base[key] = replaceAll(w.fields[key], inverse);
+  for (const key of WORDING_KEYS) {
+    if (!base[key]) {
+      base[key] = reconstructFromOrigin(w.draft.base?.fields[key], w.fields[key], allPlaceholders, w.replacements);
+    } else if (renderedOf(base[key]!) !== w.fields[key]) {
+      base[key] = projectEdit(base[key]!, w.fields[key]);
     }
   }
   const trimmed = value.trim();
   if (trimmed) w.replacements[placeholder] = trimmed;
   else delete w.replacements[placeholder];
-  const forward: Array<readonly [string, string]> = [
-    ...Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [ph, own] as const),
-    ...allPlaceholders.filter(ph => !w.replacements[ph]).map(ph => [ph, ph] as const),
-  ];
+  const nextPlaceholders = placeholdersOf(w);
   for (const key of WORDING_KEYS) {
-    w.fields[key] = replaceAll(base[key]!, forward);
+    const rendered = renderSegments(base[key]!, nextPlaceholders, w.replacements);
+    base[key] = rendered;
+    w.fields[key] = renderedOf(rendered);
   }
 }
 

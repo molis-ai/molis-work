@@ -18,6 +18,8 @@ export interface GoalInputBindingsApi {
   register(input: GoalInputBindingRecord): void;
   /** Ends a binding; the receipt stays in history as `inactive`. Returns false when it was already inactive. */
   deactivate?(projectId: string, bindingId: string): boolean;
+  /** Atomically adopts a new digest, or deactivates with a null next digest, while the reviewed digest is current. */
+  acknowledgeSourceChange?(projectId: string, bindingId: string, expectedOldDigest: string, nextDigest: string | null, reason: string): boolean;
   /** The person accepts an input that was only proposed: `proposed` becomes `confirmed`. Returns false when the binding is not `proposed`. */
   accept?(projectId: string, bindingId: string): boolean;
 }

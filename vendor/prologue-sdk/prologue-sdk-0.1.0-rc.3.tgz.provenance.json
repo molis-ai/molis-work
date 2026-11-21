@@ -1,0 +1,37 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.1.0-rc.3",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "65c1722b14f9c0b18599d2614ddf48e654ae3af0",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "note": "Official main commit 65c1722b (Prologue PR #141 on top of PR #140 ae163997): policy monotonicity at EffectChain.prepare (strict monotonic restrict merge respecting posture.approval === 'never', unforgeable WeakSet handoff only for explicit outer owner-gated tool ask on default-deny path/command), destructive command guard hardening (Windows drive-root deletion plus dd and shutdown), NodeHost public storage Proxy allow-list narrowing (has/get restricted to PUBLIC_STORAGE_METHODS, blocking internal fields/methods), and 0.1.0-rc.3 release bump. No vendor patch."
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.1.0-rc.3.tgz",
+    "bytes": 1497231,
+    "sha256": "211d8b032acafa52b8a05f8a227d5283680c3117842d1afcce5b4e42fab5d651",
+    "integrity": "sha512-YdWhJyn87+Kf8Yd77TH8UrVEt13ceiX4VACRGAs+WtpM4flc2m2r+glT37hXNEhZF94SztsOKgCnm/2pXvSjLg=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "Extract two independent clean archives from official main commit 65c1722b14f9c0b18599d2614ddf48e654ae3af0 (Prologue PR #141) via git archive.",
+      "Run pnpm install --frozen-lockfile --offline --ignore-scripts, pnpm build, and pnpm -C packages/sdk pack in both clean archives using Node 24.14.0 and pnpm 11.9.0.",
+      "Confirm both produced prologue-sdk-0.1.0-rc.3.tgz tarballs are byte-identical via cmp -s and record exact bytes, SHA-256, and SHA-512 integrity."
+    ],
+    "packedOn": "2026-11-21",
+    "note": "Official 0.1.0-rc.3 package incorporating Prologue PR #141 policy monotonicity, destructive command guard, and NodeHost storage proxy hardening."
+  }
+}

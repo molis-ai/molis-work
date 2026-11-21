@@ -69,6 +69,25 @@ function templateWords(p: PagesUiPrimitives, item: { id: string; title: string; 
   }
 }
 
+function renderVersionDiffDialog(): string {
+  return `<dialog class="mw-dialog mw-dialog--form pages-version-diff" data-pages-version-diff aria-labelledby="pages-version-diff-title">
+      <form class="mw-form" method="dialog">
+        <header class="mw-form__header"><h2 id="pages-version-diff-title">${uiText("pages.version.compare")}</h2></header>
+        <div class="mw-form__body">
+          <div class="pages-version-pickers">
+            <label>${uiText("pages.version.before")} <select class="mw-select" data-pages-version-before></select></label>
+            <label>${uiText("pages.version.after")} <select class="mw-select" data-pages-version-after></select></label>
+          </div>
+          <p data-pages-version-status role="status"></p>
+          <div data-pages-version-result></div>
+        </div>
+        <footer class="mw-form__footer">
+          <button class="mw-btn mw-btn--ghost" type="submit">${uiText("pages.version.close")}</button>
+        </footer>
+      </form>
+    </dialog>`;
+}
+
 export function renderPagesWorkbench(model: PagesUiModel): string {
   const { primitives: p } = model;
   const templates = PAGES_TEMPLATES.map((item) => {
@@ -122,6 +141,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <div class="pages-editor-tools">
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-comments-open aria-label="${uiText("pages.comments.label")}" title="${uiText("pages.comments.label")}">${icon("message")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${uiText("pages.version.save-hint")}">${uiText("pages.version.save")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-compare-versions hidden aria-label="${uiText("pages.version.compare")}" title="${uiText("pages.version.compare")}">${icon("git-compare")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${uiText("pages.star.add")}" title="${uiText("pages.star.add")}">${icon("star")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${uiText("pages.action.more")}" title="${uiText("pages.action.more")}">${icon("more")}</button>
           <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
@@ -146,6 +166,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </div>
       <p class="pages-note" data-pages-note hidden></p>
     </div>
+    ${renderVersionDiffDialog()}
     <dialog class="mw-dialog mw-dialog--form creative-confirm" data-pages-confirm>
       <form class="mw-form" method="dialog">
         <div class="mw-form__body"><p data-confirm-text></p><div class="mw-field__error" role="alert" hidden></div></div>

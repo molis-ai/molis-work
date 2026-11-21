@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { syncBuiltinESMExports } from "node:module";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { HOST_BUILD_TRUST } from "@molis-ai/molis-work-plugin-runtime";
-import { ModelProviderStore, createModelProviderTables, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
+import { ModelProviderStore, initializeCatalog, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
 import { JELLY_MODEL_CONFIGURATION, type JellyModelSettings } from "@molis-ai/molis-work-plugin-jelly";
 const configuration = (home: string) => createConsumerModelConfiguration(home, JELLY_MODEL_CONFIGURATION);
@@ -42,7 +43,14 @@ function homeFor(t: test.TestContext, catalog = true): string {
   const prior = modelEnvironments.get(t) ?? { ...process.env }; modelEnvironments.set(t, prior); process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT", "MINIMAX_API_KEY"]) delete process.env[key];
   t.after(() => { process.env = prior; resetSecretStoreCache(); rmSync(home, { recursive: true, force: true }); });
-  if (catalog) { mkdirSync(join(home, "projects")); const db = new LocalSqliteStorage(join(home, "projects", "catalog.db")); const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(db.db); db.close(); }
+  if (catalog) {
+    mkdirSync(join(home, "projects"));
+    const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
+    try {
+      createContextLedger(db.db, { initializeSchema: true, authorize: () => false });
+      initializeCatalog(db);
+    } finally { db.close(); }
+  }
   return home;
 }
 function providerStore(home: string, action: (store: ModelProviderStore, storage: LocalSqliteStorage) => void): void {

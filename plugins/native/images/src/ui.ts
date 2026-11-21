@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderChoice, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderChoice, renderPluginStageShell, renderPreActionFacts } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export interface ImagesUiModel {
@@ -41,6 +41,7 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${icon("refresh")}<span>${uiText("images.history.refresh")}</span></button>
         </header>
         <div class="mw-empty" data-images-history-empty><span class="mw-empty__mark">${icon("image")}</span><strong>${uiText("images.history.empty")}</strong><p>${uiText("images.history.empty-help")}</p><p data-placement-target></p></div>
+        <div class="images-connection-empty" data-images-directory-connection-empty hidden><p>${uiText("images.service.connect-help")}</p><button class="mw-btn mw-btn--primary" type="button" data-images-connections>${uiText("images.service.connect")}</button></div>
         <div data-images-rows></div>
         <p class="images-note" role="status" data-images-list-note hidden></p>
       </div>
@@ -70,7 +71,12 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
               <label class="images-field" data-images-ratio-field hidden><span>${uiText("images.compose.ratio")}</span><input class="mw-input" data-images-ratio list="images-ratio-options" autocomplete="off" placeholder="${uiText("images.compose.ratio-placeholder")}"><small data-images-ratio-help></small></label>
               <datalist id="images-size-options" data-images-size-options></datalist><datalist id="images-ratio-options" data-images-ratio-options></datalist>
             </div>
-            <div class="images-submit-row"><p>${uiText("images.compose.cost")}</p><button class="mw-btn mw-btn--primary" type="submit" data-images-generate disabled>${uiText("images.compose.generate")}</button></div>
+            ${renderPreActionFacts({
+              heading: uiText.text("images.compose.before-action"),
+              attrs: { "data-images-submit-facts": true, hidden: true },
+              rows: [{ tone: "warn", icon: "sparkles", text: uiText.text("images.compose.cost") }],
+            })}
+            <div class="images-submit-row"><button class="mw-btn mw-btn--primary" type="submit" data-images-generate disabled>${uiText("images.compose.generate")}</button></div>
             <div class="images-connection-need" data-images-connection-need hidden></div>
             <p class="images-note" data-images-project-note hidden>${uiText("images.compose.project")}</p>
           </form>

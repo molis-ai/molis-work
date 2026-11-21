@@ -71,6 +71,7 @@
 |  | [逐项交付与证据关联合同](reference/batches/24.md#batch-24-item-3) |
 | [25](reference/batches/25.md) | [常驻、休眠与单 Home 执行恢复](reference/batches/25.md#batch-25-item-1) |
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |
+|  | [回到上一版（U6 的回退，从 26-6 提前）](reference/batches/25.md#batch-25-item-3) |
 | [26](reference/batches/26.md) | [插件升级 U4](reference/batches/26.md#batch-26-item-5) |
 |  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
 |  | [状态词汇门禁与文档](reference/batches/26.md#batch-26-item-8)（原 27-6）；[47](reference/batches/47.md)消费 26-5、26-7、26-8 |
@@ -108,8 +109,8 @@
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
 |  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
-| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1) |
-|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
+| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，PFG-19、PF-A12～15；本人验收 [BL-b40-governance-help-acceptance](../backlog/BL-b40-governance-help-acceptance.md)） |
+|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，VUX-51～56／58～59、ONB-47～48 入口与事实；VUX-57 准备返回接续归 45-1） |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
 |  | [在设置里写自己的技能](reference/batches/41.md#batch-41-item-3) |
@@ -261,10 +262,10 @@
 | [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
 | [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，#2186 已合入，[决定 58](reference/decisions.md#decision-58)） |
 |  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
-| [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，前置 100-2，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2) |
+| [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，#2189 已合入，[决定 58](reference/decisions.md#decision-58)） |
+|  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2)（#2189 已合入） |
 | [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2) |
+|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2)（#2196 已合入） |
 | [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2) |
 | [104](reference/batches/104.md) | [15+ 插件非 Agent 单次 AI 调用纳管](reference/batches/104.md#batch-104-item-1)（2026-11-20 加，前置 91、101-1，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |

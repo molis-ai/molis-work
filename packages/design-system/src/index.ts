@@ -98,5 +98,7 @@ export { PRESENTATION_FORM_STYLES, presentationOwnerHue } from "./styles/present
 export type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay, SurfaceHomeText } from "./surface-home-display.js";
 export { BUTTON_STYLES } from "./styles/buttons.js";
 export { TOAST_STYLES } from "./styles/toast.js";
+export { ON_DEMAND_HELP_STYLES } from "./styles/on-demand-help.js";
+export { ON_DEMAND_HELP_CLIENT_SCRIPT } from "./page-clients.js";
 
 export { SUBTASK_CONVERSATION_STYLES } from "./styles/subtask-conversation.js";

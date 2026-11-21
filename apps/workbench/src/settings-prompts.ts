@@ -83,33 +83,121 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   };
   const editor = (prompt) => {
     const box = el("div", "prompt-editor");
-    const area = el("textarea", "mw-textarea prompt-editor-text"); area.value = prompt.body; area.rows = Math.min(24, Math.max(8, prompt.body.split("\n").length + 1));
-    area.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.edit-prompt-title", { title: display("prompts", prompt, "title") })); area.maxLength = 20000;
-    area.dataset.agentDisplayField = "title"; area.dataset.agentDisplayAttribute = "edit-label";
+    const label = el("label", "mw-field");
+    label.append(el("span", "mw-field__label", globalThis.t.text("workbench.settings-prompts.guidance-label")));
+    const area = el("textarea", "mw-textarea prompt-editor-text");
+    area.value = prompt.body;
+    area.rows = Math.min(20, Math.max(6, prompt.body.split("\n").length + 1));
+    area.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.edit-prompt-title", { title: display("prompts", prompt, "title") }));
+    area.maxLength = 20000;
+    area.dataset.agentDisplayField = "title";
+    area.dataset.agentDisplayAttribute = "edit-label";
+    area.dataset.promptSimplified = "true";
+    label.append(area);
+    const lockSlot = el("div", "prompt-editor-lock-slot");
     const count = el("span", "settings-muted prompt-editor-count");
     const syncCount = () => { count.textContent = area.value.length + " / 20000"; };
-    area.addEventListener("input", syncCount); syncCount();
+    let dirty = false;
+    area.addEventListener("input", () => { dirty = true; syncCount(); });
+    syncCount();
+    let editorInfo = null;
+    let cachedDetail = null;
     const actions = el("div", "prompt-editor-actions");
-    const save = el("button", "mw-btn mw-btn--primary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.save-my-version")); save.type = "button";
-    const cancel = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("common.control.cancel")); cancel.type = "button";
-    const reset = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-prompts.restore-default")); reset.type = "button"; reset.hidden = prompt.effective !== "user";
-    const error = el("p", "settings-form-error"); error.setAttribute("role", "alert"); error.hidden = true;
+    const save = el("button", "mw-btn mw-btn--primary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.save-my-version"));
+    save.type = "button";
+    const cancel = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("common.control.cancel"));
+    cancel.type = "button";
+    const reset = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-prompts.restore-default"));
+    reset.type = "button";
+    reset.hidden = prompt.effective !== "user";
+    const error = el("p", "settings-form-error");
+    error.setAttribute("role", "alert");
+    error.hidden = true;
     const run = async (button, work) => {
-      button.disabled = true; error.hidden = true;
-      try { const result = await work(); const index = prompts.findIndex((row) => row.key === result.prompt.key); if (index >= 0) prompts[index] = result.prompt; open = result.prompt.key; paint(); toast(globalThis.t.text("workbench.settings-prompts.saved-takes-effect-next-turn")); }
-      catch (failure) { molisWorkRequest.show(error, failure); error.hidden = false; }
-      finally { button.disabled = false; }
+      button.disabled = true;
+      error.hidden = true;
+      try {
+        const result = await work();
+        const index = prompts.findIndex((row) => row.key === result.prompt.key);
+        if (index >= 0) prompts[index] = result.prompt;
+        open = result.prompt.key;
+        paint();
+        toast(globalThis.t.text("workbench.settings-prompts.saved-takes-effect-next-turn"));
+      } catch (failure) {
+        molisWorkRequest.show(error, failure);
+        error.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
     };
     save.addEventListener("click", () => {
-      if (!area.value.trim()) { error.textContent = globalThis.t.text("workbench.settings-prompts.prompt-cannot-be-empty-use-restore-default-go"); error.hidden = false; return; }
-      run(save, () => api("/prompt?key=" + encodeURIComponent(prompt.key), { body: area.value, expected_revision: prompt.user ? prompt.user.revision : null }));
+      if (!area.value.trim()) {
+        error.textContent = globalThis.t.text("workbench.settings-prompts.prompt-cannot-be-empty-use-restore-default-go");
+        error.hidden = false;
+        return;
+      }
+      const payload = editorInfo && editorInfo.locked_format
+        ? { mode: "simplified", guidance: area.value, expected_revision: prompt.user ? prompt.user.revision : null }
+        : { body: area.value, expected_revision: prompt.user ? prompt.user.revision : null };
+      run(save, () => api("/prompt?key=" + encodeURIComponent(prompt.key), payload));
     });
     reset.addEventListener("click", () => run(reset, () => api("/prompt/reset?key=" + encodeURIComponent(prompt.key), { expected_revision: prompt.user ? prompt.user.revision : null })));
     cancel.addEventListener("click", () => { open = null; paint(); });
     actions.append(save, cancel, reset, count);
-    box.append(area, actions, error);
-    // A call that reads a fixed format back (JSON) breaks if the edit asks for text around it: say so where it is edited.
-    if (/JSON|Schema|格式/.test(prompt.default_body)) box.insertBefore(el("p", "settings-muted prompt-editor-format", globalThis.t.text("workbench.settings-prompts.asks-model-fixed-format-that-program-reads-keep")), actions);
+    const advSlot = el("div", "prompt-editor-advanced-slot");
+    box.append(label, lockSlot, actions, error, advSlot);
+    void api("/prompt?key=" + encodeURIComponent(prompt.key)).then((detail) => {
+      if (!box.isConnected) return;
+      cachedDetail = detail;
+      if (!detail?.editor) return;
+      editorInfo = detail.editor;
+      if (!editorInfo.locked_format) return;
+      if (!dirty) {
+        area.value = editorInfo.editable;
+        area.rows = Math.min(14, Math.max(4, editorInfo.editable.split("\n").length + 1));
+        syncCount();
+      }
+      const lock = el("div", "mw-facts");
+      lock.dataset.promptLockedFormat = "true";
+      lock.append(el("h4", "mw-facts__heading", globalThis.t.text("workbench.settings-prompts.locked-format-title")));
+      const row = el("div", "mw-fact-row " + (editorInfo.format_intact ? "mw-fact-row--ok" : "mw-fact-row--warn"));
+      const bodySpan = el("span", "mw-fact-row__body", globalThis.t.text(editorInfo.format_intact ? "workbench.settings-prompts.locked-format-intact" : "workbench.settings-prompts.locked-format-broken"));
+      if (editorInfo.required_keys?.length) {
+        bodySpan.append(el("small", "mw-fact-row__detail", globalThis.t.text("workbench.settings-prompts.locked-format-keys", { keys: editorInfo.required_keys.join(globalThis.t.text("common.list.separator")) })));
+      }
+      row.append(bodySpan);
+      lock.append(row);
+      lockSlot.replaceChildren(lock);
+      const adv = el("details", "mw-collapsible");
+      adv.dataset.slot = "collapsible";
+      adv.dataset.promptAdvanced = "true";
+      if (!editorInfo.format_intact) adv.open = true;
+      adv.append(el("summary", "", globalThis.t.text("workbench.settings-prompts.advanced-full-edit")));
+      const advBody = el("div", "mw-collapsible__body");
+      const fullArea = el("textarea", "mw-textarea");
+      fullArea.rows = Math.min(20, Math.max(6, prompt.body.split("\n").length + 1));
+      fullArea.maxLength = 20000;
+      fullArea.value = prompt.body;
+      fullArea.dataset.promptFullText = "true";
+      fullArea.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.advanced-full-edit"));
+      const saveFull = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.save-full-text"));
+      saveFull.type = "button";
+      saveFull.addEventListener("click", () => {
+        if (!fullArea.value.trim()) {
+          error.textContent = globalThis.t.text("workbench.settings-prompts.prompt-cannot-be-empty-use-restore-default-go");
+          error.hidden = false;
+          return;
+        }
+        run(saveFull, () => api("/prompt?key=" + encodeURIComponent(prompt.key), { mode: "full", body: fullArea.value, validate_format: true, expected_revision: prompt.user ? prompt.user.revision : null }));
+      });
+      advBody.append(fullArea, saveFull);
+      adv.append(advBody);
+      advSlot.replaceChildren(adv);
+    }).catch((failure) => {
+      if (!box.isConnected) return;
+      molisWorkRequest.show(error, failure);
+      error.hidden = false;
+    });
     if (prompt.effective === "user") {
       // The shipped text stays readable beside the person's, so a newer default can be compared and taken over by hand.
       const shipped = el("details", "prompt-default");
@@ -124,7 +212,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       if (!history.open || history.dataset.loaded) return;
       history.dataset.loaded = "1";
       try {
-        const data = await api("/prompt?key=" + encodeURIComponent(prompt.key));
+        const data = cachedDetail ?? await api("/prompt?key=" + encodeURIComponent(prompt.key));
         const list = el("ul", "prompt-history-list");
         if (!data.history.length) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-prompts.not-edited-yet")));
         data.history.forEach((row) => list.append(el("li", "", "#" + row.revision + " · " + (row.action === "reset" ? globalThis.t.text("workbench.settings-prompts.restore-default") : globalThis.t.text("common.control.save")) + " · " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: row.at, style: "datetime-with-seconds" } }) + (row.default_ref ? " · " + signedVersion(row.default_ref) : ""))));

@@ -111,11 +111,13 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
     assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-expanded')"), 'false');
     assert.equal(await evaluate("!!document.querySelector('[data-personal-menu] [data-capabilities-open]') && !!document.querySelector('[data-personal-menu] [data-directory-open=settings]')"), true);
   }
-  // Outside the project menu, Escape still returns to the account button itself.
+  // The arrival menu puts account management first. Sign-in remains reachable by Tab.
   await navigate(() => command('Page.navigate', { url: origin + '/' }, sessionId));
   await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-account-link]').checkVisibility()");
   await evaluate("document.querySelector('[data-account-link]').focus()");
   await press('Enter');
+  await waitFor("document.activeElement === document.querySelector('#mw-account-menu [data-unified-account-link]') && !document.querySelector('[data-personal-action=login]').disabled");
+  await press('Tab');
   await waitFor("document.activeElement?.dataset.personalAction === 'login'");
   await press('Escape');
   assert.equal(await evaluate("document.querySelector('#mw-account-menu').hidden && document.activeElement === document.querySelector('[data-account-link]')"), true);

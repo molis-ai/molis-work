@@ -13,6 +13,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "active_work",
       "desktop_tui",
       "process_id",
       "project_count",

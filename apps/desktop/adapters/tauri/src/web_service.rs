@@ -90,9 +90,25 @@ fn wait_for_owned_web(
     service_state: &WebServiceState,
     upgrade: Upgrade,
 ) -> Result<Started, String> {
+    let home = molis_work_home();
     let waited = wait_for_web(
         upgrade,
-        || crate::web_identity::answer().ok(),
+        || {
+            if let Ok(answer) = crate::web_identity::answer() {
+                return Some(answer);
+            }
+            // If the spawned Host hit EADDRINUSE on 4173 and fell back to a spare port in 4174–4199,
+            // adopt its `run/endpoint.json` port once it proves itself with this Home's control key.
+            if let Some(port) = crate::host_port::endpoint_port(&home) {
+                if port != crate::host_port::port() {
+                    if let Ok(answer) = crate::web_identity::answer_at(port) {
+                        crate::host_port::set_port(port);
+                        return Some(answer);
+                    }
+                }
+            }
+            None
+        },
         Instant::now,
         || thread::sleep(PROBE_INTERVAL),
         || service_state.shutting_down.load(Ordering::Acquire),
@@ -390,7 +406,21 @@ pub(crate) fn desktop_owns_web_service(state: &WebServiceState) -> bool {
         .unwrap_or(false)
 }
 
+/// True when the desktop-owned web child process is still running (has not exited yet).
+pub(crate) fn owned_web_service_alive(state: &WebServiceState) -> bool {
+    state
+        .owned_child
+        .lock()
+        .ok()
+        .and_then(|mut slot| {
+            slot.as_mut()
+                .map(|child| child.try_wait().ok().flatten().is_none())
+        })
+        .unwrap_or(false)
+}
+
 pub(crate) fn stop_owned_web_service(state: &WebServiceState) -> bool {
+    crate::web_identity::invalidate_health_lease();
     let child = state
         .owned_child
         .lock()
@@ -489,6 +519,7 @@ pub(crate) fn start_molis_work_web(
     if upgraded_runtime {
         if packaged_test_home().is_none() {
             let _ = sync_managed_web_service_after_upgrade(&home);
+            adopt_endpoint_port(&home);
         }
         bin = web_launcher(&home);
     }

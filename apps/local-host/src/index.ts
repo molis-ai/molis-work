@@ -59,7 +59,8 @@ export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerpr
 export { pluginTablesDescriptor, projectDatabases, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { bindStandaloneReviewActions, catalogManagementProject, reviewOnly, upgradeOlderCatalog } from "./management-action-client.js";
-export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export { createHomeSnapshot, createOnlineHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export { HOME_MAINTENANCE_PATH, requestResidentHomeSnapshot } from "./home-maintenance-gateway.js";
 export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
@@ -464,7 +465,7 @@ export { exportPluginData, pluginDataActionProvider, type PluginDataExportPorts 
 export { runtimeOverview, decideRuntimeRun, runtimeExpiredSeenRequest, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
 export { expiredOwnerKey, expiredSeen, markExpiredSeen, type ExpiredSeen } from "./runs-expired-seen.js";
 export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
-export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
+export { attachHostPresence, DEFAULT_HOST_PORT, homeHostUrl, HOST_CANDIDATE_PORTS, isLoopbackPortAvailable, readHostEndpoint, removeHostEndpoint, selectAvailableHostPort, SPARE_HOST_PORT_MAX, SPARE_HOST_PORT_MIN, writeHostEndpoint } from "./host-endpoint.js";
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";

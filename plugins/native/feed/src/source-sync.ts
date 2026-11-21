@@ -1,3 +1,4 @@
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SOURCE_PULL_EVIDENCE_KEY_MISSING, type SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { feedErrors } from "./contract/feed.js";
@@ -169,8 +170,8 @@ export class PublicSourceSync {
             source: latest,
             externalId,
             title: material.title,
-            summary: material.preview.replace(/\s+/gu, " ").trim().slice(0, 320),
-            body: material.preview.slice(0, 1_600),
+            summary: cutHead(material.preview.replace(/\s+/gu, " ").trim(), 320),
+            body: cutHead(material.preview, 1_600),
             url: material.canonical_url,
             kind: "update",
             priority: "medium",

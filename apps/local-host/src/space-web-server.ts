@@ -18,6 +18,7 @@ import { authorizeLocalWebRequest, refuseForeignRequest, refuseLocalWebRequest, 
 import type { WebServerOptions } from './web-types.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
 import { MCP_CONTEXT_PATH } from './mcp-context-envelope.js';
+import { handleHomeMaintenanceHttp, HOME_MAINTENANCE_PATH } from './home-maintenance-gateway.js';
 import { MANAGEMENT_ACTION_PATH } from './management-action-client.js';
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId } from './action-gateway.js';
 import { createPersonalSync } from './personal-sync.js';
@@ -94,6 +95,7 @@ export interface SpaceWebSurface extends http.Server {
   readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
   matchesNativeAccountCallback?(url:URL,origin?:string):boolean;
+  activeWorkCount?():number;
 }
 
 /** A system browser has no WebView cookie. Only a pending native attempt on the live Home can complete here. */
@@ -378,11 +380,12 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
         // personal Host can be reached with its exact Home id and private token.
         const gatewayHome=request.headers['x-molis-work-home-id'];
-        const internal=[ACTION_GATEWAY_PATH,MCP_CONTEXT_PATH,MANAGEMENT_ACTION_PATH,'/api/settings/demo'].includes(url.pathname);
+        const internal=[ACTION_GATEWAY_PATH,HOME_MAINTENANCE_PATH,MCP_CONTEXT_PATH,MANAGEMENT_ACTION_PATH,'/api/settings/demo'].includes(url.pathname);
         if(url.pathname==='/health'){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome&&isAccountReady(item.space.spaceId));
           const scoped=gatewayHome&&gatewayHome!==actionGatewayHomeId(home);
-          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
+          const activeWork=[...surfaces.values()].reduce((sum,item)=>sum+(item.server.activeWorkCount?.()??0),0);
+          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,active_work:activeWork,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
         }
         if(url.pathname===ACCOUNT_CONNECT_PATH){
           if(!native(request)){refuseLocalWebRequest(response);return;}
@@ -398,6 +401,11 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           sendLocalWebJson(response,200,{homeDirectory:entry.home,controlToken:entry.token});return;
         }
         if(internal&&account.preparing()){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
+        if (url.pathname === HOME_MAINTENANCE_PATH && (!gatewayHome || gatewayHome === actionGatewayHomeId(home))) {
+          if (!authorizeLocalWebRequest(request, response, url, rootToken, mutations)) return;
+          await handleHomeMaintenanceHttp(request, response, url, home, null);
+          return;
+        }
         if (internal && gatewayHome && gatewayHome !== actionGatewayHomeId(home)) {
           const entry = [...surfaces.values()].find(item => actionGatewayHomeId(item.home) === gatewayHome);
           const active = () => !!entry && [...entry.users.values()].some(valid => valid());

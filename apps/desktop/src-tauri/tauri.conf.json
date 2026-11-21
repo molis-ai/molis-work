@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'none'; style-src 'self'; script-src 'none'; img-src 'self'; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     }
   },
   "bundle": {

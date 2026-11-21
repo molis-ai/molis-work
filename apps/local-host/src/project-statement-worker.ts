@@ -7,13 +7,42 @@ let engine: Worker | undefined;
 let pending: StatementRequest | undefined;
 let requestTimer: NodeJS.Timeout | undefined;
 let transaction: { id: number; deadline: number; timer: NodeJS.Timeout } | undefined;
+let sampling: NodeJS.Timeout | undefined;
+let activeLimits: StatementMemoryLimits | undefined;
 let ending = false;
 let reviewPrepared = false;
 let commit: { view: Int32Array; prepared: boolean; sent: boolean } | undefined;
 
+function stopSampling(): void {
+  if (!sampling) return;
+  clearInterval(sampling);
+  sampling = undefined;
+}
+
+function checkMemory(): void {
+  if (ending || !activeLimits || (!pending && !transaction)) return;
+  // rss() includes all isolates and native allocations in this process, unlike the Worker's V8 heap limit.
+  if (process.memoryUsage.rss() > activeLimits.rssMb * 1024 * 1024) {
+    end({ fatal: "memory", message: `项目库的语句用掉的内存超过 ${activeLimits.rssMb} MB，已终止` });
+  }
+}
+
+/** S-59: sample total process RSS at `sampleMs` only while a statement or transaction is active (zero idle wakeups). */
+function syncSampling(): void {
+  if (ending || !activeLimits || (!pending && !transaction)) {
+    stopSampling();
+    return;
+  }
+  if (!sampling) {
+    sampling = setInterval(checkMemory, activeLimits.sampleMs);
+    sampling.unref();
+  }
+}
+
 function end(fatal: StatementFatal): void {
   if (ending) return;
   ending = true;
+  stopSampling();
   const kill = () => { process.kill(process.pid, "SIGKILL"); };
   // Delivery is diagnostic, never a prerequisite for releasing the lock when the Host is blocked or gone.
   setTimeout(kill, 20);
@@ -29,6 +58,7 @@ function clearTransaction(): void {
 }
 
 function startEngine(limits: StatementMemoryLimits, upgrade: boolean): Worker {
+  activeLimits = limits;
   const worker = new Worker(new URL("./project-statement-sql-worker.js", import.meta.url), {
     resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
     workerData: { upgrade },
@@ -56,17 +86,11 @@ function startEngine(limits: StatementMemoryLimits, upgrade: boolean): Worker {
     commit = undefined;
     if ((request.op === "begin" && !reply.ok) || ((request.op === "commit" || request.op === "rollback") && reply.ok)) clearTransaction();
     pending = undefined;
+    syncSampling();
     forward(reply);
   });
   worker.on("error", error => end({ fatal: "process", message: `项目库 SQL Worker 出错：${error.message.slice(0, 1024)}` }));
   worker.on("exit", code => end({ fatal: "process", message: `项目库 SQL Worker 意外退出（${code}）` }));
-  const sampling = setInterval(() => {
-    // rss() includes all isolates and native allocations in this process, unlike the Worker's V8 heap limit.
-    if ((pending || transaction) && process.memoryUsage.rss() > limits.rssMb * 1024 * 1024) {
-      end({ fatal: "memory", message: `项目库的语句用掉的内存超过 ${limits.rssMb} MB，已终止` });
-    }
-  }, limits.sampleMs);
-  sampling.unref();
   return worker;
 }
 
@@ -113,6 +137,9 @@ process.on("message", (request: StatementRequest | StatementUpgradeDecision | St
     transaction = { id, deadline, timer };
   }
   pending = request;
+  syncSampling();
+  checkMemory();
+  if (ending) return;
   if (preparation) {
     // Startup and DDL have distinct budgets. This thread remains runnable while SQLite blocks the SQL Worker or the Host.
     requestTimer = setTimeout(() => { if (pending?.id === request.id) timeout(); }, Math.max(0, request.startDeadline - Date.now()));

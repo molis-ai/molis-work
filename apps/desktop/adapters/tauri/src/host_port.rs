@@ -27,7 +27,10 @@ pub(crate) fn port() -> u16 {
 }
 
 pub(crate) fn set_port(port: u16) {
-    PORT.store(port, Ordering::Release);
+    let previous = PORT.swap(port, Ordering::AcqRel);
+    if previous != port {
+        crate::web_identity::invalidate_health_lease();
+    }
 }
 
 /// `127.0.0.1:<port>`, for a request's Host line.

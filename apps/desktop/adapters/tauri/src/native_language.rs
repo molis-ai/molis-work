@@ -27,10 +27,22 @@ struct TrayWords {
     syncing_tip: String,
     open: String,
     quit: String,
+    quit_confirm_title: String,
+    quit_confirm_body: String,
+    quit_confirm_active_body: String,
+    quit_confirm_upgrading_body: String,
+    quit_confirm_cancel: String,
     quit_keep_service: String,
     restore_appearance: String,
     stopped: String,
     stopped_tip: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum QuitPromptKind {
+    OwnedIdle,
+    OwnedActive(u32),
+    Upgrading,
 }
 
 /// The finite projection accepted from the current, trusted main document.
@@ -59,12 +71,17 @@ impl NativeLanguage {
                 &words.disconnected_tip,
                 &words.syncing_tip,
                 &words.stopped_tip,
+                &words.quit_confirm_body,
+                &words.quit_confirm_active_body,
+                &words.quit_confirm_upgrading_body,
             ]
             .iter()
             .all(|word| valid_word(word, 320))
             && [
                 &words.open,
                 &words.quit,
+                &words.quit_confirm_title,
+                &words.quit_confirm_cancel,
                 &words.quit_keep_service,
                 &words.restore_appearance,
             ]
@@ -103,6 +120,20 @@ impl NativeLanguage {
 
     pub(crate) fn restore_appearance_label(&self) -> &str {
         &self.words.restore_appearance
+    }
+
+    pub(crate) fn quit_confirmation(&self, kind: QuitPromptKind) -> (&str, &str, &str, &str) {
+        let body = match kind {
+            QuitPromptKind::OwnedIdle => &self.words.quit_confirm_body,
+            QuitPromptKind::OwnedActive(_) => &self.words.quit_confirm_active_body,
+            QuitPromptKind::Upgrading => &self.words.quit_confirm_upgrading_body,
+        };
+        (
+            &self.words.quit_confirm_title,
+            body,
+            &self.words.quit_confirm_cancel,
+            &self.words.quit,
+        )
     }
 }
 
@@ -162,7 +193,7 @@ pub(crate) fn builtin_language(tag: &str) -> Option<NativeLanguage> {
 pub(crate) fn bootstrap_view_values(failure: Option<&str>) -> serde_json::Value {
     serde_json::json!({
         "catalog": serde_json::from_str::<serde_json::Value>(BOOTSTRAP_VIEW).expect("compiled startup words"),
-        "tokens": BOOTSTRAP_TOKENS,
+        "token_rules": serde_json::from_str::<serde_json::Value>(BOOTSTRAP_TOKEN_RULES).expect("compiled startup token rules"),
         "failure": failure
     })
 }

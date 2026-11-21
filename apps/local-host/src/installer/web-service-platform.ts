@@ -1,15 +1,17 @@
 import { unboundConfirmation, type ConfirmationAuthority } from "./confirmation-authority.js";
 import { installerErrors } from "./errors.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
-import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { SERVICE_LABEL, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
+import { actionGatewayHomeId } from "../action-gateway.js";
+import { DEFAULT_HOST_PORT, readHostEndpoint, selectAvailableHostPort } from "../host-endpoint.js";
 import { resolveConfiguredHome } from "../product-home.js";
+import { WEB_CONTROL_TOKEN_RELATIVE_PATH, webHealthProof } from "../web-control-token.js";
 const execFileAsync = promisify(execFile);
 
 export class WebServiceEnvironment {
@@ -41,8 +43,8 @@ export class WebServiceEnvironment {
     this.stdoutLog = path.join(this.homeDirectory, "logs", "web-service.log");
     this.stderrLog = path.join(this.homeDirectory, "logs", "web-service.error.log");
     this.runCommand = options.runCommand ?? runCommand;
-    this.healthCheck = options.healthCheck ?? molisWorkWebHealthCheck;
-    this.upgradeCheck = options.upgradeCheck ?? (options.healthCheck ? async () => false : molisWorkWebUpgrading);
+    this.healthCheck = options.healthCheck ?? (expectedProcessId => molisWorkWebHealthCheck(this.homeDirectory, expectedProcessId));
+    this.upgradeCheck = options.upgradeCheck ?? (options.healthCheck ? async () => false : expectedProcessId => molisWorkWebUpgrading(this.homeDirectory, expectedProcessId));
     this.portCheck = options.portCheck ?? molisWorkWebPortCheck;
     this.transitionDelayMilliseconds = Math.max(0, options.transitionDelayMilliseconds ?? 250);
   }
@@ -127,19 +129,36 @@ async function runCommand(file: string, args: string[]): Promise<{ code: number;
   }
 }
 
-async function molisWorkWebHealthCheck(expectedProcessId?: number): Promise<boolean> {
+async function verifiedWebHealthBody(
+  homeDirectory: string,
+  expectedStatus: number,
+  expectedHealth: "ok" | "upgrading",
+  expectedProcessId?: number,
+): Promise<boolean> {
   try {
-    const response = await fetch("http://127.0.0.1:4173/health", {
-      headers: { accept: "application/json" },
+    const token = (await fs.readFile(path.join(homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim();
+    if (token.length < 32 || token.length > 512 || /[\r\n\0]/.test(token)) return false;
+    const port = readHostEndpoint(homeDirectory)?.port ?? DEFAULT_HOST_PORT;
+    const challenge = randomBytes(32).toString("base64url");
+    const response = await fetch(`http://127.0.0.1:${port}/health?challenge=${challenge}`, {
+      headers: { accept: "application/json", "x-molis-work-home-id": actionGatewayHomeId(homeDirectory) },
+      redirect: "error",
       signal: AbortSignal.timeout(1_000),
     });
-    if (!response.ok) return false;
-    const body = await response.json() as {
+    if (response.status !== expectedStatus) return false;
+    const proof = response.headers.get("x-molis-work-proof");
+    if (!proof || !/^[A-Za-z0-9_-]{43}$/.test(proof)) return false;
+    const raw = Buffer.from(await response.arrayBuffer());
+    if (raw.length > 4096) return false;
+    const expected = webHealthProof(token, challenge, raw);
+    const supplied = Buffer.from(proof, "base64url");
+    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
+    const body = JSON.parse(raw.toString("utf8")) as {
       status?: unknown;
       process_id?: unknown;
       service_process_id?: unknown;
     };
-    return body.status === "ok"
+    return body.status === expectedHealth
       && (expectedProcessId == null
         || (body.service_process_id ?? body.process_id) === expectedProcessId);
   } catch {
@@ -147,32 +166,18 @@ async function molisWorkWebHealthCheck(expectedProcessId?: number): Promise<bool
   }
 }
 
-/** The process is there and still upgrading its data, which is not it failing to come up (upgrade-chain-design §4.3). */
-async function molisWorkWebUpgrading(expectedProcessId?: number): Promise<boolean> {
-  try {
-    const response = await fetch("http://127.0.0.1:4173/health", { headers: { accept: "application/json" }, signal: AbortSignal.timeout(1_000) });
-    if (response.status !== 503) return false;
-    const body = await response.json() as { status?: unknown; process_id?: unknown; service_process_id?: unknown };
-    return body.status === "upgrading" && (expectedProcessId == null || (body.service_process_id ?? body.process_id) === expectedProcessId);
-  } catch { return false; }
+async function molisWorkWebHealthCheck(homeDirectory: string, expectedProcessId?: number): Promise<boolean> {
+  return verifiedWebHealthBody(homeDirectory, 200, "ok", expectedProcessId);
 }
 
+/** The process is there and still upgrading its data, which is not it failing to come up (upgrade-chain-design §4.3). */
+async function molisWorkWebUpgrading(homeDirectory: string, expectedProcessId?: number): Promise<boolean> {
+  return verifiedWebHealthBody(homeDirectory, 503, "upgrading", expectedProcessId);
+}
+
+/** Returns true (conflict) only when every candidate port in 4173–4199 is already occupied. */
 async function molisWorkWebPortCheck(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = createConnection({ host: "127.0.0.1", port: 4173 });
-    let settled = false;
-    const finish = (occupied: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(occupied);
-    };
-    socket.once("connect", () => finish(true));
-    socket.once("error", (error: NodeJS.ErrnoException) => {
-      finish(error.code !== "ECONNREFUSED");
-    });
-    socket.setTimeout(1_000, () => finish(true));
-  });
+  return (await selectAvailableHostPort()) === null;
 }
 
 export function commandError(action: string, result: { code: number; stderr: string }): ActionError {

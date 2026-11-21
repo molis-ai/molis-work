@@ -1,5 +1,5 @@
 import type {SyncAuthority} from './index.js';
-import type {syncTransportBackoff} from './transport-backoff.js';
+import {isTransportBackoff,type syncTransportBackoff} from './transport-backoff.js';
 import {syncQuotaError,syncResponseMessage} from './quota.js';
 import {syncError} from './sync-errors.js';
 
@@ -8,6 +8,7 @@ export function syncTransport(ports:{
   fetch():typeof fetch;
   abort():AbortSignal;
   cycleAbort?():AbortSignal|undefined;
+  onBackoff?():void;
   authority():SyncAuthority;
   assert():void;
   backoff:ReturnType<typeof syncTransportBackoff>;
@@ -17,7 +18,12 @@ export function syncTransport(ports:{
     const canSend=()=>{
       check();
       if(ports.cycleAbort?.()?.aborted)throw ports.backoff.currentError();
-      ports.backoff.assertReady();
+      try{
+        ports.backoff.assertReady();
+      }catch(error){
+        if(isTransportBackoff(error))ports.onBackoff?.();
+        throw error;
+      }
     };
     canSend();
     const authority=ports.authority();
@@ -38,10 +44,17 @@ export function syncTransport(ports:{
     }catch(error){
       check();
       if(cycleSignal?.aborted)throw ports.backoff.currentError();
-      throw ports.backoff.offline(error);
+      const backoffError=ports.backoff.offline(error);
+      ports.onBackoff?.();
+      throw backoffError;
     }
     check();
-    await ports.backoff.check(response,check);
+    try{
+      await ports.backoff.check(response,check);
+    }catch(error){
+      if(isTransportBackoff(error))ports.onBackoff?.();
+      throw error;
+    }
     return response;
   };
   const request=async<T=unknown>(route:string,body?:unknown,method=body===undefined?'GET':'POST',check=ports.assert):Promise<T>=>{

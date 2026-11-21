@@ -695,3 +695,72 @@ test("SSC-23 deleting the default output directory's files with the project wait
   assert.equal(deleted.deletion.cleanup_state, "complete");
   assert.equal(existsSync(dirname(draft)), false);
 });
+
+test("P2-6 finalizeExpiredPersonalProject replays committed deletion receipts by (actor_id, idempotency_key) to resume interrupted cleanup", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-expired-replay-"));
+  const home = join(directory, "personal");
+  scratchDirectories.push(directory);
+  ensureStorageSpace(home, personalStorageSpace("https://auth.example.test", "work", "alice"));
+  const { catalog, withCatalog } = await deletionCatalog(t, home);
+  const project = await catalog.createProject({ display_name: "待续跑清理项目", actor_id: "alice" });
+  const other = await catalog.createProject({ display_name: "另一个项目", actor_id: "alice" });
+  const ports: ProjectDeletionPorts = { isPanelAlive: () => false, isProjectBusy: () => false, async releaseProject() {} };
+  const service = new ProjectDeletionService(withCatalog, ports);
+
+  const observed = catalog.recycle.inspect(project.project_id);
+  await service.changeRecycled(home, {
+    project_id: project.project_id,
+    actor_id: "alice",
+    operation_id: "p2-6-recycle",
+    expected_state: observed.state,
+    recycled: true,
+    confirmed: true,
+  }, () => {});
+
+  // First finalization commits the DB deletion (clearing project_recycle), then we simulate interrupted post-commit cleanup
+  // by resetting cleanup_state='pending' and placing a leftover directory at staged_directory.
+  const first = await service.finalizeExpiredPersonalProject(home, {
+    project_id: project.project_id,
+    actor_id: "alice",
+    idempotency_key: "p2-6-finalize-key",
+    server_purged_at: Date.now(),
+  }, { authorize() {}, assertChildrenSettled() {} });
+  assert.equal(first.replayed, false);
+  assert.equal(catalog.recycle.isRecycled(project.project_id), false);
+
+  const catalogDb = openTestSqlite(join(home, "projects", "catalog.db"));
+  let stagedDir = "";
+  try {
+    const row = catalogDb.prepare("SELECT deletion_id, staged_directory FROM project_deletions WHERE idempotency_key = ?").get("p2-6-finalize-key") as { deletion_id: string; staged_directory: string };
+    stagedDir = row.staged_directory;
+    await mkdir(stagedDir, { recursive: true });
+    await writeFile(join(stagedDir, "leftover.txt"), "interrupted");
+    // Simulate a crash after the directory was staged (`project-directory` complete) but before `fs.rm(stagedDirectory)` and final completion.
+    catalogDb.prepare("UPDATE project_deletions SET cleanup_state = 'pending', cleaned_at = NULL WHERE deletion_id = ?").run(row.deletion_id);
+  } finally {
+    catalogDb.close();
+  }
+  assert.equal(existsSync(stagedDir), true);
+
+  // Replaying with the same (actor_id, idempotency_key) must bypass !isRecycled, resume finishProjectDeletionCleanup, and settle to complete.
+  const replayed = await service.finalizeExpiredPersonalProject(home, {
+    project_id: project.project_id,
+    actor_id: "alice",
+    idempotency_key: "p2-6-finalize-key",
+    server_purged_at: Date.now(),
+  }, { authorize() {}, assertChildrenSettled() {} });
+  assert.equal(replayed.replayed, true);
+  assert.equal(replayed.deletion.cleanup_state, "complete");
+  assert.equal(existsSync(stagedDir), false, "replayed finalization finished cleaning up the staged project directory");
+
+  // Reusing the same idempotency_key for a different project_id must fail with deletion_idempotency_conflict.
+  await assert.rejects(
+    service.finalizeExpiredPersonalProject(home, {
+      project_id: other.project_id,
+      actor_id: "alice",
+      idempotency_key: "p2-6-finalize-key",
+      server_purged_at: Date.now(),
+    }, { authorize() {}, assertChildrenSettled() {} }),
+    { code: "catalog.deletion_idempotency_conflict" },
+  );
+});

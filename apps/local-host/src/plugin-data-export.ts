@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { ActionError, bindActionHandler, defineErrorCodes, requireSynchronous, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -10,7 +10,7 @@ import {
 import {
   pluginManifestDigest, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteBaseline, homeSqlitePath, openReadOnlyHomeSqlite, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { describeSqliteBaseline, homeSqlitePath, openReadOnlyHomeSqlite, readDatabaseSpace, readStorageSpace, snapshotFileStat, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { homeStores } from "./home-stores.js";
 import { installedHomeLibraryName, installedLibrarySnapshots } from "./installed-plugin-libraries.js";
@@ -36,13 +36,51 @@ export interface PluginDataExportPorts {
   resolveProject(projectId: string): Promise<LocalHostProjectReference | null>;
 }
 
-interface DiscoveredPluginData {
+interface DiscoveredScopeRecord {
   readonly manifest: PluginManifest;
+  readonly publisherSignature: string;
+  readonly sandboxInstallId?: string;
+  readonly active: boolean;
+  readonly updatedAt: string;
+  readonly installId: string;
+}
+
+interface DiscoveredPluginData {
   readonly builtin: boolean;
-  homePublisherSignature?: string;
-  projectPublisherSignature?: string;
-  sandboxHomeInstallId?: string;
-  sandboxProjectInstallId?: string;
+  readonly builtinManifest?: PluginManifest;
+  home?: DiscoveredScopeRecord;
+  project?: DiscoveredScopeRecord;
+}
+
+function isMoreAuthoritative(candidate: DiscoveredScopeRecord, current: DiscoveredScopeRecord | undefined): boolean {
+  if (!current) return true;
+  if (candidate.active !== current.active) return candidate.active;
+  const candidateTime = Date.parse(candidate.updatedAt);
+  const currentTime = Date.parse(current.updatedAt);
+  if (Number.isFinite(candidateTime) && Number.isFinite(currentTime) && candidateTime !== currentTime) {
+    return candidateTime > currentTime;
+  }
+  if (candidate.updatedAt !== current.updatedAt) return candidate.updatedAt > current.updatedAt;
+  return candidate.installId > current.installId;
+}
+
+function discoveredSections(discovered: DiscoveredPluginData): Array<{ manifest: PluginManifest; section: PluginDataSectionDeclaration }> {
+  if (discovered.builtin) {
+    const manifest = discovered.builtinManifest!;
+    return pluginDataSectionsFromManifest(manifest).map(section => ({ manifest, section }));
+  }
+  if (discovered.home && discovered.project) {
+    const sections: Array<{ manifest: PluginManifest; section: PluginDataSectionDeclaration }> = [];
+    for (const section of pluginDataSectionsFromManifest(discovered.project.manifest)) {
+      if (section.scope === "project") sections.push({ manifest: discovered.project.manifest, section });
+    }
+    for (const section of pluginDataSectionsFromManifest(discovered.home.manifest)) {
+      if (section.scope === "home") sections.push({ manifest: discovered.home.manifest, section });
+    }
+    return sections;
+  }
+  const manifest = (discovered.project ?? discovered.home)?.manifest;
+  return manifest ? pluginDataSectionsFromManifest(manifest).map(section => ({ manifest, section })) : [];
 }
 
 function loadVerifiedManifest(
@@ -71,7 +109,7 @@ function collectManifests(homeDirectory: string, projectDb?: SqliteDatabase): Ma
   const found = new Map<string, DiscoveredPluginData>();
   const quarantined = new Set<string>();
   for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
-    found.set(entry.manifest.plugin_id, { manifest: entry.manifest, builtin: true });
+    found.set(entry.manifest.plugin_id, { builtin: true, builtinManifest: entry.manifest });
   }
   const packages = new SandboxPackageStore(homeDirectory);
   const readRepo = (db: PluginRuntimeDatabase, scope: "home" | "project") => {
@@ -85,18 +123,17 @@ function collectManifests(homeDirectory: string, projectDb?: SqliteDatabase): Ma
       if (!manifest) continue;
       const existing = found.get(manifest.plugin_id);
       if (existing?.builtin) continue;
-      const entry = existing ?? { manifest, builtin: false };
-      if (scope === "home") {
-        entry.homePublisherSignature = row.publisher_signature;
-      } else {
-        entry.projectPublisherSignature = row.publisher_signature;
-      }
-      if (row.execution === "sandbox") {
-        if (scope === "home") {
-          entry.sandboxHomeInstallId = row.install_id;
-        } else {
-          entry.sandboxProjectInstallId = row.install_id;
-        }
+      const candidate: DiscoveredScopeRecord = {
+        manifest,
+        publisherSignature: row.publisher_signature,
+        ...(row.execution === "sandbox" ? { sandboxInstallId: row.install_id } : {}),
+        active: row.state !== "uninstalled",
+        updatedAt: row.updated_at,
+        installId: row.install_id,
+      };
+      const entry = existing ?? { builtin: false };
+      if (isMoreAuthoritative(candidate, entry[scope])) {
+        entry[scope] = candidate;
       }
       found.set(manifest.plugin_id, entry);
     }
@@ -189,20 +226,32 @@ interface OwnerFileBudget { files: number; bytes: number }
 function readOwnerFileSnapshots(
   homeDirectory: string,
   discovered: DiscoveredPluginData,
+  manifest: PluginManifest,
   section: PluginDataSectionDeclaration,
   projectId: string | null,
   budget: OwnerFileBudget,
 ): { files: PluginDataFileSnapshot[]; truncated: boolean } {
-  const declaration = discovered.manifest.owner_files;
+  const declaration = manifest.owner_files;
   if (!declaration || section.files.length === 0) return { files: [], truncated: false };
+  const scopeRecord = section.scope === "home" ? discovered.home : discovered.project;
+  // Non-builtin, non-sandbox (e.g. execution: "host") plugins never fall back to real homeDirectory.
+  if (!discovered.builtin && !scopeRecord?.sandboxInstallId) {
+    throw new ActionError("actions.forbidden", `非内置非沙箱插件 ${manifest.plugin_id} 不能直接读取主人文件`);
+  }
+  // Home-scoped owner_files (including built-in Home plugins such as Shelf/Images and third-party Home sandbox
+  // plugins) are shared across projects and must never be exported under a project scope.
+  const isHomeScoped = section.scope === "home"
+    || discovered.builtin
+    || (manifest.runtime?.scope === "home" && !discovered.project?.sandboxInstallId);
+  if (projectId !== null && isHomeScoped) {
+    throw new ActionError("actions.scope_mismatch", `插件 ${manifest.plugin_id} 的 Home 级文件不按项目隔离，不能在项目范围内导出`);
+  }
   let base: string | null = null;
-  if (section.scope === "project" && discovered.sandboxProjectInstallId && projectId) {
-    base = sandboxOwnerFilesBase(homeDirectory, projectId, discovered.sandboxProjectInstallId);
-  } else if (section.scope === "home" && discovered.sandboxHomeInstallId) {
-    base = sandboxOwnerFilesBase(homeDirectory, null, discovered.sandboxHomeInstallId);
-  } else if (discovered.sandboxProjectInstallId && projectId && !discovered.sandboxHomeInstallId) {
-    base = sandboxOwnerFilesBase(homeDirectory, projectId, discovered.sandboxProjectInstallId);
-  } else if (!discovered.sandboxHomeInstallId && !discovered.sandboxProjectInstallId) {
+  if (section.scope === "project" && discovered.project?.sandboxInstallId && projectId) {
+    base = sandboxOwnerFilesBase(homeDirectory, projectId, discovered.project.sandboxInstallId);
+  } else if (section.scope === "home" && discovered.home?.sandboxInstallId) {
+    base = sandboxOwnerFilesBase(homeDirectory, null, discovered.home.sandboxInstallId);
+  } else if (discovered.builtin) {
     base = homeDirectory;
   }
   if (!base || !existsSync(base)) return { files: [], truncated: false };
@@ -239,11 +288,18 @@ function readOwnerFileSnapshots(
   return { files, truncated };
 }
 
+interface VerifiedInstalledHomeLibrary {
+  readonly file: string;
+  readonly stat: ReturnType<typeof snapshotFileStat>;
+  readonly version: number;
+}
+
 function verifyInstalledHomeLibrary(
-  homeDirectory: string,
+  realHome: string,
   discovered: DiscoveredPluginData,
+  manifest: PluginManifest,
   dbDecl: HomePluginDatabaseDeclaration,
-): boolean {
+): VerifiedInstalledHomeLibrary | null {
   if (dbDecl.partition !== undefined) {
     throw new ActionError("actions.forbidden", "第三方插件不支持按项目分区的 Home 库");
   }
@@ -251,22 +307,23 @@ function verifyInstalledHomeLibrary(
   if (!installedHomeLibraryName(dbDecl.store_name, reserved)) {
     throw new ActionError("actions.forbidden", "插件声明的 Home 库名称不在允许范围内");
   }
-  const publisherSignature = discovered.homePublisherSignature ?? discovered.projectPublisherSignature;
+  const publisherSignature = discovered.home?.publisherSignature;
   if (!publisherSignature) {
-    throw new ActionError("actions.forbidden", "缺少插件发布者归属信息，拒绝导出 Home 库");
+    throw new ActionError("actions.forbidden", "缺少插件 Home 安装发布者归属信息，拒绝导出 Home 库");
   }
-  const snapshots = installedLibrarySnapshots(homeDirectory, reserved);
+  const snapshots = installedLibrarySnapshots(realHome, reserved);
   const byStore = snapshots.find(row => row.store_name === dbDecl.store_name);
-  if (byStore && byStore.plugin_id !== discovered.manifest.plugin_id) {
+  if (byStore && byStore.plugin_id !== manifest.plugin_id) {
     throw new ActionError("actions.forbidden", "该 Home 库属于其他插件，拒绝导出");
   }
-  const byPlugin = snapshots.find(row => row.plugin_id === discovered.manifest.plugin_id);
-  const file = homeSqlitePath(homeDirectory, dbDecl.store_name);
+  const byPlugin = snapshots.find(row => row.plugin_id === manifest.plugin_id);
+  const file = homeSqlitePath(realHome, dbDecl.store_name);
+  const present = lstatSync(file, { throwIfNoEntry: false }) !== undefined;
   if (!byPlugin) {
-    if (existsSync(file)) {
+    if (present) {
       throw new ActionError("actions.forbidden", "Home 库缺少账本归属记录，拒绝导出");
     }
-    return false;
+    return null;
   }
   const digest = createHash("sha256").update(dbDecl.schema).digest("hex");
   if (
@@ -277,20 +334,22 @@ function verifyInstalledHomeLibrary(
   ) {
     throw new ActionError("actions.forbidden", "Home 库账本归属或结构与当前插件不符，拒绝导出");
   }
-  return existsSync(file);
+  if (!present) return null;
+  const stat = snapshotFileStat(file);
+  return { file, stat, version: byPlugin.version };
 }
 
 function readSectionSnapshot(
   homeDirectory: string,
   discovered: DiscoveredPluginData,
+  manifest: PluginManifest,
   section: PluginDataSectionDeclaration,
   projectId: string | null,
   projectDb: SqliteDatabase | undefined,
   budget: OwnerFileBudget | null,
 ): PluginDataSectionSnapshot {
-  const manifest = discovered.manifest;
   const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project;
-  const fileData = budget ? readOwnerFileSnapshots(homeDirectory, discovered, section, projectId, budget) : { files: [], truncated: false };
+  const fileData = budget ? readOwnerFileSnapshots(homeDirectory, discovered, manifest, section, projectId, budget) : { files: [], truncated: false };
   const fileFields = {
     ...(fileData.files.length > 0 ? { files: fileData.files } : {}),
   };
@@ -318,9 +377,11 @@ function readSectionSnapshot(
       items: [], ...fileFields, ...(fileData.truncated ? { truncated: true } : {}),
     };
   }
+  const realHome = realpathSync(homeDirectory);
+  let verifiedInstalled: VerifiedInstalledHomeLibrary | null = null;
   if (!discovered.builtin) {
-    const ready = verifyInstalledHomeLibrary(homeDirectory, discovered, homeDecl);
-    if (!ready) {
+    verifiedInstalled = verifyInstalledHomeLibrary(realHome, discovered, manifest, homeDecl);
+    if (!verifiedInstalled) {
       return {
         plugin_id: section.plugin_id, section_id: section.section_id, schema_version: section.schema_version, title: section.title,
         items: [], ...fileFields, ...(fileData.truncated ? { truncated: true } : {}),
@@ -329,15 +390,30 @@ function readSectionSnapshot(
   }
   const partitioned = homeDecl.partition === "project";
   if (partitioned && !projectId) throw exportErrors.plugin_data_project_required("导出按项目分区的插件数据需要指定 project_id");
-  const file = homeSqlitePath(homeDirectory, homeDecl.store_name, partitioned ? projectId! : undefined);
+  const file = homeSqlitePath(realHome, homeDecl.store_name, partitioned ? projectId! : undefined);
   if (!existsSync(file)) {
     return {
       plugin_id: section.plugin_id, section_id: section.section_id, schema_version: section.schema_version, title: section.title,
       items: [], ...fileFields, ...(fileData.truncated ? { truncated: true } : {}),
     };
   }
-  const db = openReadOnlyHomeSqlite(homeDirectory, homeDecl.store_name, partitioned ? projectId! : undefined);
+  const db = openReadOnlyHomeSqlite(realHome, homeDecl.store_name, partitioned ? projectId! : undefined);
   try {
+    if (verifiedInstalled) {
+      const after = snapshotFileStat(verifiedInstalled.file);
+      if (after.dev !== verifiedInstalled.stat.dev || after.ino !== verifiedInstalled.stat.ino) {
+        throw new ActionError("actions.forbidden", "第三方 Home 库文件在核验后发生变化，拒绝导出");
+      }
+      const actualVersion = Number(db.prepare("PRAGMA user_version").get()?.user_version);
+      if (actualVersion !== verifiedInstalled.version) {
+        throw new ActionError("actions.forbidden", "第三方 Home 库版本与账本记录不符，拒绝导出");
+      }
+      const expectedSpace = readStorageSpace(realHome);
+      const actualSpace = readDatabaseSpace(db);
+      if (!expectedSpace || !actualSpace || JSON.stringify(expectedSpace) !== JSON.stringify(actualSpace)) {
+        throw new ActionError("actions.forbidden", "第三方 Home 库不属于当前空间，拒绝导出");
+      }
+    }
     const result = readTableItems(
       db,
       tables,
@@ -371,22 +447,21 @@ export async function exportPluginData(
   try {
     const discovered = collectManifests(ports.homeDirectory, projectStore?.db).get(input.plugin_id);
     if (!discovered) throw exportErrors.plugin_data_not_found(`找不到插件 ${input.plugin_id}`);
-    const manifest = discovered.manifest;
-    const declared = pluginDataSectionsFromManifest(manifest);
-    if (declared.length > 0 && !projectStore && declared.every(section => section.scope === "project")) {
+    const declared = discoveredSections(discovered);
+    if (declared.length > 0 && !projectStore && declared.every(({ section }) => section.scope === "project")) {
       throw exportErrors.plugin_data_project_required("导出项目级插件数据需要指定 project_id");
     }
-    const eligible = declared.filter(section => section.scope === "home" || projectStore !== undefined);
+    const eligible = declared.filter(({ section }) => section.scope === "home" || projectStore !== undefined);
     // Owner files are the plugin's, listed on every section; they are exported once per scope (the first section of that scope carries
     // them, since Home and project files live apart), within one budget for the whole export; a section that hits it says so (`truncated`).
     const budget: OwnerFileBudget = { files: 0, bytes: 0 };
     const filesCarried = new Set<PluginDataSectionDeclaration["scope"]>();
-    const sections = eligible.map(section => {
+    const sections = eligible.map(({ manifest, section }) => {
       const carriesFiles = !filesCarried.has(section.scope);
       filesCarried.add(section.scope);
-      return readSectionSnapshot(ports.homeDirectory, discovered, section, projectRef?.project_id ?? null, projectStore?.db, carriesFiles ? budget : null);
+      return readSectionSnapshot(ports.homeDirectory, discovered, manifest, section, projectRef?.project_id ?? null, projectStore?.db, carriesFiles ? budget : null);
     });
-    return { format: PLUGIN_DATA_EXPORT_FORMAT, version: PLUGIN_DATA_EXPORT_VERSION, plugin_id: manifest.plugin_id, project_id: projectRef?.project_id ?? null, exported_at: new Date().toISOString(), sections };
+    return { format: PLUGIN_DATA_EXPORT_FORMAT, version: PLUGIN_DATA_EXPORT_VERSION, plugin_id: input.plugin_id, project_id: projectRef?.project_id ?? null, exported_at: new Date().toISOString(), sections };
   } finally {
     projectStore?.close();
   }
@@ -431,10 +506,10 @@ export function pluginDataActionProvider(ports: PluginDataExportPorts): ActionPr
         try {
           const manifests = collectManifests(ports.homeDirectory, projectStore?.db);
           const selected = input.plugin_id
-            ? (manifests.has(input.plugin_id) ? [manifests.get(input.plugin_id)!.manifest] : [])
-            : [...manifests.values()].map(entry => entry.manifest);
+            ? (manifests.has(input.plugin_id) ? [manifests.get(input.plugin_id)!] : [])
+            : [...manifests.values()];
           return {
-            sections: selected.flatMap(manifest => pluginDataSectionsFromManifest(manifest).map(section => {
+            sections: selected.flatMap(entry => discoveredSections(entry).map(({ manifest, section }) => {
               if (section.tables.length > 0) return section;
               const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project;
               return dbDecl ? { ...section, tables: allowedTables(dbDecl) } : section;

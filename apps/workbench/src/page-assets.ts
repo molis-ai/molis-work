@@ -162,20 +162,44 @@ const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLL
  * identically against unlayered plugin stylesheets without breaking `:where()` resets or focus contrast.
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
-  const sheet = `@layer reset, tokens, foundation, stage;
-@layer reset { *, *::before, *::after { box-sizing: border-box; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
+  const foundation = PLUGIN_FOUNDATION_STYLES.replace(/button, input, textarea, select \{ font-family: var\(--font\); \}\n?/, "");
+  let sheet = `@layer reset, tokens, foundation, stage;
+@layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
 @layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
-@layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
+@layer foundation { ${foundation} }
 @layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }
 ${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
 .appearance-notice.mw-toast{position:fixed;inset-inline:0;margin-inline:auto;bottom:22px;z-index:31;max-width:min(38em,calc(100vw - 24px))}
 html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important;animation:none!important}
-body .mw-toggle-group{display:inline-flex;gap:4px;padding:4px;border:0;border-radius:12px;background:var(--control-fill);box-shadow:none;&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control,500);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--shadow-soft),inset 0 1px 0 var(--edge-highlight)}}
+body .mw-toggle-group{box-shadow:none;&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control,500);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--shadow-soft),inset 0 1px 0 var(--edge-highlight)}}
 body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
 @media (max-width:760px){body.immersive-workbench{--control-h:44px;.plugin-stage-back{width:44px;height:44px;min-height:44px}}}`;
+  const lightTokens = sheet.match(/:root,\s*\[data-ui-skin="[^"]+"\]\s*\{([^}]*)\}/);
+  const darkTokens = sheet.match(/(:root\[data-resolved-theme="dark"\][^{]*)\{([^}]*)\}/);
+  if (lightTokens && darkTokens) {
+    const lightProps = new Map(lightTokens[1].split(";").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+      const split = entry.indexOf(":");
+      return [entry.slice(0, split).trim(), entry.slice(split + 1).trim()];
+    }));
+    const darkKept = darkTokens[2].split(";").map((entry) => entry.trim()).filter(Boolean).filter((entry) => {
+      const split = entry.indexOf(":");
+      return split < 0 || lightProps.get(entry.slice(0, split).trim()) !== entry.slice(split + 1).trim();
+    });
+    const darkSelector = darkTokens[1].replace(/,\s*:root\[data-resolved-theme="dark"\][^{]*/, "").trim();
+    sheet = sheet.replace(darkTokens[0], `${darkSelector}{${darkKept.join(";")}}`);
+  }
   return sheet
-    .replace(/:root\[data-resolved-theme="dark"\],\[data-ui-skin="soft-workbench@1"\]\[data-resolved-theme="dark"\],:root\[data-resolved-theme="dark"\] \[data-ui-skin="soft-workbench@1"\]:not\(\[data-resolved-theme="light"\]\)/, ':root[data-resolved-theme="dark"],[data-ui-skin="soft-workbench@1"][data-resolved-theme="dark"]')
-    .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`);
+    .replace(/\.feed-stage-leading strong \{ font-size: 13px; \}/, "")
+    .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`)
+    .replace(/var\((--[\w-]+),\s+/g, "var($1,")
+    .replace(/color-mix\(in srgb,\s+/g, "color-mix(in srgb,")
+    .replace(/,\s+transparent\)/g, ",transparent)")
+    .replace(/,\s+var\(/g, ",var(")
+    .replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3\b/g, "#$1$2$3")
+    .replace(/\b130ms\b/g, ".13s")
+    .replace(/\b250ms\b/g, ".25s")
+    .replace(/\b0\.(\d)/g, ".$1")
+    .replace(/\s*-webkit-appearance:\s*none;/g, "");
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

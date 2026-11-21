@@ -523,8 +523,7 @@ export const PRIMITIVE_PLUGIN_MEDIA = `
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
     .mw-input-group svg { width: 16px; height: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
-    dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }
-    dialog.mw-dialog--form > .mw-form { max-height: calc(100dvh - 32px); }
+    dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); > .mw-form { max-height: calc(100dvh - 32px); } }
   }
   @media (prefers-reduced-motion: reduce) {
     .mw-spinner, .mw-switch__track, .mw-switch__track::after { animation: none; transition: none; }

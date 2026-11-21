@@ -654,7 +654,7 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 
 侧栏视图在现有 `ui.views` 声明 `slot: "side", context_binding: "focused-object"`。工作台依据当前焦点 pane 的对象上下文显示该入口，通过 `molis:side-context` 投递带递增 `context_epoch` 的对象标识、版本和未保存标记。侧栏启动发 `molis:side-ready`；已隐藏的面板不会因切换文档自动打开，用户选中的普通工具也不会被抢走。上下文只是展示定位，所有对象读写仍由提供方检查项目和权限。消息只接受已挂载的同源 frame；旧 epoch 的编辑请求被拒绝。
 
-提供方用两条用户专属、项目范围动作声明 `action.thread_source: { role: "context" | "reply", subject_kind }`。同一提供方和对象种类只能有一个可用的读取入口与回复入口。context 查询接收 `subject_id, thread_id, message_id`，返回 `AssistantThreadContext`（文档与线程快照、截断标记、原用户消息）。reply 命令只接收 `subject_id, thread_id`，内容、作者和运行标识从可信的 `ActionCallContext.assistant_reply` 读取，业务输入不得提供这些身份。
+提供方用两条用户专属、项目范围动作声明 `action.thread_source: { role: "context" | "reply", subject_kind }`。同一提供方和对象种类只能有一个可用的读取入口与回复入口。context 查询接收 `subject_id, thread_id, message_id`，返回 `AssistantThreadContext`（文档与线程快照、截断标记、原用户消息）。其中 `text` 最多 100,000 个 UTF-16 单元（一个 🟢 算两个），超出时宿主拒收整份上下文（`actions.output_invalid`），不替提供方截断；提供方自己挑要带的部分并置 `truncated`（Pages 文档开头与线程最近部分各取至多 30,000 个单元）。宿主再把它按每段至多 18,000 个单元交给模型，只在完整字符之间分段，每段能单独解码，各段按序拼回即原文。reply 命令只接收 `subject_id, thread_id`，内容、作者和运行标识从可信的 `ActionCallContext.assistant_reply` 读取，业务输入不得提供这些身份。
 
 宿主的 `assistant.threads.start/status/retry/stop` 统一管理执行与投递，使用同一个 Home 的 Prologue。普通评论不调用它；只有用户明确请求助理回复才发 start。保存评论与调用模型分别幂等，重试已完成的运行只重投递；正文仍由原插件独占管理。Pages 是第一项实现，动作与侧栏协议不要求助理导入 Pages。
 

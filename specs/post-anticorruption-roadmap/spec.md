@@ -235,7 +235,9 @@
 |  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
-| [91](reference/batches/91.md) | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（2026-11-18 加并扩为 91A，前置 35-2／36A／37-2，[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)） |
+| [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（2026-11-21 零阻塞前置，[决定 60](reference/decisions.md#decision-60)） |
+|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（[决定 60](reference/decisions.md#decision-60)） |
+|  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（并入 `91-0b` 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |

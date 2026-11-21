@@ -139,7 +139,7 @@
 
 #### 4.6.1 工作台导航的界面定样（第 07 批，2026-11-04）
 
-用户在[可点的定样](../../docs/design/workbench-navigation/README.md)上试过后定：
+用户在[可点的定样](../../docs/design/archive/workbench-navigation/README.md)上试过后定：
 
 | 题 | 决定 |
 | --- | --- |

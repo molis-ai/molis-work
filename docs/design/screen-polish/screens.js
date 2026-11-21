@@ -404,9 +404,18 @@
     ${lrow("窄窗口", "先收字，轮廓还在；线头只留环和计数。始终一行。", line4({ head: head4({ short: true, n: 1 }), past: `${mk("code", "run")}${mk("code", "wait")}`, next: `${mk("check", "next todo")}${mk("calendar", "next")}`, cols: "minmax(0,1fr) 420px minmax(0,1fr)", end: ib("chevron-up") }), "", 820)}
   </div></div>`;
 
-  // 定稿：顶部用方案 C（用户 2026-11-15）。底部用第四版（用户 2026-11-16 改回第 17 屏的样子，待看）。第 1–6 屏、分屏和首页按这两样重画。
+  // 定稿：顶部用方案 C + 第十三版左上角一格与右端两键（用户 2026-11-15／11-18）。底部用第十三版三块（用户 2026-11-17，详交互见 helm.html）。第 1、4、5、6、8、21 屏已同步第十三版壳层；历史「记录」屏保持原貌供对照。
   const winC = (topHtml, stage, foot, over = "") => `<div class="sp-fit"><div class="sp-win c">${topHtml}<div class="sp-stage">${stage}</div>${foot}${over}</div></div>`;
-  const footF = (cap = {}, o = {}) => line4({ past: PAST4_WAIT, next: NEXT4(), cap, ...o });
+  const corner13 = (matter = "发布 v2.3", n = 2) => `<span class="sp-corner13"><b>目录交互验证</b><span class="sep">›</span><span>${matter}</span>${n ? `<span class="n">${n}</span>` : ""}${ic("chevron-down", "xs")}</span>`;
+  const lead13 = (home = false) => `${ib("chevron-left")}${ib("chevron-right", "dim")}${corner13(home ? "项目主页" : "发布 v2.3", 2)}<span class="sp-sepv"></span>`;
+  const tools13 = (sideOn = false) => `${ib("panel", sideOn ? "on" : "")}${ib("columns")}`;
+  const one13 = (home, tabs, more = 0) => topC("minmax(0,1fr)", [`${lead13(home)}${ears(tabs)}${more ? `<span class="sp-tabchip">+${more}</span>` : ""}${ib("plus")}<span class="grow"></span>${tools13()}`]);
+  const foot13 = (cap = {}) => `<div class="sp-helm">
+    <div class="sp-helm__acct"><span class="av">YJ<i></i></span><span class="m"><b>Yijun</b><small>已同步</small></span><span class="k">${ib("bell")}${ib("grid")}${ib("settings")}</span></div>
+    <div class="sp-helm__comp"><div class="r1"><span class="ph cut">${cap.ph ?? "对「发布 v2.3」说点什么…（回车发送）"}</span><span class="cnts"><span>✓ 4</span><span class="run">◌ 1</span><span>· 2</span><i class="v"></i>${ib("chevron-up")}</span></div><div class="r2">${ib("plus")}<span class="to cut">${cap.to ? `在：${cap.to[1]}` : "在：发布 v2.3"}</span><span class="grow"></span><span class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button"><span data-slot="button-label">发送 ↵</span></span></div></div>
+    <div class="sp-helm__stack"><div class="t"><span class="you">● 该你 · 还有 2 件</span><span class="muted">打开 ›</span></div><div class="q cut">发布说明按版本分节：选一种改法</div><div class="a">${btn("看两个方案", "primary")}${btn("稍后看", "secondary")}</div></div>
+  </div>`;
+  const footF = (cap = {}, o = {}) => o.head ? line4({ past: PAST4_WAIT, next: NEXT4(), cap, ...o }) : foot13(cap);
   const footOpen = (cap = {}, o = {}) => line4({ past: PAST4_WAIT, next: NEXT4(), cap: { ...cap, joined: true }, end: "", ...o });
   const docked = (html) => html.replace('class="sp-dlg"', 'class="sp-dlg joined"').replace(/<span class="sp-tasks[^>]*>.*?<\/span>/, TASKS4);
   const eventC = docked(eventDialog.replace(/<div class="sp-drawer">[\s\S]*$/, "</div></div>")).replace("width:720px", "width:680px")
@@ -416,15 +425,15 @@
   const SET_TABS = [...TABS(-1), ["设置", true, "settings", true]];
   const startC = start.replace("留用　↵ 打开", "钉住　↵ 打开").replace('style="left:258px;width:560px"', 'style="left:-4px;top:36px;width:560px"');
   const menuC = sideMenu.replace('style="right:56px;width:208px;padding:6px"', 'style="left:18px;top:36px;width:208px;padding:6px"');
-  const topStart = topC("minmax(0,1fr) 320px", [`${leadC(true)}${ears(TABS(-1).slice(0, 2))}<span class="sp-anchor">${ib("plus", "on")}${startC}</span>`, `<span class="sp-anchor">${sideEar}${menuC}</span><span class="grow"></span>${toolsC(true)}`]);
-  const F_CODING = winC(oneC(false, CODING_TABS), codingC, footF(CODING_CAP));
+  const topStart = topC("minmax(0,1fr) 320px", [`${lead13(true)}${ears(TABS(-1).slice(0, 2))}<span class="sp-anchor">${ib("plus", "on")}${startC}</span>`, `<span class="sp-anchor">${sideEar}${menuC}</span><span class="grow"></span>${tools13(true)}`]);
+  const F_CODING = winC(one13(false, CODING_TABS), codingC, foot13(CODING_CAP));
   const F_DIALOG = winC(oneC(true, TABS(-1)), home, footOpen({ text: "直接改，并补上测试" }), docked(dialog).replace(/<span class="sp-dtab">(?:(?!<span class="sp-dtab).)*?给王总回电话.*?<\/span><\/span>/, ""));
   const F_EVENT = winC(oneC(true, TABS(-1)), home, footOpen({ ph: "关于这件事，说点什么…" }, { next: NEXT4_MOVED }), eventC);
-  const F_START = winC(topStart, `${home}${sideSheet}`, footF());
-  const F_SET_A = winC(oneC(false, SET_TABS), settingsAssistant, footF());
-  const F_SET_R = winC(oneC(false, SET_TABS), settingsRuntimes, footF());
-  const F_SPLIT = winC(topC("1fr 1fr", [`${leadC()}${ears([["formatNotes 空列表处理", true, "code"], ["发布说明按版本分节", false, "code"]])}${ib("plus")}`, `${ears([["发布 v2.3", "soft", "target"], ["v2.3 发布说明", false, "file", true]])}${ib("plus")}<span class="grow"></span>${toolsC()}`]),
-    `<div class="sp-sheet">${codingMain(ib("sidebar")).replace("release-notes · main", "Coding · release-notes · main")}</div>${goal}`, footF(CODING_CAP));
+  const F_START = winC(topStart, `${home}${sideSheet}`, foot13());
+  const F_SET_A = winC(one13(false, SET_TABS), settingsAssistant, foot13());
+  const F_SET_R = winC(one13(false, SET_TABS), settingsRuntimes, foot13());
+  const F_SPLIT = winC(topC("1fr 1fr", [`${lead13()}${ears([["formatNotes 空列表处理", true, "code"], ["发布说明按版本分节", false, "code"]])}${ib("plus")}`, `${ears([["发布 v2.3", "soft", "target"], ["v2.3 发布说明", false, "file", true]])}${ib("plus")}<span class="grow"></span>${tools13()}`]),
+    `<div class="sp-sheet">${codingMain(ib("sidebar")).replace("release-notes · main", "Coding · release-notes · main")}</div>${goal}`, foot13(CODING_CAP));
 
 
   // 首页：项目的第一页（用户 2026-11-16：首页不要插件陈列）。按「项目现在怎么样」排，不按插件排；Work Brief 把同一页写成话。
@@ -456,7 +465,7 @@
     <div class="rest">另有 4 个没有新内容</div>${extra}<div class="all">全部插件<kbd>⌘K</kbd></div></div>`;
   const pageOf = (col, mg) => `<div class="sp-sheet"><div class="sp-pg"><div class="col">${col}</div>${mg}</div></div>`;
   const homeBrief = pageOf(`${P_META(P_VER())}<h1>目录交互验证</h1>${P_LEDE}${P_SINCE}${P_GOALS}${P_NEXT}`, P_SRC());
-  const F_HOME = winC(oneC(true, TABS(-1)), homeBrief, footF());
+  const F_HOME = winC(one13(true, TABS(-1)), homeBrief, foot13());
   const P_FACTS = `<p class="facts">5 个目标里 3 个在办、1 个卡住　·　今天动过 2 个会话　·　3 件待办今天到期</p>`;
   const hrowS = (label, note, col, mg) => `<div class="sp-state"><div class="l"><b>${label}</b><span>${note}</span></div><div class="sp-pgbox">${pageOf(col, mg)}</div></div>`;
   const statesHome = `<div class="sp-fit"><div class="sp-ui sp-states">

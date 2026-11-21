@@ -12,7 +12,7 @@ python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 
 再打开 `http://localhost:4410/assistant-proactive-paths/`。顶部带斜纹边的一条是原型控制：路径（1／2／3）、方案、剧本（上一步／下一步）、情况、中英文、深浅、重置。每条路径记住自己选的方案。
 
-三条路径都沿用已定的样子：助理窗格顶上的任务条（[`assistant-background-tasks/`](../assistant-background-tasks/README.md) 方案 A）、表单与确认卡（[`intelligent-surfaces-forms/`](../intelligent-surfaces-forms/README.md)）。方案之间只差下面表里写的那一件事。
+三条路径都沿用已定的样子：助理窗格顶上的任务条（[`assistant-background-tasks/`](../archive/assistant-background-tasks/README.md) 方案 A）、表单与确认卡（[`intelligent-surfaces-forms/`](../archive/intelligent-surfaces-forms/README.md)）。方案之间只差下面表里写的那一件事。
 
 ## 路径 1 · 安静准备，必要时才提醒（§4.2）
 

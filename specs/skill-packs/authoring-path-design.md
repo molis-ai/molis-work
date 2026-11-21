@@ -1,6 +1,6 @@
 # Skill 创作与改进完整路径：设计稿（第 42 批）
 
-状态：已按本稿实现并经 [#2107](https://github.com/molis-ai/molis-work/pull/2107) 合入 main `4cf1c742e6`（2026-11-17）。界面定样用户选方案 B（左边改、右边试，[原型](../../docs/design/skill-improvement/README.md)）；实现时定下的取舍写在 §4，与原型不同的地方见[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)「与设计不同的地方」。
+状态：已按本稿实现并经 [#2107](https://github.com/molis-ai/molis-work/pull/2107) 合入 main `4cf1c742e6`（2026-11-17）。界面定样用户选方案 B（左边改、右边试，[原型](../../docs/design/archive/skill-improvement/README.md)）；实现时定下的取舍写在 §4，与原型不同的地方见[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)「与设计不同的地方」。
 
 [第 42 批](../post-anticorruption-roadmap/reference/batches/42.md) · [技能包 spec](spec.md) · [主动助理 §5.9／§6](../proactive-assistant/spec.md) · BL-166（随本批关闭）
 

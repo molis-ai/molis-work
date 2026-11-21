@@ -19,7 +19,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 产品是什么（Agent OS、协作工作台与多插件基座）、对用户承诺什么 | [`PRODUCT.md`](../PRODUCT.md) |
 | 安装、启动、维护与卸载 | [`docs/installation.md`](installation.md)（[English](installation.en.md)） |
 | CLI 命令、源码构建与日常开发 | [`docs/cli-and-development.md`](cli-and-development.md)（[English](cli-and-development.en.md)）；仓库执行约束见 [`AGENTS.md`](../AGENTS.md) |
-| 生产界面的视觉与交互规范 | [`DESIGN.md`](../DESIGN.md)及其引用的现行规范；[`docs/design/`](design/README.md)是设计参考与原型 |
+| 生产界面的视觉与交互规范 | [`DESIGN.md`](../DESIGN.md)及其引用的现行规范；执行手册见 [`skills/molis-design-ui/SKILL.md`](../skills/molis-design-ui/SKILL.md)；[`docs/design/`](design/README.md)是设计参考与原型 |
 | 模型调用、Agent、提示词与上下文 | [`docs/platform/PROLOGUE-AI.md`](platform/PROLOGUE-AI.md)；执行步骤见 [`skills/molis-prologue-ai/SKILL.md`](../skills/molis-prologue-ai/SKILL.md) |
 | 发布规则、操作步骤与某次发布的范围 | [`docs/releases/POLICY.md`](releases/POLICY.md)管规则，[`CHECKLIST.md`](releases/CHECKLIST.md)管步骤；[`CHANGELOG.md`](releases/CHANGELOG.md)及各版本发布记录管变化、验证与缺口 |
 | Home 里的库、文件归谁，如何备份与卸载 | [`docs/system/HOME-DATA.md`](system/HOME-DATA.md) |

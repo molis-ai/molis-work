@@ -62,6 +62,8 @@ export interface FrameConfig {
   search?: string;
   /** The page is in a workbench pane under the bar: its AI composer is a receiver of the bar's one input (composer-bridge.ts). */
   bar: boolean;
+  /** True when the enclosing shell offers the right-side help tab ("在右栏继续看"). */
+  sideHelp?: boolean;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }

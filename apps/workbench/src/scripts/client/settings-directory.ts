@@ -228,7 +228,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const requestKey = fetchPath || section;
-      if (loading?.key === requestKey) return;
+      // The same page is still loading (the cover was closed and opened again meanwhile): it is the place shown, so the cover says so.
+      if (loading?.key === requestKey) { host.noteCover?.(options.kind, section + (fetchPath ? " " + fetchPath : "")); return; }
       const request = { key: requestKey };
       loading = request;
       const previous = caches.get(section), lifetime = previous && retained.get(previous);

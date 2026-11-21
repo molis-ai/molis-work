@@ -37,6 +37,11 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // and sibling `<script type="application/json" data-plugin-help>` payloads on framed pages shift all 16 `page-*` records by
 // a uniform +2632 (zh) / +3174 (en), and the header Help trigger + `<script data-mw-help-data>` (plus `<section>` around
 // project rules) update the 12 `settings-*` records; all 24 `refresh-*`, `momentum-*`, and `document-*` records stay byte-for-byte identical.
+// Batch 40 post-audit fix switches settings help from pre-resolved `data-mw-help-data` to live-translatable `data-mw-help-declaration`
+// (updating the 12 `settings-*` records symmetrically: general +216/-67, guidance +235/+8, rules +209/-89), removes the duplicate outer
+// `data-side-help-body` attribute, and adds Scheme A Help triggers/declarations on Goals stage, Project Home, Artifacts, and Sessions
+// (shifting all 8 `page-current*` records uniformly by +3801 zh / +3289 en and all 8 `page-{archive,trash}*` records by +2800 zh / +2284 en;
+// all 24 `refresh-*`, `momentum-*`, and `document-*` records remain byte-for-byte identical).
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

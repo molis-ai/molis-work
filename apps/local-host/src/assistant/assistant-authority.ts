@@ -16,6 +16,7 @@ import { assistantErrors } from "./assistant-errors.js";
 import { assistantActionDelegation } from "./assistant-action-delegation.js";
 import { acceptanceSubjectOf } from "./assistant-line-actions.js";
 import type { assistantWorkConnections } from "./assistant-work-connections.js";
+import { exactActionView } from "../exact-action-view.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
 const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -184,7 +185,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       direct: view => directEligible(view, discovered, confirmAlways?.() ?? new Set()),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
-        const view = (await service().discover(await currentContext())).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        const view = await exactActionView(service(), await currentContext(), action);
         if (!view) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用");
         assertActionCommandInput(view, base(sessionId), input);
       },

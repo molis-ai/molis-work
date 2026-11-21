@@ -305,7 +305,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const say = globalThis.t.text;
         pubActivateBtn.textContent = say("workbench.client-records.publish-and-activate", { destination: dest.title });
       }
     }
-    if (pubBtn) {
+    if (pubBtn && rec.status !== "published") {
       pubBtn.classList.toggle("mw-btn--primary", !canOneStep);
       pubBtn.classList.toggle("mw-btn--secondary", canOneStep);
       pubBtn.textContent = say(canOneStep ? "workbench.client-records.publish-only" : "workbench.client-records.publish-first-version");

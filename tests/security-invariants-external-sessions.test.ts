@@ -21,6 +21,7 @@ import {
 import {
   SessionsService,
   identifySessionDirectory,
+  identifySessionDirectoryAsync,
   readSessionSourceFailure,
   sessionSourceFailure,
   type SessionProjectSnapshot,
@@ -230,7 +231,8 @@ test("S-sessions-read-only-commands 2: subprocess environment strips injection v
       },
     });
 
-    const res = await ports.commands.run("qwen-code", externalTool("qwen-code").sessions.discover.via === "command" ? externalTool("qwen-code").sessions.discover.argv : [], AbortSignal.any([]));
+    const discover = externalTool("qwen-code").sessions.discover;
+    const res = await ports.commands.run("qwen-code", discover.via === "command" ? discover.argv : [], AbortSignal.any([]));
     assert.equal(res.exit_code, 0);
     const seenEnv = JSON.parse(await (await import("node:fs/promises")).readFile(envDumpFile, "utf8")) as Record<string, string>;
     for (const stripped of ["NODE_OPTIONS", "DYLD_INSERT_LIBRARIES", "LD_PRELOAD", "PYTHONPATH", "GIT_SSH_COMMAND", "BASH_ENV"]) {
@@ -838,6 +840,11 @@ test("S-sessions-git-files-only 1: worktree resolution reads only .git, commondi
     assert.ok(mainId?.repository_key);
     assert.equal(wtId?.repository_key, mainId?.repository_key, "verified bidirectional worktree shares repository_key with main repo");
     assert.equal(wtId?.worktree_relative, "packages/sub");
+    // B103-2: the identification discovery runs off the event loop takes the same steps and reads the same three files.
+    const readLater: string[] = [];
+    assert.deepEqual(await identifySessionDirectoryAsync(mainRepo, { homeDir: root, onFileRead: f => readLater.push(path.basename(f)) }), mainId);
+    assert.deepEqual(await identifySessionDirectoryAsync(wtSub, { homeDir: root, onFileRead: f => readLater.push(path.basename(f)) }), wtId);
+    assert.deepEqual(readLater, readFiles);
     for (const name of readFiles) {
       assert.ok([".git", "commondir", "gitdir"].includes(name), `unexpected file read: ${name}`);
     }

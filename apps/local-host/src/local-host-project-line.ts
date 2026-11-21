@@ -323,9 +323,10 @@ export class ProjectLine<Runtime> {
     if (under) return under;
     const entry = this.entries.get(storageKey);
     if (!entry) return Promise.resolve(false);
-    const closing = this.closeEntry(storageKey, entry);
+    // The entry goes before anyone waiting on it hears the close finished, so a close asked after that closes what is open then.
+    const closing: Promise<boolean> = this.closeEntry(storageKey, entry)
+      .finally(() => { if (this.closings.get(storageKey) === closing) this.closings.delete(storageKey); });
     this.closings.set(storageKey, closing);
-    void closing.then(() => undefined, () => undefined).finally(() => { if (this.closings.get(storageKey) === closing) this.closings.delete(storageKey); });
     return closing;
   }
 

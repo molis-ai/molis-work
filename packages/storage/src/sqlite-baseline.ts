@@ -454,25 +454,35 @@ const identity = (file: string) => {
 };
 
 /**
+ * The held connection when it can be borrowed as it is: still open, still the same file, and nothing committed or restructured by another
+ * connection since it was checked. Otherwise it is closed and forgotten, and the caller checks the store again before opening it.
+ */
+function stillHeld(file: string): DatabaseSync | undefined {
+  const current = held.get(file);
+  if (!current) return undefined;
+  const now = current.db.isOpen ? identity(file) : undefined;
+  if (now && now.dev === current.dev && now.ino === current.ino) {
+    const seen = versions(current.db);
+    if (seen.data === current.data && seen.schema === current.schema) return current.db;
+  }
+  held.delete(file);
+  if (current.db.isOpen) current.db.close();
+  return undefined;
+}
+
+/**
  * The one connection this process keeps to a Home store (batch 103-1): the first call opens it the way `openBaselineHomeSqlite` does (version,
  * structure and space checked, the structure compared once), runs `prepare` on it once, and every later call borrows the same connection instead
  * of opening and closing the file again. A file that was removed or replaced since (its device and inode changed) is opened again, so a borrower
  * never writes into a file that is no longer the store; one another connection wrote to or changed since it was checked is checked again
- * (opened again), so a store changed under it is refused as it was when every call opened the file. Borrowers use it synchronously and never close it; the Host releases a Home's
- * connections when it gives the Home up (`releaseHeldHomeSqlite`).
+ * (opened again), so a store changed under it is refused as it was when every call opened the file. Borrowers use it synchronously and never close it:
+ * a connection kept across an await may already be closed, because the next borrow after another connection's commit opens a new one. The Host
+ * releases a Home's connections when it gives the Home up (`releaseHeldHomeSqlite`).
  */
 export function heldHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): DatabaseSync {
   const file = homeSqlitePath(home, storeName);
-  const current = held.get(file);
-  if (current) {
-    const now = current.db.isOpen ? identity(file) : undefined;
-    if (now && now.dev === current.dev && now.ino === current.ino) {
-      const seen = versions(current.db);
-      if (seen.data === current.data && seen.schema === current.schema) return current.db;
-    }
-    held.delete(file);
-    if (current.db.isOpen) current.db.close();
-  }
+  const reused = stillHeld(file);
+  if (reused) return reused;
   const db = openBaselineHomeSqlite(home, storeName, baseline);
   try {
     prepare?.(db);
@@ -488,8 +498,9 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
 
 /**
  * Runs `work` on the held connection (`heldHomeSqlite`). `existingOnly`: a missing or empty store is `undefined` and stays missing, and before
- * the first connection is kept the file passes the read-only checks `openExistingBaselineHomeSqlite` makes (current version and structure,
- * owned by this Home's space), so a read never binds a store that was not this Home's. A call made while the held connection is inside a
+ * any connection is opened (the first, or again after the file was replaced or another connection changed it) the file passes the read-only
+ * checks `openExistingBaselineHomeSqlite` makes (current version and structure, owned by this Home's space), so a read never binds a store
+ * that was not this Home's. A call made while the held connection is inside a
  * transaction (a listener that runs during another call's write) gets a connection of its own for `work`, closed after it, as every call had
  * before: it neither joins nor breaks the write around it.
  */
@@ -509,7 +520,10 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
       return work(own);
     } finally { own.close(); }
   }
-  if (existingOnly && !current?.db.isOpen) openExistingBaselineHomeSqlite(home, storeName, baseline)?.close();
+  const reused = stillHeld(file);
+  if (reused) return work(reused);
+  // Whenever a connection is opened again (first borrow, replaced file, or another connection changed the store), a read checks it read-only first.
+  if (existingOnly) openExistingBaselineHomeSqlite(home, storeName, baseline)?.close();
   return work(heldHomeSqlite(home, storeName, baseline, prepare));
 }
 

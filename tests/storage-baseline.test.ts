@@ -315,6 +315,38 @@ test("B103-02 a Home store is opened once per process and borrowed after; a repl
   assert.notEqual(heldHomeSqlite(home, "notes", baseline, prepare), replaced, "a later borrower opens again");
 });
 
+test("B103-02 RAR-02 another connection's commit or structure change makes the next borrow check the store again; a read never binds a store it reopens", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-held-recheck-"));
+  t.after(() => { releaseHeldHomeSqlite(home); rmSync(home, { recursive: true, force: true }); });
+  const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY)" };
+  const file = homeSqlitePath(home, "notes");
+  const first = heldHomeSqlite(home, "notes", baseline);
+  first.prepare("INSERT INTO notes VALUES ('a')").run();
+  assert.equal(heldHomeSqlite(home, "notes", baseline), first, "its own writes keep the connection");
+  // Another connection commits: the next borrower gets a connection checked again, and the old one is closed.
+  const other = new DatabaseSync(file);
+  other.prepare("INSERT INTO notes VALUES ('b')").run();
+  other.close();
+  const rechecked = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true });
+  assert.notEqual(rechecked, first);
+  assert.equal(first.isOpen, false, "the connection checked before the outside write is closed");
+  assert.equal((rechecked.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2);
+  // Another connection drops the space binding: a read refuses the store and leaves it unbound, as a read that opened it did.
+  const unbind = new DatabaseSync(file);
+  unbind.exec("DROP TABLE molis_storage_space");
+  unbind.close();
+  assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
+  assert.equal(rechecked.isOpen, false);
+  const after = new DatabaseSync(file, { readOnly: true });
+  assert.equal(after.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'molis_storage_space'").get()!.n, 0, "the read wrote no binding");
+  after.close();
+  // Another connection changes the structure: the next borrow is refused at the structure check.
+  const reshape = new DatabaseSync(file);
+  reshape.exec("ALTER TABLE notes ADD COLUMN extra TEXT");
+  reshape.close();
+  assert.throws(() => heldHomeSqlite(home, "notes", baseline), (error: ActionError) => /schema_(structure|version)_mismatch|space_ownership_mismatch/u.test(error.code));
+});
+
 test("RAC-427 platform env prefix, project database filename and security directory path stay on Molis Work names", async (t) => {
   const { PROJECT_DATABASE_FILENAME, readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, resolveProjectDatabaseFile, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
   const { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } = await import("node:fs");

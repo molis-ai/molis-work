@@ -49,7 +49,7 @@ export function createSchedulePlugin(): PluginDefinition {
       routes: scheduleManifest.routes!.map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
         // The page's changes go through Schedule's own actions, which tell the open pages themselves.
         const handlers = createScheduleRouteHandlers({ changed() {}, actions: {
-          discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution),
+          discover: async () => [], discoverOne: async () => undefined, invoke: (definition, input) => actions.invoke(definition, input, request.execution),
         } });
         return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
           query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });

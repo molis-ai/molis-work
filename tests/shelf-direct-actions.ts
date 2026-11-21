@@ -105,7 +105,7 @@ export function openTestShelfStore(home: string, agents: TestShelfAgents = {}, m
 export function directShelfActions(ports: ShelfActionPorts): BoundActionClient {
   const handlers = createShelfActionHandlers(ports);
   return {
-    discover: async () => [],
+    discoverOne: async () => undefined, discover: async () => [],
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
       const handler = handlers.find(row => row.capability_id === definition.capability_id && row.version === definition.version);
       if (!handler) throw new Error(`missing ${definition.capability_id}`);

@@ -13,6 +13,18 @@ export async function matchingActions(client: HostActionClient, caller: ActionCa
   return (await client.discover(caller)).filter(view => select(view, view.provider));
 }
 
+/** `client` narrowed to the actions `select` keeps: the listing, and a lookup of one, show only those. */
+export function selectedActionClient(client: HostActionClient, select: ActionSelection): ActionClient {
+  return {
+    invoke: client.invoke,
+    discover: caller => matchingActions(client, caller, select),
+    discoverOne: async (caller, reference) => {
+      const view = await client.discoverOne(caller, reference);
+      return view && select(view, view.provider) ? view : undefined;
+    },
+  };
+}
+
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
   close(runtime: Runtime, reference: LocalHostProjectReference): void | Promise<void>;

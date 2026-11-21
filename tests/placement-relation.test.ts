@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -57,10 +58,10 @@ function directory(views: readonly ActionView[], calls: string[], notes: { attac
     if (id.endsWith(".read.topic")) return subjectContext({ subject: { kind: "topic", id: subject }, revision: "1", title: "第一个话题", content: "" });
     return subjectContext({ subject: { kind: "note", id: subject }, revision: "r7", title: "一份笔记", content: "正文", ...(notes.attached_to ? { attached_to: notes.attached_to } : {}) });
   };
-  return {
+  return fakeActionClient({
     discover: async () => views,
     invoke: async (_context, reference, input) => { calls.push(reference.capability_id); inputs.set(reference.capability_id, input); return reply(reference, input); },
-  };
+  });
 }
 
 function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
@@ -175,10 +176,10 @@ test("RAC-633 a reader that leaves attached_to out is described as usual; one th
 test("RAC-632 a failing owner does not hide the refusal: the error is the owner's own", async t => {
   const calls: string[] = [];
   const views = owner("io.example.topics", "topic", FIVE);
-  const refusing: ActionClient = { discover: async () => [...views, reader("io.example.notes", "note")], invoke: async (_context, reference, input) => {
+  const refusing: ActionClient = fakeActionClient({ discover: async () => [...views, reader("io.example.notes", "note")], invoke: async (_context, reference, input) => {
     if (reference.capability_id.endsWith(".attach")) throw new ActionError("topics.closed", "话题已关闭");
     return await directory(views, calls).invoke(caller, reference, input);
-  } };
+  } });
   await assert.rejects(serviceOver(t, refusing).attach(NOTE, "q4", TOPIC), { code: "topics.closed" });
 });
 

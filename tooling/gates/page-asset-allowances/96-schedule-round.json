@@ -1,5 +1,0 @@
-{
-  "reason": "第 96 批 96-2：Schedule 页面接上平台的页面刷新（PG-061，`services.ui.invalidate()` 与 `host.scope.watchRevision`），一轮落地后就地重读页面；重读期间保留用户的新选择、「能读的数据」区域随详情移入新详情。无新增资源、无新文字，只进 Schedule 自己的客户端脚本。",
-  "review": "PR「第 96 批」描述的「页面资源增长」一节（评审子代理审本批 PR 时一并审）",
-  "assets": { "/assets/molis-work-plugins/schedule.js": 862 }
-}

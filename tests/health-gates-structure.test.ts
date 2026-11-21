@@ -473,7 +473,10 @@ test("things the structure gates do not count", () => {
     put("plugins/native/two/src/neutral.ts", [
       "const reference = { capability_id: 'io.example.x', version: 1, provider_id: 'two' };",
       "const action = { capability_id: 'io.example.y', version: 1, operation: 'query', action: { permissions: [] } };",
-      "export const wire = (host: { register(value: unknown): void }, ui: { register(value: unknown): void }) => { host.register(reference); ui.register(action); };",
+      "export const wire = (host: { register(value: unknown): void }, ui: { register(value: unknown): void }) => {",
+      "  host.register(reference);",
+      "  ui.register(action);",
+      "};",
       "",
     ].join("\n"));
     put("server/src/index.ts", read("server/src/index.ts") + "export class Cache { private readonly repository = 1; }\n"); // not a Store, a private member
@@ -499,7 +502,11 @@ test("things the structure gates do not count", () => {
       "export const frozen: Readonly<Record<string, number>> = { a: 1 };",
       "export const table = { a: 1 } as const;",
       "const base = { a: 1 };",
-      "export const copy = () => { const base = { a: 2 }; base.a = 3; return base; };",
+      "export const copy = () => {",
+      "  const base = { a: 2 };",
+      "  base.a = 3;",
+      "  return base;",
+      "};",
       "export const read = () => ({ ...base });",
       "export const checks = { short(input: unknown) { return input; } };",
       "",

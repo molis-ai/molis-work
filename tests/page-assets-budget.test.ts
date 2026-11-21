@@ -6,7 +6,9 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { CHARACTERS_CLIENT_PATH, deferredSurfaceClients, pluginOnDemandStylesheet, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
-import { assetProblems } from "../scripts/gates/page-assets-policy.mjs";
+// @ts-expect-error the gate modules are plain .mjs
+import { assetBudgetProblems, parsePageAssetBudgets } from "../scripts/gates/page-assets-policy.mjs";
+// @ts-expect-error the gate modules are plain .mjs
 import { buildBaseline, command, cachedMeasurement, reportMatches, trustedRun } from "../scripts/gates/page-assets-baseline.mjs";
 const script = fileURLToPath(new URL("../scripts/gates/page-assets.mjs", import.meta.url));
 const measurer = fileURLToPath(new URL("../scripts/gates/page-assets-measure.mjs", import.meta.url));
@@ -20,10 +22,32 @@ const run = (dir: string, ...args: string[]) => {
   const result = spawnSync(process.execPath, [script, "--root", dir, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
 };
-const BASE = { "/assets/a.css": 1000, "/assets/b.js": 2000 };
-const allowance = (bytes: number, userApproval?: string) => JSON.stringify({ assets: { "/assets/a.css": bytes }, reason: "necessary feature", review: "review #123", ...(userApproval ? { userApproval } : {}) });
+const BASE = {
+  "/assets/a.css": 1000,
+  "/assets/b.js": 2000,
+  "/desktop/pty-client.js": 500,
+  "/assets/molis-work-plugins/alpha.js": 800,
+  "/assets/font.woff2": 3000,
+};
+const sampleBudgets = (overrides: Record<string, unknown> = {}) => ({
+  routes: {
+    shell: { maxBytes: 4000, assets: ["/assets/a.css", "/assets/b.js"] },
+    pluginFrame: { maxBytes: 1000, assets: ["/desktop/pty-client.js"] },
+    pluginPacks: { maxBytes: 1200, prefixes: ["/assets/molis-work-plugins/"] },
+    fonts: { maxBytes: 4000, suffixes: [".woff2"] },
+  },
+  maxSingleAssetBytes: 2500,
+  maxPluginAssetBytes: 1000,
+  firstScreen: {
+    "arrival-empty": { cold: 10_000, warm: 5_000 },
+    chooser: { cold: 10_000, warm: 5_000 },
+    "workbench-default": { cold: 10_000, warm: 5_000 },
+    "workbench-all-plugins": { cold: 10_000, warm: 5_000 },
+  },
+  ...overrides,
+});
 const SOURCE_ROUTES = (routes: string[]) => `${routes.map(route => `if (pathname === "${route}") { /* */ }`).join("\n")}\nconst packs = /^\\/assets\\/molis-work-plugins\\/([a-z0-9-]+)\\.(js|css)$/;\n`;
-const fakeHost = (root: string, { routes, packs, unserved = [] as string[] }: { routes: string[]; packs: Array<{ project_plugin_id: string; clientFactory?: string }>; unserved?: string[] }) => {
+const fakeHost = (root: string, { routes, packs, unserved = [] as string[], withPty = false }: { routes: string[]; packs: Array<{ project_plugin_id: string; clientFactory?: string }>; unserved?: string[]; withPty?: boolean }) => {
   put("package.json", '{ "type": "module" }\n', root);
   put("apps/local-host/src/web-assets.ts", SOURCE_ROUTES(routes), root);
   put("apps/local-host/dist/web-assets.js", `import { readFileSync } from "node:fs";
@@ -37,6 +61,12 @@ export function createLocalWebAssets(ports) {
     "/assets/font.woff2": () => readFileSync(new URL("../../../font.woff2", import.meta.url)),
   };
   return {
+    ${withPty ? `servePtyClient(request, response) {
+      if (request.method !== "GET") return false;
+      response.writeHead(200, {});
+      response.end(readFileSync(ports.ptyClientFilePath()));
+      return true;
+    },` : ""}
     serveWorkbenchAsset(request, response, pathname) {
       if (request.method !== "GET" || unserved.includes(pathname)) return false;
       const pack = pathname.match(/^\\/assets\\/molis-work-plugins\\/([a-z0-9-]+)\\.js$/);
@@ -59,6 +89,7 @@ export const renderMolisWorkSettingsStylesheet = () => text("settings.css");
   put("apps/workbench/dist/plugin-workbench.js", `export const BUILTIN_PLUGIN_WORKBENCH = ${JSON.stringify(packs)};\nexport const pluginOnDemandStylesheet = () => null;\n`, root);
   for (const [name, text] of Object.entries({ "workbench.css": "a".repeat(100), "workbench.js": "b".repeat(200), "arrival.css": "c".repeat(300), "settings.css": "d".repeat(400) })) put(name, text, root);
   writeFileSync(path.join(root, "font.woff2"), Buffer.alloc(77, 1));
+  if (withPty) put("dist/web/pty-client.js", "p".repeat(55), root);
 };
 const FAKE_ROUTES = ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/font.woff2"];
 const FAKE_PACKS = [{ project_plugin_id: "alpha", clientFactory: "()=>1" }, { project_plugin_id: "plain" }];
@@ -70,83 +101,52 @@ const freshHost = (name: string, host: Parameters<typeof fakeHost>[1]) => {
   return root;
 };
 
+test("Batch 100-2 route budgets permit normal growth inside ceilings and reject route overruns, single-asset caps and unclassified routes", () => {
+  const budgets = sampleBudgets();
+  assert.deepEqual(assetBudgetProblems(BASE, budgets), []);
+  // Small growth inside the route ceiling passes with zero allowance files.
+  assert.deepEqual(assetBudgetProblems({ ...BASE, "/assets/b.js": 2400 }, budgets), []);
+  // Route total overrun fails.
+  assert.match(assetBudgetProblems({ ...BASE, "/assets/a.css": 2100, "/assets/b.js": 2100 }, budgets).join("\n"), /route "shell" total 4200 B exceeds budget 4000 B/);
+  // /desktop/pty-client.js overrun fails pluginFrame route budget.
+  assert.match(assetBudgetProblems({ ...BASE, "/desktop/pty-client.js": 1001 }, budgets).join("\n"), /route "pluginFrame" total 1001 B exceeds budget 1000 B/);
+  // Single non-font asset cap fails (fonts are excluded from single-asset JS/CSS cap).
+  assert.match(assetBudgetProblems({ ...BASE, "/assets/b.js": 2600 }, budgets).join("\n"), /\/assets\/b\.js \(2600 B\) exceeds maxSingleAssetBytes \(2500 B\)/);
+  // Single plugin pack cap fails.
+  assert.match(assetBudgetProblems({ ...BASE, "/assets/molis-work-plugins/alpha.js": 1100 }, budgets).join("\n"), /alpha\.js \(1100 B\) exceeds maxPluginAssetBytes \(1000 B\)/);
+  // Unclassified route cannot escape budgeting.
+  assert.match(assetBudgetProblems({ ...BASE, "/assets/unlisted.js": 50 }, budgets).join("\n"), /\/assets\/unlisted\.js: unbudgeted asset route/);
+});
 
-test("CCR-02 shrink needs no shared file; subsequent growth starts from the smaller actual build", () => {
-  assert.deepEqual(assetProblems({ ...BASE, "/assets/a.css": 900 }, BASE, {}, {}), []);
-  assert.match(assetProblems({ ...BASE, "/assets/a.css": 901 }, { ...BASE, "/assets/a.css": 900 }, {}, {}).join(), /grew 900 → 901/);
-});
-test("CCR-03 allowances survive unrelated base changes, are bounded and spent on adoption", () => {
-  const current = { "task-a.json": allowance(10) };
-  assert.deepEqual(assetProblems({ ...BASE, "/assets/a.css": 710 }, { ...BASE, "/assets/a.css": 700 }, current, {}), []);
-  assert.match(assetProblems({ ...BASE, "/assets/a.css": 1011 }, BASE, current, {}).join(), /cover 10 bytes/);
-  assert.match(assetProblems({ ...BASE, "/assets/a.css": 1011 }, { ...BASE, "/assets/a.css": 1010 }, current, current).join(), /cover 0 bytes/);
-  assert.match(assetProblems(BASE, BASE, { "task-a.json": allowance(20) }, current).join(), /cannot be changed/);
-  assert.match(assetProblems(BASE, BASE, {}, current).join(), /cannot be changed/);
-  assert.match(assetProblems(BASE, BASE, { "bad.json": "{}" }, {}).join(), /missing reason/);
-});
-test("CCR-03/04 new assets and cumulative large growth require user approval; groups sum new allowances", () => {
-  const current = { "task-a.json": allowance(6000), "task-b.json": allowance(5000) };
-  assert.match(assetProblems({ ...BASE, "/assets/a.css": 12000 }, BASE, current, {}).join(), /requires userApproval/);
-  const approved = { "task-a.json": allowance(6000, "user decision a"), "task-b.json": allowance(5000, "user decision b") };
-  assert.deepEqual(assetProblems({ ...BASE, "/assets/a.css": 12000 }, BASE, approved, {}), []);
-  assert.match(assetProblems({ ...BASE, "/assets/a.css": 12001 }, BASE, approved, {}).join(), /cover 11000 bytes/);
-  const fresh = { "new.json": JSON.stringify({ reason: "new", review: "review", assets: { "/assets/new.js": 7 } }) };
-  assert.match(assetProblems({ ...BASE, "/assets/new.js": 7 }, BASE, fresh, {}).join(), /userApproval/);
-  fresh["new.json"] = JSON.stringify({ ...JSON.parse(fresh["new.json"]), userApproval: "user decision" });
-  assert.deepEqual(assetProblems({ ...BASE, "/assets/new.js": 7 }, BASE, fresh, {}), []);
-});
-// CCR-04: the merge group sums both new changes and rejects the next byte.
-test("CCR-03/04 two independent Git branches merge allowances without editing the gate or absolute budgets", () => {
-  const root = path.join(work, "parallel"); mkdirSync(root);
-  gitAt(root, "init", "-q", "-b", "main"); put("README.md", "base", root); gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "base");
-  gitAt(root, "checkout", "-qb", "a"); put("tooling/gates/page-asset-allowances/a.json", allowance(10), root); gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "a");
-  gitAt(root, "checkout", "-qb", "b", "main"); put("tooling/gates/page-asset-allowances/b.json", allowance(20), root); gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "b");
-  gitAt(root, "merge", "--no-edit", "a");
-  put("base.json", JSON.stringify(BASE), work); put("head.json", JSON.stringify({ ...BASE, "/assets/a.css": 1030 }), work);
-  const args = ["--base", "main", "--base-sizes", path.join(work, "base.json"), "--sizes", path.join(work, "head.json")];
-  assert.equal(run(root, ...args).code, 0);
-  put("head.json", JSON.stringify({ ...BASE, "/assets/a.css": 1031 }), work);
-  assert.equal(run(root, ...args).code, 1);
-  assert.equal(run(root, ...args, "--output", path.join(work, "not-an-artifact.json")).code, 1);
-});
-test("R7-N2-01 CCR-03/04 CLI bounds the first allowance for a new asset and refuses reuse", () => {
-  const root = path.join(work, "new-asset"); mkdirSync(root);
+test("Batch 100-2 budget schema validation rejects malformed page-asset-budgets.json and merge-base ratchet refuses loosening", () => {
+  for (const invalid of ["{", "[]", JSON.stringify({ ...sampleBudgets(), extra: 1 }), JSON.stringify(sampleBudgets({ maxSingleAssetBytes: 0 })), JSON.stringify(sampleBudgets({ routes: { bad: { maxBytes: 100 } } }))]) {
+    assert.throws(() => parsePageAssetBudgets(invalid), /invalid|unknown|positive|must declare|expected/);
+  }
+  const base = sampleBudgets();
+  const tightened = sampleBudgets({ maxSingleAssetBytes: 2400 });
+  assert.deepEqual(assetBudgetProblems(BASE, tightened, base), []);
+
+  const root = path.join(work, "ratchet"); mkdirSync(root);
   gitAt(root, "init", "-q", "-b", "main");
-  gitAt(root, "commit", "--allow-empty", "-qm", "base");
-  gitAt(root, "checkout", "-qb", "new-asset");
-  const file = "tooling/gates/page-asset-allowances/new-asset.json";
-  const record = { reason: "add a page script", review: "review fixture", assets: { "/assets/new.js": 7 } };
-  put(file, JSON.stringify(record), root);
-  gitAt(root, "add", file);
+  put("tooling/gates/page-asset-budgets.json", JSON.stringify(base, null, 2) + "\n", root);
+  gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "base");
+  gitAt(root, "checkout", "-qb", "loosen");
+  put("tooling/gates/page-asset-budgets.json", JSON.stringify({ ...base, maxPluginAssetBytes: 1001 }, null, 2) + "\n", root);
+  gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "loosen");
+  const sizesFile = path.join(work, "ratchet-sizes.json");
+  writeFileSync(sizesFile, JSON.stringify(BASE));
+  const failed = run(root, "--base", "main", "--sizes", sizesFile);
+  assert.equal(failed.code, 1, failed.out);
+  assert.match(failed.out, /maxPluginAssetBytes loosened 1000 → 1001/);
 
-  const baseSizes = path.join(root, "base-sizes.json");
-  const headSizes = path.join(root, "head-sizes.json");
-  writeFileSync(baseSizes, JSON.stringify(BASE));
-  writeFileSync(headSizes, JSON.stringify({ ...BASE, "/assets/new.js": 7 }));
-  const args = ["--base", "main", "--base-sizes", baseSizes, "--sizes", headSizes];
-  const unapproved = run(root, ...args);
-  assert.equal(unapproved.code, 1, unapproved.out);
-  assert.match(unapproved.out, /new-asset\.json: \/assets\/new\.js is new or over 10 KB; userApproval is required/);
-
-  put(file, JSON.stringify({ ...record, userApproval: "user decision fixture" }), root);
-  gitAt(root, "add", file);
-  gitAt(root, "commit", "-qm", "add the approved asset");
-  const approved = run(root, ...args);
-  assert.equal(approved.code, 0, approved.out);
-
-  writeFileSync(headSizes, JSON.stringify({ ...BASE, "/assets/new.js": 8 }));
-  const excess = run(root, ...args);
-  assert.equal(excess.code, 1, excess.out);
-  assert.match(excess.out, /\/assets\/new\.js grew 0 → 8 \(\+8\); new allowances cover 7 bytes/);
-
-  // Adopt the allowance into main before comparing a later increase.
-  gitAt(root, "branch", "-f", "main", "HEAD");
-  gitAt(root, "commit", "--allow-empty", "-qm", "later growth");
-  writeFileSync(baseSizes, JSON.stringify({ ...BASE, "/assets/new.js": 7 }));
-  const reused = run(root, ...args);
-  assert.equal(reused.code, 1, reused.out);
-  assert.match(reused.out, /\/assets\/new\.js grew 7 → 8 \(\+1\); new allowances cover 0 bytes/);
+  // Tightening passes cleanly.
+  put("tooling/gates/page-asset-budgets.json", JSON.stringify(tightened, null, 2) + "\n", root);
+  gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "tighten");
+  const ok = run(root, "--base", "main", "--sizes", sizesFile);
+  assert.equal(ok.code, 0, ok.out);
+  assert.equal(run(root, "--base", "main", "--sizes", sizesFile, "--output", path.join(work, "not-an-artifact.json")).code, 2);
 });
+
 test("CCR-05 artifact requires exact commit, collector and successful trusted workflow", async () => {
   const sha = "a".repeat(40), key = "collector", report = { sha, key, measured: BASE, misses: [] };
   assert.equal(reportMatches(report, sha, key), true);
@@ -159,6 +159,7 @@ test("CCR-05 artifact requires exact commit, collector and successful trusted wo
   assert.equal(requests, 1, "PR artifacts never fetched");
   assert.equal(await cachedMeasurement({ sha, key, repo: "example/repo", token: "fixture", fetch: async () => { throw new Error("offline"); } }), null);
 });
+
 test("CCR-07 base checkout is removed after build failure and cancellation", async () => {
   const root = path.join(work, "cleanup"); mkdirSync(root); gitAt(root, "init", "-q", "-b", "main");
   put("README.md", "fixture", root); gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "base");
@@ -174,16 +175,26 @@ test("CCR-07 base checkout is removed after build failure and cancellation", asy
   assert.equal(existsSync(checkout), false);
   assert.equal(gitAt(root, "worktree", "list", "--porcelain").match(/^worktree /gm)?.length, 1);
 });
-test("CCR-06 measurement uses the actual Host bytes including UTF-8 plugin packs", () => {
-  const root = freshHost("host", { routes: FAKE_ROUTES, packs: FAKE_PACKS });
+
+test("CCR-06 measurement uses the actual Host bytes including UTF-8 plugin packs and /desktop/pty-client.js", () => {
+  const root = freshHost("host", { routes: FAKE_ROUTES, packs: FAKE_PACKS, withPty: true });
   const result = run(root, "--report", "--json"); assert.equal(result.code, 0, result.out);
-  assert.deepEqual(JSON.parse(result.out).measured, { "/assets/font.woff2": 77, "/assets/molis-work-arrival.css": 300, "/assets/molis-work-plugins/alpha.js": 20, "/assets/molis-work-settings.css": 400, "/assets/molis-work-workbench.css": 100, "/assets/molis-work-workbench.js": 200 });
+  assert.deepEqual(JSON.parse(result.out).measured, {
+    "/assets/font.woff2": 77,
+    "/assets/molis-work-arrival.css": 300,
+    "/assets/molis-work-plugins/alpha.js": 20,
+    "/assets/molis-work-settings.css": 400,
+    "/assets/molis-work-workbench.css": 100,
+    "/assets/molis-work-workbench.js": 200,
+    "/desktop/pty-client.js": 55,
+  });
   put("apps/local-host/src/web-assets.ts", SOURCE_ROUTES(FAKE_ROUTES).replace('"/assets/font.woff2"', '"/ass" + "ets/font.woff2"'), root);
   const probe = path.join(work, "probe.json"); writeFileSync(probe, JSON.stringify(["/assets/font.woff2"]));
   const measured = JSON.parse(execFileSync(process.execPath, [measurer, root, probe], { encoding: "utf8" }));
   assert.deepEqual(measured.misses, ["/assets/font.woff2"]);
   assert.equal(measured.measured["/assets/font.woff2"], 77);
 });
+
 test("CCR-06 route discovery refuses unreadable spellings, missing routes and broken builds", () => {
   const root = freshHost("refusals", { routes: FAKE_ROUTES, packs: FAKE_PACKS });
   const source = read("apps/local-host/src/web-assets.ts", root);
@@ -198,11 +209,11 @@ test("CCR-06 route discovery refuses unreadable spellings, missing routes and br
   put("apps/local-host/src/web-assets.ts", source, root); rmSync(path.join(root, "apps/workbench/dist"), { recursive: true });
   assert.match(run(root, "--report").out, /is missing.*build the workspace/);
 });
-test("CCR-06 actual repository build measures all served workbench and plugin paths (RAC-44/55/60, PG-070)", () => {
+
+test("CCR-06 actual repository build measures all served workbench, plugin and /desktop paths (RAC-44/55/60, PG-070)", () => {
   const result = run(repoRoot, "--report", "--json"); assert.equal(result.code, 0, result.out);
   const report = JSON.parse(result.out); assert.deepEqual(report.discoveryMisses, []);
-  for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js"]) assert.ok(report.measured[asset] > 0);
-  // The stage's deferred surfaces and on-demand plugin sheets, and 角色's program, which the settings pages load (not a stage surface).
+  for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js", "/desktop/pty-client.js"]) assert.ok(report.measured[asset] > 0, asset);
   const bundles = [...new Set([CHARACTERS_CLIENT_PATH, ...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`), ...pluginWorkbenchPacks().filter(pack => pluginOnDemandStylesheet(pack.project_plugin_id)).map(pack => `/assets/molis-work-plugins/${pack.project_plugin_id}.css`)])].sort();
   assert.ok(bundles.length > 0); assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles);
 });
@@ -223,6 +234,7 @@ test("CCR-05 valid CI artifact reuses bytes; expired and corrupt artifacts fall 
   assert.equal(await cachedMeasurement({ ...args, fetch: fetcher(true) }), null);
   assert.equal(await cachedMeasurement({ ...args, fetch: fetcher(false, true) }), null);
 });
+
 test("CCR-05/07 successful cold baseline measures the built checkout and removes it", async () => {
   const root = freshHost("base-success", { routes: FAKE_ROUTES, packs: FAKE_PACKS });
   gitAt(root, "init", "-q", "-b", "main"); gitAt(root, "add", "."); gitAt(root, "commit", "-qm", "base");

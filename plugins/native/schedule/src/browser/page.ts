@@ -27,6 +27,8 @@ export interface SchedulePage {
   recovering: boolean;
   operationReview: OperationReview | null;
   operationBusy: boolean;
+  /** Number of in-flight row/detail writes or manual detail refreshes. */
+  changing: number;
   /** Counts the openings of the form, so a readiness answer from an earlier one is not shown in this one. */
   hinting: number;
   /** Counts the reads of what the tasks may read, so a late answer does not overwrite a later one. */
@@ -59,7 +61,7 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
     recoveryError: required(workbench, "[data-schedule-recovery-error]"),
     operationDialog: required<HTMLDialogElement>(workbench, "[data-schedule-operation-dialog]"),
     operationForm: required<HTMLFormElement>(workbench, "[data-schedule-operation-form]"),
-    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, refreshing: 0, latestRefresh: null, created: "",
+    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, changing: 0, hinting: 0, reading: 0, refreshing: 0, latestRefresh: null, created: "",
     area: null, changes: new Map(),
   };
 }

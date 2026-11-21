@@ -3,8 +3,8 @@ import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import {
-  bindScheduleConversationJob, createScheduleConversationTask, getScheduledOperation, saveScheduledOperation, createScheduleReminders, decideMissedRun, deliverScheduleReminder, getScheduleReminder,
-  endExpiredOnce, noteMissedWakeup, registerConversationJob, scheduleRunsOverview, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE, SCHEDULE_REMINDER_WAKEUP,
+  bindScheduleConversationJob, createScheduleConversationTask, getScheduleConversationTask, getScheduledOperation, saveScheduledOperation, createScheduleReminders, decideMissedRun, deliverScheduleReminder, getScheduleReminder,
+  endExpiredOnce, noteMissedWakeup, registerConversationJob, rescheduleEnabledConversationTasks, scheduleRunsOverview, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE, SCHEDULE_REMINDER_WAKEUP,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -219,4 +219,50 @@ test("BL-missed-runs-never-expire a run Schedule writes down only after the pers
   await h.schedule.tick();
   assert.deepEqual(h.missedRows().map(entry => entry.run_id).filter(id => ["late", "told", "old"].includes(id)).sort(), ["late", "told"],
     "the one that ran out in early September is gone; the October ones are kept");
+});
+
+test("BL-missed-runs-never-expire a missed one-off conversation task survives reconcile for 7 days so run_now executes, and disables after 7 days", async t => {
+  const h = harness(t);
+  const makeOnceTask = (title: string) => {
+    const created = createScheduleConversationTask(
+      h.db,
+      { title, instructions: "只跑一次", repeat: "none", run_at: at, hour: 9, minute: 0, notify_important: false },
+      () => new Date(h.clock.now),
+    );
+    const job = registerConversationJob(h.schedule, created, new Date(h.clock.now));
+    bindScheduleConversationJob(h.db, created.task_id, job.job_id, () => new Date(h.clock.now));
+    return created.task_id;
+  };
+  const runNowTask = makeOnceTask("一次性追回");
+  const expiredTask = makeOnceTask("一次性过期");
+
+  h.clock.now = Date.parse(at) + RUN_MISSED_GRACE_MS + MINUTE;
+  await h.schedule.tick();
+  assert.equal(h.rounds.length, 0, "past grace neither one-off task runs automatically");
+
+  // Reconcile passes (every 5s while open) must keep both one-off tasks enabled during the 7-day missed window.
+  const movedDuringWindow = h.db.transaction(() => {
+    const rescheduled = rescheduleEnabledConversationTasks(h.db, h.schedule, () => new Date(h.clock.now));
+    return endExpiredOnce(h.db, projectId, h.clock.now) || rescheduled;
+  }).immediate();
+  assert.equal(movedDuringWindow, false, "reconcile leaves pending missed one-off tasks untouched");
+  assert.equal(getScheduleConversationTask(h.db, runNowTask)?.enabled, true);
+  assert.equal(getScheduleConversationTask(h.db, expiredTask)?.enabled, true);
+
+  const missed = Object.fromEntries(h.missedRows().map(entry => [entry.title, entry.run_id]));
+  assert.deepEqual(h.decide(missed["一次性追回"]!, "run_now"), { state: "started" }, "run_now starts instead of returning gone");
+  await h.schedule.tick();
+  assert.deepEqual(h.rounds, [`${runNowTask}@${at}`], "the missed one-off task actually executes");
+
+  // Once executed (decision = run_now), reconcile disables the completed one-off task while keeping the undecided one enabled.
+  const movedAfterRun = h.db.transaction(() => rescheduleEnabledConversationTasks(h.db, h.schedule, () => new Date(h.clock.now))).immediate();
+  assert.equal(movedAfterRun, true);
+  assert.equal(getScheduleConversationTask(h.db, runNowTask)?.enabled, false);
+  assert.equal(getScheduleConversationTask(h.db, expiredTask)?.enabled, true);
+
+  // Past 7 days, endExpiredOnce disables the undecided one-off task and run_now reports gone.
+  h.clock.now = Date.parse(at) + RUN_MISSED_KEPT_MS;
+  assert.equal(h.reconcile(), true, "7-day expiry ends the undecided one-off conversation task");
+  assert.equal(getScheduleConversationTask(h.db, expiredTask)?.enabled, false);
+  assert.deepEqual(h.decide(missed["一次性过期"]!, "run_now"), { state: "gone" });
 });

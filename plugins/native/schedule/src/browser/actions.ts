@@ -10,41 +10,50 @@ import { collapse, refreshStage } from "./stage.js";
 const uiText = globalThis.t;
 
 /** Asks the Host to change one thing, then reads the page again; a failure is said under the detail's buttons. */
-async function change(button: HTMLButtonElement, fallback: string, write: () => Promise<unknown>, then: () => Promise<unknown>): Promise<void> {
+async function change(page: SchedulePage, button: HTMLButtonElement, fallback: string, write: () => Promise<unknown>, then: () => Promise<unknown>): Promise<void> {
   button.disabled = true;
+  page.changing += 1;
   try {
     await write();
     await then();
   } catch (error) {
     showActionStatus(button, messageOf(error) || fallback);
     button.disabled = false;
+  } finally {
+    page.changing = Math.max(0, page.changing - 1);
   }
 }
 
 /** A refresh button on a detail that keeps its review (the reminder's or the operation's): a failure is said under its buttons. */
 async function refreshDetail(page: SchedulePage, button: HTMLButtonElement, id: string): Promise<void> {
   button.disabled = true;
-  try { await refreshStage(page, id, "job", true); }
-  catch (error) { showActionStatus(button, messageOf(error)); }
-  finally { button.disabled = false; }
+  page.changing += 1;
+  try {
+    await refreshStage(page, id, "job", true);
+  } catch (error) {
+    showActionStatus(button, messageOf(error));
+  } finally {
+    page.changing = Math.max(0, page.changing - 1);
+    button.disabled = false;
+  }
 }
 
 async function archive(page: SchedulePage, button: HTMLButtonElement): Promise<void> {
   const { host } = page, id = button.dataset.scheduleTaskArchive ?? "";
   if (!await host.confirm(uiText.text("schedule.archive.confirm"))) return;
-  await change(button, uiText.text("schedule.error.archive"), () => post(host, "/tasks/" + encodeURIComponent(id) + "/archive", {}, uiText.text("schedule.error.archive")), () => refreshStage(page));
+  await change(page, button, uiText.text("schedule.error.archive"), () => post(host, "/tasks/" + encodeURIComponent(id) + "/archive", {}, uiText.text("schedule.error.archive")), () => refreshStage(page));
 }
 
 /** Pauses or resumes a conversation task. */
 function toggleTask(page: SchedulePage, button: HTMLButtonElement): Promise<void> {
   const { host } = page, id = button.dataset.scheduleTaskId ?? "", enabled = button.dataset.scheduleTaskEnabledAction === "true";
-  return change(button, uiText.text("schedule.error.update"), () => post(host, "/tasks/" + encodeURIComponent(id) + "/enabled", { enabled }, uiText.text("schedule.error.update")), () => refreshStage(page, id, "task"));
+  return change(page, button, uiText.text("schedule.error.update"), () => post(host, "/tasks/" + encodeURIComponent(id) + "/enabled", { enabled }, uiText.text("schedule.error.update")), () => refreshStage(page, id, "task"));
 }
 
 /** Pauses or resumes an alarm another plugin registered (or an operation on one). */
 function toggleJob(page: SchedulePage, button: HTMLButtonElement): Promise<void> {
   const { host } = page, id = button.dataset.scheduleJobId ?? "", enabled = button.dataset.scheduleEnabledAction === "true";
-  return change(button, uiText.text("schedule.error.update"), () => post(host, "/jobs/" + encodeURIComponent(id) + "/enabled", { enabled }, uiText.text("schedule.error.update")), () => refreshStage(page, button.dataset.scheduleDetailId || id, "job"));
+  return change(page, button, uiText.text("schedule.error.update"), () => post(host, "/jobs/" + encodeURIComponent(id) + "/enabled", { enabled }, uiText.text("schedule.error.update")), () => refreshStage(page, button.dataset.scheduleDetailId || id, "job"));
 }
 
 /** What a click on the workbench asks for, by the first control it landed on. */

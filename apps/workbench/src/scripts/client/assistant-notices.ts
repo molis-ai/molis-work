@@ -186,5 +186,5 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   }
   noticeBtn?.addEventListener("click", () => setNotices(noticePop.hidden));
   document.addEventListener("molis-work:attention-refresh", () => readBadge());
-  document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });
+  document.addEventListener("molis-work:model-ready", () => { if (problem && problem.action_kind === "open_model_settings") { problem = null; render(); } });
   document.addEventListener("molis-work:plugin-events", (event) => { pluginHeldSince = performance.now(); pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });`;

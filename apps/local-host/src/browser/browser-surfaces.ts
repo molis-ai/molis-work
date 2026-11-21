@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
-import { readVersionedFileOr } from "../versioned-file-read.js";
+import { assertVersionedFileWritable, readVersionedFile, sqliteStoreLabel, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { hostLog } from "../host-log.js";
 
 /**
  * What the Agent Host may attach from the side panel's browser (specs/archive/side-panel P5): one driver per project page,
@@ -42,25 +42,36 @@ export const BROWSER_SITES_FILE: VersionedFile<{ sites: SurfaceSiteDecision[]; a
   { version: BROWSER_SITES_VERSION, field: "version", upgrades: BROWSER_SITES_UPGRADES, parse: parseBrowserSites };
 
 export class BrowserSiteDecisions {
+  private readonly homeDirectory: string;
   private readonly file: string;
   private rows: SurfaceSiteDecision[];
-  /** Whether the Assistant may use the side panel browser at all (on unless the person turned it off). */
+  /** Whether the Assistant may use the side panel browser at all (on unless the person turned it off, or fail-closed on unreadable/too-new files). */
   private assistant: boolean;
+  /** True when the sites file exists but could not be trusted (`too_new`, `upgrade_pending`, or `unreadable`): fail-closed blocks all sites and disables Assistant browser access. */
+  private failClosed: boolean;
 
   constructor(homeDirectory: string) {
+    this.homeDirectory = homeDirectory;
     this.file = path.join(homeDirectory, "browser", "sites.json");
     const saved = this.read();
     this.rows = saved.sites;
     this.assistant = saved.assistant;
+    this.failClosed = saved.failClosed;
   }
 
   get assistantEnabled(): boolean { return this.assistant; }
 
-  setAssistantEnabled(enabled: boolean): void { this.save(this.rows, enabled); this.assistant = enabled; }
+  setAssistantEnabled(enabled: boolean): void {
+    this.save(this.rows, enabled);
+    this.assistant = enabled;
+  }
 
   list(): readonly SurfaceSiteDecision[] { return this.rows; }
 
-  blocked(scope: string): boolean { return this.rows.some(row => row.scope === scope && row.decision === "block"); }
+  blocked(scope: string): boolean {
+    if (this.failClosed) return true;
+    return this.rows.some(row => row.scope === scope && row.decision === "block");
+  }
 
   set(scope: string, decision: "allow" | "block" | "forget"): readonly SurfaceSiteDecision[] {
     if (!/^https?:\/\/[^/?#\s]+$/u.test(scope)) throw new Error("网站必须写成 https://example.com 这样的来源，不带路径");
@@ -80,8 +91,12 @@ export class BrowserSiteDecisions {
     fs.renameSync(temp, this.file);
   }
 
-  /** No file is the default. One too new or unreadable also reads as the default, in memory only: `save` refuses to replace it. */
-  private read(): { sites: SurfaceSiteDecision[]; assistant: boolean } {
-    return readVersionedFileOr(BROWSER_SITES_FILE, this.file, () => ({ sites: [], assistant: true }));
+  /** Absent file uses the default. Too-new, unupgraded, or unreadable files fail closed (all sites blocked, Assistant disabled) while leaving the file untouched. */
+  private read(): { sites: SurfaceSiteDecision[]; assistant: boolean; failClosed: boolean } {
+    const seen = readVersionedFile(BROWSER_SITES_FILE, this.file, this.homeDirectory);
+    if (seen.status === "current") return { ...seen.value, failClosed: false };
+    if (seen.status === "absent") return { sites: [], assistant: true, failClosed: false };
+    hostLog.warn("host", "versioned_file_not_used", undefined, { file: sqliteStoreLabel(this.file, this.homeDirectory), status: seen.status });
+    return { sites: [], assistant: false, failClosed: true };
   }
 }

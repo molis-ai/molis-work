@@ -309,7 +309,7 @@ export class AssistantDispatch {
     // The work's own cap: none left means no round; otherwise the round may spend only what is left.
     const spent = await this.link.workUsage(work);
     if (spent.budget_tokens !== null && spent.tokens >= spent.budget_tokens) {
-      throw assistantErrors.budget(`${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, { action: "调高这项工作的上限" });
+      throw assistantErrors.budget(`${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, { action: "调高这项工作的上限", action_kind: "raise_work_budget" });
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);

@@ -67,7 +67,11 @@ export function installOutline(page: PptPage): void {
     if (!usePage) { if (pageNote) pageNote.hidden = true; return; }
     const select = q<HTMLSelectElement>("[data-ppt-outline-page]");
     if (select && select.dataset.loaded === "true") return;
-    if (pageNote) { pageNote.hidden = false; pageNote.textContent = uiText.text("ppt.outline.loading"); }
+    if (pageNote) {
+      pageNote.hidden = false;
+      pageNote.classList.remove("is-error");
+      pageNote.textContent = uiText.text("ppt.outline.loading");
+    }
     try {
       const payload = await page.request<OutlinePages>("GET", page.api + "/outline-pages");
       const documents = payload.documents || [];
@@ -82,10 +86,15 @@ export function installOutline(page: PptPage): void {
       }
       if (pageNote) {
         pageNote.hidden = documents.length > 0;
+        pageNote.classList.remove("is-error");
         pageNote.textContent = documents.length ? "" : (payload.unavailable_reason || uiText.text("ppt.outline.no-docs"));
       }
     } catch (error) {
-      if (pageNote) { pageNote.hidden = false; pageNote.textContent = messageOf(error) || uiText.text("ppt.outline.docs-failed"); }
+      if (pageNote) {
+        pageNote.hidden = false;
+        pageNote.classList.add("is-error");
+        pageNote.textContent = messageOf(error) || uiText.text("ppt.outline.docs-failed");
+      }
     }
   };
 

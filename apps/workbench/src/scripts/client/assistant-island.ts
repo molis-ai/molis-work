@@ -204,7 +204,10 @@ ${ASSISTANT_SIDE_KIT_PART}
 ${ASSISTANT_SIDE_PATH_PART}
 
   /* 上下文, 工作环境, 连接与工具 are drawn in assistant-side-context.ts: what the next Send carries and what rounds used; where the work runs and what it can call. */
-  const MATERIAL_KIND = { image: "图片", file: "文件", method: "方法", capability: "能力", text: "文字", selection: "选中的内容", object: "引用" };
+  const MATERIAL_KIND = {
+    image: "workbench.assistant-island.material-kind-image", file: "workbench.assistant-island.material-kind-file", method: "workbench.assistant-island.material-kind-method",
+    capability: "workbench.assistant-island.material-kind-capability", text: "workbench.assistant-island.material-kind-text", selection: "workbench.assistant-island.material-kind-selection", object: "workbench.assistant-island.material-kind-object",
+  };
 
   /* 产出: what it made, a fixed version kept in the 成果库 (固定成果) apart from objects their owners keep changing (工作文件); each card opens it or takes it back. */
   const renderResults = (work) => {
@@ -257,10 +260,14 @@ ${ASSISTANT_SIDE_PATH_PART}
           await reload();
         }, false, "secondary", "undo"));
         if (!undone) actions.push(sideAct(readText("workbench.assistant-island.see-settings"), change.text, async () => {
-          // The settings surface opens its memory section when it hears this; with nobody listening, go there.
-          const handled = !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
+          // Project memory opens the project's settings cover by path; global memory opens the global memory section.
           const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
-          if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
+          const href = scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory";
+          const handled = scoped
+            ? !document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: new URL(href, location.origin).href }, cancelable: true }))
+            : !document.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
+          if (handled) setPanel(false);
+          else location.assign(href);
         }, true));
         const scope = proc.memoryScope(change.scope);
         if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: readText("workbench.assistant-island.undone-deleted-memory"), done: true, sub: scope, actions });
@@ -466,16 +473,16 @@ ${ASSISTANT_TABS_PART}
         });
         box.append(check);
       }
-      if (shown.action) {
-        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", shown.action); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
+      if (shown.action_kind || shown.action) {
+        if (shown.action_kind === "open_model_settings") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-model-settings")); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
         // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
-        else if (/这项工作的上限/.test(shown.action) && usageBox) {
-          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", shown.action); raise.type = "button";
+        else if (shown.action_kind === "raise_work_budget" && usageBox) {
+          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.raise-work-budget")); raise.type = "button";
           raise.addEventListener("click", openUsage);
           box.append(raise);
         }
-        else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; box.append(link); }
-        else box.append(el("p", "assistant-muted", shown.action));
+        else if (shown.action_kind === "open_assistant_settings") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; box.append(link); }
+        else if (shown.action) box.append(el("p", "assistant-muted", shown.action));
       }
       thread.append(box);
     }
@@ -494,7 +501,7 @@ ${ASSISTANT_TABS_PART}
     workNav.append(fresh);
     if (!works.length) workNav.append(el("p", "assistant-muted", readText("workbench.assistant-island.no-work-yet-send-message-start-first-one")));
     // Grouped the way the person looks for them: what waits on them, what is running, then the rest by recency.
-    const groups = [["等你", (work) => markOf(work) === "waiting"], ["进行中", (work) => work.state === "running" || work.state === "paused"], ["最近", () => true]];
+    const groups = [[readText("workbench.assistant-island.group-waiting"), (work) => markOf(work) === "waiting"], [readText("workbench.assistant-island.group-in-progress"), (work) => work.state === "running" || work.state === "paused"], [readText("workbench.assistant-island.group-recent"), () => true]];
     const placed = new Set();
     groups.forEach(([label, fits]) => {
       const rows = works.filter((work) => !placed.has(work.work_id) && fits(work));

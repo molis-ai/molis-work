@@ -205,3 +205,19 @@ test("files the side pane takes say why they were not added while a page has the
   assert.match(addFiles, /composer\?\.attach\(chosen\)/);
   assert.doesNotMatch(addFiles, /^\s*if \(!boundPage\) composer\?\.attach\(chosen\);\s*$/m, "the old silent guard is gone");
 });
+
+// Batch 101-1: Assistant problem action routing and material/group labels must not match Chinese text.
+test("101-1: assistant-island routes problem actions by action_kind and translates material kinds and work groups", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  assert.doesNotMatch(script, /\/模型\/\.test|\/这项工作的上限\/\.test|shown\.action === "打开设置"/, "no Chinese regex or literal action routing");
+  assert.match(script, /shown\.action_kind === "open_model_settings"/);
+  assert.match(script, /shown\.action_kind === "raise_work_budget"/);
+  assert.match(script, /shown\.action_kind === "open_assistant_settings"/);
+  assert.match(script, /problem\.action_kind === "open_model_settings"/);
+  assert.match(script, /workbench\.assistant-island\.material-kind-image/);
+  assert.match(script, /workbench\.assistant-island\.group-waiting/);
+  assert.equal(pageText("en")("workbench.assistant-island.open-model-settings"), "Open model settings");
+  assert.equal(pageText("en")("workbench.assistant-island.raise-work-budget"), "Raise this work’s cap");
+  assert.equal(pageText("zh")("workbench.assistant-island.group-waiting"), "等你");
+  assert.equal(pageText("en")("workbench.assistant-island.group-waiting"), "Waiting on you");
+});

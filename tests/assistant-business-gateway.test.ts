@@ -451,6 +451,7 @@ test("without a model the work and its text are kept, with a next step", { timeo
       assert.equal(error.code, "assistant.model_missing");
       assert.equal(error.kind, "invalid");
       assert.equal(error.details?.action, "打开模型设置");
+      assert.equal(error.details?.action_kind, "open_model_settings");
       const kept = error.details?.work;
       assert.ok(kept && typeof kept === "object" && "draft" in kept && "work_id" in kept);
       assert.equal(kept.draft, "Plan my week");
@@ -477,7 +478,8 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       const shown = error.message + pageText("en")("workbench.assistant-send.text-kept");
       assert.equal(shown, "No usable model is configured yet, so the assistant can’t start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
-      assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
+      assert.equal(error.details?.action, "打开模型设置", "the action stays backward-compatible while action_kind drives client routing");
+      assert.equal(error.details?.action_kind, "open_model_settings", "client routes the model-settings link by structured action_kind, not Chinese text");
       assert.equal(pageText("en")("workbench.settings-connectors.open-model-settings"), "Open model settings");
       const kept = error.details?.work as { draft?: string } | undefined;
       assert.equal(kept?.draft, text, "the text is kept word for word");

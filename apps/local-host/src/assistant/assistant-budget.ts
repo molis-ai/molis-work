@@ -76,7 +76,7 @@ export class AssistantBudget {
     if (usage.daily_tokens === null) return;
     const used = usage.today.input + usage.today.output;
     if (used >= usage.daily_tokens) {
-      throw assistantErrors.budget(`今天助理已用 ${used.toLocaleString("en-US")} tokens，达到你设的每日上限 ${usage.daily_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。可以明天继续，或在设置里调高上限`, { action: "打开设置" });
+      throw assistantErrors.budget(`今天助理已用 ${used.toLocaleString("en-US")} tokens，达到你设的每日上限 ${usage.daily_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。可以明天继续，或在设置里调高上限`, { action: "打开设置", action_kind: "open_assistant_settings" });
     }
   }
 }

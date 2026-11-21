@@ -58,15 +58,32 @@ function fillChildDoc(page: ShelfPage): void {
   const { preview, selectedChild, selected, reading } = page;
   const doc = preview.querySelector<HTMLElement>("[data-shelf-child-doc]");
   if (!doc || !selectedChild) return;
-  readText(page, childUrl(page, selectedChild.item_id, selectedChild.relative), "").catch(() => "").then((text) => {
-    if (!doc.isConnected || !text) return;
-    const relative = doc.dataset.shelfChildDoc ?? "";
-    const child = selected?.children?.find((entry) => entry.relative === relative);
-    const holder = document.createElement("div");
-    setContentHtml(holder, reading.render(child || { name: relative }, text));
-    doc.querySelectorAll("p.muted").forEach((node) => node.remove());
-    doc.append(...holder.childNodes);
-  }).catch(() => undefined);
+  const fallback = uiText.text("shelf.preview.could-not-read-this-copy");
+  readText(page, childUrl(page, selectedChild.item_id, selectedChild.relative), fallback)
+    .then((text) => {
+      if (!doc.isConnected) return;
+      doc.querySelectorAll("p.muted").forEach((node) => node.remove());
+      if (!text) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = uiText.text("shelf.preview.empty-file");
+        doc.append(empty);
+        return;
+      }
+      const relative = doc.dataset.shelfChildDoc ?? "";
+      const child = selected?.children?.find((entry) => entry.relative === relative);
+      const holder = document.createElement("div");
+      setContentHtml(holder, reading.render(child || { name: relative }, text));
+      doc.append(...holder.childNodes);
+    })
+    .catch((error: Error) => {
+      if (error.name === "AbortError" || !doc.isConnected) return;
+      doc.querySelectorAll("p.muted").forEach((node) => node.remove());
+      const line = document.createElement("p");
+      line.className = "shelf-read-error";
+      line.textContent = error.message || fallback;
+      doc.append(line);
+    });
 }
 
 export function expandShelfStage(page: ShelfPage, expanded: boolean): void {

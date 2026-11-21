@@ -437,14 +437,19 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const href = typeof detail.href === "string" ? detail.href : "", wasOpen = covered();
     opened = null;
-    if (openProjectSettingsFromUrl(href, true) || openGlobalSettingsFromUrl(href, true)) returns?.open(detail, opened.kind + " " + opened.section, wasOpen);
-    else returns?.refuse(detail.return_id);
+    if (openProjectSettingsFromUrl(href, true) || openGlobalSettingsFromUrl(href, true)) {
+      event.preventDefault?.();
+      returns?.open(detail, opened.kind + " " + opened.section, wasOpen);
+    } else returns?.refuse(detail.return_id);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
   document.addEventListener("molis-work:open-settings-section", (event) => {
     const section = event.detail?.section;
-    if (typeof section === "string" && knownGlobalSection(section)) openShell("settings", section);
+    if (typeof section === "string" && knownGlobalSection(section)) {
+      event.preventDefault?.();
+      openShell("settings", section);
+    }
   });
   const requestedSection = new URLSearchParams(location.search).get("settings");
   if (requestedSection) setTimeout(() => {

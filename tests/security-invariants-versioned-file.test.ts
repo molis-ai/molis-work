@@ -31,17 +31,23 @@ const versionAt = (pattern: string) => {
   return upgradeTarget(descriptor);
 };
 
-test("S-upgrade-too-new-untouched: `browser/sites.json` one version ahead: read as the default, saving refused, the file unchanged", t => {
-  const { home } = upgradeTestHome(t), file = place(home, "browser/sites.json", { version: BROWSER_SITES_FILE.version + 1, assistant: false, sites: [{ scope: "https://a.example", decision: "block", at: "x" }] }), before = sha256(file);
+test("S-upgrade-too-new-untouched: `browser/sites.json` one version ahead: fail-closed (assistant disabled and all sites blocked), saving refused, the file unchanged", t => {
+  const { home } = upgradeTestHome(t);
+  const file = place(home, "browser/sites.json", { version: BROWSER_SITES_FILE.version + 1, assistant: false, sites: [{ scope: "https://a.example", decision: "block", at: "x" }] });
+  const before = sha256(file);
   const sites = new BrowserSiteDecisions(home);
   assert.deepEqual(sites.list(), []);
+  assert.equal(sites.assistantEnabled, false, "too-new sites.json must fail closed and disable assistant browser access");
+  assert.equal(sites.blocked("https://a.example"), true, "too-new sites.json must block previously blocked origins");
+  assert.equal(sites.blocked("https://b.example"), true, "too-new sites.json must fail closed for all origins");
   assert.throws(() => sites.set("https://b.example", "allow"), { code: "storage.store_too_new" });
-  assert.throws(() => sites.setAssistantEnabled(false), { code: "storage.store_too_new" });
+  assert.throws(() => sites.setAssistantEnabled(true), { code: "storage.store_too_new" });
   assert.equal(sha256(file), before);
   assert.deepEqual(readdirSync(dirname(file)), ["sites.json"], "and no temporary file");
-  // A refused save is not in force either: the browser goes on deciding as it did before it was asked.
+  // A refused save is not in force either: the browser stays fail-closed.
   assert.deepEqual(sites.list(), [], "the refused allow is not taken");
-  assert.equal(sites.assistantEnabled, true, "the refused switch is not taken");
+  assert.equal(sites.assistantEnabled, false, "the refused switch is not taken");
+  assert.equal(sites.blocked("https://b.example"), true, "the refused allow does not lift fail-closed blocking");
 });
 
 test("S-upgrade-too-new-untouched: `jelly/preferences.json` one version ahead or unreadable: the model choice is refused before anything it would change", async t => {
@@ -177,13 +183,22 @@ test("S-upgrade-too-new-untouched: the other files that used to read as empty: n
   });
 });
 
-test("S-upgrade-too-new-untouched: a damaged file is not replaced either, and a missing one is still written", t => {
-  const { home } = upgradeTestHome(t), damaged = place(home, "browser/sites.json", "{"), before = sha256(damaged);
+test("S-upgrade-too-new-untouched: a damaged file is fail-closed and not replaced either, and a missing one is still written", t => {
+  const { home } = upgradeTestHome(t);
+  const damaged = place(home, "browser/sites.json", "{");
+  const before = sha256(damaged);
   const sites = new BrowserSiteDecisions(home);
+  assert.equal(sites.assistantEnabled, false, "damaged sites.json must fail closed and disable assistant browser access");
+  assert.equal(sites.blocked("https://a.example"), true, "damaged sites.json must block all origins");
   assert.throws(() => sites.set("https://b.example", "allow"), { code: "storage.schema_version_mismatch" });
+  assert.throws(() => sites.setAssistantEnabled(true), { code: "storage.schema_version_mismatch" });
+  assert.equal(sites.assistantEnabled, false);
   assert.equal(sha256(damaged), before);
   const fresh = upgradeTestHome(t);
-  new BrowserSiteDecisions(fresh.home).set("https://b.example", "allow");
+  const freshSites = new BrowserSiteDecisions(fresh.home);
+  assert.equal(freshSites.assistantEnabled, true, "missing sites.json on a fresh Home stays enabled by default");
+  assert.equal(freshSites.blocked("https://b.example"), false, "missing sites.json does not block origins");
+  freshSites.set("https://b.example", "allow");
   assert.equal(json(join(fresh.home, "browser", "sites.json")).version, BROWSER_SITES_FILE.version);
   assert.doesNotThrow(() => assertVersionedFileWritable(BROWSER_SITES_FILE, join(fresh.home, "browser", "sites.json")));
 });

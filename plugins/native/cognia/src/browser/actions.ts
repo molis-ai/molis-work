@@ -2,7 +2,7 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { goForModel, installReturns } from "./returns.js";
 import { closeDialog, showAdd, showAi, showDomain, showDraft, showDrafts, showEdit, showImport } from "./dialog.js";
 import { OWN_SOURCES } from "./labels.js";
-import { countSelected, load } from "./list.js";
+import { countSelected, load, reload } from "./list.js";
 import { fail, notice, q, type CogniaPage } from "./page.js";
 import { fold, openMaterial } from "./reading.js";
 import type { Draft } from "./types.js";
@@ -90,7 +90,7 @@ const HANDLERS: Record<string, Handler> = {
   "delete-source": (page) => changeSource(page, false),
   close: (page) => closeDialog(page),
   back: async (page) => fold(page),
-  reload: (page) => load(page),
+  reload: (page) => reload(page),
   link: async (page, element) => { if (page.dialog.open) page.dialog.close(); await openMaterial(page, idOf(element), element.dataset.revision); },
   reference: async (page, element) => { if (page.dialog.open) page.dialog.close(); await openMaterial(page, idOf(element), element.dataset.revision); },
   draft: async (page, element) => showDraft(page, (await page.api<{ draft: Draft }>(`/drafts/${idOf(element)}`)).draft),

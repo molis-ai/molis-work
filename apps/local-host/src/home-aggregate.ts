@@ -80,7 +80,13 @@ export async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (
 
 /** An input made for each provider apart: `of` is given only the project and the provider it is for. Any other input goes to all alike. */
 export class HomeAggregateInputEach {
-  constructor(readonly of: (projectId: string, source: Required<ActionReference>) => unknown) {}
+  /**
+   * `keyOf`: what of the input an answer depends on, for a project asleep (batch 103-1): its last answer is shown while the key is the
+   * same, and read again once it differs. Without it, an input made per call (a time window, say) has no answer to show for a sleeping
+   * project, and the Home leaves such projects out of that read.
+   */
+  constructor(readonly of: (projectId: string, source: Required<ActionReference>) => unknown,
+    readonly keyOf?: (projectId: string, source: Required<ActionReference>) => string) {}
 }
 
 export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, outputType: string, input: unknown, signal?: AbortSignal): Promise<HomeAggregateResult<Output>> {
@@ -90,17 +96,31 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
     const projects = await Promise.all(ports.openProjects().map(reference => readProject<Output>(ports, reference, ports.whileOpen, outputType, input, signal)));
     return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
   }
-  const kind = JSON.stringify([outputType, input instanceof HomeAggregateInputEach ? "each" : input ?? null]);
+  const each = input instanceof HomeAggregateInputEach ? input : undefined;
+  if (each && !each.keyOf) {
+    const projects = await Promise.all(ports.openProjects().map(reference => resting.quietly(() => readProject<Output>(ports, reference, ports.whileOpen, outputType, input, signal))));
+    return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
+  }
+  const kind = JSON.stringify([outputType, each ? "each" : input ?? null]);
+  // What of the input each answer of the reading depended on (`HomeAggregateInputEach.keyOf`), by its source.
+  const keysOf = (projectId: string, result: HomeAggregateResult<unknown>) => each?.keyOf
+    ? Object.fromEntries([...result.answers.map(answer => answer.source), ...result.issues.flatMap(issue => issue.source ? [issue.source] : [])]
+      .map(source => [JSON.stringify(source), each.keyOf!(projectId, source)])) : {};
   const remember = (reference: LocalHostProjectReference, usedAt: number | undefined, result: HomeAggregateResult<unknown>) => {
     let kept = resting.readings.projects.get(reference.storage_key);
     if (!kept) resting.readings.projects.set(reference.storage_key, kept = new Map());
-    kept.set(kind, { usedAt, result });
+    kept.set(kind, { usedAt, result, keys: keysOf(reference.project_id, result) });
   };
   const readOpen = async (reference: LocalHostProjectReference) => {
     const usedAt = resting.rest(reference).usedAt;
-    const result = await resting.quietly(() => readProject<Output>(ports, reference, ports.whileOpen, outputType, input, signal));
-    // Used meanwhile by someone else: what it says now may already be older than the project.
-    if (resting.rest(reference).usedAt === usedAt) remember(reference, usedAt, result);
+    let entered = false;
+    const enter: HomeAggregatePorts["whileOpen"] = (project, work) => ports.whileOpen(project, () => {
+      entered = true;
+      return work();
+    });
+    const result = await resting.quietly(() => readProject<Output>(ports, reference, enter, outputType, input, signal));
+    // Kept only when it really read the project, and nobody used it meanwhile: what it says may already be older than the project.
+    if (entered && resting.rest(reference).usedAt === usedAt) remember(reference, usedAt, result);
     return result;
   };
   const [open, closed] = await Promise.all([Promise.all(ports.openProjects().map(readOpen)), resting.closed()]);
@@ -113,7 +133,8 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
     if (state === "closed" || state === "open") continue;
     const reading = resting.readings.projects.get(reference.storage_key)?.get(kind);
     // Unchanged since it was read: asleep and not used since, or one that would not open then and has not opened since.
-    if (reading && reading.usedAt === usedAt) {
+    const sameKeys = reading && Object.entries(reading.keys).every(([source, key]) => each?.keyOf?.(reference.project_id, JSON.parse(source)) === key);
+    if (reading && reading.usedAt === usedAt && sameKeys) {
       kept.push({ answers: (reading.result as HomeAggregateResult<Output>).answers.map(answer => ({ ...answer, resting: true as const })), issues: reading.result.issues });
     } else unread.push(reference);
   }
@@ -124,7 +145,7 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
 
 /** What the Home last read of each project, by library and by what was asked; and the background pass taking the missing ones. */
 export interface RestingReadings {
-  readonly projects: Map<string, Map<string, { usedAt: number | undefined; result: HomeAggregateResult<unknown> }>>;
+  readonly projects: Map<string, Map<string, { usedAt: number | undefined; result: HomeAggregateResult<unknown>; keys: Record<string, string> }>>;
   readonly waking: Set<string>;
   pass: Promise<void>;
 }

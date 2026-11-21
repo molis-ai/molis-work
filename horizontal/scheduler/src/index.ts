@@ -104,7 +104,6 @@ interface WakeupRow {
   detail: string | null;
 }
 
-/** The scheduler tables, as one current schema; the host composes them into the project database baseline. */
 /**
  * When the earliest enabled job of a project's clock is due, or `null` when none is: read on a connection of the caller's (read only is
  * enough), so the Host can tell without opening the project whether its clock has something due (batch 103-1).
@@ -113,6 +112,7 @@ export function nextScheduleDueAt(db: Pick<ScheduleSqliteDatabase, "prepare">): 
   return (db.prepare("SELECT MIN(next_due_at) AS next FROM schedule_jobs WHERE enabled = 1").get() as { next: string | null } | undefined)?.next ?? null;
 }
 
+/** The scheduler tables, as one current schema; the host composes them into the project database baseline. */
 export const SCHEDULER_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS schedule_jobs (
       job_id TEXT PRIMARY KEY,

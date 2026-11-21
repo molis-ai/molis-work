@@ -33,3 +33,17 @@ export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: R
   for (const issue of issues) unreadable.failed(`${issue.project_id}:${issue.source?.capability_id ?? ""}`, new ActionError(issue.code, "后台任务读不出来"), { project_id: issue.project_id });
   return { tasks: rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id)), issues };
 }
+
+/** The states of a background task that is being done, waits its turn, or tries again: work a closing project would cut short. */
+const UNDER_WAY = new Set<string>(["doing", "starting", "running", "generating", "saving", "indexing", "queued", "waiting", "syncing", "retrying"]);
+
+/**
+ * Whether the project's background-task providers say something in it is under way (batch 103-1): asked before the project is put to
+ * sleep, the same read the Home makes, for that project alone. A provider that ran out of time counts as under way: not knowing is
+ * no reason to close it.
+ */
+export async function backgroundWorkUnderWay(ports: HomeAggregatePorts, reference: { project_id: string; storage_key: string }): Promise<boolean> {
+  const { answers, issues } = await collectHomeAggregate<BackgroundTaskCollection>({ ...ports, openProjects: () => [reference], resting: undefined }, BACKGROUND_TASKS_OUTPUT_TYPE, {});
+  if (issues.some(issue => issue.code === "actions.timeout")) return true;
+  return answers.some(answer => backgroundTaskRows(answer.output, answer.source, answer.subject_kinds)?.some(row => UNDER_WAY.has(row.state)) ?? false);
+}

@@ -67,7 +67,9 @@ import type { HostCompleteText } from "./host-complete-text.js";
 import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { admitProviderRules } from "./scene-rule-admission.js";
-import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
+import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
+import { homeAggregatePorts } from "./home-aggregate.js";
+import { backgroundWorkUnderWay } from "./home-background-tasks.js";
 import { installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
@@ -585,9 +587,11 @@ export class MolisWorkLocalHost {
   sleepIfIdle(reference: LocalHostProjectReference, idleMs: number): Promise<boolean> {
     return this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
       if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
-      const running = await this.host.withExistingRuntime(reference, runtime =>
-        projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
-      return running !== false;
+      const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
+        || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
+      if (running !== false) return true;
+      // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
+      return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
     });
   }
 

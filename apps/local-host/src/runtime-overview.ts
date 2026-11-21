@@ -103,7 +103,9 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
   };
   // The project owners, in every open project (their list is a `home_aggregate` query), and the Home's own owners, at the same time.
   const [projects] = await Promise.all([
-    collectHomeAggregate<RunsOverview>(ports.aggregate, RUNS_OVERVIEW_OUTPUT_TYPE, new HomeAggregateInputEach((projectId, source) => window(projectId, source.provider_id)), signal),
+    collectHomeAggregate<RunsOverview>(ports.aggregate, RUNS_OVERVIEW_OUTPUT_TYPE, new HomeAggregateInputEach((projectId, source) => window(projectId, source.provider_id),
+      // A sleeping project's last overview holds while the person has not marked its expired runs seen since, and for the hour it was read in.
+      (projectId, source) => JSON.stringify([seen[expiredOwnerKey(projectId, source.provider_id)] ?? null, Math.floor(now.getTime() / 3_600_000)])), signal),
     ports.within(null, async client => {
       const views = (await client.discover()).filter(view => isOverview(view) && view.action.scope === "home" && !view.action.home_aggregate);
       await Promise.all(views.map(async view => {

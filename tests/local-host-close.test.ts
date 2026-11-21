@@ -63,5 +63,11 @@ test("B103-01 an idle project is put to sleep only when nothing of it runs; a ca
     assert.equal(await call, "p1", "the call that came during the close is not refused");
     assert.deepEqual(closed, ["p1"]);
     assert.deepEqual(opened, ["p1", "p1"], "it opened the project again");
+    // Closed on purpose while asleep (deleted, restored, synced): it is no longer resting, so nothing wakes it to read it.
+    holdClose = false;
+    assert.equal(await host.sleepIfIdle(reference.storage_key, 0, async () => false), true);
+    assert.equal(host.projectRest(reference.storage_key).state, "asleep");
+    await host.closeProject(reference.storage_key);
+    assert.equal(host.projectRest(reference.storage_key).state, "closed");
   } finally { releaseClose(); await host.close(); }
 });

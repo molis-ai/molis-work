@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectHomeAggregate, homeAggregatePorts, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { HomeAggregatePorts } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -273,4 +273,62 @@ test("B103-01 a sleeping project is answered from its last read until it is used
   assert.deepEqual(woken, ["project-a"]);
   assert.deepEqual(await read(), ["project-a:resting", "project-b:resting"]);
   assert.equal(quiet, 0);
+});
+
+// B103-01: a read that never got into the project (it went to sleep between the list and the read) is not kept as its last reading, and
+// an answer made from a per-provider input is shown for a sleeping project only while what it was made from (`keyOf`) is the same.
+test("B103-01 a reading is kept only when it read the project, and shown asleep only while its input key holds", async () => {
+  const a = reference("project-a"), b = reference("project-b");
+  const answering = (projectId: string) => ({ ...unavailableView(projectId), availability: { available: true } });
+  const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
+    [a.storage_key, { state: "open", usedAt: 5 }], [b.storage_key, { state: "never", usedAt: undefined }]]);
+  let listed = [a];
+  const woken: string[] = [];
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => listed,
+    // A falls asleep after it was listed and before the read got in.
+    whileOpen: async (project, work) => {
+      if (project.project_id !== "project-a") return work();
+      rests.set(a.storage_key, { state: "asleep", usedAt: 5 });
+      return undefined;
+    },
+    client: project => ({ discover: async () => [answering(project.project_id)], invoke: async () => ({ project: project.project_id }) }),
+    context: async project => context(project.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => [a, b].filter(project => !listed.includes(project) && rests.get(project.storage_key)!.state !== "open"),
+      rest: project => rests.get(project.storage_key)!,
+      wake: async (project, work) => { woken.push(project.project_id); return work(); },
+      quietly: async work => work(),
+      changed: () => undefined,
+      running: () => true,
+      readings,
+    },
+  };
+  assert.deepEqual((await collectHomeAggregate(ports, TYPE, {})).answers, []);
+  listed = [];
+  assert.deepEqual((await collectHomeAggregate(ports, TYPE, {})).answers, [], "the empty read was not kept as its reading");
+  await readings.pass;
+  assert.deepEqual(woken.filter(id => id === "project-a"), ["project-a"], "so it is read in the background instead");
+
+  let key = "k1";
+  const each = new HomeAggregateInputEach(() => ({}), () => key), plain = new HomeAggregateInputEach(() => ({}));
+  const read = async (input: unknown) => (await collectHomeAggregate(ports, TYPE, input)).answers.map(answer => `${answer.project_id}${answer.resting ? ":resting" : ""}`).sort();
+  rests.set(a.storage_key, { state: "closed", usedAt: undefined });
+  woken.length = 0;
+  assert.deepEqual(await read(each), []);
+  await readings.pass;
+  assert.deepEqual(woken, ["project-b"]);
+  rests.set(b.storage_key, { state: "asleep", usedAt: undefined });
+  woken.length = 0;
+  assert.deepEqual(await read(each), ["project-b:resting"], "same key: the last answer is shown");
+  key = "k2";
+  assert.deepEqual(await read(each), [], "the key changed: that answer no longer holds");
+  await readings.pass;
+  assert.deepEqual(woken, ["project-b"], "and it is read again");
+  woken.length = 0;
+  assert.deepEqual(await read(plain), [], "an input made per provider without a key is read only from open projects");
+  await readings.pass;
+  assert.deepEqual(woken, []);
 });

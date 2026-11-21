@@ -8,6 +8,8 @@ import type { LocalHostRuntimeFactory } from "./local-host-types.js";
 
 /** How long one queued project operation may hold everything else of the project before the log names it. */
 const HELD_IN_LINE_WARN_MS = 20_000;
+/** How long a call waits for a project being put to sleep before it is refused as closing (`awake`). */
+const AWAKE_WAIT_MS = 5_000;
 
 export interface RuntimeEntry<Runtime> {
   reference: LocalHostProjectReference;
@@ -293,10 +295,11 @@ export class ProjectLine<Runtime> {
     const storageKey = typeof referenceOrStorageKey === "string"
       ? referenceOrStorageKey.trim()
       : normalizeReference(referenceOrStorageKey).storage_key;
+    // Closed on purpose, open or asleep: the Home neither reads it nor opens it to read it until it is opened again.
     this.rested.delete(storageKey);
+    this.dismissed.add(storageKey);
     const entry = this.entries.get(storageKey);
     if (!entry) return false;
-    this.dismissed.add(storageKey);
     entry.state = "closing"; entry.observing.abort(this.host.running() ? hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭") : new ActionError("actions.host_closed", "能力所在运行环境已关闭"));
     this.closingKeys.add(storageKey);
     try {
@@ -317,8 +320,19 @@ export class ProjectLine<Runtime> {
    * is awaited otherwise: a call enters the project in the same turn it was made, as before.
    */
   awake(reference: LocalHostProjectReference): Promise<void> | undefined {
-    const sleeping = this.sleeping.get(reference.storage_key.trim());
-    return sleeping?.then(() => undefined, () => undefined);
+    const key = reference.storage_key.trim(), sleeping = this.sleeping.get(key);
+    // A call from the project's own work, which its close may be waiting for, is refused as closing, as before: waiting would never end.
+    if (!sleeping || this.scope.getStore()?.entry.reference.storage_key === key) return undefined;
+    // Nor does any other call wait longer than a close takes; past that it is refused as closing too.
+    return new Promise<void>(resolve => {
+      const timer = setTimeout(resolve, AWAKE_WAIT_MS);
+      timer.unref?.();
+      const done = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      void sleeping.then(done, done);
+    });
   }
 
   /**

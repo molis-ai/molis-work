@@ -188,7 +188,7 @@ ${TAB_WORKSPACE_DRAG_PART}
         state = ops.create();
         tabHistory.clear(); sessionStorage.removeItem(HISTORY_KEY);
       }
-    } catch {}
+    } catch { /* Ignore unavailable or corrupt persisted tab layout. */ }
     sidePane?.restore();
     // The right side kept alone (独看) has the focus it had.
     if (ops.soloSide(state)) column = "side";
@@ -261,7 +261,7 @@ ${TAB_WORKSPACE_DRAG_PART}
         delete context.object;
         delete context.unsaved;
         node.setAttribute("data-assistant-context", JSON.stringify(context));
-      } catch {}
+      } catch { /* Ignore malformed assistant context metadata on surface. */ }
     });
   };
   // A page load or a burst of state changes renders several times in a row, each naming the same object: the plugin
@@ -278,9 +278,9 @@ ${TAB_WORKSPACE_DRAG_PART}
     try {
       const saved = JSON.parse(localStorage.getItem(RECORDS_KEY) || "{}");
       if (saved && typeof saved === "object" && !Array.isArray(saved)) openRecords = Object.fromEntries(Object.entries(saved).filter(([, id]) => typeof id === "string" && id));
-    } catch {}
+    } catch { /* Ignore unavailable or corrupt open-record storage. */ }
   }
-  const saveRecords = () => { if (!embedded) try { localStorage.setItem(RECORDS_KEY, JSON.stringify(openRecords)); } catch {} };
+  const saveRecords = () => { if (!embedded) try { localStorage.setItem(RECORDS_KEY, JSON.stringify(openRecords)); } catch { /* Ignore storage quota or private-mode write failure. */ } };
   /* What each plugin's surface last showed: its own page ("page") or one of its tabs ("tab:<id>"). Returning to the
      same thing keeps it as it was, down to where it was scrolled. */
   const surfaceShows = new Map();
@@ -336,11 +336,11 @@ ${TAB_WORKSPACE_DRAG_PART}
         const stack = Array.isArray(entry?.stack) ? entry.stack.filter((id) => typeof id === "string").slice(-HISTORY_LIMIT) : [];
         if (stack.length) tabHistory.set(paneId, { stack, index: Math.max(-1, Math.min(Number(entry.index) || 0, stack.length - 1)) });
       }
-    } catch {}
+    } catch { /* Ignore unavailable or corrupt session tab history. */ }
   }
   const persistHistory = () => { // A closed pane's way back goes with it (VUX-36): the map holds only the panes that are open.
     for (const paneId of tabHistory.keys()) if (paneId !== "side" && !state.panes.some((pane) => pane.id === paneId)) tabHistory.delete(paneId); if (embedded) return;
-    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries(tabHistory))); } catch {}
+    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries(tabHistory))); } catch { /* Ignore sessionStorage write failure. */ }
   };
   // Where inside a cover the person is (a settings category, the page it loaded), so Back walks those too.
   let coverPlace = "";
@@ -409,7 +409,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (surface.getAttribute("data-expanded") !== "false" || shellCollapse.has(plugin)) continue;
       if (forgetRecord(plugin)) notePlace();
     }
-  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-expanded", "data-assistant-context"] });
+  }).observe(panesEl, { subtree: true, attributes: true, attributeFilter: ["data-expanded", "data-assistant-context"] });
   /* Whoever reads the page's situation (selection, context) learns when the place changes, in the same words history
      uses: "plugin:<id>", a tab id, or "cover:<kind>[|<page>]". */
   let announcedPlace = { paneId: "", place: "" };
@@ -541,7 +541,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     let box = null;
     try {
       box = focusedPaneBoxAfterDrop(state, ops, target, copy, dragTab.paneId, dragTab.tabId);
-    } catch {}
+    } catch { /* Fall back to current pane box when split preview fails. */ }
     if (!box) box = layoutPaneBoxes(state.layout.tree).find((item) => item.paneId === target.paneId);
     if (!box) { delete panesEl.dataset.splitDropPreview; return; }
     const stage = panesEl.getBoundingClientRect();
@@ -583,7 +583,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       copyNode.style.width = dragTab.width + "px"; copyNode.style.margin = "0";
       ghost.append(copyNode);
       document.body.append(ghost);
-      try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
+      try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch { /* Custom drag image is optional on browsers that disallow detached nodes. */ }
       requestAnimationFrame(() => ghost.remove());
       root.classList.add("is-tab-dragging"); dragDepths.clear();
       document.body.classList.add("is-tab-dragging");

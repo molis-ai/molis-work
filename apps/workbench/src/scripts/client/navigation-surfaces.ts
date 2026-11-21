@@ -22,7 +22,7 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
             workSurface: "goals",
           }));
         }
-      } catch {}
+      } catch { /* Ignore unavailable sessionStorage when saving goal navigation target. */ }
       const available = new Set(visibleGoals().map((item) => item.goal.goal_id));
       if (!available.has(goalId)) goalId = state.active_goal_id || "";
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));

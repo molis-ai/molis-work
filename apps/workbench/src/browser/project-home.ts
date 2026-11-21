@@ -162,8 +162,14 @@ function createHomeLead(root: HTMLElement, host: HomeHost) {
 /** When the home is shown, hidden or has to read again: the page, its holder, the plugin list and the place. */
 function watchHome(holder: Element | null, visibility: () => void, reload: () => void, leave: () => void) {
   const observer = new MutationObserver(visibility);
-  observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
-  if (holder) observer.observe(holder, { attributes: true, attributeFilter: ["hidden"] });
+  if (holder) {
+    observer.observe(holder, { attributes: true, attributeFilter: ["hidden"] });
+    for (let ancestor = holder.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+      observer.observe(ancestor, { attributes: true, attributeFilter: ["hidden"] });
+    }
+  }
+  const panes = document.querySelector("[data-tab-panes]");
+  if (panes) observer.observe(panes, { childList: true });
   document.addEventListener("visibilitychange", visibility);
   document.addEventListener("molis-work:plugins-changed", reload);
   document.addEventListener("molis-work:place-changed", visibility);

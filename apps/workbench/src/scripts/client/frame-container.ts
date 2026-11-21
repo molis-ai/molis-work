@@ -37,7 +37,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const frameOf = (goalId) => {
     if (!loadedFrames.has(goalId)) {
       loadedFrames.add(goalId);
-      try { const saved = localStorage.getItem(frameKey(goalId)); if (saved) frames[goalId] = JSON.parse(saved); } catch {}
+      try { const saved = localStorage.getItem(frameKey(goalId)); if (saved) frames[goalId] = JSON.parse(saved); } catch { /* Ignore corrupt or unavailable persisted frame state. */ }
       savedFrames.set(goalId, JSON.stringify(frames[goalId]));
     }
     if (!frames[goalId]) frames[goalId] = { camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" };
@@ -52,11 +52,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!boardTab(curTab)) {
       const serialized = JSON.stringify(frameOf(curTab));
       if (serialized !== savedFrames.get(curTab)) {
-        try { localStorage.setItem(frameKey(curTab), serialized); savedFrames.set(curTab, serialized); } catch {}
+        try { localStorage.setItem(frameKey(curTab), serialized); savedFrames.set(curTab, serialized); } catch { /* Ignore localStorage write failure when saving frame state. */ }
       }
     }
     if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
-    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames:openIds, activeTab:curTab, lastBoardView:lastBoard, frames })); } catch {}
+    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames:openIds, activeTab:curTab, lastBoardView:lastBoard, frames })); } catch { /* Ignore localStorage write failure when saving frame tabs. */ }
   };
   const prune = () => {
     const known = knownIds();
@@ -248,7 +248,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
         if (previous?.expanded === incoming.expanded && JSON.stringify(previous?.blocks) === JSON.stringify(incoming.blocks)) setCamera();
         else drawFrame();
       }
-    } catch {}
+    } catch { /* Ignore malformed cross-tab frame storage update. */ }
   });
   const drawFrame = () => {
     if (boardTab(curTab)) return;
@@ -626,7 +626,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       moved: false,
     };
     event.preventDefault();
-    try { (block || canvasEl).setPointerCapture(event.pointerId); } catch {}
+    try { (block || canvasEl).setPointerCapture(event.pointerId); } catch { /* Pointer capture may be unavailable for synthetic or released pointers. */ }
   });
   canvasEl.addEventListener("pointermove", (event) => {
     if (!pan || pan.id !== event.pointerId) return;

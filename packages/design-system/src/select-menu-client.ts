@@ -338,7 +338,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
           },
         });
       }
-    } catch {}
+    } catch { /* Value descriptor patching is best-effort for custom select sync. */ }
     let scheduled = false;
     let optionsChanged = false;
     const scheduleFill = (records) => {
@@ -376,7 +376,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
   const scan = (root) => {
     if (!root || typeof root.querySelectorAll !== "function") return;
     root.querySelectorAll("select").forEach((select) => {
-      try { enhance(select); } catch {}
+      try { enhance(select); } catch { /* Leave native <select> intact if progressive enhancement fails. */ }
     });
   };
   let observing = false;
@@ -391,7 +391,7 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
           try {
             if (node.matches?.("select")) enhance(node);
             else scan(node);
-          } catch {}
+          } catch { /* Ignore detached or non-enhanceable dynamically inserted nodes. */ }
         });
       }
     }).observe(document.documentElement, { childList: true, subtree: true });

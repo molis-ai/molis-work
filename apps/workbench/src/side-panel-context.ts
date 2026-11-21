@@ -16,8 +16,10 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
   };
   const watch=doc=>{
     if(watched.has(doc))return;
+    const target=doc.querySelector('[data-tab-panes]')||doc.querySelector('[data-tab-workspace]')||doc.querySelector('[data-work-surface]');
+    if(!target)return;
     const observer=new MutationObserver(schedule);
-    observer.observe(doc.body,{subtree:true,childList:true,attributes:true,attributeFilter:['data-assistant-context','hidden','class','data-expanded']});
+    observer.observe(target,{subtree:true,childList:true,attributes:true,attributeFilter:['data-assistant-context','hidden','class','data-expanded']});
     watched.set(doc,observer);
   };
   const inspect=(doc,paneId,tabId)=>{

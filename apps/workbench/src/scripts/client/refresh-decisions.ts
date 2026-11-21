@@ -11,7 +11,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
       try {
         sessionStorage.setItem(storageKey, JSON.stringify(readUiState()));
-      } catch {}
+      } catch { /* Ignore sessionStorage write failure while saving UI state. */ }
     };
 
     const applySelection = (goalId, resetScroll) => {
@@ -214,7 +214,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           const { path: movedPath, message } = goalRefresh.move;
           try {
             sessionStorage.setItem(goalMoveReceiptKey, JSON.stringify({ goalId: refreshGoalId, message }));
-          } catch {}
+          } catch { /* Ignore sessionStorage write failure for move receipt. */ }
           saveUiState();
           location.replace(globalThis.molisWorkNavigationUrl(route(movedPath)));
           return "reloading";
@@ -318,12 +318,12 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     const refreshBoardWithDecisionReceipt = async (message, context) => {
       try {
         sessionStorage.setItem("molis-work-decision-receipt", JSON.stringify({ message, context }));
-      } catch {}
+      } catch { /* Ignore sessionStorage write failure for decision receipt. */ }
       const refreshResult = await refreshBoard(true);
       if (refreshResult === "reloading") return;
       try {
         sessionStorage.removeItem("molis-work-decision-receipt");
-      } catch {}
+      } catch { /* Ignore sessionStorage cleanup failure. */ }
       showDecisionReceipt(message, context);
     };
 

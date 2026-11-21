@@ -189,7 +189,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const watch = () => {
       observer?.disconnect();
       const doc = frame ? frame.contentDocument : document;
-      if (doc?.documentElement) { observer = new MutationObserver(check); observer.observe(doc.documentElement, {childList:true, subtree:true}); }
+      const watchTarget = doc ? (surfaceIn(doc) || doc.querySelector('[data-tab-panes]') || doc.querySelector('main')) : null;
+      if (watchTarget) { observer = new MutationObserver(check); observer.observe(watchTarget, {childList:true, subtree:true}); }
       check();
     };
     cancelRecordJump = finish;

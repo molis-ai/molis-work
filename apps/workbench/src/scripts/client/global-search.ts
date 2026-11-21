@@ -386,7 +386,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const button = event.target.closest("[data-global-search-scope-option]");
     if (!button || !scopes.includes(button.dataset.globalSearchScopeOption)) return;
     scope = button.dataset.globalSearchScopeOption;
-    try { sessionStorage.setItem("molis-work:search-scope", scope); } catch {}
+    try { sessionStorage.setItem("molis-work:search-scope", scope); } catch { /* Ignore sessionStorage write failure for search scope. */ }
     resetQuery();
     input.focus();
   });

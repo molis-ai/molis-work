@@ -285,7 +285,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           : "";
         sessionStorage.setItem(storageKey, JSON.stringify(stored));
       }
-    } catch {}
+    } catch { /* Fall back to default view when persisted UI state is unreadable. */ }
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
       if (goalData) {
@@ -386,7 +386,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           itemId: selected,
           title: selectedItem?.goal.title || selected,
         } }));
-      } catch {}
+      } catch { /* Ignore sessionStorage write failure for selected goal navigation. */ }
     }
     immersiveNavigation?.sync();
     frameContainer?.restore();
@@ -404,7 +404,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           setSelectedStatuses(restored.statuses);
           filterTree("");
         }
-      } catch {}
+      } catch { /* Ignore unreadable persisted status filter state. */ }
     }
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);

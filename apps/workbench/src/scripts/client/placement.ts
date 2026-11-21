@@ -357,7 +357,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       inputs.forEach((input) => { if (!now.has(input.value)) input.closest(".placement-choice")?.remove(); });
       const left = inputs.filter((input) => input.isConnected);
       if (left.length && !left.some((input) => input.checked)) left[0].checked = true;
-    } catch {}
+    } catch { /* Preserve original error even if stale-option cleanup fails. */ }
     throw error;
   };
   const choice = (name, value, title, detail, checked) => {
@@ -718,11 +718,15 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     repaintQueued = true;
     requestAnimationFrame(() => { repaintQueued = false; repaint(); });
   };
-  new MutationObserver((records) => {
+  const placementObserver = new MutationObserver((records) => {
     for (const record of records) {
       if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]")))) { scheduleRepaint(); return; }
     }
-  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden", "data-expanded"] });
+  });
+  for (const target of [document.querySelector("[data-tab-panes]"), document.getElementById("side-panel"), document.querySelector("[data-assistant-panel]"), document.querySelector("main")].filter(Boolean)) {
+    placementObserver.observe(target, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden", "data-expanded"] });
+  }
+  document.addEventListener("molis-work:place-changed", scheduleRepaint);
   // The workbench selects an item on a plugin's surface when a tab is applied; the plugin shows it a moment later.
   document.addEventListener("molis-work:select-item", () => { scheduleRepaint(); setTimeout(scheduleRepaint, 300); }, true);
   window.addEventListener("molis:assistant-effect", () => { invalidate(); repaint(); });

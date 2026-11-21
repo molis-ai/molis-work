@@ -127,7 +127,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     const remember = (id) => {
       const list = readRecent();
       if (list[0] === id) return;
-      try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...list.filter((item) => item !== id)].slice(0, 8))); } catch {}
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...list.filter((item) => item !== id)].slice(0, 8))); } catch { /* Ignore localStorage write failure for recent plugin list. */ }
       paintRecent();
     };
     const toggle = railList.querySelector("[data-rail-tools-toggle]");

@@ -22,9 +22,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const modesScope = getState().project?.project_id || getState().snapshot.board.project_id;
   const modesKey = "molis-work-goal-work-modes:" + modesScope;
   let modes = {};
-  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch {}
+  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch { /* Fall back to empty mode map on corrupt or unavailable storage. */ }
   const narrow = () => matchMedia("(max-width: 600px)").matches;
-  const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch {} };
+  const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch { /* Ignore localStorage write failure for plugin view mode. */ } };
   const currentPlugin = () => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
     if (treePane?.dataset.desktopDirectory === "project-settings") return "project-settings";

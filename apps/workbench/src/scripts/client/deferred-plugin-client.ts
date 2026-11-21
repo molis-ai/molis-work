@@ -87,7 +87,18 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);
   });
-  scope.observe(new MutationObserver(visible), document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
+  const watchTargets = new Set([document.querySelector('[data-tab-panes]'), document.querySelector('[data-directory-panel]'), document.getElementById('side-panel')].filter(Boolean));
+  document.querySelectorAll('[data-deferred-surface]').forEach(root => {
+    if (![...watchTargets].some(container => container.contains(root))) {
+      const holder = root.closest('[data-tab-workspace], main, [data-surface-pool]') || root.parentElement;
+      if (holder && holder !== document.body) watchTargets.add(holder);
+      else watchTargets.add(root);
+    }
+  });
+  for (const target of watchTargets) {
+    scope.observe(new MutationObserver(visible), target, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
+  }
+  document.addEventListener('molis-work:place-changed', visible);
   visible();
   return { prepare, loadBundle: id => load('/assets/molis-work-plugins/' + encodeURIComponent(id) + '.js'), frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
 }`;

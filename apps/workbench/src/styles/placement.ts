@@ -82,8 +82,5 @@ export const PLACEMENT_STYLES = `${PLACEMENT_SLOT_STYLES}
     .placement-toasts { bottom: 84px; }
     .placement-toast { flex-wrap: wrap; }
     .placement-panel-actions { grid-template-columns: 1fr; }
-    /* A phone header has room for where it is; who can see it and the links are one tap away in the panel. */
-    .placement-bar > .placement-bar-access, .placement-bar > .placement-bar-links { display: none; }
-    .placement-bar > .placement-bar-where { display: block; max-width: 8em; }
   }
 `;

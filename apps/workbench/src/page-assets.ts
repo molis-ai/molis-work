@@ -157,18 +157,18 @@ const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLL
 
 /**
  * Dedicated lightweight (<80 KB minified) base stylesheet for opaque plugin `srcdoc` frames (102-1).
- * Uses CSS Cascade Layers (`@layer`) for reset, tokens, foundation, and stage defaults while keeping
+ * Uses CSS Cascade Layers (`@layer`) for reset, tokens, and foundation defaults while keeping stage,
  * shared primitives, stage finish, and platform control invariants unlayered so specificity resolves
- * identically against unlayered plugin stylesheets without breaking `:where()` resets or focus contrast.
+ * identically against unlayered plugin stylesheets without breaking `:where()` resets, stage overrides,
+ * or focus contrast.
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
   const foundation = PLUGIN_FOUNDATION_STYLES.replace(/button, input, textarea, select \{ font-family: var\(--font\); \}\n?/, "");
-  let sheet = `@layer reset, tokens, foundation, stage;
+  let sheet = `@layer reset, tokens, foundation;
 @layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
 @layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
 @layer foundation { ${foundation} }
-@layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }
-${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
+${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES}${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
 .appearance-notice.mw-toast{position:fixed;inset-inline:0;margin-inline:auto;bottom:22px;z-index:31;max-width:min(38em,calc(100vw - 24px))}
 html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important}
 html[data-craft-still] :is(dialog[open],.mw-check,.mw-radio,[data-craft-new],[data-just-opened],[data-just-opened]>*,.is-arriving,.is-arriving *){animation:none!important}

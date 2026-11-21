@@ -51,16 +51,16 @@ ${BUTTON_STYLES}
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
   :is(.mw-input, .mw-textarea)::placeholder { color: var(--muted); }
+  :is(.mw-input, .mw-textarea, .mw-select):hover:where(:not(:disabled, :focus-visible)) { background-color: var(--nav-hover); }
+  .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
+  .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
   :is(.mw-input, .mw-textarea, .mw-select) {
-    &:hover:where(:not(:disabled, :focus-visible)) { background-color: var(--nav-hover); }
     &[aria-invalid="true"] {
       border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
       &:focus-visible { ${CONTAINED_FOCUS_DANGER}; border-color: var(--red); }
     }
     &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
   }
-  .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
-  .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
   ${SELECT_MENU_STYLES}
   /* Search and other grouped fields wear the same wash as a single field. */
   .mw-input-group {
@@ -270,7 +270,7 @@ export const PRIMITIVE_PLUGIN_MENU = `
     > [data-slot="menu-item-label"] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     &:disabled { background: transparent; color: var(--faint); cursor: default; & :is(svg, .mw-menu__shortcut) { color: var(--faint); } }
   }
-  .mw-menu__item--danger { color: var(--red); &:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--red) 8%, transparent); } svg { color: var(--red); } }
+  .mw-menu__item--danger { color: var(--red); &:is(:hover, :focus-visible):not(:disabled) { background: color-mix(in srgb, var(--red) 8%, transparent); } svg { color: var(--red); } }
   .mw-menu__check { display: inline-grid; flex: none; place-items: center; width: 16px; height: 16px; svg { color: var(--ink); } }
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */

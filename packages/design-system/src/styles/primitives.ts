@@ -271,6 +271,7 @@ const PRIMITIVE_SHELL_EXTRAS = `
     .mw-catalog { scroll-behavior: auto; }
     .mw-catalog__index a { transition: none; }
   }
+  html[data-craft-still] .mw-catalog { scroll-behavior: auto; }
   .mw-catalog__section > h2 {
     margin: 0 0 16px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.015em;
     color: var(--ink);

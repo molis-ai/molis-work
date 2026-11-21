@@ -96,7 +96,7 @@ export const PLUGIN_STAGE_STYLES = `
     > .form-tabs + .mw-btn { margin-left: 0; }
     :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current], [data-alchemist-delete]) {
       color: var(--red);
-      &:hover { background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red); }
+      &:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red); }
     }
   }
   .plugin-stage-detail-bar > h1 { margin: 0; flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

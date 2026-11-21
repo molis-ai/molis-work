@@ -2,7 +2,7 @@ import type { SkillAuthoredFields, SkillDraft, SkillDraftCreateTarget, SkillScop
 import { renderBadge } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { countOf } from "./authoring.js";
 import { draftSave } from "./draft-save.js";
-import { applyReplacements, createDraft, placeholdersOf, readDraft, workshopOf, type Workshop } from "./drafts.js";
+import { applyReplacements, createDraft, placeholdersOf, readDraft, syncPlaceholderField, workshopOf, type Workshop } from "./drafts.js";
 import type { FieldName, WritingContext } from "./writing-context.js";
 import { adoptBar, improve, sideMarkup } from "./workshop.js";
 
@@ -62,10 +62,10 @@ export function draftEditing(c: WritingContext) {
 
   function typedField(w: Workshop, target: HTMLInputElement | HTMLTextAreaElement): void {
     const name = target.dataset.auField as FieldName;
-    w.fields[name] = target.value;
     if (name === "description" || name === "when_not_to_use" || name === "body") {
-      delete w.placeholderBase?.[name];
+      syncPlaceholderField(w, name, target.value);
     }
+    w.fields[name] = target.value;
     if (w.errors[name]) {
       delete w.errors[name];
       target.removeAttribute("aria-invalid");

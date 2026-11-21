@@ -374,15 +374,16 @@ export class SkillWorkshop {
 
 /** Aggregate verdict across the latest trial per active known answer on one draft revision, matching adoptDraft. */
 function summaryVerdict(trials: readonly SkillTrial[], activeCases: readonly SkillCase[]): SkillTrial["verdict"] | undefined {
-  const allowed = activeCases.length > 0 ? new Set(activeCases.map(item => item.case_id)) : null;
+  if (activeCases.length === 0) return undefined;
+  const allowed = new Set(activeCases.map(item => item.case_id));
   const latestByCase = new Map<string, SkillTrial>();
   for (const trial of trials) {
-    if (allowed && !allowed.has(trial.case_id)) continue;
+    if (!allowed.has(trial.case_id)) continue;
     if (!latestByCase.has(trial.case_id)) latestByCase.set(trial.case_id, trial);
   }
   const latest = [...latestByCase.values()];
-  if (!latest.length) return undefined;
   if (latest.some(trial => trial.verdict === "differs")) return "differs";
+  if (latestByCase.size < allowed.size) return undefined;
   if (latest.some(trial => trial.verdict !== "match")) return "unknown";
   return "match";
 }

@@ -8,6 +8,8 @@ export * from './agent-prompts.js';
 export * from './choice-prompts.js';
 export * from './agent-validation.js';
 export * from './agent-workflow.js';
+export { renderAgentStudio } from './agent-studio-view.js';
+export * from './agent-studio-styles.js';
 export * from './agent-studio.js';
 export * from './agent-authoring.js';
 export * from './agent-capabilities.js';

@@ -129,7 +129,7 @@
 ## 5. 三层防回归自动化门禁收紧（`91B-4`）
 
 按 `AGENTS.md` 门禁修改流程经用户确认后，在 `91B-4` 永久焊死三层守卫：
-1. **静态精细度与布局门禁（`tests/soft-workbench-refinement.test.ts`）**：将全量内置插件样式表（含全部 `plugins/native/*/src/*styles*.ts`、注册 `stylesheet` 与 `plugin-builder/src/agent-studio.ts`、`form/src/fillpage.ts`、`inbox/src/ui.ts`、`pages/src/comment-side-view.ts` 等内联样式源）与 `packages/im-ui/src/styles.ts` 纳入扫描范围；新增插件内禁止视口布局 `@media (max-width/min-width)`（仅允许 `(pointer: coarse)` / `(hover: none)` / `(prefers-reduced-motion)`）守卫。
+1. **静态精细度与布局门禁（`tests/soft-workbench-refinement.test.ts`）**：将全量内置插件样式表（含全部 `plugins/native/*/src/*styles*.ts`、注册 `stylesheet` 与 `plugin-builder/src/agent-studio-styles.ts`、`form/src/fillpage.ts`、`inbox/src/ui.ts`、`pages/src/comment-side-view.ts` 等内联样式源）与 `packages/im-ui/src/styles.ts` 纳入扫描范围；新增插件内禁止视口布局 `@media (max-width/min-width)`（仅允许 `(pointer: coarse)` / `(hover: none)` / `(prefers-reduced-motion)`）守卫。
 2. **视觉秩序与分屏几何门禁（`tests/visual-order.e2e.test.ts` + `tests/fixtures/order-audit.ts`）**：补齐漏检的 11 个高频表面（`risk / work-brief / shelf / sessions / materials / plugin-market / capabilities / im-ui` 及右侧面板视图）与 `MODE_PAGES` 深色/紧凑/390px 覆盖；将 `[role="button"]` 纳入热区与控件检查；新增 **`600px` 分屏窄窗格几何断言**（无横向裁切溢出、正文有效列宽 `≥ 280px`、无非法双滚动容器）。
 3. **行为反馈与回滚门禁（`tests/busy-feedback.e2e.test.ts` + `tests/save-failure.e2e.test.ts`）**：将漏测的 12 个表面（`risk / work-brief / cognia / alchemist / dataset / images / schedule / artifacts / sessions / text-stats / diff / plugin-builder`）补入 `250ms` 瞬闪采样；将断网保存失败回滚断言从 Shelf 扩展至 Todo、Jelly 与设置实时开关。
 

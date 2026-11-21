@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from '@molis-ai/molis-work-contracts/platform/ui';
 import { BUILDER_UI_ID } from './manifest.js';
-import { renderAgentStudio } from './agent-studio.js';
+import { renderAgentStudio } from './agent-studio-view.js';
 
 /** The studio's stage in the workbench (specs/artifact-positioning S4); its client comes with the plugin's workbench pack. */
 export function renderStudioStage(text?: Parameters<typeof renderAgentStudio>[0]): string {

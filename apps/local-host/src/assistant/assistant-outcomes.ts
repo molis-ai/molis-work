@@ -24,6 +24,7 @@ import type { AssistantDispatch } from "./assistant-dispatch.js";
 import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect } from "./assistant-work-permissions.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
 import { isAccountQuestionId } from "../agent-definitions/skill-connector-categories.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dispatch"> & Pick<AssistantWorkReads, "latestRun"> & { read(workId: string): Promise<AssistantWorkView>; jobs: Pick<AssistantJobs, "follow">; stepGate?: Pick<AssistantStepGate, "answer"> };
 export interface AssistantAnswerExecution {
@@ -112,7 +113,7 @@ export class AssistantOutcomes {
     if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)
       || subtaskRun && (review.run.run_id !== subtaskRun.run_id || review.run.session_id !== subtaskRun.session_id)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
-    await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, {
+    await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: cutHead(String(input.note), 2000) } : {}) }, {
       beforeEffect: boundary?.beforeEffect,
       assertCurrent: request => {
         const current = this.store.get(this.actorId, workId);
@@ -126,7 +127,7 @@ export class AssistantOutcomes {
     if (!subtaskRun && input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
       const latest = await this.link.latestRun(host, work).catch(() => null);
       if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
-        const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";
+        const why = input.note ? `，理由：${cutHead(String(input.note), 500)}` : "";
         await host.adapter(RUNTIME).inputs?.send(latest.ref, { source: "host", text: `（Molis 转告）用户拒绝了这次修改「${describeReview(review.document).summary}」${why}。它没有执行。不要换别的能力做同一件事；需要时问用户想怎么做。` }).catch(() => undefined);
       }
     }
@@ -183,7 +184,7 @@ export class AssistantOutcomes {
 
   /** The name an object last had, kept so it can still be named once it is gone (undone, deleted) or unreadable. */
   rememberTitle(object: { kind: string; id: string }, title: string): void {
-    const key = `object-title:${object.kind}:${object.id}`, value = title.slice(0, 200);
+    const key = `object-title:${object.kind}:${object.id}`, value = cutHead(title, 200);
     if (value && this.store.setting(this.actorId, key) !== value) this.store.setSetting(this.actorId, key, value);
   }
 
@@ -236,11 +237,11 @@ export class AssistantOutcomes {
         const outcome = await actions.invoke(record.reference, record.input);
         decision?.assertCurrent();
         const summary = record.reference.provider_id === AUTOMATION_ADOPTION_PROVIDER_ID && outcome && typeof outcome === "object"
-          && "summary" in outcome && typeof outcome.summary === "string" ? outcome.summary.slice(0, 600) : undefined;
+          && "summary" in outcome && typeof outcome.summary === "string" ? cutHead(outcome.summary, 600) : undefined;
         this.store.saveUndo(this.actorId, { ...record, state: "undone", undone_at: this.now().toISOString(), detail: summary });
       } catch (error) {
         decision?.assertCurrent();
-        const detail = (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_.]+:\s*/, "").slice(0, 300);
+        const detail = cutHead((error instanceof Error ? error.message : String(error)).replace(/^[A-Z_.]+:\s*/, ""), 300);
         // Spent meanwhile (the round made that very change itself): it is undone, whatever the owner said to this call.
         if (this.store.undos(this.actorId, workId).find(item => item.undo_id === undoId)?.state === "undone") return this.link.read(workId);
         this.store.saveUndo(this.actorId, { ...record, state: "failed", detail });

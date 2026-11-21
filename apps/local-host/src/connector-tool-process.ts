@@ -20,7 +20,14 @@ export async function runToolInstallProcess(command: string, args: string[], opt
     const stop = () => { failed = true; kill("SIGTERM"); killTimer ??= setTimeout(() => kill("SIGKILL"), 1000); killTimer.unref(); };
     const timer = setTimeout(stop, options.timeout ?? 180_000); timer.unref();
     options.signal?.addEventListener("abort", stop, { once: true });
-    child.stdout.on("data", (chunk: Buffer) => { if (Buffer.byteLength(output) + chunk.length > 1_000_000) stop(); else output += chunk.toString("utf8"); });
+    // Decoded as a stream: a character split across two chunks stays one character (MR21-12).
+    let bytes = 0;
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > 1_000_000) stop();
+      else output += chunk;
+    });
     child.stderr.on("data", () => undefined);
     child.once("error", () => { failed = true; });
     child.once("close", code => {

@@ -10,6 +10,7 @@ import { DELEGATION_LIMITS, roundsOnItsOwn } from "./assistant-delegation.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
 import { AssistantStepGate } from "./assistant-step-gate.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
@@ -208,7 +209,7 @@ export class AssistantContinuations {
       // A revoked or stale start changes no wait and writes no business record: it stays eligible for the next round.
       if (!current()) return later("assistant.work_changed");
       const code = (error as { code?: unknown } | undefined)?.code;
-      return { refused: { code: typeof code === "string" ? code.slice(0, 64) : "assistant.start_failed", note: (error instanceof Error ? error.message : String(error)).slice(0, 200) } };
+      return { refused: { code: typeof code === "string" ? cutHead(code, 64) : "assistant.start_failed", note: cutHead((error instanceof Error ? error.message : String(error)), 200) } };
     } finally { this.end(work.work_id); }
   }
 }

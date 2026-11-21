@@ -236,8 +236,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:attention-refresh", kind: "request", owner: "attention", on: "document",
-    detail: "none",
-    summary: "Read what waits on the person again now: the person acted on a notice or on the work line, or a work of the Assistant's changed state.",
+    detail: "none, or { reconnected: true } from the desktop shell once the Host answers again: the page then replaces its event stream before reading",
+    summary: "Read what waits on the person again now: the person acted on a notice or on the work line, a work of the Assistant's changed state, or the desktop reconnected to the Host.",
   },
   {
     name: "molis-work:attention-unreachable", kind: "announcement", owner: "attention", on: "document",

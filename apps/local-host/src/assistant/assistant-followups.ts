@@ -137,8 +137,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   async save(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }, control?: AgentActionReviewControl): Promise<AssistantFollowUp> {
     const { ports } = this, work = ports.work(String(input?.work_id ?? ""));
     if (work.reply_target || work.archived) throw assistantErrors.state("评论回复或已归档工作不能添加定时");
-    const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
-    const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
+    const text = typeof input.text === "string" ? cutHead(input.text.trim(), 4000) : "";
+    const label = typeof input.label === "string" ? cutHead(input.label.trim(), 120) : "";
     if (!text || !label) throw assistantErrors.invalid("定时要写明到时让助理做什么，以及一句说法");
     const at = new Date(String(input.at));
     if (Number.isNaN(at.getTime()) || at.getTime() <= ports.now().getTime()) throw assistantErrors.invalid("时间要在现在之后，并写明日期和时间");
@@ -407,7 +407,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (!input || !["quiet", "pause"].includes(input.kind)) throw assistantErrors.invalid("规则只能是“在某处不提醒”或“暂停提醒”");
     const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
     const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];
-    const label = typeof input.label === "string" ? input.label.trim().slice(0, 200) : "";
+    const label = typeof input.label === "string" ? cutHead(input.label.trim(), 200) : "";
     if (!label) throw assistantErrors.invalid("写一句这条规则的说法，方便以后认出它");
     const until = input.until === undefined || input.until === null || input.until === "" ? undefined : new Date(String(input.until));
     if (until && (Number.isNaN(until.getTime()) || until.getTime() <= this.ports.now().getTime())) throw assistantErrors.invalid("结束时间要在现在之后");

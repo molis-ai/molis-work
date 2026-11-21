@@ -90,7 +90,6 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 另有一处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它是现状，不是设计：
 
-- `molis-work:place-changed`：`scripts/contextual-slice/client.ts`（情境交互的评估用脚本，不进产品页面）在 `window` 上听它，而它发在 `document` 且不冒泡，那个监听器永远不会触发。
 
 ## 4. 迁移
 

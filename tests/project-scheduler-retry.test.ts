@@ -122,3 +122,35 @@ test("101-2: stop() awaits in-flight schedule ticks before resolving and suppres
   assert.equal(stopResolved, true);
   assert.deepEqual(changedPaths, [], "changed() must not fire after stop() has started");
 });
+
+test("MR21-01: a long wakeup in one project does not hold the next round for the others", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "schedulers-long-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const slow = join(home, "slow.db"), quick = join(home, "quick.db");
+  await Promise.all([slow, quick].map(path => writeFile(path, "")));
+  let run: (() => Promise<void>) | undefined;
+  let releaseSlow!: () => void;
+  const slowGate = new Promise<void>(resolve => { releaseSlow = resolve; });
+  let quickTicks = 0;
+  const schedulers = startWebProjectSchedulers({
+    localHost: { inspectActions: async () => undefined } as never,
+    homeDirectory: home,
+    withCatalog: async (_options, operation) => operation({ listProjects: async () => [
+      { database_path: slow, project_id: "slow" }, { database_path: quick, project_id: "quick" },
+    ] } as never),
+    fixture: null,
+    periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
+    changed() {},
+    onError(error) { throw error; },
+  });
+  schedulers.runtimes.set(slow, { schedule: { tick: async () => { await slowGate; return { invoked: false }; } } } as never);
+  schedulers.runtimes.set(quick, { schedule: { tick: async () => { quickTicks += 1; return { invoked: false }; } } } as never);
+  // The periodic runner skips a round while the previous one is unfinished, so each round must settle with the slow tick still open.
+  await run!();
+  await run!();
+  await run!();
+  assert.equal(quickTicks, 3, "the quick project ticks once per round while the slow one is still running");
+  const stopped = schedulers.stop();
+  releaseSlow();
+  await stopped;
+});

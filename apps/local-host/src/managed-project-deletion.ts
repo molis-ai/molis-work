@@ -74,8 +74,7 @@ export class ManagedProjectDeletion {
       } else {
         project = this.projects.query.getProject(projectId);
       }
-      const stagedDirectory = planProjectStage(this.projectsDirectory, projectId,
-        () => this.projects.query.listProjectDeletions().some(entry => entry.project_id === projectId));
+      const stagedDirectory = planProjectStage(this.projectsDirectory, projectId);
       const now = new Date().toISOString();
       const deletedSessionBindingCount = this.cleanup.removeBindings(project.project_id, actorId, now);
       const deletedWorkspaceMembershipCount =

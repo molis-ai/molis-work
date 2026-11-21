@@ -35,6 +35,7 @@ import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
 import type { AssistantBudget } from "./assistant-budget.js";
 import type { AssistantNotices } from "./assistant-notices.js";
 import { promptTitle } from "./assistant-work-title.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
@@ -151,7 +152,7 @@ export class AssistantDispatch {
 
   /** What the executor is told when the Assistant hands it a work: the person's requests, where it got to, and its objects. */
   private async handoverBrief(work: StoredWork): Promise<string> {
-    const asked = this.store.rounds(work.work_id).filter(round => round.executor !== "plugin").slice(-8).map(round => `- ${round.text.slice(0, 600)}`);
+    const asked = this.store.rounds(work.work_id).filter(round => round.executor !== "plugin").slice(-8).map(round => `- ${cutHead(round.text, 600)}`);
     const part = work.session_id ? await this.link.assistantPart(work).catch(() => null) : null;
     const reply = part?.rounds.at(-1)?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n").slice(-1500) ?? "";
     const objects = await this.link.workObjects(work);
@@ -413,7 +414,7 @@ export class AssistantDispatch {
     void call.then(() => ({ state: "completed" as const }), (error: unknown) => {
       // Refused at its own check before any effect (the stop reached it first): it did not happen.
       if ((error as { code?: unknown })?.code === "actions.cancelled" || (error as { name?: unknown })?.name === "AbortError") return { state: "not-run" as const };
-      return { state: "failed" as const, detail: (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 300) };
+      return { state: "failed" as const, detail: cutHead((error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim(), 300) };
     }).then(outcome => {
       try { this.store.saveUnsettled(this.actorId, { ...change, ...outcome, settled_at: this.now().toISOString() }); } catch { /* The store closed with the Host. */ }
     });

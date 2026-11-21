@@ -11,6 +11,7 @@ import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, 
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { workTitle } from "./assistant-work-title.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * The Assistant on the work line (specs/work-line §5, §6; contract-design §2, §4, §5): it reports its works like any registrant
@@ -142,7 +143,7 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
   const action = { capability_id: ASSISTANT_LINE_ACTIONS.decide.capability_id, version: ASSISTANT_LINE_ACTIONS.decide.version }, name = nameOf(work);
   const held = reviews.slice(0, 10).flatMap(review => {
     const input = (decision: "approve" | "reject") => ({ work_id: work.work_id, review_id: review.review_id, version: review.version, decision });
-    const said = { name, what: review.summary.slice(0, 200) || uiText.text("workbench.assistant-line.this-step") };
+    const said = { name, what: cutHead(review.summary, 200) || uiText.text("workbench.assistant-line.this-step") };
     const approve = review.decisions.approve.available, reject = review.decisions.reject.available;
     const answers = review.kind === ASSISTANT_NEXT_STEP_REVIEW
       ? [...(approve ? [{ role: "approve" as const, action, input: input("approve"), summary: uiText.text("workbench.assistant-step-gate.go-on", { name }) }] : []),
@@ -151,21 +152,21 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
          ...(reject ? [{ role: "revise" as const, action, input: input("reject"), summary: uiText.text("workbench.assistant-line.revise-step", said) },
            { role: "reject" as const, action, input: input("reject"), summary: uiText.text("workbench.assistant-line.reject-step", said) }] : [])];
     if (!answers.length) return [];
-    return [{ id: review.review_id, ...(review.reference ? { reference: review.reference } : {}), ask: review.summary.slice(0, 1000) || uiText.text("workbench.assistant-line.step-to-approve"), why: uiText.text("workbench.assistant-line.why-ask"),
-      changes: review.fields.slice(0, 20).map(field => ({ label: field.label.slice(0, 200) || uiText.text("workbench.assistant-line.content"), value: field.value.slice(0, 2000) })),
+    return [{ id: review.review_id, ...(review.reference ? { reference: review.reference } : {}), ask: cutHead(review.summary, 1000) || uiText.text("workbench.assistant-line.step-to-approve"), why: uiText.text("workbench.assistant-line.why-ask"),
+      changes: review.fields.slice(0, 20).map(field => ({ label: cutHead(field.label, 200) || uiText.text("workbench.assistant-line.content"), value: cutHead(field.value, 2000) })),
       answers }];
   });
   const acceptAll = acceptance?.choices.find(choice => choice.id === "accept_all" && choice.availability.available);
   if (!acceptance || !acceptAll || held.length >= 10) return held;
   const openIds = new Set(acceptAll.accepts);
-  const said = { name, what: acceptance.summary.slice(0, 200) };
+  const said = { name, what: cutHead(acceptance.summary, 200) };
   const input = (decision: "approve" | "reject") => ({ work_id: work.work_id, review_id: `acceptance:${work.work_id}`, version: acceptance.reference.version, decision });
   return [...held, {
-    id: `acceptance:${work.work_id}:${acceptance.reference.version.slice(0, 16)}`,
+    id: `acceptance:${work.work_id}:${cutHead(acceptance.reference.version, 16)}`,
     reference: acceptance.reference,
     ask: uiText.text("common.presentation.needs-acceptance"),
-    why: acceptance.summary.slice(0, 1000),
-    changes: acceptance.requirements.filter(req => openIds.has(req.id)).slice(0, 20).map(req => ({ label: req.id.slice(0, 200), value: req.statement.slice(0, 2000) })),
+    why: cutHead(acceptance.summary, 1000),
+    changes: acceptance.requirements.filter(req => openIds.has(req.id)).slice(0, 20).map(req => ({ label: cutHead(req.id, 200), value: cutHead(req.statement, 2000) })),
     answers: [
       { role: "approve", action, input: input("approve"), summary: uiText.text("workbench.assistant-line.approve-step", said) },
       { role: "revise", action, input: input("reject"), summary: uiText.text("workbench.assistant-line.revise-step", said) },

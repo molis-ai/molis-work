@@ -9,6 +9,7 @@ import { textFieldId } from "../agent-question-card.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { carriesExternalSessionInput } from "./assistant-external-sessions.js";
 import type { StoredWork } from "./assistant-store.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** What became of a Send that reached a round already under way, or one that had just ended (its words wait for the next). */
 type RoundInputOutcome = "answered" | "steered" | "queued";
@@ -160,8 +161,8 @@ export class AssistantInputs {
   /** A supplement reaches a running round as text; its materials go with it, marked as data. */
   compose(text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): string {
     const parts = [text];
-    if (context?.selection) parts.push(`【发送时的选区，数据】${context.selection.text.slice(0, 4000)}`);
-    for (const material of materials) parts.push(material.method?.kind === "role" ? `【签名插件资料，数据】${material.text ?? ""}` : `【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
+    if (context?.selection) parts.push(`【发送时的选区，数据】${cutHead(context.selection.text, 4000)}`);
+    for (const material of materials) parts.push(material.method?.kind === "role" ? `【签名插件资料，数据】${material.text ?? ""}` : `【附带材料「${material.title}」，数据】${cutHead((material.text ?? ""), 4000)}`);
     const joined = parts.join("\n\n");
     if (materials.some(item => item.method?.kind === "role") && joined.length > this.maxText) throw assistantErrors.invalid("签名资料正文超过本次输入预算，请减少材料后重发");
     return joined.slice(0, this.maxText);

@@ -238,14 +238,25 @@ export async function holdsCreate(caller: ActionExecutionContext, client: Action
 }
 
 /**
+ * Everything that would refuse putting `subject` into `item`, read without writing: that the caller sees it, may arrange, and that
+ * the item is there with room. `mainline.place` runs it before the task's owner changes anything, so a placement the item would
+ * refuse never leaves the task moved on its owner's side (B36F-06).
+ */
+export async function checkItemPlacement(caller: ActionExecutionContext, ports: MainlineItemPorts, subject: ActionSubject,
+  item: { kind: "item" | "none"; item_id?: string }, visible: () => Promise<boolean>): Promise<void> {
+  if (!await visible()) throw mainlineErrors.subject_unreadable("读不到这个任务，不能放进事项");
+  await caller.validate_permissions?.([MAINLINE_ARRANGE_PERMISSION]);
+  if (item.item_id !== undefined) await withStore(caller, ports, store => { store.checkHold(item.item_id!, subject); });
+}
+
+/**
  * Into one item, which takes the object out of every other, or into none (`mainline.place`'s `item`). `visible` first says the caller
  * sees the object (a task: on the caller's own task table); nothing about it changes but what holds it.
  */
 export async function placeInItem(caller: ActionExecutionContext, ports: MainlineItemPorts, subject: ActionSubject,
   item: { kind: "item" | "none"; item_id?: string }, visible: () => Promise<boolean>): Promise<ActionSubject[]> {
-  if (!await visible()) throw mainlineErrors.subject_unreadable("读不到这个任务，不能放进事项");
+  await checkItemPlacement(caller, ports, subject, item, visible);
   const required = [MAINLINE_ARRANGE_PERMISSION];
-  await caller.validate_permissions?.(required);
   await caller.beforeEffect();
   requireSynchronous(caller.assert_authority_current?.(undefined, required));
   return withStore(caller, ports, store => store.placeOnly(item.item_id ?? null, subject));

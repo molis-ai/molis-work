@@ -60,9 +60,11 @@ export function startWebProjectSchedulers(options: {
   const rounds = repeatingFailure("schedule", "round_failed");
   const ran = (key: string) => rounds.worked(key);
   const failed = (key: string, schedule: "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
+  // A round starts every project's tick and returns at once: one project's long wakeup (a model call, an outside service) must not
+  // hold the next round, so the others keep running every 30 seconds (the scheduler's claim keeps a job from running twice). Only
+  // stop() waits for the ticks still in flight.
   const inFlight = new Set<Promise<void>>();
-  const round = () => runWithMolisWorkHome(homeDirectory, async () => {
-    const ticks: Promise<void>[] = [];
+  const round = () => runWithMolisWorkHome(homeDirectory, () => {
     for (const [databasePath, runtime] of runtimes) {
       const tracked = withCallId(newCallId(), () => runtime.schedule.tick())
         .then(result => {
@@ -72,9 +74,7 @@ export function startWebProjectSchedulers(options: {
         .catch(failed(`tasks:${databasePath}`, "tasks"))
         .finally(() => { inFlight.delete(tracked); });
       inFlight.add(tracked);
-      ticks.push(tracked);
     }
-    await Promise.all(ticks);
   });
   const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: 30_000,
     run: () => openAll().then(() => { if (!stopped) return round(); }) });

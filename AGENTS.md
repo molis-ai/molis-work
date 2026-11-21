@@ -66,7 +66,7 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 - **定向测试、排队与全量：** 跑测试用 `node scripts/run-tests.mjs <文件…>`，挑相关用例用 `node scripts/affected-tests.mjs`。本机构建与浏览器/测试经 `scripts/machine-slot.mjs` 排队（每类最多 3 槽），多会话跑测试用 `--jobs 1`；**本机不跑全量**（全量交 CI `full-suite` 标签）；停进程只按 `pid`，不用 `pkill`。详见 `docs/system/PARALLEL-DEVELOPMENT.md` 第 5–8 节。
 - **门禁只许变严。** `pnpm health:check` 的各组数字对照 merge-base 量、只许变小，PR 里没有办法调大（`--update`、改基线都不行）；包含 Biome 静态检查、调用次数预算（`tooling/gates/call-budget.json`，必要增长走 `tooling/gates/call-budget-allowances/`）、错误码归属与测试双加载绝对零（`testImportSplits`，同一测试进程不能既读 `src` 又读包名/`dist`，可用 `node scripts/test-imports.mjs --write` 修复）。日常边界与专项校验还有 `pnpm boundary:check`、`pnpm test:security`、`pnpm test:contracts`。口径与例外见 `tooling/gates/README.md`。
 - **快照、版本与合并重生：** 有意改公开 API、动作合同、库结构、自有版本时，分别跑 `pnpm api:update`、`pnpm actions:update`、`pnpm schemas:update`、`pnpm versions:generate`，提交生成的文件并在 PR 里写对调用方的影响。同步 `main` 后跑 `pnpm merge:regenerate` 自动重生成被合并驱动跳过的快照，不手工合并快照文件。
-- **页面资源、首屏字节与插件样式只许变小：** 静态资源（`pnpm page-assets:check`）、首屏字节（`node scripts/gates/first-screen.mjs --base origin/main`）与插件样式预算（`pnpm plugin-styles:check`）默认只许降；单资源或首屏单行一次涨超 10 KB 或新增资源/路径，先问用户并在 `tooling/gates/page-asset-allowances/` 登记许可（量法与放行见 `docs/cli-and-development.md`「页面资源体积」「首屏字节」）。改共用样式或外壳另跑 `pnpm visual:compare`。
+- **页面资源、首屏字节与插件样式按预算表管：** 静态资源（`pnpm page-assets:check`）与首屏字节（`node scripts/gates/first-screen.mjs --base origin/main`）对照 `tooling/gates/page-asset-budgets.json` 的路由、总载荷与首屏冷热上限（[决定 58](specs/post-anticorruption-roadmap/reference/decisions.md#decision-58)、第 100 批），插件样式预算（`pnpm plugin-styles:check`）只许降。预算内的改动不用逐字节许可；预算表的上限与各路由计入的资源相对 merge-base 只许收紧，调高上限或把资源移出路由先问用户，新增路由只能列确切资源（量法见 `docs/cli-and-development.md`「页面资源体积」「首屏字节」）。改共用样式或外壳另跑 `pnpm visual:compare`。
 - **原生与脚本检查：** 改 Rust（`apps/desktop`、`server/src/sync`、`apps/sync-worker`）、Swift 或 `.sh`/`.py` 时，跑 `node scripts/gates/native-checks.mjs <rust|swift|shell|python>`（对应 CI 的 `native-checks` 与 `shell-checks`）。
 - spec 的验收标准逐条带编号，证明它的测试在名字或注释里写出编号（`specs/README.md`「验收编号」）。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。偶发失败写进 `tests/quarantine.json`（带 owner 与到期日），不从 `tests/ci-product-subset.txt` 删行（规则见 `docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」）。
@@ -78,5 +78,5 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 ## 协作
 
 - **工作树与真实 Home 隔离：** 同一台机器上常有多个会话与工作树，开工前看 `git worktree list`；从最新 `origin/main` 开独立工作树，不在主检出里改、不重置或覆盖别人的未提交改动，只提交自己的。测试与预览一律用隔离 Home（`MOLIS_WORK_HOME` 或 `pnpm dev`），不直接动真实 Home（`~/.molis-work`，常驻服务占 `4173` / `4207` / `4208` 与唯一存储锁）。
-- **以下红线必须先问用户：** 动真实 Home、换 `vendor/prologue-sdk/` 或改上游、推送 / 开 PR / 发版 / 改版本号、改门禁或 CI、新增兼容读取或迁移逻辑、页面资源或首屏单次涨超 10 KB 或新增资源/路径、改变产品语义或推翻已定决定。
+- **以下红线必须先问用户：** 动真实 Home、换 `vendor/prologue-sdk/` 或改上游、推送 / 开 PR / 发版 / 改版本号、改门禁或 CI、新增兼容读取或迁移逻辑、调高页面资源或首屏预算（含把资源移出路由）、改变产品语义或推翻已定决定。
 - **并行规则与包登记：** 并行开发规矩见 `docs/system/PARALLEL-DEVELOPMENT.md`；包归属与 CODEOWNERS 规则维护在 `scripts/package-owners.mjs`（改了跑 `node scripts/package-owners.mjs --write`），包成熟度维护在 `scripts/workspace-packages.mjs`（内置插件写在各自 `package.json` 的 `"molis-work"` 块，变更同步 `docs/SSOT-MATRIX.md` 并由 `pnpm boundary:check` 核对）。

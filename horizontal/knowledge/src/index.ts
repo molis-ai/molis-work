@@ -473,7 +473,7 @@ class KnowledgeSourceReader {
       // one written differently from how it was given. Said as that, so the caller does not take the owner's refusal of the id
       // for a fault in its other arguments. A kind the caller may not read keeps the directory's own refusal (S-41).
       if (!known && error instanceof ActionError && UNKNOWN_SUBJECT_CODES.has(error.code) && await this.readable(caller, access, subject)) {
-        throw knowledgeErrors.unknown(`项目资料里没有这一份。subject 最好直接写 ref（目录、knowledge.list、search、grep 给的 k 开头的编号）；写对象就要原样照抄那里给的：kind 与整串 id 不改写、不截取（这次收到 kind ${JSON.stringify(subject.kind.slice(0, 40))}，id ${JSON.stringify(subject.id.slice(0, 80))}）`);
+        throw knowledgeErrors.unknown(`项目资料里没有这一份。subject 最好直接写 ref（目录、knowledge.list、search、grep 给的 k 开头的编号）；写对象就要原样照抄那里给的：kind 与整串 id 不改写、不截取（这次收到 kind ${JSON.stringify(cutHead(subject.kind, 40))}，id ${JSON.stringify(cutHead(subject.id, 80))}）`);
       }
       if (error instanceof ActionError) throw error;
       throw knowledgeErrors.unreadable(`这份资料现在读不到：${reasonOf(error)}`);

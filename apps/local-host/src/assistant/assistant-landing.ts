@@ -2,6 +2,7 @@ import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/
 import type { AssistantContextSnapshot, AssistantLanding } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hasExternalSessionContext, isExternalSessionObject, SESSIONS_SURFACE_ID } from "./assistant-external-sessions.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * Where something would be put on the left, told to a round (specs/context-program §21.8 step 7, decision readText-2).
@@ -29,10 +30,10 @@ export function checkLanding(context: AssistantContextSnapshot): { landing?: Ass
     || typeof value.plugin_id !== "string" || typeof value.position !== "string" || !Object.hasOwn(WHERE, value.position)
     || !object || object.kind !== value.object.kind || object.id !== value.object.id
     || hasExternalSessionContext(context) || isExternalSessionObject(value.object) || value.plugin_id === SESSIONS_SURFACE_ID) return {};
-  const headings = Array.isArray(value.heading_path) ? value.heading_path.filter((item): item is string => typeof item === "string").slice(-6).map(item => item.slice(0, 120)) : [];
+  const headings = Array.isArray(value.heading_path) ? value.heading_path.filter((item): item is string => typeof item === "string").slice(-6).map(item => cutHead(item, 120)) : [];
   const [before, after, selected] = [text(value.before, 400), text(value.after, 400), text(value.selected, 4000)];
-  return { landing: { plugin_id: value.plugin_id.slice(0, 120), position: value.position,
-    object: { kind: value.object.kind.slice(0, 80), id: value.object.id.slice(0, 200), ...(typeof value.object.title === "string" ? { title: value.object.title.slice(0, 200) } : {}) },
+  return { landing: { plugin_id: cutHead(value.plugin_id, 120), position: value.position,
+    object: { kind: cutHead(value.object.kind, 80), id: cutHead(value.object.id, 200), ...(typeof value.object.title === "string" ? { title: cutHead(value.object.title, 200) } : {}) },
     ...(headings.length ? { heading_path: headings } : {}), ...(before ? { before: before.value } : {}), ...(after ? { after: after.value } : {}), ...(selected ? { selected: selected.value } : {}) } };
 }
 

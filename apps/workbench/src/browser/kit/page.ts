@@ -4,6 +4,7 @@ import { renderAlert, renderEmpty, renderSkeleton, type AttrValue } from "@molis
 import { act, button, esc, kitOf, linkedKitEntry, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
 import { skillWriting, type WritingFocus } from "./writing.js";
 import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
+import { mountKitPromptEditor } from "./prompt-editor.js";
 import { packViews, type View } from "./view.js";
 import type { KitSettingsPage } from "./writing-context.js";
 
@@ -106,6 +107,10 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
         draw();
         if (kept) body.querySelector<HTMLElement>("[data-kit-skill] input:checked")?.focus();
       }, writing.decorate);
+    }
+    const promptBox = body.querySelector<HTMLElement>("[data-kit-prompt-editor]");
+    if (promptBox && entry?.kind === "prompt" && promptBox.dataset.kitPromptEditor) {
+      mountKitPromptEditor(promptBox, promptBox.dataset.kitPromptEditor, { onSaved: () => void load(), say });
     }
     writing.focus(body, focus);
     if (focus === "detail") body.querySelector<HTMLElement>(".kit-detail h3")?.focus();

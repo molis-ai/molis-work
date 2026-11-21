@@ -87,7 +87,7 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
               <details class="functions-details"><summary>${uiText("workbench.ui.saved-samples")}</summary><div data-functions-samples></div></details>
               <div class="functions-preview" data-functions-last-preview hidden aria-live="polite"></div>
             </section>
-            <section class="functions-release"><h3>${uiText("workbench.ui.publish-activate")}</h3><p class="functions-hint" data-functions-release-hint></p><button class="mw-btn mw-btn--primary" type="button" data-functions-publish>${uiText("workbench.ui.publish-first-version")}</button><div class="functions-usages" data-functions-usages></div></section>
+            <section class="functions-release"><h3>${uiText("workbench.ui.publish-activate")}</h3><div data-functions-release-facts></div><p class="functions-hint" data-functions-release-hint></p><div class="functions-actions"><button class="mw-btn mw-btn--primary" type="button" data-functions-publish-activate hidden></button><button class="mw-btn mw-btn--primary" type="button" data-functions-publish>${uiText("workbench.ui.publish-first-version")}</button></div><div class="functions-usages" data-functions-usages></div></section>
           </section>
         </div>
         <footer class="functions-editor-footer">

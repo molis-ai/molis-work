@@ -1,30 +1,17 @@
 import { inputSchemaFor, type InferActionInput } from "./action-input.js";
 import type { ActionReference } from "./actions.js";
 import { closedObjectSchema } from "./closed-object-schema.js";
-import type { SandboxJson, SandboxSchema } from "./plugin-sandbox.js";
-import type { TextRef } from "./ui-text.js";
+import type { SandboxJson } from "./plugin-sandbox.js";
+import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingEntryDeclaration, type SettingLayer } from "./setting-entry.js";
 
-export const SETTINGS_LAYERS = ["project", "personal"] as const;
+export { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingEntryDeclaration, type SettingLayer };
+
 export const SETTINGS_SOURCES = [...SETTINGS_LAYERS, "provider_default"] as const;
-export const SETTINGS_CONSEQUENCES = ["reach", "cost", "external", "schedule"] as const;
 
-export type SettingLayer = (typeof SETTINGS_LAYERS)[number];
 export type SettingSource = (typeof SETTINGS_SOURCES)[number];
-export type SettingConsequence = (typeof SETTINGS_CONSEQUENCES)[number];
 export type SettingLayers = Partial<Record<SettingSource, SandboxJson>>;
 
 export type SettingLayerRevisions = Partial<Record<SettingLayer, string>>;
-
-export interface SettingEntryDeclaration {
-  /** A stable name. The declaring installation or system provider owns it. */
-  key: string;
-  title: TextRef;
-  summary?: TextRef;
-  layers: SettingLayer[];
-  schema: SandboxSchema;
-  consequence?: SettingConsequence[];
-  device_only?: true;
-}
 
 export interface SettingsDeclaration {
   /** Storage and separate connection-management actions for the plugin's declared personal model choice. */

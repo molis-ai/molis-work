@@ -29,8 +29,8 @@ export declare const SANDBOX_INTEGRATION_SOURCE_SLOT = "source";
 export type SandboxActionProtocol = {
     kind: 'placement_relation';
     relation: string;
-    role: import("platform/placement").PlacementRelationRole;
-    target?: import("platform/placement").PlacementRelationTarget;
+    role: PlacementRelationRole;
+    target?: PlacementRelationTarget;
     subject_kinds?: readonly string[];
 } | {
     kind: 'settings';
@@ -75,7 +75,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
     trusted_review?: {
         readonly reader: string;
         readonly subject_kinds: readonly string[];
-        readonly row: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+        readonly row: TrustedReviewRow;
     };
     background_job?: {
         status: string;
@@ -569,7 +569,9 @@ export interface SandboxSdk {
             bytes: Uint8Array;
         }>;
         releaseOriginal(record_key: string): Promise<void>;
-        attach(file: SandboxMaterialFile, request?: Pick<ConversationAttachmentUploadRequest, 'expected_kind'>): Promise<ConversationAttachment>;
+        attach(file: SandboxMaterialFile, request?: {
+            expected_kind?: 'image';
+        }): Promise<ConversationAttachment>;
         readAttachment(ref: MaterialRef, request: {
             as: 'text' | 'image';
         }): Promise<ConversationAttachmentContent>;
@@ -609,7 +611,7 @@ export interface SandboxSdk {
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'materials.attach' | 'materials.readAttachment' | 'materials.readAttachmentPart' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export interface SandboxSettingsDeclaration {
-    readonly entries: import("@molis-ai/molis-work-contracts/platform/settings").SettingEntryDeclaration[];
+    readonly entries: SettingEntryDeclaration[];
     readonly read_operation: string;
     readonly write_operation: string;
 }

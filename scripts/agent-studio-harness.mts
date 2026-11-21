@@ -43,7 +43,7 @@ export function studioHarnessRequests(home: string, projectId: string, token: st
       return withWebSessionRequest(request, () => {
         const preview = languageMutations ? languagePreview(request, response, local, token) : null;
         if (preview === false) return;
-        const { tag, source } = requestLanguage(request, local, preview);
+        const { tag, source } = requestLanguage(request, preview);
         return runWithLocale(tag, () => {
           if (languageMutations && local.pathname === "/api/ui/locale") {
             if (!authorizeLocalWebRequest(request, response, url, token, languageMutations)) return;

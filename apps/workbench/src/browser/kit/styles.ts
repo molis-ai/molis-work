@@ -134,6 +134,8 @@ const PAGE_STYLES = `
 .sk-version__text small { color: var(--muted); font-size: 12px; }
 .sk-version > .mw-item__end { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .sk-version-diff { grid-column: 1 / -1; }
+.kit-prompt-form { display: grid; gap: 10px; }
+.kit-prompt-advanced-body { display: grid; gap: 8px; }
 @container sk-work (max-width: 860px) {
   .sk-narrow-tabs { display: block; }
   .sk-side-tabs { display: none; }

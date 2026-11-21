@@ -266,7 +266,7 @@ const toDataset: Command = {
     const table = await page.request<FormFile>("GET", path(sel.id, "/results.csv"));
     if (!table.count) { showNote(page, uiText.text("form.note.no-responses-dataset"), true); return; }
     window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "form", id: sel.id }, station: "dataset",
-      title: sel.title + " · " + uiText.text("form.result.response-word"), payload: { title: sel.title + " · " + uiText.text("form.result.response-word"), body: table.content.replace(/^﻿/, "") },
+      title: sel.title + " · " + uiText.text("form.result.response-word"), payload: { title: sel.title + " · " + uiText.text("form.result.response-word"), body: table.content.replace(/^﻿/, ""), url: "molis-source://form/" + encodeURIComponent(sel.id) },
       note: uiText.text("form.note.dataset-made", { count: table.count }) } }));
   },
 };

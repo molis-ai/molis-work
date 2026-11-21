@@ -15,6 +15,13 @@
   "engines": {
     "node": ">=24.15.0 <24.16.0"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24.15.0 <24.16.0",
+      "onFail": "error"
+    }
+  },
   "packageManager": "pnpm@11.9.0",
   "bin": {
     "molis-work": "./dist/cli/main.js",
@@ -36,6 +43,7 @@
     "dev": "node scripts/start-account-environment.mjs --env dev",
     "versions:generate": "node scripts/generate-versions.mjs --write",
     "versions:check": "node scripts/generate-versions.mjs --check",
+    "preflight": "node scripts/preflight-env.mjs",
     "prepare": "node scripts/setup-merge-drivers.mjs",
     "merge:regenerate": "node scripts/regenerate-after-merge.mjs",
     "web:personal": "node scripts/start-account-environment.mjs",
@@ -162,8 +170,10 @@
     "@molis-ai/molis-work-service-surfaces": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
-    "node-pty": "^1.1.0",
     "ws": "^8.21.3"
+  },
+  "optionalDependencies": {
+    "node-pty": "1.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

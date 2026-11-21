@@ -153,6 +153,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   }
 
   .settings-segmented { display: flex; flex: none; padding: 4px; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--nav-bg); }
+  .settings-segmented[data-budget-presets] { flex-wrap: wrap; max-width: 100%; }
   .settings-segmented > :is(button, a) { display: flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; text-decoration: none; font-size: 12px; white-space: nowrap; box-shadow: none; }
   .settings-segmented > :is([aria-pressed="true"], [aria-current="true"]) { border-color: var(--line); color: var(--ink); background: var(--paper); box-shadow: var(--lift-1); }
   :is(.project-preferences-page, .settings-stage) .settings-record-title p { max-width: 48ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
@@ -170,6 +171,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
     :is(.project-preferences-page, .settings-stage) .settings-nav-group-label { display: none; }
     .settings-segmented { width: 100%; }
     .settings-segmented > :is(button, a) { flex: 1; min-height: 44px; padding: 0 8px; }
+    .settings-segmented[data-budget-presets] > :is(button, a) { flex: 1 1 auto; }
     :is(.project-preferences-page, .settings-stage) .diagnostics-summary dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   }
 

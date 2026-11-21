@@ -249,16 +249,22 @@ test("a real pending read failure during SDK shutdown keeps late memory receipts
   await assert.rejects(local.close(), { code: "STORAGE_RECONCILE_REQUIRED" });
   assert.equal(memoryHostFor(local), memory); assert.equal(memory.policy.alive(), false);
   assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "storage.owner.busy" });
+  await assert.rejects(adapter.recovery!.inspect(session), { code: "RUNTIME_NOT_READY" });
   await writeFile(pendingPath, pendingBytes); pendingBytes = undefined;
-  release(); await sent;
-  // This existing read-only recovery surface reads the persisted Run, without projecting its Memory usage again.
-  await until(async () => {
-    const report = await adapter.recovery!.inspect(session);
-    return report.runs.length === 0 && report.blockers.length === 0 ? true : undefined;
-  }, "B did not persist its normal terminal after the failed close");
-  const run = JSON.parse(await readFile(join(home, "agent-runtime", "records", "io.molis.work~runs", `${session.session_id}.${handle.ref.run_id}.json`), "utf8"));
-  assert.equal(run.metadata.state, "completed");
+  // Observe the actual response without adapter.read(), which could repair a missed receipt.
+  let responseObserved = false;
+  const stopObserving = adapter.observe(handle.ref, view => {
+    responseObserved ||= view.memory_recalled?.contexts?.some(call => call.status === "response-observed") ?? false;
+  });
+  try {
+    assert.equal(responseObserved, false, "the model has not replied yet");
+    release(); await sent;
+    await until(async () => responseObserved ? true : undefined, "B did not emit a late response receipt");
+  } finally { stopObserving(); }
   const closing = local.close(); assert.equal(local.close(), closing); await closing;
+  const runPath = join(home, "agent-runtime", "records", "io.molis.work~runs", `${session.session_id}.${handle.ref.run_id}.json`);
+  const run = JSON.parse(await readFile(runPath, "utf8"));
+  assert.equal(run.metadata.state, "failed", "the shutdown guard prevents the interrupted run from completing");
   assert.equal(memoryHostFor(local), undefined);
   const reopened = openMemoryLedger({ homeDirectory: home });
   try {

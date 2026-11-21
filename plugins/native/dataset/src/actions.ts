@@ -135,8 +135,10 @@ export function createDatasetContentHandlers(stores: DatasetStores): ActionHandl
   return bindWorkflowContentHandlers(datasetContentActions, {
     list: caller => read(store => store.list(project(caller)).map(dataset => ({ item_id: dataset.id, title: dataset.title, caption: dataset.rows.length + " 行", at: dataset.updated_at }))),
     read: ({ item_id }, caller) => read(store => { const dataset = store.get(item_id, project(caller)); return { title: dataset.title, body: toCsv(dataset), source: "数据表" }; }),
-    receive: ({ title, body, request_id }, caller) => write(caller, store => {
-      const dataset = store.receiveCsv(project(caller), request_id, title, body);
+    receive: ({ title, body, request_id, url }, caller) => write(caller, store => {
+      const sourceKey = url?.trim();
+      const dataset = store.receiveCsv(project(caller), request_id, title, body,
+        sourceKey?.startsWith("molis-source://form/") && sourceKey.length > "molis-source://form/".length ? sourceKey : undefined);
       return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title };
     }),
     create: ({ title }, caller) => write(caller, store => { const dataset = store.create({ title, project_id: project(caller) }); return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title }; }),

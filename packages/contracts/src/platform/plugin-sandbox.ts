@@ -185,12 +185,36 @@ export interface SandboxSettingsDeclaration {
   readonly write_operation: string;
 }
 
+/** On-demand help declared by a generated or sandboxed plugin, accepting either literal copy or owned TextRefs. */
+export interface SandboxHelpSectionDeclaration {
+  readonly id: string;
+  readonly heading: SandboxVisibleText;
+  readonly body?: SandboxVisibleText;
+  readonly items?: readonly SandboxVisibleText[];
+  readonly collapsible?: boolean;
+  readonly summary?: SandboxVisibleText;
+}
+
+export interface SandboxHelpTopicDeclaration {
+  readonly id: string;
+  readonly title: SandboxVisibleText;
+  readonly first_visit_tip?: SandboxVisibleText;
+  readonly sections: readonly SandboxHelpSectionDeclaration[];
+}
+
+export interface SandboxHelpDeclaration {
+  readonly default_topic?: string;
+  readonly topics: readonly SandboxHelpTopicDeclaration[];
+}
+
 export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
   revision: string;
   /** The signed Manifest projects this declaration; each language is a file in the package's locales/ directory. */
   ui?: { readonly locales: PluginLocalesDeclaration };
+  /** Optional on-demand help topics shown via the platform's Scheme A help entry (VUX-55, VUX-59). */
+  help?: SandboxHelpDeclaration;
   operations: SandboxOperationContract[];
   presentation?: PresentationDeclaration;
   settings_entries?: SandboxSettingsDeclaration;

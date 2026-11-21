@@ -971,6 +971,13 @@
     "goals.terminal.open-specific-child-goal-above": "Open a specific child Goal above.",
     "goals.terminal.parent-does-not-complete-own": "Once all child Goals finish, confirm closing the parent Goal; open a specific child Goal to use a terminal.",
     "goals.terminal.parent-does-not-use-terminal": "This parent Goal does not use a terminal directly",
-    "goals.terminal.parent-read-only-message": "This parent Goal is completed through its child Goals, so its terminal is read-only. Open a specific child Goal to continue."
+    "goals.terminal.parent-read-only-message": "This parent Goal is completed through its child Goals, so its terminal is read-only. Open a specific child Goal to continue.",
+    "goals.help.title": "Goals",
+    "goals.help.what": "Track an outcome with acceptance requirements, dependencies, concerns, and decisions across list, graph, and board views until closure.",
+    "goals.help.example-1": "Create a goal with a clear outcome and acceptance criteria, then link prerequisite goals",
+    "goals.help.example-2": "Log concerns, verify evidence item by item, and close the goal once satisfied",
+    "goals.help.scope": "Goal records stay in this project’s local database; removing the plugin from a project keeps its data intact if you re-enable it later.",
+    "goals.help.advanced-summary": "Views and archiving",
+    "goals.help.advanced": "List, graph, and board show the exact same records; finished or canceled goals can be archived out of daily focus without losing history."
   }
 }

@@ -86,7 +86,9 @@ const ENTRY_ACTIONS = { initialize: ["goals.board.initialize", 1, "command"], tr
   treeCheck: ["goals.tree.check", 1, "command"], treeDecide: ["goals.tree.decide", 1, "command"], treeReview: ["goals.tree.review", 1, "query"],
   active: ["goals.active.set", 1, "command"], snapshot: ["goals.snapshot.read", 1, "query"], decide: ["goals.decisions.record", 1, "command"],
   eventReview: ["goals.decisions.review", 1, "query"],
-  create: ["goals.create", 1, "command"], directoryItem: ["goals.directory.read", 1, "query"], inputsConfirm: ["goals.inputs.confirm", 1, "command"] };
+  create: ["goals.create", 1, "command"], directoryItem: ["goals.directory.read", 1, "query"],
+  inputsReviewSource: ["goals.inputs.review_source", 1, "query"], inputsReviewChange: ["goals.inputs.review_change", 1, "command"],
+  inputsConfirm: ["goals.inputs.confirm", 1, "command"] };
 
 test("RAC-1770: the Goals plugin's ./contract exports the contract with its old values, and the platform contracts' three Goals subpaths are gone", async () => {
   assert.deepEqual(Object.keys(contract).sort(), CONTRACT_RUNTIME_EXPORTS);

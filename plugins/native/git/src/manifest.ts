@@ -126,6 +126,19 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "git.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "git.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "git.help.example-1" }, { key: "git.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "git.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "git.help.advanced-summary" }, body: { key: "git.help.advanced" } },
+        ],
+      }],
+    },
     embedded_plugins: ["io.molis.work.diff"],
     contributions: [GIT_UI_CONTRIBUTION_ID],
     views: [

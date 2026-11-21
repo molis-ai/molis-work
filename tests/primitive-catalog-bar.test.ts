@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { uiHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
 installHostUiText();
@@ -54,4 +57,113 @@ test("RAC-82: the developer plugin stays out of the bar specimen, as it stays ou
   assert.equal(pluginMarketCards().some(card => card.id === "text-stats"), false, "Text Stats is not in the directory");
   assert.doesNotMatch(html, /data-plugin-tile="text-stats"/, "and not in the specimen's tiles");
   assert.doesNotMatch(html, /data-plugin-toggle="text-stats"/, "nor its add control");
+});
+
+test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help specimens in zh and en", () => {
+  for (const lang of ["zh-CN", "en"] as const) {
+    const html = renderMolisWorkPrimitiveCatalog((key) => key, lang);
+    assert.match(html, /id="on-demand-help"/, `${lang}: has on-demand help section`);
+    assert.match(html, /href="#on-demand-help"/, `${lang}: indexed in catalog sidebar`);
+    assert.match(html, /class="mw-facts"/, `${lang}: pre-action facts block`);
+    assert.match(html, /mw-fact-row--ok/, `${lang}: ready fact row`);
+    assert.match(html, /mw-fact-row--warn/, `${lang}: missing fact row`);
+    assert.match(html, /mw-fact-row--out/, `${lang}: external-send fact row`);
+    assert.match(html, /class="mw-help-content"/, `${lang}: help content block`);
+    assert.match(html, /mw-help-section is-highlighted/, `${lang}: highlighted help section`);
+    assert.match(html, /class="mw-help-tip"/, `${lang}: skippable first-visit tip`);
+    assert.match(html, /aria-expanded="true"/, `${lang}: expanded button specimen`);
+    assert.match(html, /aria-pressed="true"/, `${lang}: pressed button specimen`);
+  }
+});
+
+test("VUX-55 VUX-58: every native built-in plugin manifest declares valid bilingual ui.help with all zh/en keys", () => {
+  const wbZh = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
+  const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
+  assert.ok(BUILTIN_PLUGIN_CATALOG.length >= 24, `expected at least 24 built-in plugins, got ${BUILTIN_PLUGIN_CATALOG.length}`);
+  const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    const help = entry.manifest.ui.help;
+    assert.ok(help && help.topics.length > 0, `${entry.project_plugin_id}: manifest.ui.help must be declared`);
+    assert.deepEqual(uiHelpDeclarationProblems(entry.manifest), [], `${entry.project_plugin_id}: ui.help must pass SDK validation`);
+    const zhPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/zh.json`, import.meta.url);
+    const enPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/en.json`, import.meta.url);
+    const zh = JSON.parse(readFileSync(zhPath, "utf8")).messages as Record<string, unknown>;
+    const en = JSON.parse(readFileSync(enPath, "utf8")).messages as Record<string, unknown>;
+    for (const topic of help.topics) {
+      const keys = [
+        ...readKey(topic.title),
+        ...readKey(topic.first_visit_tip),
+        ...topic.sections.flatMap((section) => [
+          ...readKey(section.heading),
+          ...readKey(section.body),
+          ...readKey(section.summary),
+          ...(section.items ?? []).flatMap(readKey),
+        ]),
+      ];
+      for (const key of keys) {
+        const hasZh = key.startsWith("common.") ? Object.hasOwn(wbZh, key) : Object.hasOwn(zh, key);
+        const hasEn = key.startsWith("common.") ? Object.hasOwn(wbEn, key) : Object.hasOwn(en, key);
+        assert.ok(hasZh, `${entry.project_plugin_id}: missing zh key ${key}`);
+        assert.ok(hasEn, `${entry.project_plugin_id}: missing en key ${key}`);
+      }
+    }
+  }
+});
+
+test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help and third-party manifest.ui.help flows through renderStagePage", () => {
+  const installedHtml = renderPluginFrameSurface(
+    '<main class="as-preview-page"></main>',
+    "app-1",
+    "Generated App",
+    true,
+    false,
+    "plugin-builder",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    { owner: "io.molis.work.generated.demo", page: "/projects/p/plugins/io.molis.work.generated.demo?frame=workbench" },
+  );
+  assert.doesNotMatch(installedHtml, /data-plugin-help|data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
+
+  const thirdPartyManifest: PluginManifest = {
+    ...BUILTIN_PLUGIN_CATALOG[0]!.manifest,
+    plugin_id: "io.example.vendor.tracker",
+    name: "Vendor Tracker",
+    ui: {
+      contributions: ["vendor.tracker.stage"],
+      views: [{ view_id: "stage", slot: "stage", title: "Tracker", contribution_id: "vendor.tracker.stage" }],
+      help: {
+        default_topic: "page",
+        topics: [{
+          id: "page",
+          title: { key: "tracker.help.title" },
+          sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { key: "tracker.help.what" } }],
+        }],
+      },
+    },
+  };
+  const rendered = renderStagePage(
+    {
+      descriptor: {
+        contribution_id: "vendor.tracker.stage",
+        kind: "primary-page",
+        label: "Tracker",
+        slots: [],
+        surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }],
+      },
+      render: () => '<main data-work-surface="tracker" data-work-surface-label="Tracker"></main>',
+    },
+    {},
+    "tracker",
+    false,
+    undefined,
+    {
+      manifest: thirdPartyManifest,
+      client: { clientMounts: "surfaces", clientFactory: "() => {}" },
+    },
+  );
+  assert.match(rendered.html, /<script type="application\/json" data-plugin-help>/u, "non-builtin manifest.ui.help flows through renderStagePage as a sibling help payload");
+  assert.match(rendered.html, /tracker\.help\.title/u, "non-builtin help topic keys are preserved verbatim");
+  assert.doesNotMatch(rendered.html, /data-plugin-document>[^<]*data-mw-help-declaration/u, "plugin owner document markup stays untouched");
 });

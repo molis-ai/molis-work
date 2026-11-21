@@ -134,6 +134,13 @@
     "schedule.read-group.operations.title": "Scheduled operations",
     "schedule.read-group.reminders.description": "This project’s reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due",
     "schedule.read-group.reminders.title": "Reminders",
-    "schedule.runs.source-title": "Scheduled tasks"
+    "schedule.runs.source-title": "Scheduled tasks",
+    "schedule.help.title": "Schedule",
+    "schedule.help.what": "Runs a recurring task at the time you set, saving results back to this project and sending externally only to recipients you named.",
+    "schedule.help.example-1": "Every Monday morning, turn meeting notes into a project report",
+    "schedule.help.example-2": "Every evening, summarize items waiting for your reply",
+    "schedule.help.scope": "Runs strictly within the permissions you granted and is billed by your model provider; pausing or revoking stops the next run and states why.",
+    "schedule.help.advanced-summary": "Time zone, missed runs, and pausing",
+    "schedule.help.advanced": "Uses this computer’s time zone; if the computer was asleep, it runs once on waking rather than replaying every missed slot."
   }
 }

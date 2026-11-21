@@ -337,6 +337,13 @@
     "alchemist.agent-prompt.alchemist-cross-check.title": "交叉检查证据",
     "alchemist.agent-prompt.alchemist-cross-check.purpose": "按指定研究维度形成有依据且可校准的判断",
     "alchemist.capability-library.alchemist-memory-playbook-revise-v1.title": "修改研究方法",
-    "alchemist.capability-library.alchemist-proposals-pending-v1.title": "继续待确认方法"
+    "alchemist.capability-library.alchemist-proposals-pending-v1.title": "继续待确认方法",
+    "alchemist.help.title": "炼金术士",
+    "alchemist.help.what": "围绕一个研究方向持续收集市场与公开信息、整理证据，并帮你对比备选决策。",
+    "alchemist.help.example-1": "新建一个产品或行业方向，定期采集公开信息并提炼变化",
+    "alchemist.help.example-2": "把值得保留的发现收入已保留列表，形成决策依据",
+    "alchemist.help.scope": "只在你发起采集或整理时访问已配置的公开网页搜索与文字模型，按对应服务商规则计费；所有方向与笔记都保存在本机。",
+    "alchemist.help.advanced-summary": "研究偏好、归档与外部模型",
+    "alchemist.help.advanced": "缺文字模型时已有的方向与材料仍可阅读与整理，不会丢失；归档的方向随时可从已归档视图恢复。"
   }
 }

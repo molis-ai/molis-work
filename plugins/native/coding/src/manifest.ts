@@ -249,6 +249,19 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "coding.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "coding.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "coding.help.example-1" }, { key: "coding.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "coding.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "coding.help.advanced-summary" }, body: { key: "coding.help.advanced" } },
+        ],
+      }],
+    },
     embedded_plugins: ["io.molis.work.git", "io.molis.work.diff"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

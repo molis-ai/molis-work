@@ -99,7 +99,12 @@ test("W3-10-5-01: inline HTML only counts executing scripts", () => {
 
 test("W3-10-5-01: comments, ordinary strings, server fetch and a locally shadowed fetch do not count", () => {
   reset();
-  put("plugins/native/alpha/src/clean.ts", "export const text = 'fetch(\"/text\")'; export async function server() {return fetch('/server');} export const CLIENT_SCRIPT = `// fetch('/comment')\nconst label = \"window.fetch('/label')\"; function fetch() {return Promise.resolve();} fetch();`;\n");
+  put("plugins/native/alpha/src/clean.ts", [
+    "export const text = 'fetch(\"/text\")';",
+    "export async function server() {return fetch('/server');}",
+    "export const CLIENT_SCRIPT = `// fetch('/comment')\nconst label = \"window.fetch('/label')\"; function fetch() {return Promise.resolve();} fetch();`;",
+    "",
+  ].join("\n"));
   commit("clean"); const result = gate("--base", "main"); assert.equal(result.code, 0, result.out);
 });
 
@@ -151,8 +156,20 @@ for (const edge of ["import './effect.js';", "export {start} from './effect.js';
 }
 
 test("W3-10-5-01: type-only browser edges do not execute server fetch", () => {
-  reset(); put("apps/workbench/src/terminal-client.ts", "import type {Ref} from './effect.js'; import {type Ref as Local} from './effect.js'; export type {Ref} from './effect.js'; export {type Ref as Other} from './effect.js';\n");
-  put("apps/workbench/src/effect.ts", "export type Ref = string; export const server = () => fetch('/server');\n"); commit("type-only edges");
+  reset();
+  put("apps/workbench/src/terminal-client.ts", [
+    "import type {Ref} from './effect.js';",
+    "import {type Ref as Local} from './effect.js';",
+    "export type {Ref} from './effect.js';",
+    "export {type Ref as Other} from './effect.js';",
+    "",
+  ].join("\n"));
+  put("apps/workbench/src/effect.ts", [
+    "export type Ref = string;",
+    "export const server = () => fetch('/server');",
+    "",
+  ].join("\n"));
+  commit("type-only edges");
   const result = gate("--base", "main"); assert.equal(result.code, 0, result.out);
 });
 

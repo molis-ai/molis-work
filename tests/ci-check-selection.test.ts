@@ -46,7 +46,7 @@ test("CIP-05 shell, studio replay and account-login checks follow their own inpu
 
 const modes = { documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", studio_replay_mode: "none", account_login_mode: "none", native_mode: "none", security_mode: "none", product_mode: "none", golden_third_party_mode: "none" };
 const scope = (event: string, result = "success", extra: Record<string, string> = {}) => ({ "github.event_name": event, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", "needs.build.result": "success", "needs.test-selection.result": result, ...Object.fromEntries(Object.entries({ ...modes, ...extra }).map(([k, v]) => [`needs.test-selection.outputs.${k}`, v])) });
-const skipped = ["build", "account-login", "health-gate-rules", "architecture-boundaries", "action-contracts", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"];
+const skipped = ["build", "account-login", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"];
 test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains health gates and secrets, and uses the merge-group base", () => {
   for (const name of [...skipped, "gates", "secret-scan"]) {
     const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock(name))![1]!;
@@ -55,20 +55,21 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
       for (const result of ["failure", "cancelled", "skipped"]) assert.equal(Boolean(evaluateExpression(condition, scope(event, result))), true, `${name}: ${result} runs full`);
     }
   }
+  // On doc-only PRs / merge groups, `build` is skipped and `gates` still runs its non-build checks.
+  const gatesCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock("gates"))![1]!;
+  for (const event of ["pull_request", "merge_group"]) {
+    assert.equal(Boolean(evaluateExpression(gatesCond, { ...scope(event), "needs.build.result": "skipped" })), true, `${event}: gates runs when build skipped on doc-only change`);
+    assert.equal(Boolean(evaluateExpression(gatesCond, { ...scope(event, "success", { documentation_mode: "code" }), "needs.build.result": "failure" })), false, `${event}: gates does not run when build failed on code change`);
+  }
   // Non-doc merge_group always runs account-login even if account_login_mode is none.
   const accountCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock("account-login"))![1]!;
   assert.equal(Boolean(evaluateExpression(accountCond, scope("merge_group", "success", { documentation_mode: "code", account_login_mode: "none" }))), true);
   assert.equal(Boolean(evaluateExpression(accountCond, scope("pull_request", "success", { documentation_mode: "code", account_login_mode: "none" }))), false);
   const gates = jobBlock("gates");
   assert.match(gates, /node scripts\/check-health-gates.mjs --base "\$base"/);
-  const step = gates.split("\n      - ").find(step => step.startsWith("name: Gate rules reject"))!;
-  const condition = /if: \$\{\{ (.*) \}\}/.exec(step)![1]!;
-  assert.equal(evaluateExpression(condition, scope("pull_request")), false);
-  assert.equal(evaluateExpression(condition, scope("schedule")), true);
-  const arch = jobBlock("architecture-boundaries");
-  for (const prefix of ["name: Build gate rules reject", "name: Studio Skill replay rules reject"]) {
-    const s = arch.split("\n      - ").find(item => item.startsWith(prefix))!;
-    const cond = /if: \$\{\{ (.*) \}\}/.exec(s)![1]!;
+  for (const prefix of ["name: Gate rules reject", "name: Health gates reject", "name: Build gate rules reject", "name: Studio Skill replay rules reject"]) {
+    const step = gates.split("\n      - ").find(item => item.startsWith(prefix))!;
+    const cond = /if: \$\{\{ (.*) \}\}/.exec(step)![1]!;
     assert.equal(evaluateExpression(cond, scope("pull_request")), false, prefix);
     assert.equal(evaluateExpression(cond, scope("schedule")), true, prefix);
   }
@@ -80,7 +81,7 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
 test("CIP-03 Verify executes the real shell verdict and rejects unauthorized skips, failures and cancellation", () => {
   const step = jobBlock("verify").split("\n      - ").find(step => step.startsWith("name: Required package gate"))!;
   const script = stepScript(step);
-  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
   const skippedNames = names.filter(name => !["GATES", "SECRET_SCAN"].includes(name));
   const env = { ...process.env, GITHUB_EVENT_NAME: "merge_group", QUEUE_CHECK_RESULT: "skipped", QUEUE_VERIFIED: "", TEST_SELECTION_RESULT: "success", ...Object.fromEntries(Object.entries(modes).map(([k,v]) => [k.toUpperCase(),v])), ...Object.fromEntries(names.map(name => [`${name}_RESULT`, skippedNames.includes(name) ? "skipped" : "success"])) };
   const verdict = (over: Record<string,string> = {}) => spawnSync("bash", ["-eo", "pipefail", "-c", script], { env: { ...env, ...over }, encoding: "utf8" }).status;
@@ -89,7 +90,7 @@ test("CIP-03 Verify executes the real shell verdict and rejects unauthorized ski
   assert.notEqual(verdict({ GITHUB_EVENT_NAME: "merge_group", DOCUMENTATION_MODE: "code" }), 0, "non-doc merge_group cannot skip account-login/security/product");
   for (const result of ["failure", "cancelled", "skipped"]) assert.notEqual(verdict({ TEST_SELECTION_RESULT: result }), 0, result);
   for (const name of names) for (const result of ["failure", "cancelled"]) assert.notEqual(verdict({ [`${name}_RESULT`]: result }), 0, name);
-  for (const mode of Object.keys(modes).filter(k => k !== "studio_replay_mode")) for (const value of ["", "unknown"]) assert.notEqual(verdict({ [mode.toUpperCase()]: value }), 0, mode);
+  for (const mode of Object.keys(modes).filter(k => k !== "studio_replay_mode" && k !== "gate_rules_mode")) for (const value of ["", "unknown"]) assert.notEqual(verdict({ [mode.toUpperCase()]: value }), 0, mode);
   for (const event of ["push", "schedule", "workflow_dispatch"]) assert.notEqual(verdict({ GITHUB_EVENT_NAME: event }), 0, event);
 });
 

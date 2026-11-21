@@ -164,7 +164,17 @@ const unsupportedOf = (config) => {
   };
   if (!record(config, ["$schema", "root", "vcs", "formatter", "assist", "files", "plugins", "linter", "overrides"], "")) return out;
   typed(config.root, (value) => typeof value === "boolean", "root");
-  for (const key of ["vcs", "formatter", "assist"]) if (config[key] !== undefined && record(config[key], ["enabled"], key)) typed(config[key].enabled, (value) => value === false, `${key}.enabled`);
+  for (const key of ["vcs", "assist"]) if (config[key] !== undefined && record(config[key], ["enabled"], key)) typed(config[key].enabled, (value) => value === false, `${key}.enabled`);
+  if (config.formatter !== undefined && record(config.formatter, ["enabled", "indentStyle", "indentWidth", "lineWidth", "lineEnding", "attributePosition", "formatWithErrors", "useEditorconfig"], "formatter")) {
+    typed(config.formatter.enabled, (value) => typeof value === "boolean", "formatter.enabled");
+    typed(config.formatter.indentStyle, (value) => value === "tab" || value === "space", "formatter.indentStyle");
+    typed(config.formatter.indentWidth, (value) => typeof value === "number", "formatter.indentWidth");
+    typed(config.formatter.lineWidth, (value) => typeof value === "number", "formatter.lineWidth");
+    typed(config.formatter.lineEnding, (value) => value === "lf" || value === "crlf" || value === "cr", "formatter.lineEnding");
+    typed(config.formatter.attributePosition, (value) => value === "auto" || value === "multiline", "formatter.attributePosition");
+    typed(config.formatter.formatWithErrors, (value) => typeof value === "boolean", "formatter.formatWithErrors");
+    typed(config.formatter.useEditorconfig, (value) => typeof value === "boolean", "formatter.useEditorconfig");
+  }
   if (config.files !== undefined && record(config.files, ["includes", "maxSize"], "files")) {
     typed(config.files.includes, areStrings, "files.includes");
     typed(config.files.maxSize, (value) => typeof value === "number", "files.maxSize");

@@ -6,7 +6,7 @@
 
 ## 依赖与范围
 
-`depends_on` 为已纳入基点的第 02 批（含 #1987）和第 07 批 #1981。两片没有产品依赖，按 Workbench、Goals 顺序由同一写手提交。允许路径为本 spec、[审查卡渲染器](../../../../apps/workbench/src/agent-review-surface.ts)、Goals 的[状态](../../../../plugins/native/goals/src/module/event-state.ts)和[状态效果](../../../../plugins/native/goals/src/module/event-state-effects.ts)，以及后者的[内聚单元尺寸登记](../../../../tooling/gates/giant-exceptions/plugins/native/goals/src/module/event-state-effects.ts.json)。
+`depends_on` 为已纳入基点的第 02 批（含 #1987）和第 07 批 #1981。两片没有产品依赖，按 Workbench、Goals 顺序由同一写手提交。允许路径为本 spec、[审查卡渲染器](../../../../apps/workbench/src/agent-review-surface.ts)、Goals 的[状态](../../../../plugins/native/goals/src/module/event-state.ts)和[状态效果](../../../../plugins/native/goals/src/module/event-state-effects.ts)，以及后者的内聚单元尺寸登记（历史 `tooling/gates/giant-exceptions/plugins/native/goals/src/module/event-state-effects.ts.json`，已于第 100 批退役）。
 
 **审查卡。** [Host 的 GET](../../../../apps/local-host/src/agent-review-http.ts)刷新并读取审查行，将文档交给 Workbench。Prologue effect resource 经 JSON 读取，写后检查的 note 还可来自 session index，重启和 Git 暂存审查也可从已存记录恢复。因此保留 `readable` 的全部判定。渲染一行时只判定一次，将结果用于命令标题、正文和决定按钮。可读文档沿原绘制分支，残缺文档仍显示原提示且没有批准按钮。保留独立的 `isDecidable(row)` 公开入口及其待审判定。原文档的顶层可读性检查从待审命令三次、已结算命令两次、其他待审卡两次收为一次。Git 整合内部复用原暂存区文档字段规则。局部结果仅用于这一行的同步渲染。
 

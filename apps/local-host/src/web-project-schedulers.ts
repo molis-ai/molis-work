@@ -60,11 +60,21 @@ export function startWebProjectSchedulers(options: {
   const rounds = repeatingFailure("schedule", "round_failed");
   const ran = (key: string) => rounds.worked(key);
   const failed = (key: string, schedule: "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
-  const round = () => runWithMolisWorkHome(homeDirectory, () => {
+  const inFlight = new Set<Promise<void>>();
+  const round = () => runWithMolisWorkHome(homeDirectory, async () => {
+    const ticks: Promise<void>[] = [];
     for (const [databasePath, runtime] of runtimes) {
-      void withCallId(newCallId(), () => runtime.schedule.tick())
-        .then(result => { ran(`tasks:${databasePath}`); if (result.invoked) changed(databasePath); }).catch(failed(`tasks:${databasePath}`, "tasks"));
+      const tracked = withCallId(newCallId(), () => runtime.schedule.tick())
+        .then(result => {
+          ran(`tasks:${databasePath}`);
+          if (!stopped && result.invoked) changed(databasePath);
+        })
+        .catch(failed(`tasks:${databasePath}`, "tasks"))
+        .finally(() => { inFlight.delete(tracked); });
+      inFlight.add(tracked);
+      ticks.push(tracked);
     }
+    await Promise.all(ticks);
   });
   const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: 30_000,
     run: () => openAll().then(() => { if (!stopped) return round(); }) });
@@ -72,6 +82,7 @@ export function startWebProjectSchedulers(options: {
     stopped = true;
     cancel();
     await opening?.catch(() => undefined);
+    await Promise.all([...inFlight]);
     await unbind();
   })() };
 }

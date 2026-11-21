@@ -82,3 +82,30 @@ test("ISSUE-34 a question refused once is told why, its original shape kept, and
   assert.equal(run.activity.filter(item => item.name === "ask-user" && item.state === "failed").length, 1);
   assert.equal(bodies.length, 2, "no third model call while the question waits");
 });
+
+test("101-2: round terminal cleanup runs once whether zero or multiple observers subscribe", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "round-ended-once-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("完成。"));
+  const adapter = await adapterIn(home);
+  t.after(() => adapter.close());
+  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Observe once" });
+  const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "简短回复" });
+  const seen = [0, 0, 0];
+  const offs = seen.map((_, index) => adapter.observe(handle.ref, view => {
+    if (view.phase === "completed") seen[index] = (seen[index] ?? 0) + 1;
+  }));
+  try {
+    const deadline = Date.now() + 30_000;
+    let live = await adapter.read(handle.ref);
+    while (live.phase !== "completed") {
+      assert.ok(Date.now() < deadline, `round did not complete: ${live.phase}`);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      live = await adapter.read(handle.ref);
+    }
+    assert.equal(live.phase, "completed");
+    assert.ok(seen.every(count => count >= 1), "all three observers observed completion");
+  } finally {
+    for (const off of offs) off();
+  }
+});

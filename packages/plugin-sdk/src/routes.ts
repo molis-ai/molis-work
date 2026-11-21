@@ -68,9 +68,13 @@ export function bindOwnerPluginAction<Input, Output>(
     const beforeWrite = async () => {
       caller.signal?.throwIfAborted();
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      // The plugin's own registration of this action: the provider id it carries is the plugin id for a plugin that ships with the Host.
-      const current = (await context.services.actions.discover()).find(row => row.capability_id === definition.capability_id
-        && row.version === definition.version && row.provider.plugin_install_id === context.install_id);
+      // The plugin's own registration of this action: look up the single action instead of discovering the full project catalog on every write.
+      const reference = { capability_id: definition.capability_id, version: definition.version };
+      const candidate = context.services.actions.discoverOne
+        ? await context.services.actions.discoverOne(reference)
+        : (await context.services.actions.discover()).find(row => row.capability_id === definition.capability_id
+          && row.version === definition.version && row.provider.plugin_install_id === context.install_id);
+      const current = candidate && candidate.provider.plugin_install_id === context.install_id ? candidate : undefined;
       if (!current) throw new ActionError("actions.missing", "原插件动作已撤下，不能继续保存");
       await caller.validate_authority?.({ capability_id: definition.capability_id, version: definition.version, provider_id: current.provider.provider_id });
       if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason, { kind: current.availability.kind });

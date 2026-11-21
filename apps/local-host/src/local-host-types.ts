@@ -5,7 +5,6 @@ import type { ActionAvailability, ActionCallContext, ActionClient, ActionProvide
 /** Host composition can project a subset of its directory without changing the caller's authority. */
 export interface HostActionClient extends ActionClient {
   discoverMatching?(caller: ActionCallContext, select: ActionSelection): ReturnType<ActionClient["discover"]>;
-  discoverOne?(caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined>;
 }
 
 /** Standalone consumers can select from the ordinary client's authorized directory. */

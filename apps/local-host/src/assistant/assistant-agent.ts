@@ -87,10 +87,10 @@ export const ASSISTANT_AGENT: AgentManifest = {
     role_id: ASSISTANT_MAIN_ROLE_ID, version: /* @version role.assistant-main */ 1, name: "主对话里的个人助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [...BUSINESS_HOST_TOOLS, ...BUSINESS_SUBAGENT_HOST_TOOLS],
   }, {
-    // A report of a task no conversation started (specs/work-line contract-design §9): the main conversation's words, read-only
-    // execution (queries only, a browser only looked at), and no host tools — it waits on nothing, asks nothing, plans nothing.
-    role_id: ASSISTANT_REPORT_ROLE_ID, version: /* @version role.assistant-report */ 1, name: "主对话里的汇报", workspace: "business", execution: "read-only",
-    prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [],
+    // A report of a task no conversation started (specs/work-line contract-design §9): read-only execution (queries only,
+    // a browser only looked at), no host tools, and only the base prompt (no delegate/memory/main-work tool hints).
+    role_id: ASSISTANT_REPORT_ROLE_ID, version: /* @version role.assistant-report */ 2, name: "主对话里的汇报", workspace: "business", execution: "read-only",
+    prompts: ["assistant-base"], host_tools: [],
   }, {
     // Delegating one level deep, and keeping or forgetting on the person's words, are the Host's checks on the work itself
     // (`assistant-delegation.ts`, `assistant-memory-tools.ts`); this role carries only what being delegated means for the reply.

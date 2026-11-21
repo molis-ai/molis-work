@@ -472,6 +472,8 @@ export interface AssistantPreparedCard {
     choices?: Record<string, AssistantCardChoice[]>;
 }
 
+export type AssistantProblemActionKind = "open_model_settings" | "raise_work_budget" | "open_assistant_settings";
+
 export interface AssistantRecovery {
     blockers: string[];
     rounds: Array<{
@@ -958,6 +960,7 @@ export interface AssistantWorkView {
     problem?: {
         message: string;
         action?: string;
+        action_kind?: AssistantProblemActionKind;
     };
     queued_inputs?: AgentQueuedInput[];
 }

@@ -272,3 +272,72 @@ test("B10-R3: the current version works and saved send receipts survive a real d
     assert.deepEqual(await readFile(file), bytes, "reopening the current version does not rewrite its bytes");
   } finally { service.continuations.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test("101-2: concurrent startFor reuses settled same-key run and re-evaluates after deferred attempt instead of stranding with start_in_progress", async t => {
+  const db = new DatabaseSync(":memory:");
+  const store = new AssistantStore(db);
+  const work = store.create({ actor_id: "user", title: "Concurrent continuation", scope: { kind: "personal" }, origin: null });
+  store.update("user", work.work_id, null, { session_id: "sess-concurrent" });
+  const request = {
+    runtime_id: "prologue",
+    project_id: ASSISTANT_PERSONAL_OWNER,
+    session_id: "sess-concurrent",
+    owner: { plugin_id: ASSISTANT_PLUGIN_ID, install_id: "assistant" },
+    request_key: "req-k1",
+    wait_id: "wait-1",
+    graph_id: "graph-1",
+    node_id: "node-1",
+  };
+  let startCount = 0;
+  const gate = Promise.withResolvers<void>();
+  const adapter = {
+    collaboration: {
+      read: async () => [{ wait: { wait_id: "wait-1", state: "satisfied", reason: "ready" }, continuation: { state: "eligible", auto: true, request_key: "req-k1", graph_id: "graph-1", node_id: "node-1" } }],
+    },
+    readSession: async () => ({ latest_run: null }),
+  };
+  const service = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => ({ adapter: () => adapter } as never),
+    authority: async () => { throw new Error("No real dispatch expected"); },
+  }, "user");
+  const continuations = service.continuations;
+  const internal = continuations as unknown as { ports: { start: () => Promise<{ run_id: string }> } };
+  t.mock.method(internal.ports, "start", async () => {
+    startCount += 1;
+    await gate.promise;
+    return { run_id: `run-${startCount}` };
+  });
+  try {
+    // 1. Same request_key arriving concurrently: second caller receives the settled run, never `{ later: "assistant.start_in_progress" }`.
+    const first = continuations.startFor(request);
+    const second = continuations.startFor(request);
+    gate.resolve();
+    const [a1, a2] = await Promise.all([first, second]);
+    assert.deepEqual(a1, { run: { run_id: "run-1", session_id: "sess-concurrent" } });
+    assert.deepEqual(a2, { run: { run_id: "run-1", session_id: "sess-concurrent" } });
+    assert.equal(startCount, 1);
+
+    // 2. If the in-flight start returned `later` (e.g. a concurrent user send ended right after), the waiter re-evaluates and starts.
+    const releaseSend = continuations.blockStart(work.work_id);
+    const gateView = Promise.withResolvers<void>();
+    const origRead = adapter.collaboration.read;
+    let calls = 0;
+    adapter.collaboration.read = async () => {
+      calls += 1;
+      if (calls === 1) await gateView.promise;
+      return origRead();
+    };
+    const deferred = continuations.startFor({ ...request, request_key: "req-k2" });
+    const queued = continuations.startFor({ ...request, request_key: "req-k2" });
+    releaseSend();
+    gateView.resolve();
+    const [d1, d2] = await Promise.all([deferred, queued]);
+    assert.deepEqual(d1, { run: { run_id: "run-2", session_id: "sess-concurrent" } });
+    assert.deepEqual(d2, { run: { run_id: "run-2", session_id: "sess-concurrent" } });
+  } finally {
+    continuations.close();
+    store.close();
+    store.close(); // idempotent close must not throw
+  }
+});

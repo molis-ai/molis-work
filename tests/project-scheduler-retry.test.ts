@@ -80,3 +80,45 @@ test("LOGIC-01 stopping the host finishes while an open is still failing", async
   // The failed open is skipped, not reported (onError throws above), and the stopped round ends without running.
   await started;
 });
+
+test("101-2: stop() awaits in-flight schedule ticks before resolving and suppresses post-stop changed callbacks", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "schedulers-inflight-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const dbPath = join(home, "a.db");
+  await writeFile(dbPath, "");
+  let run: (() => Promise<void>) | undefined;
+  let tickStarted!: () => void;
+  let releaseTick!: () => void;
+  const entered = new Promise<void>(resolve => { tickStarted = resolve; });
+  const gate = new Promise<void>(resolve => { releaseTick = resolve; });
+  let stopResolved = false;
+  const changedPaths: string[] = [];
+  const schedulers = startWebProjectSchedulers({
+    localHost: { inspectActions: async () => undefined } as never,
+    homeDirectory: home,
+    withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: dbPath, project_id: "a" }] } as never),
+    fixture: null,
+    periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
+    changed(path) { changedPaths.push(path); },
+    onError(error) { throw error; },
+  });
+  schedulers.runtimes.set(dbPath, {
+    schedule: {
+      tick: async () => {
+        tickStarted();
+        await gate;
+        return { invoked: true };
+      },
+    },
+  } as never);
+  const roundPromise = run!();
+  await entered;
+  const stopPromise = schedulers.stop().then(() => { stopResolved = true; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(stopResolved, false, "stop() must wait while a tick() is still in flight");
+  releaseTick();
+  await stopPromise;
+  await roundPromise;
+  assert.equal(stopResolved, true);
+  assert.deepEqual(changedPaths, [], "changed() must not fire after stop() has started");
+});

@@ -228,6 +228,7 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  #closed = false;
   readonly preferences: AssistantSettingRecords;
   readonly policies: AssistantActionPolicies;
   readonly permissionTransitions = new AssistantPermissionTransitions();
@@ -480,15 +481,32 @@ export class AssistantStore {
   }
 
 
+  close(): void {
+    if (this.#closed) return;
+    this.#closed = true;
+    this.#changes.clear();
+    this.db.close();
+  }
 }
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
 
+export interface SharedAssistantStore {
+  (): AssistantStore;
+  close(): void;
+}
+
 /** The serving Host and its entry points share one Assistant store and its change notifications. */
-export function assistantStoreFor(home: string): () => AssistantStore {
+export function assistantStoreFor(home: string): SharedAssistantStore {
   let store: AssistantStore | undefined;
-  return () => store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+  const open = (() => store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE))) as SharedAssistantStore;
+  open.close = () => {
+    const current = store;
+    store = undefined;
+    current?.close();
+  };
+  return open;
 }
 
 /** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */

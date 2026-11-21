@@ -25,6 +25,18 @@ function limitsOf(page: ImagesPage): Limit[] {
   ];
 }
 
+function alignCaret(text: string, index: number): number {
+  let at = Math.max(0, Math.min(index, text.length));
+  if (at > 0 && at < text.length) {
+    const prev = text.charCodeAt(at - 1);
+    const next = text.charCodeAt(at);
+    if (prev >= 0xd800 && prev <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+      at += 1;
+    }
+  }
+  return at;
+}
+
 /**
  * Keeps a field within its limit the way `maxlength` does, by characters: what was typed or pasted last (the characters just
  * before the caret) is left out, whole, until the trimmed text fits. Text after the caret stays. Whether anything was cut.
@@ -32,18 +44,27 @@ function limitsOf(page: ImagesPage): Limit[] {
 function cutToLimit({ field, max }: Limit): boolean {
   const value = field.value;
   if (!exceedsCharacters(value.trim(), max)) return false;
-  const caret = field.selectionEnd ?? value.length;
-  const head = [...value.slice(0, caret)], tail = value.slice(caret);
-  // Each pass drops as many characters as are over; leading or trailing blanks the trim no longer counts can take another pass.
-  while (head.length && exceedsCharacters((head.join("") + tail).trim(), max)) head.splice(-(count((head.join("") + tail).trim()) - max));
-  const kept = head.join("");
-  if (exceedsCharacters((kept + tail).trim(), max)) {
+  const caret = alignCaret(value, field.selectionEnd ?? value.length);
+  const head = value.slice(0, caret);
+  const tail = value.slice(caret);
+  const trimmedTail = tail.trim();
+  if (trimmedTail.length > 0 && exceedsCharacters(trimmedTail, max)) {
     // Only the text after the caret is already too long (set by the page, not typed): keep its first characters.
     field.value = cutCharacters(value.trim(), max);
-  } else {
-    field.value = kept + tail;
-    field.setSelectionRange(kept.length, kept.length);
+    return true;
   }
+  const headLeading = head.length - head.trimStart().length;
+  const headPrefix = head.slice(0, headLeading);
+  const body = head.slice(headLeading);
+  let kept: string;
+  if (trimmedTail.length > 0) {
+    const tailEndCount = count(tail.trimEnd());
+    kept = tailEndCount >= max ? headPrefix : headPrefix + cutCharacters(body, max - tailEndCount);
+  } else {
+    kept = max <= 0 ? "" : headPrefix + cutCharacters(body, max);
+  }
+  field.value = kept + tail;
+  field.setSelectionRange(kept.length, kept.length);
   return true;
 }
 

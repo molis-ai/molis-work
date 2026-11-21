@@ -52,9 +52,20 @@ export async function runLocalPluginDevelopment(input: {
   });
   if (existingNames !== null) {
     if (existingNames.includes(markerName)) {
-      const existing = JSON.parse(await readFile(join(directory, markerName), "utf8")) as typeof marker;
-      if (existing.kind !== marker.kind || existing.schema_version !== marker.schema_version) throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
-    } else if (existingNames.length) throw developmentErrors.plugin_development_directory_occupied("Plugin 开发不能使用非空的普通目录或用户项目目录", { state_directory: directory });
+      let existing: unknown;
+      try {
+        existing = JSON.parse(await readFile(join(directory, markerName), "utf8"));
+      } catch {
+        throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
+      }
+      if (!existing || typeof existing !== "object" || Array.isArray(existing)
+        || (existing as Record<string, unknown>).kind !== marker.kind
+        || (existing as Record<string, unknown>).schema_version !== marker.schema_version) {
+        throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
+      }
+    } else if (existingNames.length) {
+      throw developmentErrors.plugin_development_directory_occupied("Plugin 开发不能使用非空的普通目录或用户项目目录", { state_directory: directory });
+    }
   }
   // An existing state directory is opened before the language check too: a Home that already holds unadopted files is refused
   // (memory.unavailable) before the plugin directory is read. A new or empty directory is still made only after that check, so a wrong

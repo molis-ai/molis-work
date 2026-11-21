@@ -68,9 +68,16 @@ if (root && request) {
     body.innerHTML = renderHome(view, hadMissed && !view.missed.length);
     root.hidden = !body.innerHTML;
   };
-  const load = async () => {
+  const load = async (): Promise<boolean> => {
     // The Host is not answering: the Home page says nothing.
-    try { view = await request("/api/runtime/overview") as Overview; hadMissed ||= view.missed.length > 0; paint(); } catch { /* nothing to say */ }
+    try {
+      view = await request("/api/runtime/overview") as Overview;
+      hadMissed ||= view.missed.length > 0;
+      paint();
+      return true;
+    } catch {
+      return false;
+    }
   };
   body.addEventListener("click", async event => {
     const target = event.target as Element | null;
@@ -82,7 +89,10 @@ if (root && request) {
       try {
         await request("/api/runtime/runs/decide", { method: "POST", body: { scope_project_id: choice.dataset.scope || null, provider_id: choice.dataset.provider,
           run_id: choice.dataset.run, decision: choice.dataset.runtimeDecide }, fallback: text("decide-failed") });
-        if (view) { view = { ...view, missed: view.missed.filter(run => run.run_id !== choice.dataset.run) }; paint(); }
+        if (view) {
+          view = { ...view, missed: view.missed.filter(run => run.run_id !== choice.dataset.run) };
+          paint();
+        }
       } catch {
         controls.forEach(control => { control.disabled = false; });
         line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
@@ -95,9 +105,26 @@ if (root && request) {
       seen.disabled = true;
       line?.querySelector("[data-runtime-failed]")?.remove();
       try {
-        await request("/api/runtime/expired/seen", { method: "POST", body: { through: seen.dataset.runtimeExpiredSeen! }, fallback: text("decide-failed") });
-        if (view) { view = { ...view, expired: { ...view.expired, count: 0, sources: [] } }; paint(); }
-      } catch {
+        const result = await request("/api/runtime/expired/seen", {
+          method: "POST",
+          body: { through: seen.dataset.runtimeExpiredSeen! },
+          fallback: text("decide-failed"),
+        }) as { applied?: boolean } | undefined;
+        if (result?.applied === false) {
+          if (!(await load())) {
+            seen.disabled = false;
+            line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
+          }
+          return;
+        }
+        if (view) {
+          view = { ...view, expired: { ...view.expired, count: 0, sources: [] } };
+          paint();
+        }
+      } catch (error) {
+        if ((error as { status?: number } | null)?.status === 409) {
+          if (await load()) return;
+        }
         seen.disabled = false;
         line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
       }

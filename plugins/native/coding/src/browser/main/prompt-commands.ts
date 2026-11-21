@@ -51,15 +51,22 @@ export function promptCommands(page: Page): PromptCommands {
   const load = (wait = AGAIN_MS) => {
     const workspace = s.workspaceId || "";
     if (loading || (read.workspace === workspace && Date.now() - read.at < wait)) return;
-    read = { workspace, at: Date.now() };
     loading = api<{ commands: Listed[] }>(page, "/commands" + (workspace ? "?workspace=" + encodeURIComponent(workspace) : ""))
       .then(found => {
+        if ((s.workspaceId || "") !== workspace) return;
+        read = { workspace, at: Date.now() };
         const before = JSON.stringify(list);
         list = found.commands;
-        if (chosen?.listed) { const again = list.find((one): one is Readable => one.name === chosen!.name && "text" in one); chosen = again ? listed(again) : null; }
+        if (chosen?.listed) {
+          const again = list.find((one): one is Readable => one.name === chosen!.name && "text" in one);
+          chosen = again ? listed(again) : null;
+        }
         if (JSON.stringify(list) !== before) refs.composer?.refresh();
       }, () => undefined)
-      .finally(() => { loading = null; });
+      .finally(() => {
+        loading = null;
+        if ((s.workspaceId || "") !== workspace) load(0);
+      });
   };
   // What is typed after the chip is its argument: the prompt under the box follows it.
   page.lifetime.listen(input, "input", () => { if (chosen) refs.composer?.refresh("lines"); else if (input.value === "/") load(SLASH_MS); });

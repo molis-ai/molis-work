@@ -6,4 +6,5 @@ export const post = <T = unknown>(host: ScheduleHost, path: string, body: Record
   molisWorkRequest<T>(host.pluginRoute(path), { method: "POST", body, fallback });
 
 /** One read of a route (`path` follows the plugin's route). */
-export const read = <T>(host: ScheduleHost, path: string): Promise<T> => molisWorkRequest<T>(host.pluginRoute(path));
+export const read = <T>(host: ScheduleHost, path: string, signal?: AbortSignal): Promise<T> =>
+  molisWorkRequest<T>(host.pluginRoute(path), signal ? { signal } : undefined);

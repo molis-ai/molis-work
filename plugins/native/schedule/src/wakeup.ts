@@ -1,3 +1,4 @@
+import { RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord, ScheduleRegisterInput, ScheduleWakeupControl } from "@molis-ai/molis-work-contracts/services/scheduler";
 
 import { nextDailyLocalDue } from "./calendar.js";
@@ -120,6 +121,24 @@ export async function handleScheduleTaskWakeup(
   }
 }
 
+function hasPendingMissedTask(
+  db: ScheduleTaskDatabase,
+  taskId: string,
+  runAt: string | null,
+  nowMs: number,
+): boolean {
+  const targetDue = Date.parse(runAt ?? "");
+  if (!Number.isFinite(targetDue)) return false;
+  try {
+    const rows = db.prepare(
+      "SELECT due_at FROM schedule_missed_runs WHERE kind = 'task' AND ref = ? AND decision IS NULL AND due_at > ?",
+    ).all(taskId, new Date(nowMs - RUN_MISSED_KEPT_MS).toISOString()) as Array<{ due_at: string }>;
+    return rows.some(entry => Date.parse(entry.due_at) === targetDue);
+  } catch {
+    return false;
+  }
+}
+
 /** Sets each task that is on for its next time, or stops it; says whether any task changed (its page then shows it again). */
 export function rescheduleEnabledConversationTasks(
   db: ScheduleTaskDatabase,
@@ -127,17 +146,25 @@ export function rescheduleEnabledConversationTasks(
   now = () => new Date(),
 ): boolean {
   let changed = false;
+  const nowMs = now().getTime();
   for (const task of listScheduleConversationTasks(db)) {
     if (!task.enabled) continue;
     const job = task.job_id ? schedule.get(task.job_id) : null;
-    if (job && "authorization" in job && job.authorization === "needs_confirmation") { setScheduleConversationTaskEnabled(db, task.task_id, false, now); changed = true; continue; }
-    if (job && (job.enabled || schedule.isExecuting?.(job.job_id))) continue;
-    changed = true;
-    // A one-off task whose job is gone after its time has run (or was let go as missed): it stops instead of coming back.
-    if (task.repeat === "none" && Date.parse(task.run_at ?? "") <= now().getTime()) {
+    if (job && "authorization" in job && job.authorization === "needs_confirmation") {
       setScheduleConversationTaskEnabled(db, task.task_id, false, now);
+      changed = true;
       continue;
     }
+    if (job && (job.enabled || schedule.isExecuting?.(job.job_id))) continue;
+    // A one-off task whose job is gone after its time has run (or was let go as missed): keep it enabled
+    // while a missed-run decision is still open within its 7-day window; otherwise stop it.
+    if (task.repeat === "none" && Date.parse(task.run_at ?? "") <= nowMs) {
+      if (hasPendingMissedTask(db, task.task_id, task.run_at, nowMs)) continue;
+      setScheduleConversationTaskEnabled(db, task.task_id, false, now);
+      changed = true;
+      continue;
+    }
+    changed = true;
     const registered = registerConversationJob(schedule, task, now());
     if (job?.job_id !== registered.job_id) bindScheduleConversationJob(db, task.task_id, registered.job_id, now);
   }

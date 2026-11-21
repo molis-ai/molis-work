@@ -203,6 +203,16 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await waitFor("document.querySelectorAll('[data-work-stack] [data-decision-answer]').length === 2", 10_000);
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-work-stack] [data-decision-answer]')].map(b => b.dataset.decisionAnswer)"),
     ["approve", "reject"], "POLISH-44: two-choice decision without changes renders direct buttons on the very first refresh");
+  // POLISH-54: while data-checking is active (attention unreachable / restoring), direct decision buttons on the card stack are disabled and re-enable on live attention.
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-unreachable', { detail: { since: new Date().toISOString() } }))");
+  await waitFor("document.querySelector('[data-work-line]')?.hasAttribute('data-checking')", 10_000);
+  assert.deepEqual(
+    await evaluate("[...document.querySelectorAll('[data-work-stack] [data-decision-answer]')].map(b => b.disabled)"),
+    [true, true],
+    "POLISH-54: card stack decision buttons are disabled while data-checking",
+  );
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-stack] [data-decision-answer]')].every(b => !b.disabled)", 15_000);
 });
 
 test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read, and the task mark and panel say the connection is lost; heard again, all of that goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {

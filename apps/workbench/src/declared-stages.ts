@@ -101,7 +101,7 @@ export function withoutPagePublisher(model: unknown): unknown {
 export function renderStagePage(contribution: UiContribution, model: unknown, owner: string, pageOwner: boolean,
   draw: (request: UiRenderRequest) => string = request => contribution.render(request),
   options?: { manifest?: PluginManifest; rendered?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
-    client?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts">; producer?: string }) {
+    client?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts">; producer?: string; viewRevision?: string }) {
   const contribution_id = contribution.descriptor.contribution_id;
   const client = options?.client;
   const selected = options?.manifest ? stageSurfaceDescriptors(options.manifest, contribution)
@@ -126,21 +126,23 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
     try {
       const html = draw({ contribution_id, surface, model: publishing ? scoped : own });
       surfaces.push({ contribution_id, surface });
-      if (html.trim() && client?.clientMounts === "surfaces" && client.clientFactory) {
-        const descriptor = contribution.descriptor.surfaces?.find(item => item.surface_id === surface);
+      const descriptor = contribution.descriptor.surfaces?.find(item => item.surface_id === surface);
+      const stamped = options?.viewRevision && descriptor?.target_slot_id === "workbench.main"
+        ? html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, `$1 data-view-revision="${escapeHtml(options.viewRevision)}"`)
+        : html;
+      if (stamped.trim() && client?.clientMounts === "surfaces" && client.clientFactory) {
         if (descriptor) {
-          const id = html.match(/\bdata-(?:work-surface|directory-panel)="([^"]+)"/)?.[1] ?? owner;
-          const title = html.match(/\bdata-work-surface-label="([^"]+)"/)?.[1] ?? options?.manifest?.name ?? owner;
-          return renderPluginFrameSurface(html, id, title, descriptor.target_slot_id !== "workbench.directory", false, owner,
+          const id = stamped.match(/\bdata-(?:work-surface|directory-panel)="([^"]+)"/)?.[1] ?? owner;
+          const title = stamped.match(/\bdata-work-surface-label="([^"]+)"/)?.[1] ?? options?.manifest?.name ?? owner;
+          return renderPluginFrameSurface(stamped, id, title, descriptor.target_slot_id !== "workbench.directory", false, owner,
             { contribution_id, surface, target_slot_id: descriptor.target_slot_id }, options?.manifest?.plugin_id, options?.producer);
         }
       }
-      const descriptor = contribution.descriptor.surfaces?.find(item => item.surface_id === surface);
       if (options?.producer && options.manifest && descriptor?.target_slot_id === "workbench.main") {
         const mount = ` data-plugin-owner="${escapeHtml(options.manifest.plugin_id)}" data-plugin-contribution="${escapeHtml(contribution_id)}" data-plugin-surface="${escapeHtml(surface)}" data-plugin-slot="workbench.main" data-plugin-producer="${escapeHtml(options.producer)}"`;
-        return html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1" + mount);
+        return stamped.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1" + mount);
       }
-      return html;
+      return stamped;
     } finally { active = false; }
   };
   const main: string[] = [];

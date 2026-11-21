@@ -155,6 +155,51 @@ test("QEA-07 dropping a folder keeps every eligible selection beyond 400 and ski
   await b.waitFor("document.querySelector('[data-knowledge-import-status]').textContent.includes('401')", 15_000);
   assert.equal((await b.rows()).length, 200, "only the next batch is rendered");
   assert.equal((await b.rows()).some(row => row.name.includes("node_modules")), false);
+  // A deeply nested dropped tree (> 16 levels) stops recursion cleanly and shows the bounded status instead of freezing.
+  await b.click("[data-knowledge-import-dialog] footer [data-knowledge-import-close]");
+  await b.click("[data-knowledge-import-open]");
+  await b.waitFor("document.querySelector('[data-knowledge-import-dialog]')?.open === true");
+  const deepDepthVisited = await b.evaluate<number>(`(() => {
+    let maxDepth = 0;
+    const makeDir = (depth) => {
+      maxDepth = Math.max(maxDepth, depth);
+      let readOnce = false;
+      return {
+        isFile: false,
+        isDirectory: true,
+        name: "level-" + depth,
+        createReader: () => ({
+          readEntries: (resolve) => {
+            if (readOnce) {
+              resolve([]);
+              return;
+            }
+            readOnce = true;
+            const entries = [{
+              isFile: true,
+              isDirectory: false,
+              name: "note-" + depth + ".txt",
+              file: (ok) => ok(new File(["depth " + depth], "note-" + depth + ".txt", { type: "text/plain" })),
+            }];
+            if (depth < 25) entries.push(makeDir(depth + 1));
+            resolve(entries);
+          },
+        }),
+      };
+    };
+    const rootEntry = makeDir(0);
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: {
+        types: ["Files"],
+        items: [{ webkitGetAsEntry: () => rootEntry }],
+      },
+    });
+    document.querySelector("[data-knowledge-import-drop]").dispatchEvent(event);
+    return new Promise(resolve => setTimeout(() => resolve(maxDepth), 200));
+  })()`);
+  assert.equal(deepDepthVisited, 16, "dropped directory recursion stops cleanly at depth 16");
+  await b.waitFor("document.querySelector('[data-knowledge-import-status]').textContent.includes('200')", 10_000);
 });
 
 // QEA-06: a display path is not a file identity; the artifact service owns content deduplication.

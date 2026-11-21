@@ -50,7 +50,8 @@ test("RAC-211 the private work context module keeps only Runtime context binding
 });
 
 test("RAC-212 RAC-2378 product code never opens or registers the retired store", () => {
-  const opener = /(?<![a-z-])sessions\.db|content\.key|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
+  // The retired store's files, not a name that only ends in them (`storage.evidence_content.key_unavailable`, #2199).
+  const opener = /(?<![a-z-])sessions\.db|(?<![a-z_-])content\.key|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
   const source = (path: string) => text(path);
   const offenders = productSources().map(path => relative(root, path)).filter(path => opener.test(source(path)));
   assert.deepEqual(offenders, []);

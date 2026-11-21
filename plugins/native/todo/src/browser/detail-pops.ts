@@ -6,7 +6,11 @@ const uiText = globalThis.t;
 
 const DATE_NAMES: Record<string, string> = { due: "todo.prop.due", planned: "todo.prop.planned", remind: "todo.prop.remind", follow: "todo.field.follow-up" };
 const civil = (date: string) => new Date(`${date}T12:00:00`);
-const plus = (date: string, days: number) => { const at = civil(date); at.setDate(at.getDate() + days); return isoDay(at); };
+const plus = (date: string, days: number) => {
+  const at = civil(date);
+  at.setDate(at.getDate() + days);
+  return isoDay(at);
+};
 /** The next day of the week on or after `date` (0 is Sunday); `after` skips `date` itself. */
 const nextWeekday = (date: string, day: number, after = false) => plus(date, ((day - civil(date).getDay() + 7) % 7) || (after ? 7 : 0));
 /** 9, 930, 9:30 and 09:30 are all a time of day; anything else is not. */
@@ -68,7 +72,10 @@ export function installPops(page: TodoPage): void {
       node.value = value;
       page.queueSave(key);
     };
-    if (name === "due") { set("due_date", date); set("due_time", date ? time : ""); }
+    if (name === "due") {
+      set("due_date", date);
+      set("due_time", date ? time : "");
+    }
     else if (name === "planned") set("planned_date", date);
     else if (name === "follow") set("waiting.follow_up_on", date, "waiting");
     else set("remind_at", date ? `${date}T${time || "09:00"}` : "");
@@ -178,7 +185,10 @@ export function installPops(page: TodoPage): void {
       const at = civil(dateOf(page, name).date || todayOf(page));
       month = { year: at.getFullYear(), month: at.getMonth() };
       paintDate(name);
-    } else if (name === "link") { linkSearch.value = ""; paintLinks(); }
+    } else if (name === "link") {
+      linkSearch.value = "";
+      paintLinks();
+    }
     open = { pop, anchor, name };
     pop.hidden = false;
     scrim.hidden = false;
@@ -191,17 +201,34 @@ export function installPops(page: TodoPage): void {
 
   page.popClick = (target) => {
     const opener = target.closest<HTMLElement>("[data-todo-pop-open]");
-    if (opener) { show(opener); return true; }
-    if (target.closest("[data-todo-pop-close]") || target === scrim) { page.closePop(true); return true; }
+    if (opener) {
+      show(opener);
+      return true;
+    }
+    if (target.closest("[data-todo-pop-close]") || target === scrim) {
+      page.closePop(true);
+      return true;
+    }
     if (!open) return false;
-    if (!open.pop.contains(target)) { page.closePop(); return false; }
+    if (!open.pop.contains(target)) {
+      page.closePop();
+      return false;
+    }
     const { name } = open;
     const relation = target.closest<HTMLElement>("[data-todo-link-relation]");
-    if (relation) { state.linkRelation = relation.dataset.todoLinkRelation ?? "related"; paintLinks(); return true; }
+    if (relation) {
+      state.linkRelation = relation.dataset.todoLinkRelation ?? "related";
+      paintLinks();
+      return true;
+    }
     if (!(name in DATE_NAMES)) return false;
     const { date, time } = dateOf(page, name);
     const quick = target.closest<HTMLElement>("[data-todo-date-quick]");
-    if (quick) { write(name, quick.dataset.todoDateQuick ?? "", quick.dataset.time ?? time); page.closePop(true); return true; }
+    if (quick) {
+      write(name, quick.dataset.todoDateQuick ?? "", quick.dataset.time ?? time);
+      page.closePop(true);
+      return true;
+    }
     const step = target.closest<HTMLElement>("[data-calendar-step]");
     if (step) {
       const to = new Date(month.year, month.month + Number(step.dataset.calendarStep), 1, 12);
@@ -214,7 +241,11 @@ export function installPops(page: TodoPage): void {
       write(name, day.dataset.date ?? "", time);
       // A day alone is the whole answer for 计划做 and the follow-up; 截止 and 提醒 may still want a time.
       if (name === "planned" || name === "follow") page.closePop(true);
-      else { paintDate(name); place(); calendar.querySelector<HTMLElement>("td.is-selected .mw-calendar__day")?.focus({ preventScroll: true }); }
+      else {
+        paintDate(name);
+        place();
+        calendar.querySelector<HTMLElement>("td.is-selected .mw-calendar__day")?.focus({ preventScroll: true });
+      }
       return true;
     }
     const at = target.closest<HTMLElement>("[data-todo-time-choice]");
@@ -224,19 +255,33 @@ export function installPops(page: TodoPage): void {
       paintDate(name);
       return true;
     }
-    if (target.closest("[data-todo-date-clear]")) { write(name, "", ""); page.closePop(true); return true; }
+    if (target.closest("[data-todo-date-clear]")) {
+      write(name, "", "");
+      page.closePop(true);
+      return true;
+    }
     return true;
   };
 
   timeInput.addEventListener("change", () => {
     if (!open || !(open.name in DATE_NAMES)) return;
     const { date, time } = dateOf(page, open.name), typed = timeInput.value.trim() ? clock(timeInput.value) : "";
-    if (typed === null || (!typed && open.name === "remind")) { timeInput.value = time; return; }
+    if (typed === null || (!typed && open.name === "remind")) {
+      timeInput.value = time;
+      return;
+    }
     write(open.name, typed ? date || todayOf(page) : date, typed);
     paintDate(open.name);
   });
-  timeInput.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); timeInput.blur(); page.closePop(true); } });
-  linkSearch.addEventListener("input", () => { paintLinks(); place(); });
+  timeInput.addEventListener("keydown", (event) => { if (event.key === "Enter") {
+    event.preventDefault();
+    timeInput.blur();
+    page.closePop(true);
+  } });
+  linkSearch.addEventListener("input", () => {
+    paintLinks();
+    place();
+  });
   host.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !open) return;
     event.stopPropagation();

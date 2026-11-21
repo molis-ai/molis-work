@@ -35,7 +35,7 @@
 
 服务端批：我没明确说开工之前，只做只读核查和设计（手册「服务端批」）。
 
-原需求（行为与验收以它们为准）：https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md；https://github.com/molis-ai/molis-work/blob/personal/specs/personal-plugin-replication/spec.md；specs/work-mainline/spec.md；specs/upgrade-continuity/spec.md
+原需求（行为与验收以它们为准）：specs/personal-cloud-sync/spec.md；specs/personal-cloud-sync/plugin-replication.md；specs/work-mainline/spec.md；specs/upgrade-continuity/spec.md
 
 本批交付：
 1. 逐插件同步、完整历史与公开插件接入（本批文件 #srv-5-item-1）
@@ -47,10 +47,10 @@
 界面：本批文件的界面要求是「复用 SRV-1、SRV-2；同步异常与项目生命周期差异先定样」。写「先定样」的部分，按手册第五节的「定样怎么走」先出样，我确认后再写产品代码（组件板有新增部件的，还要先在本批分支上补成组件板标本、D 轨合审过）；写「复用」的部分沿已定交互。
 
 本批另有：
-- 当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)；下面的 `personal` 分支 URL 保留为历史来源。
+- 当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)（`personal` 分支已删，原需求都指向这里）。
 ```
 
 [MLN]: ../../../work-mainline/spec.md
-[SYNC]: https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md
-[SYNCP]: https://github.com/molis-ai/molis-work/blob/personal/specs/personal-plugin-replication/spec.md
+[SYNC]: ../../../personal-cloud-sync/spec.md
+[SYNCP]: ../../../personal-cloud-sync/plugin-replication.md
 [UPG]: ../../../upgrade-continuity/spec.md

@@ -34,7 +34,7 @@
 
 服务端批：我没明确说开工之前，只做只读核查和设计（手册「服务端批」）。
 
-原需求（行为与验收以它们为准）：https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md；https://github.com/molis-ai/molis-work/blob/personal/specs/plugin-sync-foundation/spec.md；specs/team-collaboration/spec.md；specs/team-memory/spec.md；specs/upgrade-continuity/spec.md；specs/work-mainline/spec.md；specs/BACKLOG.md
+原需求（行为与验收以它们为准）：specs/personal-cloud-sync/spec.md；specs/personal-cloud-sync/foundation.md；specs/team-collaboration/spec.md；specs/team-memory/spec.md；specs/upgrade-continuity/spec.md；specs/work-mainline/spec.md；specs/BACKLOG.md
 
 本批交付：
 1. 个人同步分支对账（本批文件 #srv-1-item-1）
@@ -45,14 +45,14 @@
 界面：本批文件的界面要求是「先定样：同步、共享、冲突与实时协作切片」。写「先定样」的部分，按手册第五节的「定样怎么走」先出样，我确认后再写产品代码（组件板有新增部件的，还要先在本批分支上补成组件板标本、D 轨合审过）；写「复用」的部分沿已定交互。
 
 本批另有：
-- 当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)；下面的 `personal` 分支 URL 保留为历史来源。
-- 本批牵涉的待决：第 11 项（Sessions 会话交互和技术方案；创作台原 spec §7 的合同与交互；团队剩余细粒度规则、同步交互及团队记忆形成／融合／管理／使用策略）；第 13 项（个人同步采用按收尾后形状重接、整支变基，还是先停；重接是原建议，尚未决定）。没定之前只停依赖它的部分，不替我定。
+- 当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)（`personal` 分支已删，原需求都指向这里）。
+- 本批牵涉的待决：第 11 项（Sessions 会话交互和技术方案；创作台原 spec §7 的合同与交互；团队剩余细粒度规则、同步交互及团队记忆形成／融合／管理／使用策略）；第 13 项已作废（#1877 已合入 main，本批对账 main 上的实现）。没定之前只停依赖它的部分，不替我定。
 ```
 
 [BL]: ../../../BACKLOG.md
 [MLN]: ../../../work-mainline/spec.md
-[SYNC]: https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md
-[SYNCF]: https://github.com/molis-ai/molis-work/blob/personal/specs/plugin-sync-foundation/spec.md
+[SYNC]: ../../../personal-cloud-sync/spec.md
+[SYNCF]: ../../../personal-cloud-sync/foundation.md
 [TEAM]: ../../../team-collaboration/spec.md
 [TMEM]: ../../../team-memory/spec.md
 [UPG]: ../../../upgrade-continuity/spec.md

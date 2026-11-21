@@ -21,7 +21,7 @@ export async function exactActionView(client: DiscoveringClient, caller: ActionC
 }
 
 /** `exactActionView` for a client already bound to its caller. */
-export async function exactBoundActionView(client: Pick<BoundActionClient, "discover" | "discoverOne">, reference: ActionReference): Promise<ActionView | undefined> {
+export async function exactBoundActionView(client: Pick<BoundActionClient, "discover"> & Partial<Pick<BoundActionClient, "discoverOne">>, reference: ActionReference): Promise<ActionView | undefined> {
   if (reference.provider_id && client.discoverOne) {
     const view = await client.discoverOne(reference);
     return view && same(view, reference) ? view : undefined;

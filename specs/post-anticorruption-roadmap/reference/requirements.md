@@ -222,7 +222,7 @@
 
 | 来源 | 范围 | 执行项 | 依赖与未决 |
 | --- | --- | --- | --- |
-| [BL-959](../../backlog/BL-959.md) | 步骤报告作者 | [53-1](batches/53.md#batch-53-item-1) | 已定，前置见交付行 |
+| [BL-959](https://github.com/molis-ai/molis-work/blob/ec2620d916523def9ac8cf9450da50bebac3c393/specs/backlog/BL-959.md) | 步骤报告作者 | [53-1](batches/53.md#batch-53-item-1) | 随 [#PR_NUM](https://github.com/molis-ai/molis-work/pull/PR_NUM) 合入，BL 已结清；53-1 其余照旧 |
 | [BL-1062](../../backlog/BL-1062.md) | 连接页折叠 | [36A-5](batches/36a.md#batch-36a-item-5) | 已定，前置见交付行 |
 | [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../../backlog/BL-tests-umask.md) | 离线恢复两项回归 | [73-3](batches/73.md#batch-73-item-3) | 先做离线恢复切片，U7 单独验收 |
 | [BL-586](../../backlog/BL-586.md) | 安装身份与视图 | [47-1](batches/47.md#batch-47-item-1) | 已定，前置见交付行 |

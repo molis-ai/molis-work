@@ -66,7 +66,9 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(withPlugins, /mw-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
   // No region draws a scrollbar; one design-system rule hides them all (tests/scrollbars-hidden.test.ts).
   assert.ok(workbench.includes("@media not (forced-colors:active){*{scrollbar-width:none}*::-webkit-scrollbar{display:none;width:0;height:0}}"));
-  assert.ok(withPlugins.includes(":is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  // The shell lays out its own tree; Feed's source list is laid out by Feed's stylesheet (BL-b44-feed-home-dir-and-styles).
+  assert.ok(workbench.includes(".immersive-workspace .tree-scroll { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  assert.ok(withPlugins.includes(".immersive-workspace .source-list { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
   // Project home (DESIGN.md → Home): the home column scrolls in its own box under fixed chrome; it has no shortcut margin any more.
   assert.match(workbench, /\.immersive-home \.home-scroll \{ flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;/);

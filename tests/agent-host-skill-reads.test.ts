@@ -32,6 +32,7 @@ function countingCatalog(tools: (skill: SkillRef) => string[] = () => ["read-fil
   const calls = { list: 0, readBodies: 0, refs: [] as number[] };
   const catalog: AgentRoundSkillCatalog = {
     named: [],
+    workspaceConsumer: "agent",
     list: async (_consumer, refs) => { calls.list++; return refs.map(skill => entry(skill, tools(skill))); },
     readBodies: async (_consumer, refs) => { calls.readBodies++; calls.refs.push(refs.length); return refs.map(read); },
   };
@@ -91,7 +92,7 @@ test("SKC-07: five Skills the Host's delegation named and five the page chose ar
   const plugin: ActionCallContext = { actor_id: "plugin:coding", project_id: "project", audience: "plugin", permissions: [SKILLS_READ_PERMISSION] };
   const person: ActionCallContext = { actor_id: "person", project_id: "project", audience: "agent", permissions: [] };
   const delegated = Array.from({ length: 5 }, (_, n) => ref(n)), chosen = Array.from({ length: 5 }, (_, n) => ref(n + 5));
-  const catalog = roundSkillCatalog({ client, plugin, delegated: { person, refs: delegated }, named: delegated });
+  const catalog = roundSkillCatalog({ client, plugin, delegated: { person, refs: delegated }, named: delegated, workspaceConsumer: "coding" });
   const { adapter } = recordingAdapter();
   const host = new AgentHost(); host.register(adapter);
   const run = await host.start("probe", startRequest([...delegated, ...chosen]), { manifest, authorizedDirectories: [DIRECTORY], skillCatalog: catalog });

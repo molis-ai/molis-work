@@ -509,3 +509,13 @@ test("BL-b44-feed-home-dir-and-styles: the golden gates read a path under a rena
   assert.deepEqual(withCurrentLayout("feed/secrets.json"), ["feed/secrets.json", "security/secrets.json"]);
   assert.deepEqual(withCurrentLayout("feeds/secrets.json"), ["feeds/secrets.json"]);
 });
+
+test("BL-b44-feed-home-dir-and-styles: no product source joins a Home path under a renamed directory's old name", () => {
+  // The upgrade renames the directory once; a path written by hand under the old name would read or write beside it.
+  const files = spawnSync("git", ["ls-files", "apps/*/src/*.ts", "packages/*/src/*.ts", "horizontal/*/src/*.ts", "modules/*/src/*.ts", "plugins/*/*/src/*.ts"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+  assert.ok(files.length > 500, "the scan sees the product source");
+  for (const { from } of HOME_LAYOUT_MOVES) {
+    const oldName = new RegExp(`join\\([^()]*\\bhome\\w*\\s*,\\s*["']${from}["']`, "iu");
+    assert.deepEqual(files.filter(file => oldName.test(readFileSync(file, "utf8"))), [], `${from}/ is only named by the move itself`);
+  }
+});

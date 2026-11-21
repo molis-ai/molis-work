@@ -67,7 +67,7 @@ const DIRECTORY = "/Users/tester/code/project";
 const manifest: AgentManifest = { directory_input_port: "project", roles: [{ role_id: "reader", version: 1, name: "Reader", host_tools: ["read-file"] }], prompts: [] };
 const skillRef = (id: string): SkillRef => ({ source: { kind: "plugin", plugin_id: "io.example.notes", plugin_version: "1.0.0", publisher_signature: "signature" },
   install_id: "notes-install", installation_generation: "g1", skill_id: id, version: 1 });
-const view = (ref: SkillRef): ActionView => ({ capability_id: "skills.body.read", version: 1, operation: "query",
+const view = (_ref: SkillRef): ActionView => ({ capability_id: "skills.body.read", version: 1, operation: "query",
   provider: { provider_id: "system.skills", title: "技能", kind: "system" }, availability: { available: true },
   action: { title: "读取技能正文", description: "按精确引用读技能正文", kind: "query", scope: "project", audiences: ["agent"], permissions: [SKILLS_READ_PERMISSION], subject_kinds: [], input_schema: { type: "object" } } });
 const entry = (ref: SkillRef): SkillCatalogEntry => ({ ref, name: ref.skill_id, description: "d", applies_to: "coding", user_invocable: true, tools: [], resources: [],
@@ -105,21 +105,12 @@ test("SKP-10: the round hands its consumer and frozen named list to the action c
   assert.deepEqual(seen, [{ consumer: "coding", named: [named], round }], "a workspace role's round is Coding's, with its frozen named list, its number and nothing else");
   seen.length = 0;
   await host.start("probe", { ...request, auto_skills: false }, authority);
-  assert.equal(seen[0]?.auto, false, "SKL-11: 「这次不用技能」 reaches the catalog as the round's own word");
+  assert.equal((seen[0] as ActionSkillRound | undefined)?.auto, false, "SKL-11: 「这次不用技能」 reaches the catalog as the round's own word");
   assert.notEqual(seen[0]?.round, round, "each round has its own number");
 });
 
 /** The round requests the model actually received: those offering tools (the ending review and drafts carry none). */
 const roundTools = (request: unknown): Array<{ name: string; description: string }> => ((request as { tools?: Array<{ name: string; description: string }> }).tools) ?? [];
-/** Tool results already returned to the model, parsed from whatever shape this protocol puts them in. */
-const toolResults = (request: unknown): string[] => {
-  const messages = (request as { messages?: Array<{ content: unknown }> }).messages ?? [];
-  return messages.flatMap(message => Array.isArray(message.content) ? message.content : [])
-    .filter((part): part is { type: string; content?: unknown } => Boolean(part) && typeof part === "object" && (part as { type?: unknown }).type === "tool_result")
-    .flatMap(part => typeof part.content === "string" ? [part.content] : Array.isArray(part.content)
-      ? part.content.flatMap((piece: unknown) => piece && typeof piece === "object" && typeof (piece as { text?: unknown }).text === "string" ? [(piece as { text: string }).text] : [])
-      : []);
-};
 
 test("SKP-10: Coding's round lists the automatic Skills for Coding and offers the round's read tool only while some exist", { timeout: 120_000 }, async t => {
   const f = await codingProductHost(t, () => cogniaModelResponse("好的。"));

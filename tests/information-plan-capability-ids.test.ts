@@ -11,7 +11,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("BL-b44-information-plan-to-feed: Feed declares the plan and reads Inbox by capability id; the Host has no information provider", () => {
   assert.ok(feedManifest.actions?.some(definition => definition.capability_id === feedInformationPlanAction.capability_id), "the plan is in Feed's Manifest");
-  assert.deepEqual(feedInformationPlanAction.action.required_actions.map(reference => reference.capability_id), ["inbox.list"]);
+  assert.deepEqual((feedInformationPlanAction.action.required_actions ?? []).map(reference => reference.capability_id), ["inbox.list"]);
   assert.equal(feedInformationPlanAction.action.scheduling, "concurrent", "it waits for the model, so it commits nothing before beforeEffect()");
   const plan = readFileSync(join(ROOT, "plugins/native/feed/src/information-plan.ts"), "utf8");
   assert.doesNotMatch(plan, /molis-work-plugin-inbox/, "Feed names Inbox's action, not its package");

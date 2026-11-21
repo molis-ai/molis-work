@@ -232,7 +232,7 @@ test("collapsed desktop directory becomes a titlebar overlay above a full-width 
 test("Light desktop navigation and directory selections stay flat", () => {
   const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(VISUAL_FOUNDATION_STYLES, /Light location states stay embedded in their rail/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected,[\s\S]*\.feed-list-item\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
   assert.match(withPlugins, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
   // body.settings-page[data-desktop-shell="true"] never matches: every settings body renders data-desktop-shell="false". Its rules and the lines that asserted them went in W5-05 (desktop-shell dead selectors).
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings\[aria-current="page"\],[\s\S]*\.navigator-directory-toggle \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 7%, transparent\);[\s\S]*box-shadow: none;/);
@@ -485,7 +485,7 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.match(withPlugins, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
   assert.match(
     workbench,
-    /body\.immersive-workbench :is\(\.tree-entry, \.mw-stage-entry, \.source-list-item, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
+    /body\.immersive-workbench :is\(\.tree-entry, \.mw-stage-entry, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
   );
 });
 

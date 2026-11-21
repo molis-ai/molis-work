@@ -99,13 +99,19 @@ export async function measureServed(root, probe = []) {
   ];
   const measured = {};
   const gzip = {};
+  const ptyClientPath = path.join(root, "dist/web/pty-client.js");
   const ask = (asset) => {
     const response = fakeResponse();
-    const handled = served.serveWorkbenchAsset(fakeRequest(), response, asset);
+    const handled = asset === "/desktop/pty-client.js" && typeof served.servePtyClient === "function"
+      ? served.servePtyClient(fakeRequest(), response)
+      : served.serveWorkbenchAsset(fakeRequest(), response, asset);
     return { handled, status: response.sent.status, bytes: handled && response.sent.status === 200 && response.sent.body !== undefined ? bodyBytes(response.sent.body) : null };
   };
   const record = (asset, bytes) => { measured[asset] = bytes.length; gzip[asset] = gzipSync(bytes, { level: 9 }).length; };
   const found = new Set([...paths, ...packPaths]);
+  if (typeof served.servePtyClient === "function" && existsSync(ptyClientPath)) {
+    found.add("/desktop/pty-client.js");
+  }
   for (const asset of found) {
     const answer = ask(asset);
     if (!answer.bytes) {

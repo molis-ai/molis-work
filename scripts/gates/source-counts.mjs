@@ -54,6 +54,8 @@
 //                       slice, comments, text inside a string, and test fixtures do not count.
 import ts from "typescript";
 import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
+import { countPackedStatements, measurePackedStatements } from "./packed-statements.mjs";
+export { countPackedStatements };
 
 const CATCH_SHAPE = /catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
 const OLD_PRODUCT_NAME = /goalboard/gi;
@@ -157,4 +159,7 @@ export const SOURCE_COUNT_RULES = [...[
   { id: "rawFetchInScripts", title: "Raw fetch calls in executable browser programs", summary: "raw browser fetch calls",
     what: "raw fetch calls in a browser program", hint: "use the public UiRequest; Workbench is zero and plugin counts may only fall",
     measure: (snapshot, { isSource }) => browserFetchScan(snapshot, isSource).counts, absolute: browserFetchProblems },
+  { id: "packedStatements", title: "Multiple sibling statements packed onto one line in sources", summary: "packed statements",
+    what: "multiple sibling statements on one line", hint: "put each statement on its own line instead of packing statements onto a single line",
+    measure: (snapshot, scope) => measurePackedStatements(snapshot, scope) },
 ];

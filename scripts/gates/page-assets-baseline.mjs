@@ -1,22 +1,26 @@
-// Trusted exact-commit measurement reuse; a cache miss builds the base in a disposable checkout.
+// Route budget reading + optional trusted exact-commit measurement reuse (for delta display).
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ALLOWANCES, sizeMap } from "./page-assets-policy.mjs";
+import { BUDGETS_FILE, parsePageAssetBudgets, sizeMap } from "./page-assets-policy.mjs";
 
 export const MEASURER = fileURLToPath(new URL("./page-assets-measure.mjs", import.meta.url));
 export const git = (root, ...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 << 20 }).trim();
-export function allowanceFiles(root, sha) {
-  const files = git(root, "ls-files", "-z", "--", ALLOWANCES).split("\0").filter(file => file && file !== `${ALLOWANCES}README.md`);
-  for (const file of files) if (!/^tooling\/gates\/page-asset-allowances\/[a-z0-9][a-z0-9-]*\.json$/.test(file)) throw new Error(`invalid allowance filename ${file}`);
-  const previous = git(root, "ls-tree", "-r", "--name-only", sha, "--", ALLOWANCES).split("\n").filter(file => file && file !== `${ALLOWANCES}README.md`);
-  return {
-    current: Object.fromEntries(files.map(file => [file, readFileSync(path.join(root, file), "utf8").trim()])),
-    previous: Object.fromEntries(previous.map(file => [file, git(root, "show", `${sha}:${file}`)])),
-  };
+
+export function readBudgets(root, customFile) {
+  const file = customFile ? path.resolve(customFile) : path.join(root, BUDGETS_FILE);
+  if (!existsSync(file)) throw new Error(`${customFile ?? BUDGETS_FILE} is missing`);
+  return parsePageAssetBudgets(readFileSync(file, "utf8"), customFile ?? BUDGETS_FILE);
+}
+
+export function readBaseBudgets(root, sha) {
+  if (!sha) return null;
+  const present = git(root, "ls-tree", "--name-only", sha, "--", BUDGETS_FILE);
+  if (!present) return null;
+  return parsePageAssetBudgets(git(root, "show", `${sha}:${BUDGETS_FILE}`), `${sha.slice(0, 8)}:${BUDGETS_FILE}`);
 }
 
 export function measurementKey() {
@@ -57,7 +61,7 @@ export async function cachedMeasurement({ sha, key, repo = process.env.GITHUB_RE
     }
   } catch (error) {
     if (signal?.aborted) throw error;
-    // Cache access is optional. The mandatory real build below is the only fallback.
+    // Cache access is optional for informational delta logging.
   } finally { if (temporary) rmSync(temporary, { recursive: true, force: true }); }
   return null;
 }

@@ -228,33 +228,17 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 ### 页面资源体积
 
-改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`。`pnpm page-assets:check` 默认同样对照 `origin/main`；CI 在 `workspace:verify` 后以事件的实际基点比较。比较的是基点与候选的真实 Host 下发字节，不再提交绝对大小的共享预算。缩小直接通过；下一次从缩小后的实际大小比较，没有可以重新长回去的余量。`--report [--json]` 只测量当前构建，显示逐文件字节和 gzip，不代表比较通过。
+改过样式、客户端脚本、插件客户端包、`/desktop/pty-client.js` 或字体，在 `pnpm build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（`pnpm page-assets:check` 默认同样对照 `origin/main`）。第 100 批 `100-2`（决定 58）已将逐字节任务许可替换为统一的路由与总载荷预算表 [`tooling/gates/page-asset-budgets.json`](../tooling/gates/page-asset-budgets.json)（原 `tooling/gates/page-asset-allowances/*.json` 已退役）：
 
-默认只许变小，能省先省。必要增长在 `tooling/gates/page-asset-allowances/` 新建本任务独立 JSON，例如 `font-picker.json`：
+- 按路由/平面总字节校验：`workbench`、`arrival`、`settings`、`pluginFrame`（含 `/assets/molis-work-plugin-frame.js`、`/assets/molis-work-composer.js`、`/desktop/pty-client.js`）、`pluginPacks`（全部 `/assets/molis-work-plugins/*` 与 `/assets/molis-work-pages-editor.js`）与 `fonts`。
+- 每个非字体资源受 `maxSingleAssetBytes` 约束，每个插件包受 `maxPluginAssetBytes` 约束；未在预算表中归类的资源路径会直接失败，确保无遗漏。
+- 路由预算内的正常开发改动无需提交任何逐字节许可文件；相对 `merge-base`，`page-asset-budgets.json` 中的预算上限只许收紧，调高上限需走门禁变更评审。`--report [--json]` 只测量当前构建并显示逐文件字节和 gzip。
 
-```json
-{
-  "reason": "复用现有控件后，新增字体筛选仍需 320 字节；已去掉重复提示文案",
-  "review": "PR 评审或需求书中的具体审阅出处",
-  "assets": { "/assets/molis-work-workbench.js": 320 }
-}
-```
-
-`assets` 写允许增加的最大字节数，不写基点的绝对大小。一个资源净增超过 10 KB（10,000 字节）或新增资源，先取得用户批准，并用 `userApproval` 字段记录具体出处；同一资源多份许可合计造成大额增长也要求用户批准。许可须经评审，不能自行填写虚构的批准。只消费比较基点尚未包含的新文件；已合入文件不改、不删、不重复使用。合并组累加组内新许可，再与整个组的实际净增比较。改名或复制许可也属于新批准，评审须核对来源。
-
-主线上的独立变化不会让增量许可因绝对基数变化失效；无需再为缩小或 main 的其他增长更新门禁代码。真正改变资源的合并仍要构建并检查，超额增长必须减小或重新取得对应批准。切换时旧许可已经体现在 main 的构建中，不转换成新额度；在途 PR 只把其未采用且已经获批的增量写成任务文件，旧预算和门禁内放行表的冲突删除，不替它改产品代码。
-
-基线先找同一提交、测量器、Node/pnpm 版本与平台的可信 CI 产物，仅接受成功 main push 或合并队列；任意 PR 产物不能当基线。缺失、过期、损坏或读取失败时，在临时检出中安装、构建并用同一测量器测量；失败不放行，成功、失败和取消都清理。冷基线多一次构建；后续复用是加速，不能改变判定。当前的工作树构建仍由开发者先完成。
-
-路由从 Host 的 `web-assets.ts` 和插件登记中发现，基点所有已测路径还会再次向候选 Host 探测；仍下发但已藏在不可读路由后的资源会失败。具体读取范围和局限见 [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs)。新增资产路径、测量范围或批准边界的改动仍要评审。
+路由从 Host 的 `web-assets.ts`、插件登记与 `dist/web/pty-client.js` 中发现，具体读取范围和局限见 [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs)。
 
 ### 首屏字节
 
-`pnpm build` 后运行 `node scripts/gates/first-screen.mjs --base origin/main`。CI 在 Package boundaries 中保留页面资源检查，另用同一个首屏测量器先测实际 merge-base，再测候选。两边使用等长的临时 Home、固定项目种子和各自的构建。首次引入时，旧基点使用候选的首屏清单补足启动 GET。若同一 PR 同时增删动态路径，用 `introduced: true` 标出只在候选出现的行，用 `baseOnly: true` 保留旧基点才用的行。基点已有清单后，按各树自己的清单测量。两边的 HTML 和链接资源独立发现，实际请求失败会使检查退出。
-
-[首屏清单](../tooling/gates/first-screen.json)收录自动发现之外的隐藏文档和已知启动 GET。每行包含页面、语言（`zh`、`en`、`both`）、请求路径和负责人，项目标识写成 `<project>`。到达页、项目选择、新项目工作台、全部项目插件工作台分别记中英文冷、热总量；示例项目的增量只报告。受保护的 GET 用 `document` 指明同页已登记的来源文档，事件流加 `response: "sse-first-event"`；省略来源的流从顶层文档取证明。每轮按来源文档、路径和响应方式记一次真实 HTTP 响应字节，含头和编码后的响应体。采样使用本页临时的同源会话，凭据不写入报告；流累计到第一个完整数据事件，首帧前断开或超时均失败。热轮仍对可缓存且有 ETag 的有限响应实际发送条件请求。清单删行或缩小范围时，CI 摘要会列出差异，供评审对照浏览器报告。
-
-增长许可与页面资源共用目录。`assets` 约束静态资源，`pages` 约束页面及语言的总量净增，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，即使页总量缩小，也须在带 `userApproval` 的新许可中用 `entryApprovals` 列明这一项：`pages`（所涉页面数组）、`locale`、`entry`、`change`（`new` 或 `growth`），以及适用的 `response` 和 `document`。顶层文档可写 `<page>`，项目标识可写 `<project>`；工作台启动词包用对应语言的 `/assets/locale/workbench.<语言>.<digest>.js` 匹配一条内容定址路径。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
+`pnpm build` 后运行 `node scripts/gates/first-screen.mjs --base origin/main`。CI 在合并后的 `gates` 作业中用同一套首屏 HTTP 采样器启动真实临时 Home 与固定项目种子，按[首屏清单](../tooling/gates/first-screen.json)实测到达页（`arrival-empty`）、项目选择（`chooser`）、默认工作台（`workbench-default`）与全部插件工作台（`workbench-all-plugins`）的中英文冷、热真实字节，并与 [`tooling/gates/page-asset-budgets.json`](../tooling/gates/page-asset-budgets.json) 的 `firstScreen` 冷/热上限比对（示例项目 `workbench-demo` 只报告）。任何登记路径返回错误、响应截断或 SSE 首事件超时均失败；预算上限相对 `merge-base` 只许收紧。如有可信 CI 产物则顺带打印相对基点的字节差。
 
 每批开工前由本批主会话通过独立浏览器做一次防漏核对。构建后运行：
 

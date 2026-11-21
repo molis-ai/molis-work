@@ -279,6 +279,9 @@ test("policy: a setting the gate does not read is refused, not ignored", () => {
   for (const [name, change, expected] of refused) assert.match(policyProblems(policy(change)).join("\n"), expected, name);
   // What the real configuration uses is read, and the ones that only describe the tool are fine.
   assert.deepEqual(policyProblems(policy((config) => { config.root = true; config.$schema = "./node_modules/@biomejs/biome/configuration_schema.json"; config.formatter = { enabled: false }; config.assist = { enabled: false }; config.vcs = { enabled: false }; config.files.maxSize = 4000000; })), []);
+  // Batch 100-2: Biome formatter may be enabled with standard layout options without affecting lint coverage.
+  assert.deepEqual(policyProblems(policy((config) => { config.formatter = { enabled: true, indentStyle: "space", indentWidth: 2, lineWidth: 120 }; })), []);
+  assert.match(policyProblems(policy((config) => { config.formatter = { enabled: true, includes: ["packages/**"] }; })).join("\n"), /sets formatter\.includes,/);
 });
 
 test("policy: the repository the script belongs to must have a configuration, any other root may lack one", () => {
@@ -569,12 +572,23 @@ for (const scenario of violations) {
 test("what the checks leave out passes against the merge-base", () => {
   branch("allowed", () => {
     put("packages/alpha/src/ok.ts", [
-      "import { work } from './lib.js';", "declare const run: () => void; declare const value: object;",
+      "import { work } from './lib.js';",
+      "declare const run: () => void;",
+      "declare const value: object;",
       "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
       "export const b = () => { try { run(); } catch (error) { throw new Error(String(error)); } };",
-      "export const c = () => Promise.resolve().catch(() => {});", "export const d = value as unknown;",
-      "export const e = async () => { await work(); void work(); work().catch(() => undefined); return work(); };",
-      "export const f = (input: unknown) => input;", "export const text = 'value as unknown as string; debugger; console.log(1)';", "// debugger", ""].join("\n"));
+      "export const c = () => Promise.resolve().catch(() => {});",
+      "export const d = value as unknown;",
+      "export const e = async () => {",
+      "  await work();",
+      "  void work();",
+      "  work().catch(() => undefined);",
+      "  return work();",
+      "};",
+      "export const f = (input: unknown) => input;",
+      "export const text = 'value as unknown as string; debugger; console.log(1)';",
+      "// debugger",
+      ""].join("\n"));
     put("scripts/tool2.mts", "console.log('a repository script prints');\n");
     put("apps/cli/src/print.ts", "export const show = (text: string) => console.log(text);\n");
   });

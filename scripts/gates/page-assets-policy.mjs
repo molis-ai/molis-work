@@ -1,89 +1,167 @@
-// CCR-02/03/04 and FSS-BG-02: allowances belong to a change, never to an absolute historical size.
-import { GATED_PAGES, isFirstScreenPath, SSE_FIRST_EVENT, workbenchLanguageEntry } from "../first-screen/manifest.mjs";
+// Batch 100-2 (Decision 58): route / surface total payload budgets + first-screen route ceilings
+// (replacing per-byte tooling/gates/page-asset-allowances/*.json files).
+import { GATED_PAGES } from "../first-screen/manifest.mjs";
 import { LOCALES } from "../first-screen/host.mjs";
 
-const PAGE_KEYS = new Set(GATED_PAGES.flatMap(page => LOCALES.map(locale => `${page}/${locale}`)));
 export const VISITS = ["cold", "warm"];
-export const ALLOWANCES = "tooling/gates/page-asset-allowances/";
+export const BUDGETS_FILE = "tooling/gates/page-asset-budgets.json";
+export const RETIRED_ALLOWANCES_DIR = "tooling/gates/page-asset-allowances/";
+
+const ASSET_PATH = /^\/(?:assets|desktop)\/[^\s?#]+$/;
+
 export function sizeMap(value, where) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || !Object.keys(value).length) throw new Error(`${where}: expected nonempty asset sizes`);
+  if (!value || typeof value !== "object" || Array.isArray(value) || !Object.keys(value).length) {
+    throw new Error(`${where}: expected nonempty asset sizes`);
+  }
   for (const [asset, size] of Object.entries(value)) {
-    if (!/^\/assets\/[^\s?#]+$/.test(asset) || !Number.isSafeInteger(size) || size <= 0) throw new Error(`${where}: invalid asset or byte count: ${asset}`);
+    if (!ASSET_PATH.test(asset) || !Number.isSafeInteger(size) || size <= 0) {
+      throw new Error(`${where}: invalid asset or byte count: ${asset}`);
+    }
   }
   return value;
 }
-function checkPageBudgets(pages, where, userApproval) {
-  if (!pages || typeof pages !== "object" || Array.isArray(pages) || !Object.keys(pages).length) throw new Error(`${where}: expected nonempty page budgets`);
-  for (const [key, budget] of Object.entries(pages)) {
-    if (!PAGE_KEYS.has(key) || !budget || typeof budget !== "object" || Array.isArray(budget)
-      || Object.keys(budget).length !== VISITS.length || VISITS.some(visit => !Number.isSafeInteger(budget[visit]) || budget[visit] < 0)
-      || !userApproval && VISITS.every(visit => budget[visit] === 0)) {
-      throw new Error(`${where}: invalid page or byte budget: ${key}`);
+
+const isPositiveInt = (value) => Number.isSafeInteger(value) && value > 0;
+const isStringList = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.length > 0);
+
+export function parsePageAssetBudgets(text, where = BUDGETS_FILE) {
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { throw new Error(`${where}: invalid JSON`); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${where}: expected a JSON object`);
+  const allowedTop = ["routes", "maxSingleAssetBytes", "maxPluginAssetBytes", "firstScreen"];
+  for (const key of Object.keys(parsed)) {
+    if (!allowedTop.includes(key)) throw new Error(`${where}: unknown top-level key "${key}"`);
+  }
+  if (!parsed.routes || typeof parsed.routes !== "object" || Array.isArray(parsed.routes) || !Object.keys(parsed.routes).length) {
+    throw new Error(`${where}: expected a non-empty "routes" object`);
+  }
+  for (const [name, rule] of Object.entries(parsed.routes)) {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) throw new Error(`${where}: route "${name}" must be an object`);
+    for (const key of Object.keys(rule)) {
+      if (!["maxBytes", "assets", "prefixes", "suffixes"].includes(key)) throw new Error(`${where}: route "${name}" has unknown key "${key}"`);
+    }
+    if (!isPositiveInt(rule.maxBytes)) throw new Error(`${where}: route "${name}" needs positive integer maxBytes`);
+    if (rule.assets !== undefined && !isStringList(rule.assets)) throw new Error(`${where}: route "${name}" has invalid assets list`);
+    if (rule.prefixes !== undefined && !isStringList(rule.prefixes)) throw new Error(`${where}: route "${name}" has invalid prefixes list`);
+    if (rule.suffixes !== undefined && !isStringList(rule.suffixes)) throw new Error(`${where}: route "${name}" has invalid suffixes list`);
+    if (!rule.assets && !rule.prefixes && !rule.suffixes) throw new Error(`${where}: route "${name}" must declare assets, prefixes, or suffixes`);
+  }
+  if (!isPositiveInt(parsed.maxSingleAssetBytes)) throw new Error(`${where}: needs positive integer maxSingleAssetBytes`);
+  if (!isPositiveInt(parsed.maxPluginAssetBytes)) throw new Error(`${where}: needs positive integer maxPluginAssetBytes`);
+  if (!parsed.firstScreen || typeof parsed.firstScreen !== "object" || Array.isArray(parsed.firstScreen)) {
+    throw new Error(`${where}: expected a "firstScreen" object`);
+  }
+  for (const page of GATED_PAGES) {
+    const row = parsed.firstScreen[page];
+    if (!row || typeof row !== "object" || Array.isArray(row) || Object.keys(row).some((key) => !VISITS.includes(key))
+      || VISITS.some((visit) => !isPositiveInt(row[visit]))) {
+      throw new Error(`${where}: firstScreen.${page} needs positive integer cold and warm budgets`);
     }
   }
+  for (const page of Object.keys(parsed.firstScreen)) {
+    if (!GATED_PAGES.includes(page)) throw new Error(`${where}: unknown firstScreen page "${page}"`);
+  }
+  return parsed;
 }
 
-function checkEntryApprovals(rows, userApproval) {
-  if (!userApproval || !Array.isArray(rows) || !rows.length) throw new Error("entryApprovals requires a nonempty list and userApproval");
-  const validPath = (value, page) => value === "<page>" || isFirstScreenPath(value, page);
-  for (const row of rows) {
-    if (!row || typeof row !== "object" || Array.isArray(row)
-      || Object.keys(row).some(key => !["pages", "locale", "entry", "change", "document", "response"].includes(key))
-      || !Array.isArray(row.pages) || !row.pages.length || new Set(row.pages).size !== row.pages.length
-      || row.pages.some(page => !GATED_PAGES.includes(page))
-      || ![...LOCALES, "both"].includes(row.locale) || !["new", "growth"].includes(row.change)
-      || Object.hasOwn(row, "response") && row.response !== SSE_FIRST_EVENT) {
-      throw new Error("invalid first-screen entry approval");
+const matchesRoute = (asset, rule) => Boolean(
+  rule.assets?.includes(asset)
+  || rule.prefixes?.some((prefix) => asset.startsWith(prefix))
+  || rule.suffixes?.some((suffix) => asset.endsWith(suffix)),
+);
+
+export function routeTotals(measured, budgets) {
+  const totals = {};
+  const covered = new Set();
+  for (const [name, rule] of Object.entries(budgets.routes)) {
+    let bytes = 0;
+    for (const [asset, size] of Object.entries(measured)) {
+      if (!matchesRoute(asset, rule)) continue;
+      bytes += size;
+      covered.add(asset);
     }
-    const scoped = Object.hasOwn(row, "document") || Object.hasOwn(row, "response");
-    const pack = !scoped && LOCALES.includes(row.locale) && row.entry === workbenchLanguageEntry(row.locale);
-    if (row.pages.some(page => !pack && !validPath(row.entry, page)
-      || Object.hasOwn(row, "document") && !validPath(row.document, page))) {
-      throw new Error("invalid first-screen approval path or source document");
+    totals[name] = bytes;
+  }
+  return { totals, covered };
+}
+
+export function budgetLooseningProblems(headBudgets, baseBudgets) {
+  if (!baseBudgets) return [];
+  const errors = [];
+  for (const [name, before] of Object.entries(baseBudgets.routes)) {
+    const after = headBudgets.routes[name];
+    if (!after) {
+      errors.push(`${BUDGETS_FILE}: route "${name}" removed (was maxBytes ${before.maxBytes}); budgets may only get tighter`);
+    } else if (after.maxBytes > before.maxBytes) {
+      errors.push(`${BUDGETS_FILE}: route "${name}" budget loosened ${before.maxBytes} → ${after.maxBytes}; budgets may only get tighter`);
     }
   }
-}
-
-export function readNewAllowances(current, previous) {
-  const errors = [], records = [];
-  for (const [file, text] of Object.entries(previous)) {
-    if (current[file] !== text) errors.push(`${file}: an adopted allowance cannot be changed or removed`);
+  if (headBudgets.maxSingleAssetBytes > baseBudgets.maxSingleAssetBytes) {
+    errors.push(`${BUDGETS_FILE}: maxSingleAssetBytes loosened ${baseBudgets.maxSingleAssetBytes} → ${headBudgets.maxSingleAssetBytes}; budgets may only get tighter`);
   }
-  for (const [file, text] of Object.entries(current)) {
-    if (Object.hasOwn(previous, file)) continue;
-    try {
-      const record = JSON.parse(text);
-      if (!record || typeof record !== "object" || Array.isArray(record) || Object.keys(record).some(key => !["reason", "review", "userApproval", "assets", "pages", "entryApprovals"].includes(key))) throw new Error("unknown fields");
-      for (const field of ["reason", "review"]) if (typeof record[field] !== "string" || !record[field].trim()) throw new Error(`missing ${field}`);
-      if (record.userApproval !== undefined && (typeof record.userApproval !== "string" || !record.userApproval.trim())) throw new Error("empty userApproval");
-      if (record.assets === undefined && record.pages === undefined && record.entryApprovals === undefined) throw new Error("expected assets, pages or entryApprovals");
-      if (record.assets !== undefined) sizeMap(record.assets, file);
-      if (record.pages !== undefined) checkPageBudgets(record.pages, file, record.userApproval);
-      if (record.entryApprovals !== undefined) checkEntryApprovals(record.entryApprovals, record.userApproval);
-      records.push([file, record]);
-    } catch (error) { errors.push(`${file}: invalid allowance: ${error.message}`); }
+  if (headBudgets.maxPluginAssetBytes > baseBudgets.maxPluginAssetBytes) {
+    errors.push(`${BUDGETS_FILE}: maxPluginAssetBytes loosened ${baseBudgets.maxPluginAssetBytes} → ${headBudgets.maxPluginAssetBytes}; budgets may only get tighter`);
   }
-  return { errors, records };
-}
-
-export function assetProblems(measured, base, current, previous) {
-  sizeMap(measured, "measurement"); sizeMap(base, "base measurement");
-  const { errors, records } = readNewAllowances(current, previous);
-  const allowed = {}, approvals = {};
-  for (const [file, record] of records) {
-    for (const [asset, delta] of Object.entries(record.assets ?? {})) {
-      if (!(asset in base) || delta > 10_000) {
-        if (!record.userApproval) errors.push(`${file}: ${asset} is new or over 10 KB; userApproval is required`);
+  for (const page of GATED_PAGES) {
+    for (const visit of VISITS) {
+      const before = baseBudgets.firstScreen[page][visit];
+      const after = headBudgets.firstScreen[page][visit];
+      if (after > before) {
+        errors.push(`${BUDGETS_FILE}: firstScreen.${page}.${visit} loosened ${before} → ${after}; budgets may only get tighter`);
       }
-      allowed[asset] = (allowed[asset] ?? 0) + delta;
-      approvals[asset] = (approvals[asset] ?? true) && Boolean(record.userApproval);
     }
   }
-  for (const [asset, bytes] of Object.entries(measured)) {
-    const delta = bytes - (base[asset] ?? 0);
-    if (delta <= 0) continue;
-    if (delta > (allowed[asset] ?? 0)) errors.push(`${asset} grew ${base[asset] ?? 0} → ${bytes} (+${delta}); new allowances cover ${allowed[asset] ?? 0} bytes`);
-    if ((!(asset in base) || delta > 10_000) && !approvals[asset]) errors.push(`${asset}: new asset or growth over 10 KB requires userApproval for its allowances`);
+  return errors;
+}
+
+export function assetBudgetProblems(measured, budgets, baseBudgets = null) {
+  sizeMap(measured, "measurement");
+  const errors = [...budgetLooseningProblems(budgets, baseBudgets)];
+  const { totals, covered } = routeTotals(measured, budgets);
+  for (const asset of Object.keys(measured).sort()) {
+    if (!covered.has(asset)) {
+      errors.push(`${asset}: unbudgeted asset route; classify it in ${BUDGETS_FILE}`);
+    }
+  }
+  for (const [name, rule] of Object.entries(budgets.routes)) {
+    const bytes = totals[name] ?? 0;
+    if (bytes > rule.maxBytes) {
+      errors.push(`route "${name}" total ${bytes} B exceeds budget ${rule.maxBytes} B (+${bytes - rule.maxBytes} B)`);
+    }
+  }
+  const pluginPackAssets = new Set(budgets.routes.pluginPacks?.assets ?? []);
+  for (const [asset, bytes] of Object.entries(measured).sort(([a], [b]) => a.localeCompare(b))) {
+    if (asset.endsWith(".woff2")) continue;
+    if (bytes > budgets.maxSingleAssetBytes) {
+      errors.push(`${asset} (${bytes} B) exceeds maxSingleAssetBytes (${budgets.maxSingleAssetBytes} B)`);
+    }
+    if ((asset.startsWith("/assets/molis-work-plugins/") || pluginPackAssets.has(asset)) && bytes > budgets.maxPluginAssetBytes) {
+      errors.push(`${asset} (${bytes} B) exceeds maxPluginAssetBytes (${budgets.maxPluginAssetBytes} B)`);
+    }
+  }
+  return errors;
+}
+
+export function firstScreenBudgetProblems(candidate, budgets, baseBudgets = null) {
+  const errors = [...budgetLooseningProblems(budgets, baseBudgets)];
+  for (const page of GATED_PAGES) {
+    for (const locale of LOCALES) {
+      const key = `${page}/${locale}`;
+      const next = candidate?.[key];
+      if (!next?.totals) {
+        errors.push(`${key}: incomplete page measurement`);
+        continue;
+      }
+      for (const visit of VISITS) {
+        const bytes = next.totals[visit];
+        const limit = budgets.firstScreen[page][visit];
+        if (!Number.isSafeInteger(bytes) || bytes < 0) {
+          errors.push(`${key} ${visit}: invalid measured byte total`);
+        } else if (bytes > limit) {
+          errors.push(`${key} ${visit} total ${bytes} B exceeds first-screen budget ${limit} B (+${bytes - limit} B)`);
+        }
+      }
+    }
   }
   return errors;
 }

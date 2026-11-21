@@ -1,7 +1,7 @@
 {
   // Static checks (specs/archive/repository-anti-corruption W1-09): the minimal rule set. tooling/gates/README.md ("Static checks")
   // says what each rule is for and how the frozen per-file baseline works; the gate is scripts/gates/lint.mjs, run by
-  // `pnpm health:check`. Biome only lints here: no formatter and no import sorting, so nothing is ever reformatted wholesale.
+  // `pnpm health:check`. Formatter is enabled for opt-in formatting (`biome format` / editor) while `pnpm lint` only lints.
   // The gate reads only the settings that this file uses (scripts/gates/lint.mjs, policyOf): a rule option, a per-language
   // switch, domains or extends is refused instead of ignored, because each of them can turn a check off with no trace in the
   // numbers. A level per rule, files.includes, linter.includes, plugins and the includes of an override are compared with
@@ -9,7 +9,7 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "root": true,
   "vcs": { "enabled": false },
-  "formatter": { "enabled": false },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "assist": { "enabled": false },
   "files": {
     // Code only: the packages, the cross-package tests, the repository scripts and the examples, TypeScript and ES modules.

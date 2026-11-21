@@ -130,10 +130,10 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "product-subset"];
 /** The jobs that also wait for `test-selection`: the two test jobs, build, and the scoped checks. */
-const SELECTED_JOBS = [...TEST_JOBS, "build", "account-login", "golden-replay", "golden-replay-third-party", "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
-const BUILD_CONSUMERS = ["architecture-boundaries", "action-contracts", "account-login", "security-invariants", "golden-replay", "product-subset"];
-const BLOCKING = ["build", "account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
-const RESULTS = ["BUILD", "ACCOUNT_LOGIN", "GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+const SELECTED_JOBS = [...TEST_JOBS, "build", "account-login", "golden-replay", "golden-replay-third-party", "native-checks", "gates", "shell-checks"];
+const BUILD_CONSUMERS = ["gates", "account-login", "security-invariants", "golden-replay", "product-subset"];
+const BLOCKING = ["build", "account-login", "gates", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
+const RESULTS = ["BUILD", "ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
 const steps = (job: string) => jobBlock(job).split("\n      - ").slice(1);
 const scratch = () => { const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-check-")); directories.push(directory); return directory; };
@@ -328,7 +328,7 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the eleven blo
     }
   }
 
-  assert.match(verify, /^    needs: \[build, account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
+  assert.match(verify, /^    needs: \[build, account-login, gates, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
   assert.ok(verify.includes("          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}"), "Verify receives the selector result directly");
   for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"], ["ACCOUNT_LOGIN_MODE", "account_login_mode"]]) {
     assert.ok(verify.includes(`          ${name}: \${{ needs.test-selection.outputs.${output} }}`), `${output} reaches its own Verify verdict`);

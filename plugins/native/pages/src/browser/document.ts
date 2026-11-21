@@ -5,6 +5,7 @@ import { said, statusOf } from "./dom.js";
 import { adoptSaved, closeEditor, draftOf, enqueueSave, fillEditor, remember, storeDocument } from "./editor.js";
 import { renderList } from "./list.js";
 import { noteFailure, showNote } from "./notes.js";
+import type { PagesVersionDiffResult } from "../version-diff.js";
 import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
 import type { DocumentAnswer, ListAnswer, PagesRecord, PlacedDetail } from "./types.js";
@@ -196,6 +197,103 @@ export async function publishPage(page: PagesPage, id: string) {
     } catch { /* Keep the original error and the user's draft. */ }
     throw error;
   } finally { page.publishing.delete(id); }
+}
+
+const changeLabel = {
+  equal: "pages.version.equal", modified: "pages.version.modified", added: "pages.version.added", removed: "pages.version.removed",
+} as const;
+
+function renderVersionDiff(container: HTMLElement, diff: PagesVersionDiffResult) {
+  const doc = container.ownerDocument;
+  const fragment = doc.createDocumentFragment();
+  const appendText = (parent: Node, tag: string, text: string) => {
+    const element = doc.createElement(tag);
+    element.textContent = text;
+    parent.appendChild(element);
+  };
+  if (diff.title_changed) {
+    const title = doc.createElement("section");
+    appendText(title, "h3", uiText.text("pages.version.title-change"));
+    appendText(title, "p", uiText.text("pages.version.previous-title", { title: diff.before_title }));
+    appendText(title, "p", uiText.text("pages.version.next-title", { title: diff.after_title }));
+    fragment.append(title);
+  }
+  const list = doc.createElement("ul");
+  for (const row of diff.paragraphs) {
+    const item = doc.createElement("li");
+    item.className = "pages-version-block";
+    appendText(item, "h3", uiText.text(changeLabel[row.kind]));
+    if (row.before_text !== null && row.before_index !== null && row.kind !== "equal") {
+      appendText(item, "p", uiText.text("pages.version.previous-block", { index: row.before_index }));
+      appendText(item, "pre", row.before_text);
+    }
+    if (row.after_text !== null && row.after_index !== null) {
+      const location = row.kind === "equal" && row.before_index !== null
+        ? uiText.text("pages.version.same-block", { before: row.before_index, after: row.after_index })
+        : uiText.text("pages.version.next-block", { index: row.after_index });
+      appendText(item, "p", location);
+      appendText(item, "pre", row.after_text);
+    }
+    list.append(item);
+  }
+  fragment.append(list);
+  container.replaceChildren(fragment);
+}
+
+export function openVersionDiff(page: PagesPage) {
+  const sel = page.sel;
+  const dialog = page.el<HTMLDialogElement>("[data-pages-version-diff]");
+  const before = dialog?.querySelector<HTMLSelectElement>("[data-pages-version-before]");
+  const after = dialog?.querySelector<HTMLSelectElement>("[data-pages-version-after]");
+  const status = dialog?.querySelector<HTMLElement>("[data-pages-version-status]");
+  const result = dialog?.querySelector<HTMLElement>("[data-pages-version-result]");
+  if (!sel || sel.artifact_version < 2 || !dialog || dialog.open || !before || !after || !status || !result) return;
+  const projectId = page.host.projectId(), epoch = page.editorEpoch;
+  const options = Array.from({ length: sel.artifact_version }, (_, index) => {
+    const option = dialog.ownerDocument.createElement("option");
+    option.value = String(index + 1);
+    option.textContent = uiText.text("pages.version.number", { version: index + 1 });
+    return option;
+  });
+  before.replaceChildren(...options);
+  after.replaceChildren(...options.map(option => option.cloneNode(true)));
+  before.value = String(sel.artifact_version - 1);
+  after.value = String(sel.artifact_version);
+
+  let sequence = 0;
+  const update = async () => {
+    const requested = ++sequence;
+    const current = () => dialog.open && requested === sequence && page.editorEpoch === epoch && page.host.projectId() === projectId;
+    if (!current()) {
+      dialog.close();
+      return;
+    }
+    result.replaceChildren();
+    if (before.value === after.value) {
+      status.textContent = uiText.text("pages.version.different");
+      return;
+    }
+    status.textContent = uiText.text("pages.version.loading");
+    const query = new URLSearchParams({ before: before.value, after: after.value });
+    try {
+      const diff = await page.api<PagesVersionDiffResult>("GET", pageTail(sel.id, "/versions/diff?" + query));
+      if (!current()) return;
+      status.textContent = uiText.text(diff.identical ? "pages.version.identical" : "pages.version.summary", { ...diff.summary });
+      renderVersionDiff(result, diff);
+    } catch (error) {
+      if (current()) {
+        status.textContent = statusOf(error) === 404 ? uiText.text("pages.version.missing") : uiText.text("pages.error.request");
+      }
+    }
+  };
+  before.onchange = after.onchange = () => { void update(); };
+  dialog.onclose = () => {
+    sequence++;
+    result.replaceChildren();
+  };
+  dialog.dataset.pageId = sel.id;
+  dialog.showModal();
+  void update();
 }
 
 /** Listeners that keep the open document and the list in step with the workbench: opening an item, a placement, a flush before a move. */

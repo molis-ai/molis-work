@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
-import { MolisWorkWebServiceManager, RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
+import { assertCurrentCatalog, initializeCatalog, MolisWorkWebServiceManager, RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { createDesktopUninstallService as createLocalUninstallService } from "@molis-ai/molis-work-app-desktop";
 
 for (const owned of [true, false]) {
@@ -111,4 +113,31 @@ test("uninstall preview refuses a catalog that names Molis Work as its owner but
   assert.equal(plan.user_project_count, 0);
   assert.match(plan.conflicts.join("\n"), /无法安全读取项目 catalog/);
   assert.equal(untouched, true);
+});
+
+test("AC-T5-01 and AC-T5-02: the current catalog requires its tables and the check leaves database bytes intact", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-catalog-required-tables-"));
+  const projects = join(directory, "projects");
+  const path = join(projects, "catalog.db");
+  try {
+    await mkdir(projects);
+    const catalog = new LocalSqliteStorage(path);
+    try {
+      createContextLedger(catalog.db, { initializeSchema: true, authorize: () => false });
+      initializeCatalog(catalog);
+      assert.doesNotThrow(() => assertCurrentCatalog(catalog, path));
+      catalog.db.exec("DROP TABLE projects");
+    } finally { catalog.close(); }
+
+    const before = await readFile(path);
+    const damaged = new LocalSqliteStorage(path, { readonly: true });
+    try {
+      assert.throws(() => assertCurrentCatalog(damaged, path), {
+        code: "catalog.database_invalid",
+        message: /缺少必需数据表：projects/,
+        details: { path: join("projects", "catalog.db"), missing_tables: ["projects"] },
+      });
+    } finally { damaged.close(); }
+    assert.deepEqual(await readFile(path), before);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

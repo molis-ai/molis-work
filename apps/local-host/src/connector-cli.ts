@@ -171,6 +171,33 @@ export async function inspectCliConnection(home: string, id: string, read = fals
   });
 }
 
+type LoginPtySpawn = (command: string, args: string[], options: {
+  name: string;
+  cols: number;
+  rows: number;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}) => {
+  kill(signal?: string): void;
+  write(data: string): void;
+  onData(listener: (data: string) => void): void;
+  onExit(listener: (event: { exitCode: number }) => void): void;
+};
+
+async function loadCliLoginPty(): Promise<LoginPtySpawn> {
+  // Use a runtime specifier so TypeScript can build without the optional package.
+  const moduleName = "node-pty";
+  try {
+    const nodePty: { spawn: LoginPtySpawn } = await import(moduleName);
+    return nodePty.spawn;
+  } catch (cause) {
+    throw new ConnectorCliError(
+      "当前环境缺少终端原生组件，暂无法启动交互式 CLI 登录。请补齐运行环境或使用预构建安装包。",
+      { cause },
+    );
+  }
+}
+
 type LoginJob = { home: string; service: string; configure: boolean; installationId?: string; status: "running" | "succeeded" | "failed"; output: string; submitted: string[]; input: (value: string) => void; kill: () => void; timer: ReturnType<typeof setTimeout> };
 const jobs = new Map<string, LoginJob>();
 /** Only fixed, official login commands run in the terminal; no submitted shell or arguments. */
@@ -183,7 +210,7 @@ export async function startCliLogin(home: string, service: string, installationI
   const environment = request?.environment ?? {}, fields = spec.login_environment ?? [];
   if (Object.keys(environment).length && (request?.configure || Object.keys(environment).some(name => !fields.some(field => field.name === name))
     || fields.some(field => !environment[field.name] || environment[field.name]!.length > 8192 || environment[field.name]!.includes("\0")))) throw new ConnectorCliError("请完整填写该客户端要求的应用信息，或全部留空使用已有配置");
-  const { spawn } = await import("node-pty");
+  const spawn = await loadCliLoginPty();
   await request?.beforeEffect();
   if ([...jobs.values()].some(job => job.home === resolve(home) && job.service === service && job.installationId === installationId && job.status === "running")) throw new ConnectorCliError("该 CLI 登录已经在进行，请完成当前登录");
   const id = randomUUID();

@@ -29,6 +29,19 @@ test("RAC-138 every word the Issue page says has a stable key with both language
   for (const action of issuesManifest.actions ?? []) {
     if (["issues.create", "issues.delete"].includes(action.capability_id)) used.add(`issues.capability-library.${action.capability_id.replaceAll(".", "-")}-v${action.version}.title`);
   }
+  const addRef = (ref: unknown) => {
+    if (ref && typeof ref === "object" && "key" in ref && typeof ref.key === "string" && ref.key.startsWith("issues.")) used.add(ref.key);
+  };
+  for (const topic of issuesManifest.ui.help?.topics ?? []) {
+    addRef(topic.title);
+    addRef(topic.first_visit_tip);
+    for (const section of topic.sections) {
+      addRef(section.heading);
+      addRef(section.body);
+      addRef(section.summary);
+      for (const item of section.items ?? []) addRef(item);
+    }
+  }
   const packs = ["zh", "en"].map(locale => {
     const read = parseLocalePack(readFileSync(join(SRC, "..", "locales", locale + ".json"), "utf8"));
     assert.ok(read.value, JSON.stringify(read.problems));

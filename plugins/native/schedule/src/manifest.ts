@@ -72,6 +72,19 @@ export const scheduleManifest: PluginManifest = {
   sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: /* @version sync.collection.schedule.conversation_tasks */ 1, requires: [] }] },
   databases: { project: SCHEDULE_PROJECT_DATABASE },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "schedule.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "schedule.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "schedule.help.example-1" }, { key: "schedule.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "schedule.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "schedule.help.advanced-summary" }, body: { key: "schedule.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", hue: "yellow", order: 35, group: "advance",

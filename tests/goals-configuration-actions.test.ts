@@ -238,8 +238,12 @@ test("Web relations and rules use live action policy for writes and selected pag
       assert.match(await response.text(), /Configuration disabled/);
     }
     const unavailable = await fetch(prefix + "/goals/parent");
-    assert.equal(unavailable.status, 200, "the current whole-page contract keeps the shell when an optional stage is disabled");
-    const shell = await unavailable.text();
+    assert.equal(unavailable.status, 403, "an explicit Goal page forwards a denied stage's HTTP error (P1-D2)");
+    const refusal = await unavailable.json() as { code: string; error: string };
+    assert.deepEqual({ code: refusal.code, error: refusal.error }, { code: "actions.plugin_disabled", error: "Configuration disabled" });
+    const projectShell = await fetch(prefix + "/");
+    assert.equal(projectShell.status, 200, "the project shell still opens when a stage is disabled");
+    const shell = await projectShell.text();
     assert.doesNotMatch(shell, /data-goal-canvas-shell|data-goal-view="parent"/);
     assert.ok(!shell.includes(documentProof), "the denied stage does not supply the selected document body");
     const board = await fetch(prefix + "/api/board");

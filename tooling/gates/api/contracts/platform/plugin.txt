@@ -4228,7 +4228,7 @@ export interface PluginEventRecoveryInput extends PluginEventSubscribeSource {
     expected_version: string;
     event_id: string;
     decision: "retry" | "skip";
-    reason?: string;
+    reason: string;
 }
 
 export interface PluginEventRecoveryView {
@@ -4264,7 +4264,7 @@ export interface PluginEventResolutionRecord {
     subscriber_version: string;
     decision: "retry" | "skip";
     actor_id: string;
-    reason?: string;
+    reason: string;
     resolved_at: string;
 }
 
@@ -4770,6 +4770,7 @@ export interface PluginManifest {
         page_routes?: UiPageRouteDeclaration[];
         subject_context?: UiSubjectContextDeclaration[];
         locales?: PluginLocalesDeclaration;
+        help?: UiHelpDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;

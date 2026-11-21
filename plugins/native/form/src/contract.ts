@@ -47,6 +47,7 @@ export interface FormRecord {
 export interface FormSubmissionRecord {
   readonly id: string;
   readonly form_id: string;
+  readonly request_id?: string | null;
   readonly answers: Readonly<Record<string, string>>;
   readonly submitted_at: string;
   readonly form_version: number;

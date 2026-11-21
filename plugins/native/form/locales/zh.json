@@ -138,6 +138,13 @@
     "form.capability-library.form-placement-copy-v1.title": "问卷",
     "form.capability-library.form-placement-move-v1.title": "问卷",
     "form.capability-library.form-questions-add-v1.title": "按题目加题",
-    "form.capability-library.form-questions-draft-v1.title": "AI 生成题目"
+    "form.capability-library.form-questions-draft-v1.title": "AI 生成题目",
+    "form.help.title": "问卷",
+    "form.help.what": "设计结构化表单与问卷，收集填写记录并汇总结果，也能借助文字模型起草题目或把结果存为固定版本。",
+    "form.help.example-1": "新建一份收集表并添加单选、多选与文本题，开始收集回复",
+    "form.help.example-2": "把已收集的回复导出或存为固定版本留档",
+    "form.help.scope": "问卷与回复默认存在当前项目本机库里；仅在你点 AI 生成题目时调用已连文字模型并按服务商计费。",
+    "form.help.advanced-summary": "题目草稿与导入回复",
+    "form.help.advanced": "未连接文字模型时仍可手工创建与收集全部问卷；导入历史回复会自动跳过重复项。"
   }
 }

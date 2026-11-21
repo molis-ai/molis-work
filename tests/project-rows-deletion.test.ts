@@ -80,7 +80,7 @@ function marks(home: string, library: HomePluginDatabaseDeclaration, projects: r
   } finally { db.close(); }
 }
 
-test("RAC-560 deleting a project deletes every row of it in the seven declaring libraries and leaves another project's rows whole", async t => {
+test("RAC-560 AC-T2-05 deleting a project deletes every row of it in the seven declaring libraries and leaves another project's rows whole", async t => {
   const home = withHome(t);
   const declaring = catalog.filter(entry => entry.manifest.databases?.home?.project_rows);
   assert.deepEqual(declaring.map(entry => entry.project_plugin_id).sort(), DECLARING);

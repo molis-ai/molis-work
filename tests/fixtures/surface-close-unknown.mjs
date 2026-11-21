@@ -63,7 +63,9 @@ const firstFailure = await adapter.close().then(() => assert.fail("original unkn
 assert.ok(unknown(firstFailure));
 const leaves = error => error instanceof AggregateError ? error.errors.flatMap(leaves) : [error];
 if (phase === "cancel-unresolved") assert.ok(leaves(firstFailure).includes(unreadable), "the original pending readback refuses before final drain");
-assert.equal(adapter.diagnostics().state, phase === "cancel-unresolved" ? "ready" : "stopped"); assert.equal(unsubscribed, 1); assert.equal(lost, 1);
+assert.equal(adapter.diagnostics().state, phase === "cancel-unresolved" ? "failed" : "stopped");
+assert.equal(unsubscribed, 1);
+assert.equal(lost, 1);
 const busy = createPrologueNodeAdapter({ app, storageRoot: root, modelConfiguration: async () => { throw new Error("No model needed"); } });
 await assert.rejects(busy, { code: "agent.storage_busy" }); await busy.close();
 if (phase === "cancel") {

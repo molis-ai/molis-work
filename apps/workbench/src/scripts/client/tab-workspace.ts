@@ -287,9 +287,12 @@ ${TAB_WORKSPACE_DRAG_PART}
   /* The entries that open a cover, wherever the bar keeps them. Pressed again while their cover is up, they close it. */
   const COVER_OPENERS = {
     settings: '[data-directory-open="settings"]',
+    capabilities: '[data-capabilities-open]',
     "project-settings": '[data-directory-open="project-settings"]',
     market: ':is([data-dock], [data-global-menu]) [data-plugin-id="market"]',
   };
+  const CAPABILITY_COVER_SECTIONS = new Set(["library", "connections", "access", "history"]);
+  const activeCoverOpener = () => state.exclusive === "settings" && CAPABILITY_COVER_SECTIONS.has(String(coverPlace || "").split(" ")[0]) ? "capabilities" : state.exclusive;
   const tabShareObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const node = entry.target;
@@ -522,7 +525,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (embedded || !state.exclusive || event.target?.nodeType !== 1) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     const kind = coverKindOf(event.target);
-    if (!kind || kind !== state.exclusive) return;
+    if (!kind || kind !== activeCoverOpener()) return;
     event.preventDefault();
     event.stopPropagation();
     event.target.closest("details[open]")?.removeAttribute("open");

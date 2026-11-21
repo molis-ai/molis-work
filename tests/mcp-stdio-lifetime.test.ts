@@ -62,3 +62,35 @@ test("RAC-625 RAC-628: invalid protocol requests never dispatch and a bounded pe
   for (let id = 2; id < 40; id++) input.write(rpc(id));
   await rejected; assert.equal(calls, 1); input.destroy(); output.destroy();
 });
+
+test("101-2: external abort signal stops serveMcpStdio cleanly and aborts active IO", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const shutdown = new AbortController();
+  let aborted = false;
+  let enter!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  const serving = serveMcpStdio({
+    input,
+    output,
+    signal: shutdown.signal,
+    async handleMessage(_message, signal) {
+      enter();
+      await new Promise<void>((_resolve, reject) => {
+        signal!.addEventListener("abort", () => {
+          aborted = true;
+          reject(signal!.reason);
+        }, { once: true });
+      });
+      return null;
+    },
+  });
+  input.write(rpc(1));
+  await entered;
+  shutdown.abort();
+  await serving;
+  assert.equal(aborted, true, "shutdown signal aborts active request handler");
+  assert.equal(output.readableLength, 0);
+  input.destroy();
+  output.destroy();
+});

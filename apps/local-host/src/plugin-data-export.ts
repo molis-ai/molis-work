@@ -183,11 +183,15 @@ function normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/** The file and byte limits are for the whole export, shared by the sections that carry owner files. */
+interface OwnerFileBudget { files: number; bytes: number }
+
 function readOwnerFileSnapshots(
   homeDirectory: string,
   discovered: DiscoveredPluginData,
   section: PluginDataSectionDeclaration,
   projectId: string | null,
+  budget: OwnerFileBudget,
 ): { files: PluginDataFileSnapshot[]; truncated: boolean } {
   const declaration = discovered.manifest.owner_files;
   if (!declaration || section.files.length === 0) return { files: [], truncated: false };
@@ -205,23 +209,23 @@ function readOwnerFileSnapshots(
   const reader = openPluginOwnerFiles(base, declaration);
   const files: PluginDataFileSnapshot[] = [];
   let truncated = false;
-  let totalBytes = 0;
   const visit = (relative: string, kind: "file" | "directory") => {
-    if (files.length >= MAX_EXPORT_FILES) { truncated = true; return; }
+    if (budget.files >= MAX_EXPORT_FILES) { truncated = true; return; }
     const info = reader.stat(relative);
     if (!info) return;
     if (kind === "directory" && info.kind === "directory") {
       for (const child of reader.list(relative)) {
-        if (files.length >= MAX_EXPORT_FILES) { truncated = true; return; }
+        if (budget.files >= MAX_EXPORT_FILES) { truncated = true; return; }
         visit(`${relative}/${child.name}`, child.kind);
       }
       return;
     }
     if (info.kind !== "file") return;
+    budget.files += 1;
     const byteLength = info.byte_length;
-    if (byteLength <= MAX_EXPORT_FILE_BYTES && totalBytes + byteLength <= MAX_EXPORT_TOTAL_FILE_BYTES) {
+    if (byteLength <= MAX_EXPORT_FILE_BYTES && budget.bytes + byteLength <= MAX_EXPORT_TOTAL_FILE_BYTES) {
       const content = reader.read(relative);
-      totalBytes += byteLength;
+      budget.bytes += byteLength;
       files.push({ path: relative, byte_length: byteLength, ...(content ? { content_base64: Buffer.from(content).toString("base64") } : {}) });
     } else {
       truncated = true;
@@ -281,12 +285,12 @@ function readSectionSnapshot(
   discovered: DiscoveredPluginData,
   section: PluginDataSectionDeclaration,
   projectId: string | null,
-  projectDb?: SqliteDatabase,
-  includeFiles = false,
+  projectDb: SqliteDatabase | undefined,
+  budget: OwnerFileBudget | null,
 ): PluginDataSectionSnapshot {
   const manifest = discovered.manifest;
   const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project;
-  const fileData = includeFiles ? readOwnerFileSnapshots(homeDirectory, discovered, section, projectId) : { files: [], truncated: false };
+  const fileData = budget ? readOwnerFileSnapshots(homeDirectory, discovered, section, projectId, budget) : { files: [], truncated: false };
   const fileFields = {
     ...(fileData.files.length > 0 ? { files: fileData.files } : {}),
   };
@@ -373,9 +377,15 @@ export async function exportPluginData(
       throw exportErrors.plugin_data_project_required("导出项目级插件数据需要指定 project_id");
     }
     const eligible = declared.filter(section => section.scope === "home" || projectStore !== undefined);
-    const sections = eligible.map((section, index) => readSectionSnapshot(
-      ports.homeDirectory, discovered, section, projectRef?.project_id ?? null, projectStore?.db, index === 0,
-    ));
+    // Owner files are the plugin's, listed on every section; they are exported once per scope (the first section of that scope carries
+    // them, since Home and project files live apart), within one budget for the whole export; a section that hits it says so (`truncated`).
+    const budget: OwnerFileBudget = { files: 0, bytes: 0 };
+    const filesCarried = new Set<PluginDataSectionDeclaration["scope"]>();
+    const sections = eligible.map(section => {
+      const carriesFiles = !filesCarried.has(section.scope);
+      filesCarried.add(section.scope);
+      return readSectionSnapshot(ports.homeDirectory, discovered, section, projectRef?.project_id ?? null, projectStore?.db, carriesFiles ? budget : null);
+    });
     return { format: PLUGIN_DATA_EXPORT_FORMAT, version: PLUGIN_DATA_EXPORT_VERSION, plugin_id: manifest.plugin_id, project_id: projectRef?.project_id ?? null, exported_at: new Date().toISOString(), sections };
   } finally {
     projectStore?.close();

@@ -473,13 +473,16 @@ export interface AssistantWorkView {
    */
   usage?: { tokens: number; rounds: number; budget_tokens: number | null; budget_of?: { work_id: string; title: string } };
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
-  problem?: { message: string; action?: string };
+  problem?: { message: string; action?: string; action_kind?: AssistantProblemActionKind };
   /**
    * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), read only while none of its
    * rounds is live. Absent: not read this time (a round is live, or a plugin runs the work); `[]`: read, and nothing waits.
    */
   queued_inputs?: AgentQueuedInput[];
 }
+
+/** Structured next-step action attached to an Assistant work or Send failure; replaces locale-fragile string matching on the client. */
+export type AssistantProblemActionKind = "open_model_settings" | "raise_work_budget" | "open_assistant_settings";
 
 export type { AssistantRecovery } from "./assistant-recovery.js";
 

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { AGENT_TOOLS, AgentHost, emptyCapabilityMatrix, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
+import { AGENT_RUNTIME, AGENT_TOOLS, AgentHost, emptyCapabilityMatrix, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import { BUSINESS_HOST_TOOLS, SKILL_TOOLS, type AgentManifest } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -21,6 +22,8 @@ const { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES } = await import(requireSdk.reso
 const PACK_TOOLS = OFFICIAL_CODING_PACK.tools.map(tool => tool.registration.name).filter(name => name === "coding.find-symbol");
 
 test("CPK-07: the tool set matches the SDK's tools — each runtime tool exists there, and each SDK tool is offered or says why not", () => {
+  const sdkPackage = JSON.parse(readFileSync(new URL("../horizontal/agent-host/node_modules/@prologue/sdk/package.json", import.meta.url), "utf8")) as { version: string };
+  assert.equal(AGENT_RUNTIME.version, sdkPackage.version, "AGENT_RUNTIME.version stays aligned with the vendored @prologue/sdk package version");
   const names = AGENT_TOOLS.map(tool => tool.name);
   assert.equal(new Set(names).size, names.length, "one entry per name");
   assert.ok(AGENT_TOOLS.every(tool => (KIT_TOOL_ORIGINS as readonly string[]).includes(tool.origin) && tool.description.length > 0));

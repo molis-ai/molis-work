@@ -4,8 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
-import { MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
-import { MANAGEMENT_GOAL_ACTIONS } from "@molis-ai/molis-work-app-mcp";
+import { MANAGEMENT_MCP_TOOLS, MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
 import * as contract from "@molis-ai/molis-work-plugin-goals/contract";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalEventFacts } from "@molis-ai/molis-work-plugin-goals/module";
@@ -164,11 +163,10 @@ test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions an
     assert.ok(entry.action.input_type?.startsWith("molis.work.promote."), `Goals ${name} tags its work-item promotion input_type`);
     assert.ok(entry.action.output_type?.startsWith("molis.work.promote."), `Goals ${name} tags its work-item promotion output_type`);
   }
-  // MCP: the one management operation Goals owns. The platform publishes the review operations.
-  assert.deepEqual(Object.keys(MANAGEMENT_GOAL_ACTIONS).sort(), ["initialize"]);
-  for (const [name, reference] of Object.entries(MANAGEMENT_GOAL_ACTIONS)) {
-    assert.deepEqual([reference.capability_id, reference.version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `MCP ${name}`);
-  }
+  // MCP: the one management tool Goals declares on its registration (batch 44 recheck); the platform names no Goals action. The
+  // platform publishes the review operations.
+  assert.deepEqual(MANAGEMENT_MCP_TOOLS.map(tool => [tool.name, tool.action.capability_id, tool.action.version, tool.opens_new_database]),
+    [["molis_work_v1_initialize", registered("goalEntryActions", "initialize").capability_id, registered("goalEntryActions", "initialize").version, true]]);
   // Coding: the five plugin actions, with the kind, scope and the one permission its Manifest declares for them.
   const coding = referencesIn("plugins/native/coding/src/goals-actions.ts", "GOALS_ACTIONS");
   assert.deepEqual(Object.keys(coding).sort(), Object.keys(PLUGIN_ACTIONS).sort());

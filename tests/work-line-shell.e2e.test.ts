@@ -118,9 +118,11 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
 
 test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack and colours the mark, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
   // The event is a todo planned for today; the task that stops is another plugin's, done for it (its `serves`).
-  let served = { kind: "todo_item", id: "" }, waiting = false;
+  let served = { kind: "todo_item", id: "" }, waiting = false, ask = false, changes: Array<{ label: string; value: string }> = [];
   const task = () => ({ subject: { kind: "homebg_task", id: "t1" }, title: "核对报价单", state: waiting ? "answer" : "running", details: [], waiting,
-    updated_at: new Date().toISOString(), executor: { kind: "plugin", label: "示例" }, serves: [served], scope: "project", commands: [], decisions: [], open: null });
+    updated_at: new Date().toISOString(), executor: { kind: "plugin", label: "示例" }, serves: [served], scope: "project", commands: [],
+    decisions: waiting && ask ? [{ id: "d1", ask: "确认发出报价单", why: "按设置先问你", changes,
+      answers: (["approve", "reject"] as const).map(role => ({ role, action: { capability_id: "homebg.answer", version: 1 }, input: { job: "t1", verdict: role }, summary: role })) }] : [], open: null });
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: served.id ? [task()] : [] }));
   // A local model whose rounds are held: what is sent stays in progress while the next request is written.
   let release = () => {};
@@ -189,6 +191,18 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROWS}.length === 1`, 20_000);
   await evaluate(`${ROW}.querySelector('[data-waiting-go]').click()`);
   await waitFor(`[...document.querySelectorAll('.assistant-tab')].length === ${tabs.length + 1}`, 10_000);
+  // POLISH-44: a decision with concrete changes stays behind 「去处理」 on the foot card; once it has no changes and at most
+  // two direct choices, the next single refresh renders the direct buttons even when the line's events did not change.
+  ask = true; changes = [{ label: "预算", value: "十万 → 十二万" }];
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor("(document.querySelector('[data-work-stack] [data-work-stack-card]')?.textContent ?? '').includes('确认发出报价单')", 10_000);
+  assert.deepEqual(await evaluate("({ open: Boolean(document.querySelector('[data-work-stack] [data-work-stack-open]')), direct: document.querySelectorAll('[data-work-stack] [data-decision-answer]').length })"),
+    { open: true, direct: 0 }, "POLISH-44: decision with changes keeps 「去处理」 instead of direct buttons on the foot card");
+  changes = [];
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor("document.querySelectorAll('[data-work-stack] [data-decision-answer]').length === 2", 10_000);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-work-stack] [data-decision-answer]')].map(b => b.dataset.decisionAnswer)"),
+    ["approve", "reject"], "POLISH-44: two-choice decision without changes renders direct buttons on the very first refresh");
 });
 
 test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read, and the task mark and panel say the connection is lost; heard again, all of that goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {

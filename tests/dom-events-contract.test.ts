@@ -428,13 +428,13 @@ test("a finding that the known gaps do not name is caught, by its event and by i
   const second = domEventReport(changed({ [NEW_FILE]: script('surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: "g" } }));') })).findings;
   assert.deepEqual(unrecorded(second, section).map((finding) => finding.split(" ")[0]), [`${NEW_FILE}:2`]);
   // A gap that the document stops naming (the event still reported on the real tree, so the finding comes back).
-  const forgotten = section.replace(/- `molis-work:open-settings-section`[^\n]*\n/, "");
+  const forgotten = section.replace(/- `molis-work:select-item`[^\n]*\n/, "");
   assert.notEqual(forgotten, section);
-  assert.deepEqual(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis-work:open-settings-section"]);
+  assert.deepEqual([...new Set(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]))], ["molis-work:select-item"]);
   // Only that section counts: the same words further down the document do not record the gap.
   const document = readFileSync(path.join(root, GAPS_DOCUMENT), "utf8");
-  const elsewhere = document.replace(/- `molis-work:open-settings-section`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis-work:open-settings-section` is mentioned here.\n";
-  assert.deepEqual(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis-work:open-settings-section"]);
+  const elsewhere = document.replace(/- `molis-work:select-item`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis-work:select-item` is mentioned here.\n";
+  assert.deepEqual([...new Set(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]))], ["molis-work:select-item"]);
 });
 
 // ---- the entry: `pnpm health:check` runs the gate -------------------------------------------------------------------

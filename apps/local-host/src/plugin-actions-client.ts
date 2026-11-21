@@ -244,6 +244,18 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       return (await ownActions({ project_id: plugin?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin).discover())
         .filter(view => view.provider.plugin_install_id === context.install_id);
     },
+    discoverOne: async reference => {
+      const outer = currentPluginInvocation();
+      const plugin = outer?.caller.audience === "plugin" && inPluginInstance(outer, context) ? outer : undefined;
+      const actions = ownActions({ project_id: plugin?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin);
+      const target = { ...reference, provider_id: reference.provider_id ?? ownProvider };
+      const view = actions.discoverOne
+        ? await actions.discoverOne(target)
+        : (await actions.discover()).find(row => row.capability_id === target.capability_id
+          && row.version === target.version
+          && row.provider.provider_id === target.provider_id);
+      return view && view.provider.plugin_install_id === context.install_id ? view : undefined;
+    },
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     ...(declaresActionDelegation(manifest) ? { directory: pluginActionDirectory(context, manifest, options) } : {}),
     dependencies: pluginActionDependencies(context, manifest, options),

@@ -141,7 +141,7 @@
 | [52](reference/batches/52.md) | [每日简报、设置与中断恢复](reference/batches/52.md#batch-52-item-1) |
 |  | [初始日报与工作接续 Skill](reference/batches/52.md#batch-52-item-2) |
 |  | [官方场景包：个人事务与每日简报](reference/batches/52.md#batch-52-item-3) |
-| [53](reference/batches/53.md) | [回执与交互余项](reference/batches/53.md#batch-53-item-1) · [BL-959](../backlog/BL-959.md) |
+| [53](reference/batches/53.md) | [回执与交互余项](reference/batches/53.md#batch-53-item-1) · [BL-959](https://github.com/molis-ai/molis-work/blob/ec2620d916523def9ac8cf9450da50bebac3c393/specs/backlog/BL-959.md) 已由 [#2193](https://github.com/molis-ai/molis-work/pull/2193) 结清，53-1 其余照旧 |
 |  | [智能呈现第二片](reference/batches/53.md#batch-53-item-2) |
 |  | [主线第二片](reference/batches/53.md#batch-53-item-3) |
 | [54](reference/batches/54.md) | [本机语音](reference/batches/54.md#batch-54-item-1) |
@@ -247,8 +247,8 @@
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |
-| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1) |
-|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2) |
+| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1) · [#2148](https://github.com/molis-ai/molis-work/pull/2148) 已合入 |
+|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2) · [#2149](https://github.com/molis-ai/molis-work/pull/2149) 已合入 |
 | [94](reference/batches/94.md) | [重新安装同版本开发 App 后，用上刚编出来的版本](reference/batches/94.md#batch-94-item-1) |
 | [95](reference/batches/95.md) | [把 Feed 连数据库的旧函数名改准确](reference/batches/95.md#batch-95-item-1) |
 |  | [资讯更新点过「现在做」，睡醒后直接做](reference/batches/95.md#batch-95-item-2) |

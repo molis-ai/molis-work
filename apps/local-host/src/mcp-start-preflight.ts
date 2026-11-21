@@ -1,5 +1,5 @@
-import { isPlatformMcpTool, isRuntimeContextMcpTool, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
-import { MCP_TOOLS } from "./mcp-platform-tools.js";
+import { isRuntimeContextMcpTool, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
+import { isPlatformMcpTool, MCP_TOOLS } from "./mcp-platform-tools.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpErrors } from "./mcp-errors.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";

@@ -1,7 +1,7 @@
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { COPY_FEEDBACK_CLIENT_SCRIPT, DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
@@ -67,7 +67,8 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}`, ...(input.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root${surfaceClient ? ' inert aria-busy="true"' : ''}>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>${renderAppearanceRecovery(input.translate, input.appearance)}
     <script src="/assets/molis-work-plugin-frame.js"></script>
-    <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
+    <script>${MICRO_INTERACTION_CLIENT_SCRIPT}
+${OVERFLOW_FADE_CLIENT_SCRIPT}
 ${COPY_FEEDBACK_CLIENT_SCRIPT}
 ${SCROLL_FOLLOW_CLIENT_SCRIPT}
 ${DROP_ZONE_CLIENT_SCRIPT}

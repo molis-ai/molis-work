@@ -450,9 +450,9 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   // The work's side panel can start collapsed; open it the way the person does before using its memory row.
   await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)");
   if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
-  // Nothing on this page answers the island's open-settings event, so the link goes to the Memory settings page.
-  await navigate(() => click('[data-assistant-panel] .assistant-side-action[aria-label=' + JSON.stringify("去设置查看：" + rule) + ']'));
-  await waitFor("location.pathname.includes('/settings/memory') || Boolean(document.querySelector('[data-memory-list]'))");
+  // The settings directory answers molis-work:open-settings-path on document and opens the project's Memory settings cover in place (no full page reload).
+  await click('[data-assistant-panel] .assistant-side-action[aria-label=' + JSON.stringify("去设置查看：" + rule) + ']');
+  await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && Boolean(document.querySelector('[data-memory-list]'))");
   // Reopen the same real Work from the existing bar after visiting Memory, then use its original failed round's result card.
   // The unified composer (UIC-05) names the open work as its receiver; an empty ⌘↵ opens that work without sending anything.
   // What was said at 「现在」 went to the project's main conversation (WLN-06), named on the bar by what it is, not its stored title.

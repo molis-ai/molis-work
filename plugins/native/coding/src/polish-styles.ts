@@ -74,7 +74,6 @@ export const CODING_POLISH_STYLES = `
 /* 6.4 Header: the title on one line, the place it works in under it, and one outlined key. */
 .coding-identity-copy h2 { font-size:17px; font-weight:600; line-height:24px; }
 .coding-workspace-chip { margin-top:0; }
-.coding-workspace-branch { display:inline-flex; align-items:center; gap:4px; min-width:0; }
 .coding-head-more { position:relative; flex:none; }
 .coding-head-more[hidden] { display:none; }
 .coding-head-more > summary { list-style:none; width:32px; height:32px; min-height:32px; padding:0; justify-content:center; color:var(--muted); cursor:pointer; }
@@ -110,6 +109,7 @@ export const CODING_POLISH_STYLES = `
    Percentages in padding resolve against .coding-dialogue's inline size without making it a container query root, keeping
    long-turn streaming style invalidation O(1) (VUX-36). */
 @container molis-coding (min-width:761px) {
-  .mw-layout-primitives .coding-dialogue > :is(.coding-turns,.coding-composer,[data-coding-report-reader]) { --coding-pad-start:clamp(12px, var(--mw-bar-left, 99999px) - 240px, 32px); padding-left:var(--coding-pad-start); padding-right:clamp(32px, 480px + 100% + var(--coding-pad-start) - var(--coding-reading) - 2 * var(--mw-bar-left, 99999px), max(32px, 100% - var(--coding-pad-start) - var(--coding-reading))); }
+  .mw-layout-primitives .coding-dialogue > :is(.coding-turns,.coding-composer,[data-coding-report-reader]) { --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-reading))); padding-left:var(--coding-pad-start); padding-right:max(12px, 100% - var(--coding-reading) - var(--coding-pad-start)); }
+  .mw-layout-primitives .coding-dialogue > :is(.coding-delegation-banner,.coding-status,.coding-queued) { box-sizing:border-box; --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-reading))); width:min(100% - var(--coding-pad-start) - 12px, var(--coding-reading)); margin-left:var(--coding-pad-start); margin-right:auto; }
 }
 `;

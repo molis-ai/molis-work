@@ -127,15 +127,17 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "settings-directory";
     readonly on: "document";
+    readonly cancelable: true;
     readonly detail: "{ href, return_id?, need?, from?, carry? }; return_id only from a plugin frame's host, with from a page's (specs/draft-and-return §2.1)";
-    readonly summary: "Open the settings page at a settings address, global or of the project, and open a return trip from where it was asked (the settings-return owner checks need, from and carry and keeps them; only a frame host's return_id makes a trip a page claims; a request while the settings are open opens none). The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.";
+    readonly summary: "Open the settings page at a settings address, global or of the project, and open a return trip from where it was asked (the settings-return owner checks need, from and carry and keeps them; only a frame host's return_id makes a trip a page claims; a request while the settings are open opens none). The settings directory calls preventDefault() when it opens the target cover, letting callers such as the Assistant's project-memory link fall back to navigation when no settings cover is mounted. The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.";
 }, {
     readonly name: "molis-work:open-settings-section";
     readonly kind: "request";
     readonly owner: "settings-directory";
     readonly on: "document";
+    readonly cancelable: true;
     readonly detail: "{ section }";
-    readonly summary: "Open a global settings section by id; the tab workspace sends it when a plugin whose page lives in settings is opened. The settings link the Assistant shows on a memory change sends it too, but on window and as cancelable, so the settings listener on document never hears it and the link always loads the settings page (a known gap, docs/platform/UI-PLATFORM.md).";
+    readonly summary: "Open a global settings section by id; sent by the tab workspace when a plugin whose page lives in settings is opened, and by the Assistant's global memory-change link. The settings directory calls preventDefault() when it opens the section so callers can fall back to navigation when no settings cover is mounted.";
 }, {
     readonly name: "molis-work:place-changed";
     readonly kind: "announcement";

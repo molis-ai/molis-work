@@ -129,7 +129,7 @@ test("SYS-15 S-47 terminal page controls only its server-created panel and canno
   for (const client of [own, other, projectPage, reopened]) client.socket.terminate();
 });
 
-test("S-work-terminal platform work-terminal actions refuse non-person, delegated, plugin, and cross-project callers with zero spawned panels", async t => {
+test("S-work-terminals platform work-terminal actions refuse non-person, delegated, plugin, and cross-project callers with zero spawned panels", async t => {
   const f = await serveHomeRuntime(t);
   const project = await f.project("Work Terminal Boundary");
   const projectClient = f.host.actionClient(project.reference);

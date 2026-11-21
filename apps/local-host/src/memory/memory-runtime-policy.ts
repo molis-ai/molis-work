@@ -118,7 +118,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
   const callerAllowed = (caller: AgentMemoryCaller) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
     && MEMORY_CONSUMERS.some(value => value === caller.consumer) && SCENES.some(scene => scene === caller.current_scene)
     && (caller.consumer !== "plugin" || !!caller.plugin_id)
-    && (caller.current_scene !== "coding" || pluginMemoryScene(caller.plugin_id) === "coding" || caller.person === true)
+    && (caller.current_scene !== "coding" || pluginMemoryScene(caller.plugin_id, undefined, caller.project_id) === "coding" || caller.person === true)
     && (caller.current_scene !== "assistant" || caller.consumer === "assistant" || caller.person === true);
 
   const currentFacts = (caller: AgentMemoryCaller) => {
@@ -231,7 +231,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     async authorizePurgeInspection(caller, request, owner) {
       const state = await current(caller), binding = caller.memory_session;
       if (!state || !binding || owner.actor_id !== caller.actor_id || owner.project_id !== (caller.project_id ?? ASSISTANT_PERSONAL_OWNER)
-        || (binding.target.kind === "assistant" ? owner.plugin_id !== ASSISTANT_PLUGIN_ID : pluginMemoryScene(owner.plugin_id) !== binding.target.kind)
+        || (binding.target.kind === "assistant" ? owner.plugin_id !== ASSISTANT_PLUGIN_ID : pluginMemoryScene(owner.plugin_id, undefined, owner.project_id) !== binding.target.kind)
         || !owner.install_id || binding.target.kind === "assistant" && owner.install_id !== ASSISTANT_INSTALL_ID) return false;
       return inspection(caller, request, state);
     },
@@ -249,7 +249,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
         return await current(caller) ? caller : undefined;
       }
       const caller: AgentMemoryCaller = { actor_id: owner.actor_id, project_id: owner.project_id, plugin_id: owner.plugin_id,
-        consumer: "agent", current_scene: pluginMemoryScene(owner.plugin_id), purpose: "task", session_id: sessionId };
+        consumer: "agent", current_scene: pluginMemoryScene(owner.plugin_id, undefined, owner.project_id), purpose: "task", session_id: sessionId };
       return await current(caller) ? caller : undefined;
     },
   };

@@ -28,6 +28,7 @@ export interface SessionsSurfaceMutable {
 
 export interface SessionsClientActions {
   loadList(withSuggest?: boolean): Promise<void>;
+  retryList(): Promise<void>;
   loadPage(page: "next" | "previous"): Promise<void>;
   searchTool(): Promise<void>;
   paintList(): void;
@@ -50,6 +51,10 @@ function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActi
     ctx.view = viewBtn.dataset.sessionsView as SessionsViewMode;
     ctx.droidRows = null;
     void act.loadList();
+    return;
+  }
+  if (target.closest("[data-sessions-retry]")) {
+    void act.retryList();
     return;
   }
   if (target.closest("[data-sessions-refresh]")) {

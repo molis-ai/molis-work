@@ -94,7 +94,7 @@ export const DATASET_STYLES = `
   .dataset-versions-head .mw-btn { flex: none; width: auto; }
   .dataset-version { display: flex; align-items: center; gap: 8px; width: max-content; max-width: 100%; font-size: 12px; }
   .dataset-version span { flex: none; color: var(--muted); }
-  .dataset-note { margin: 0; font-size: 12px; color: var(--tone-done, var(--muted)); }
+  .dataset-note { margin: 0; font-size: 12px; color: var(--muted); }
   .dataset-note.is-error { color: var(--red); }
   .plugin-stage-detail-bar [data-dataset-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;

@@ -15,9 +15,9 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具（`RUNTIME_MCP_TOOLS`），以及 `platformMcpTools(read)`——把受信管理入口的 `initialize`、`review_request`、`review_decide` 三个工具接在 Host 的 `MCP_TOOLS` 上。`initialize` 读 Goals 的初始化动作；两个 review 工具读平台的 `project-approvals` 合同，不依赖 Goals。插件与 Goals 能力都是动作工具，不在这里写死 |
-| [src/goal-tools.ts](src/goal-tools.ts) | `initialize` 的 wire：传输自己的项目、数据库与出处字段，业务字段取自传进来的动作描述 |
-| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 三个管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null；`MANAGEMENT_GOAL_ACTIONS` 只列 `initialize` 的 Goals 动作，`MANAGEMENT_REVIEW_TOOL_NAMES` 列平台 `trustedReviewActions` 的 read/decide；不 import 任何 Goals 合同（PG-111，门禁 `checkGoalTransportCallers`） |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具（`RUNTIME_MCP_TOOLS`），以及 `platformMcpTools(declared)`——把插件申报的管理工具与平台的 `review_request`、`review_decide` 接在 Host 的 `MCP_TOOLS` 上；`isPlatformMcpTool` 只认平台自己的工具名，插件申报的由 Host 补上 |
+| [src/management-tools.ts](src/management-tools.ts) | 插件申报的管理工具（`PluginManagementActionDeclaration.mcp_tool`）的 wire：传输自己的项目、数据库字段，描述与业务字段取自该动作的定义；平台的两个审阅工具 |
+| [src/tool-dispatch.ts](src/tool-dispatch.ts) | 管理工具的 wire 适配；只接 Host 构造的管理动作端口或 null；申报的工具按名找到动作、只收该动作声明的业务字段，`MANAGEMENT_REVIEW_TOOL_NAMES` 列平台 `trustedReviewActions` 的 read/decide；不点名任何插件、不 import 任何插件合同 |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
 可对照现有调用方 [apps/local-host/src/mcp-server.ts](../local-host/src/mcp-server.ts) 阅读装配方式。

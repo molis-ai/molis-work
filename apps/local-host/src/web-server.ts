@@ -31,7 +31,7 @@ import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
 import { sendUnhandledWebError, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
-import { attachMolisWorkPtySocket } from "./pty-socket.js";
+import { activePtyCount, attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { htmlLang, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { appearanceForHome } from "./ui-locale-memory.js";
@@ -155,6 +155,11 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const appearanceHttp = createAppearanceHttp(appearance, localHost, controlToken, serverOptions.assertAccountCurrent);
     const sessions = serverOptions.webSessions ?? new WebSessions(storageHome);
     const mutationKeys = new Map<string, LocalMutationState>();
+    const activeWorkCount = (): number => {
+      let inFlight = 0;
+      for (const state of mutationKeys.values()) if (state === "in_flight") inFlight += 1;
+      return activePtyCount(pty.host) + inFlight;
+    };
     const webViewCache: MolisWorkWebViewCache = new Map();
     const demoSeeding = startDemoSeed(fixture);
     const { periodicTasks: periodic } = composition;
@@ -183,6 +188,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
             sendWebHealth(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
+              active_work: activeWorkCount(),
               ...(fixture ? { project_id: fixture.projectId } : { project_count: catalogAccess.projectCount }),
             }, controlToken, url.searchParams.get("challenge"));
             return;
@@ -234,7 +240,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic, appearance.locale.lastUsed);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { matchesNativeAccountCallback: account.matchesNativeCallback, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { matchesNativeAccountCallback: account.matchesNativeCallback, activeWorkCount, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
     } catch (error) {
       if (!ownsLocalHost && !releaseTransport) throw error;
       throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");

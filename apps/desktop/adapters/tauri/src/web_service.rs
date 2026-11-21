@@ -391,6 +391,7 @@ pub(crate) fn desktop_owns_web_service(state: &WebServiceState) -> bool {
 }
 
 pub(crate) fn stop_owned_web_service(state: &WebServiceState) -> bool {
+    crate::web_identity::invalidate_health_lease();
     let child = state
         .owned_child
         .lock()
@@ -489,6 +490,7 @@ pub(crate) fn start_molis_work_web(
     if upgraded_runtime {
         if packaged_test_home().is_none() {
             let _ = sync_managed_web_service_after_upgrade(&home);
+            adopt_endpoint_port(&home);
         }
         bin = web_launcher(&home);
     }

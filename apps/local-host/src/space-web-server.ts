@@ -80,6 +80,7 @@ export interface SpaceWebSurface extends http.Server {
   readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
   matchesNativeAccountCallback?(url:URL,origin?:string):boolean;
+  activeWorkCount?():number;
 }
 
 /** A system browser has no WebView cookie. Only a pending native attempt on the live Home can complete here. */
@@ -368,7 +369,8 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(url.pathname==='/health'){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome&&isAccountReady(item.space.spaceId));
           const scoped=gatewayHome&&gatewayHome!==actionGatewayHomeId(home);
-          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
+          const activeWork=[...surfaces.values()].reduce((sum,item)=>sum+(item.server.activeWorkCount?.()??0),0);
+          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,active_work:activeWork,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
         }
         if(url.pathname===ACCOUNT_CONNECT_PATH){
           if(!native(request)){refuseLocalWebRequest(response);return;}

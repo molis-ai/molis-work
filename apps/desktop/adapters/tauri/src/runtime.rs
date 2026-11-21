@@ -17,6 +17,10 @@ const DESKTOP_CONFIG_VERSION: u32 = 1;
 pub(crate) struct RuntimeState {
     /// The Host stopped and could not be brought back: the tray's 「打开」 starts it again.
     pub(crate) host_stopped: AtomicBool,
+    /// Set once the user confirms quitting (or no confirmation is required) so `ExitRequested` lets exit proceed.
+    pub(crate) quit_confirmed: AtomicBool,
+    /// Guards against duplicate `⌘Q` / tray Quit clicks while the background active-work probe or NSAlert is active.
+    pub(crate) quit_in_progress: AtomicBool,
 }
 
 /// 设置 › 运行 in the main window, on the proved origin.

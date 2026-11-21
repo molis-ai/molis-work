@@ -222,7 +222,7 @@ test("102-2 S-07: live resident Host serves online CLI home snapshot via control
   assert.equal(fs.existsSync(join(f.area, "impostor-snapshot")), false);
 
   // Genuine CLI forwards via verified resident Host and creates an integrity-checked, secret-free online snapshot.
-  const cliEnv = { ...process.env, MOLIS_WORK_TEST: "1" };
+  const cliEnv: NodeJS.ProcessEnv = { ...process.env, MOLIS_WORK_TEST: "1" };
   delete cliEnv.MOLIS_WORK_WEB_URL;
   const onlineCli = await runCli(
     ["home", "snapshot", "--home", f.home, "--to", f.snapshot, "--json"],

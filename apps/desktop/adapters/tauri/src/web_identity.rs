@@ -7,16 +7,34 @@ use sha2::Sha256;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 const REFUSED: &str = "本地服务身份验证失败";
 const MAX_HEAD: usize = 8192;
 const MAX_BODY: usize = 4096;
+/// Short lease reused only by explicitly allowlisted low-risk UI IPC commands (`S-14`).
+/// Invalidated immediately on any health failure, port change, Host stop, rollback, or exit.
+pub(crate) const LOW_RISK_HEALTH_LEASE: Duration = Duration::from_millis(2500);
+
+#[derive(Clone, Copy, Debug)]
+struct HealthLease {
+    port: u16,
+    #[allow(dead_code)]
+    process_id: Option<u32>,
+    verified_at: Instant,
+}
+
+static HEALTH_LEASE: Mutex<Option<HealthLease>> = Mutex::new(None);
 
 #[derive(Deserialize)]
 pub(crate) struct Health {
     status: String,
     pub(crate) desktop_tui: bool,
+    #[serde(default)]
+    pub(crate) process_id: Option<u32>,
+    #[serde(default)]
+    pub(crate) active_work: Option<u32>,
 }
 
 /// What a 503 says of itself. Only `upgrading` is read (`upgrade-maintenance.ts` in the Host).
@@ -45,6 +63,49 @@ pub(crate) fn control_token() -> Result<String, String> {
     Ok(token.into())
 }
 
+pub(crate) fn invalidate_health_lease() {
+    if let Ok(mut slot) = HEALTH_LEASE.lock() {
+        *slot = None;
+    }
+}
+
+fn record_health_lease(port: u16, process_id: Option<u32>) {
+    if port != crate::host_port::port() {
+        return;
+    }
+    if let Ok(mut slot) = HEALTH_LEASE.lock() {
+        *slot = Some(HealthLease {
+            port,
+            process_id,
+            verified_at: Instant::now(),
+        });
+    }
+}
+
+fn health_lease_valid(
+    lease: Option<HealthLease>,
+    active_port: u16,
+    now: Instant,
+    ttl: Duration,
+) -> bool {
+    lease.is_some_and(|entry| {
+        entry.port == active_port && now.saturating_duration_since(entry.verified_at) <= ttl
+    })
+}
+
+/// Low-risk UI IPC commands reuse a verified active-port health lease for up to 2.5 s so resize/locale
+/// events do not block the main thread on TCP; an expired or invalidated lease falls back to a fresh HMAC probe.
+pub(crate) fn low_risk_health_fresh() -> bool {
+    let active_port = crate::host_port::port();
+    let fresh = HEALTH_LEASE.lock().ok().is_some_and(|slot| {
+        health_lease_valid(*slot, active_port, Instant::now(), LOW_RISK_HEALTH_LEASE)
+    });
+    if fresh {
+        return true;
+    }
+    health().is_ok()
+}
+
 pub(crate) fn health() -> Result<Health, String> {
     match answer()? {
         Answer::Ready(health) => Ok(health),
@@ -57,13 +118,44 @@ pub(crate) fn answer() -> Result<Answer, String> {
     answer_at(crate::host_port::port())
 }
 
-/// `/health` on a port not yet adopted: the address file's, proved before anything uses it.
-pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
+/// Bounded `/health` probe on the active port for background quit checks (`<= 400ms` total budget).
+pub(crate) fn answer_with_timeout(total_budget: Duration) -> Result<Answer, String> {
+    let started = Instant::now();
+    let port = crate::host_port::port();
+    let connect_timeout = total_budget.min(Duration::from_millis(150));
     let token = control_token()?;
     let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-    let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
-        .map_err(|_| REFUSED.to_string())?;
-    prove(&mut stream, &token, &format!("127.0.0.1:{port}"))
+    let mut stream =
+        TcpStream::connect_timeout(&address, connect_timeout).map_err(|_| REFUSED.to_string())?;
+    let remaining = total_budget.saturating_sub(started.elapsed());
+    if remaining.is_zero() {
+        return Err(REFUSED.into());
+    }
+    let io_timeout = remaining.min(Duration::from_millis(250));
+    prove_with_timeout(
+        &mut stream,
+        &token,
+        &format!("127.0.0.1:{port}"),
+        io_timeout,
+    )
+}
+
+/// `/health` on a port not yet adopted: the address file's, proved before anything uses it.
+pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
+    let result = (|| {
+        let token = control_token()?;
+        let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+        let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
+            .map_err(|_| REFUSED.to_string())?;
+        prove(&mut stream, &token, &format!("127.0.0.1:{port}"))
+    })();
+    if port == crate::host_port::port() {
+        match &result {
+            Ok(Answer::Ready(health)) => record_health_lease(port, health.process_id),
+            Ok(Answer::Upgrading) | Err(_) => invalidate_health_lease(),
+        }
+    }
+    result
 }
 
 /// A socket kept for a native request: only a ready service is sent one.
@@ -75,16 +167,25 @@ pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health
 }
 
 fn prove(stream: &mut TcpStream, token: &str, host: &str) -> Result<Answer, String> {
+    prove_with_timeout(stream, token, host, Duration::from_millis(400))
+}
+
+fn prove_with_timeout(
+    stream: &mut TcpStream,
+    token: &str,
+    host: &str,
+    io_timeout: Duration,
+) -> Result<Answer, String> {
     let mut random = [0_u8; 32];
     File::open("/dev/urandom")
         .and_then(|mut source| source.read_exact(&mut random))
         .map_err(|_| REFUSED.to_string())?;
     let challenge = URL_SAFE_NO_PAD.encode(random);
     stream
-        .set_read_timeout(Some(Duration::from_millis(400)))
+        .set_read_timeout(Some(io_timeout))
         .map_err(|_| REFUSED.to_string())?;
     stream
-        .set_write_timeout(Some(Duration::from_millis(400)))
+        .set_write_timeout(Some(io_timeout))
         .map_err(|_| REFUSED.to_string())?;
     write!(
         stream,
@@ -302,5 +403,42 @@ mod tests {
         assert!(authenticate(&mut client, KEY).is_err());
         drop(client);
         server.join().unwrap();
+    }
+
+    #[test]
+    fn s14_low_risk_health_lease_expires_and_rejects_port_change() {
+        let now = Instant::now();
+        let lease = Some(HealthLease {
+            port: 4173,
+            process_id: Some(42),
+            verified_at: now,
+        });
+        assert!(health_lease_valid(lease, 4173, now, LOW_RISK_HEALTH_LEASE));
+        assert!(health_lease_valid(
+            lease,
+            4173,
+            now + Duration::from_millis(2499),
+            LOW_RISK_HEALTH_LEASE
+        ));
+        assert!(!health_lease_valid(
+            lease,
+            4173,
+            now + Duration::from_millis(2501),
+            LOW_RISK_HEALTH_LEASE
+        ));
+        assert!(!health_lease_valid(lease, 4174, now, LOW_RISK_HEALTH_LEASE));
+        assert!(!health_lease_valid(None, 4173, now, LOW_RISK_HEALTH_LEASE));
+        let with_active = response(
+            "fresh",
+            KEY,
+            r#"{"status":"ok","desktop_tui":true,"process_id":99,"active_work":3}"#,
+        );
+        match verify_response(&mut Cursor::new(&with_active), KEY, "fresh") {
+            Some(Answer::Ready(health)) => {
+                assert_eq!(health.process_id, Some(99));
+                assert_eq!(health.active_work, Some(3));
+            }
+            _ => panic!("verified health should parse process_id and active_work"),
+        }
     }
 }

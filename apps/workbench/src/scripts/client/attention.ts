@@ -216,7 +216,18 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       navigator.locks.request(name, { signal: held.signal }, lead).catch(() => {});
     }).catch(() => {});
   };
-  document.addEventListener("molis-work:attention-refresh", () => void read(true));
+  document.addEventListener("molis-work:attention-refresh", (event) => {
+    if (event?.detail?.reconnected === true) {
+      clearTimeout(retry);
+      delay = 1000;
+      lost = false;
+      if (!document.hidden && !gone.has(route("/api/attention"))) {
+        if (!listening) listen();
+        else if (!stream) void connect();
+      }
+    }
+    void read(true);
+  });
   // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads. A page told it is shown
   // while its stream is still open reads once: what changed outside the Host's word (a store a crash left) shows when it is looked at.
   document.addEventListener("visibilitychange", listen);

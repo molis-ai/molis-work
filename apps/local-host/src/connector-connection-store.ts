@@ -1,7 +1,8 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { existsSync } from "node:fs";
-import { openExistingBaselineHomeSqlite, createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { openConnectorsStore, CONNECTORS_BASELINE, CONNECTORS_HOME_STORE } from "./connectors-store.js";
+import { createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
+import { withConnectorsStore } from "./connectors-store.js";
 import { ConnectorProtocolStore, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
@@ -11,18 +12,12 @@ export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector
 
 type ReadProtocol = <T extends ConnectorProtocolConfiguration>(id: string) => T | null;
 
-/** Opens one short-lived connection to the Home-owned registry. */
+/** Borrows the Home's held connection to its registry for one synchronous operation. */
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T): T;
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: true): T | undefined;
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: "required"): T;
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: boolean | "required" = false): T | undefined {
-  const db = existingOnly ? openExistingBaselineHomeSqlite(homeDirectory, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE) : openConnectorsStore(homeDirectory);
-  if (!db) {
-    if (existingOnly === "required") throw connectorErrors["connector.connection.not_found"]("连接不存在");
-    return undefined;
-  }
-  try {
-    db.exec("PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
+  const run = (db: DatabaseSync) => {
     const secrets: ConnectorConnectionSecrets = {
       has: (ref) => runWithMolisWorkHome(homeDirectory, () => peekSealedEntry(ref) !== null),
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
@@ -34,7 +29,11 @@ export function withConnectorConnections<T>(homeDirectory: string, operation: (s
       binding => invalidateConnectorBindingRequests(homeDirectory, binding));
     observationsOf.set(store, new ConnectorObservationStore(db));
     return operation(store, <Protocol extends ConnectorProtocolConfiguration>(id: string) => new ConnectorProtocolStore(db).get<Protocol>(id));
-  } finally { db.close(); }
+  };
+  if (!existingOnly) return withConnectorsStore(homeDirectory, run);
+  const found = withConnectorsStore(homeDirectory, db => ({ value: run(db) }), true);
+  if (!found && existingOnly === "required") throw connectorErrors["connector.connection.not_found"]("连接不存在");
+  return found?.value;
 }
 
 /** Each open store's checks, on the same database handle: the observations live in the same file, so a read inside needs no second open. */
@@ -52,9 +51,5 @@ export function lastConnectorCheck(store: ConnectorConnectionStore, connectionId
 /** Unbinds every slot one plugin name holds in one scope (a sandboxed installation's image namespace, BL-491); the accounts stay. A Home without connectors is left as it is. */
 export function forgetConnectorPluginBindings(homeDirectory: string, scopeId: string, pluginId: string): number {
   if (!existsSync(homeSqlitePath(homeDirectory, "connectors"))) return 0;
-  const db = openConnectorsStore(homeDirectory);
-  try {
-    db.exec("PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
-    return forgetPluginBindings(db, scopeId, pluginId, binding => invalidateConnectorBindingRequests(homeDirectory, binding));
-  } finally { db.close(); }
+  return withConnectorsStore(homeDirectory, db => forgetPluginBindings(db, scopeId, pluginId, binding => invalidateConnectorBindingRequests(homeDirectory, binding)));
 }

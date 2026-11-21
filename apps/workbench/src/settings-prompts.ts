@@ -67,7 +67,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   const signedVersion = (ref) => ref ? ref.source.plugin_id + " · " + ref.source.plugin_version + (ref.source.publisher_signature ? " · " + short(ref.source.publisher_signature) : "") : "";
   const sourceTitle = (source) => source.kind === "system" ? globalThis.t.text("workbench.settings-prompts.system") + " · " + source.title : globalThis.t.text("workbench.settings-prompts.plugin") + " · " + source.title + (source.plugin_version ? " " + source.plugin_version : "")
     + (source.publisher_signature ? " · " + short(source.publisher_signature) : "")
-    + (source.origin === "generated" ? " · " + globalThis.t.text("workbench.settings-prompts.made-plugin-builder") : "") + (source.state === "disabled" ? " · " + globalThis.t.text("workbench.settings-prompts.disabled-not-called-now") : "");
+    + (source.state === "disabled" ? " · " + globalThis.t.text("workbench.settings-prompts.disabled-not-called-now") : "");
   const matches = (prompt) => {
     const role = focusedRole();
     if (role && !role.prompt_keys.includes(prompt.key)) return false;

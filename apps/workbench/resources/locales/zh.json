@@ -7252,7 +7252,6 @@
     "workbench.settings-prompts.instructions-system-plugins-give-model-characters-made-some": "系统与各插件发给 AI 的预设指令说明（提示词）。你可以按需微调措辞，修改从下次对话生效，随时可恢复默认；改文字不会放大系统权限。",
     "workbench.settings-prompts.last-used": "最近一次使用：{at}",
     "workbench.settings-prompts.loading": "正在读取…",
-    "workbench.settings-prompts.made-plugin-builder": "插件创作台生成",
     "workbench.settings-prompts.model-call-instructions": "模型调用指令 {n}",
     "workbench.settings-prompts.model-calls-not-registered-yet": "还没有登记的模型调用",
     "workbench.settings-prompts.no-matching-prompts": "没有找到匹配的指令说明",

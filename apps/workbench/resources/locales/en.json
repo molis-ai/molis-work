@@ -7793,7 +7793,6 @@
     "workbench.settings-prompts.instructions-system-plugins-give-model-characters-made-some": "Built-in instructions (prompts) sent to AI by the system and plugins. Edits apply from the next turn and can be reset anytime without changing permissions.",
     "workbench.settings-prompts.last-used": "Last used: {at}",
     "workbench.settings-prompts.loading": "Loading…",
-    "workbench.settings-prompts.made-plugin-builder": "made in Plugin Builder",
     "workbench.settings-prompts.model-call-instructions": "Model call instructions: {n}",
     "workbench.settings-prompts.model-calls-not-registered-yet": "Model calls not registered yet",
     "workbench.settings-prompts.no-matching-prompts": "No matching prompts",

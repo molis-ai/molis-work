@@ -189,8 +189,10 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
   });
   // The generated page stays on the Studio fixture's original store and action client. Its submit uses the real Host HTTP fence.
   const server = studioServer(options, token, mutations, { page: true, sessions, intercept(request, response, url) {
-    // The page's actions and the install sheet's own route are the real Host's.
-    if (url.pathname !== options.routePrefix + '/api/host/plugin-page-actions' && url.pathname !== options.routePrefix + '/api/host/plugin-page-install') return false;
+    // The page's actions and the install sheet's own route are the real Host's, and so are the style sheets: the sheet is pressed where
+    // the product draws it, which the fixture's own short style sheet does not do.
+    if (url.pathname !== options.routePrefix + '/api/host/plugin-page-actions' && url.pathname !== options.routePrefix + '/api/host/plugin-page-install'
+      && !(url.pathname.startsWith('/assets/') && url.pathname.endsWith('.css'))) return false;
     webRequest.call(gateway, request, response); return true;
   }, observe(request, response) {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
@@ -292,13 +294,15 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     const visualBuildId = await page.evaluate<string>('document.querySelector("[data-as-builds]").value');
     const beforeVisual = await (await fetch(origin + '/projects/' + projectId + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { build: { runs: Array<{ role: string }> } };
     await page.evaluate(`(async()=>{const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+${JSON.stringify(visualBuildId)}+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'visual',message:'收紧间距，保留完整内容'})});if(!r.ok)throw Error(await r.text())})()`);
-    await page.wait(`document.querySelector('[data-as-phase]').dataset.phase==='ready'&&!!document.querySelector('[data-pc-open="editor"]')`);
+    // A visual revision rebuilds and runs the interface acceptance in a browser of its own: on a busy machine that outlasts the default wait.
+    await page.wait(`document.querySelector('[data-as-phase]').dataset.phase==='ready'&&!!document.querySelector('[data-pc-open="editor"]')`, { timeoutMs: 90_000 });
     await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('间隔复习比集中复习记得更久')`);
     const afterVisual = await (await fetch(origin + '/projects/' + projectId + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as typeof beforeVisual;
     assert.equal(afterVisual.build.runs.filter(run => run.role === 'coder').length, beforeVisual.build.runs.filter(run => run.role === 'coder').length);
     await page.click('[data-as-compare]');
     await page.wait(`document.querySelector('[data-as-plugin]').inert&&!document.querySelector('[data-pc-open="editor"]')`);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /间隔复习比集中复习记得更久/);
+    // The previous interface draws its own read of the notes: wait for it, the frame is inert before the rows are back.
+    await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
     await page.click('[data-as-compare]');
     await page.wait(`!document.querySelector('[data-as-plugin]').inert&&!!document.querySelector('[data-pc-open="editor"]')`);
 
@@ -315,8 +319,8 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await sheet.staged('review');
     assert.match(await sheet.text(), /笔记墙/, 'the sheet names the package the Host verified');
     assert.equal(await outer.evaluate<boolean>(`(() => { const main = document.querySelector('[data-install-sheet] .install-sheet__main'); return !main || main.scrollHeight <= main.clientHeight + 0.5; })()`), true, 'one screen: nothing in the sheet scrolls');
-    await sheet.shot('review');
     await sheet.ready();
+    await sheet.shot('review');
     // Expanding a note calls the model through a platform capability, a switch that starts off (BL-701): the person turns it on here.
     await sheet.press('tile:capabilities:call');
     await sheet.wait(`document.querySelector('[data-install-sheet] [data-framed-control="tile:capabilities:call"]').dataset.on === 'true'`, 'the model switch is on');

@@ -285,7 +285,10 @@ export function renderTaskDecision(view: TaskDecisionView): string {
   const say = (key: string, values?: Record<string, string | number>) => uiText.text(`workbench.work-line.${key}`, values);
   const button = (role: string, variant: "primary" | "secondary", attrs: Record<string, string>) => renderButton({ variant, size: "sm", label: say(`decision-${role}`), attrs: { ...attrs, ...(view.busy ? { disabled: "" } : {}) } });
   const why = [view.from ? say("decision-from", { task: view.from }) : "", view.why ? say("decision-why", { why: view.why }) : ""].filter(Boolean).join(" · ");
-  const changes = view.changes.map(line => { const words = [line.label, line.value].filter(Boolean).join(" "); return `<li title="${escapeHtml(words)}">${icon("edit")}<span><b>${escapeHtml(line.label)}</b> ${escapeHtml(line.value)}</span></li>`; }).join("");
+  const changes = view.changes.map(line => {
+    const words = [line.label, line.value].filter(Boolean).join(" ");
+    return `<li title="${escapeHtml(words)}">${icon("edit")}<span><b>${escapeHtml(line.label)}</b> ${escapeHtml(line.value)}</span></li>`;
+  }).join("");
   const answers = view.revising
     ? `<textarea class="work-decision-note" data-decision-note rows="2" maxlength="2000" aria-label="${escapeHtml(say("decision-how"))}" placeholder="${escapeHtml(say("decision-how"))}"${view.busy ? " disabled" : ""}></textarea>`
       + `<div class="work-card-actions">${button("send", "primary", { "data-decision-send": "" })}${button("cancel", "secondary", { "data-decision-cancel": "" })}</div>`

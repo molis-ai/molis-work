@@ -73,7 +73,10 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       }
     }, { signal: gone.signal });
     // 「停到侧边」: the card goes to the side panel and the conversation closes (WLN-14).
-    if (!parked && !page) slot.addEventListener("click", event => { if (event.target instanceof Element && event.target.closest("[data-event-park]")) { park(card); host.parked?.(card.subject); } }, { signal: gone.signal });
+    if (!parked && !page) slot.addEventListener("click", event => { if (event.target instanceof Element && event.target.closest("[data-event-park]")) {
+      park(card);
+      host.parked?.(card.subject);
+    } }, { signal: gone.signal });
     const paint = () => {
       const event = line.event(card.subject), said = event ? line.facts(event) : uiText.text("workbench.work-line.not-on-line-now");
       // Under the name: who registered it, then how it stands in the colour of its mark (amber: your turn; red: it failed).
@@ -81,7 +84,13 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       if (facts.title !== said) {
         facts.title = said;
         if (page || !stands) facts.textContent = said;
-        else { const owner = document.createElement("span"), state = document.createElement("span"); owner.textContent = stands.owner; state.textContent = stands.state; state.dataset.g = stands.glyph; facts.replaceChildren(owner, state); }
+        else {
+          const owner = document.createElement("span"), state = document.createElement("span");
+          owner.textContent = stands.owner;
+          state.textContent = stands.state;
+          state.dataset.g = stands.glyph;
+          facts.replaceChildren(owner, state);
+        }
       }
       if (factOwner && factState) {
         const { owner, state } = event ? line.parts(event) : { owner: "", state: said };
@@ -96,7 +105,12 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
         named = shown ? mark + shown.title : "";
         if (!shown) name.replaceChildren();
         else if (page) name.textContent = shown.title;
-        else { const title = document.createElement("strong"); title.textContent = title.title = shown.title; name.innerHTML = mark; name.append(title); }
+        else {
+          const title = document.createElement("strong");
+          title.textContent = title.title = shown.title;
+          name.innerHTML = mark;
+          name.append(title);
+        }
       }
       // What the tasks behind it ask stands first; words being written into 「改一下」 stay through a redraw.
       const asked = line.decisions(card.subject);
@@ -114,25 +128,51 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       ask.hidden = !asked && !owners && !finished;
       // What it asks is named by its kind: something failed, changes to agree to, a choice to make — or that it is done.
       const tone = finished ? "done" : stands?.glyph === "bad" ? "failed" : asked.includes("work-decision-changes") ? "approve" : "decide";
-      if (askTitle && ask.dataset.tone !== tone) { ask.dataset.tone = tone; askTitle.textContent = uiText.text(`workbench.work-line.asked-${tone}`); }
+      if (askTitle && ask.dataset.tone !== tone) {
+        ask.dataset.tone = tone;
+        askTitle.textContent = uiText.text(`workbench.work-line.asked-${tone}`);
+      }
       // Where the owner declared no fuller display than its name (a chip), what it registered about the event stands in its own
       // words — what it says and its facts (POLISH-22) — once the display has been read; with nothing at all, one quiet line says so.
       const registered = event && !done && slim ? renderCardOwn({ words: event.content.trim(), facts: event.facts }) : "";
-      if (registered !== owned) { owned = registered; own.hidden = !registered; own.innerHTML = registered; }
+      if (registered !== owned) {
+        owned = registered;
+        own.hidden = !registered;
+        own.innerHTML = registered;
+      }
       // The name alone repeats the head: it stays only where it is what is asked (its 打开 is the way to answer).
       body.hidden = slim && !owners && body.childElementCount > 0 && Boolean(registered);
       if (nothing) nothing.hidden = Boolean(registered) || done || (body.childElementCount > 0 && !body.hidden) || !ask.hidden;
       const next = line.rows(card.subject), drawn = (done ? "done:" : "") + next;
       if (drawn === rows) return;
-      rows = drawn; tasks.hidden = !next; tasks.className = done ? "" : "work-card-tasks";
+      rows = drawn;
+      tasks.hidden = !next;
+      tasks.className = done ? "" : "work-card-tasks";
       tasks.innerHTML = !next ? "" : done ? renderCardProcess(next) : `<small>${uiText("workbench.work-line.tasks-behind")}</small>${next}`;
     };
     // The owner's words are the preview only where it declared no display: drawn once the display has been read.
-    const read = () => { void objects?.update().then(() => { composed = true; paint(); }, () => { composed = true; paint(); }); };
+    const read = () => { void objects?.update().then(() => {
+      composed = true;
+      paint();
+    }, () => {
+      composed = true;
+      paint();
+    }); };
     // With nothing drawn for it (an event its conversation is not about any more, an Assistant's work the line has not read) the place stays empty.
     slot.hidden = false;
     live.add(paint); paint(); read(); accepting.update();
-    return { update() { paint(); read(); accepting.update(); }, destroy() { gone.abort(); live.delete(paint); objects?.destroy(); accepting.destroy(); slot.replaceChildren(); if (!parked && !page) slot.hidden = true; } };
+    return { update() {
+      paint();
+      read();
+      accepting.update();
+    }, destroy() {
+      gone.abort();
+      live.delete(paint);
+      objects?.destroy();
+      accepting.destroy();
+      slot.replaceChildren();
+      if (!parked && !page) slot.hidden = true;
+    } };
   };
 
   // Parked cards (WLN-14): kept open in the side panel's 「对话」 page, the latest on top; the same card, so a press there is the press in the dialog.
@@ -141,7 +181,11 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
   const keep = () => { try { localStorage.setItem(key, JSON.stringify(parked.map(one => ({ subject: one.card.subject, composed: one.card.composed })))); } catch { /* this viewer's convenience only */ } };
   // The page is offered while a card is parked, and until the person leaves it once it is empty.
   // (Lists parked there are the lists' own: they stand in the same page, so the page counts what stands in it.)
-  const showSide = () => { const none = !side?.querySelector(":scope > .side-parked-card"); if (tab) tab.hidden = none && tab.getAttribute("aria-selected") !== "true"; if (side) side.dataset.empty = String(none); };
+  const showSide = () => {
+    const none = !side?.querySelector(":scope > .side-parked-card");
+    if (tab) tab.hidden = none && tab.getAttribute("aria-selected") !== "true";
+    if (side) side.dataset.empty = String(none);
+  };
   // A composed display is read while it can be seen: the cards read theirs when the page they stand on is shown.
   document.addEventListener("molis:side-shown", event => { showSide(); if ((event as CustomEvent<{ tab?: string }>).detail?.tab === "conversation") for (const one of parked) one.handle.update(); });
   const park = (card: EventCardOpen, open = true) => {

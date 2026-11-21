@@ -161,7 +161,12 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
   let open: InfoTab = "info", earlier = false, lastHtml = "";
   const counted = new Map<WorkListId, number>(), place = column.querySelector<HTMLElement>("[data-info-place]"), foot = lists.querySelector<HTMLElement>("[data-work-lists-foot]")!;
   const KEPT = `molis.work-line.parked-lists:${document.body.dataset.projectId ?? ""}`, side = document.querySelector<HTMLElement>("[data-side-parked]");
-  let parked: WorkListId[] = (() => { try { const kept = JSON.parse(localStorage.getItem(KEPT) ?? "[]") as unknown; return Array.isArray(kept) ? WORK_LISTS.map(one => one.id).filter(id => kept.includes(id)) : []; } catch { return []; } })();
+  let parked: WorkListId[] = (() => {
+    try {
+      const kept = JSON.parse(localStorage.getItem(KEPT) ?? "[]") as unknown;
+      return Array.isArray(kept) ? WORK_LISTS.map(one => one.id).filter(id => kept.includes(id)) : [];
+    } catch { return []; }
+  })();
   const rowsShown = () => open === "info" ? [] : [...body.querySelectorAll<HTMLElement>(`[data-work-list-rows="${open}"] :is([data-work-event],[data-task-open],[data-subtask-open],[data-work-lists-earlier]):not([disabled])`)];
   const focus = () => { for (const node of document.querySelectorAll<HTMLElement>("[data-work-lists] [data-work-event], [data-parked-list] [data-work-event]")) { if (read.current(node.dataset.workEvent ?? "")) node.setAttribute("aria-current", "true"); else node.removeAttribute("aria-current"); } };
   const rowsOf = (id: WorkListId, all: boolean, fresh: (event: WorkLineEvent) => boolean) => {
@@ -174,13 +179,25 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     for (const node of side.querySelectorAll<HTMLElement>(":scope > [data-parked-list-slot]")) if (!parked.includes(node.dataset.parkedListSlot as WorkListId)) node.remove();
     for (const id of parked) {
       let slot = side.querySelector<HTMLElement>(`:scope > [data-parked-list-slot="${id}"]`);
-      if (!slot) { slot = document.createElement("div"); slot.className = "side-parked-card"; slot.dataset.parkedListSlot = id; side.prepend(slot); slot.innerHTML = renderParkedList({ id, rows: "" }); }
+      if (!slot) {
+        slot = document.createElement("div");
+        slot.className = "side-parked-card";
+        slot.dataset.parkedListSlot = id;
+        side.prepend(slot);
+        slot.innerHTML = renderParkedList({ id, rows: "" });
+      }
       const rows = slot.querySelector<HTMLElement>("[data-parked-rows]")!, html = rowsOf(id, true, () => false);
-      if (rows.dataset.drawn !== html) { rows.dataset.drawn = html; rows.innerHTML = html; }
+      if (rows.dataset.drawn !== html) {
+        rows.dataset.drawn = html;
+        rows.innerHTML = html;
+      }
     }
     read.parkedChanged();
   };
-  const keepParked = () => { try { localStorage.setItem(KEPT, JSON.stringify(parked)); } catch { /* this viewer's convenience only */ } paintParked(); };
+  const keepParked = () => {
+    try { localStorage.setItem(KEPT, JSON.stringify(parked)); } catch { /* this viewer's convenience only */ }
+    paintParked();
+  };
   const draw = (fresh: (event: WorkLineEvent) => boolean = () => false) => {
     const active = document.activeElement instanceof HTMLElement && body.contains(document.activeElement) ? document.activeElement : null;
     const focused = active ? (["workEvent", "taskOpen", "subtaskOpen"] as const).flatMap(key => active.dataset[key] ? [`[data-${key.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase())}="${CSS.escape(active.dataset[key]!)}"]`] : [])[0] : undefined;
@@ -202,9 +219,16 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
       key.setAttribute("aria-label", uiText.text("workbench.work-line.list-count", { name, n }));
       // Something came into this group: the key that can be seen lights once; a piece of work just handed out travels from the send key to 在办.
       if (n > (counted.get(id) ?? n) && key.offsetParent) {
-        const light = () => { key.setAttribute("data-arrived", ""); setTimeout(() => key.removeAttribute("data-arrived"), 700); };
+        const light = () => {
+          key.setAttribute("data-arrived", "");
+          setTimeout(() => key.removeAttribute("data-arrived"), 700);
+        };
         const send = id === "now" && handed ? line.querySelector<HTMLElement>("[data-composer-send]") : null;
-        if (send?.offsetParent && read.carry) read.carry(send, () => { key.setAttribute("data-craft-carried", ""); setTimeout(() => key.removeAttribute("data-craft-carried"), 700); light(); });
+        if (send?.offsetParent && read.carry) read.carry(send, () => {
+          key.setAttribute("data-craft-carried", "");
+          setTimeout(() => key.removeAttribute("data-craft-carried"), 700);
+          light();
+        });
         else light();
       }
     }
@@ -212,9 +236,14 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     // 信息 with no event in front says how the place stands, from the same read.
     if (place) {
       const html = renderPlaceCard({ waiting: read.waiting(), counts: { done: read.wing("done").length, now: read.wing("now").length, next: read.wing("next").length }, tasks: read.unplaced() });
-      if (place.dataset.drawn !== html) { place.dataset.drawn = html; place.innerHTML = html; }
+      if (place.dataset.drawn !== html) {
+        place.dataset.drawn = html;
+        place.innerHTML = html;
+      }
     }
-    titled(); paintParked(); focus();
+    titled();
+    paintParked();
+    focus();
   };
   // The list's head says how many it holds.
   const titled = () => { if (open !== "info") heading.textContent = uiText.text("workbench.work-line.list-total-n", { n: read.wing(open).length }); };
@@ -222,11 +251,19 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     if (id !== open) read.closeFloat();
     open = id;
     if (id !== "done") earlier = false;
-    column.dataset.info = open; lists.hidden = open === "info";
-    if (open !== "info") { lists.setAttribute("aria-labelledby", `info-tab-${open}`); foot.textContent = uiText.text(`workbench.work-line.list-${open}-hint`); }
+    column.dataset.info = open;
+    lists.hidden = open === "info";
+    if (open !== "info") {
+      lists.setAttribute("aria-labelledby", `info-tab-${open}`);
+      foot.textContent = uiText.text(`workbench.work-line.list-${open}-hint`);
+    }
     titled();
     for (const rows of body.querySelectorAll<HTMLElement>("[data-work-list-rows]")) rows.hidden = rows.dataset.workListRows !== open;
-    for (const tab of tabs.querySelectorAll<HTMLElement>("[data-info-tab]")) { const on = tab.dataset.infoTab === open; tab.setAttribute("aria-selected", String(on)); tab.tabIndex = on ? 0 : -1; }
+    for (const tab of tabs.querySelectorAll<HTMLElement>("[data-info-tab]")) {
+      const on = tab.dataset.infoTab === open;
+      tab.setAttribute("aria-selected", String(on));
+      tab.tabIndex = on ? 0 : -1;
+    }
     for (const key of counts.querySelectorAll<HTMLElement>("[data-work-list]")) key.setAttribute("aria-expanded", String(key.dataset.workList === open && read.dialog()));
     if (give) (open === "info" ? tabs.querySelector<HTMLElement>('[data-info-tab="info"]') : rowsShown()[0] ?? tabs.querySelector<HTMLElement>(`[data-info-tab="${open}"]`))?.focus();
   };
@@ -234,8 +271,10 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
   counts.addEventListener("click", event => {
     const key = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-work-list]") : null;
     if (!key) return;
-    line.removeAttribute("data-stack-open"); counts.querySelector("[data-work-stack-toggle]")?.setAttribute("aria-expanded", "false");
-    read.dialog(true); show(key.dataset.workList as WorkListId, true);
+    line.removeAttribute("data-stack-open");
+    counts.querySelector("[data-work-stack-toggle]")?.setAttribute("aria-expanded", "false");
+    read.dialog(true);
+    show(key.dataset.workList as WorkListId, true);
   });
   column.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null, tab = target?.closest<HTMLElement>("[data-info-tab]");
@@ -245,7 +284,9 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     else if (target?.closest("[data-work-lists-earlier]")) { earlier = true; draw(); rowsShown()[EARLIER_AFTER]?.focus(); }
     else if (target?.closest("[data-work-lists-pin]") && open !== "info") {
       // Parked: the list stays in the side panel, the column goes back to what is known about the thing in front.
-      if (!parked.includes(open)) parked = [...parked, open]; keepParked(); show("info");
+      if (!parked.includes(open)) parked = [...parked, open];
+      keepParked();
+      show("info");
       document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "conversation", focus: false }, cancelable: true }));
     }
   });
@@ -253,14 +294,26 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     const target = event.target instanceof Element ? event.target : null, back = target?.closest<HTMLElement>("[data-list-unpark]"), close = target?.closest<HTMLElement>("[data-list-close]");
     const id = (back?.dataset.listUnpark ?? close?.dataset.listClose) as WorkListId | undefined;
     if (!id) return;
-    parked = parked.filter(one => one !== id); keepParked();
-    if (back) { read.dialog(true); show(id, true); }
+    parked = parked.filter(one => one !== id);
+    keepParked();
+    if (back) {
+      read.dialog(true);
+      show(id, true);
+    }
   });
   tabs.addEventListener("keydown", event => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const all = [...tabs.querySelectorAll<HTMLElement>("[data-info-tab]")], at = all.indexOf(document.activeElement as HTMLElement);
-    if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); const to = all[(at + (event.key === "ArrowRight" ? 1 : -1) + all.length) % all.length]!; show(to.dataset.infoTab as InfoTab); to.focus(); }
-    else if (event.key === "ArrowDown" && open !== "info") { event.preventDefault(); rowsShown()[0]?.focus(); }
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      const to = all[(at + (event.key === "ArrowRight" ? 1 : -1) + all.length) % all.length]!;
+      show(to.dataset.infoTab as InfoTab);
+      to.focus();
+    }
+    else if (event.key === "ArrowDown" && open !== "info") {
+      event.preventDefault();
+      rowsShown()[0]?.focus();
+    }
   });
   lists.addEventListener("keydown", event => {
     if (event.metaKey || event.ctrlKey || event.altKey || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
@@ -271,13 +324,17 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
   // Esc, innermost first: a list goes back to 信息 before the conversation closes (the float and the menus take theirs earlier).
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || open === "info" || dialog.hidden || document.querySelector("dialog[open]")) return;
-    event.preventDefault(); event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
     show("info", column.contains(document.activeElement));
   });
   // The conversation closed: the next time it opens on what is known about the thing in front.
   new MutationObserver(() => {
     line.toggleAttribute("data-dialog-open", !dialog.hidden);
-    if (dialog.hidden) { read.closeFloat(); show("info"); } else show(open);
+    if (dialog.hidden) {
+      read.closeFloat();
+      show("info");
+    } else show(open);
   }).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
   line.toggleAttribute("data-dialog-open", !dialog.hidden);
   return { draw, focus, show, shown: () => open };
@@ -322,7 +379,10 @@ function installStack({ line, counts, stack }: FootParts & { readonly stack: HTM
     const item = (!held && prefer ? all.find(one => one.id === prefer) : undefined) ?? all.find(one => one.id === front) ?? all[0]!;
     front = item.id;
     const focusSelector = stackFocusTarget(document.activeElement, stack), html = item.draw(all.length - 1);
-    if (stack.dataset.drawn !== html) { stack.dataset.drawn = html; stack.innerHTML = html; }
+    if (stack.dataset.drawn !== html) {
+      stack.dataset.drawn = html;
+      stack.innerHTML = html;
+    }
     stack.dataset.count = String(all.length);
     if (focusSelector && !stack.contains(document.activeElement)) (stack.querySelector<HTMLElement>(focusSelector) ?? stack.querySelector<HTMLElement>("button"))?.focus({ preventScroll: true });
   };
@@ -393,23 +453,41 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // Where a thing stands is its state family alone (POLISH-40): what asks for the person — an answer, a failure, something to
   // check, an interruption — is a card of the stack and in no list; what is being done or waits its turn is 在办; what is done
   // is 办完; the rest (not begun, paused, a suggestion) is 接下来. Being opened or talked about moves nothing.
-  const asksYou = (event: WorkLineEvent) => { const state = stateOf(event); return state === "wait" || state === "failed" || state === "verify" || event.line_state === "interrupted"; };
-  const groupOf = (event: WorkLineEvent): WorkListId | "you" => { const state = stateOf(event); return asksYou(event) ? "you" : state === "done" || event.wing === "done" ? "done" : (state === "running" || state === "queued") && !event.suggestion ? "now" : "next"; };
+  const asksYou = (event: WorkLineEvent) => {
+    const state = stateOf(event);
+    return state === "wait" || state === "failed" || state === "verify" || event.line_state === "interrupted";
+  };
+  const groupOf = (event: WorkLineEvent): WorkListId | "you" => {
+    const state = stateOf(event);
+    return asksYou(event) ? "you" : state === "done" || event.wing === "done" ? "done" : (state === "running" || state === "queued") && !event.suggestion ? "now" : "next";
+  };
   const wing = (id: WorkListId) => [...events.values()].filter(event => groupOf(event) === id).sort((a, b) => Number(a.wing !== id) - Number(b.wing !== id) || a.rank - b.rank);
 
   // A row of a list: the event, then the tasks behind it under it, a sub-agent's step one level further in.
   const rowOf = (event: WorkLineEvent, fresh: boolean) => `<div class="work-list-item"${event.suggestion ? " data-suggested" : ""}>${renderLineEvent(view(event, fresh))}${tasks.rows(event.subject)}</div>`;
   const list = installLists({ line, counts, column, tabs, lists, body, sources, heading, dialog }, {
-    wing, row: rowOf, unplaced: () => tasks.unplaced(), waiting: () => waitingCount(), current: id => { const event = events.get(id); return event ? keyOf(event.subject) === focused : false; },
+    wing, row: rowOf, unplaced: () => tasks.unplaced(), waiting: () => waitingCount(), current: id => {
+      const event = events.get(id);
+      return event ? keyOf(event.subject) === focused : false;
+    },
     issues: () => [...new Set(issues.map(issue => issue.title))].map(renderLineUnreadable).join(""),
-    dialog: open => { if (open && dialog.hidden) host.dialog?.(true); return !dialog.hidden; },
+    dialog: open => {
+      if (open && dialog.hidden) host.dialog?.(true);
+      return !dialog.hidden;
+    },
     closeFloat: () => tasks.close(), parkedChanged: () => cards.sideChanged(), carry: craft?.carry,
   });
   // What waits for the person, in the stack's order: the events (the ones beside now first), the tasks that belong to no event,
   // then the Assistant's main conversation when it waits for a confirmation and is not the one in front.
   // POLISH-44: direct answers only when one single-step decision asks with <=2 approve/reject choices, no revise input, and no pending changes list.
-  const directOf = (qs: ReturnType<typeof tasks.questions>) => { const ask = qs[0]; return qs.length === 1 && ask && !ask.hasChanges && !ask.answers.includes("revise") && ask.answers.length > 0 && ask.answers.length <= 2 ? ask : undefined; };
-  const decisionOf = (qs: ReturnType<typeof tasks.questions>) => { const direct = directOf(qs); return direct ? { decision: { task: direct.task, id: direct.id, busy: direct.busy || line.hasAttribute("data-checking"), answers: direct.answers as ("approve" | "reject")[] } } : {}; };
+  const directOf = (qs: ReturnType<typeof tasks.questions>) => {
+    const ask = qs[0];
+    return qs.length === 1 && ask && !ask.hasChanges && !ask.answers.includes("revise") && ask.answers.length > 0 && ask.answers.length <= 2 ? ask : undefined;
+  };
+  const decisionOf = (qs: ReturnType<typeof tasks.questions>) => {
+    const direct = directOf(qs);
+    return direct ? { decision: { task: direct.task, id: direct.id, busy: direct.busy || line.hasAttribute("data-checking"), answers: direct.answers as ("approve" | "reject")[] } } : {};
+  };
   const waitingEvents = () => [...events.values()].filter(asksYou).sort((a, b) => Number(a.wing !== "now") - Number(b.wing !== "now") || a.rank - b.rank);
   // What wants a look and is not already a card here: one object is never two cards. (An event about another object — an
   // Inbox entry about a source — does not cover that object: its row in the list is where it is corrected or put away.)
@@ -434,10 +512,12 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const paintExpand = () => {
     if (!expand || !dot) return;
     const open = !dialog.hidden, waits = !open && Boolean(host.mainWaiting?.()), said = !open && unread;
-    dot.hidden = !waits && !said; dot.toggleAttribute("data-waits", waits);
+    dot.hidden = !waits && !said;
+    dot.toggleAttribute("data-waits", waits);
     expand.setAttribute("aria-expanded", String(open));
     const name = uiText.text(open ? "workbench.work-line.close-conversation" : waits ? "workbench.work-line.open-conversation-waits" : said ? "workbench.work-line.open-conversation-reply" : "workbench.work-line.open-conversation");
-    expand.setAttribute("aria-label", name); expand.title = name;
+    expand.setAttribute("aria-label", name);
+    expand.title = name;
   };
   expand?.addEventListener("click", () => host.dialog?.(dialog.hidden));
   // POLISH-21: a press in the work — the sheet, the tab strip, the side panel; a plugin's own page says so itself — puts the
@@ -452,7 +532,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const sheet = document.querySelector<HTMLElement>("[data-tab-workspace]");
   if (sheet) new MutationObserver(() => { if (sheet.dataset.exclusive) putAway(); }).observe(sheet, { attributes: true, attributeFilter: ["data-exclusive"] });
   // Closed on an event that still waits: its card is the one in front again — the person was just on it (POLISH-43).
-  new MutationObserver(() => { if (!dialog.hidden) unread = false; paintExpand(); cardStack.paint(dialog.hidden ? [...events.values()].find(one => keyOf(one.subject) === focused)?.id : undefined); }).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
+  new MutationObserver(() => {
+    if (!dialog.hidden) unread = false;
+    paintExpand();
+    cardStack.paint(dialog.hidden ? [...events.values()].find(one => keyOf(one.subject) === focused)?.id : undefined);
+  }).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
 
   const adopt = (result: WorkLineReadResult) => {
     const before = events;
@@ -479,7 +563,12 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // The tasks this page heard wait on the person, by task and decision (WLN-06): the row stays, folded, once the task no longer waits.
   const asked = new Map<string, { at: string; provider: string; title: string; event: WorkLineEvent; settled: boolean }>();
   // An event opened from a task's card or a parked card is the press on it anywhere: its conversation and its page.
-  const withPage: WorkBarHost = { ...host, openEvent(event, quiet) { const found = quiet ? undefined : eventOf(event.subject); if (found) pressing = keyOf(found.subject); host.openEvent(event, quiet); if (found) openPage(found); } };
+  const withPage: WorkBarHost = { ...host, openEvent(event, quiet) {
+    const found = quiet ? undefined : eventOf(event.subject);
+    if (found) pressing = keyOf(found.subject);
+    host.openEvent(event, quiet);
+    if (found) openPage(found);
+  } };
   const tasks = installTasks(withPage, {
     events: () => events.values(), press, keyOf, hue, again, request,
     repaint: () => {
@@ -495,9 +584,15 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // Requirements hang on the event's own object or on the tasks done for it; the information asks about both.
   const acceptance = installAcceptance(host.route, request, open => host.dialog?.(open));
   const cards = installEventCards(withPage, { event: eventOf, keyOf, press, rows: tasks.rows, decisions: tasks.decisions,
-    acceptance: (slot, subject) => acceptance.overview(slot, () => { const event = eventOf(subject); return [...(event ? [{ provider_id: event.source.provider_id, subject }] : []), ...tasks.subjects(subject)]; }),
+    acceptance: (slot, subject) => acceptance.overview(slot, () => {
+      const event = eventOf(subject);
+      return [...(event ? [{ provider_id: event.source.provider_id, subject }] : []), ...tasks.subjects(subject)];
+    }),
     // Who registered it, then how it stands: the owner's own line about it, or that it waits for the person.
-    parts: event => { const said = view(event, false), group = groupOf(event); return { owner: event.origin.title, state: said.stateLabel || said.note || uiText.text(group === "you" ? "workbench.work-line.waiting-for-you" : `workbench.work-line.list-${group}`), glyph: glyphOfEvent(said) }; },
+    parts: event => {
+      const said = view(event, false), group = groupOf(event);
+      return { owner: event.origin.title, state: said.stateLabel || said.note || uiText.text(group === "you" ? "workbench.work-line.waiting-for-you" : `workbench.work-line.list-${group}`), glyph: glyphOfEvent(said) };
+    },
     facts: event => { const { stateLabel, note } = view(event, false); return [uiText.text("workbench.work-line.registered-by", { plugin: event.origin.title }), stateLabel || note].filter(Boolean).join(" · "); } });
 
   // A press on an event, wherever it is drawn (a list in the column or parked, a card of the stack): its conversation and its
@@ -505,23 +600,34 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // The event's page, at the top (POLISH-68): where its owner says it opens; an owner with no page for it gets the one the
   // platform draws from what it declared — a tab of the work area like any other, kept with the layout.
   const pages = new Map<string, { root: HTMLElement; handle: EventCardHandle }>();
-  line.dataset.systemViewOwner = EVENT_PAGES; line.dataset.systemViewIcon = "flag";
+  line.dataset.systemViewOwner = EVENT_PAGES;
+  line.dataset.systemViewIcon = "flag";
   const openPage = (event: WorkLineEvent) => {
     const to = event.open;
-    if (to) { if (to.kind === "surface" || !to.id) host.openSurface(to.surface); else host.openItem(to.surface, to.id, to.title); return; }
+    if (to) {
+      if (to.kind === "surface" || !to.id) host.openSurface(to.surface); else host.openItem(to.surface, to.id, to.title);
+      return;
+    }
     document.dispatchEvent(new CustomEvent("molis-work:system-view-open", { detail: { owner: EVENT_PAGES, id: JSON.stringify([event.subject.kind, event.subject.id]), title: event.title }, cancelable: true }));
   };
   document.addEventListener("molis-work:system-view-changed", changed => {
     const open = ((changed as CustomEvent<{ open?: Array<{ owner: string; id: string; tab_id: string }> }>).detail?.open ?? []).filter(tab => tab.owner === EVENT_PAGES);
-    for (const [id, page] of pages) if (!open.some(tab => tab.tab_id === id) || !page.root.isConnected) { page.handle.destroy(); pages.delete(id); }
+    for (const [id, page] of pages) if (!open.some(tab => tab.tab_id === id) || !page.root.isConnected) {
+      page.handle.destroy();
+      pages.delete(id);
+    }
     for (const tab of open) {
       const root = document.querySelector<HTMLElement>(`[data-system-tab="${CSS.escape(tab.tab_id)}"]`);
       if (!root || pages.has(tab.tab_id)) continue;
       let subject: ActionSubject | null = null;
-      try { const [kind, id] = JSON.parse(tab.id) as unknown[]; if (typeof kind === "string" && typeof id === "string") subject = { kind, id }; } catch { /* not a page of ours */ }
+      try {
+        const [kind, id] = JSON.parse(tab.id) as unknown[];
+        if (typeof kind === "string" && typeof id === "string") subject = { kind, id };
+      } catch { /* not a page of ours */ }
       if (!subject) continue;
       const slot = document.createElement("div");
-      slot.className = "work-event-page-slot"; root.replaceChildren(slot);
+      slot.className = "work-event-page-slot";
+      root.replaceChildren(slot);
       pages.set(tab.tab_id, { root, handle: cards.page(slot, { subject, title: "", mark: "", owner: "", composed: true }) });
     }
   });
@@ -533,17 +639,28 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const front = host.front?.();
     if (!front || ("owner" in front && front.owner !== EVENT_PAGES)) return;
     const found = [...events.values()].find(one => "owner" in front ? pageKey(one) === front.id : Boolean(front.id) && one.open?.kind !== "surface" && one.open?.surface === front.surface && one.open?.id === front.id);
-    if (found) { const at = keyOf(found.subject); paged = at; if (at !== focused && at !== pressing) { list.show("info"); host.openEvent(press(found), true); } }
+    if (found) {
+      const at = keyOf(found.subject);
+      paged = at;
+      if (at !== focused && at !== pressing) {
+        list.show("info");
+        host.openEvent(press(found), true);
+      }
+    }
     // Only the event whose page was in front gives way: a conversation opened another way (a work chosen in 全部工作, the one a
     // reload comes back to) stays where the person left it.
-    else { if (paged && paged === focused) host.toNow(true); paged = ""; }
+    else {
+      if (paged && paged === focused) host.toNow(true);
+      paged = "";
+    }
   };
   document.addEventListener("molis-work:place-changed", () => queueMicrotask(follow));
   const pressEvent = (pressed: WorkLineEvent, from: Element) => {
     if (from.closest("[data-work-stack]")) cardStack.close();
     if (!from.closest("[data-work-lists]")) list.show("info");
     pressing = keyOf(pressed.subject);
-    host.openEvent(press(pressed)); openPage(pressed);
+    host.openEvent(press(pressed));
+    openPage(pressed);
   };
   document.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null, within = target?.closest("[data-work-line],[data-work-lists],[data-parked-list]");
@@ -551,12 +668,24 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     if (target.closest("[data-work-line-retry]")) { again(); return; }
     if (target.closest("[data-work-line-checking]")) { again(); return; }
     const looked = target.closest<HTMLElement>("[data-work-stack-look]");
-    if (looked) { host.openAttention?.(looked, toLook()); return; }
-    if (target.closest("[data-work-stack-main]") || (!target.closest("button,a,input,textarea") && target.closest("[data-work-stack-card][data-main]"))) { cardStack.close(); list.show("info"); host.openMain?.(); return; }
+    if (looked) {
+      host.openAttention?.(looked, toLook());
+      return;
+    }
+    if (target.closest("[data-work-stack-main]") || (!target.closest("button,a,input,textarea") && target.closest("[data-work-stack-card][data-main]"))) {
+      cardStack.close();
+      list.show("info");
+      host.openMain?.();
+      return;
+    }
     const openId = target.closest<HTMLElement>("[data-work-event]")?.dataset.workEvent
       ?? target.closest<HTMLElement>("[data-work-stack-open]")?.dataset.workStackOpen
       ?? (!target.closest("button,a,input,textarea") ? target.closest<HTMLElement>("[data-work-stack-card]")?.dataset.workStackCard : undefined);
-    if (openId?.startsWith("task:")) { cardStack.close(); tasks.open(openId.slice(5)); return; }
+    if (openId?.startsWith("task:")) {
+      cardStack.close();
+      tasks.open(openId.slice(5));
+      return;
+    }
     const pressed = events.get(openId ?? "");
     if (pressed) pressEvent(pressed, target);
   });
@@ -582,11 +711,17 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       }
     }
     // A page restored with the layout: the conversation follows the event whose page is in front, once the line is read.
-    if (read && !followed) { followed = true; follow(); }
+    if (read && !followed) {
+      followed = true;
+      follow();
+    }
     const tasksChanged = table ? tasks.take(table, started ?? 0, sequence) : false;
     const lineDrawn = read ? draw(read, before) : false;
     if (!lineDrawn && (tasksChanged || (read && wasChecking))) {
-      if (tasksChanged) { list.draw(); paintWaiting(waitingCount()); }
+      if (tasksChanged) {
+        list.draw();
+        paintWaiting(waitingCount());
+      }
       cardStack.paint();
     }
     tasks.offline(null);
@@ -597,7 +732,9 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   document.addEventListener("molis-work:attention-unreachable", event => {
     // Not heard since this page opened: as of the line it kept.
     const since = (event as CustomEvent<{ since?: string | null }>).detail?.since ?? knownAt;
-    checking(since ?? ""); tasks.offline(since ? format.date(since, "time") : ""); list.draw();
+    checking(since ?? "");
+    tasks.offline(since ? format.date(since, "time") : "");
+    list.draw();
   });
   try {
     const last = JSON.parse(sessionStorage.getItem(kept) ?? "null") as { at: string; line: WorkLineReadResult } | null;
@@ -605,7 +742,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   } catch { /* nothing kept */ }
   paintExpand();
   return {
-    event(subject) { const found = eventOf(subject); return found ? { ...press(found), group: groupOf(found) } : null; },
+    event(subject) {
+      const found = eventOf(subject);
+      return found ? { ...press(found), group: groupOf(found) } : null;
+    },
     card: cards.mount,
     events: () => [...events.values()].map(press),
     placed(task) {
@@ -621,10 +761,29 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       for (const [key, one] of asked) if (!live.has(key) && !unread.has(one.provider)) one.settled = true;
       return [...asked].map(([key, one]) => ({ key, at: one.at, settled: one.settled, html: renderReplyWaiting({ key, task: one.title, event: one.event.title, settled: one.settled }) }));
     },
-    goWaiting(key) { const one = asked.get(key); if (one && !one.settled) { const event = events.get(one.event.id) ?? one.event; list.show("info"); pressing = keyOf(event.subject); host.openEvent(press(event)); openPage(event); } },
+    goWaiting(key) {
+      const one = asked.get(key);
+      if (one && !one.settled) {
+        const event = events.get(one.event.id) ?? one.event;
+        list.show("info");
+        pressing = keyOf(event.subject);
+        host.openEvent(press(event));
+        openPage(event);
+      }
+    },
     // The outline moves with the event the conversation is about; the event keeps its place in its list (WLN-07).
-    focus(subject) { focused = subject ? keyOf(subject) : ""; pressing = ""; list.focus(); list.draw(); cardStack.paint(); },
-    conversation(state) { if (state.unread && dialog.hidden) unread = true; paintExpand(); cardStack.paint(); },
+    focus(subject) {
+      focused = subject ? keyOf(subject) : "";
+      pressing = "";
+      list.focus();
+      list.draw();
+      cardStack.paint();
+    },
+    conversation(state) {
+      if (state.unread && dialog.hidden) unread = true;
+      paintExpand();
+      cardStack.paint();
+    },
     showInfo: () => list.show("info"),
   };
 }

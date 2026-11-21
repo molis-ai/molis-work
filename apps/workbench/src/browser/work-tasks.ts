@@ -46,7 +46,10 @@ export function keepNote(root: ParentNode, paint: () => void): void {
   const now = root.querySelector<HTMLTextAreaElement>("[data-decision-note]");
   if (!had || !now) return;
   now.value = had.value;
-  if (had.focus) { now.focus(); now.setSelectionRange(had.at, had.at); }
+  if (had.focus) {
+    now.focus();
+    now.setSelectionRange(had.at, had.at);
+  }
 }
 
 /**
@@ -65,17 +68,33 @@ function installDecisionAnswers(host: WorkBarHost, request: TaskPanelLine["reque
     const key = asked(task, id), root = part.closest<HTMLElement>("[data-event-card],[data-work-task-float]") ?? document.body;
     const field = () => root.querySelector<HTMLTextAreaElement>(`[data-task-decision="${CSS.escape(id)}"][data-task="${CSS.escape(task.id)}"] [data-decision-note]`);
     const send = (role: string, note?: string) => {
-      deciding.add(key); ports.repaint();
+      deciding.add(key);
+      ports.repaint();
       void request(host.route("/api/mainline/tasks/decide"), { body: { source: task.source, subject: task.subject, decision: id, role, ...(note ? { note } : {}) } })
-        .then(() => { if (revising === key) revising = ""; }).catch(ports.failed).finally(() => { deciding.delete(key); ports.repaint(); ports.again(); });
+        .then(() => { if (revising === key) revising = ""; }).catch(ports.failed).finally(() => {
+          deciding.delete(key);
+          ports.repaint();
+          ports.again();
+        });
     };
     const role = target.closest<HTMLElement>("[data-decision-answer]")?.dataset.decisionAnswer;
-    if (role === "revise") { revising = key; ports.repaint(); field()?.focus(); }
+    if (role === "revise") {
+      revising = key;
+      ports.repaint();
+      field()?.focus();
+    }
     else if (role) send(role);
-    else if (target.closest("[data-decision-cancel]")) { revising = ""; ports.repaint(); }
+    else if (target.closest("[data-decision-cancel]")) {
+      revising = "";
+      ports.repaint();
+    }
     else if (target.closest("[data-decision-send]")) {
       const words = field(), note = words?.value.trim() ?? "";
-      if (!note) { words?.setAttribute("aria-invalid", "true"); words?.focus(); return; }
+      if (!note) {
+        words?.setAttribute("aria-invalid", "true");
+        words?.focus();
+        return;
+      }
       send("revise", note);
     } else if (target.closest("[data-decision-go]")) ports.go(task);
   };
@@ -88,12 +107,16 @@ function installDecisionKeys(close: () => boolean): void {
     // In a decision's field: Enter sends the words, Escape puts the field away; neither reaches the dialog or the panel.
     const note = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-decision-note]") : null, part = note?.closest<HTMLElement>("[data-task-decision]");
     if (note && part && !event.isComposing && (event.key === "Escape" || event.key === "Enter" && !event.shiftKey)) {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
       part.querySelector<HTMLElement>(event.key === "Escape" ? "[data-decision-cancel]" : "[data-decision-send]")?.click();
     }
   }, true);
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !event.isComposing && !event.defaultPrevented && close()) { event.preventDefault(); event.stopPropagation(); }
+    if (event.key === "Escape" && !event.isComposing && !event.defaultPrevented && close()) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   });
 }
 
@@ -194,8 +217,20 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
   let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false, wanted = "", offlineSince: string | null = null;
   const rowOf = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-task-open="${CSS.escape(id)}"]`)].find(row => row.getClientRects().length);
   const shell = installTaskFloatShell({ dialog: "assistant-panel",
-    shown() { float = shell.root; again(); paintCard(); },
-    hidden(content) { const was = carded; accepting?.destroy(); accepting = undefined; float = null; carded = ""; placing = false; if (!content && was) rowOf(was)?.focus({ preventScroll: true }); },
+    shown() {
+      float = shell.root;
+      again();
+      paintCard();
+    },
+    hidden(content) {
+      const was = carded;
+      accepting?.destroy();
+      accepting = undefined;
+      float = null;
+      carded = "";
+      placing = false;
+      if (!content && was) rowOf(was)?.focus({ preventScroll: true });
+    },
     // Back from a sub-agent's conversation: the task's card it was opened over, else the column itself.
     back() { if (carded) paintCard(); else shell.hide(); },
   });
@@ -243,17 +278,28 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     const shown = tasks.find(task => task.id === carded);
     if (!float || shell.content) return;
     // A task that ended leaves the table: its card goes, and the column shows again.
-    if (!shown) { if (carded) shell.hide(); return; }
+    if (!shown) {
+      if (carded) shell.hide();
+      return;
+    }
     const on = shell.cards!;
-    keepNote(on, () => { on.innerHTML = card(shown); }); installWorkLineLayout(document);
+    keepNote(on, () => { on.innerHTML = card(shown); });
+    installWorkLineLayout(document);
     // A task's card sums up the requirements hung on the task itself: a task done for no event has no event to say it.
-    accepting?.destroy(); accepting = undefined;
+    accepting?.destroy();
+    accepting = undefined;
     const slot = float.querySelector<HTMLElement>("[data-task-acceptance]");
-    if (slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
+    if (slot) {
+      accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject });
+      accepting.update();
+    }
   };
   const open = (id: string, menu = false) => {
     if (!tasks.some(task => task.id === id)) return;
-    host.dialog?.(true); wanted = ""; carded = id; placing = menu;
+    host.dialog?.(true);
+    wanted = "";
+    carded = id;
+    placing = menu;
     if (shell.shown) shell.back(); else shell.show();
     shell.root?.querySelector<HTMLElement>(menu ? "[data-place-to]" : "[data-task-panel-close]")?.focus({ preventScroll: true });
   };
@@ -263,7 +309,10 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     const commandChanged = stops.observe(result.issues, started, sequence);
     // Same command count need not mean the same command, details or navigation target.
     const next = JSON.stringify(result.tasks);
-    if (next === tasksShown && !commandChanged) { wanted = ""; return false; }
+    if (next === tasksShown && !commandChanged) {
+      wanted = "";
+      return false;
+    }
     tasksShown = next;
     tasks = result.tasks;
     const asked = wanted ? tasks.find(task => keyOf(task.subject) === wanted) : undefined;
@@ -272,15 +321,28 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     return true;
   };
   const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
-  const repaint = () => { paintCard(); line.repaint(); };
-  const go = (task: BackgroundTaskRow) => { if (!task.open) return; if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title); };
+  const repaint = () => {
+    paintCard();
+    line.repaint();
+  };
+  const go = (task: BackgroundTaskRow) => {
+    if (!task.open) return;
+    if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title);
+  };
   document.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
     const decision = target?.closest<HTMLElement>("[data-task-decision]");
-    if (decision && target) { answers.answer(decision, target); return; }
+    if (decision && target) {
+      answers.answer(decision, target);
+      return;
+    }
     // A sub-agent's step: its own conversation, in the same float; the conversation column and the one input stay as they are (决定 49).
     const sub = target?.closest<HTMLElement>("[data-subtask-open]");
-    if (sub && !target?.closest("[data-task-control]")) { host.dialog?.(true); host.openSubtask?.(sub.dataset.subtaskOpen ?? ""); return; }
+    if (sub && !target?.closest("[data-task-control]")) {
+      host.dialog?.(true);
+      host.openSubtask?.(sub.dataset.subtaskOpen ?? "");
+      return;
+    }
     // A task's row, wherever it is drawn (a list, an event's information, a card parked in the side panel): the same stop, the same card.
     const control = target?.closest<HTMLElement>("[data-task-control]"), opened = target?.closest<HTMLElement>("[data-task-open]");
     if ((control || opened) && !(float && target && float.contains(target))) {
@@ -291,10 +353,16 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     }
     if (!float) return;
     // The column of requirements stands beside the work, where the conversation is: opening it puts the float away.
-    if (target?.closest("[data-work-task-float] [data-acceptance-open]")) { shell.hide(); return; }
+    if (target?.closest("[data-work-task-float] [data-acceptance-open]")) {
+      shell.hide();
+      return;
+    }
     // The original path still includes the float after a click repaints the button it landed on.
     const path = event.composedPath();
-    if (target?.closest("[data-task-panel-close]")) { shell.hide(); return; }
+    if (target?.closest("[data-task-panel-close]")) {
+      shell.hide();
+      return;
+    }
     if (!target || !path.includes(float)) {
       if (!path.some(node => node instanceof Element && node.matches("[data-assistant-panel],[data-work-bar],[data-side-panel]"))) shell.hide();
       return;
@@ -303,33 +371,61 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     if (!task) return;
     const to = target.closest<HTMLElement>("[data-place-to]"), served = servedBy(task);
     if (stop) stops.stop(task);
-    else if (target.closest("[data-place-change]")) { placing = !placing; paintCard(); }
+    else if (target.closest("[data-place-change]")) {
+      placing = !placing;
+      paintCard();
+    }
     else if (to) {
       // Where it goes is the owner's record, changed through the mainline service; what is under way goes on (WLN-36).
       const subject = events.get(to.dataset.placeEvent ?? "")?.subject, now = Date.now(), DAY = 86_400_000;
-      placing = false; paintCard();
+      placing = false;
+      paintCard();
       void request(host.route("/api/mainline/place"), { body: { task: task.subject, to: { kind: to.dataset.placeTo, ...(subject ? { subject } : {}) },
         window: { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() } } }).catch(failed).finally(again);
-    } else if (target.closest("[data-task-event]")) { if (served) { shell.hide(); host.openEvent(press(served)); } }
+    } else if (target.closest("[data-task-event]")) { if (served) {
+      shell.hide();
+      host.openEvent(press(served));
+    } }
     else if (target.closest("[data-task-go]")) go(task);
   });
-  installDecisionKeys(() => { if (!float) return false; shell.hide(); return true; });
+  installDecisionKeys(() => {
+    if (!float) return false;
+    shell.hide();
+    return true;
+  });
 
   return {
     take: takeTasks,
-    offline(since) { if (since === offlineSince) return; offlineSince = since; paintCard(); },
+    offline(since) {
+      if (since === offlineSince) return;
+      offlineSince = since;
+      paintCard();
+    },
     rows: subject => tree(serving(subject)),
     unplaced: () => tree(tasks.filter(task => !ended(task) && !servedBy(task))),
     decisions: subject => decisionsOf(ordered(serving(subject)), task => keyOf(task.subject) !== keyOf(subject)),
-    waiting: () => tasks.filter(asks).flatMap(task => { const event = servedBy(task); return event ? [{ key: `${keyOf(task.subject)}|${task.decisions[0]?.id ?? ""}`, provider: task.source.provider_id, title: task.title, event }] : []; }),
+    waiting: () => tasks.filter(asks).flatMap(task => {
+      const event = servedBy(task);
+      return event ? [{ key: `${keyOf(task.subject)}|${task.decisions[0]?.id ?? ""}`, provider: task.source.provider_id, title: task.title, event }] : [];
+    }),
     loose: () => ordered(tasks.filter(task => asks(task) && !ended(task) && !servedBy(task))),
     unreadable: () => unread,
     questions: of => ("subject" in of ? [of] : ordered(serving(of)).filter(asks))
       .flatMap(task => task.decisions.map(decision => ({ task: task.id, id: decision.id, ask: decision.ask, answers: decision.answers.map(answer => answer.role), hasChanges: decision.changes.length > 0, busy: answers.busy(task, decision.id) }))),
     subjects: subject => serving(subject).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // A task that has ended is not in the table: nothing opens, and the reply's row says where it stood.
-    place(subject) { const now = tasks.find(task => keyOf(task.subject) === keyOf(subject)); if (now) open(now.id, true); else { wanted = keyOf(subject); again(); } },
+    place(subject) {
+      const now = tasks.find(task => keyOf(task.subject) === keyOf(subject));
+      if (now) open(now.id, true); else {
+        wanted = keyOf(subject);
+        again();
+      }
+    },
     open: id => open(id),
-    close() { if (!shell.shown) return false; shell.hide(); return true; },
+    close() {
+      if (!shell.shown) return false;
+      shell.hide();
+      return true;
+    },
   };
 }

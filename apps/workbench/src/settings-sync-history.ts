@@ -31,7 +31,7 @@ export const SYNC_CLOUD_HISTORY_SCRIPT=String.raw`
               const actions=view.revision===view.currentRevision?[]:[["workbench.settings-sync-history.restore-current",async()=>{await act(()=>request('/history/restore',{...value,operationId},'POST'),false,true);close();}]];
               if(view.permanentCleanup===true&&actions.length)actions.push(["workbench.settings-sync.permanent-cleanup",()=>confirmPermanent(async()=>{
                 await act(()=>request('/history/purge',{...value,confirm:true},'POST'),false,true);
-                preview.close();close();
+                close();
               })]);
               else if(view.permanentCleanup!==true)body.append(node('p','settings-muted',readText("workbench.settings-sync-history.permanent-cleanup-not-available-yet-retained-content-still")));
               const preview=sheet("workbench.settings-sync-history.cloud-history",body,actions);if(actions.length)preview.querySelector('footer button').classList.replace('mw-btn--secondary','mw-btn--primary');

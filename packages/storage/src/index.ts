@@ -73,6 +73,7 @@ export {
 
 export {
   runWithMolisWorkHome,
+  scopedMolisWorkHome,
   resolveMolisWorkHome,
   resolveHomeDirectory,
   resolveHomeSecurityDirectory,

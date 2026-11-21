@@ -240,4 +240,43 @@ test('PCSYNC-OPT-10 body compression and continuous-edit folding cut quota growt
  const sample=codec.encode('doc-opt10',{x:'a'.repeat(10_000)});
  assert.equal(sample.value.encoding,'deflate-raw');
  await assert.rejects(()=>codec.decode('doc-opt10',{...sample.value,size:100},async()=>{throw new Error('unexpected');}),/同步内容/);
+ // Oversized compressed chunk ref (> PART + 1024) and dead compressed_digest envelope must be rejected before reading.
+ const largeDoc={id:'doc-amp',body:'alpha-beta-gamma-'.repeat(8000)};
+ const encodedLarge=codec.encode('doc-amp',largeDoc);
+ assert.equal(encodedLarge.value.encoding,'deflate-raw-chunks');
+ await assert.rejects(
+  ()=>codec.decode('doc-amp',{...encodedLarge.value,parts:[{digest:'a'.repeat(64),size:2*1024*1024}]},async()=>{throw new Error('must not download oversized compressed part');}),
+  /同步分块长度无效/,
+ );
+ await assert.rejects(
+  ()=>codec.decode('doc-amp',{sync_content:1,encoding:'deflate-raw',spaceId:f.space('alice'),key:'doc-amp',size:100000,digest:'a'.repeat(64),compressed_size:100,compressed_digest:'b'.repeat(64),parts:[{digest:'c'.repeat(64),size:100}]},async()=>{throw new Error('dead envelope must not read');}),
+  /同步内容与空间或资产不匹配/,
+ );
+});
+
+test('PCSYNC-OPT-10 cross-day independent milestone version keeps full 30-day retention when superseded',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ const now=Date.now();
+ const seedAt=async(operation,base,value,createdAt)=>{
+  const fingerprint=createHash('sha256').update(JSON.stringify(['milestone-doc',base,value,[],'write'])).digest('hex');
+  await f.db.prepare("INSERT INTO sync_events(space,namespace,operation,key,base,value,attachments,policy_revision,fingerprint,action,created_at) VALUES (?,?,?,?,?,?,?,1,?,'write',?)")
+   .bind(f.space('alice'),f.namespace,operation,'milestone-doc',base,JSON.stringify(value),'[]',fingerprint,createdAt).run();
+  return (await f.db.prepare("SELECT revision FROM sync_heads WHERE space=? AND namespace=? AND key='milestone-doc'").bind(f.space('alice'),f.namespace).first()).revision;
+ };
+ // Day 1 baseline (3 days ago)
+ const v1=await seedAt('m-v1',0,{text:'day-1-baseline'},now-3*86400000);
+ // Day 4 independent milestone (2 hours ago, > 24h after v1)
+ const v2Created=now-2*3600000;
+ const v2=await seedAt('m-v2',v1,{text:'day-4-milestone'},v2Created);
+ // New edit superseding v2 (v2 had NO prior write within 24h before v2, so v2 must keep 30-day retention)
+ const v3Res=await f.write('m-v3','milestone-doc',{text:'day-4-edit-2'},{base:v2});
+ assert.equal(v3Res.status,200);
+ const v3=(await v3Res.json()).revision;
+ const v2Retention=await f.db.prepare('SELECT retained_until FROM sync_version_retention WHERE space=? AND namespace=? AND revision=?').bind(f.space('alice'),f.namespace,v2).first();
+ assert.ok(v2Retention.retained_until>now+29*86400000,`independent milestone v2 must retain 30-day window, got retained_until=${v2Retention.retained_until}`);
+ // A subsequent edit superseding v3 DOES have older v2 within 24h, while v2 still keeps 30-day retention.
+ const v4Res=await f.write('m-v4','milestone-doc',{text:'day-4-edit-3'},{base:v3});
+ assert.equal(v4Res.status,200);
+ const v2After=await f.db.prepare('SELECT retained_until FROM sync_version_retention WHERE space=? AND namespace=? AND revision=?').bind(f.space('alice'),f.namespace,v2).first();
+ assert.ok(v2After.retained_until>now+29*86400000,'milestone v2 keeps 30-day retention after later edits');
 });

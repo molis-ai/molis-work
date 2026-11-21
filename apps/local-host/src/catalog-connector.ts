@@ -1,5 +1,5 @@
 import { createCatalogProvider, type CatalogFetch } from "@molis-ai/molis-work-integration-catalog";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { apiOAuthConnectionId, apiOAuthContext } from "./connector-api-oauth.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -13,7 +13,7 @@ export function createCatalogConnector(opts: {
   fetchImpl?: CatalogFetch;
   now?: () => Date;
 }) {
-  const home = opts.home ?? resolveMolisWorkHome();
+  const home = opts.home ?? resolveConfiguredHome();
   const id = opts.connectionId;
   const oauthId = id ? apiOAuthConnectionId(withConnectorConnections(home, store => store.get(id), true)?.credential_ref ?? undefined) : undefined;
   return createCatalogProvider({

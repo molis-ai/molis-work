@@ -57,19 +57,22 @@ export function createSyncJsonContent(options: SyncJsonContentOptions): SyncCont
         }
         return { value: input, blobs: [] };
       }
-      const compressedParts: SyncBlobReference[] = [];
+      const compressedBuffers: Buffer[] = [];
       let compressedTotal = 0;
       for (let offset = 0; offset < bytes.length; offset += PART) {
         const slice = bytes.subarray(offset, offset + PART);
         const deflated = deflateRawSync(slice, { level: 6 });
-        if (!deflated.length) { compressedTotal = bytes.length; break; }
+        if (!deflated.length || deflated.length > PART + 1024) {
+          compressedTotal = bytes.length;
+          break;
+        }
         compressedTotal += deflated.length;
-        compressedParts.push({ digest: hash(deflated), size: deflated.length });
+        compressedBuffers.push(deflated);
       }
-      if (compressedTotal > 0 && compressedTotal < bytes.length) {
+      if (compressedTotal > 0 && compressedTotal < bytes.length && compressedBuffers.length === Math.ceil(bytes.length / PART)) {
         const parts: SyncBlobReference[] = [];
-        for (let offset = 0; offset < bytes.length; offset += PART) {
-          parts.push(put(deflateRawSync(bytes.subarray(offset, offset + PART), { level: 6 })));
+        for (const deflated of compressedBuffers) {
+          parts.push(put(deflated));
         }
         options.authorize();
         return {
@@ -78,7 +81,9 @@ export function createSyncJsonContent(options: SyncJsonContentOptions): SyncCont
         };
       }
       const parts = [];
-      for (let offset = 0; offset < bytes.length; offset += PART) parts.push(put(bytes.subarray(offset, offset + PART)));
+      for (let offset = 0; offset < bytes.length; offset += PART) {
+        parts.push(put(bytes.subarray(offset, offset + PART)));
+      }
       options.authorize();
       return { value: { sync_content: 1, spaceId: options.spaceId, key, size: bytes.length, digest: rawDigest, parts }, blobs: [...blobs.values()] };
     },
@@ -101,7 +106,13 @@ export function createSyncJsonContent(options: SyncJsonContentOptions): SyncCont
         bytes = inflateBounded(Buffer.from(wire.data, 'base64'), Number(wire.size), wire.digest);
       } else if (keys === 'digest,encoding,key,parts,size,spaceId,sync_content') {
         if (wire.encoding !== 'deflate-raw-chunks' || !Array.isArray(wire.parts) || wire.parts.length !== Math.ceil(Number(wire.size) / PART)) throw syncError('invalid', '同步分块清单无效');
-        const refs = wire.parts.map(part => reference(part));
+        const refs = wire.parts.map(part => {
+          const ref = reference(part);
+          if (ref.size > PART + 1024) {
+            throw syncError('invalid', '同步分块长度无效');
+          }
+          return ref;
+        });
         const chunks: Buffer[] = [];
         for (let index = 0; index < refs.length; index++) {
           const expectedSliceSize = Math.min(PART, Number(wire.size) - index * PART);
@@ -114,15 +125,6 @@ export function createSyncJsonContent(options: SyncJsonContentOptions): SyncCont
         }
         bytes = Buffer.concat(chunks);
         if (bytes.length !== wire.size || hash(bytes) !== wire.digest) throw syncError('invalid', '同步内容整体校验失败');
-      } else if (keys === 'compressed_digest,compressed_size,digest,encoding,key,parts,size,spaceId,sync_content') {
-        if (wire.encoding !== 'deflate-raw' || !Number.isSafeInteger(wire.compressed_size) || Number(wire.compressed_size) < 1 || Number(wire.compressed_size) > MAX || typeof wire.compressed_digest !== 'string' || !/^[a-f0-9]{64}$/.test(wire.compressed_digest) || !Array.isArray(wire.parts) || wire.parts.length !== Math.ceil(Number(wire.compressed_size) / PART)) throw syncError('invalid', '同步分块清单无效');
-        const refs = wire.parts.map((part, index) => {
-          const ref = reference(part); if (ref.size !== Math.min(PART, Number(wire.compressed_size) - index * PART)) throw syncError('invalid', '同步分块长度无效'); return ref;
-        });
-        const chunks = []; for (const ref of refs) chunks.push(await checked(ref));
-        const compressed = Buffer.concat(chunks);
-        if (compressed.length !== wire.compressed_size || hash(compressed) !== wire.compressed_digest) throw syncError('invalid', '同步内容整体校验失败');
-        bytes = inflateBounded(compressed, Number(wire.size), wire.digest);
       } else if (keys === 'digest,key,parts,size,spaceId,sync_content') {
         if (!Array.isArray(wire.parts) || wire.parts.length !== Math.ceil(Number(wire.size) / PART)) throw syncError('invalid', '同步分块清单无效');
         const refs = wire.parts.map((part, index) => {

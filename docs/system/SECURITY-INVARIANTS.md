@@ -33,7 +33,7 @@ S-15 原章节入口：[调用者](security-invariants/S-15.md#调用者)、[权
 
 ### 内容包签名与安装
 
-本人签名、预览的有效期和确认安装见 [S-84](security-invariants/S-84.md)。发布者撤销对本机签名与已装插件的影响见 [S-87](security-invariants/S-87.md)。
+本人签名、预览的有效期和确认安装见 [S-84](security-invariants/S-84.md)。发布者撤销对本机签名与已装插件的影响见 [S-87](security-invariants/S-87.md)。本机账号环境切换与测试打包隔离（ENV-12/13）见 [S-account-environment-isolation](security-invariants/S-account-environment-isolation.md)。
 
 ## 2. 怎么跑
 
@@ -75,9 +75,3 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 - **审查页没写会跑仓库配置的程序（S-53）**：提交和推送的「执行范围」写明会运行仓库的 hooks；合并、拉取、切分支、建分支并切换会跑 `post-checkout`、`post-merge` 一类 hooks 和检出时的过滤器，放弃合并检出时跑 smudge 过滤器，解决冲突跑这个文件的 clean 过滤器和 `post-index-change`，暂存写暂存区时也跑 `post-index-change`，这些审查页都没写。批准本身守住了（不批准什么也不跑），缺的是批准时看到的说明。补审查文案（连同英文）放在 Git 的审查改成插件动作的那一片做。
 - **列出过滤器和真正执行之间的窗口（S-53）**：读状态及准备、刷新冲突的临时索引前，先列出仓库已配置的过滤器再逐个关掉。后两个步骤即使检查了其他索引条目，也不需要执行这些文件的内容过滤器。`tests/git-operations.test.ts` 的 QEA-162 用实际索引和无关条目验证。建写入者工作树和整合前先查文件用没用过滤器、内容转换，再去执行。两步是两个 Git 进程。中间有进程改了 `.git/config`（或整合时改了目标工作区的 `.gitattributes`），新加的过滤器仍可能执行，前提是有进程能在同一时刻写仓库的 `.git/` 或工作区。
 - **GitHub 的 secret scanning 与 push protection 在这个公开仓库上是关的**：要在仓库设置里开，属于用户的操作（`spec.md` §7）。
-
-### ENV-12/13 本机账号环境切换
-
-源码启动器共用固定回环端口。切换 dev/test 时生成新的凭据作用域；原环境的 Home 文件与凭据记录继续保留，账号所有者只读取当前作用域。关闭原进程仍由原账号所有者撤销在途租约，旧的浏览器附着票据和回调不进入新进程。环境与启动参数不从 HTTP 请求取得。启动器的代次和端口拒绝用例在 `scripts/environment-properties.test.mjs`，账号所有者的迟到请求拒绝沿用 `tests/security-invariants-account-host.test.ts` 与 `tests/personal-http.test.ts`。
-
-测试安装版从打包选择读取独立 Home 和桌面应用标识。测试壳启动、目录授权和升级都使用测试 Home，升级跳过共享常驻服务注册。`tests/release-profile.test.mjs` 核对测试与正式桌面标识和回调。试签载荷的启动验收覆盖 4173 回环监听，并断言调用进程的默认 Home 环境变量不会把宿主指向其他目录。

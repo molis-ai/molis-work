@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RuntimeWorkContext, RuntimeProjectSuggestionClue, RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { readProductEnv } from "@molis-ai/molis-work-storage";
+import { packagedDesktopHome } from "./active-release-profile.js";
 import { homeHostUrl } from "./host-endpoint.js";
+import { resolveConfiguredHome } from "./product-home.js";
 export type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 
@@ -14,11 +16,13 @@ export function runtimeContextHostFromEnvironment(
 ): MolisWorkRuntimeContextHost | null {
   const signals = runtimeSessionHostSignalsFromEnvironment(environment, currentWorkingDirectory);
   if (!signals) return null;
+  const packagedHome = environment === process.env && packagedDesktopHome() ? resolveConfiguredHome() : undefined;
+  const resolvedHome = packagedHome ?? readProductEnv("HOME", environment);
   return {
-    homeDirectory: readProductEnv("HOME", environment),
+    homeDirectory: resolvedHome,
     runtimeContext: signals.runtime_context,
     // `MOLIS_WORK_WEB_URL` first, then the Home's address file, then 4173 (resident-runtime-design §6). The default Home is looked up only for this process's own environment.
-    webBaseUrl: readProductEnv("WEB_URL", environment) ?? homeHostUrl(readProductEnv("HOME", environment) ?? (environment === process.env ? resolveMolisWorkHome() : undefined)),
+    webBaseUrl: readProductEnv("WEB_URL", environment) ?? homeHostUrl(resolvedHome ?? (environment === process.env ? resolveConfiguredHome() : undefined)),
     molisWorkSessionId: signals.molis_work_session_id,
     nativeRuntimeSessionId: signals.native_runtime_session_id,
     hostWorkContextId: readProductEnv("WORK_CONTEXT_ID", environment) || null,

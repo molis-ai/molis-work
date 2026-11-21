@@ -1,5 +1,5 @@
 import { AsyncResource } from 'node:async_hooks';
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,7 @@ import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, 
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { SandboxImageHolder } from './image.js';
 import { modelDeadlines } from './model.js';
+import { sharedSandboxProcessMonitor } from './process-monitor.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { assertEffects, assertJson, checkSandboxContract, SandboxError } from './schema.js';
 import { seatbeltProfile } from './seatbelt.js';
@@ -142,9 +143,10 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const started = deferred();
   const exited = deferred();
   const cleanup = async () => { await exited.promise; await fs.rm(directory, { recursive: true, force: true }); };
+  let unwatchProcess: () => void = () => {};
   const shutdown = (error: SandboxError) => {
     if (stopped) return;
-    stopped = error; clearInterval(watchdog); clearTimeout(startup);
+    stopped = error; unwatchProcess(); clearTimeout(startup);
     shutdownControl.abort(error);
     queue.close(error); broker.stop(error); started.reject(error);
     if (active) { active.controller.abort(error); active.reject(error); active = undefined; }
@@ -214,19 +216,17 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   child.on('error', () => { exited.resolve(); shutdown(new SandboxError('sandbox.start_failed', 'Could not start sandbox process')); });
   child.on('exit', () => { exited.resolve(); shutdown(new SandboxError('sandbox.process_exit', 'Sandbox process exited')); void cleanup().catch(() => {}); });
   const startup = setTimeout(() => shutdown(new SandboxError('sandbox.start_timeout', 'Sandbox startup timed out')), limits.startupTimeoutMs);
-  let sampling = false;
-  const watchdog = setInterval(() => {
-    if (sampling || stopped || !child.pid) return;
-    sampling = true;
-    execFile('/bin/ps', ['-o', 'rss=', '-o', 'time=', '-p', String(child.pid)], { timeout: 1000, maxBuffer: 1024, env: {} }, (error, output) => {
-      sampling = false; if (error || stopped) return;
-      const parts = output.trim().split(/\s+/), rss = Number(parts[0]);
-      const cpu = parts[1]?.split(':').map(Number) ?? [];
-      const seconds = cpu.reduce((total, value) => total * 60 + value, 0);
-      if (rss > limits.rssMb * 1024) shutdown(new SandboxError('sandbox.memory_limit', 'Sandbox resident memory exceeded'));
-      else if (seconds * 1000 > limits.cpuMs) shutdown(new SandboxError('sandbox.cpu_limit', 'Sandbox process CPU budget exceeded'));
+  if (!stopped && child.pid) {
+    unwatchProcess = sharedSandboxProcessMonitor.watch({
+      pid: child.pid,
+      rssLimitKb: limits.rssMb * 1024,
+      cpuLimitMs: limits.cpuMs,
+      onExceeded(kind) {
+        if (kind === 'memory') shutdown(new SandboxError('sandbox.memory_limit', 'Sandbox resident memory exceeded'));
+        else shutdown(new SandboxError('sandbox.cpu_limit', 'Sandbox process CPU budget exceeded'));
+      },
     });
-  }, 200);
+  }
   try { await started.promise; } catch (error) { await cleanup(); throw error; }
   return {
     pid: child.pid!,

@@ -29,7 +29,7 @@ mod traffic_lights;
 mod web_identity;
 mod web_service;
 
-use native_language::{NativeLanguage, NativeLanguageState};
+use native_language::{NativeLanguage, NativeLanguageState, QuitPromptKind};
 use std::path::PathBuf;
 use std::sync::{atomic::Ordering, Mutex};
 use std::thread;
@@ -39,11 +39,11 @@ use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     webview::PageLoadEvent,
-    Manager, State, Url, WindowEvent,
+    Emitter, Manager, State, Url, WindowEvent,
 };
 use web_service::{
-    desktop_owns_web_service, ensure_molis_work_web, start_molis_work_web, stop_owned_web_service,
-    wait_for_upgrading_web, web_healthy, Started, WebServiceState,
+    desktop_owns_web_service, ensure_molis_work_web, owned_web_service_alive, start_molis_work_web,
+    stop_owned_web_service, wait_for_upgrading_web, web_healthy, Started, WebServiceState,
 };
 
 struct TrayMenuItems {
@@ -178,20 +178,137 @@ pub(crate) fn reopen_host(app: tauri::AppHandle) {
 }
 
 fn host_running_again(app: &tauri::AppHandle) {
-    app.state::<runtime::RuntimeState>()
-        .host_stopped
-        .store(false, Ordering::Release);
+    let runtime = app.state::<runtime::RuntimeState>();
+    runtime.host_stopped.store(false, Ordering::Release);
     let state = app.state::<TrayState>();
     let locale = current_tray_locale(state.inner()).unwrap_or_default();
     let (title, tooltip) = locale.synced_status();
     let _ = set_tray_status(app, title, tooltip);
+    let origin = host_port::origin();
+    let loaded_pid = match runtime.loaded_host_pid.load(Ordering::Acquire) {
+        0 => None,
+        pid => Some(pid),
+    };
+    let recovered_pid = web_identity::last_verified_process_id();
+    let soft = app
+        .get_webview_window("main")
+        .and_then(|main| main.url().ok())
+        .is_some_and(|url| {
+            should_soft_reconnect_main(Some(&url), &origin, loaded_pid, recovered_pid)
+        });
+    if soft {
+        grant_host_capabilities(app);
+        let _ = app.emit(
+            "molis:host-reconnected",
+            serde_json::json!({ "origin": origin }),
+        );
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.eval(format!(
+                "if(location.origin==='{}') globalThis.molisWorkHostReconnected?.()",
+                origin
+            ));
+        }
+        return;
+    }
     reload_molis_work_webviews(app);
 }
 
-/// Quitting quits: the confirmation that listed what would stop running lived in the menu-bar popover,
-/// removed with the capsule (batch 44; it comes back with the capsule's redo, BL-capsule-redo).
+fn quit_prompt_kind(
+    answer: Result<&web_identity::Answer, ()>,
+    owned_child_alive: bool,
+) -> Option<QuitPromptKind> {
+    match answer {
+        Ok(web_identity::Answer::Ready(health)) => match health.active_work.unwrap_or(0) {
+            0 => Some(QuitPromptKind::OwnedIdle),
+            count => Some(QuitPromptKind::OwnedActive(count)),
+        },
+        Ok(web_identity::Answer::Upgrading) => Some(QuitPromptKind::Upgrading),
+        Err(()) if owned_child_alive => Some(QuitPromptKind::OwnedActive(1)),
+        Err(()) => None,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn show_native_quit_alert(locale: &NativeLanguage, kind: QuitPromptKind) -> bool {
+    use objc2_app_kit::{NSAlert, NSAlertSecondButtonReturn, NSAlertStyle, NSApplication};
+    use objc2_foundation::{MainThreadMarker, NSString};
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return true;
+    };
+    let (title, body, cancel_label, quit_label) = locale.quit_confirmation(kind);
+    let alert = NSAlert::new(mtm);
+    alert.setAlertStyle(match kind {
+        QuitPromptKind::OwnedIdle => NSAlertStyle::Informational,
+        QuitPromptKind::OwnedActive(_) | QuitPromptKind::Upgrading => NSAlertStyle::Warning,
+    });
+    alert.setMessageText(&NSString::from_str(title));
+    alert.setInformativeText(&NSString::from_str(body));
+    // First button is the safe default (Return key = Cancel); second button confirms Quit.
+    let _cancel = alert.addButtonWithTitle(&NSString::from_str(cancel_label));
+    let quit_button = alert.addButtonWithTitle(&NSString::from_str(quit_label));
+    quit_button.setHasDestructiveAction(true);
+    #[allow(deprecated)]
+    NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+    alert.runModal() == NSAlertSecondButtonReturn
+}
+
+#[cfg(not(target_os = "macos"))]
+fn show_native_quit_alert(_locale: &NativeLanguage, _kind: QuitPromptKind) -> bool {
+    true
+}
+
+/// Quitting asks for native confirmation when this desktop owns the running Host so active work or
+/// background tasks are not stopped by an accidental `⌘Q` or tray click. A bounded `<=400ms` probe
+/// runs off the main thread; a Host started outside the desktop keeps running and exits immediately.
 pub(crate) fn request_quit(app: &tauri::AppHandle) {
-    app.exit(0);
+    let runtime = app.state::<runtime::RuntimeState>();
+    if runtime.quit_confirmed.load(Ordering::Acquire) {
+        app.exit(0);
+        return;
+    }
+    if runtime.quit_in_progress.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let owns_host = desktop_owns_web_service(app.state::<WebServiceState>().inner());
+    if !owns_host {
+        runtime.quit_confirmed.store(true, Ordering::Release);
+        runtime.quit_in_progress.store(false, Ordering::Release);
+        app.exit(0);
+        return;
+    }
+    let handle = app.clone();
+    let spawned = thread::Builder::new()
+        .name("molis-work-quit-check".into())
+        .spawn(move || {
+            let probed = web_identity::answer_with_timeout(Duration::from_millis(400));
+            let child_alive = owned_web_service_alive(handle.state::<WebServiceState>().inner());
+            let prompt = quit_prompt_kind(probed.as_ref().map_err(|_| ()), child_alive);
+            let main_handle = handle.clone();
+            let _ = handle.run_on_main_thread(move || {
+                let runtime = main_handle.state::<runtime::RuntimeState>();
+                let confirmed = match prompt {
+                    None => true,
+                    Some(kind) => {
+                        let tray_state = main_handle.state::<TrayState>();
+                        let locale = current_tray_locale(tray_state.inner()).unwrap_or_default();
+                        show_native_quit_alert(&locale, kind)
+                    }
+                };
+                if confirmed {
+                    runtime.quit_confirmed.store(true, Ordering::Release);
+                    runtime.quit_in_progress.store(false, Ordering::Release);
+                    main_handle.exit(0);
+                } else {
+                    runtime.quit_in_progress.store(false, Ordering::Release);
+                }
+            });
+        });
+    if spawned.is_err() {
+        runtime.quit_confirmed.store(true, Ordering::Release);
+        runtime.quit_in_progress.store(false, Ordering::Release);
+        app.exit(0);
+    }
 }
 
 fn should_keep_window_on_close(label: &str) -> bool {
@@ -259,6 +376,57 @@ struct UpgradeOpeningFailure(Mutex<Option<String>>);
 
 fn is_molis_work_web_url(url: &Url) -> bool {
     host_port::is_host_url(url)
+}
+
+/// Soft reconnect keeps the current workbench document (and any unsaved drafts) intact ONLY when
+/// the recovered Host proves the same `process_id` on the same proved origin (transient jitter on
+/// a live Host). When the Host process actually restarted (new PID or unknown), `WebSessions` is
+/// empty in-memory so the shell falls back to a full navigation reload to mint a fresh page session.
+fn should_soft_reconnect_main(
+    current: Option<&Url>,
+    proved_origin: &str,
+    loaded_host_pid: Option<u32>,
+    recovered_host_pid: Option<u32>,
+) -> bool {
+    loaded_host_pid.is_some()
+        && loaded_host_pid == recovered_host_pid
+        && current.is_some_and(|url| {
+            is_molis_work_web_url(url)
+                && url.origin().ascii_serialization() == proved_origin
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url
+                    .query_pairs()
+                    .any(|(key, value)| key == "desktop" && value == "1")
+        })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IpcAuthTier {
+    LowRiskUi,
+    HighRisk,
+}
+
+/// Tiered `S-14` IPC guard: only explicitly allowlisted non-destructive UI chrome commands may reuse
+/// the 2.5 s active-port health lease; all file, directory, rollback, account, external-link, write,
+/// and unknown commands fail closed to a fresh HMAC `/health?challenge=` verification.
+fn ipc_auth_tier(command: &str) -> IpcAuthTier {
+    match command {
+        "native_set_locale"
+        | "shelf_surface_changed"
+        | "shelf_setup_status"
+        | "shelf_hotkey_status"
+        | "shelf_sync_device_preferences"
+        | "runtime_settings_get" => IpcAuthTier::LowRiskUi,
+        _ => IpcAuthTier::HighRisk,
+    }
+}
+
+fn ipc_caller_allowed(label: &str, url: Option<&Url>) -> bool {
+    label == "main"
+        && url.is_some_and(|url| {
+            is_molis_work_web_url(url) && url.username().is_empty() && url.password().is_none()
+        })
 }
 
 fn molis_work_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
@@ -718,7 +886,15 @@ fn bootstrap_view(failure: Option<&str>) -> String {
             const language = (navigator.languages || []).map(choose).find(Boolean) || find(data.catalog.default.toLowerCase());
             document.documentElement.lang = language.html_lang;
             document.documentElement.dir = language.direction;
-            document.getElementById('molis-native-tokens').textContent = data.tokens;
+            try {{
+                const sheet = document.styleSheets && document.styleSheets[0];
+                if (sheet && !host.dataset.tokensApplied && Array.isArray(data.token_rules)) {{
+                    for (const rule of data.token_rules) {{
+                        sheet.insertRule(rule, sheet.cssRules.length);
+                    }}
+                    host.dataset.tokensApplied = '1';
+                }}
+            }} catch {{}}
             host.querySelector('h1').textContent = data.failure === null ? language.loading : language.failed;
             const detail = host.querySelector('p');
             detail.textContent = data.failure || '';
@@ -742,7 +918,20 @@ fn main() {
     // 设置 › 运行 through `runtime_settings_*`. No page is granted the plugin's own commands (S-14).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
     .invoke_handler(|invoke| {
-      if !web_healthy() { invoke.resolver.reject("本地服务身份验证失败"); return true; }
+      let command = invoke.message.command();
+      let caller_ok = ipc_caller_allowed(
+        invoke.message.webview_ref().label(),
+        invoke.message.webview_ref().url().ok().as_ref(),
+      );
+      if !caller_ok {
+        invoke.resolver.reject("这个页面不能做这件事");
+        return true;
+      }
+      let verified = match ipc_auth_tier(command) {
+        IpcAuthTier::LowRiskUi => web_identity::low_risk_health_fresh(),
+        IpcAuthTier::HighRisk => web_healthy(),
+      };
+      if !verified { invoke.resolver.reject("本地服务身份验证失败"); return true; }
       let handle: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
       native_set_locale,
       runtime::runtime_settings_get,
@@ -848,6 +1037,9 @@ fn main() {
       if window.label() == "main" {
         match payload.event() {
           PageLoadEvent::Started => {
+            app.state::<runtime::RuntimeState>()
+                .loaded_host_pid
+                .store(0, Ordering::Release);
             if let Ok(mut language) = state.locale.lock() { language.navigated(); }
           }
           PageLoadEvent::Finished => {
@@ -863,6 +1055,9 @@ fn main() {
             let _ = window.eval(bootstrap_view(failure.as_deref()));
             if native_language_source(window.label(), Some(payload.url()))
               && window.url().is_ok_and(|current| &current == payload.url()) {
+              app.state::<runtime::RuntimeState>()
+                  .loaded_host_pid
+                  .store(web_identity::last_verified_process_id().unwrap_or(0), Ordering::Release);
               if let Ok(mut language) = state.locale.lock() {
                 let generation = language.ready_document();
                 let _ = window.eval(format!("if(location.origin==='{}') globalThis.molisWorkPublishNativeLanguage?.({generation})", host_port::origin()));
@@ -884,10 +1079,12 @@ fn main() {
       if should_keep_window_on_close(window.label()) {
         if let WindowEvent::CloseRequested { api, .. } = event {
           api.prevent_close();
-          let _ = window.hide();
-          // 「关掉窗口后继续运行」 is off: closing the window quits (resident-runtime-design §5).
+          // 「关掉窗口后继续运行」 is off: keep the window visible until quit confirmation settles,
+          // so clicking Cancel on the native alert leaves the user's window intact (resident-runtime-design §5).
           if !runtime::keep_running(&web_service::molis_work_home()) {
             request_quit(window.app_handle());
+          } else {
+            let _ = window.hide();
           }
         }
       }
@@ -905,7 +1102,19 @@ fn main() {
                 show_main_window(app);
             }
         }
+        // ⌘Q and every other way out ask first when this desktop owns the running Host.
+        if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+            if !app
+                .state::<runtime::RuntimeState>()
+                .quit_confirmed
+                .load(Ordering::Acquire)
+            {
+                api.prevent_exit();
+                request_quit(app);
+            }
+        }
         if matches!(event, tauri::RunEvent::Exit) {
+            web_identity::invalidate_health_lease();
             let web_service = app.state::<WebServiceState>();
             web_service.shutting_down.store(true, Ordering::Release);
             stop_owned_web_service(web_service.inner());
@@ -1092,5 +1301,161 @@ mod tests {
         ] {
             assert!(!is_molis_work_web_url(&Url::parse(address).unwrap()));
         }
+    }
+
+    #[test]
+    fn s14_tiered_ipc_auth_allows_only_explicit_low_risk_ui_and_fails_closed() {
+        for low_risk in [
+            "native_set_locale",
+            "shelf_surface_changed",
+            "shelf_setup_status",
+            "shelf_hotkey_status",
+            "shelf_sync_device_preferences",
+            "runtime_settings_get",
+        ] {
+            assert_eq!(
+                super::ipc_auth_tier(low_risk),
+                super::IpcAuthTier::LowRiskUi,
+                "{low_risk}"
+            );
+        }
+        for high_risk in [
+            "runtime_settings_set",
+            "open_external_url",
+            "context_directory_status",
+            "context_directory_authorize",
+            "context_directory_forget",
+            "context_directory_preview",
+            "context_directory_stage",
+            "personal_account_request",
+            "rollback_to_previous",
+            "files_drag_out",
+            "files_copy",
+            "files_open",
+            "shelf_find_files",
+            "shelf_admit_paths",
+            "platform_read_selected_file",
+            "unknown_future_command",
+        ] {
+            assert_eq!(
+                super::ipc_auth_tier(high_risk),
+                super::IpcAuthTier::HighRisk,
+                "{high_risk}"
+            );
+        }
+    }
+
+    #[test]
+    fn s14_tiered_ipc_caller_check_accepts_only_main_window_on_active_origin() {
+        let local = Url::parse("http://127.0.0.1:4173/projects/p1?desktop=1").unwrap();
+        assert!(super::ipc_caller_allowed("main", Some(&local)));
+        assert!(!super::ipc_caller_allowed("other", Some(&local)));
+        assert!(!super::ipc_caller_allowed("main", None));
+        for refused in [
+            "http://127.0.0.1:4174/projects/p1?desktop=1",
+            "http://localhost:4173/projects/p1?desktop=1",
+            "https://127.0.0.1:4173/",
+            "http://user@127.0.0.1:4173/",
+            "tauri://localhost/index.html",
+            "https://example.org/",
+        ] {
+            assert!(
+                !super::ipc_caller_allowed("main", Url::parse(refused).ok().as_ref()),
+                "{refused}"
+            );
+        }
+    }
+
+    #[test]
+    fn desktop_soft_reconnect_keeps_active_workbench_page_and_falls_back_otherwise() {
+        let active = Url::parse("http://127.0.0.1:4173/projects/p1?desktop=1").unwrap();
+        assert!(super::should_soft_reconnect_main(
+            Some(&active),
+            "http://127.0.0.1:4173",
+            Some(4242),
+            Some(4242),
+        ));
+        // Actual Host process restart (new PID) or unknown PID must hard-reload to mint a fresh WebSession.
+        assert!(!super::should_soft_reconnect_main(
+            Some(&active),
+            "http://127.0.0.1:4173",
+            Some(4242),
+            Some(4243),
+        ));
+        assert!(!super::should_soft_reconnect_main(
+            Some(&active),
+            "http://127.0.0.1:4173",
+            None,
+            Some(4242),
+        ));
+        assert!(!super::should_soft_reconnect_main(
+            Some(&active),
+            "http://127.0.0.1:4173",
+            Some(4242),
+            None,
+        ));
+        assert!(!super::should_soft_reconnect_main(
+            Some(&active),
+            "http://127.0.0.1:4174",
+            Some(4242),
+            Some(4242),
+        ));
+        for hard_reload in [
+            "http://127.0.0.1:4173/",
+            "http://127.0.0.1:4173/projects/p1",
+            "tauri://localhost/index.html",
+            "http://127.0.0.1:4174/?desktop=1",
+        ] {
+            assert!(
+                !super::should_soft_reconnect_main(
+                    Url::parse(hard_reload).ok().as_ref(),
+                    "http://127.0.0.1:4173",
+                    Some(4242),
+                    Some(4242),
+                ),
+                "{hard_reload}"
+            );
+        }
+    }
+
+    #[test]
+    fn desktop_quit_prompt_kind_and_localized_copy_match_host_state() {
+        let idle_health: crate::web_identity::Health =
+            serde_json::from_str(r#"{"status":"ok","desktop_tui":true,"active_work":0}"#).unwrap();
+        let active_health: crate::web_identity::Health =
+            serde_json::from_str(r#"{"status":"ok","desktop_tui":true,"active_work":2}"#).unwrap();
+        assert_eq!(
+            super::quit_prompt_kind(Ok(&crate::web_identity::Answer::Ready(idle_health)), true),
+            Some(super::QuitPromptKind::OwnedIdle)
+        );
+        assert_eq!(
+            super::quit_prompt_kind(Ok(&crate::web_identity::Answer::Ready(active_health)), true),
+            Some(super::QuitPromptKind::OwnedActive(2))
+        );
+        assert_eq!(
+            super::quit_prompt_kind(Ok(&crate::web_identity::Answer::Upgrading), true),
+            Some(super::QuitPromptKind::Upgrading)
+        );
+        assert_eq!(
+            super::quit_prompt_kind(Err(()), true),
+            Some(super::QuitPromptKind::OwnedActive(1))
+        );
+        assert_eq!(super::quit_prompt_kind(Err(()), false), None);
+
+        let zh = builtin_language("zh").unwrap();
+        let (title, body, cancel, quit) =
+            zh.quit_confirmation(super::QuitPromptKind::OwnedActive(2));
+        assert_eq!(title, "确定要退出 Molis Work 吗？");
+        assert!(body.contains("正在运行"));
+        assert_eq!(cancel, "取消");
+        assert_eq!(quit, "退出 Molis Work");
+
+        let en = builtin_language("en").unwrap();
+        let (en_title, en_body, en_cancel, en_quit) =
+            en.quit_confirmation(super::QuitPromptKind::OwnedIdle);
+        assert_eq!(en_title, "Quit Molis Work?");
+        assert!(en_body.contains("background service"));
+        assert_eq!(en_cancel, "Cancel");
+        assert_eq!(en_quit, "Quit Molis Work");
     }
 }

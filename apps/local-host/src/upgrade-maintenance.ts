@@ -6,6 +6,7 @@ import { Worker } from "node:worker_threads";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
+import { removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
 import { pendingUpgradeUnits, runHomeUpgrade } from "./home-upgrade.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH, sendWebHealth } from "./web-control-token.js";
 import { refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
@@ -142,7 +143,9 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
   });
   // Someone else has the port, and very likely the Home. The ordinary start has its own answer to both.
   if (!listening) return;
-  onListening?.(server.address() as AddressInfo);
+  const bound = server.address() as AddressInfo;
+  try { writeHostEndpoint(home, bound.port); } catch (error) { hostLog.warn("host", "endpoint_unwritable", error); }
+  onListening?.(bound);
   try {
     await new Promise<void>(resolve => {
       const worker = new Worker(workerEntry ?? new URL("./upgrade-maintenance-worker.js", import.meta.url), { workerData: { homes: plan.homes } });
@@ -151,6 +154,7 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
       worker.once("exit", () => { finished = true; resolve(); });
     });
   } finally {
+    try { removeHostEndpoint(home); } catch (error) { hostLog.warn("host", "endpoint_unremovable", error); }
     await new Promise<void>(resolve => {
       server.close(() => resolve());
       server.closeAllConnections();

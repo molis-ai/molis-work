@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, hostLog, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -36,13 +36,15 @@ const isMain = requestedModulePath != null && (() => {
 if (isMain) {
   const args = process.argv.slice(2);
   const homeArgument = flag(args, "--home");
-  const port = Number(flag(args, "--port") ?? 4173);
+  const explicitPort = flag(args, "--port");
   const unsupported = ["--db", "--project-id", "--demo"].find((argument) => args.includes(argument));
   if (unsupported) {
     console.error(`Molis Work Web 只按项目启动；${unsupported} 已不支持。请先在 Molis Work 里创建或打开项目，或由 Runtime 经 MCP 连接项目。`);
     process.exitCode = 1;
   } else {
     try {
+    const port = explicitPort !== undefined ? Number(explicitPort) : await selectAvailableHostPort();
+    if (port === null) throw new Error("127.0.0.1:4173–4199 均已被占用，Molis Work Web 无法监听。");
     const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";
     if (mcpStartup && (!homeArgument || !Number.isInteger(port) || port < 1 || port > 65535)) throw new Error("Invalid MCP startup configuration");
     // Before anything that opens a store, and while the port answers: whoever is waiting for this process sees that it is upgrading and leaves it be (§4.2).
@@ -96,22 +98,50 @@ if (isMain) {
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
+    const listenWithRetry = async (preferred: number, allowFallback: boolean): Promise<number> => {
+      const candidates = allowFallback
+        ? [preferred, ...HOST_CANDIDATE_PORTS.filter(candidate => candidate !== preferred)]
+        : [preferred];
+      let lastError: unknown;
+      for (const candidate of candidates) {
+        try {
+          await new Promise<void>((resolveListen, rejectListen) => {
+            const onError = (error: NodeJS.ErrnoException) => {
+              server.off("listening", onListening);
+              rejectListen(error);
+            };
+            const onListening = () => {
+              server.off("error", onError);
+              resolveListen();
+            };
+            server.once("error", onError);
+            server.once("listening", onListening);
+            // Loopback only (security invariant S-01).
+            server.listen(candidate, "127.0.0.1");
+          });
+          return candidate;
+        } catch (error) {
+          lastError = error;
+          if (!allowFallback || (error as NodeJS.ErrnoException)?.code !== "EADDRINUSE") throw error;
+        }
+      }
+      throw lastError ?? new Error("127.0.0.1:4173–4199 均已被占用，Molis Work Web 无法监听。");
+    };
+    const listeningPort = await listenWithRetry(port, explicitPort === undefined);
     if (mcpStartup) {
       server.once("error", error => { reportMcpWebStartupFailure(error); shutdown(); });
-      stopStartupWatch = watchMcpWebStartup(path.resolve(homeArgument!), `http://127.0.0.1:${port}`, shutdown);
+      stopStartupWatch = watchMcpWebStartup(path.resolve(homeArgument!), `http://127.0.0.1:${listeningPort}`, shutdown);
+      finishMcpWebStartup();
     }
-    // Loopback only (security invariant S-01). The line below names the address the socket really got, so a launcher that
-    // ever bound wider would say so, and tests/security-invariants-local-entry.test.ts reads it.
-    server.listen(port, "127.0.0.1", () => {
-      if (mcpStartup) finishMcpWebStartup();
-      const bound = server.address();
-      const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
-      console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : port}`);
-      console.log("项目列表（网页不会修改 Runtime Session 绑定）");
-      // Said beside the start lines, once; it does not change what the Host does (the plugin statement check refuses on its own).
-      const sqliteNotice = reportSqliteVersion();
-      if (sqliteNotice) console.log(sqliteNotice);
-    });
+    // The line below names the address the socket really got, so a launcher that ever bound wider
+    // would say so, and tests/security-invariants-local-entry.test.ts reads it.
+    const bound = server.address();
+    const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
+    console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : listeningPort}`);
+    console.log("项目列表（网页不会修改 Runtime Session 绑定）");
+    // Said beside the start lines, once; it does not change what the Host does (the plugin statement check refuses on its own).
+    const sqliteNotice = reportSqliteVersion();
+    if (sqliteNotice) console.log(sqliteNotice);
     } catch (error) {
       if (!reportMcpWebStartupFailure(error)) throw error;
       process.exitCode = 1;

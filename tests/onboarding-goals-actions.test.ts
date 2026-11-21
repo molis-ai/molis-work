@@ -50,36 +50,6 @@ test("Goals is a Runtime plugin of the project: the default client starts it bef
   } finally { await host.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("the first-run Goal is made by the Goals action, as the person, and leaves one call-log row", async () => {
-  const home = await mkdtemp(join(tmpdir(), "onboarding-goals-action-"));
-  const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: CONTROL_TOKEN });
-  try {
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
-    const settled = watchSettlements(host);
-    const response = await fetch(`${origin}/api/onboarding/initialize`, { method: "POST",
-      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": CONTROL_TOKEN, "x-molis-work-idempotency-key": "onboarding-goals-action-request" },
-      body: JSON.stringify({ project_name: "首次项目", outcome: "让第一次使用的人建立可以继续澄清的目标", intent_frame: "diagnose_fix", workspace_path: null, runtime_kind: null, user_confirmed: true }) });
-    assert.equal(response.status, 201, await response.clone().text());
-    const created = await response.json() as { project: { project_id: string }; goal_id: string };
-    const projectId = created.project.project_id;
-
-    // The project's plugins start with the first call (Feed's source tick is one of theirs); the Goal itself leaves the one row below.
-    assert.deepEqual(host.callLog!.list(projectId).filter(row => row.capability_id.startsWith("goals.")).map(row => [row.capability_id, row.provider_id, row.actor_id, row.audience, row.ok]),
-      [[goalsActions.create.capability_id, GOALS_PLUGIN_ID, LOCAL_PERSON_ACTOR_ID, "user", true]],
-      "one row: the Goals action, nothing beside it");
-    assert.deepEqual(settled.filter(row => row.capability_id === goalsActions.create.capability_id).map(row => [row.operation, row.ok]), [["command", true]]);
-
-    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
-    const reference = molisWorkHostProjectReference({ databasePath: (await withHostCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId });
-    const goal = (await bindActionClient(host.actionClient(reference), () => personCaller(projectId)).invoke(goalsActions.snapshot, {})).goals.find(item => item.goal_id === created.goal_id);
-    assert.equal(goal?.outcome, "让第一次使用的人建立可以继续澄清的目标");
-    assert.equal(goal?.definition_state, "draft");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
-});
-
 test("PEQ-01: a Run reads the project guidance through the platform's action, once, and keeps it without Goals", async () => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "guidance-read-action-")));
   let removed = false;

@@ -3,10 +3,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { dispatchMcpProjectTool, formatMcpToolError, isPlatformMcpTool, isRuntimeContextMcpTool } from "@molis-ai/molis-work-app-mcp";
+import { dispatchMcpProjectTool, formatMcpToolError, isRuntimeContextMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { RuntimeProjectConnection, assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
+import { MANAGEMENT_MCP_TOOLS, isListedPlatformMcpTool as isPlatformMcpTool, RuntimeProjectConnection, assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
 import type { RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 // T-340 (RAC-2713, RAC-2714): every `mcp.*` code is declared once with its kind, every throw site raises through that
@@ -79,13 +79,13 @@ test("RAC-2713 every declared mcp code raises with its declared kind, and no thr
 test("RAC-2714 authority_denied and tool_unknown carry one kind from the preflight, the authority check and the tool dispatch", async () => {
   const preflightAuthorityDenied = kindOf(() => assertMcpStartInput("runtime", "molis_work_v1_initialize", {}));
   const authorityDenied = kindOf(() => assertMcpToolAllowed(RUNTIME_STATE as never, "molis_work_v1_initialize", CALL_CONTEXT, EMPTY_CATALOG as never));
-  const dispatchedAuthorityDenied = await dispatchMcpProjectTool(null, "molis_work_v1_initialize", {}, { audience: "runtime", createError: createPresentationError })
+  const dispatchedAuthorityDenied = await dispatchMcpProjectTool(null, "molis_work_v1_initialize", {}, { audience: "runtime", createError: createPresentationError, declared: MANAGEMENT_MCP_TOOLS })
     .then(() => "no error", (error: { kind?: unknown }) => error.kind);
   assert.deepEqual([preflightAuthorityDenied, authorityDenied, dispatchedAuthorityDenied], ["forbidden", "forbidden", "forbidden"]);
 
   const preflightToolUnknown = kindOf(() => assertMcpStartInput("runtime", "molis_work_v1_no_such_tool", {}));
   const authorityToolUnknown = kindOf(() => assertMcpToolAllowed(RUNTIME_STATE as never, "molis_work_v1_no_such_tool", CALL_CONTEXT, EMPTY_CATALOG as never));
-  const dispatchedToolUnknown = await dispatchMcpProjectTool(null, "molis_work_v1_no_such_tool", {}, { audience: "runtime", createError: createPresentationError })
+  const dispatchedToolUnknown = await dispatchMcpProjectTool(null, "molis_work_v1_no_such_tool", {}, { audience: "runtime", createError: createPresentationError, declared: MANAGEMENT_MCP_TOOLS })
     .then(() => "no error", (error: { kind?: unknown }) => error.kind);
   assert.deepEqual([preflightToolUnknown, authorityToolUnknown, dispatchedToolUnknown], ["not_found", "not_found", "not_found"]);
 });

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { hostEventDecisionAuthority, GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { bindGoalsManagementActions, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
+import { bindManagementActions, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
 import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput } from "@molis-ai/molis-work-plugin-goals/contract";
@@ -2055,7 +2055,7 @@ test("the Goals management caller pins the owner and leaves protected decisions 
     discover: async () => { throw new Error("no directory read"); },
     invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; },
   };
-  const management = bindGoalsManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
+  const management = bindManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
   await management.invoke(goalsActions.snapshot, {});
   await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
@@ -2086,7 +2086,7 @@ test("RAC-337: with no Goals in the project, the Host's management call and guid
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
   const reference = { project_id: "a", storage_key: "a" };
   try {
-    await assert.rejects(bindGoalsManagementActions(host.actionClient(reference), reference).invoke(goalsActions.snapshot, {}), { code: "actions.missing" }, "management");
+    await assert.rejects(bindManagementActions(host.actionClient(reference), reference).invoke(goalsActions.snapshot, {}), { code: "actions.missing" }, "management");
     await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.missing" }, "guidance");
   } finally { await host.close(); }
 });
@@ -2101,7 +2101,7 @@ test("RAC-341: a third-party installation that registers Goals' capabilities whi
   host.actionRegistry(reference).registerProvider({ provider: { provider_id: REPLACEMENT, plugin_id: GOALS_PLUGIN_ID, plugin_install_id: REPLACEMENT, title: "Third party", kind: "plugin" },
     definitions: offered, handlers: offered.map(definition => ({ ...definition, handle: () => { reached.push(definition.capability_id); return {} as never; } })) });
   try {
-    const management = bindGoalsManagementActions(host.actionClient(reference), reference);
+    const management = bindManagementActions(host.actionClient(reference), reference);
     await assert.rejects(management.invoke(goalsActions.decide, { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" }), { code: "actions.dependency_missing" }, "retired management decision shortcut");
     await assert.rejects(management.invoke(goalsActions.snapshot, {}), { code: "actions.provider_changed" }, "management read");
     await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.provider_changed" }, "guidance");

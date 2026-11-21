@@ -15,7 +15,7 @@ export const registration: PluginRegistration = {
   manifest: goalsManifest,
   approval_outcomes: goalsApprovalOutcomesBinding,
   management_actions: [
-    { capability_id: "goals.board.initialize", version: /* @version action.goals.board.initialize */ 1 },
+    { capability_id: "goals.board.initialize", version: /* @version action.goals.board.initialize */ 1, mcp_tool: { name: "molis_work_v1_initialize", opens_new_database: true } },
     { capability_id: "goals.active.set", version: /* @version action.goals.active.set */ 1 },
     { capability_id: "goals.snapshot.read", version: /* @version action.goals.snapshot.read */ 1 },
     { capability_id: "goals.tree.submit", version: /* @version action.goals.tree.submit */ 1, refused_identity_fields: ["submitted_session_id"] },

@@ -1,6 +1,7 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
+import { forgetInstalledMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
@@ -188,6 +189,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = release.packaged && definition(release, approvedFor(release.pluginId) ?? release.permissions);
+    if (value) rememberInstalledMemoryScene(projectId, release.pluginId, value.manifest.memory_scene);
     if (value) { declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored); reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id)); }
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
@@ -195,6 +197,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const lifecycleContext: InstalledLifecycleContext = { platform, home: homeDirectory, library: store.path, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId)); declared.release(pluginId);
+      forgetInstalledMemoryScene(projectId, pluginId);
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
       forgetDefinitions(pluginId);
       // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).

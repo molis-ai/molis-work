@@ -2258,6 +2258,12 @@ export interface AgentStepProgressSummary {
     removed_scope_points: number;
 }
 
+export interface AgentStepReportAuthor {
+    kind: "session" | "subtask" | "person" | "handover" | "other";
+    label: string;
+    title?: string;
+}
+
 export type AgentStoryPoints = number;
 
 export interface AgentSubagentAttemptSummary {
@@ -3341,10 +3347,4 @@ interface AgentStartInputFields {
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;
-}
-
-interface AgentStepReportAuthor {
-    kind: "session" | "subtask" | "person" | "handover" | "other";
-    label: string;
-    title?: string;
 }

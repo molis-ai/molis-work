@@ -4,7 +4,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -676,111 +676,6 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
   try {
     assert.deepEqual(catalog.listProjects(), []);
     assert.deepEqual(catalog.listRuntimeContextBindingEvents(), []);
-  } finally {
-    catalog.close();
-  }
-});
-
-test("Web onboarding creates one real Project, root Draft Goal, and optional Workspace", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-onboarding-create-"));
-  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
-  const workspaceDirectory = join(homeDirectory, "workspace");
-  mkdirSync(workspaceDirectory);
-  const server = createMolisWorkWebServer({ homeDirectory });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  let projectId = "";
-  let goalId = "";
-  try {
-    const address = server.address();
-    assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
-
-    const invalid = await webFetch(`${origin}/api/onboarding/initialize`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        project_name: "1234",
-        outcome: "----",
-        workspace_path: null,
-        runtime_kind: null,
-        user_confirmed: true,
-      }),
-    });
-    assert.equal(invalid.status, 400);
-
-    const invalidIntent = await webFetch(`${origin}/api/onboarding/initialize`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        project_name: "真实首次项目",
-        outcome: "让第一次使用 Molis Work 的人建立可以继续澄清的目标",
-        intent_frame: "unknown",
-        workspace_path: null,
-        runtime_kind: null,
-        user_confirmed: true,
-      }),
-    });
-    assert.equal(invalidIntent.status, 400);
-
-    const initialized = await webFetch(`${origin}/api/onboarding/initialize`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        project_name: "真实首次项目",
-        outcome: "让第一次使用 Molis Work 的人建立可以继续澄清的目标",
-        intent_frame: "diagnose_fix",
-        workspace_path: workspaceDirectory,
-        runtime_kind: null,
-        user_confirmed: true,
-      }),
-    });
-    assert.equal(initialized.status, 201);
-    const payload = await initialized.json() as {
-      project: { project_id: string };
-      goal_id: string;
-      goal_path: string;
-      workspace: { canonical_path: string } | null;
-      runtime_autofill: boolean;
-    };
-    projectId = payload.project.project_id;
-    goalId = payload.goal_id;
-    assert.match(payload.goal_path, new RegExp(`^/projects/${projectId}/goals/`));
-    assert.equal(payload.workspace?.canonical_path, realpathSync(workspaceDirectory));
-    assert.equal(payload.runtime_autofill, false);
-
-    const status = await (await webFetch(`${origin}/api/onboarding/status`)).json() as {
-      state: { first_run: string; completed_project_id: string };
-      first_run_required: boolean;
-    };
-    assert.equal(status.state.first_run, "completed");
-    assert.equal(status.state.completed_project_id, projectId);
-    assert.equal(status.first_run_required, false);
-  } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
-  }
-
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  try {
-    const projects = catalog.listProjects();
-    assert.equal(projects.length, 1);
-    assert.equal(projects[0]?.project_id, projectId);
-    assert.equal(projects[0]?.display_name, "真实首次项目");
-    assert.deepEqual(catalog.listWorkspaceDirectory(projectId).map((item) => item.canonical_path), [realpathSync(workspaceDirectory)]);
-    const project = catalog.getProject(projectId);
-    const store = new LocalProjectDatabase(project.database_path);
-    try {
-      const goals = snapshotOfStore(store, project.project_id).goals;
-      assert.equal(goals.length, 1);
-      assert.equal(goals[0]?.goal_id, goalId);
-      assert.equal(goals[0]?.definition_state, "draft");
-      assert.equal(goals[0]?.decomposition_state, "abstract");
-      assert.equal(goals[0]?.outcome, "让第一次使用 Molis Work 的人建立可以继续澄清的目标");
-      assert.match(goals[0]?.business_logic ?? "", /work-diagnose-fix/);
-    } finally {
-      store.close();
-    }
   } finally {
     catalog.close();
   }

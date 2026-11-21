@@ -596,4 +596,27 @@ test("PEQ-17 work terminals refuse mid-flight regrant revocation, kill live Home
     try { process.kill(pid, 0); await new Promise(resolve => setTimeout(resolve, 25)); } catch { alive = false; }
   }
   assert.equal(alive, false, "P0-5: hiding Home plugin from project immediately kills its live work-terminal process");
+
+  // S-work-terminal-attach: once the Home plugin is not enabled in the panel's project, its Home-scoped page may no longer attach (fails closed).
+  const refusedPage = pluginPagesFor(f.home).open(HOME_PROBE_ID, null, LOCAL_PERSON_ACTOR_ID);
+  const ws2 = new WebSocket(f.origin.replace("http:", "ws:") + "/pty");
+  const ws2Messages: Array<Record<string, unknown>> = [];
+  ws2.on("message", raw => ws2Messages.push(JSON.parse(raw.toString())));
+  t.after(() => ws2.terminate());
+  await new Promise<void>((resolve, reject) => { ws2.once("open", () => resolve()); ws2.once("error", reject); });
+  ws2.send(JSON.stringify({ type: "page-auth", pageId: refusedPage.page_id }));
+  ws2.send(JSON.stringify({ type: "spawn", panelId: openedHome.panel_id, attachOnly: true }));
+  const refusedAttach = await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const deadline = Date.now() + 5000;
+    const poll = () => {
+      const hit = ws2Messages.find(m => m.type === "spawned" || m.type === "error");
+      if (hit) return resolve(hit);
+      if (Date.now() > deadline) return reject(new Error("timed out waiting for the refused Home page attach"));
+      setTimeout(poll, 20);
+    };
+    poll();
+  });
+  assert.equal(refusedAttach.type, "error", `S-work-terminal-attach: a hidden Home plugin's page cannot attach (${JSON.stringify(refusedAttach)})`);
+  assert.match(String(refusedAttach.message), /终端不属于当前插件页面/u);
+  ws2.close();
 });

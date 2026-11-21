@@ -83,6 +83,7 @@ export type {
   AgentBackgroundTask,
   AgentBackgroundCapability,
   AgentStepOwner,
+  AgentStepReportAuthor,
   AgentStepProgressSummary,
   AgentStepBoard,
   AgentStepAmendment,

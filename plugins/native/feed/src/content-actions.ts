@@ -1,3 +1,4 @@
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { retainActionAuthority, ActionError, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, searchText, type SearchEntry, bindWorkflowContentHandlers, defineWorkflowContentActions, type WorkflowPayload, type ActionSubject, type ActionSubjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { createFeedHomeEventsHandler } from "./work-events.js";
@@ -33,7 +34,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       // This action runs beside the project's queue while the model judges, so it judges what its own delivery queued and
       // nothing another producer queued meanwhile: that is judged by its owner, under its owner's authority.
       return feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
-        summary: input.body.replace(/\s+/g, " ").trim().slice(0, 240), body: input.body, url: input.url ?? null,
+        summary: cutHead(input.body.replace(/\s+/g, " ").trim(), 240), body: input.body, url: input.url ?? null,
         occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive))
         .then(({ item }) => ({ subject: { kind: "feed_item", id: item.item_id }, title: item.title }));
     },

@@ -344,6 +344,10 @@ test("SRB-12 SRB-15 SRB-16 scope counts, project AI read CAS, suggestion caching
       await writeClaudeSession(userHome, "batch", `sess-group-${i}`, uniqueDir, `Group ${i} task`, `2026-11-10T11:${String(i).padStart(2, "0")}:00.000Z`);
     }
     await writeClaudeSession(userHome, "batch", "sess-filed-one", wsDir, "Filed session", "2026-11-10T12:00:00.000Z");
+    // B103-2: a subagent of the filed session, in the same directory: recorded under it, never counted as a session of the project.
+    await mkdir(path.join(userHome, ".claude", "projects", "batch", "sess-filed-one", "subagents"), { recursive: true });
+    await writeFile(path.join(userHome, ".claude", "projects", "batch", "sess-filed-one", "subagents", "agent-f1.jsonl"),
+      JSON.stringify({ sessionId: "sess-filed-one", isSidechain: true, cwd: wsDir, timestamp: "2026-11-10T12:01:00.000Z", message: { role: "user", content: "Look around" } }) + "\n", "utf8");
 
     let suggestCalls = 0;
     const nowIso = "2026-11-10T10:00:00.000Z";

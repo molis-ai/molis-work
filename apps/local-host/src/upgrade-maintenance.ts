@@ -123,8 +123,16 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
       return;
     }
     if (request.method === "GET" && url.pathname === "/assets/molis-work-arrival.css") {
-      response.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-      void (arrivalStylesheet ??= tightenServedCss(hostRecoveryPages.arrivalStylesheet())).then(text => response.end(text));
+      // Compacted once; a failed compaction is not kept, so the next request tries again.
+      const sheet = arrivalStylesheet ??= Promise.resolve().then(() => tightenServedCss(hostRecoveryPages.arrivalStylesheet()));
+      void sheet.then(text => {
+        response.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+        response.end(text);
+      }, () => {
+        if (arrivalStylesheet === sheet) arrivalStylesheet = undefined;
+        response.writeHead(500, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+        response.end();
+      });
       return;
     }
     if (request.method === "GET" && /\btext\/html\b/u.test(request.headers.accept ?? "")) {

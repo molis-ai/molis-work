@@ -337,7 +337,7 @@ export class SessionsDecisionStore {
       FROM external_sessions AS s
       LEFT JOIN session_attributions AS a ON a.session_key = s.session_key
       LEFT JOIN session_directories AS d ON d.directory_key = s.directory_key
-      WHERE s.gone_at IS NULL
+      WHERE s.gone_at IS NULL AND s.subagent = 0
       GROUP BY
         s.entry_id,
         s.location_key,

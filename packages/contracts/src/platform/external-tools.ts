@@ -329,10 +329,11 @@ export const EXTERNAL_TOOLS: readonly ExternalToolRow[] = REGISTER;
 export const externalToolIdsWith = <Key extends ExternalToolField>(key: Key): readonly ExternalToolIdsByField[Key][] =>
   REGISTER.filter(tool => key in tool).map(tool => tool.id) as ExternalToolIdsByField[Key][];
 
-/** One row by id; the fields its id is known to have come typed as present (the checks above hold them to the register). */
+/**
+ * One row by id; the fields its id is known to have come typed as present (the checks above hold them to the register). An id that is not
+ * in the register (a runtime named in a grant or a stored row, read as an id) finds nothing, as before: callers holding such a string check.
+ */
 export function externalTool<Id extends ExternalToolId>(id: Id): ExternalToolRow<Id>;
-export function externalTool(id: ExternalToolId): ExternalToolEntry {
-  const row = EXTERNAL_TOOLS.find(tool => tool.id === id);
-  if (!row) throw new TypeError(`unknown external tool: ${id}`);
-  return row;
+export function externalTool(id: ExternalToolId): ExternalToolEntry | undefined {
+  return EXTERNAL_TOOLS.find(tool => tool.id === id);
 }

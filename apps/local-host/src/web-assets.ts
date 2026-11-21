@@ -177,7 +177,8 @@ export function createLocalWebAssets(ports: {
         if (workbenchAssets.get(key) === compacting) workbenchAssets.delete(key);
       });
     }
-    if (asset instanceof Promise) return asset.then(ready => sendAsset(request, response, ready), (error: unknown) => {
+    // A compaction that failed, or a send that threw, answers this request; the failed compaction is not kept (above).
+    if (asset instanceof Promise) return asset.then(ready => sendAsset(request, response, ready)).catch((error: unknown) => {
       if (!response.headersSent) sendJson(response, 500, { error: "页面资源暂时无法生成，请刷新重试" });
       else response.destroy(error instanceof Error ? error : undefined);
       return true as const;

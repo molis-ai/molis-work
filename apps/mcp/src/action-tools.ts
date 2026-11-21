@@ -44,12 +44,15 @@ export function createActionMcpPorts(options: {
   context(): ActionCallContext;
   serverInfo: McpProtocolPorts["serverInfo"];
   toolName?(action: ActionReference): string;
+  /**
+   * The action a name stood for in the catalog the server listed for this connection (batch 103-2): a call looks up that one action
+   * instead of the whole directory. The lookup judges visibility for this call's caller; a name it does not know, or whose action is
+   * no longer that name, falls back to the whole directory, which also checks for duplicate names.
+   */
+  known?(name: string): ActionReference | undefined;
 }): McpProtocolPorts {
   const context = (): ActionCallContext => ({ ...options.context(), audience: "mcp" });
   const toolName = options.toolName ?? actionMcpToolName;
-  // Which action each listed name stood for (batch 103-2): a call looks up that one action instead of the whole directory. The lookup
-  // judges visibility for the caller of this call, and a name not listed yet, or whose action moved, falls back to the whole directory.
-  const listed = new Map<string, ActionReference>();
   const catalog = async (caller: ActionCallContext) => {
     const entries = new Map<string, ActionView>();
     for (const view of await options.service.discover(caller)) {
@@ -57,12 +60,10 @@ export function createActionMcpPorts(options: {
       if (entries.has(name)) throw new ActionError("actions.mcp_name_conflict", `MCP 名称重复：${name}`);
       entries.set(name, view);
     }
-    listed.clear();
-    for (const [name, view] of entries) listed.set(name, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
     return entries;
   };
   const one = async (caller: ActionCallContext, name: string) => {
-    const reference = listed.get(name);
+    const reference = options.known?.(name);
     if (reference && options.service.discoverOne) {
       const view = await options.service.discoverOne(caller, reference);
       if (view && toolName(view) === name) return view;

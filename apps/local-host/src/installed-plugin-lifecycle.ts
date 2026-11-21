@@ -1,6 +1,6 @@
 /**
- * What a person can do to a generated plugin installed in a project: install, upgrade, roll back, switch off and on,
- * uninstall. Plugin Runtime owns the installation facts; this adds what only the Host knows around them: the approval
+ * What a person can do to a plugin installed from a signed package, in a project or in the Home: install, upgrade, switch off and on,
+ * uninstall. A plugin the studio made is installed from its signed package like any other (PG-083). Plugin Runtime owns the installation facts; this adds what only the Host knows around them: the approval
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
@@ -9,14 +9,15 @@ import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type Pl
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { collectRetained } from './uninstall-retained.js';
-import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import { sameInstalledRelease, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
-import { leaveRefusal, UNINSTALL_PENDING, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { leaveRefusal, UNINSTALL_PENDING, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 
 /** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
 export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
+/** `release` is one read from a signed package (`packaged`); the Runtime's row says what is installed. */
+export type InstalledLifecycle = (action: 'install' | 'upgrade' | 'disable' | 'enable' | 'uninstall', release: InstalledRelease, grants?: unknown) => Promise<void>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
 import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
@@ -46,7 +47,7 @@ export interface InstalledLifecycleContext {
   secrets: PluginSecrets;
   recoveryErrors: RecoveryErrors;
   closed(): boolean;
-  /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
+  /** Whether the publisher behind a package installation is still trusted (BL-559). */
   trusted(record: PluginInstanceRecord): boolean;
   recordFor(pluginId: string, retryUninstall?: boolean): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
@@ -123,7 +124,7 @@ async function enableInstalled(c: InstalledLifecycleContext, release: InstalledR
   c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId);
 }
 
-export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPorts['lifecycle'] {
+export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifecycle {
   const { platform } = c;
   /**
    * `attempt`: this is the cleanup of an install that did not finish, not the person's uninstall; `earlier` is the
@@ -157,11 +158,12 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    * data, secrets, approval and running code, and the person's choice about the data stands.
    */
   const install = async (release: InstalledRelease, grants: Grants) => {
-    const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
+    const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release), packaged = release.packaged;
+    if (!packaged) throw pluginErrors.definition_conflict('只能安装签名的安装包');
     // What its Manifest requires and nothing optional: a sandbox plugin's own storage, nothing for a plugin with only declarations.
     const definition = c.definition(release, release.permissions), required = definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
     // The Runtime refuses one the installation's declaration does not have (`plugin.grant_denied`).
-    const entry = { definition, grants: [...new Set([...required, ...grants.optional ?? []])], trust: release.packaged?.trust ?? UNSIGNED_TRUST };
+    const entry = { definition, grants: [...new Set([...required, ...grants.optional ?? []])], trust: packaged.trust };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
@@ -227,7 +229,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
     const next = release.packaged.manifest;
     assertUpgradeOf(next, record.version);
-    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release), grants);
+    return changeInstalledVersion(c, release, record, release.permissions, secretsOf(grants.secrets, release), grants);
   };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
@@ -241,16 +243,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (c.project_id === null && action !== 'disable' && installedHomeUpgradeBlocked(c.home, record)) {
       throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
     }
-    if (action === 'upgrade' || action === 'rollback') {
-      const verb = action === 'upgrade' ? '升级' : '回滚';
-      if (record.publisher_trust === 'pinned' && action === 'rollback') throw pluginErrors.state_invalid('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
-      if (record.publisher_trust === 'pinned' || (release as InstalledRelease).packaged) return upgradePackage(release, record, grants);
-      if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能' + verb + '：请先卸载并保留数据，再重新安装');
-      const approved = c.approvedFor(pluginId) ?? {};
-      if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');
-      const nextApproval = covered(release.permissions, approved) ? approved : release.permissions;
-      return changeInstalledVersion(c, action, release, record, nextApproval, secretsOf(grants.secrets, release));
-    }
+    if (action === 'upgrade') return upgradePackage(release, record, grants);
     // A 常开 agreement that stands keeps the installation on: asked before anything is withdrawn, revoked or stopped.
     const refusal = action === 'disable' || action === 'uninstall' ? leaveRefusal(platform.consents ?? undefined, record, action === 'disable' ? '停用' : '卸载') : undefined;
     if (refusal) throw refusal;
@@ -264,7 +257,10 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return;
     }
     if (action === 'enable') return enableInstalled(c, release, record, grants);
-    if (action === 'uninstall') await uninstall(release, record, record.state === 'uninstalled' ? undefined : grants.keepData === true);
+    if (action === 'uninstall') { await uninstall(release, record, record.state === 'uninstalled' ? undefined : grants.keepData === true); return; }
+    // An installation moves to a newer package and nowhere else: there is no way back to an earlier version, and nothing else to ask for.
+    action satisfies never;
+    throw pluginErrors.state_invalid('已装的插件不能回到旧版本：先卸载，再装要用的那个包');
   };
 }
 

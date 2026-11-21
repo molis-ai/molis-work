@@ -25,8 +25,8 @@ import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platf
 import { closePlugin, supervisedInstall } from './plugin-platform-close.js';
 import { configuredModelChoices } from './configured-models.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
-import { generatedPluginManifest, installedSignature } from './plugin-builder/installed.js';
-import { installedVersion, releaseVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
+import { generatedPluginManifest } from './plugin-builder/installed.js';
+import { installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
@@ -36,7 +36,7 @@ import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, reg
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
-import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
+import { buildSources, readPluginPrompts } from './plugin-builder/prompts.js';
 import { APPROVED_KEY, installedLifecycle, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
@@ -44,7 +44,6 @@ import { RecoveryErrors } from './installed-recovery-errors.js';
 import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
-const SIGNATURE = installedSignature('');
 
 interface InstalledPluginHostOptions {
   store: LocalProjectDatabase;
@@ -128,8 +127,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
     ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
-  // The studio's installs, and the ones from a signed package a pinned publisher made: both run in the sandbox and are listed, started and removed alike.
-  const records = () => platform.runtime.list().filter(item => (item.publisher_signature.startsWith(SIGNATURE) || item.publisher_trust === 'pinned') && item.state !== 'uninstalled');
+  // What is installed here came from a signed package a pinned publisher made, the studio's own included (PG-083). A row the studio's earlier unsigned
+  // channel left is not one: it is not listed, started or read (user decision 2026-11-21, nothing is migrated).
+  const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
   /** `retryUninstall`: also the one signed tombstone of this plugin whose uninstall has not finished its clean-up (BL-915), never another. */
   const recordFor = (pluginId: string, retryUninstall = false) => records().find(item => item.plugin_id === pluginId)
     ?? (retryUninstall ? onlyOne(platform.runtime.list().filter(item => item.plugin_id === pluginId && isPendingUninstall(item))) : undefined);
@@ -145,8 +145,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
     if (!record) return undefined;
-    if (record.publisher_trust === 'pinned') { try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error); return undefined; } }
-    return releases.versions(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
+    try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
   };
   const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
   const titleOf = (pluginId: string) => releaseFor(pluginId)?.design.title ?? releases.releases().find(item => item.pluginId === pluginId)?.design.title;
@@ -172,8 +171,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         return { kind: 'preview', prompts: readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts };
       }
       const record = recordFor(pluginId), installed = releaseFor(pluginId);
-      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('plugin.capability_denied', '模型调用的安装执行身份已失效');
-      return { kind: 'installed', registration: installed.packaged ? pluginAgentRegistration(definition(installed, approvedFor(pluginId) ?? installed.permissions))! : generatedRegistration(installed, releases.versions(installed.buildId), 'enabled', record.version) };
+      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed?.packaged) throw new SandboxError('plugin.capability_denied', '模型调用的安装执行身份已失效');
+      return { kind: 'installed', registration: pluginAgentRegistration(definition(installed, approvedFor(pluginId) ?? installed.permissions))! };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
@@ -182,21 +181,20 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
-    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)),
-    earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
-  const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]), declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
+    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)) });
+  const declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
     const record = recordFor(release.pluginId);
-    if (!record || record.version !== installedVersion(release)) return;
-    const value = release.packaged && definition(release, approvedFor(release.pluginId) ?? release.permissions);
-    if (value) rememberInstalledMemoryScene(projectId, release.pluginId, value.manifest.memory_scene);
-    if (value) { declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored); reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id)); }
-    else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
+    if (!record || !release.packaged || record.version !== installedVersion(release)) return;
+    const value = definition(release, approvedFor(release.pluginId) ?? release.permissions);
+    rememberInstalledMemoryScene(projectId, release.pluginId, value.manifest.memory_scene);
+    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored);
+    reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
   const lifecycleContext: InstalledLifecycleContext = { platform, home: homeDirectory, library: store.path, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
-      unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId)); declared.release(pluginId);
+      declared.release(pluginId);
       forgetInstalledMemoryScene(projectId, pluginId);
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
       forgetDefinitions(pluginId);
@@ -231,7 +229,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
       pendingUninstalls: () => platform.runtime.list().filter(isPendingUninstall),
       refreshPublicActions, reconcilePublishers: stops.reconcile,
-      installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),
+      installations: () => records().map(item => ({ record: item, pluginId: item.plugin_id, publisher: item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }
 }

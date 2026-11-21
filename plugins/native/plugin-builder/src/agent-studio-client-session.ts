@@ -8,14 +8,14 @@ export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initia
  function subscribe(id){source?.close();source=null;if(!id||!lifetime.visible)return;const subscribed=source=new EventSource(host.api('/builds/'+id+'/events'));source.onmessage=e=>{if(source!==subscribed||!lifetime.visible)return;const b=JSON.parse(e.data);if(b.id!==current?.id)return;if(b.design?.contract.revision!==current.design?.contract.revision)seenWired=new Set();current=b;
    const listed=state.builds.find(x=>x.id===b.id);if(listed&&(listed.phase!==b.phase||(listed.design?.title||listed.title)!==(b.design?.title||b.title))){Object.assign(listed,{phase:b.phase,title:b.title,design:b.design});renderBuilds();}
    schedule();};}
- async function open(id,signal){const ticket=++opening;comparePrevious=false;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
+ async function open(id,signal){const ticket=++opening;closeSheet();comparePrevious=false;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
   if(!id){current=null;versions=[];subscribe(null);page.replace(withBuild(null));schedule();return;}
   const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);page.replace(withBuild(id));renderBuilds();schedule();}
  async function refreshState(signal){state=await api('/state','GET',undefined,signal);renderBuilds();}
  async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e;}finally{busy=false;schedule();}}
- async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';}if(v.deleted){await refreshState();await open(null);}}
+ async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';tab='install';}if(v.deleted){await refreshState();await open(null);}}
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
-  if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin('app-'+el.dataset.asOpenPlugin);return;}
+  if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin(el.dataset.asOpenPlugin);return;}
   if(el.matches('[data-as-model-setup]')){e.preventDefault();host.openSettings('/settings/models');return;}
   if(el.dataset.asExample){input.value=el.dataset.asExample;window.molisFit?.(input);input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
@@ -30,18 +30,7 @@ export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initia
   if(el.hasAttribute('data-as-compare')){comparePrevious=!comparePrevious;schedule();return;}
   if(el.dataset.asTab){tab=el.dataset.asTab;target=null;if(tab!=='build'){playToken++;playing=false;queue.forEach(id=>revealed.add(id));queue=[];landing=null;picking=null;wires.forEach(w=>wiredCaps.add(w.cap));wires=[];wiring=null;}schedule();return;}
   if(el.hasAttribute('data-as-untarget')){target=null;schedule();return;}
-  if(el.dataset.asInstall){const v=versions.find(x=>x.version===Number(el.dataset.asInstall));consent(globalThis.t.text("plugin-builder.agent-studio.install-name-project",{name:current.design?.title||''}),v?.permissions,globalThis.t.text("plugin-builder.agent-studio.install")).then(ok=>{if(ok)run(async()=>{
-    const apply=extra=>act('install',{version:v.version,grants:{consent:true,secrets:ok.secrets||[],...extra}});
-    try{await apply();}catch(e){
-     if(e.code!=='plugin.kept_data_incompatible')throw e;
-     const choice=await ask(globalThis.t.text("plugin-builder.agent-studio.install-name",{name:current.design?.title||''}),globalThis.t.text("plugin-builder.agent-studio.when-plugin-was-uninstalled-earlier-its-data-was"),[['discard',globalThis.t.text("plugin-builder.agent-studio.discard-old-data-install-fresh"),true],['cancel',globalThis.t.text("plugin-builder.agent-studio.cancel")]]);
-     if(choice!=='discard')return;
-     await apply({discardKeptData:true});}
-    await refreshState();});});return;}
-  if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===+el.dataset.asUpgrade),go=s=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true,secrets:s}});await refreshState();});
-   if(covered(v?.permissions,installed(current)?.effects))go();else consent(globalThis.t.text("plugin-builder.agent-studio.upgrading-v-version-needs-new-permissions",{version:v.version}),v?.permissions,globalThis.t.text("plugin-builder.agent-studio.confirm-upgrade")).then(ok=>ok&&go(ok.secrets));return;}
-  if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
-  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask(globalThis.t.text("plugin-builder.agent-studio.uninstall-name",{name:current.design?.title||''}),globalThis.t.text("plugin-builder.agent-studio.after-uninstalling-removed-project-its-saved-data-can"),[['keep',globalThis.t.text("plugin-builder.agent-studio.uninstall-keep-data"),true],['drop',globalThis.t.text("plugin-builder.agent-studio.uninstall-delete-data")],['cancel',globalThis.t.text("plugin-builder.agent-studio.cancel")]]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();host.pluginRemoved('app-'+current.id);});});return;}
+  if(el.hasAttribute('data-as-install-open')){openSheet();return;}
   if(el.hasAttribute('data-as-new')){run(()=>open(null));input.focus();}
  });
  lifetime.listen(feed,'click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});

@@ -116,20 +116,6 @@ export function releaseInstructions(release: AgentRelease, releases: readonly Ag
     version: versions.get(prompt.id) ?? release.version, title: prompt.title, purpose: prompt.purpose, used_by: [release.design.title], body: prompt.body })));
 }
 
-/** An installed generated plugin's prompts, registered with the Home's so the person sees and edits them. */
-export function generatedRegistration(release: AgentRelease, releases: readonly AgentRelease[], state: 'enabled' | 'disabled', pluginVersion: string): AgentDefinitionRegistration {
-  return { owner_id: release.pluginId, source: { kind: 'plugin', plugin_id: release.pluginId, plugin_version: pluginVersion, title: release.design.title, origin: 'generated', state },
-    prompts: releaseInstructions(release, releases).map(({ owner_id: _owner, used_by, ...prompt }) => ({ ...prompt, kind: 'instruction' as const, used_by: [...used_by] })), roles: [] };
-}
-
-export function registerGeneratedPrompts(home: string, registration: AgentDefinitionRegistration, scope?: string): void {
-  agentDefinitionsFor(home, builtinRegistrations).register(registration, scope);
-}
-
-export function unregisterGeneratedPrompts(home: string, pluginId: string, scope?: string): void {
-  agentDefinitionsFor(home, builtinRegistrations).unregister(pluginId, scope);
-}
-
 export type PluginPromptSource = { kind: 'preview'; prompts: readonly PluginPrompt[] }
   | { kind: 'installed'; registration: AgentDefinitionRegistration };
 

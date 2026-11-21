@@ -27,12 +27,13 @@ export function renderAgentStudio(text: (key: string, values?: Record<string, st
     // The build check's packaging step downloads the dependencies a generated plugin declares from the npm registry (W2-18 decision 14).
     + '<p class="as-model-note" data-as-network-note>' + text("plugin-builder.agent-studio.build-check-s-packaging-step-when-plugin-declares") + '</p></aside>'
     + '<main class="as-right"><header class="as-canvas-head"><div class="as-title"><h1 data-as-title>' + text("plugin-builder.agent-studio.new-plugin-2") + '</h1><span class="as-phase" data-as-phase></span></div>'
-    + '<div class="as-segment" role="tablist" aria-label="' + text("plugin-builder.agent-studio.canvas-mode") + '"><button type="button" role="tab" data-as-tab="build" aria-selected="true">' + text("plugin-builder.agent-studio.build") + '</button><button type="button" role="tab" data-as-tab="try" aria-selected="false">' + text("plugin-builder.agent-studio.try") + '</button></div>'
+    + '<div class="as-segment" role="tablist" aria-label="' + text("plugin-builder.agent-studio.canvas-mode") + '"><button type="button" role="tab" data-as-tab="build" aria-selected="true">' + text("plugin-builder.agent-studio.build") + '</button><button type="button" role="tab" data-as-tab="try" aria-selected="false">' + text("plugin-builder.agent-studio.try") + '</button><button type="button" role="tab" data-as-tab="install" aria-selected="false">' + text("plugin-builder.agent-studio.install") + '</button></div>'
     + '<div class="as-head-actions" data-as-head-actions></div></header>'
     + '<div class="as-canvas" data-as-canvas data-tab="build"><div class="as-canvas-scroll" data-as-scroll><div class="as-empty" data-as-empty></div><div class="as-plugin" data-as-plugin></div>'
     + '<div class="as-frame" data-as-frame hidden aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>'
     + '<div class="as-pointer as-pointer-ui" data-as-pointer="ui" hidden><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 1l11 7-5 1-2 5z"/></svg><span>' + text("plugin-builder.agent-studio.ui-agent") + '</span><em></em></div>'
     + '<div class="as-pointer as-pointer-code" data-as-pointer="code" hidden><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 1l11 7-5 1-2 5z"/></svg><span>' + codeAgent + '</span><em></em></div></div>'
+    + '<div class="as-install-stage" data-as-install-stage hidden><div class="as-install-note" data-as-install-note></div><div class="as-install-place" data-as-install-place></div></div>'
     + '<div class="as-catalog" data-as-catalog-panel hidden aria-label="' + text("plugin-builder.agent-studio.all-components-ui-catalog") + '"></div><nav class="as-board" data-as-board aria-label="' + text("plugin-builder.agent-studio.spec-board-components-ui-catalog") + '"></nav><div class="as-part-tip" data-as-tip role="tooltip" hidden></div></div>'
     + '<footer class="as-status" data-as-status role="status"></footer></main></section>';
 }

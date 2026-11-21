@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../agent-definitions/builtin-agents.js';
 import { registeredInstructionBody } from '../agent-definitions/instructions.js';
-import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginInstanceRecord, PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
@@ -67,6 +67,8 @@ export interface AgentStudioOptions {
   actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
   /** The resident Home's actual action directory and client; never a project fallback. */
   homeActions?: ProjectActions;
+  /** The signed packages installed in the Home, for the studio to say which of its own are there. */
+  homeInstallations?(): Promise<Array<{ record: PluginInstanceRecord; error?: string }>>;
   /** Enables a built-in plugin in this project (by its manifest id), as project settings would. */
   enablePlugin?(pluginId: string): Promise<void>;
   /** How many operations the code agents write at once (default 3). */
@@ -108,7 +110,7 @@ function sendStudioProblem(response: ServerResponse, status: number, error: unkn
 
 function installedRecoveryHtml(error: string): string {
   const title = studioWord("plugin-builder.request.recovery-title", "插件暂时无法运行");
-  const hint = studioWord("plugin-builder.request.recovery-hint", "请在插件创作工作台里检查安装。");
+  const hint = studioWord("plugin-builder.request.recovery-hint", "请到 设置 › 插件 里查看这个插件。");
   return '<main class="as-preview-page"><h1>' + escapeHtml(title) + '</h1><p role="alert" translate="no">' + escapeHtml(error)
     + '</p><p>' + escapeHtml(hint) + '</p></main>';
 }
@@ -278,7 +280,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (!record) return false;
       if (installedCall && method === 'POST') {
         const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
-        if (!result) { sendStudioProblem(response, 409, studioProblem("plugin-builder.request.plugin-not-running", '这个插件当前没有运行，请在创作台里启用')); return true; }
+        if (!result) { sendStudioProblem(response, 409, studioProblem("plugin-builder.request.plugin-not-running", '这个插件当前没有运行，请到 设置 › 插件 里启用')); return true; }
         sendLocalWebJson(response, result.status, result.body); return true;
       }
       if (installedPage && method === 'GET') {

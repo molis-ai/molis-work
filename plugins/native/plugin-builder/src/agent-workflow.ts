@@ -25,7 +25,7 @@ import { proposalSketch, experienceTask, acceptExperience } from './agent-experi
 import { acceptPresentationReview } from './agent-review.js';
 import { displayProblem } from './agent-diagnostics.js';
 export { failureReason, humanize } from './agent-diagnostics.js';
-import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease } from './agent-model.js';
+import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal } from './agent-model.js';
 
 export interface AgentBuilderPorts {
   projectId: string;
@@ -75,7 +75,6 @@ export interface AgentBuilderPorts {
   sources?(build: AgentBuild): Promise<string[]>;
   publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number, control: AgentPublicationControl): Promise<PublishedAgentRelease>;
   installations(): Promise<unknown[]>;
-  lifecycle(action: 'install' | 'upgrade' | 'rollback' | 'disable' | 'enable' | 'uninstall', release: AgentRelease, grants?: unknown): Promise<void>;
 }
 const snapshot = (build: AgentBuild): AgentBuildSnapshot => ({ design: build.design, nodes: build.nodes, connected: build.connected, ...(build.directory ? { directory: build.directory } : {}), ...(build.designSource ? { designSource: build.designSource } : {}), checks: build.checks, checksScope: build.checksScope, browserResult: build.browserResult, visualResult: build.visualResult });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -754,7 +753,6 @@ export class AgentBuilderWorkflow {
     if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw studioProblem("plugin-builder.request.no-revision-to-undo", '没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
     if (body.action === 'remove') { this.store.remove(id, build.revision); await this.resetPreview(id); return null; }
     if (body.action === 'publish') return publishAgentBuild(this.store, this.ports, build, authority, () => { if (this.closed) throw new Error('宿主已关闭'); });
-    if (['install', 'upgrade', 'rollback', 'disable', 'enable', 'uninstall'].includes(String(body.action))) { const release = this.store.versions(id).find(item => item.version === body.version); if (!release) throw studioProblem("plugin-builder.request.version-not-found", '发布版本不存在'); if (release.distribution?.runtime_scope === 'home') throw studioProblem("plugin-builder.request.home-install-through-settings", '个人空间发布请下载签名包后在插件设置中导入确认'); await this.ports.lifecycle(body.action as Parameters<AgentBuilderPorts['lifecycle']>[0], release, body.grants); return this.store.require(id); }
     throw studioProblem("plugin-builder.request.unknown-build-operation", '未知构建操作');
   }
   async close() { this.closed = true; for (const abort of this.drawing) abort.abort(); for (const job of this.jobs.values()) job.abort.abort(failStudioBuild('build-interrupted', '', { guidance: 'build-continue-after-restart' })); await Promise.all([...this.jobs.values()].map(job => job.done)); await Promise.all(this.store.list().map(build => this.resetPreview(build.id))); this.listeners.clear(); }

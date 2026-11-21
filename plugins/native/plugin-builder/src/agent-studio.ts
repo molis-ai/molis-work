@@ -78,8 +78,6 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
  * - `mockupHtml` (W7): The proposal's picture when an image service drew one; nothing at all when there is none.
  * - `opState`: One row of the task board: where this operation stands, and what its code agent is doing or where it is stuck.
  * - `failure`: What went wrong, in the person's words, and what they can do; the host's own words stay under "Technical details".
- * - `effectsList`: What an installation grants, grouped the way the person weighs it: its own data, what it reads (granted with the installation), and what it changes
- *   outside itself (each listed).
  * - `ask`: A small in-page dialog; resolves with the chosen button's value, or '' when dismissed. `settle` resolves from the form's own submit (synchronous with the click) and
  *   from Escape; a dialog's close event is not delivered while the page is in the background.
  * - `renderHead`: Typing never waits for a build: a change request stops the current round and is taken in.
@@ -88,9 +86,9 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
  * - `showTip`: What a spec-board part is, and where this plugin already uses it.
  * - `aim`: Points at an element from inside the canvas: above it (the spec board), at its top-right area (a part), or at its right edge.
  * - `schedule`: Hidden views read the authoritative build again on return.
- * - The install click: the plugin opens in place as a workbench stage rather than in a new window. The secrets travel with the install: the host's sealed store keeps them only
- *   if the plugin is installed, and the plugin will only ever name them. An uninstall kept this plugin's data, and this version cannot read it: install fresh only if the person
- *   lets it go.
+ * - Installing (`openSheet`, `renderInstall`): the studio only hands the signed package of the latest version to the shell's install sheet (`host.packageInstall`), which
+ *   the shell draws over `[data-as-install-place]`; the page never sees the permissions chosen or a key typed, and hears only how it ended. The place is made once and never
+ *   redrawn, so the sheet stays through every repaint. Turning off, permissions and uninstalling are in 设置 › 插件, as for any installed package.
  * - The composer's submit: a request that starts "做一个……" while another plugin is open is most likely a new plugin; it asks rather than rewrite the open one.
  * - The last lines: coming in without a plugin named in the address starts a new one; earlier ones are a click away, never opened for you.
  */
@@ -116,15 +114,14 @@ export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const client=(` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `),components=` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `;
  const embedded=host.page?.(),mountSurfaceSlot=host.view?.surfaceSlot;
  if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,mountSurfaceSlot,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
- const valid=s=>typeof s==='string'&&/^app-[a-f0-9-]{36}$/.test(s);
+ const valid=s=>typeof s==='string'&&/^[a-z][a-z0-9.-]{0,199}$/.test(s);
  const entry=s=>[...document.querySelectorAll('[data-work-surface-open]')].find(el=>el.dataset.workSurfaceOpen===s);
  const openPlugin=s=>{if(!valid(s))return;if(host.openPlugin){host.openPlugin(s);return;}const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};
- const pluginRemoved=s=>{if(!valid(s))return;if(host.view?.refreshShell){host.view.refreshShell();return;}entry(s)?.remove();[...document.querySelectorAll('[data-work-surface]')].find(el=>el.dataset.workSurface===s)?.remove();};
  const KEY='molis-work-studio-build:'+(host.projectId?.()||'');
  const page={address:()=>{const here={searchParams:new URLSearchParams()};try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
   replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{}}};
  client({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',
   api:p=>host.route('/api/plugin-builder/studio')+p,plugin:id=>host.route('/plugins/')+id,
-  components,page,openPlugin,pluginRemoved,loadMedia:host.loadMedia,download:host.download,
+  components,page,openPlugin,loadMedia:host.loadMedia,download:host.download,packageInstall:host.packageInstall,
   openSettings:href=>globalThis.molisWorkOpenExternalUrl?globalThis.molisWorkOpenExternalUrl(href):document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
 }`;

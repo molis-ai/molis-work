@@ -32,7 +32,7 @@ export function installedPluginPage(input: { home: string; actorId: string; proj
   const { release, projectId, prefix } = input, record = input.running();
   const unavailable = () => new ActionError("actions.provider_changed", "插件的已安装版本已更改，请重新打开");
   if (!record || record.state !== "running" || record.plugin_id !== release.pluginId || record.version !== installedVersion(release)
-    || record.publisher_signature !== (release.packaged?.manifest.publisher.signature ?? "agent-built:" + release.buildId)) throw unavailable();
+    || !release.packaged || record.publisher_signature !== release.packaged.manifest.publisher.signature) throw unavailable();
   if (input.expected) assertStageInstallation(input.scope, record, input.expected);
   const { install_id, installation_generation, manifest_digest } = record;
   const authorization = pluginPagesFor(input.home).open(release.pluginId, projectId, input.actorId, input.assertProject, undefined, input.selection ?? {

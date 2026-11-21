@@ -6,7 +6,20 @@ import { join } from "node:path";
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { generatedRegistration, promptVersions, readPluginPrompts, registerGeneratedPrompts, resolvePluginPrompt, unregisterGeneratedPrompts } from "../apps/local-host/src/plugin-builder/prompts.js";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { promptVersions, readPluginPrompts, releaseInstructions, resolvePluginPrompt } from "../apps/local-host/src/plugin-builder/prompts.js";
+import { pluginAgentRegistration } from "../apps/local-host/src/plugin-instructions.js";
+
+// A plugin the studio made is installed from its signed package (PG-083), so its prompts reach the Home's register the way every
+// plugin's do: the instructions its definition carries, projected by the platform. These stand where that definition stands.
+const SIGNATURE = "ed25519:sha256:fixture-publisher";
+function generatedRegistration(value: AgentRelease, releases: readonly AgentRelease[], state: "enabled" | "disabled", pluginVersion: string) {
+  const made = pluginAgentRegistration({ execution: "sandbox", instructions: releaseInstructions(value, releases),
+    manifest: { plugin_id: value.pluginId, version: pluginVersion, name: value.design.title, publisher: { publisher_id: "molis-studio", signature: SIGNATURE } } } as unknown as PluginDefinition)!;
+  return { ...made, source: { ...made.source, state } } as typeof made;
+}
+const registerGeneratedPrompts = (home: string, registration: ReturnType<typeof generatedRegistration>, scope?: string) => agentDefinitionsFor(home, builtinRegistrations).register(registration, scope);
+const unregisterGeneratedPrompts = (home: string, pluginId: string, scope?: string) => agentDefinitionsFor(home, builtinRegistrations).unregister(pluginId, scope);
 
 const OPERATION = `
 export const prompts = [
@@ -56,7 +69,7 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "enabled", "1.0.0"));
     const view = registry.prompt("io.molis.work.generated.b1/summary");
     assert.deepEqual([view.source.kind, view.kind, view.title, view.used_by], ["plugin", "instruction", "要点提炼", ["笔记助手"]]);
-    assert.equal(view.source.kind === "plugin" && view.source.origin, "generated");
+    assert.equal(view.source.kind === "plugin" && view.source.publisher_signature, SIGNATURE, "it is listed as its publisher's, like any installed package");
 
     const installed = { kind: "installed" as const, registration: generatedRegistration(v1, [v1], "enabled", "1.0.0") };
     const preview = { kind: "preview" as const, prompts: [{ id: "summary", title: "要点提炼", purpose: "p", body: "BUILD" }] };

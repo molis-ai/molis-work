@@ -1,12 +1,13 @@
-import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
-import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
+import { newPublisher } from './fixtures/sandbox-package.js';
+import { packagedStudioRelease } from './fixtures/studio-package.js';
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from './fixtures/review-evidence.js';
 import { framedStudioPage, studioHarnessRequests, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor, WebSessions } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type IncomingMessage } from 'node:http';
 import { createSingleHomeTestWebServer } from './fixtures/local-web-core.js';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
@@ -188,7 +189,8 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
   });
   // The generated page stays on the Studio fixture's original store and action client. Its submit uses the real Host HTTP fence.
   const server = studioServer(options, token, mutations, { page: true, sessions, intercept(request, response, url) {
-    if (url.pathname !== options.routePrefix + '/api/host/plugin-page-actions') return false;
+    // The page's actions and the install sheet's own route are the real Host's.
+    if (url.pathname !== options.routePrefix + '/api/host/plugin-page-actions' && url.pathname !== options.routePrefix + '/api/host/plugin-page-install') return false;
     webRequest.call(gateway, request, response); return true;
   }, observe(request, response) {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
@@ -196,7 +198,21 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
   try {
-    const page = await framedStudioPage(t, browser, await browser.page());
+    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer), gatewayOrigin = 'http://127.0.0.1:' + (gateway.address() as { port: number }).port;
+    // The install sheet is the workbench's, in the outer document: read there, and pressed as a person presses (a real, trusted press).
+    const shots = shouldSaveReviewScreenshots() ? reviewEvidenceUrl('studio-install-sheet/') : null;
+    if (shots) await mkdir(shots, { recursive: true });
+    const sheet = {
+      async wait(expression: string, what: string) { for (let n = 0; n < 600; n++) { if (await outer.evaluate<boolean>(`Boolean(${expression})`)) return; await new Promise(resolve => setTimeout(resolve, 50)); } assert.fail(what + ': ' + await outer.evaluate<string>(`document.querySelector('[data-install-sheet]')?.outerHTML.slice(0, 600) ?? 'no sheet'`)); },
+      staged(name: string) { return sheet.wait(`document.querySelector('[data-install-sheet]')?.dataset.stage === ${JSON.stringify(name)}`, 'the install sheet reaches ' + name); },
+      text() { return outer.evaluate<string>(`document.querySelector('[data-install-sheet]').innerText`); },
+      async ready() { await new Promise(resolve => setTimeout(resolve, 700)); await sheet.wait(`document.querySelector('[data-install-sheet]') && !document.querySelector('[data-install-sheet]').hasAttribute('data-unready')`, 'the sheet has held still'); },
+      async press(control: string) {
+        const point = await outer.evaluate<{ x: number; y: number }>(`(() => { const box = document.querySelector('[data-install-sheet] [data-framed-control=${JSON.stringify(control)}]').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; })()`);
+        for (const type of ['mousePressed', 'mouseReleased']) await outer.command('Input.dispatchMouseEvent', { type, ...point, button: 'left', clickCount: 1 });
+      },
+      async shot(name: string) { if (shots) await writeFile(new URL(name + '.png', shots), Buffer.from((await outer.command<{ data: string }>('Page.captureScreenshot', { format: 'png' })).data, 'base64')); },
+    };
     await page.viewport(1440, 900);
     await page.command('Page.enable');
     // The studio is drawn in the workbench's stage (specs/artifact-positioning S4): it has no page of its own, framed or not.
@@ -292,31 +308,27 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     // VUX-26: the feed has the conversation's one scroll owner; nobody scrolled it, so it follows its end.
     await page.wait(`(() => { const feed = document.querySelector('[data-as-feed]'); return feed.dataset.follow === 'following' && feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 1; })()`);
 
-    // Install into the project after an explicit consent; the installed plugin keeps its own data, apart from the preview.
-    await page.click('[data-as-install]');
-    await page.wait(`document.querySelector('.as-dialog')?.innerText.includes('在本机保存和读取它自己的数据')`);
-    assert.match(await page.evaluate<string>(`document.querySelector('.as-dialog').innerText`), /用你配置的文字模型生成内容/, 'the model capability is approved in plain words');
-    await page.click('.as-dialog button[value=ok]');
-    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v1')||document.querySelector('[role=alert]')`);
+    // PBU-47-8: publishing opens the 安装 tab, and the workbench draws its install sheet in the place the studio left for it: the sheet every
+    // plugin page gets, outside the studio's frame. The studio has no consent dialog or install button; it hears only that the plugin is installed.
+    await page.wait(`document.querySelector('[data-as-tab="install"]').getAttribute('aria-selected')==='true'&&!document.querySelector('[data-as-install-stage]').hidden`);
+    assert.equal(await page.evaluate(`Boolean(document.querySelector('.as-dialog,[data-as-install],[data-as-upgrade],[data-as-uninstall]'))`), false, 'the studio has no install controls of its own');
+    await sheet.staged('review');
+    assert.match(await sheet.text(), /笔记墙/, 'the sheet names the package the Host verified');
+    assert.equal(await outer.evaluate<boolean>(`(() => { const main = document.querySelector('[data-install-sheet] .install-sheet__main'); return !main || main.scrollHeight <= main.clientHeight + 0.5; })()`), true, 'one screen: nothing in the sheet scrolls');
+    await sheet.shot('review');
+    await sheet.ready();
+    // Expanding a note calls the model through a platform capability, a switch that starts off (BL-701): the person turns it on here.
+    await sheet.press('tile:capabilities:call');
+    await sheet.wait(`document.querySelector('[data-install-sheet] [data-framed-control="tile:capabilities:call"]').dataset.on === 'true'`, 'the model switch is on');
+    await sheet.press('confirm');
+    await sheet.staged('done');
+    await sheet.shot('done');
+    await page.wait(`!!document.querySelector('[data-as-open-plugin]')||!!document.querySelector('[role=alert]')`);
     assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'installation reports no problem');
-    const pluginHref = await page.evaluate<string>(`[...document.querySelectorAll('a')].find(a=>a.textContent.includes('打开插件')).getAttribute('href')`);
-    // ID-1: signed export does not migrate an existing agent-built project installation or its publisher/data.
+    // What is installed is the signed package the studio published, under this Home's own publisher: never an unsigned record of the studio's.
     const legacy = await ensureInstalledPlugins(options), originalRecord = legacy.records()[0]!;
-    const originalIdentity = [originalRecord.install_id, originalRecord.publisher_signature, originalRecord.version];
-    assert.equal(originalRecord.publisher_signature, 'agent-built:' + visualBuildId);
-    const distribution = await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId + '/download?version=1')).json();
-    const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
-    const previewCatalog = await legacy.catalog();
-    const importing = new PluginInstallService({ ledger, packages, installed: async () => legacy.records().map(record => ({ record, manifest: undefined })),
-      offers: (targetProject, reference) => targetProject === projectId && previewCatalog.some(action =>
-        action.id === reference.capability_id && action.version === reference.version && action.offered && action.installed),
-      installInProject: async () => { assert.fail('A signed export cannot replace the legacy installation'); } });
-    const who = { project_id: projectId, actor_id: 'web-user' }, offered = await importing.preview({ bundle: distribution }, who);
-    await assert.rejects(importing.confirm({ preview_id: offered.preview_id, consent: true, pin_label: 'A different signing identity' }, who),
-      (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === 'plugin.definition_conflict');
-    assert.deepEqual(ledger.publishers(), [], 'the conflicting publisher is not pinned');
-    const unchanged = legacy.records().find(record => record.plugin_id === originalRecord.plugin_id)!;
-    assert.deepEqual([unchanged.install_id, unchanged.publisher_signature, unchanged.version], originalIdentity);
+    const published = (await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { versions: Array<{ distribution?: { publisher_key_id: string } }> }).versions[0]!.distribution!;
+    assert.deepEqual([originalRecord.publisher_trust, originalRecord.publisher_signature, originalRecord.version], ['pinned', published.publisher_key_id, '1.0.0']);
     const state = await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId)).json();
     const scope = await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId + '/action', { method: 'POST',
       headers: { origin, 'content-type': 'application/json', 'x-molis-work-control-token': token, 'x-molis-work-idempotency-key': randomUUID() },
@@ -326,7 +338,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
     assert.ok(stages[0]!.stage.includes('data-work-surface="' + stages[0]!.surface + '"'));
-    assert.ok(stages[0]!.stage.includes('data-plugin-page-source="' + pluginHref + '?frame=workbench&amp;installation='));
+    assert.match(stages[0]!.stage, /data-plugin-page-source="[^"?]+\/plugins\/[^"?]+\?frame=workbench&amp;installation=/u);
     assert.match(stages[0]!.stage, /data-deferred-surface hidden><script type="application\/json" data-plugin-document>/u);
     assert.doesNotMatch(stages[0]!.stage, /<iframe/u, 'the real workbench owns the opaque frame when this stage opens');
     const boundStagePath = (markup: string) => {
@@ -334,7 +346,8 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
       assert.ok(source, 'SCS-11: use the real installed stage address with its edition');
       return source;
     };
-    const framedStagePath = boundStagePath(stages[0]!.stage);
+    const framedStagePath = boundStagePath(stages[0]!.stage), pluginHref = framedStagePath.split('?')[0]!;
+    assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-open-plugin]').dataset.asOpenPlugin`), stages[0]!.surface, 'the studio opens the installed plugin by its stage');
     const currentStagePath = async () => boundStagePath((await installedPluginStages(options))[0]!.stage);
     const refuseOldStage = async (path: string) => {
       const response = await fetch(origin + path);
@@ -344,17 +357,16 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
-    // Expanding a note (below) calls the model through a platform capability, a switch that starts off (BL-701): the person turns it on in Settings.
-    await legacy.platform.runtime.regrant(originalRecord.install_id, 'capabilities:call', true);
+    // The installation runs in the real Host that answered the sheet (the gateway), so its page is that Host's.
     const installedPage = await framedStudioPage(t, browser, await browser.page());
     await installedPage.command('Page.enable');
-    await installedPage.command('Page.navigate', { url: origin + framedStagePath });
+    await installedPage.command('Page.navigate', { url: gatewayOrigin + framedStagePath });
     await installedPage.wait('globalThis.__molisPluginReady===true');
     // SYS-15: a generated plugin is equally isolated and cannot call the authoring or another plugin API.
     assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-page-session]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
     assert.equal(await installedPage.evaluate(`Boolean(document.querySelector('.as-installed-bar, a[href*="/plugin-builder/studio"]'))`), false, 'the frame shows only the plugin: no own header or link back');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
-    const oldCallStatus = await installedPage.evaluate<number>(`(async()=>{const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});await r.text();return r.status})()`);
+    const oldCallStatus = await installedPage.evaluate<number>(`(async()=>{const r=await fetch(${JSON.stringify(gatewayOrigin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});await r.text();return r.status})()`);
     assert.equal(oldCallStatus, 403, 'SYS-15: the installed page cannot POST its component-read body to the retired private alias');
     await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '取消这条未提交的内容');
@@ -367,14 +379,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     assert.doesNotMatch(await installedPage.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /间隔复习比集中复习/, 'installed data is separate from the preview');
     await installedPage.command('Page.reload');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
-    const first = await installedPage.evaluate<string>(`[...document.querySelectorAll('[data-record-id]')].find(r=>r.innerText.includes('正式使用的第一条')).dataset.recordId`);
-    // While the model takes its time, the plugin's list still answers at once: model calls run in their own process.
-    modelDelay = 3000;
-    await installedPage.click(`[data-record-id="${first}"] [data-pc-action=expand]`);
-    const quick = await installedPage.evaluate<number>(`(async()=>{const t=performance.now();const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugins/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});if(!r.ok)throw Error(await r.text());return performance.now()-t})()`);
-    assert.ok(quick < 1500, 'a read during a model call took ' + Math.round(quick) + 'ms');
-    modelDelay = 0;
-    await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('（预览替身模型）正式使用的第一条')`);
+    // A model call that takes its time does not hold up the plugin's reads: tests/installed-plugin-policy.test.ts (the Host here has no model).
     // Deleting is a button on the record itself; the one-page plugin shows no page switcher.
     assert.equal(await installedPage.evaluate(`getComputedStyle(document.querySelector('.pc-tabs')).display`), 'none');
     await installedPage.click('[data-pc-open="editor"]');
@@ -386,17 +391,20 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await installedPage.wait(`!document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('这条马上删掉')`);
     assert.match(await installedPage.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /正式使用的第一条/);
 
-    // Publish the preceding presentation as v2, upgrade, then roll back to the exact v1 layout without losing data.
-    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish');await act('upgrade',{version:2,grants:{consent:true}})})()`);
+    // Publish the preceding presentation as v2: the 安装 tab offers it as the upgrade of what is installed, on the same sheet, and the data stays.
+    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish')})()`);
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-tab="install"]')?.disabled===false`);
+    await page.click('[data-as-tab="install"]');
+    await sheet.staged('review');
+    assert.match(await sheet.text(), /1\.0\.0[\s\S]*2\.0\.0|2\.0\.0[\s\S]*1\.0\.0/, 'the sheet says which version it upgrades');
+    await sheet.shot('upgrade-review');
+    await sheet.ready(); await sheet.press('confirm'); await sheet.staged('done');
     await refuseOldStage(framedStagePath);
     const upgradedStagePath = await currentStagePath();
-    await installedPage.command('Page.navigate', { url: origin + upgradedStagePath });
+    await installedPage.command('Page.navigate', { url: gatewayOrigin + upgradedStagePath });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await installedPage.evaluate(`!!document.querySelector('[data-pc-open="editor"]')`), false, 'v2 uses the preceding inline form');
-    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'rollback',revision:build.revision,version:1})});if(!r.ok)throw Error(await r.text())})()`);
-    await refuseOldStage(upgradedStagePath);
-    await installedPage.command('Page.navigate', { url: origin + await currentStagePath() });
-    await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.
     // The open plugin is the one chosen in the studio's own picker (in the workbench the address does not name it).
@@ -417,55 +425,10 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     // The lifecycle intentionally suspends hidden views. Re-enter the studio before asking it to render.
     await installedPage.command('Page.close'); await standalone.command('Page.close'); await page.command('Page.bringToFront');
     await page.command('Page.reload');
-    await page.wait(`document.querySelector('[data-as-uninstall]')`);
-
-    // A switched-off install takes the next version without being switched on, and is switched on when the person says so.
-    const lifecycle = (action: string, version: number) => page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:${JSON.stringify(action)},revision:build.revision,version:${version},grants:{consent:true}})});if(!r.ok)throw Error(await r.text())})()`);
-    await lifecycle('disable', 1);
-    await page.command('Page.reload');
-    await page.wait(`document.querySelector('[data-as-upgrade]')`);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-upgrade]').innerText`), /仍保持停用/, 'the upgrade button says the plugin stays off');
-    await page.click('[data-as-upgrade]');
-    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
-    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'upgrading a disabled install reports no problem');
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-feed]').innerText`), /已安装 v2[\s\S]*disabled/, 'and it is still disabled');
-    await page.click('[data-as-install-enable]');
-    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')&&!document.querySelector('[data-as-install-enable]')`);
-    await lifecycle('rollback', 1);
-
-    // Uninstall keeps the data when asked to; the plugin page then no longer serves it.
-    await page.click('[data-as-uninstall]');
-    await page.wait(`document.querySelector('.as-dialog button[value=keep]')`);
-    await page.click('.as-dialog button[value=keep]');
-    await page.wait(`document.querySelector('[data-as-install]')`);
-    assert.deepEqual(await installedPluginStages(options), [], 'an uninstalled plugin leaves the workbench');
-    const gone = await fetch(origin + pluginHref);
-    assert.notEqual(gone.status, 200, 'an uninstalled plugin page is not served');
-
-    // J1A-01: The uninstall kept v1's data and only v2 is left to install: it does not say it can read that data, so the person is asked.
-    const shelf = JSON.parse(installedOwner.storage.get('plugin-builder:agent-built:v1')!) as { releases: Array<{ version: number }> };
-    installedOwner.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ ...shelf, releases: shelf.releases.filter(release => release.version === 2) }));
-    await page.command('Page.reload');
-    await page.wait(`document.querySelector('[data-as-install]')`);
-    await page.click('[data-as-install]');
-    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
-    await page.click('.as-dialog button[value=ok]');
-    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
-    assert.match(await page.evaluate<string>(`document.querySelector('.as-dialog').innerText`), /读不了/, 'the dialog says the old data cannot be used');
-    await page.click('.as-dialog button[value=cancel]');
-    await page.wait(`!document.querySelector('.as-dialog')`);
-    assert.deepEqual(await installedPluginStages(options), [], 'cancelling installs nothing');
-    await page.click('[data-as-install]');
-    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
-    await page.click('.as-dialog button[value=ok]');
-    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
-    await page.click('.as-dialog button[value=discard]');
-    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
-    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'dropping the old data lets the install through');
-    await page.click('[data-as-uninstall]');
-    await page.wait(`document.querySelector('.as-dialog button[value=drop]')`);
-    await page.click('.as-dialog button[value=drop]');
-    await page.wait(`document.querySelector('[data-as-install]')`);
+    // PBU-47-8: an installed plugin is managed where every plugin is. The studio says where (设置 › 插件) and opens the plugin; it has no
+    // switch, upgrade, rollback or uninstall of its own, and no consent dialog.
+    await page.wait(`!!document.querySelector('[data-as-plugin-settings]')&&!!document.querySelector('[data-as-open-plugin]')`);
+    assert.equal(await page.evaluate(`Boolean(document.querySelector('[data-as-install],[data-as-upgrade],[data-as-uninstall],[data-as-install-enable],.as-dialog'))`), false);
 
     // Narrow screens keep the whole journey without horizontal page scrolling.
     await page.viewport(390, 844, true);
@@ -481,7 +444,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await observed(() => liveSubscriptions === 0);
     await page.evaluate("document.querySelector('[data-agent-studio]').hidden=false");
     await observed(() => liveSubscriptions === 1 && subscriptions === beforeResume + 1);
-    await page.wait("document.querySelector('[data-as-install]')");
+    await page.wait("document.querySelector('[data-as-builds]')");
     await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
     await observed(() => liveSubscriptions === 0);
 
@@ -686,20 +649,19 @@ test('studio in English: its controls, labels, phases and boards are English', {
   }
 });
 
-// W2-18-UPGRADE-SECRETS-01: actual browser consent -> native studio HTTP/lifecycle -> new sandbox operation -> HTTPS.
-test('upgrade consent saves the new secret and the upgraded plugin uses it on its actual HTTPS request', { timeout: 90_000, skip: process.platform !== 'darwin' }, async t => {
-  const home = await mkdtemp(join(tmpdir(), 'studio-upgrade-network-')), browser = await openStudioChrome(join(home, 'chrome'));
-  if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
+// W2-18-UPGRADE-SECRETS-01: the key that comes with a confirmed upgrade -> installed lifecycle -> new sandbox operation -> HTTPS.
+test('W2-18-UPGRADE-SECRETS-01 an upgrade saves the key the person typed and the upgraded plugin uses it on its actual HTTPS request', { timeout: 90_000, skip: process.platform !== 'darwin' }, async t => {
+  const home = await mkdtemp(join(tmpdir(), 'studio-upgrade-network-'));
   const cleanups: Array<() => void | Promise<unknown>> = [];
   t.after(async () => {
     const failures: unknown[] = [];
-    for (const close of [() => browser.close(), ...cleanups.reverse(), () => rm(home, { recursive: true, force: true })]) {
+    for (const close of [...cleanups.reverse(), () => rm(home, { recursive: true, force: true })]) {
       try { await close(); } catch (error) { failures.push(error); }
     }
     if (failures.length) throw new AggregateError(failures, 'Network fixture cleanup failed');
   });
   try { execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=api.weather.example', '-addext', 'subjectAltName=DNS:api.weather.example', '-keyout', join(home, 'key.pem'), '-out', join(home, 'cert.pem')], { stdio: 'ignore' }); }
-  catch { await browser.close(); await rm(home, { recursive: true, force: true }); t.skip('openssl is required'); return; }
+  catch { await rm(home, { recursive: true, force: true }); t.skip('openssl is required'); return; }
   const [key, cert] = await Promise.all([readFile(join(home, 'key.pem')), readFile(join(home, 'cert.pem'))]), received = Promise.withResolvers<string>();
   const tlsServer = createHttpsServer({ key, cert }, (request, response) => { received.resolve(String(request.headers.authorization)); response.end('received'); });
   cleanups.push(async () => { tlsServer.closeAllConnections(); await new Promise<void>(resolve => tlsServer.close(() => resolve())); });
@@ -720,32 +682,26 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
     }) });
   });
   cleanups.push(() => transport.mock.restore());
-  const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
+  const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file);
   cleanups.push(async () => { await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); });
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
-  const build = installed.releases.create('Network upgrade fixture'), pluginId = 'io.molis.work.generated.' + build.id;
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
+  const buildId = randomUUID(), pluginId = 'io.molis.work.generated.' + buildId;
   // A design always has at least one page (agent-experience refuses one without); the studio canvas draws from the first.
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [{ id: 'main', title: '天气', regions: [{ id: 'main', title: '天气', operationIds: ['fetch'] }] }], acceptance: [], operations: [
     { id: 'fetch', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: {}, errors: [], examples: [{ input: null, output: 'v1' }] }] };
   const bundlePath = join(home, 'v1.mjs'); await writeFile(bundlePath, 'export const operations={fetch:async()=>"v1"};');
-  const first: AgentRelease = { buildId: build.id, pluginId, version: 1, directory: home, packagePath: home, bundlePath, nodes: [], prompts: [], permissions: {}, publishedAt: new Date().toISOString(),
+  const first: AgentRelease = { buildId, pluginId, version: 1, directory: home, packagePath: home, bundlePath, nodes: [], prompts: [], permissions: {}, publishedAt: new Date().toISOString(),
     manifest: { version: 1, pluginId, revision: 'one', effects: {} }, design: { id: 'fixture', catalog: 'actions/1', title: 'Network fixture', description: 'A fixed upgrade test', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] } };
-  publishCheckedStudioFixture(installed.storage, first); await installed.lifecycle('install', first, { consent: true });
   const permissions = { networkDomains: ['api.weather.example'], secretRefs: ['weather'] }, nextContract = { ...contract, revision: 'two', operations: [{ ...contract.operations[0]!, effects: permissions }] };
   const nextBundle = join(home, 'v2.mjs'); await writeFile(nextBundle, 'export const operations={fetch:async(_,sdk)=>(await sdk.network.request({url:"https://api.weather.example/today",secretRefs:["weather"]})).body};');
   const next: AgentRelease = { ...first, version: 2, bundlePath: nextBundle, permissions, manifest: { version: 1, pluginId, revision: 'two', effects: permissions }, design: { ...first.design, contract: nextContract } };
-  publishCheckedStudioFixture(installed.storage, next);
-  const server = studioServer(options, token, mutations, { page: true });
-  cleanups.push(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
-  const page = await framedStudioPage(t, browser, await browser.page()); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });
-  await page.wait(`document.querySelector('[data-as-builds] option[value="${build.id}"]')`);
-  await page.evaluate(`(()=>{const select=document.querySelector('[data-as-builds]');select.value=${JSON.stringify(build.id)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await page.wait(`document.querySelector('[data-as-upgrade="2"]')`); await page.click('[data-as-upgrade="2"]');
-  await page.wait(`document.querySelector('.as-dialog [data-secret="weather"]')`); const secretValue = 'Bearer ' + randomUUID();
-  await page.fill('.as-dialog [data-secret-header]', 'Authorization'); await page.fill('.as-dialog [data-secret-value]', secretValue); await page.click('.as-dialog button[value=ok]');
-  await page.wait(`document.querySelector('[data-as-feed]')?.innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
-  assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText||''`), ''); assert.equal(installed.installations()[0]!.version, 2);
+  const publisher = newPublisher(), v1 = packagedStudioRelease(home, first, publisher), v2 = packagedStudioRelease(home, next, publisher, { upgradesFrom: [1] });
+  await installed.lifecycle('install', v1, { consent: true });
+  // The person types the key in the install sheet's key step (tests/security-invariants-package-install-sheet.e2e.test.ts, PBU-47-7); what reaches
+  // the installation is the confirmed package and that key.
+  const secretValue = 'Bearer ' + randomUUID();
+  await installed.lifecycle('upgrade', v2, { consent: true, secrets: [{ name: 'weather', header: 'Authorization', value: secretValue }] });
+  assert.equal(installed.installations()[0]!.version, 2);
   // The upgrade's consent approves the site and the secret; using them is still the person's switch in Settings, off until turned on (BL-701).
   const upgraded = installed.platform.runtime.list().find(record => record.plugin_id === pluginId)!.install_id;
   for (const permission of ['network:request', 'secret:use']) await installed.platform.runtime.regrant(upgraded, permission, true);

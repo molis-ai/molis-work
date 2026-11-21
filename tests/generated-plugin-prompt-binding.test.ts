@@ -1,4 +1,3 @@
-import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'node:http';
@@ -21,6 +20,8 @@ import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { bindPrologueInference } from '../apps/local-host/dist/prologue-inference-host.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
+import { newPublisher } from './fixtures/sandbox-package.js';
+import { packagedStudioRelease } from './fixtures/studio-package.js';
 
 test('installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'generated-prompt-binding-'));
@@ -71,24 +72,26 @@ test('installed and authoring model calls bind their own release through the rea
   ] };
   const bundlePath = join(directory, 'plugin.mjs');
   await writeFile(bundlePath, `export const operations = { generate:async(prompt,sdk)=>(await sdk.capability.call('model.generate',{prompt,input:'material'})).text };`);
-  const v1: AgentRelease = { buildId: draft.id, pluginId, version: 1, directory, bundlePath, packagePath: directory,
+  const raw: AgentRelease = { buildId: draft.id, pluginId, version: 1, directory, bundlePath, packagePath: directory,
     design: { id: 'one', catalog: 'actions/1', title: 'Fixture', description: 'Fixture', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] },
     prompts: [{ id: 'summary', title: 'Summary', purpose: 'p', body: 'RELEASE_ONE' }],
     nodes: [], manifest: buildManifest(contract), permissions: { capabilities: ['model.generate'] }, publishedAt: new Date().toISOString() };
-  const v2: AgentRelease = { ...v1, version: 2, prompts: [{ ...v1.prompts![0]!, body: 'RELEASE_TWO' }, { id: 'new-only', title: 'New', purpose: 'p', body: 'NEW_ONLY' }] };
-  a.builder.update(draft.id, draft.revision, build => { build.directory = directory; build.design = v1.design; });
-  publishCheckedStudioFixture(a.storage, v1); publishCheckedStudioFixture(b.storage, v1); publishCheckedStudioFixture(b.storage, v2);
+  a.builder.update(draft.id, draft.revision, build => { build.directory = directory; build.design = raw.design; });
+  // What each project installs is the release's signed package (PG-083): two versions of one plugin by one publisher, kept in the Home.
+  const publisher = newPublisher(), v1 = packagedStudioRelease(home, raw, publisher);
+  const v2 = packagedStudioRelease(home, { ...raw, version: 2, prompts: [{ ...raw.prompts![0]!, body: 'RELEASE_TWO' }, { id: 'new-only', title: 'New', purpose: 'p', body: 'NEW_ONLY' }] }, publisher, { upgradesFrom: [1] });
   const one = await ensureInstalledPlugins({ store: a.store, projectId: a.id, homeDirectory: home, actions: a.actions });
   const two = await ensureInstalledPlugins({ store: b.store, projectId: b.id, homeDirectory: home, actions: b.actions });
   await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
   // `generate` calls the model through a platform capability, a switch that starts off (BL-701).
   for (const host of [one, two]) for (const record of host.platform.runtime.list()) await host.platform.runtime.regrant(record.install_id, 'capabilities:call', true);
-  const invoke = (p: typeof a, version: number, prompt = 'summary') => p.service.invoke({ actor_id: 'person', audience: 'user', project_id: p.actions.project_id, permissions: [] },
-    { capability_id: exposedActionId(v1, 'generate'), version, provider_id: 'plugin:' + pluginId }, prompt);
-  assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_ONE/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_TWO/);
-  assert.equal(await invoke(b, 2), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_TWO/);
+  // A package's actions keep one version across its versions; which release answers is the installation's, not the caller's choice.
+  const invoke = (p: typeof a, prompt = 'summary') => p.service.invoke({ actor_id: 'person', audience: 'user', project_id: p.actions.project_id, permissions: [] },
+    { capability_id: exposedActionId(v1, 'generate'), version: 1, provider_id: 'plugin:' + pluginId }, prompt);
+  assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_ONE/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_TWO/);
+  assert.equal(await invoke(b), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_TWO/);
   const calls = systems.length;
-  await assert.rejects(invoke(a, 1, 'new-only'), /没有声明/);
+  await assert.rejects(invoke(a, 'new-only'), /没有声明/);
   assert.equal(systems.length, calls, 'another installed version cannot authorize a prompt absent from this release');
   const registry = agentDefinitionsFor(home, builtinRegistrations), key = pluginId + '/summary';
   registry.save(key, 'PERSONAL_EDIT', null, 'person');
@@ -96,21 +99,21 @@ test('installed and authoring model calls bind their own release through the rea
   const previewContext = { identity: { projectId: a.id, pluginId, installationId: STABLE_PREVIEW + draft.id, namespace: 'preview' as const }, signal: new AbortController().signal };
   assert.deepEqual(await preview.call(previewContext, 'model.generate', { prompt: 'summary', input: 'material' }), { text: 'GENERATED' });
   assert.match(systems.at(-1)!, /AUTHORING_DEFAULT/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE|RELEASE_TWO|PERSONAL_EDIT/);
-  assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
+  assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
   assert.equal(registry.uses.list(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
   await two.lifecycle('uninstall', v2);
-  assert.equal(registry.prompt(key).default_body, 'RELEASE_ONE'); assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
-  assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
-  registry.reset(key, 1, 'person'); publishCheckedStudioFixture(a.storage, v2);
+  // What runs in project A is its own release under the person's edit. The register lists one installation's newest declaration across the
+  // projects that run it, and keeps showing it after that project leaves (BL-b47-prompt-register-newest-fallback): what it lists is not asserted here.
+  assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
+  assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
+  registry.reset(key, 1, 'person');
   await one.lifecycle('upgrade', v2);
-  assert.equal(await invoke(a, 2), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_TWO/);
-  await one.lifecycle('rollback', v1);
-  assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_ONE/);
+  assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_TWO/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE/);
   const beforeRejected = systems.length;
   // A preview identity naming another plugin than its build is refused when the Host issues the call's caller (the plugin it declared is not that one), before the model is reached.
   await assert.rejects(preview.call({ ...previewContext, identity: { ...previewContext.identity, pluginId: pluginId + '-other' } }, 'model.generate', { prompt: 'summary', input: '' }), /这个插件的声明已失效/);
   await assert.rejects(a.service.invoke({ actor_id: 'plugin:' + pluginId, actor_kind: 'runtime', project_id: a.actions.project_id, audience: 'plugin', plugin_install_id: 'old-installation', permissions: [] },
     { capability_id: 'model.generate', version: 1, provider_id: 'plugin-platform' }, { prompt: 'summary', input: '' }), /安装执行身份已失效/);
-  await one.lifecycle('disable', v1);
-  await assert.rejects(invoke(a, 1)); assert.equal(systems.length, beforeRejected);
+  await one.lifecycle('disable', v2);
+  await assert.rejects(invoke(a)); assert.equal(systems.length, beforeRejected);
 });

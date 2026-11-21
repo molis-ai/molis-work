@@ -184,6 +184,12 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
     models: async () => serverOptions.homeDirectory ? configuredModelChoices(serverOptions.homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID,
     actions: pluginServices.actions,
     homeActions: { registry: localHost.actionRegistry(), client: localHost.homeActionClient(), inspect: caller => localHost.inspectActions(caller), project_id: null },
+    homeInstallations: async () => {
+      const home = localHost.homePlugins;
+      if (!home) return [];
+      await home.ready();
+      return home.installations().filter(record => record.publisher_trust === "pinned" && record.state !== "uninstalled").map(record => ({ record, error: home.packageError(record.plugin_id) }));
+    },
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
       const entry = builtinPluginByManifestId(pluginId);

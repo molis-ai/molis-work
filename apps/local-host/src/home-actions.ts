@@ -12,6 +12,7 @@ import { ActionError, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSu
 import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
 import { withFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
+import { exactActionView } from "./exact-action-view.js";
 
 export const HOME_PROVIDER_ID = "system.home";
 
@@ -102,8 +103,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
   const assertSubjectFits = async (subject: HomeSubject, caller: ActionCallContext) => {
     const value = binding();
     if (!value?.enabled) throw new ActionError("actions.binding_missing", "未找到启用的首页判断规则");
-    const fn = (await services.actions.discover(caller)).find(action => action.capability_id === value.function.capability_id
-      && action.version === value.function.version && (!value.function.provider_id || action.provider.provider_id === value.function.provider_id));
+    const fn = await exactActionView(services.actions, caller, value.function);
     if (!fn?.availability.available) throw new ActionError("actions.binding_changed", "首页判断规则当前不可用");
     if (fn.action.subject_kinds.length && !fn.action.subject_kinds.includes(subject.kind)) throw new ActionError("actions.subject_incompatible", "所选首页判断规则不适用于此类事项");
     return fn;

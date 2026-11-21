@@ -271,7 +271,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.own(cancelDocuments);
   const terminal = frameTerminal(port, scope, grant.page_id);
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
-  const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side), frame);
+  let childReady = false;
+  const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side), frame, () => childReady);
   const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side), root);
   const makeIntake = pageIntake(scope, frame, root);
   const placement = pagePlacement(port, scope, root, frame);
@@ -439,6 +440,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
       else if (message.type === "ready") {
         clearTimeout(deadline);
+        childReady = true;
         if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
         root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); readyResolve();
       }

@@ -345,7 +345,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       select(options.tab??current(),options.target);
       if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
-      if(inner)ready(inner,()=>inner.focus());
+      if(inner)ready(inner,()=>{inner.focus();inner.contentWindow?.focus();});
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       dropHelpTab();

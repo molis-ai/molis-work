@@ -57,7 +57,7 @@ export function normalizeChildShortcut(key: Pick<KeyboardEvent, "key" | "code" |
 }
 
 /** The trusted shell chooses which search, workspace navigation, and declared tool chords can cross this boundary. */
-export function pageNavigation(scope: FrameScope, port: MessagePort, side: boolean, frame?: HTMLIFrameElement) {
+export function pageNavigation(scope: FrameScope, port: MessagePort, side: boolean, frame?: HTMLIFrameElement, isReady: () => boolean = () => true) {
   let owner = document;
   if (parent !== window) {
     try { owner = parent.document; } catch { /* A foreign parent supplies no shell shortcuts. */ }
@@ -74,9 +74,10 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   if (ownsWorkspace) shortcuts.push(...WORKSPACE_SHORTCUTS);
   shortcuts.push("Mod+Period");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
-  // Hand DOM and WindowProxy focus into the opaque child iframe first so Chromium 158+ allows its internal .focus() call.
+  // Hand DOM and WindowProxy focus into the opaque child iframe only after it reports ready so an
+  // uncommitted OOPIF swap never drops focus while Chromium 158+ still allows its internal .focus() call.
   const focus = () => {
-    if (!side || !scope.visible || !document.hasFocus()) return;
+    if (!side || !scope.visible || !isReady() || !document.hasFocus()) return;
     if (frame && frame.isConnected) {
       if (document.activeElement !== frame) frame.focus({ preventScroll: true });
       try { frame.contentWindow?.focus(); } catch { /* Ignore cross-origin focus handoff refusal. */ }

@@ -170,8 +170,9 @@ export function renderMolisWorkPluginBaseStylesheet(): string {
 @layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }
 ${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
 .appearance-notice.mw-toast{position:fixed;inset-inline:0;margin-inline:auto;bottom:22px;z-index:31;max-width:min(38em,calc(100vw - 24px))}
-html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important;animation:none!important}
-body .mw-toggle-group{box-shadow:none;&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control,500);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--shadow-soft),inset 0 1px 0 var(--edge-highlight)}}
+html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important}
+html[data-craft-still] :is(dialog[open],.mw-check,.mw-radio,[data-craft-new],[data-just-opened],[data-just-opened]>*,.is-arriving,.is-arriving *){animation:none!important}
+body .mw-toggle-group{display:inline-flex;gap:4px;padding:4px;border:0;border-radius:12px;background:var(--control-fill);box-shadow:none;&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control,500);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--shadow-soft),inset 0 1px 0 var(--edge-highlight)}}
 body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
 @media (max-width:760px){body.immersive-workbench{--control-h:44px;.plugin-stage-back{width:44px;height:44px;min-height:44px}}}`;
   const lightTokens = sheet.match(/:root,\s*\[data-ui-skin="[^"]+"\]\s*\{([^}]*)\}/);
@@ -190,6 +191,15 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
   }
   return sheet
     .replace(/\.feed-stage-leading strong \{ font-size: 13px; \}/, "")
+    .replace(/  \.mw-toggle-group \{ display: inline-flex; gap: 4px; padding: 4px; border: 0; border-radius: 12px; background: var\(--control-fill\); \}\n?/, "")
+    .replace(
+      /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}\s*\.mw-btn--primary\[aria-pressed="true"\]:not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}/,
+      `.mw-btn--primary:is(:active,[aria-expanded="true"],[aria-pressed="true"]):not(:disabled){background:var(--action-hover,var(--action));border-color:var(--action-hover,var(--action))}`,
+    )
+    .replace(
+      /\.mw-input-group \.mw-input, \.mw-number \.mw-input \{[\s\S]*?\.mw-number \.mw-input:is\(:hover, :focus, :focus-visible, \[aria-invalid="true"\]\) \{\s*border: 0; outline: 0; background: transparent; box-shadow: none;\s*\}/,
+      `:is(.mw-input-group,.mw-number) .mw-input{border:0;outline:0;min-height:26px;padding:0;min-width:0;background:transparent;box-shadow:none;border-radius:0;&:is(:hover,:focus,:focus-visible,[aria-invalid="true"]){border:0;outline:0;background:transparent;box-shadow:none}}`,
+    )
     .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`)
     .replace(/var\((--[\w-]+),\s+/g, "var($1,")
     .replace(/color-mix\(in srgb,\s+/g, "color-mix(in srgb,")

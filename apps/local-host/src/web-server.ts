@@ -9,6 +9,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { bindAccountHost, handleAccountHttp } from "./account-host.js";
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
+import { handleHomeMaintenanceHttp } from "./home-maintenance-gateway.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handlePluginInstallHttp } from "./plugin-install-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
@@ -191,7 +192,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           if (await im.handle(request, response, url, loopbackWebOrigin(server), () => webRequestAuthenticated(request, controlToken))) return;
           if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
             deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost }) })) return;
-          if (await handleManagementActionHttp(request, response, url, storageHome, localHost, serverOptions.assertAccountCurrent) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog, serverOptions.mcpCredentialHomeDirectory ?? storageHome)) return;
+          if (await handleHomeMaintenanceHttp(request, response, url, storageHome, localHost) || await handleManagementActionHttp(request, response, url, storageHome, localHost, serverOptions.assertAccountCurrent) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog, serverOptions.mcpCredentialHomeDirectory ?? storageHome)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

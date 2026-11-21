@@ -1,6 +1,7 @@
 import { printCliJson, printCliLine } from "@molis-ai/molis-work-app-cli";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHomeSnapshot } from "./home-snapshot.js";
+import { requestResidentHomeSnapshot } from "./home-maintenance-gateway.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { recoverHomeRestore, restoreHomeSnapshot } from "./home-restore.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
@@ -80,7 +81,8 @@ export async function runLocalHomeCli(args: string[], inspectCatalog?: HomeResto
       const result = await rollbackHome(target, { saved_to: saved });
       if (values.has("--json")) printCliJson(result); else printCliLine(rolledBackMessage(result));
     } else if (operation === "snapshot") {
-      const result = await createHomeSnapshot({ ...options, destination: destination as string });
+      const online = await requestResidentHomeSnapshot({ ...options, destination: destination as string });
+      const result = online ?? await createHomeSnapshot({ ...options, destination: destination as string });
       if (values.has("--json")) printCliJson(result);
       else printCliLine(`快照已保存：${result.snapshot_directory}\n${result.stores} 项登记，${result.databases} 个实际 SQLite 库。原密钥不在快照内，请保留同 Home 原依赖。`);
     } else {

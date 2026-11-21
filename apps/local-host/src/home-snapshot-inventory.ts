@@ -74,7 +74,7 @@ export function snapshotDatabaseOptions(store: HomeSnapshotStore, file: string):
 }
 
 /** Read metadata and file headers only. Ownership locks and sealed private trees are removed before any content read. */
-export function inventorySnapshotStore(home: string, store: HomeSnapshotStore): SnapshotStoreInventory {
+export function inventorySnapshotStore(home: string, store: HomeSnapshotStore, online = false): SnapshotStoreInventory {
   const files: SnapshotSourceEntry[] = [], directories: SnapshotSourceEntry[] = [], exclusions: SnapshotExclusion[] = [];
   const source = join(home, store.path), root = lstatSync(source, { throwIfNoEntry: false });
   const answer = (state: SnapshotStoreInventory["state"]): SnapshotStoreInventory => ({ store, state, files, directories, exclusions });
@@ -103,7 +103,7 @@ export function inventorySnapshotStore(home: string, store: HomeSnapshotStore): 
   // Sidecars are classified after their base file, and never opened themselves.
   for (const entry of files.filter(item => !/-(?:journal|wal|shm)$/u.test(item.relative))) {
     if (entry.disposition.kind === "key" || entry.disposition.kind === "sealed") { classified.push(entry); continue; }
-    const options = snapshotDatabaseOptions(store, entry.relative), sqlite = isSnapshotSqlite(entry.path, options?.standalone);
+    const options = snapshotDatabaseOptions(store, entry.relative), sqlite = isSnapshotSqlite(entry.path, online ? false : options?.standalone);
     if (options && !sqlite) throw homeSnapshotErrors.invalid(`登记的 SQLite 库不是有效文件: ${entry.path}`);
     if (sqlite && !options) throw homeSnapshotErrors.unknown_data(`登记目录有未知 SQLite 库，未生成快照: ${entry.path}`);
     if (sqlite) for (const suffix of ["-journal", "-wal", "-shm"]) technical.add(entry.relative + suffix);

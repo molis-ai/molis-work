@@ -36,6 +36,8 @@ export interface SqliteSnapshotOptions {
   readonly additionalTables?: boolean;
   readonly inspect?: (database: SqliteDatabase) => Readonly<Record<string, string | number>>;
   readonly signal?: AbortSignal;
+  /** Online backup inside the live resident Host that already holds `storage-owner`: tolerates concurrent WAL writes while verifying the copied standalone snapshot. */
+  readonly online?: boolean;
 }
 
 export interface SqliteSnapshotInfo {
@@ -155,25 +157,24 @@ export async function backupSnapshotSqlite(
   options: SqliteSnapshotOptions = {},
 ) {
   const before = snapshotFileStat(source);
+  const online = options.online === true;
   let database: SqliteDatabase | undefined;
   try {
-    if (options.standalone && !isSnapshotSqlite(source, true))
+    if (!online && options.standalone && !isSnapshotSqlite(source, true))
       throw invalid(`快照库不是有效的 SQLite 数据: ${source}`);
-    database = openSqliteConnection(source, { readonly: true, fileMustExist: true, timeout: 0 });
+    database = openSqliteConnection(source, { readonly: true, fileMustExist: true, timeout: online ? 5_000 : 0 });
     options.signal?.throwIfAborted();
-    const original = inspect(database, source, options);
+    const original = online ? undefined : inspect(database, source, options);
     await database.backup(destination, { rate: 128, progress: () => options.signal?.throwIfAborted() });
     options.signal?.throwIfAborted();
     const current = lstatSync(source);
     if (
       before.dev !== current.dev ||
       before.ino !== current.ino ||
-      before.size !== current.size ||
       before.mode !== current.mode ||
       before.nlink !== current.nlink ||
-      before.mtimeMs !== current.mtimeMs ||
-      before.ctimeMs !== current.ctimeMs ||
-      realpathSync(source) !== source
+      realpathSync(source) !== source ||
+      (!online && (before.size !== current.size || before.mtimeMs !== current.mtimeMs || before.ctimeMs !== current.ctimeMs))
     )
       throw changed(source);
     chmodSync(destination, 0o600);

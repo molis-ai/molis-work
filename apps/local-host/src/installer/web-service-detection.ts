@@ -36,7 +36,7 @@ export async function detectWebService(environment: WebServiceEnvironment): Prom
           false,
           false,
           command,
-          "127.0.0.1:4173 已有进程监听；Molis Work 不会接管或中断它，请先关闭现有监听后再安装",
+          "127.0.0.1:4173–4199 均已有进程监听；Molis Work 不会接管或中断它们，请先释放可用端口后再安装",
         );
       }
       return launcherAvailable
@@ -68,7 +68,7 @@ export async function detectWebService(environment: WebServiceEnvironment): Prom
           true,
           running,
           command,
-          "4173 的监听者无法证明属于当前 Molis Work LaunchAgent；不会在修复旧配置前停止或接管它",
+          "4173–4199 端口均被占用且无法证明属于当前 Molis Work LaunchAgent；不会在修复旧配置前停止或接管它们",
         );
       }
       return environment.detection("needs_repair", true, true, running, command, "Molis Work Web 常驻服务使用旧配置，可预览并确认修复");
@@ -81,7 +81,7 @@ export async function detectWebService(environment: WebServiceEnvironment): Prom
           true,
           false,
           command,
-          "Molis Work LaunchAgent 当前未运行，但 127.0.0.1:4173 已被其他进程占用；不会接管或中断该监听",
+          "Molis Work LaunchAgent 当前未运行，但 127.0.0.1:4173–4199 均已被其他进程占用；不会接管或中断这些监听",
         );
       }
       return environment.detection("stopped", true, true, false, command, status.code === 0
@@ -95,7 +95,7 @@ export async function detectWebService(environment: WebServiceEnvironment): Prom
         true,
         true,
         command,
-        "4173 的监听者无法证明属于当前 Molis Work LaunchAgent；不会先停止受管服务或接管现有监听",
+        "4173–4199 端口均被占用且无法证明属于当前 Molis Work LaunchAgent；不会先停止受管服务或接管现有监听",
       );
     }
     return healthyOwnedInstance

@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, hostLog, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, hostLog, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -36,13 +36,15 @@ const isMain = requestedModulePath != null && (() => {
 if (isMain) {
   const args = process.argv.slice(2);
   const homeArgument = flag(args, "--home");
-  const port = Number(flag(args, "--port") ?? 4173);
+  const explicitPort = flag(args, "--port");
   const unsupported = ["--db", "--project-id", "--demo"].find((argument) => args.includes(argument));
   if (unsupported) {
     console.error(`Molis Work Web 只按项目启动；${unsupported} 已不支持。请先在 Molis Work 里创建或打开项目，或由 Runtime 经 MCP 连接项目。`);
     process.exitCode = 1;
   } else {
     try {
+    const port = explicitPort !== undefined ? Number(explicitPort) : await selectAvailableHostPort();
+    if (port === null) throw new Error("127.0.0.1:4173–4199 均已被占用，Molis Work Web 无法监听。");
     const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";
     if (mcpStartup && (!homeArgument || !Number.isInteger(port) || port < 1 || port > 65535)) throw new Error("Invalid MCP startup configuration");
     // Before anything that opens a store, and while the port answers: whoever is waiting for this process sees that it is upgrading and leaves it be (§4.2).

@@ -37,12 +37,13 @@
 //                       plural too, as a whole name or the tail of a longer one (conflicting_board_id, existingBoardId,
 //                       CONFLICTING_BOARD_ID) but not inside another word (dashboard_id, dashboardId, DASHBOARD_ID,
 //                       KEYBOARD_IDS). Also retired PG-097 platform names (`MOLIS_JELLY_`, `resolveFeedSecurityDirectory`),
-//                       CPK-08 deleted capability-pack symbols and `/skill-selection.ts`, and WMD-13 retired Files plugin
+//                       CPK-08 deleted capability-pack symbols and `/skill-selection.(m)ts`, and WMD-13 retired Files plugin
 //                       references (`io.molis.work.files` outside the S-75 reservation in `apps/local-host/src/host-plugin-ids.ts`,
 //                       and any tracked file under `plugins/native/files/`). Beyond TypeScript sources, controlled non-TS
 //                       files (`.rs`, `.swift`, `.sh`, `.yml`/`.yaml` except `pnpm-lock.yaml`, and `Makefile`, outside
-//                       `tests/`, `docs/`, `specs/`, `node_modules/`, `dist/`) are also scanned for `goalboard` and PG-097
-//                       retired names. `goal-board` (the kanban view's `.goal-board-switch` class and CSS container name)
+//                       top-level `docs/`/`specs/` and any nested `tests?/`/`dist/`/`node_modules/`) are also scanned for
+//                       `goalboard` and PG-097 retired names. `goal-board` (the kanban view's `.goal-board-switch` class and
+//                       CSS container name)
 //                       and `GOALS_BOARDS_SQL` are not counted. Tests are out of scope: they name old names to assert that
 //                       they are refused. Within a guarded file the count reads the plain text, so a comment or a string
 //                       counts like code. What the baseline keeps today (oldNames): nothing. The count is 0 and can only stay there.
@@ -61,11 +62,12 @@ const OLD_ID_NAME = /(?<![A-Za-z])(?:board_ids?|boardIds?)(?![a-z])|(?<![A-Z])Bo
 // PG-097: retired platform env/storage names that carried plugin names (formerly guarded by tests/platform-naming-pg097.test.ts).
 const OLD_PLATFORM_NAME = /MOLIS_JELLY_|resolveFeedSecurityDirectory/g;
 // CPK-08: deleted capability-pack symbols from specs/capability-pack/spec.md §8.
-const CPK_08_DELETED = /\b(?:molis-coding-method|AgentSkillLibrary|UNREGISTERED_MODEL_CALLS|AgentRoleSkillsDeclaration|AgentSkillsCapability)\b|agent\.skills\.(?:discover|install)\b/g;
+const CPK_08_DELETED = /\b(?:molis-coding-method|AgentSkillLibrary|UNREGISTERED_MODEL_CALLS|AgentRoleSkillsDeclaration|AgentSkillsCapability|agent\.skills\.(?:discover|install))\b/g;
+const CPK_08_DELETED_FILE = /\/skill-selection\.m?ts$/;
 // WMD-13: retired Files plugin identity (S-75 intentionally reserves it only in apps/local-host/src/host-plugin-ids.ts).
-const WMD_13_DELETED_ID = /io\.molis\.work\.files\b/g;
+const WMD_13_DELETED_ID = /\bio\.molis\.work\.files\b/g;
 const WMD_13_RESERVED_ID_FILES = new Set(["apps/local-host/src/host-plugin-ids.ts"]);
-const NON_TS_OLD_NAME_FILE = /^(?!tests\/|docs\/|specs\/|node_modules\/|dist\/)(?:.+\.(?:rs|swift|sh|ya?ml)|(?:.+\/)?Makefile)$/;
+const NON_TS_OLD_NAME_FILE = /^(?!docs\/|specs\/)(?!.*(?:^|\/)(?:tests?|dist|node_modules)\/)(?:.+\.(?:rs|swift|sh|ya?ml)|(?:.+\/)?Makefile)$/;
 
 /** Controlled non-TS files and retired package paths scanned by `oldNames` (PG-097, GoalBoard, WMD-13). */
 export const oldNamesWantsText = (file) =>
@@ -127,7 +129,7 @@ export const countFile = (file, text, { inSource = false } = {}) => {
     + (text.match(OLD_PLATFORM_NAME) ?? []).length
     + (text.match(CPK_08_DELETED) ?? []).length
     + (WMD_13_RESERVED_ID_FILES.has(file) ? 0 : (text.match(WMD_13_DELETED_ID) ?? []).length)
-    + (file.endsWith("/skill-selection.ts") ? 1 : 0)
+    + (CPK_08_DELETED_FILE.test(file) ? 1 : 0)
     + (file.startsWith("plugins/native/files/") ? 1 : 0);
   // Parse only the files whose text can hold one of the shapes.
   const catches = /\bcatch\b/.test(text), scripts = text.includes("_SCRIPT"), slices = text.includes("slice");

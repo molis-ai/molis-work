@@ -25,7 +25,7 @@ export function commitDraftMaterial(input: { planTitle?: string; rounds: Readonl
   const round = ({ number, run, change }: { number: number; run: AgentRunView; change: CodingChangeSet }) => {
     const answer = run.turns.filter(turn => turn.kind === "assistant").at(-1)?.text.trim() ?? "";
     const files = change.files.filter(file => file.review.execution === "applied").map(file =>
-      `#### ${file.path} (${file.kind === "added" ? "added" : "modified"}, +${file.added_lines} −${file.removed_lines})\n${clip(fileDiff(file.review), PER_FILE)}`);
+      `#### ${file.path} (${file.kind}, +${file.added_lines} −${file.removed_lines})\n${clip(fileDiff(file.review), PER_FILE)}`);
     return [`### Round ${number}`, `Request: ${clip(originalTask(run).trim(), 600)}`, `Conclusion: ${clip(answer, 500)}`, "Changes:", ...files].join("\n");
   };
   const head = input.planTitle ? [`Plan: ${input.planTitle}`] : [];

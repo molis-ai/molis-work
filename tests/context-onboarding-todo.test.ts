@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import { test as nodeTest, type TestContext } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -124,7 +125,7 @@ for (const mode of ["missing", "cancelled"] as const) {
       ? { ...taker, take: { ...taker.take, capability_id: "todo.onboarding.unregistered" } } : taker);
     startContextJourney(dir, id, { ...ports, takers, takeAtHome: (definition, signal): BoundActionClient => {
       const client = ports.takeAtHome(definition, AbortSignal.any([signal, cancelled.signal]));
-      return { discover: () => client.discover(), invoke: (action, input, control) => { if (mode === "cancelled") cancelled.abort(); return client.invoke(action, input, control); } };
+      return fakeBoundActionClient({ discover: () => client.discover(), invoke: (action, input, control) => { if (mode === "cancelled") cancelled.abort(); return client.invoke(action, input, control); } });
     } });
     const ready = await waitContextJourney(dir, id);
     assert.equal(ready.phase, "review", ready.error ?? "");
@@ -173,14 +174,14 @@ test("ONB-LIM-05 todo drafts come in batches of 50 materials, a long one in part
   const run = { ...ports, model: async () => ({ completeText: summarize }), takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
     signals.push(signal);
     const client = ports.takeAtHome(definition, signal);
-    return {
+    return fakeBoundActionClient({
       discover: () => client.discover(),
       invoke: (action, input, control) => {
         assert.deepEqual([action.capability_id, action.version, action.provider_id], ["todo.onboarding.draft", 1, TODO_PLUGIN_ID]);
         titles.push((input as { title: string }).title);
         return client.invoke(action, input, control);
       },
-    };
+    });
   } };
   startContextJourney(dir, id, run);
   const ready = await waitContextJourney(dir, id);
@@ -243,13 +244,13 @@ async function journeyOver(t: TestContext, files: [name: string, text: string][]
   const summarize = async (input: ModelPromptInput) => `# 新版方案\n要点 [${/"labels":\["(S\d+)"/u.exec(modelPromptText(input))?.[1] ?? "S1"}]`;
   const run = { ...ports, model: async () => ({ completeText: summarize }), takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
     const client = ports.takeAtHome(definition, signal);
-    return {
+    return fakeBoundActionClient({
       discover: () => client.discover(),
       invoke: (action, input, control) => {
         if (action.capability_id === "todo.onboarding.draft") sent.push(...(input as { materials: { title: string; text: string }[] }).materials);
         return client.invoke(action, input, control);
       },
-    };
+    });
   } };
   startContextJourney(dir, id, run);
   const ready = await waitContextJourney(dir, id);
@@ -358,7 +359,7 @@ async function draftsFailing(t: TestContext, thrown: unknown) {
   const { dir, id, ports } = await fixture(t, async () => TODOS);
   startContextJourney(dir, id, { ...ports, takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
     const client = ports.takeAtHome(definition, signal);
-    return { discover: () => client.discover(), invoke: async () => { throw thrown; } };
+    return fakeBoundActionClient({ discover: () => client.discover(), invoke: async () => { throw thrown; } });
   } });
   const ready = await waitContextJourney(dir, id);
   assert.equal(ready.phase, "review", ready.error ?? "");

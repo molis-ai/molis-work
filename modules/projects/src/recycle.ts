@@ -56,6 +56,13 @@ export class ProjectRecycle {
     return !!this.db.prepare('SELECT 1 FROM project_recycle WHERE project_id=? AND recycled=1').get(projectId);
   }
 
+  /** True while a copy-staged project has never been published or explicitly recycled by a person. */
+  isStagedCopy(projectId: string): boolean {
+    if (!this.isRecycled(projectId)) return false;
+    if (!this.db.prepare("SELECT 1 FROM project_events WHERE project_id=? AND type='project.copy_staged' LIMIT 1").get(projectId)) return false;
+    return !this.db.prepare("SELECT 1 FROM project_events WHERE project_id=? AND type IN ('project.recycled','project.restored') LIMIT 1").get(projectId);
+  }
+
   /** Mark a newly staged project hidden inside its creation transaction so incomplete copies never surface. */
   stageHidden(projectId: string): void {
     this.db.prepare(`INSERT INTO project_recycle(project_id,recycled,generation,observed_at) VALUES(?,1,1,?)

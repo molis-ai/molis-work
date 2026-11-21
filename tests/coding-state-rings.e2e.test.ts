@@ -289,7 +289,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
     assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);
     assert.match(result.files, /b\.ts\s*new.*Rejected/);
     assert.match(result.reader, /Fixed v2/);
-    assert.match(result.reader, /Files: 2 · writes: 3/);
+    assert.match(result.reader, /Files: 2 · changes: 3/);
     assert.match(result.reader, /Click a line number to leave a comment/);
     assert.equal(result.comments, "Comment on a.ts · write 1 · line 3 after");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }

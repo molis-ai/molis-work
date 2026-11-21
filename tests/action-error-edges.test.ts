@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -108,7 +109,7 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
 test("W3-02-G1-03 Home dock execute preserves the Todo owner's not_found kind and answers 404", async t => {
   // The actual Todo reader refuses a deleted object; the common HTTP exit preserves its code and message.
   const { person } = todoHost(t);
-  const failing: BoundActionClient = { discover: async () => [], invoke: async () => await person.invoke(todoActions.get, { id: "no-such-todo" }) as never };
+  const failing: BoundActionClient = { discoverOne: async () => undefined, discover: async () => [], invoke: async () => await person.invoke(todoActions.get, { id: "no-such-todo" }) as never };
   const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: failing, invalidateWebView: () => undefined }));
   try {
     const execute = await server.post("/api/home/actions/execute", "{}");
@@ -180,7 +181,7 @@ test("placement: a Todo deleted between the read and the move is the owner's not
   // by a client that removes the todo just before it forwards the first `todo.placement.move`, after placement's own read has found it.
   const { service, person } = todoHost(t);
   let racing = true;
-  const client: ActionClient = {
+  const client: ActionClient = fakeActionClient({
     discover: caller => service.discover(caller),
     invoke: async (caller, reference, input) => {
       if (racing && reference.capability_id === todoActions.move.capability_id) {
@@ -189,7 +190,7 @@ test("placement: a Todo deleted between the read and the move is the owner's not
       }
       return await service.invoke(caller, reference, input);
     },
-  };
+  });
   const placement = placementOver(t, client);
   const item = (await person.invoke(todoActions.create, { title: "读到之后被删掉" })).item;
   assert.equal((await placement.describe(todoRef(item.id))).state, "ok");

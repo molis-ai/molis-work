@@ -183,6 +183,8 @@ export function molisWorkHostProjectReference(input: {
  * The project composition owner: one database and application per Host runtime.
  */
 export class MolisWorkLocalHost {
+  /** The Home plugins' start, as each action call sees it: written when it starts failing and again once it has worked since. */
+  private readonly homeStart = repeatingFailure("home-plugins", "start_failed");
   readonly assistantStore?: SharedAssistantStore;
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private readonly draftReferences = new DraftReferences();
@@ -523,13 +525,12 @@ export class MolisWorkLocalHost {
     return prepareProjectActionDirectory(this.plugins, reference, caller.signal);
   }
 
-  private readonly homePluginStarts = repeatingFailure("home-plugins", "start_failed");
-
   private async prepareHomeActions(): Promise<void> {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     if (inLanguagePreview()) return;
-    // The directory is listed without the Home's plugins when they do not start; their page offers the retry. Said once, not per call.
-    await this.homePlugins?.ready().then(() => this.homePluginStarts.worked("ready"), (error: unknown) => this.homePluginStarts.failed("ready", error));
+    // An action of another owner still runs when the Home plugins failed to start; the failure is written once (and again after a
+    // start that worked), so a call refused as 「能力未注册」 has its cause in the Host log, not only on the stage page.
+    await this.homePlugins?.ready().then(() => this.homeStart.worked("home"), error => this.homeStart.failed("home", error));
     await this.homePlugins?.refreshPublicActions();
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     this.systemFunctions?.refresh();
@@ -635,7 +636,7 @@ function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>,
     client: (reference: LocalHostProjectReference): ActionClient => {
       const client = passiveClient(reference);
       const { invoke } = withPreparedActions(client, prepareHome, (caller, action, error) => refuseCall(reports, caller, action, error));
-      return { discover: client.discover, invoke };
+      return { discover: client.discover, discoverOne: client.discoverOne, invoke };
     },
   };
 }

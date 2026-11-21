@@ -56,36 +56,6 @@ function dispatchPersonalSurface(entry:Surface,request:IncomingMessage,response:
 }
 
 type SelectedSpace = { space:StorageSpace; directory:string; session:WebAccountSession|null };
-function personalCopyContext(
-  selected: SelectedSpace,
-  home: string,
-  withCatalog: LocalWebCatalogRunner | undefined,
-  surfaces: ReadonlyMap<string, Surface>,
-  selection: (request: IncomingMessage) => SelectedSpace,
-  request: IncomingMessage,
-  isStopping: () => boolean,
-) {
-  if (selected.space.kind !== 'personal' || !withCatalog || !selected.session) return null;
-  const identity = selected.session.auth.identity();
-  if (!identity) return null;
-  const targetSpaceId = selected.space.spaceId;
-  const targetWithCatalog = surfaces.get(targetSpaceId)?.server.withSyncCatalog ?? withCatalog;
-  return {
-    sourceHome: home,
-    targetHome: selected.directory,
-    targetSpaceId,
-    actorId: identity.userId,
-    sourceWithCatalog: withCatalog,
-    targetWithCatalog,
-    authorize: () => {
-      if (isStopping()) throw new ActionError('actions.unavailable', '服务正在关闭。');
-      const current = selection(request);
-      if (current.space.kind !== 'personal' || current.space.spaceId !== targetSpaceId) {
-        throw new ActionError('actions.forbidden', '账号或空间已切换，请重新预览。');
-      }
-    },
-  };
-}
 
 export interface SpaceWebSurface extends http.Server {
   /** Resolves after the runtime and background writers have released their Home. */
@@ -311,11 +281,42 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     try{(await syncFor(selection(request),request))?.start();}
     catch{ /* Sync settings report the failure; unavailable sync must not prevent local work. */ }
   };
-  const notifySyncChange=(spaceId:string)=>{
+  const notifySyncChange=(spaceId:string):boolean=>{
     const sync=syncs.get(spaceId);
-    if(sync?.active())sync.service?.notifyLocalChange();
+    if(!sync?.active())return false;
+    sync.service?.notifyLocalChange();
+    return true;
   };
-  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
+  const copyContextFor = async (selected: SelectedSpace, request: IncomingMessage, response: ServerResponse) => {
+    if (selected.space.kind !== 'personal' || !withCatalog || !selected.session) return null;
+    if (account.preparing()) throw new ActionError('actions.conflict', '正在处理旧页面的未保存内容，请稍候。');
+    const entry = await surface(selected);
+    const valid = attach(entry, request);
+    if (!valid()) throw new ActionError('actions.forbidden', '账号或空间已切换，请重新预览。');
+    if (response.destroyed || response.writableEnded) throw new ActionError('actions.forbidden', '请求已关闭。');
+    entry.responses.set(response, valid);
+    response.once('close', () => entry.responses.delete(response));
+    const identity = selected.session.auth.identity();
+    if (!identity) return null;
+    const targetSpaceId = selected.space.spaceId;
+    const targetWithCatalog = entry.server.withSyncCatalog ?? withCatalog;
+    return {
+      sourceHome: home,
+      targetHome: entry.home,
+      targetSpaceId,
+      actorId: identity.userId,
+      sourceWithCatalog: withCatalog,
+      targetWithCatalog,
+      authorize: () => {
+        if (stopping) throw new ActionError('actions.unavailable', '服务正在关闭。');
+        if (account.preparing()) throw new ActionError('actions.conflict', '正在处理旧页面的未保存内容，请稍候。');
+        if (!valid() || surfaces.get(targetSpaceId) !== entry) {
+          throw new ActionError('actions.forbidden', '账号或空间已切换，请重新预览。');
+        }
+      },
+    };
+  };
+  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,copyContextFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
 }
 
 async function closeSpaceSurface(core: SpaceWebSurface):Promise<void> {
@@ -362,7 +363,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   // The installation login response must survive retirement of the previous business Home.
   const loginSessions = new WebSessions(resolveConfiguredHome(options.homeDirectory) + ":installation-login");
   options = { ...options, webSessions: sessions };
-  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
+  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,copyContextFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
   try {
     server=trackHostListener(http.createServer((request,response)=>{
@@ -452,16 +453,23 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
             return;
           }
           if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+          if (url.pathname.startsWith('/api/sync/copy/') && account.preparing()) {
+            respondAccountPreparation(response);
+            return;
+          }
           await serveSpaceSync({
             request,
             response,
             url,
             local: selected.space.kind === 'local',
             service: () => syncFor(selected, request),
-            copy: () => personalCopyContext(selected, home, withCatalog, surfaces, selection, request, isStopping),
+            copy: () => copyContextFor(selected, request, response),
           });
           if (request.method === 'POST' && url.pathname === '/api/sync/copy/execute' && response.statusCode === 200 && selected.space.kind === 'personal') {
-            notifySyncChange(selected.space.spaceId);
+            const targetSpaceId = selected.space.spaceId;
+            if (!notifySyncChange(targetSpaceId)) {
+              void resume(request).then(() => { notifySyncChange(targetSpaceId); });
+            }
           }
           return;
         }

@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -56,7 +57,7 @@ function reader(kind: string, available = true): ActionView {
 }
 function clientOf(views: ActionView[], read: (subjectId: string) => unknown): { client: ActionClient; calls: Array<[string, unknown]> } {
   const calls: Array<[string, unknown]> = [];
-  const client: ActionClient = { discover: async () => views, invoke: async (_caller, action, input) => { const asked = input as { subject_id: string }; calls.push([action.capability_id, asked]); return read(asked.subject_id); } };
+  const client: ActionClient = fakeActionClient({ discover: async () => views, invoke: async (_caller, action, input) => { const asked = input as { subject_id: string }; calls.push([action.capability_id, asked]); return read(asked.subject_id); } });
   return { calls, client };
 }
 

@@ -1,5 +1,5 @@
 import { agentErrors } from "./errors.js";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 import type { AgentStartAuthority } from "./index.js";
 import { mayKeepWriting, mayWriteFiles } from "./tool-catalog.js";
@@ -109,12 +109,15 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
     }),
 
     register(agentHostCapabilities.readRunReviews, async (context, [session, run]) => {
-      await requireRun(context, session, run);
-      const view = await readScopedSession(context, session);
+      const view = await requireRun(context, session, run);
       const queue = ports.agentHost(context).reviews, projectId = ports.projectId(context);
       await queue.refresh(projectId);
-      return queue.list(projectId).filter(request => request.run?.session_id === run.session_id
-        && request.run.run_id === run.run_id && request.plugin_id === view.owner.plugin_id)
+      // The round's own reviews, and the reviewed integrations that brought this round's result back to the main
+      // workspace: those name the round as their source, not as their run, since a person starts them afterwards.
+      const ofRound = (request: AgentReviewRequest) => request.run
+        ? request.run.session_id === run.session_id && request.run.run_id === run.run_id
+        : request.document.kind === "git-integration" && request.document.source.session_id === run.session_id && request.document.source.run_id === run.run_id;
+      return queue.list(projectId).filter(request => ofRound(request) && request.plugin_id === view.owner.plugin_id)
         .map(request => ({ request, receipt: queue.receipt(request.review_id) }));
     }),
   ];

@@ -34,6 +34,7 @@ export function executorInputActions(host: MolisWorkLocalHost, project: LocalHos
   const exact = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version, provider_id: definition.provider_id! });
   return {
     discover: async () => client.discover(await current),
+    discoverOne: async reference => client.discoverOne(await current, reference),
     invoke: async (definition, input, control, transport) => {
       const caller = await current, role = workExecutorRoleOf(definition.action);
       if (role === "run.start" && skills && !used.skills) {

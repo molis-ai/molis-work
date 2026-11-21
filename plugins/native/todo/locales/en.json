@@ -278,6 +278,7 @@
     "todo.work.idle": "Not started",
     "todo.work.moved-to": "Moved to “{place}”",
     "todo.work.needs-check": "Needs checking",
+    "todo.work.unreadable": "Status unavailable",
     "todo.work.output": "Output",
     "todo.work.paused": "Paused",
     "todo.work.stopped": "Stopped",

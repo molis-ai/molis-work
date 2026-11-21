@@ -179,12 +179,16 @@ function renderComments(r: Reader) {
 
 /** The state of one write: tone, words, and the ring the page draws for it. */
 function stateOf(_L: Translate, file: ChangeFile): readonly [string, string, string] {
-  const tones: Readonly<Record<string, readonly [string, string, string]>> = { applied: ["done", uiText.text("coding.change.applied"), "done"], failed: ["failed", uiText.text("coding.change.apply-failed"), "failed"], unknown: ["attention", uiText.text("coding.change.unknown"), "verify"], "not-applied": ["idle", uiText.text("coding.change.not-applied"), "idle"] };
+  // A removal is listed only once it was confirmed: it reads as done, not as written.
+  const tones: Readonly<Record<string, readonly [string, string, string]>> = { applied: ["done", uiText.text(file.kind === "deleted" ? "coding.change.applied-removal" : "coding.change.applied"), "done"], failed: ["failed", uiText.text("coding.change.apply-failed"), "failed"], unknown: ["attention", uiText.text("coding.change.unknown"), "verify"], "not-applied": ["idle", uiText.text("coding.change.not-applied"), "idle"] };
   const decisions: Readonly<Record<string, readonly [string, string]>> = { rejected: [uiText.text("coding.change.rejected"), "cancelled"], cancelled: [uiText.text("coding.state.cancelled"), "cancelled"], expired: [uiText.text("coding.change.expired"), "stale"], pending: [uiText.text("coding.change.pending"), "approval"] };
   const decided = file.review.decision !== "approved" ? decisions[file.review.decision] : undefined;
   if (decided) return ["idle", decided[0], decided[1]];
   return tones[file.review.execution] ?? tones.unknown!;
 }
+
+/** What the round did to the file: created it, changed it, or removed it. */
+const kindLabel = (kind: string) => uiText.text(kind === "added" ? "coding.change.created" : kind === "deleted" ? "coding.change.deleted" : "coding.change.modified");
 
 const fileIcon = () => {
   const node = el("span", "", "coding-change-icon");
@@ -228,7 +232,7 @@ function singleFile(r: Reader, runValue: string, path: string, n: number, file: 
   const readText = r.ports.translate, button = pickButton(r, runValue, n);
   button.setAttribute("aria-pressed", String(n === r.index));
   button.classList.add("is-file");
-  button.append(fileIcon(), pathLabel(path), el("span", file.kind === "added" ? uiText.text("coding.change.created") : uiText.text("coding.change.modified"), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
+  button.append(fileIcon(), pathLabel(path), el("span", kindLabel(file.kind), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
   return button;
 }
 
@@ -256,7 +260,8 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     const file = files[n];
     if (!file) return;
     const button = pickButton(r, runValue, n);
-    button.append(el("span", uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + uiText.text("coding.change.created") : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
+    button.append(el("span", file.kind === "deleted" ? kindLabel(file.kind)
+      : uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + kindLabel(file.kind) : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
     group.append(button);
   });
 }

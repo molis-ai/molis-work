@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BlueprintPart } from "@molis-ai/molis-work-contracts/platform/blueprints";
@@ -7,6 +8,7 @@ import type { SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { memorySettingActions, MEMORY_SETTING_KEYS } from "@molis-ai/molis-work-service-memory";
 import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 
 test("SPC-04/ONB-22/23: memory adoption preserves per-plugin inheritance and undo returns the project to its live default", async t => {
@@ -357,6 +359,31 @@ test("B38 P1-E2/P1-E4/P2-5: missing apply receipt converges to detached instead 
   const undoB = await clientB.invoke(blueprintActions.revert, { adoption_id: secondWheel.adoption_id, request_id: "undo-wheel-b" });
   assert.equal(undoB.undo.steps[0]?.state, "restored", "stale Project A adoption must not falsely block Project B undo");
   assert.equal((await readWheel()).value, true);
+
+  // 2b. P2-4: legacy SettingPlan JSON lacking `personal_only` (and without layer_revisions) stays fail-safe and retains cross-project shared protection,
+  //     while an explicit `personal_only: true` plan without `applied_layer_revision` still detects the stale cross-project revision and restores.
+  const legacyWheelA = await clientA.invoke(blueprintActions.apply, await prepare(clientA, "Legacy Wheel A", [wheelPart]));
+  assert.equal(legacyWheelA.steps[0]?.state, "applied");
+  await rawHome.invoke(homeCaller, shelfPrefs.write, {
+    key: "shelf.drop_wheel", layer: "personal", change: { set: true }, expected_revision: (await readWheel()).revision, request_id: "manual-wheel-reset-2",
+  });
+  const legacyWheelB = await clientB.invoke(blueprintActions.apply, await prepare(clientB, "Legacy Wheel B", [wheelPart]));
+  assert.equal(legacyWheelB.steps[0]?.state, "applied");
+  {
+    const db = new DatabaseSync(homeSqlitePath(env.home, "blueprints"));
+    try {
+      // Simulate legacy stored SettingPlan JSON written before `personal_only` and without `applied_layer_revision`.
+      db.prepare("UPDATE adoption_steps SET plan_json = json_remove(plan_json, '$.personal_only', '$.applied_layer_revision') WHERE plan_json IS NOT NULL").run();
+    } finally {
+      db.close();
+    }
+  }
+  const undoLegacyB = await clientB.invoke(blueprintActions.revert, { adoption_id: legacyWheelB.adoption_id, request_id: "undo-legacy-wheel-b" });
+  assert.deepEqual(
+    undoLegacyB.undo.steps[0],
+    { part_id: "wheel", state: "skipped", reason: "shared" },
+    "legacy SettingPlan without personal_only must default to conservative shared protection (fail-safe)",
+  );
 
   // 3. P2-5: personal-layer memory write from Project A stores its receipt under personal profileKey, so replay from Home sees the exact receipt.
   const personalKey = MEMORY_SETTING_KEYS.personal;

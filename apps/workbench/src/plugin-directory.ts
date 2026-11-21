@@ -32,6 +32,7 @@ function sanitizeView(view: DirectoryView, icons: ReadonlySet<string>, chosen: b
     ...(icon ? { icon } : {}),
     ...(view.accepts_objects === true ? { accepts_objects: true } : {}),
     ...(view.slot === "side" && view.context_binding === "focused-object" ? { context_binding: view.context_binding } : {}),
+    ...(view.slot === "side" && view.opens_items === true ? { opens_items: true } : {}),
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
     ...(view.group && (UI_VIEW_GROUPS as readonly string[]).includes(view.group) ? { group: view.group } : {}),
     ...(view.hue && (UI_VIEW_HUES as readonly string[]).includes(view.hue) ? { hue: view.hue } : {}),
@@ -112,10 +113,24 @@ export interface ClientDirectoryEntry {
   readonly hue: string | null;
   readonly order?: number;
   readonly personal?: true;
+  /** The side tab (`plugin:<id>/<view>`) opening this plugin lands in, when its only place is a side view. */
+  readonly side?: string;
+  /** The side tab an open naming one of its items lands in first, when it also has a work-area place (`opens_items`). */
+  readonly side_item?: string;
 }
 
-export function clientPluginDirectory(directory: PluginDirectory, offered: readonly string[] = []): ClientDirectoryEntry[] {
+/** Where opening a plugin lands in the side panel, keyed by plugin (`sidePlaces` in the catalog works it out from the same directory). */
+export interface ClientSidePlaces {
+  readonly side: Readonly<Record<string, string>>;
+  readonly items: Readonly<Record<string, string>>;
+}
+
+export function clientPluginDirectory(directory: PluginDirectory, offered: readonly string[] = [], places?: ClientSidePlaces): ClientDirectoryEntry[] {
   const place = (id: string) => { const at = offered.indexOf(id); return at < 0 ? {} : { order: at }; };
+  const side = (id: string) => {
+    const tab = places && Object.hasOwn(places.side, id) ? places.side[id] : undefined, item = places && Object.hasOwn(places.items, id) ? places.items[id] : undefined;
+    return { ...(tab ? { side: tab } : {}), ...(item ? { side_item: item } : {}) };
+  };
   return [
     { id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue, ...place(ARTIFACT_NAVIGATION.id) },
     { id: SESSIONS_NAVIGATION.id, accepts_objects: false, hue: SESSIONS_NAVIGATION.hue, ...place(SESSIONS_NAVIGATION.id) },
@@ -125,12 +140,13 @@ export function clientPluginDirectory(directory: PluginDirectory, offered: reado
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,
     ...place(entry.id),
     ...(isPersonalPlugin(entry) ? { personal: true as const } : {}),
+    ...side(entry.id),
   }))];
 }
 
 /** Placement facts are separate from the publisher's display words. */
-export function renderPluginDirectoryData(directory: PluginDirectory, offered: readonly string[] = []): string {
-  return `<script type="application/json" data-plugin-directory>${scriptJson(clientPluginDirectory(directory, offered))}</script>`;
+export function renderPluginDirectoryData(directory: PluginDirectory, offered: readonly string[] = [], places?: ClientSidePlaces): string {
+  return `<script type="application/json" data-plugin-directory>${scriptJson(clientPluginDirectory(directory, offered, places))}</script>`;
 }
 
 /** The shell's selected display words are data, never executable script or a reader selector. */

@@ -43,6 +43,12 @@ export function pluginActionDependencies(context: PluginStartContext, manifest: 
       // command in a schedule; invoke below still preserves the original read-only restriction.
       const views = await options.client.discover({ ...caller, query_only: undefined }); check(); return views;
     },
+    discoverOne: async (reference: ActionReference) => {
+      const { caller, check } = invocation(), ref = checkedReference(reference);
+      const view = await options.client.discoverOne({ ...caller, query_only: undefined }, ref);
+      check();
+      return view;
+    },
     invoke: async <Output>(reference: ActionReference, input: unknown, control?: PluginExecutionControl) => {
       const { caller, check } = invocation(control), referenceValue = checkedReference(reference);
       const view = await pluginActionView(options.client, caller, referenceValue); check(referenceValue, view.action.permissions);

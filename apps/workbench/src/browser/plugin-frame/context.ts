@@ -56,7 +56,11 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   return async (message: ContextUp): Promise<void> => {
     if (!scope.alive) return;
     if (message.type === "context-key") {
-      if (scope.visible) document.dispatchEvent(new KeyboardEvent("keydown", {key: ".", ctrlKey: true, bubbles: true}));
+      if (scope.visible) {
+        const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+        const mac = typeof nav.userAgentData?.platform === "string" ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: ".", code: "Period", metaKey: mac, ctrlKey: !mac, bubbles: true, cancelable: true }));
+      }
       return;
     }
     if (message.type === "context-unreadable") {

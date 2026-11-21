@@ -328,6 +328,7 @@ test("B103-02 RAR-02 another connection's commit or structure change makes the n
   other.prepare("INSERT INTO notes VALUES ('b')").run();
   other.close();
   const rechecked = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true });
+  assert.ok(rechecked, "the store exists, so a read gets a connection");
   assert.notEqual(rechecked, first);
   assert.equal(first.isOpen, false, "the connection checked before the outside write is closed");
   assert.equal((rechecked.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2);
@@ -344,7 +345,9 @@ test("B103-02 RAR-02 another connection's commit or structure change makes the n
   const reshape = new DatabaseSync(file);
   reshape.exec("ALTER TABLE notes ADD COLUMN extra TEXT");
   reshape.close();
-  assert.throws(() => heldHomeSqlite(home, "notes", baseline), (error: ActionError) => /schema_(structure|version)_mismatch|space_ownership_mismatch/u.test(error.code));
+  const columns = () => { const db = new DatabaseSync(file, { readOnly: true }); try { return db.prepare("PRAGMA table_info(notes)").all().length; } finally { db.close(); } };
+  assert.throws(() => heldHomeSqlite(home, "notes", baseline), (error: ActionError) => error.code === "storage.schema_structure_mismatch");
+  assert.equal(columns(), 2, "the refused store is left as it was");
 });
 
 test("RAC-427 platform env prefix, project database filename and security directory path stay on Molis Work names", async (t) => {

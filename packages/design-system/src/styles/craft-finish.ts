@@ -111,22 +111,6 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     if (row) requestAnimationFrame(() => settleOpened(document.querySelector(".immersive-home .home-erow-wrap.is-open .home-erow__slot")));
   });
 
-  /* ⌥1 opens the project home (the top strip's first place lists it, hidden until its list opens); ⌥2…⌥9 the start page's first
-   * entries while it shows. Typing, terminals and menus keep their keys. */
-  const railShortcuts = () => [...document.querySelectorAll(".top-corner [data-corner-home]"),
-    ...[...document.querySelectorAll(".plugin-rail-items [data-plugin-id]")].filter((node) => node.getClientRects().length)].slice(0, 9);
-  document.addEventListener("keydown", (event) => {
-    if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
-    const digit = /^Digit([1-9])$/.exec(event.code);
-    if (!digit) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), .xterm, [data-tui-pane], dialog[open], [popover]:popover-open")) return;
-    const node = railShortcuts()[Number(digit[1]) - 1];
-    if (!node) return;
-    event.preventDefault();
-    node.click();
-  });
-
   /* Tools zone: the three used last stay on the rail; 全部工具 opens the rest in place and closes
    * again once one is chosen. Presentation only — opening a tool is still the rail's own click. */
   const RECENT_KEY = "molis-work:rail-recent-tools";
@@ -175,9 +159,6 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     }).observe(railList, { subtree: true, attributes: true, attributeFilter: ["aria-current"] });
     paintRecent();
   }
-
-  /* The tooltip is its own program (browser/tip.ts); it reads the rail's shortcuts from here. */
-  window.molisRailShortcuts = railShortcuts;
 
   /* Presentation of drag: the source leaves a faded hole; drop areas become visible. */
   const endDrag = () => {

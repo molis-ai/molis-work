@@ -51,7 +51,7 @@ ${TOP}{
   /* How many wait for the person (POLISH-15): amber, only while something waits; the Assistant's bell reads the same number. */
   & .top-corner-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
   & .top-corner-count[hidden]{display:none}
-  & .top-corner-list{position:absolute;top:calc(100% - 2px);left:8px;z-index:60;display:grid;grid-template-columns:200px 280px;max-width:calc(100vw - 16px);max-height:min(520px,calc(100dvh - 80px));border:1px solid var(--line);border-radius:14px;background:var(--popover);box-shadow:var(--lift-3);overflow:hidden;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
+  & .top-corner-list{position:absolute;top:calc(100% - 2px);left:8px;z-index:60;display:grid;grid-template-columns:200px 280px;max-width:calc(100vw - 16px);max-height:min(520px,calc(100dvh - 80px));border:0;border-radius:14px;background:var(--popover);box-shadow:var(--lift-3);overflow:hidden;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
   & .top-corner-list[hidden]{display:none}
   & .top-corner-projects{display:flex;flex-direction:column;min-height:0;padding:8px;border-right:1px solid var(--line);background:var(--desk)}
   & .top-corner-right{min-height:0;padding:8px;overflow:auto}
@@ -90,7 +90,7 @@ ${TOP}{
     &>.tab-view-chip.is-exclusive{flex:none;display:inline-flex;align-items:center;gap:6px;height:var(--ear-rest);margin:0 10px 0 0;padding:0 6px 0 10px;border-radius:8px;background:var(--paper);box-shadow:var(--lift-1);color:var(--ink);font-size:12px;font-weight:500;cursor:default}
     &>.tab-view-chip.is-exclusive>span{white-space:nowrap}
     &>.tab-view-chip.is-exclusive>svg{width:14px;height:14px;color:var(--accent)}
-    &>.tab-view-chip .tab-view-chip-close{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink-soft);cursor:pointer}
+    &>.tab-view-chip .tab-view-chip-close{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--ink-soft);cursor:pointer}
     &>.tab-view-chip .tab-view-chip-close:hover{background:var(--nav-active);color:var(--ink)}
     &>.tab-view-chip .tab-view-chip-close svg{width:12px;height:12px}
     /* The titlebar's tab strip has no ＋ of its own: ＋ is the start page's, right after it. */
@@ -134,7 +134,7 @@ ${TOP}{
   &>.side-ear>.side-ear-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* The side's views, as the list that opens from that name. */
   &>.side-views{
-    order:4;position:absolute;top:calc(100% - 2px);z-index:30;display:flex;flex-direction:column;align-items:stretch;gap:1px;min-width:200px;max-width:min(320px,100vw - 16px);max-height:min(420px,100dvh - var(--dock-h,76px) - 52px);margin:0;padding:4px;overflow:hidden auto;border-radius:12px;background:var(--paper);box-shadow:var(--lift-3);animation:craft-fade-in var(--dur-hover) var(--ease-quint) both;
+    order:4;position:absolute;top:calc(100% - 2px);z-index:30;display:flex;flex-direction:column;align-items:stretch;gap:1px;min-width:200px;max-width:min(320px,100vw - 16px);max-height:min(420px,100dvh - var(--dock-h,76px) - 52px);margin:0;padding:4px;overflow:hidden auto;border-radius:12px;background:var(--popover);box-shadow:var(--lift-3);animation:craft-fade-in var(--dur-hover) var(--ease-quint) both;
     &[hidden]{display:none}
     &>.tab-item{flex:none;width:auto;max-width:none;height:32px;padding:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--ink-soft)}
     &>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])){display:none}
@@ -169,10 +169,10 @@ ${PANE}{
     &>.tab-scroll{align-self:stretch;align-items:center;box-sizing:border-box;height:auto;gap:2px;padding:0 10px 0 18px}
     & .tab-group,& .tab-group>.tab-group-pages{align-self:stretch;align-items:center;height:auto;min-height:0;padding:0;gap:2px;border-radius:0;background:none;box-shadow:none}
     & .tab-plugin-group .tab-group-sep{display:none}
-    & .tab-item{height:var(--ear-rest);border-radius:7px;background-color:transparent;box-shadow:none;color:var(--ink-soft);font-size:12px}
+    & .tab-item{height:var(--ear-rest);border-radius:6px;background-color:transparent;box-shadow:none;color:var(--ink-soft);font-size:12px}
     & .tab-item:not([data-ear]):hover{background-color:var(--nav-hover);color:var(--ink)}
     & .tab-item .tab-item-icon{color:currentColor}
-    & .tab-item[data-ear]{position:relative;${EAR_BASE};border-radius:9px 9px 0 0;${EAR_CORNERS}}
+    & .tab-item[data-ear]{position:relative;${EAR_BASE};border-radius:8px 8px 0 0;${EAR_CORNERS}}
     &:not([data-unfocused]) [data-ear]{${FOCUS_LINE}}
     &:not([data-unfocused]) [data-ear] .tab-item-icon{color:var(--accent)}
   }
@@ -233,7 +233,7 @@ ${PANE}{
   ${TOP}{
     &>.workspace-history{display:none}
     & .top-corner-project-name,& .top-corner-cell>svg:nth-of-type(2){display:none}
-    & .top-corner-list{grid-template-columns:minmax(0,1fr)}
+    & .top-corner-list{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
     & .top-corner-projects{border-right:0;border-bottom:1px solid var(--line)}
     /* While another page shows, the current tab names it: the place is its ⌂ alone (plus any amber waiting count), at least a 44px target. */
     & .top-corner-cell:not([aria-current]){justify-content:center;min-width:44px;padding:0 6px;gap:4px}

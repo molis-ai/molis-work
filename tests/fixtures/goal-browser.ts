@@ -201,8 +201,12 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // From 960px the strip's right end has no project (POLISH-05 as rewritten, POLISH-71): an entry of its hidden menu is pressed
     // where a person finds the same entry now, in the foot's account bar or the first place's list.
     selector = await evaluate<string>(`(() => { const node = document.querySelector(${JSON.stringify(selector)}), end = node?.closest('.titlebar-end');
-      if (!node || !end || end.checkVisibility()) return ${JSON.stringify(selector)};
-      const to = ${JSON.stringify(MOVED)}.find(([from, there]) => node.matches(from) && document.querySelector(there));
+      if (!node || !end || end.checkVisibility() || window.innerWidth < 960) return ${JSON.stringify(selector)};
+      const to = ${JSON.stringify(MOVED)}.find(([from, there]) => {
+        if (!node.matches(from)) return false;
+        const target = document.querySelector(there);
+        return Boolean(target && (target.closest('[data-top-corner-list]') || target.getClientRects().length));
+      });
       return to ? to[1] : ${JSON.stringify(selector)}; })()`);
     const point = await evaluate<{ x: number; y: number; covered: boolean }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)});

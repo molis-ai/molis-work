@@ -176,9 +176,17 @@ export function drawRun(page: Page, block: HTMLElement, run: RunView, all: reado
   placeReview(page, block, run, all);
   const settled = !s.recovery && !s.checkpointBusy, last = run === all.at(-1);
   // Only the revision recorded when the round started names what it tested; the current HEAD may have moved.
-  const headRev = run.code_revision ?? null;
-  const footer = () => timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
-  footer();
+  const drawFooter = (targetBlock: HTMLElement, targetRun: RunView, runs: readonly RunView[], isSettled: boolean) => {
+    const rev = targetRun.code_revision ?? null, isLast = targetRun === runs.at(-1);
+    timeline.renderFooter(targetBlock, rev ? { ...targetRun, code_revision: rev } : targetRun, runs.indexOf(targetRun), isLast && (targetRun.phase === "reconcile-required" || isSettled), !isLast && stand.latest && isSettled);
+  };
+  drawFooter(block, run, all, settled);
   // The newest round's line also says how many lines it added and removed; the count is read once and the line drawn again.
-  if (last) readChangeTally(page, run, () => { if (block.isConnected && page.s.allRuns.at(-1)?.ref.run_id === run.ref.run_id) { footer(); renderChanged(page); } });
+  if (last) readChangeTally(page, run, () => {
+    const runs = page.s.allRuns, live = runs.at(-1);
+    if (!live || live.ref.run_id !== run.ref.run_id) return;
+    const liveBlock = block.isConnected ? block : page.turns.querySelector<HTMLElement>(`:scope > [data-run="${CSS.escape(live.ref.run_id)}"]`);
+    if (liveBlock) drawFooter(liveBlock, live, runs, !page.s.recovery && !page.s.checkpointBusy);
+    renderChanged(page);
+  });
 }

@@ -12,7 +12,7 @@ let scheduled = 0, watching: MutationObserver | null = null;
 /** Told once per frame, so a burst of changes (a tab switch hides one page and shows another) moves the bar once. */
 function changed(): void {
   if (scheduled) return;
-  scheduled = requestAnimationFrame(() => { scheduled = 0; globalThis.molisBarReceiverChanged?.(); globalThis.molisWorkBarPlace?.(); });
+  scheduled = requestAnimationFrame(() => { scheduled = 0; globalThis.molisBarReceiverChanged?.(); });
 }
 
 /** The page shown in the focused pane, if it takes words now (it names who they go to); else none, and the bar is the Assistant's. */
@@ -134,7 +134,7 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
   try {
     if (JSON.stringify(snapshot).length > 256 * 1024) return null;
     const raw = record(snapshot), pause = raw.pause === null ? null : record(raw.pause), attachments = raw.attachments === null ? null : record(raw.attachments);
-    const column = raw.column === null ? null : record(raw.column), near = raw.near === null ? null : record(raw.near);
+    const near = raw.near === null ? null : record(raw.near);
     want(typeof raw.stop === "boolean" && typeof raw.mentions === "boolean" && typeof raw.sources === "boolean" && typeof raw.submitKeys === "boolean" && typeof raw.draft === "boolean");
     return {
       entry: text(raw.entry, 80), labels: words(record(raw.labels)), placeholder: text(raw.placeholder, 400),
@@ -144,7 +144,6 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
       controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf), commandMenu: commandMenuOf(raw.commandMenu), chip: chipOf(raw.chip),
       attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)), ...picturesOf(attachments.pictures) } : null,
       ...optional("voice", maybe(raw.voice, 80)),
-      column: column && Number.isFinite(column.left) && Number.isFinite(column.width) && (column.width as number) > 0 ? { left: column.left as number, width: column.width as number } : null,
       near: near ? { kind: text(near.kind, 80), id: text(near.id, 200) } as ComposerSnapshot["near"] : null,
       required: raw.required === null ? null : text(raw.required, 400),
       notice: noticeOf(raw.notice),
@@ -272,7 +271,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       submit: (input, signal, acknowledge) => call(mine, "submit", input, signal, acknowledge).then(value => outcomeOf(value, key => call(mine, "check", key))),
     };
   };
-  let named = false, placed = "", col = "";
+  let named = false, col = "";
   // While the bar is this page's, the page hears where its input stands and how wide, so its conversation aligns with it (UIV-19).
   const sendColumn = () => {
     if (!bound || !field) return;
@@ -280,12 +279,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (!input) return;
     const at = input.getBoundingClientRect(), box = frame.getBoundingClientRect();
     const w = Math.round(at.width), l = Math.round(at.left - box.left), key = `${w},${l}`;
-    if (w > 0 && key !== col) { col = key; post({ type: "composer-column", id, width: w, left: l }); }
+    if (w > 0 && box.width > 0 && key !== col) { col = key; post({ type: "composer-column", id, width: w, left: l }); }
   };
   const measure = new ResizeObserver(sendColumn);
   const apply = () => {
-    const where = JSON.stringify(snapshot?.column ?? null);
-    if (where !== placed) { placed = where; globalThis.molisWorkBarPlace?.(); }
     // A page that starts or stops naming a receiver (a session opened or closed) takes the bar or gives it back.
     if (Boolean(snapshot?.receiver) !== named) { named = !named; changed(); }
     if (!snapshot || !receiver) return;
@@ -305,10 +302,6 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (receiver) receivers.delete(receiver);
     receiver = {
       key, root, visible, placeholder: at.placeholder, options: options(),
-      column: () => {
-        const column = snapshot?.column, box = frame.getBoundingClientRect();
-        return column && box.width > 0 ? { left: box.left + Math.max(0, column.left), width: Math.min(column.width, box.width) } : null;
-      },
       bind(handle: ComposerHandle | null, box?: HTMLTextAreaElement, updateWords?: () => void, owns?: () => boolean) {
         if (bound !== handle) readiness.discard();
         if (bound && box !== field) field?.removeEventListener("input", typed);
@@ -324,7 +317,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
   };
   const drop = () => {
     receipt = undefined; draftAdapter = undefined;
-    readiness.discard(); measure.disconnect(); window.removeEventListener("resize", sendColumn);
+    readiness.discard(); field?.removeEventListener("input", typed); measure.disconnect(); window.removeEventListener("resize", sendColumn);
     for (const pending of answers.values()) pending.reject(new Error("View closed"));
     answers.clear();
     if (receiver) { receivers.delete(receiver); receiver = null; watch(); changed(); }

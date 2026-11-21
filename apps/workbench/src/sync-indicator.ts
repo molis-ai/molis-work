@@ -1,13 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type {ImmersiveShellPrimitives} from './immersive-shell.js';
-export function renderSyncIndicator({icon}:ImmersiveShellPrimitives):string{return `<a href="/settings/sync" class="sync-resident-status" data-sync-indicator aria-label="${uiText("workbench.sync-indicator.view-synchronization-details")}" title="${uiText("workbench.sync-indicator.view-synchronization-details")}" hidden>${icon('cloud')}<span data-sync-indicator-label></span></a>`;}
-export const SYNC_INDICATOR_STYLES=String.raw`
-.sync-resident-status{display:flex;align-items:center;gap:4px;max-width:100%;text-decoration:none;color:var(--muted);font-size:11px;min-width:0}
-.sync-resident-status[hidden]{display:none}.sync-resident-status span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:8em}
-.sync-resident-status[data-sync-phase="conflict"],.sync-resident-status[data-sync-phase="failed"]{color:var(--danger)}
-@media(max-width:600px){.sync-resident-status span{max-width:5em}}
-`;
- export const SYNC_INDICATOR_SCRIPT=String.raw`
+export const SYNC_INDICATOR_SCRIPT=String.raw`
 (()=>{
  if(!document.querySelector('[data-sync-indicator]'))return;
  const readText=globalThis.t.text,control=new AbortController();let timer,busy=false,available=true,running=false;

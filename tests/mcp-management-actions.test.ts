@@ -189,7 +189,7 @@ test("R-MCP-OWNER-01: MCP presentation and Runtime approval refusals keep their 
   assert.equal(mcpWebUrl("/projects/example", "http://127.0.0.1:4173", createError), "http://127.0.0.1:4173/projects/example");
   let invoked = 0;
   await assert.rejects(dispatchMcpProjectTool({ project_id: "example", fields: () => [], invoke: async () => { invoked++; throw new Error("must not dispatch"); } },
-    "molis_work_v1_review_decide", { project_id: "example" }, { audience: "runtime", createError }), error => {
+    "molis_work_v1_review_decide", { project_id: "example" }, { audience: "runtime", createError, declared: [] }), error => {
       assert.ok(error instanceof ActionError);
       assert.equal(error.code, "mcp.authority_denied");
       assert.match(error.message, /受保护的管理入口或 Web/u);
@@ -197,4 +197,24 @@ test("R-MCP-OWNER-01: MCP presentation and Runtime approval refusals keep their 
       return true;
     });
   assert.equal(invoked, 0);
+});
+
+// Batch 44 recheck: a management tool is one a plugin declares on its management action (`mcp_tool`). The transport finds it by name,
+// takes the bound project and the action's own business fields only, and calls that action; it names no plugin.
+test("PEQ-15 a plugin-declared management tool calls its own action with only the action's business fields", async () => {
+  const createError = (code: string, message: string) => new ActionError(code, message);
+  const action = { capability_id: "example.board.prepare", version: 3 };
+  const declared = [{ name: "molis_work_v1_example_prepare", action, description: "准备示例", input_schema: { properties: { idempotency_key: { type: "string" } } } }];
+  const calls: unknown[] = [];
+  const port = { project_id: "p-1", fields: (reference: unknown) => { assert.deepEqual(reference, action); return ["idempotency_key"]; },
+    invoke: async <Output>(reference: unknown, input: Record<string, unknown>) => { calls.push([reference, input]); return { ok: true } as Output; } };
+  const ports = { audience: "management" as const, createError, declared };
+  assert.deepEqual(JSON.parse(await dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { database_path: "/tmp/x.db", project_id: "p-1", idempotency_key: "k" }, ports)), { ok: true });
+  assert.deepEqual(calls, [[action, { idempotency_key: "k" }]]);
+  await dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { project_id: "p-1", idempotency_key: 7, actor_id: "someone" }, ports);
+  assert.deepEqual(calls[1], [action, { idempotency_key: "7" }], "an identity in the arguments is not read; a number for a text field is read as text");
+  await assert.rejects(dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { project_id: "p-2", idempotency_key: "k" }, ports), { code: "actions.scope_mismatch" });
+  await assert.rejects(dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { project_id: "p-1" }, { ...ports, declared: [] }), { code: "mcp.tool_unknown" });
+  await assert.rejects(dispatchMcpProjectTool(null, "molis_work_v1_example_prepare", { project_id: "p-1" }, { ...ports, audience: "runtime" }), { code: "mcp.authority_denied" });
+  assert.equal(calls.length, 2, "no refused call reached the action");
 });

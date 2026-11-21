@@ -58,7 +58,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   .settings-data-disclosure, .settings-advanced { border-bottom: 1px solid var(--line); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-data-disclosure, .settings-advanced) > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 0; padding: 12px 0; cursor: pointer; }
   :is(.project-preferences-page, .settings-stage) summary::-webkit-details-marker { display: none; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-data-disclosure, .settings-advanced) > summary > svg { flex: none; width: 14px; height: 14px; color: var(--muted); transition: transform 130ms var(--ease-quint); }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-data-disclosure, .settings-advanced) > summary > svg { flex: none; width: 14px; height: 14px; color: var(--muted); transition: transform var(--dur-hover) var(--ease-quint); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-data-disclosure, .settings-advanced)[open] > summary > svg { transform: rotate(180deg); }
   .settings-data-list { margin: 0; padding: 0 0 24px; display: grid; gap: 12px; }
   .settings-data-list > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 16px; font-size: 12px; line-height: 1.6; }
@@ -70,7 +70,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .project-manager-danger p { max-width: 62ch; margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }
   :is(.project-preferences-page, .settings-stage) input.settings-switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--line-strong); cursor: pointer; }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: var(--lift-1); transition: transform 130ms var(--ease-quint); }
+  :is(.project-preferences-page, .settings-stage) input.settings-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: var(--lift-1); transition: transform var(--dur-hover) var(--ease-quint); }
   :is(.project-preferences-page, .settings-stage) input.settings-switch:checked { background: var(--ink); border-color: var(--ink); }
   :is(.project-preferences-page, .settings-stage) input.settings-switch:checked::after { transform: translateX(14px); }
   :is(.project-preferences-page, .settings-stage) .settings-last-change { display: grid; gap: 4px; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }

@@ -1,23 +1,21 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { LOCAL_PERSON_ACTOR_ID, workItemPromotionRoleOf, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindLocalWebAction, bindLocalWebActions, bindLocalWebProjectAiActions, bindWebEntryActions } from "./local-web-actions.js";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindLocalWebAction, bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/sessions";
 import { onboardingTakers, type OnboardingMaterialKind } from "./onboarding-takers.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOnboardingWritable, molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
 import { projectNavigation } from "./web-project-presentation.js";
-import { webOnboardingInitializationInput, type WebOnboardingInitializationInput, type OnboardingRuntimePorts } from "./web-onboarding-input.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-interface OnboardingHttpPorts extends OnboardingRuntimePorts {
+interface OnboardingHttpPorts {
+  cliAvailability(): Record<string, boolean>;
   withCatalog: LocalWebCatalogRunner;
   renderOnboarding: ReturnType<typeof createLocalHostWorkbenchRenderer>["renderMolisWorkOnboarding"];
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
@@ -25,8 +23,8 @@ interface OnboardingHttpPorts extends OnboardingRuntimePorts {
 }
 
 /**
- * The two ways in below make something (the personal space, a project) and then write down that onboarding is done. A record this build
- * may not replace is answered with its refusal before either is made (upgrade-chain-design §2.6), by the same check as the context journey's.
+ * The blank start below makes the personal space and then writes down that onboarding is done. A record this build
+ * may not replace is answered with its refusal before the space is made (upgrade-chain-design §2.6), by the same check as the context journey's.
  */
 function refusedBeforeMaking(response: ServerResponse, homeDirectory: string | undefined): boolean {
   try { assertOnboardingWritable(homeDirectory); return false; }
@@ -42,102 +40,6 @@ function takePorts(ports: OnboardingHttpPorts, localHost: MolisWorkLocalHost) {
       return bindLocalWebAction(localHost, molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), definition);
     },
   };
-}
-
-async function handleOnboardingInitialize(
-  request: IncomingMessage,
-  response: ServerResponse,
-  ports: OnboardingHttpPorts,
-  homeDirectory: string | undefined,
-  localHost: MolisWorkLocalHost,
-): Promise<void> {
-  let input: WebOnboardingInitializationInput;
-  try {
-    input = webOnboardingInitializationInput(await readBody(request), ports);
-  } catch (error) {
-    sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
-    return;
-  }
-  if (refusedBeforeMaking(response, homeDirectory)) return;
-  let partialProjectPath: string | null = null;
-  try {
-    await ports.withCatalog({ homeDirectory }, async (catalog) => {
-      const project = await catalog.createProject({
-        display_name: input.projectName,
-        actor_id: LOCAL_PERSON_ACTOR_ID,
-      });
-      const promotionTarget = (() => {
-        for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
-          const action = registration.manifest.actions?.find(item => workItemPromotionRoleOf(item.action) === "create");
-          if (action) return { projectPluginId: registration.project_plugin_id, action: action as ActionDefinition<Record<string, unknown>, { goal: { goal_id: string; title: string } }> };
-        }
-        return undefined;
-      })();
-      if (!promotionTarget) throw new Error("未登记可用的工作项创建插件");
-      // New projects enable no work-item plugin by default (D1, PEQ-12); this explicit onboarding flow opts the discovered provider in.
-      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: promotionTarget.projectPluginId, actor_id: LOCAL_PERSON_ACTOR_ID });
-      const projectPath = `/projects/${encodeURIComponent(project.project_id)}/`;
-      partialProjectPath = projectPath;
-      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      const title = input.outcome
-        .replace(/^我想(?:要)?\s*/u, "")
-        .replace(/\s+/gu, " ")
-        .trim()
-        .slice(0, 120) || input.projectName;
-      // The Web person's call behind this route's origin, control-token and key checks; the provider starts as a normal project plugin.
-      const createdGoal = (await bindWebEntryActions(localHost, reference, request).invoke(promotionTarget.action, {
-        title,
-        outcome: input.outcome,
-        why: "把第一次表达的目标保存为可继续澄清的共同事实",
-        business_logic: `${onboardingPlanningHint(input.intentFrame)} 先保存用户想看到的结果，再由用户和 Runtime 共同补全范围、拆分与验收，不把推断直接写成已确认目标树。`,
-        priority: 50,
-        idempotency_key: `onboarding-root-goal-${project.project_id}`,
-        source_kind: "onboarding",
-      })).goal;
-      // The folder the person picked here is where the project works: its output, which is read as well (user 2026-11-08). The
-      // default output directory's row, written when the project was registered, goes with it; its folder was never made.
-      const workspace = input.workspacePath
-        ? await catalog.commit(() => {
-            const before = catalog.projectDirectories(project.project_id);
-            const after = catalog.changeDirectories({ project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
-              change: { kind: "set_output", target: { workspace_path: input.workspacePath! } }, expected_revision: before.revision });
-            return after.directories.find(item => item.roles.includes("output"))!;
-          })
-        : null;
-      let journeyWarning: string | null = null;
-      try {
-        completeMolisWorkOnboarding(homeDirectory, project.project_id);
-      } catch (error) {
-        journeyWarning = error instanceof Error ? error.message : String(error);
-      }
-      sendJson(response, 201, {
-        project: projectNavigation(project),
-        project_path: projectPath,
-        goal: {
-          goal_id: createdGoal.goal_id,
-          title: createdGoal.title,
-        },
-        goal_id: createdGoal.goal_id,
-        goal_path: `${projectPath}goals/${encodeURIComponent(createdGoal.goal_id)}`,
-        workspace: workspace
-          ? {
-              workspace_id: workspace.workspace_id,
-              display_name: workspace.display_name,
-              canonical_path: workspace.canonical_path,
-            }
-          : null,
-        runtime_autofill: Boolean(input.runtimeKind),
-        ...(journeyWarning ? { journey_warning: journeyWarning } : {}),
-      });
-    });
-  } catch (error) {
-    sendJson(response, partialProjectPath ? 500 : 400, {
-      error: partialProjectPath
-        ? `项目已经创建，但初始化未完成：${error instanceof Error ? error.message : String(error)}`
-        : error instanceof Error ? error.message : String(error),
-      ...(partialProjectPath ? { recovery_path: partialProjectPath } : {}),
-    });
-  }
 }
 
 export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
@@ -181,10 +83,6 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       } catch (error) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
-      return true;
-    }
-    if (request.method === "POST" && url.pathname === "/api/onboarding/initialize") {
-      await handleOnboardingInitialize(request, response, ports, homeDirectory, localHost);
       return true;
     }
     if (request.method === "GET" && url.pathname === "/onboarding") {

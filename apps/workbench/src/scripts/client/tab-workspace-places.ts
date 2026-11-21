@@ -5,9 +5,10 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
   const coverKindOf = (element) => Object.keys(COVER_OPENERS).find((kind) => element.closest(COVER_OPENERS[kind])) || null;
   const markCoverOpeners = () => {
     if (embedded) return;
+    const active = activeCoverOpener();
     for (const [kind, selector] of Object.entries(COVER_OPENERS)) {
       document.querySelectorAll(selector).forEach((opener) => {
-        if (state.exclusive === kind) opener.setAttribute("aria-current", "page");
+        if (active === kind) opener.setAttribute("aria-current", "page");
         else if (opener.getAttribute("aria-current") === "page" && !opener.matches("[data-work-surface-open]")) opener.removeAttribute("aria-current");
       });
     }
@@ -248,6 +249,7 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
   const noteCover = (kind, place, replace = false) => {
     if (embedded || state.exclusive !== kind || coverPlace === (place || "")) return;
     coverPlace = place || "";
+    markCoverOpeners();
     if (historyLock) return;
     const pane = ops.focused(state);
     if (!pane) return;
@@ -282,4 +284,4 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
   const stepHistory = (delta) => { if (embedded) notifyParent("workbench-pane-history", { delta }); else goHistory(delta); };
   // The side buttons would otherwise take the browser away from the workbench.
   const sideButton = (event) => event.button === 3 || event.button === 4;
-  const openLayer = () => [...document.querySelectorAll("dialog[open], :popover-open, details[open][data-layer-open], details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]")].some((node) => !node.closest("[hidden], [inert]") && node.getClientRects().length && getComputedStyle(node).visibility === "visible");`;
+  const openLayer = () => [...document.querySelectorAll("dialog[open], :popover-open, details[open][data-layer-open], details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-top-corner-list]:not([hidden]), #mw-account-menu:not([hidden]), [data-work-lists]:not([hidden]), [data-work-line][data-stack-open], [data-work-task-float]:not(:empty), [data-compose-menu]:not([hidden]), [data-assistant-notices]:not([hidden]), [data-assistant-works]:not([hidden]), [data-side-tabs][data-side-menu]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]")].some((node) => !node.closest("[hidden], [inert]") && node.getClientRects().length && getComputedStyle(node).visibility === "visible");`;

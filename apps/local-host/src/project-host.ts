@@ -41,7 +41,7 @@ import { contextOnboardingProvider } from "./context-onboarding-actions.js";
 import { agentReviewProvider } from "./agent-review-http.js";
 import { assistantPanelProvider } from "./assistant/assistant-http.js";
 import { assistantSettingsProvider } from "./assistant/assistant-settings-actions.js";
-import { assistantStoreFor, type AssistantStore } from "./assistant/assistant-store.js";
+import { assistantStoreFor, type SharedAssistantStore } from "./assistant/assistant-store.js";
 import { assistantDelegationProvider } from "./assistant/assistant-delegation-actions.js";
 import { authorizationManagementProvider } from "./authorization-management.js";
 import { AutomationRecommender } from "@molis-ai/molis-work-service-automation-recommender";
@@ -183,7 +183,7 @@ export function molisWorkHostProjectReference(input: {
  * The project composition owner: one database and application per Host runtime.
  */
 export class MolisWorkLocalHost {
-  readonly assistantStore?: () => AssistantStore;
+  readonly assistantStore?: SharedAssistantStore;
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private readonly draftReferences = new DraftReferences();
   readonly synchronization: ReturnType<typeof projectSyncAccess>;
@@ -564,7 +564,7 @@ export class MolisWorkLocalHost {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
-        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["sessions", () => this.sessions?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["sessions", () => this.sessions?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)], ["assistant", () => this.assistantStore?.close()],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }

@@ -243,7 +243,7 @@ export { createLocalWebAssets } from "./web-assets.js";
 
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
-export { MCP_TOOLS } from "./mcp-platform-tools.js";
+export { MANAGEMENT_MCP_TOOLS, MCP_TOOLS, isPlatformMcpTool as isListedPlatformMcpTool } from "./mcp-platform-tools.js";
 export { mcpErrors, mcpErrorKind, type McpErrorReason } from "./mcp-errors.js";
 export { createPresentationError } from "./mcp-v1-tool.js";
 export { assertMcpStartInput } from "./mcp-start-preflight.js";
@@ -353,6 +353,7 @@ export { attachConversationFile, readConversationAttachment, holdsConversationAt
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
+export { forgetInstalledMemoryScene, pluginMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryInputSnapshots } from "./memory/memory-source-identity.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
@@ -422,7 +423,7 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
-export { bindManagementActions, bindGoalsManagementActions } from "./management-actions.js";
+export { bindManagementActions } from "./management-actions.js";
 export { readProjectGuidance } from "./project-guidance-actions.js";
 export { entryUserAction } from "./entry-user-action.js";
 

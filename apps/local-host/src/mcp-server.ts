@@ -10,13 +10,14 @@ import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@m
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MCP_SERVER_INFO as SERVER_INFO,
-  createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
+  createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext, type McpRuntimeContextPorts } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
+import { isPlatformMcpTool } from "./mcp-platform-tools.js";
 import { runtimeConnectionIdentity, runtimeSessionActor } from "./mcp-event-identity.js";
 import { ProjectDeletionService } from "./project-deletion-service.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";

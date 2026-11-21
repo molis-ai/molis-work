@@ -29,7 +29,7 @@ type Ports = {
  */
 export class AssistantContinuations {
   private readonly busy = new Map<string, number>();
-  private readonly starts = new Map<string, Promise<AgentContinuationStartAnswer>>();
+  private readonly starts = new Map<string, { requestKey: string; promise: Promise<AgentContinuationStartAnswer> }>();
   /** The runtime could not be reached to serve the starter: written when it starts failing, again once it has been served. */
   private readonly starterFailures = repeatingFailure("assistant", "continuation_starter_failed");
   private readonly inputs = new Map<string, symbol>();
@@ -146,15 +146,27 @@ export class AssistantContinuations {
    */
   async startFor(request: AgentContinuationStartRequest): Promise<AgentContinuationStartAnswer> {
     const later = (code: string): AgentContinuationStartAnswer => ({ later: { code } });
-    const work = this.works().find(one => owner(one) === request.project_id && one.session_id === request.session_id);
-    if (!work || this.stopped.signal.aborted) return later("assistant.continuation_not_mine");
-    // One start of a work at a time: the runtime's ask and the Host's own take-up after attaching may come together, and the
-    // second waits for the first instead of both stepping back from each other.
-    const before = this.starts.get(work.work_id);
-    if (before) { await before.catch(() => undefined); return later("assistant.start_in_progress"); }
-    const started = this.startWork(request, work);
-    this.starts.set(work.work_id, started);
-    try { return await started; } finally { if (this.starts.get(work.work_id) === started) this.starts.delete(work.work_id); }
+    for (;;) {
+      const work = this.works().find(one => owner(one) === request.project_id && one.session_id === request.session_id);
+      if (!work || this.stopped.signal.aborted) return later("assistant.continuation_not_mine");
+      // One start of a work at a time: the runtime's ask and the Host's own take-up after attaching may arrive together.
+      // After the in-flight attempt settles, reuse its settled outcome for the same request_key or re-evaluate fresh state
+      // instead of returning `later` unconditionally (the SDK does not re-ask after `later` until another round ends).
+      const before = this.starts.get(work.work_id);
+      if (before) {
+        const prior = await before.promise.catch(() => undefined);
+        if (this.stopped.signal.aborted) return later("assistant.continuation_not_mine");
+        if (before.requestKey === request.request_key && prior && !("later" in prior)) return prior;
+        continue;
+      }
+      const entry = { requestKey: request.request_key, promise: this.startWork(request, work) };
+      this.starts.set(work.work_id, entry);
+      try {
+        return await entry.promise;
+      } finally {
+        if (this.starts.get(work.work_id) === entry) this.starts.delete(work.work_id);
+      }
+    }
   }
 
   private async startWork(request: AgentContinuationStartRequest, work: StoredWork): Promise<AgentContinuationStartAnswer> {

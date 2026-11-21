@@ -16,9 +16,20 @@ async function runStdio(): Promise<void> {
   const server = new MolisWorkServer(undefined, undefined, runtimeHost, undefined,
     // MOLIS_WORK_WEB_URL, then the Home's address file, then 4173 (resident-runtime-design §6).
     runtimeHost?.webBaseUrl ?? readProductEnv("WEB_URL") ?? homeHostUrl(resolveConfiguredHome()), resident.ensure);
+  const shutdown = new AbortController();
+  const onSignal = () => {
+    shutdown.abort();
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
   try {
-    await serveMcpStdio({ handleMessage: (message, signal) => server.handleMessage(message, signal) });
+    await serveMcpStdio({
+      handleMessage: (message, signal) => server.handleMessage(message, signal),
+      signal: shutdown.signal,
+    });
   } finally {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
     resident.close();
     await server.close();
   }

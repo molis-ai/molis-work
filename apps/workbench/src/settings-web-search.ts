@@ -28,7 +28,7 @@ function sourceRow(source: WebSearchSourceView, usable: boolean): string {
         label: uiText.text("workbench.settings-web-search.use-this"), variant: "secondary", size: "sm", className: "web-search-source__use",
         attrs: { "data-web-search-use": source.source_id, "data-web-search-name": name, "aria-label": uiText.text("workbench.settings-web-search.use-named", { name }) } })}`
       : source.is_default
-        ? renderStatusMark({ label: uiText.text("workbench.settings-web-search.default-unusable"), tone: "blocked", icon: "circle-alert" })
+        ? `${renderStatusMark({ label: uiText.text("workbench.settings-web-search.default-unusable"), tone: "blocked", icon: "circle-alert", className: "web-search-source__current" })}<a class="mw-btn mw-btn--ghost mw-btn--sm web-search-source__use" href="${escapeHtml(connectHref)}">${uiText("workbench.settings-web-search.fix")}</a>`
         : `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="${escapeHtml(connectHref)}">${uiText("workbench.settings-web-search.fix")}</a>`;
   return renderObjectRow({
     name,
@@ -99,21 +99,32 @@ globalThis.molisWorkBindWebSearchSettings = (container = document) => {
   if (!root || root.dataset.webSearchBound) return;
   root.dataset.webSearchBound = "1";
   const said = root.querySelector("[data-web-search-said]"), error = root.querySelector("[data-web-search-error]");
+  let seq = 0;
+  const setBusy = (on) => { root.querySelectorAll("[data-web-search-use]").forEach(btn => { btn.disabled = on; if (!on) btn.removeAttribute("aria-busy"); }); };
   root.addEventListener("click", async (event) => {
     const button = event.target.closest?.("[data-web-search-use]");
     if (!button || !root.contains(button) || button.disabled) return;
-    const id = button.dataset.webSearchUse, name = button.dataset.webSearchName || "";
-    error.hidden = true; button.disabled = true; button.setAttribute("aria-busy", "true");
+    const id = button.dataset.webSearchUse, name = button.dataset.webSearchName || "", mine = ++seq;
+    // Capture focus before disabling buttons: HTML focus fixup blurs a focused button the moment disabled becomes true.
+    const hadFocus = document.activeElement === button;
+    error.hidden = true; said.hidden = true; said.textContent = "";
+    setBusy(true); button.setAttribute("aria-busy", "true");
     try {
       const view = await molisWorkRequest("/api/settings/web-search/default", { method: "POST", body: { source_id: id } });
+      if (mine !== seq) return;
       root.dataset.webSearchDefault = view.default_source;
       root.querySelectorAll("[data-web-search-source]").forEach(row => row.classList.toggle("is-default", row.dataset.webSearchSource === view.default_source));
       root.querySelector("[data-web-search-broken]")?.remove();
       said.hidden = false;
       said.textContent = globalThis.t.text("workbench.settings-web-search.switched", { name });
-      root.querySelector('[data-web-search-source="' + CSS.escape(view.default_source) + '"] .mw-object-row__tile')?.animate?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? [] : [{ transform: "scale(.92)" }, { transform: "scale(1)" }], { duration: 180, easing: "cubic-bezier(.22,1,.36,1)" });
-    } catch (failure) { error.hidden = false; molisWorkRequest.show(error, failure); }
-    finally { button.disabled = false; button.removeAttribute("aria-busy"); }
+      const active = document.activeElement;
+      if (hadFocus && (!active || active === document.body || active === button) && (!button.isConnected || getComputedStyle(button).display === "none")) { said.tabIndex = -1; said.focus({ preventScroll: true }); }
+      const style = getComputedStyle(root), rawDur = style.getPropertyValue("--dur-hover").trim();
+      const dur = rawDur.endsWith("ms") ? parseFloat(rawDur) : rawDur.endsWith("s") ? parseFloat(rawDur) * 1000 : 130;
+      const easing = style.getPropertyValue("--ease-quint").trim() || "ease";
+      root.querySelector('[data-web-search-source="' + CSS.escape(view.default_source) + '"] .mw-object-row__tile')?.animate?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? [] : [{ transform: "scale(.92)" }, { transform: "scale(1)" }], { duration: dur, easing });
+    } catch (failure) { if (mine !== seq) return; error.hidden = false; molisWorkRequest.show(error, failure); }
+    finally { if (mine === seq) setBusy(false); }
   });
 };
 globalThis.molisWorkBindWebSearchSettings?.(document);

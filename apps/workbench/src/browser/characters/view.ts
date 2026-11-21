@@ -33,7 +33,8 @@ const section = (id: string, title: string, body: string, head = ""): string =>
   // POLISH-29/30: the layout every settings page shares: the title (and its actions) outside, one card of rows under it.
   renderSettingsSection({ title, id, className: "settings-section", action: head, body });
 const setRow = (name: string, hint: string, control: string): string => renderSettingRow({ name, hint, control });
-const inset = (body: string, labelledBy: string, extra = ""): string => `<div class="roles-inset${extra}" role="group" aria-labelledby="${labelledBy}">${body}</div>`;
+const inset = (body: string, name: { readonly labelledBy?: string; readonly label?: string }, extra = ""): string =>
+  `<div class="roles-inset${extra}" role="group"${name.labelledBy ? ` aria-labelledby="${esc(name.labelledBy)}"` : name.label ? ` aria-label="${esc(name.label)}"` : ""}>${body}</div>`;
 const option = (value: string, label: string, selected: boolean): string => `<option value="${esc(value)}"${selected ? " selected" : ""}>${esc(label)}</option>`;
 
 export const memberKey = (member: Member): string => member.role.current.member_id;
@@ -130,7 +131,7 @@ function moreMenu(ui: PageUi, id: string, title: string, items: readonly [string
 function stopQuestion(id: string, title: string, facts: readonly [string, string][]): string {
   return inset(`<p class="roles-inset__title" id="roles-stop-${esc(id)}" tabindex="-1">${esc(say("workbench.roles.stop-what", { name: title }))}</p>${facts.map(([name, effect]) =>
     `<div class="roles-fact"><span>${esc(name)}</span><span>${esc(effect)}</span></div>`).join("")}<div class="roles-inset__end">${act("stop-cancel", id, { variant: "ghost", label: say("common.control.cancel") })}${act("stop-do", id, { variant: "primary", label: say("workbench.roles.turn-off"), attrs: { "aria-label": say("workbench.roles.turn-off-named", { name: title }) } })}</div>`,
-  "roles-stop-" + id, " roles-inset--confirm");
+  { labelledBy: "roles-stop-" + id }, " roles-inset--confirm");
 }
 
 function memberRow(catalog: CharacterRoleCatalog, ui: PageUi, member: Member): string {
@@ -156,12 +157,12 @@ function upstream(catalog: CharacterRoleCatalog, ui: PageUi, member: Member): st
   const changed = originalChanged(member);
   if (!changed.length) return "";
   const id = memberKey(member), version = originalOf(catalog, member)?.version ?? member.role.current.original.version;
-  const open = ui.diff === id ? ui.diffText : undefined;
-  const diff = open ? inset(renderRoleDiff(open.ours, open.theirs,
-    [say("workbench.roles.this-project"), say("workbench.roles.original-version", { version: open.version })], changed), "roles-diff-" + id) : "";
   const both = changed.length === 2;
   const title = both ? [member.title, say("workbench.roles.original-version", { version }), say("workbench.roles.way"), say("workbench.roles.tools")].join(" · ")
     : say(changed[0] === "work_style" ? "workbench.roles.upstream-way" : "workbench.roles.upstream-tools", { name: member.title, version });
+  const open = ui.diff === id ? ui.diffText : undefined;
+  const diff = open ? inset(renderRoleDiff(open.ours, open.theirs,
+    [say("workbench.roles.this-project"), say("workbench.roles.original-version", { version: open.version })], changed), { label: title }) : "";
   const alert = renderAlert({ tone: "warning", title, ...(both ? {} : { body: say("workbench.roles.upstream-body") }), actions: [
       { size: "sm", label: say(open ? "workbench.roles.hide-difference" : "workbench.roles.see-difference"), attrs: { "data-roles-act": "diff", "data-roles-arg": id, "aria-expanded": String(Boolean(open)) } },
       { size: "sm", label: say("workbench.roles.follow-original"), attrs: { "data-roles-act": "refollow-changed", "data-roles-arg": id } },
@@ -177,7 +178,7 @@ function addPanel(catalog: CharacterRoleCatalog): string {
   const rows = candidates.map(original => `<div class="roles-row"><div class="settings-record-title">${renderAvatar({ label: original.title })}<div><h3><span translate="no">${esc(original.title)}</span></h3><p>${esc(say("workbench.roles.version-used", { version: original.version ?? 0, count: original.use.projects }))}</p></div></div>
     <div class="roles-row__acts">${act("member-add", original.ref.character_id, { variant: "primary", label: say("workbench.roles.add"), attrs: { "aria-label": say("workbench.roles.add-named", { name: original.title }) } })}</div></div>`).join("");
   return inset(`<p class="roles-inset__title" id="roles-add-title">${esc(say("workbench.roles.add-about"))}</p>${rows || `<p class="roles-hint">${esc(say("workbench.roles.all-here"))}</p>`}
-    <div class="roles-inline">${act("open", "new", { variant: "ghost", icon: "plus", label: say("workbench.roles.write-new") })}</div>`, "roles-add-title", " roles-inset--add");
+    <div class="roles-inline">${act("open", "new", { variant: "ghost", icon: "plus", label: say("workbench.roles.write-new") })}</div>`, { labelledBy: "roles-add-title" }, " roles-inset--add");
 }
 
 /** Project settings › 角色: who does it by default here, and this project's roles. */

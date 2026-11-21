@@ -104,6 +104,13 @@
     "inbox.read-group.inbox.title": "来信",
     "inbox.client.list-refresh-failed-input-kept": "列表更新失败，当前输入已保留。",
     "inbox.ui.configure-judgment-rule": "配置判断规则",
-    "inbox.ui.update-suggestions-first-20-open-items": "更新前 20 条待处理建议"
+    "inbox.ui.update-suggestions-first-20-open-items": "更新前 20 条待处理建议",
+    "inbox.help.title": "收件箱",
+    "inbox.help.what": "集中处理需要你点一下决定的事项与下一步建议，做完的会移入历史，日常界面只留真正等你的事。",
+    "inbox.help.example-1": "逐条查看来自信息流或助理的建议，决定采用、延后或忽略",
+    "inbox.help.example-2": "切到历史标签回看已处理过的条目与原文来源",
+    "inbox.help.scope": "只在你明确点执行时才触发后续动作；忽略一条建议不会删除原始资料或来源记录。",
+    "inbox.help.advanced-summary": "自动推荐与判断规则",
+    "inbox.help.advanced": "未绑定判断规则时收件箱仍可手动收件和处理；没有待办事项时界面保持安静，不凭空制造任务。"
   }
 }

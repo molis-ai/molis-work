@@ -1,5 +1,5 @@
 import { renderAssistantPreferenceForms } from "./settings-assistant-preference-forms.js";
-import { t as uiText, renderButton, renderListToolbar, renderObjectRow, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderListToolbar, renderObjectRow, renderPreActionFacts, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** One "still tell me" exception of a rule being written: a switch whose label says which rule it belongs to (B27-AC01). */
 const exceptRow = (kind: string, label: string, checked: boolean) => renderSettingRow({
@@ -54,9 +54,25 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
     ${renderSettingsSection({
       title: text("workbench.settings-assistant.usage-cap"), id: "assistant-usage-title", attrs: { "data-assistant-usage": true },
       body: `${renderSettingRow({ name: text("workbench.settings-assistant.used-today"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-usage-today": true } })}
-      <form data-assistant-budget>${renderSettingRow({ name: text("workbench.settings-assistant.daily-cap"), hint: text("workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty"),
-        control: `<input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}">${renderButton({ label: text("common.control.save"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
+      ${renderSettingRow({
+        name: text("workbench.settings-assistant.budget-tier-label"),
+        hint: text("workbench.settings-assistant.budget-tier-hint"),
+        control: `<div class="mw-toggle-group settings-segmented" role="group" aria-label="${uiText("workbench.settings-assistant.budget-tier-label")}" data-budget-presets>
+          <button class="mw-toggle" type="button" data-budget-preset="0" aria-pressed="false">${uiText("workbench.settings-assistant.budget-tier-unlimited")}</button>
+          <button class="mw-toggle" type="button" data-budget-preset="100000" aria-pressed="false">${uiText("workbench.settings-assistant.budget-tier-light")}</button>
+          <button class="mw-toggle" type="button" data-budget-preset="500000" aria-pressed="false">${uiText("workbench.settings-assistant.budget-tier-daily")}</button>
+          <button class="mw-toggle" type="button" data-budget-preset="2000000" aria-pressed="false">${uiText("workbench.settings-assistant.budget-tier-heavy")}</button>
+          <button class="mw-toggle" type="button" data-budget-preset="custom" aria-pressed="false">${uiText("workbench.settings-assistant.budget-tier-custom")}</button>
+        </div>`,
+      })}
       ${renderSettingRow({ name: "", nameAttrs: { "data-budget-source": true }, control: renderButton({ label: text("workbench.settings-assistant.use-default"), variant: "ghost", size: "sm", attrs: { "data-budget-inherit": true, hidden: true } }) })}
+      <details class="mw-collapsible" data-slot="collapsible" data-budget-custom>
+        <summary>${uiText("workbench.settings-assistant.budget-custom-summary")}</summary>
+        <div class="mw-collapsible__body">
+          <form data-assistant-budget>${renderSettingRow({ name: text("workbench.settings-assistant.daily-cap"), hint: text("workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty"),
+            control: `<input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}">${renderButton({ label: text("common.control.save"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
+        </div>
+      </details>
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>`,
     })}
     ${renderSettingsSection({
@@ -81,10 +97,31 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       title: text("workbench.settings-assistant.using-computer"), id: "assistant-computer-title", attrs: { "data-assistant-computer": true },
       body: `${renderSettingRow({ name: text("workbench.settings-assistant.let-assistant-use-computer"), hint: text("workbench.settings-assistant.when-assistant-can-see-macs-screen-operate-other"), label: true,
         control: renderSwitch({ attrs: { "data-computer-enable": true } }) })}
+      ${renderPreActionFacts({
+        heading: text("workbench.settings-assistant.computer-facts-heading"),
+        rows: [
+          { icon: "shield", text: text("workbench.settings-assistant.computer-fact-scope"), detail: text("workbench.settings-assistant.computer-fact-scope-detail") },
+          { tone: "ok", icon: "lock", text: text("workbench.settings-assistant.computer-fact-builtin"), detail: text("workbench.settings-assistant.computer-fact-builtin-detail") },
+        ],
+      })}
       <p class="mw-settings-section__note" data-computer-perms></p>
-      <form data-computer-forbid-form>${renderSettingRow({ name: text("workbench.settings-assistant.off-limits-apps"), hint: text("workbench.settings-assistant.apps-assistant-never-even-looks-system-settings-keychain"),
-        control: `<input class="mw-input" type="text" data-computer-forbid-id placeholder="${uiText("workbench.settings-assistant.app-identifier-e-g-com-example-app")}" aria-label="${uiText("workbench.settings-assistant.app-identifier")}">${renderButton({ label: text("workbench.settings-assistant.add-off-limits"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
       <div data-computer-forbidden></div>
+      ${renderSettingRow({
+        name: text("workbench.settings-assistant.choose-local-apps"),
+        hint: text("workbench.settings-assistant.choose-local-apps-hint"),
+        fold: {
+          label: text("workbench.settings-assistant.choose-local-apps"),
+          body: `<input class="mw-input" type="search" data-computer-app-search placeholder="${uiText("workbench.settings-assistant.search-local-apps")}" aria-label="${uiText("workbench.settings-assistant.search-local-apps")}">
+          <div data-computer-app-picker aria-live="polite"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>`,
+        },
+      })}
+      <details class="mw-collapsible" data-slot="collapsible" data-computer-forbid-advanced>
+        <summary>${uiText("workbench.settings-assistant.manual-bundle-summary")}</summary>
+        <div class="mw-collapsible__body">
+          <form data-computer-forbid-form>${renderSettingRow({ name: text("workbench.settings-assistant.off-limits-apps"), hint: text("workbench.settings-assistant.apps-assistant-never-even-looks-system-settings-keychain"),
+            control: `<input class="mw-input" type="text" data-computer-forbid-id placeholder="${uiText("workbench.settings-assistant.app-identifier-e-g-com-example-app")}" aria-label="${uiText("workbench.settings-assistant.app-identifier")}">${renderButton({ label: text("workbench.settings-assistant.add-off-limits"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
+        </div>
+      </details>
       <p class="settings-form-error" data-computer-error role="alert" hidden></p>`,
     })}
     ${renderSettingsSection({ body: renderObjectRow({
@@ -351,24 +388,63 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     };
     fields.set(key, render);
     const write = async change => {
-      if (!latest || latest.state !== "ok" || save.disabled) return;
+      if (!latest || latest.state !== "ok" || save.disabled) {
+        if (latest?.state === "ok") paint(latest.value);
+        return false;
+      }
       const request = { key, layer: "personal", expected_revision: latest.revision, change };
       if (!pending || JSON.stringify(pending.change) !== JSON.stringify(change) || pending.expected_revision !== latest.revision)
         pending = { ...request, request_id: crypto.randomUUID() };
       save.disabled = true; reset.disabled = true; error.hidden = true;
-      try { const result = await rulesApi("/preferences", pending); pending = undefined; render(result.values[0]); if (key === "assistant.daily_tokens") await refreshUsage(); }
+      try { const result = await rulesApi("/preferences", pending); pending = undefined; render(result.values[0]); if (key === "assistant.daily_tokens") await refreshUsage(); return true; }
       catch (failure) {
+        if (latest?.state === "ok") paint(latest.value);
         molisWorkRequest.show(error, failure); error.hidden = false;
         if (failure.code === "assistant.setting_conflict") { pending = undefined; await loadPreferences(); }
+        return false;
       } finally { save.disabled = latest?.state !== "ok"; reset.disabled = false; }
     };
     form.addEventListener("submit", event => { event.preventDefault(); void write({ set: value() }); });
     reset.addEventListener("click", () => void write({ inherit: true }));
+    return { ready: () => Boolean(latest && latest.state === "ok" && !save.disabled), restore: () => { if (latest?.state === "ok") paint(latest.value); } };
   }
   preference("assistant.lookback", rangeForm, rangeForm.querySelector("[data-inherit]"), root.querySelector("[data-lookback-source]"), rangeError,
     () => ({ count: Number(count.value), unit: unit.value }), value => { count.value = String(value.count); unit.value = value.unit; });
-  preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
-    () => Number(budgetInput.value || 0), value => { budgetInput.value = value ? String(value) : ""; });
+  const budgetPresets = root.querySelectorAll("[data-budget-preset]");
+  const budgetCustom = root.querySelector("[data-budget-custom]");
+  const PRESET_VALUES = new Set(["0", "100000", "500000", "2000000"]);
+  const syncBudgetPresets = (value) => {
+    const key = value ? String(value) : "0";
+    const active = PRESET_VALUES.has(key) ? key : "custom";
+    budgetPresets.forEach((btn) => {
+      const on = btn.dataset.budgetPreset === active;
+      btn.classList.toggle("is-current", on);
+      btn.setAttribute("aria-pressed", String(on));
+    });
+    if (budgetCustom && active === "custom") budgetCustom.open = true;
+  };
+  const budgetPref = preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
+    () => Number(budgetInput.value || 0), value => {
+      budgetInput.value = value ? String(value) : "";
+      syncBudgetPresets(value);
+    });
+  budgetPresets.forEach((btn) => btn.addEventListener("click", () => {
+    const preset = btn.dataset.budgetPreset;
+    if (preset === "custom") {
+      if (budgetCustom) budgetCustom.open = true;
+      budgetPresets.forEach((other) => {
+        const on = other === btn;
+        other.classList.toggle("is-current", on);
+        other.setAttribute("aria-pressed", String(on));
+      });
+      budgetInput.focus();
+      return;
+    }
+    if (!budgetPref.ready()) { budgetPref.restore(); return; }
+    budgetInput.value = preset === "0" ? "" : preset;
+    syncBudgetPresets(Number(preset || 0));
+    budgetForm.requestSubmit();
+  }));
   const report = root.querySelector("[data-assistant-report]"), reportError = root.querySelector("[data-report-error]");
   const r = report.elements;
   const dayNames = new Intl.DateTimeFormat(document.documentElement.lang, { weekday: "long", timeZone: "UTC" });
@@ -405,22 +481,69 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const forbidForm = computer.querySelector("[data-computer-forbid-form]");
     const forbidId = computer.querySelector("[data-computer-forbid-id]");
     const computerError = computer.querySelector("[data-computer-error]");
+    const appSearch = computer.querySelector("[data-computer-app-search]");
+    const appPicker = computer.querySelector("[data-computer-app-picker]");
+    let currentForbidden = [];
+    let discoveredApps = [];
     const PERM = { accessibility: globalThis.t.text("workbench.settings-assistant.accessibility"), screen_recording: globalThis.t.text("workbench.settings-assistant.screen-recording"), input_monitoring: globalThis.t.text("workbench.settings-assistant.input-monitoring") };
     const computerApi=(path,payload)=>molisWorkRequest("/api/computer"+path,{body:payload,fallback:globalThis.t.text("workbench.settings-assistant.not-done-please-try-again")});
-    const paintForbidden = (forbidden) => {
-      forbiddenEl.replaceChildren();
-      if (!forbidden || !forbidden.length) return;
+    const paintAppPicker = () => {
+      if (!appPicker) return;
+      appPicker.replaceChildren();
+      if (!discoveredApps.length) {
+        appPicker.append(note(globalThis.t.text("workbench.settings-assistant.no-local-apps-found")));
+        return;
+      }
+      const query = String(appSearch?.value || "").trim().toLowerCase();
+      const filtered = discoveredApps.filter((app) => !query || app.name.toLowerCase().includes(query) || app.bundle_id.toLowerCase().includes(query));
+      if (!filtered.length) {
+        appPicker.append(note(globalThis.t.text("workbench.settings-assistant.no-local-apps-match")));
+        return;
+      }
+      const userSet = new Set(currentForbidden.map((app) => app.bundle_id));
       const list = el("ul", "mw-setting-list");
-      forbidden.forEach((app) => {
+      filtered.slice(0, 60).forEach((app) => {
         const item = el("li");
-        const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-assistant.remove"));
-        remove.type = "button";
-        remove.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
-        item.append(settingRow(app.name || app.bundle_id, app.name && app.name !== app.bundle_id ? app.bundle_id : "", [remove]));
+        item.dataset.computerAppId = app.bundle_id;
+        const isUserForbidden = userSet.has(app.bundle_id);
+        const isBuiltinForbidden = app.tier === "forbidden" && !isUserForbidden;
+        let control;
+        if (isBuiltinForbidden) {
+          control = el("span", "mw-status mw-status--quiet", globalThis.t.text("workbench.settings-assistant.builtin-forbidden-tag"));
+        } else if (isUserForbidden) {
+          control = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-assistant.remove"));
+          control.type = "button";
+          control.dataset.computerAppToggle = "remove";
+          control.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
+        } else {
+          control = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.settings-assistant.add-off-limits"));
+          control.type = "button";
+          control.dataset.computerAppToggle = "add";
+          control.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { bundle_id: app.bundle_id, name: app.name }).then((data) => paintForbidden(data.forbidden))));
+        }
+        item.append(settingRow(app.name, app.bundle_id, [control]));
         list.append(item);
       });
-      forbiddenEl.append(list);
+      appPicker.append(list);
     };
+    const paintForbidden = (forbidden) => {
+      currentForbidden = forbidden || [];
+      forbiddenEl.replaceChildren();
+      if (currentForbidden.length) {
+        const list = el("ul", "mw-setting-list");
+        currentForbidden.forEach((app) => {
+          const item = el("li");
+          const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-assistant.remove"));
+          remove.type = "button";
+          remove.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
+          item.append(settingRow(app.name || app.bundle_id, app.name && app.name !== app.bundle_id ? app.bundle_id : "", [remove]));
+          list.append(item);
+        });
+        forbiddenEl.append(list);
+      }
+      paintAppPicker();
+    };
+    appSearch?.addEventListener("input", paintAppPicker);
     const paintPerms = async () => {
       if (!enable.checked) { permsEl.textContent = ""; return; }
       try {
@@ -433,7 +556,16 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { molisWorkRequest.show(computerError,failure); computerError.hidden = false; } };
     enable.addEventListener("change", () => runComputer(async () => { const data = await computerApi("/settings", { enabled: enable.checked }); enable.checked = data.enabled; await paintPerms(); }));
     forbidForm.addEventListener("submit", (event) => { event.preventDefault(); const id = String(forbidId.value || "").trim(); if (!id) return; runComputer(async () => { const data = await computerApi("/forbidden", { bundle_id: id, name: id }); forbidId.value = ""; paintForbidden(data.forbidden); }); });
-    runComputer(async () => { const data = await computerApi("/settings"); enable.checked = data.enabled; paintForbidden(data.forbidden); await paintPerms(); });
+    runComputer(async () => {
+      const [data, appsData] = await Promise.all([
+        computerApi("/settings"),
+        computerApi("/apps").catch(() => ({ apps: [] })),
+      ]);
+      discoveredApps = Array.isArray(appsData?.apps) ? appsData.apps : [];
+      enable.checked = data.enabled;
+      paintForbidden(data.forbidden);
+      await paintPerms();
+    });
   }
 };
 globalThis.molisWorkBindAssistantSettings(document);

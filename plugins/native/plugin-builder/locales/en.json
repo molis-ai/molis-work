@@ -435,6 +435,13 @@
     "plugin-builder.agent-prompt.builder-revise.purpose": "Revise the existing plugin code from the user’s feedback",
     "plugin-builder.agent-prompt.builder-acceptance.title": "Feature build · Acceptance check",
     "plugin-builder.agent-prompt.builder-acceptance.purpose": "Check the generated plugin against the design’s acceptance criteria",
-    "plugin-builder.agent-studio.record-or-form-unavailable": "This record or form is no longer available"
+    "plugin-builder.agent-studio.record-or-form-unavailable": "This record or form is no longer available",
+    "plugin-builder.help.title": "Plugin Builder",
+    "plugin-builder.help.what": "Describe a custom tool in plain language to design, build, test in isolation, and install only when you are happy with it.",
+    "plugin-builder.help.example-1": "Describe a recurring checklist or tracker and review the proposed design",
+    "plugin-builder.help.example-2": "Try it with sample data in preview before installing to your project or personal space",
+    "plugin-builder.help.scope": "Design and generation use your connected text model (billed by the provider); generated plugins run in a sandbox with only the permissions you approve.",
+    "plugin-builder.help.advanced-summary": "Sandbox permissions and updates",
+    "plugin-builder.help.advanced": "Preview runs never alter live project data; later revisions upgrade cleanly on your confirmation while keeping stored data."
   }
 }

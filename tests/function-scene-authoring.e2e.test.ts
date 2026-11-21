@@ -15,7 +15,7 @@ import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@moli
 import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-test("unknown registered scenes can be authored in the real editor, retain missing references, and report actual plugin-owned usages", { timeout: 120_000 }, async t => {
+test("PFG-19: unknown registered scenes can be authored in the real editor, support one-step publish and enable, retain missing references, and report actual plugin-owned usages", { timeout: 120_000 }, async t => {
   const inputs: string[] = [];
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record, input) { inputs.push(input); return { primitive: "noul", noul: 0.9, choice: null,
@@ -216,5 +216,35 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     await runtime.stop(install.install_id); await runtime.start(install.install_id);
     assert.equal((await scenes.usages(caller)).find(use => use.binding_id === binding.binding_id)?.function.provider_id, "system.functions");
     assert.equal(record().scene_version, 1); assert.equal(record().scene_provider_id, install.install_id);
+
+    // PFG-19 / PF-A12: ordinary one-step publish + enable locks v1, binds the single matching target without widening scope, and keeps the historical rule intact.
+    await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    const oneStep = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "一步启用审核", function_key: "review_note_one_step" }), functions);
+    await navigate(() => command("Page.navigate", { url: origin + "/capabilities/rules?project=" + projectId + "&rule=" + oneStep.id }, sessionId));
+    await waitFor(`!!document.querySelector('[data-functions-destination="${sceneId}"][data-scene-version="1"]')`);
+    await click(`[data-functions-destination="${sceneId}"][data-scene-version="1"]`);
+    await saved();
+    await click('[data-functions-step="fn"]');
+    await fill('[data-functions-instructions]', "一步启用直接判断");
+    await fill('[data-noul-true]', "内容完整");
+    await fill('[data-noul-false]', "缺少信息");
+    await saved();
+    await click('[data-functions-step="use"]');
+    await waitFor("!document.querySelector('[data-functions-publish-activate]').hidden");
+    assert.ok(await evaluate<boolean>("document.querySelectorAll('[data-functions-release-facts] .mw-fact-row').length >= 3"), "pre-action facts stay visible before publishing");
+    await fill('[data-functions-preview-input]', "真实插件待审笔记");
+    await click('[data-functions-publish-activate]');
+    try {
+      await waitFor("document.querySelector('[data-functions-editor-status]')?.textContent === 'v1' && document.querySelector('[data-functions-usages]')?.textContent.includes('已启用')");
+    } catch (err) {
+      const diag = await evaluate("({ status: document.querySelector('[data-functions-editor-status]')?.textContent, note: document.querySelector('[data-functions-note]')?.textContent, usages: document.querySelector('[data-functions-usages]')?.textContent, mapTrue: document.querySelector('[data-map-key=true]')?.value, mapFalse: document.querySelector('[data-map-key=false]')?.value })");
+      throw new Error(`oneStep publish-activate timed out: ${JSON.stringify(diag)}`, { cause: err });
+    }
+    const activated = current(scene)!;
+    assert.equal(activated.enabled, true);
+    assert.equal(activated.function.capability_id, "functions.published.review_note_one_step");
+    assert.equal(activated.function.version, 1);
+    assert.equal(record().status, "published", "previous published rule remains immutable");
+    assert.deepEqual(await scenes.runScene(caller, scene, activated.binding_id, { note_id: "note-1" }), { content: "真实插件待审笔记", state: "ack" });
   } finally { await runtime.stop(install.install_id); }
 });

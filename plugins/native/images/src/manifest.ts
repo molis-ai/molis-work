@@ -47,6 +47,19 @@ export const imagesManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "images.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "images.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "images.help.example-1" }, { key: "images.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "images.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "images.help.advanced-summary" }, body: { key: "images.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
     views: [{ view_id: "directory", slot: "navigator", title: "图片", title_text: { key: "images.directory.view-directory" }, contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },

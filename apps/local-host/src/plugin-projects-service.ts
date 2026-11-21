@@ -29,9 +29,8 @@ export function pluginProjectsPort(home: string): PluginProjectsPort {
         const present = await catalog({ homeDirectory: home }, projects => new Set(projects.listProjects().map(project => project.project_id)));
         return new Set(ids.filter(id => present.has(id)));
       } catch (error) {
-        // The catalog's own errors are the Host's answers and stay as they are; anything else (SQLite, the filesystem) can carry a local
-        // path or a library message, so it goes to the Host's log only and the plugin sees the one availability answer.
-        if (error instanceof ActionError) throw error;
+        // The preflight diagnostic carries internal schema details. Treat it like an unreadable database and keep it in the Host log.
+        if (error instanceof ActionError && error.code !== "catalog.database_invalid") throw error;
         hostLog.warn("plugins", "projects_catalog_unreadable", error);
         throw new ActionError("actions.unavailable", "项目目录暂时读不到");
       }

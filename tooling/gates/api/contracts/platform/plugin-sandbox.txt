@@ -107,6 +107,27 @@ export interface SandboxEffects {
     background?: string[];
 }
 
+export interface SandboxHelpDeclaration {
+    readonly default_topic?: string;
+    readonly topics: readonly SandboxHelpTopicDeclaration[];
+}
+
+export interface SandboxHelpSectionDeclaration {
+    readonly id: string;
+    readonly heading: SandboxVisibleText;
+    readonly body?: SandboxVisibleText;
+    readonly items?: readonly SandboxVisibleText[];
+    readonly collapsible?: boolean;
+    readonly summary?: SandboxVisibleText;
+}
+
+export interface SandboxHelpTopicDeclaration {
+    readonly id: string;
+    readonly title: SandboxVisibleText;
+    readonly first_visit_tip?: SandboxVisibleText;
+    readonly sections: readonly SandboxHelpSectionDeclaration[];
+}
+
 export type SandboxHostMessage = {
     type: 'call';
     id: string;
@@ -419,6 +440,7 @@ export interface SandboxPluginContract {
     ui?: {
         readonly locales: PluginLocalesDeclaration;
     };
+    help?: SandboxHelpDeclaration;
     operations: SandboxOperationContract[];
     presentation?: PresentationDeclaration;
     settings_entries?: SandboxSettingsDeclaration;

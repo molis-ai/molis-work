@@ -26,8 +26,38 @@ export function initializeCatalog(storage: LocalSqliteStorage, personal = readDa
 }
 
 const catalogStatements = new Map<boolean, string>();
+let cachedRequiredTables: ReadonlySet<string> | undefined;
+
+function catalogTables(db: SqliteDatabase): Set<string> {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*'").all() as { name: string }[];
+  return new Set(tables.map(({ name }) => name));
+}
+
+function requiredCatalogTables(): ReadonlySet<string> {
+  if (cachedRequiredTables) return cachedRequiredTables;
+  const reference = new LocalSqliteStorage(":memory:");
+  try {
+    createContextLedger(reference.db, { initializeSchema: true, authorize: () => false });
+    initializeCatalog(reference, false);
+    cachedRequiredTables = catalogTables(reference.db);
+    return cachedRequiredTables;
+  } finally {
+    reference.close();
+  }
+}
+
+export function assertCatalogRequiredTables(storage: LocalSqliteStorage, databasePath: string): void {
+  const actual = catalogTables(storage.db);
+  const missing = [...requiredCatalogTables()].filter(name => !actual.has(name)).sort();
+  if (missing.length === 0) return;
+  const path = basename(dirname(databasePath)) === "projects" ? join("projects", basename(databasePath)) : basename(databasePath);
+  throw catalogErrors.database_invalid(
+    `项目目录数据库（${path}）缺少必需数据表：${missing.join(", ")}。已停止打开。请先备份原目录，再使用独立数据目录重新初始化。`,
+    { path, missing_tables: missing },
+  );
+}
 /**
- * The catalog is built in code, not from one statement. Only an upgrade needs this as text, so opening a catalog never pays for it. The
+ * The catalog is built in code. The upgrade process also needs the schema as text. The
  * personal space's catalog journals its projects
  * for sync, so its triggers differ from every other catalog's: each kind has its own text.
  */
@@ -66,6 +96,7 @@ export function assertCatalogOwner(owner:string|null,databasePath:string):void {
 /** The catalog has one current schema: at another version it is refused by what that version is (upgrade-chain-design §2.1), and only the upgrade process changes it. */
 export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: string): void {
   assertCatalogVersion(new LocalCatalogMetadata(storage.db).version(),databasePath);
+  assertCatalogRequiredTables(storage, databasePath);
 }
 function assertCatalogVersion(version:number,databasePath:string):void {
   const expected = CATALOG_BASELINE.version;

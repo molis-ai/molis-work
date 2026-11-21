@@ -99,6 +99,13 @@
     "issues.agent-prompt.issues-name.title": "给 Issue 起标题",
     "issues.agent-prompt.issues-name.purpose": "按用户写下的问题描述和截图起一个标题、判一个类型；依据不足时只问一句",
     "issues.capability-library.issues-create-v1.title": "记录问题",
-    "issues.capability-library.issues-delete-v1.title": "删除问题"
+    "issues.capability-library.issues-delete-v1.title": "删除问题",
+    "issues.help.title": "问题记录",
+    "issues.help.what": "随时随手记下使用中遇到的问题、想法或缺陷，附带截图留档，方便后续整理和追踪。",
+    "issues.help.example-1": "按快捷键或点「记一个问题」，写清现象并附上一张截图",
+    "issues.help.example-2": "在「我的问题」里筛选未关闭条目，修完后标记解决",
+    "issues.help.scope": "默认只保存在你的个人本机空间里，不会自动发往外部服务器。",
+    "issues.help.advanced-summary": "截图附件与筛选",
+    "issues.help.advanced": "支持粘贴或拖入截图；删除记录前会再次确认，避免误删。"
   }
 }

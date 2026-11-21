@@ -1,3 +1,6 @@
+import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { goalEntryActions } from "../contract/goal-entry-actions.js";
+import { GOALS_PLUGIN_ID } from "../identity.js";
 import { GOAL_MATERIAL_SNAPSHOT_SOURCE } from "../contract/goal-inputs.js";
 
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -47,7 +50,10 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderR
       let subject: [string, string] | null = null;
       try { const value = JSON.parse(binding.source_ref); if (Array.isArray(value) && value.length === 2) subject = [String(value[0]), String(value[1])]; } catch { subject = null; }
       if (!subject) return "";
-      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-target-kind="goal" data-placement-target-id="${goalId}" data-goal-input-digest="${escapeHtml(binding.snapshot_digest ?? "")}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(uiText.text("goals.inputs.loading"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
+      const { capability_id, version } = goalEntryActions.inputsReviewChange;
+      const review = subject[0] === WORKSPACE_FILE_SUBJECT_KIND && binding.state === "confirmed" && binding.snapshot_digest
+        ? ` data-goal-source-review-action="${escapeHtml(JSON.stringify({ capability_id, version, provider_id: GOALS_PLUGIN_ID }))}"` : "";
+      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-target-kind="goal" data-placement-target-id="${goalId}" data-goal-input-binding="${escapeHtml(binding.binding_id)}" data-goal-input-digest="${escapeHtml(binding.snapshot_digest ?? "")}"${review} data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(uiText.text("goals.inputs.loading"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
     }
     const pending = binding.source_type === "feed_item" && binding.state === "proposed";
     const stated = { proposed: uiText.text("goals.inputs.pending-confirmation"), confirmed: uiText.text("goals.inputs.confirmed") }[binding.state] ?? binding.state;

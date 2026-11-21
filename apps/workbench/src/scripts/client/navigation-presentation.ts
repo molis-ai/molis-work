@@ -104,7 +104,8 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     if (open) placeStart();
     toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
-    if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
+    // POLISH-04: opening the start page puts focus on Search first, falling back to the rail if search is absent.
+    if (open) pickerPopover.querySelector('[data-global-search-open], .plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
   };
   // What the work area shows: the current plugin, or one per pane when it is split, the focused pane first in weight.
   const shown = () => {
@@ -128,46 +129,39 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   // started on, so it is a click.
   const put = (...chips) => { const next = current.cloneNode(); next.append(...chips); if (!next.isEqualNode(current)) current.replaceChildren(...chips); };
   let paintQueued = false, tabsWait = 0;
-  // The first place never shrinks: its tray is at least as wide as it is, and the tabs beside it give the room. Set after it is
-  // painted, and only when it changed.
-  const holdHome = () => {
-    const tray = dock.querySelector('[data-dock-pins]'), home = tray?.querySelector('[data-top-corner-toggle]');
-    if (!home) return;
-    const style = getComputedStyle(tray), need = Math.ceil(home.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 'px';
-    if (tray.style.minWidth !== need) tray.style.minWidth = need;
-  };
   // The strip shows once 项目主页 is drawn and the current one named (work-line.ts holds it unseen until then).
   const drawn = () => { if (dockPainted && !dock.hasAttribute('data-dock-drawn')) dock.setAttribute('data-dock-drawn', ''); };
+  const paintCurrentNow = () => {
+    if (!current) { drawn(); return; }
+    // The tab workspace starts after this script: until it is up, which page shows is not known, so the strip waits (a
+    // little, then draws anyway should the workspace not start).
+    if (host.tabsReady && !host.tabsReady() && tabsWait++ < 100) { setTimeout(paintCurrent, 50); return; }
+    // A cover (settings, the market) is what the person looks at: the switcher names it and no
+    // Dock entry claims to be current underneath it.
+    const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
+    if (cover) {
+      const source = document.querySelector('[data-cover-chip]');
+      put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
+      nameSwitcher([source?.querySelector(':scope > span')?.textContent || '']);
+      current.parentElement?.classList.remove('is-split');
+      paintCorner(false, false);
+      drawn();
+      return;
+    }
+    const entries = shown();
+    put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
+    nameSwitcher(entries.map((entry) => nameOf(entry.plugin)));
+    current.parentElement?.classList.toggle('is-split', entries.length > 1);
+    // The project home has no tab of its own in the strip: the first place is that tab, and grows on the sheet while it shows.
+    const home = entries.some((entry) => entry.plugin === 'home' && entry.focused);
+    paintCorner(home, host.pagePlugin?.() === 'home');
+    drawn();
+  };
   const paintCurrent = () => {
     if (!current) { drawn(); return; }
     if (paintQueued) return;
     paintQueued = true;
-    requestAnimationFrame(() => {
-      paintQueued = false;
-      // The tab workspace starts after this script: until it is up, which page shows is not known, so the strip waits (a
-      // little, then draws anyway should the workspace not start).
-      if (host.tabsReady && !host.tabsReady() && tabsWait++ < 100) { setTimeout(paintCurrent, 50); return; }
-      // A cover (settings, the market) is what the person looks at: the switcher names it and no
-      // Dock entry claims to be current underneath it.
-      const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
-      if (cover) {
-        const source = document.querySelector('[data-cover-chip]');
-        put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
-        nameSwitcher([source?.querySelector(':scope > span')?.textContent || '']);
-        current.parentElement?.classList.remove('is-split');
-        paintCorner(false, false);
-        holdHome(); drawn();
-        return;
-      }
-      const entries = shown();
-      put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
-      nameSwitcher(entries.map((entry) => nameOf(entry.plugin)));
-      current.parentElement?.classList.toggle('is-split', entries.length > 1);
-      // The project home has no tab of its own in the strip: the first place is that tab, and grows on the sheet while it shows.
-      const home = entries.some((entry) => entry.plugin === 'home' && entry.focused);
-      paintCorner(home, host.pagePlugin?.() === 'home');
-      holdHome(); drawn();
-    });
+    requestAnimationFrame(() => { paintQueued = false; paintCurrentNow(); });
   };
 
 ${TOP_CORNER_PART}
@@ -225,10 +219,6 @@ ${TOP_CORNER_PART}
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
 
-  /* The resident Assistant: its answer opens above the bar and stays until closed (the island opens it on a Send). */
-  const panel = dock.querySelector('[data-assistant-panel]');
-  const setPanel = (open) => { if (panel) panel.hidden = !open; };
-
   dock.addEventListener('click', (event) => {
     const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
@@ -258,6 +248,9 @@ ${TOP_CORNER_PART}
     const opensPicker = event.target?.nodeType === 1 && event.target.closest('[data-home-control="picker"]');
     if (pickerPopover && !pickerPopover.hidden && !inSearch && !opensPicker && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
   });
+  document.addEventListener('molis-work:place-changed', () => { if (pickerPopover && !pickerPopover.hidden) setPicker(false); if (!host.tabsReady || host.tabsReady()) paintCurrentNow(); });
+  addEventListener('molis:surface-interaction', () => { if (pickerPopover && !pickerPopover.hidden && !searchDialog?.open) setPicker(false); });
+  addEventListener('blur', () => { if (pickerPopover && !pickerPopover.hidden && !searchDialog?.open) setPicker(false); });
   // ⌥↵ on a tile opens its plugin beside what is showing (PFG-23).
   pickerPopover?.addEventListener('keydown', (event) => {
     const tile = event.key === 'Enter' && event.altKey && event.target?.nodeType === 1 ? event.target.closest('.plugin-rail-tile [data-plugin-id]') : null;
@@ -268,8 +261,6 @@ ${TOP_CORNER_PART}
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     if (event.target?.nodeType === 1 && event.target.closest('dialog[open]')) return;
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
-    const active = document.activeElement;
-    if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });
   // What shows can change with nothing below to see it (the workspace coming up after the first paint, the side opening):
   // the strip's size changing, or the side saying so, paints the current one again (paintCurrent waits for the next frame).

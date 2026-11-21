@@ -26,10 +26,7 @@ function command(item: ComposerCommand): BridgedCommand {
     ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}), ...(item.group ? { group: item.group } : {}), ...(item.warning ? { warning: item.warning } : {}) };
 }
 
-function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLElement, field: HTMLTextAreaElement | null, running: boolean, hold: string | null): ComposerSnapshot {
-  // The box around the root (the page's conversation column): the bar stands over it.
-  const box = root.parentElement?.getBoundingClientRect();
-  const column = box && box.width > 0 ? { left: Math.round(box.left), width: Math.round(box.width) } : null;
+function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, field: HTMLTextAreaElement | null, running: boolean, hold: string | null): ComposerSnapshot {
   const receiver = ai.receiver?.() ?? null, pause = ai.pause?.() ?? null;
   return {
     entry: ai.entry, labels: { ...ai.labels }, placeholder: field?.placeholder ?? "",
@@ -41,7 +38,7 @@ function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLE
     chip: bridgedChip(ai.chip?.() ?? null),
     mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}), ...(ai.attachments.pictures ? { pictures: { ...ai.attachments.pictures } } : {}) } : null,
     sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
-    notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column, running, hold,
+    notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), running, hold,
   };
 }
 
@@ -123,9 +120,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const readiness = childComposerReadiness(send, id, () => !gone && live === id);
     refuseReady = readiness.discard;
     root.dataset.composerRemote = "";
-    const sizes = new ResizeObserver(() => changed());
-    if (root.parentElement) sizes.observe(root.parentElement);
-    const snapshot = () => childSnapshot(ai, root, field, running, hold);
+    const snapshot = () => childSnapshot(ai, field, running, hold);
     // Every call of the handle may change what the bar shows: sent once per turn of the page's script, and only when it changed.
     const changed = () => {
       if (queued || gone) return;
@@ -218,7 +213,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     port.addEventListener("message", listen);
     function destroy() {
       if (gone) return;
-      gone = true; readiness.discard(); sizes.disconnect(); port.removeEventListener("message", listen); stand.release();
+      gone = true; readiness.discard(); port.removeEventListener("message", listen); stand.release();
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
       delete root.dataset.composerRemote;

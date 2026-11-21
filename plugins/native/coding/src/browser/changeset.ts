@@ -305,9 +305,13 @@ function drawReference(r: Reader, result: Changeset, scrollToStart: boolean) {
 }
 
 /** Reads (or, to fix them, saves) a round's changes and draws them. */
-async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, requireFixed = false, mode = "auto") {
+async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, requireFixed = false, mode = "auto", targetPath?: string) {
   const { ports, message } = r, { q, api, lifetime } = ports;
   const id = ports.current(), token = ++r.ticket;
+  if (targetPath && r.runId === nextRun && r.value) {
+    const matched = r.value.change.files.findIndex(file => file.path === targetPath);
+    if (matched >= 0) nextIndex = matched;
+  }
   const scrollToStart = !r.runId || r.runId !== nextRun || r.index !== nextIndex || (mode !== "auto" && r.net !== (mode === "1"));
   if (scrollToStart) {
     r.opened = new Set();
@@ -334,6 +338,10 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
   try {
     const result = await api<Changeset>("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(nextRun) + "/changeset?change_index=" + r.index + "&net=" + mode + "&layout=" + r.layout + (requireFixed ? "&fixed=1" : ""), save ? "POST" : "GET");
     if (r.ticket !== token || id !== ports.current()) return;
+    if (targetPath && result.change.files[r.index]?.path !== targetPath) {
+      const matched = result.change.files.findIndex(file => file.path === targetPath);
+      if (matched >= 0 && matched !== r.index) { await open(r, nextRun, false, matched, requireFixed, mode); return; }
+    }
     r.value = result;
     ports.onRead?.(nextRun, result.change.files, result.net_groups || []);
     r.net = result.view_mode === "net";
@@ -441,7 +449,7 @@ async function onClick(r: Reader, event: Event) {
     await setLayout(r, button.dataset.codingChangeLayout);
   } else if (button.hasAttribute("data-coding-change-open")) {
     ports.onRunOpen();
-    await open(r, button.dataset.codingChangeOpen ?? "");
+    await open(r, button.dataset.codingChangeOpen ?? "", false, 0, false, "auto", button.dataset.codingChangePath || undefined);
   } else if (button.hasAttribute("data-coding-change-close")) {
     close(r);
     ports.returnToTask();

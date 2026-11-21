@@ -83,7 +83,20 @@ test("the top strip holds tabs only: the current one is an ear on its sheet and 
       close: shown(chip.querySelector('[data-cover-close]')), ears: [...header.querySelectorAll('[data-dock-pins] [data-ear]')].length };
   })()`);
   assert.deepEqual(cover, { afterTabs: true, nameWhole: true, close: true, ears: 0 });
+  // Escape with a top popover open over a cover closes only the popover first, leaving the cover open.
+  await click("[data-top-corner-toggle]");
+  await waitFor("!document.querySelector('[data-top-corner-list]').hidden");
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))");
+  await waitFor("document.querySelector('[data-top-corner-list]').hidden");
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-cover-chip=settings]'))"), "Escape closes the open popover before closing the cover beneath it");
   await click("[data-cover-close]");
+  await waitFor("!document.querySelector('[data-cover-chip]')");
+  // Capabilities cover highlights its own account-bar key (never Settings) and toggles closed on a second press.
+  await evaluate("document.querySelector('.bar-account [data-capabilities-open]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] [data-cover-chip=settings]') && document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current') === 'page'");
+  assert.deepEqual(await evaluate("({ cap: document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current'), set: document.querySelector('.bar-account [data-directory-open=settings]')?.getAttribute('aria-current') })"),
+    { cap: "page", set: null }, "capabilities cover marks 插件 current, not 设置");
+  await evaluate("document.querySelector('.bar-account [data-capabilities-open]').click()");
   await waitFor("!document.querySelector('[data-cover-chip]')");
 
   // The side sheet has its own tab: the name of the view it shows, 18px in from the sheet's edge; it opens the list of views.
@@ -270,15 +283,16 @@ test("the first place names the project and opens its list; the tabs and the sta
   // 560px, search the first thing in it to take the focus.
   await click("[data-plugin-picker-toggle]");
   await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
-  const start = await evaluate<{ left: number; plus: number; width: number; first: boolean }>(`(() => {
+  const start = await evaluate<{ left: number; plus: number; width: number; first: boolean; focused: boolean }>(`(() => {
     const { header, shown, box } = ${READ};
     const page = header.querySelector('[data-plugin-picker-popover]');
     const first = [...page.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')].find(shown);
-    return { left: box(page).left, plus: box(header.querySelector('[data-plugin-picker-toggle]')).left, width: box(page).width, first: first?.matches('[data-global-search-open]') === true };
+    return { left: box(page).left, plus: box(header.querySelector('[data-plugin-picker-toggle]')).left, width: box(page).width, first: first?.matches('[data-global-search-open]') === true, focused: document.activeElement?.matches('[data-global-search-open]') === true };
   })()`);
   assert.ok(Math.abs(start.left - start.plus) <= 1, `POLISH-04: the start page's left edge is ＋'s (${start.left} / ${start.plus})`);
   assert.ok(start.width <= 560, `POLISH-04: no wider than 560px (${start.width}px)`);
   assert.equal(start.first, true, "POLISH-04: search is its first control");
+  assert.equal(start.focused, true, "POLISH-04: opening ＋ places keyboard focus on search");
   await key("Escape", "Escape");
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
 

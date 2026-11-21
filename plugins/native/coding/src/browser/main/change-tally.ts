@@ -37,7 +37,11 @@ export function readChangeTally(page: Page, run: RunView, redraw: () => void): v
   const sessionId = page.s.current, runId = run.ref.run_id, own = memory(page), id = key(sessionId, runId);
   if (!terminal(run.phase) || run.phase === "reconcile-required" || !editedPaths(run).length || own.tallies.has(id) || own.asked.has(id)) return;
   own.asked.add(id);
+  const signal = page.s.viewSignal;
   void api<{ change: { files: readonly RoundWrite[] }; net_groups?: readonly RoundNet[] }>(page, sessionPath(sessionId, runId) + "/changeset").then(result => {
     if (noteChangeTally(page, sessionId, runId, result.change.files, result.net_groups ?? []) && page.lifetime.alive && page.s.current === sessionId) redraw();
-  }, () => { /* unreadable changes (a receipt gone, the round read elsewhere): the card keeps its file count */ });
+  }, error => {
+    // Switching sessions or hiding the tab aborts the read: clear asked so returning to this session asks once.
+    if (signal?.aborted || page.s.current !== sessionId || (error instanceof Error && error.name === "AbortError")) own.asked.delete(id);
+  });
 }

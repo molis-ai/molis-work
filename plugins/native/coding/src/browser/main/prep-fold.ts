@@ -19,7 +19,9 @@ function foldOf(parent: Element): HTMLDetailsElement {
   fold = el("details", "", "coding-prep mw-disclosure");
   fold.dataset.codingPrep = "";
   const summary = el("summary", "", "coding-prep-line");
-  summary.append(el("span", "", "coding-prep-mark"), el("span", "", "coding-prep-text"));
+  const mark = el("span", "", "coding-prep-mark");
+  mark.setAttribute("aria-hidden", "true");
+  summary.append(mark, el("span", "", "coding-prep-text"));
   summary.insertAdjacentHTML("beforeend", icon("chevron-down"));
   // Once the person opens or closes it, the fold is theirs: later draws leave it as they left it.
   summary.addEventListener("click", () => { fold!.dataset.chosen = "true"; });

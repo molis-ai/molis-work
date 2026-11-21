@@ -10,14 +10,10 @@
  * - It goes on leaving, a press, a scroll that moves what it is about (not another box following its output), Escape or the
  *   window losing focus. A native `title` is held back while it shows.
  */
-const TIP_TARGETS = ":is(.workbench-bar, .workbench-header) :is(.top-corner-cell, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
+const TIP_TARGETS = ":is(.workbench-bar, .workbench-header) :is(.top-corner-cell, .bar-account-key, .work-count, [data-side-toggle], [data-layout-open], .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
 /** What may hold a cut name: something one presses or moves to, or a row of a list. */
 const HOLDERS = "a[href], button, summary, [role=button], [role=tab], [role=option], [role=menuitem], [role=treeitem], [role=row], [tabindex]:not([tabindex=\"-1\"]), li";
 const HOLD_MS = 500;
-
-declare global {
-  interface Window { molisRailShortcuts?: () => Element[] }
-}
 
 const tip = document.createElement("div");
 tip.className = "craft-tip";
@@ -67,9 +63,8 @@ function show(node: HTMLElement, at?: Element | null) {
   }
   tip.textContent = text;
   tip.toggleAttribute("data-cut", cut);
-  const index = cut ? -1 : (window.molisRailShortcuts?.() ?? []).indexOf(node);
   const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-  const shortcut = node.matches(".navigator-project-search") ? (mac ? "⌘K" : "Ctrl K") : index >= 0 ? `${mac ? "⌥" : "Alt "}${index + 1}` : "";
+  const shortcut = !cut && node.matches(".navigator-project-search") ? (mac ? "⌘K" : "Ctrl K") : "";
   if (shortcut) { const key = document.createElement("kbd"); key.textContent = shortcut; tip.append(key); }
   if (!tip.isConnected) document.body.append(tip);
   owner = node;
@@ -131,7 +126,12 @@ document.addEventListener("pointerdown", (event) => {
   addEventListener("pointermove", moved, { passive: true });
   const at = event.target as Element;
   held = window.setTimeout(() => show(node, at), HOLD_MS);
-  addEventListener("pointerup", () => { removeEventListener("pointermove", moved); if (owner === node) held = window.setTimeout(hide, 1500); else clearTimeout(held); }, { once: true });
+  const finish = () => {
+    removeEventListener("pointermove", moved); removeEventListener("pointerup", finish); removeEventListener("pointercancel", finish);
+    if (owner === node) held = window.setTimeout(hide, 1500); else clearTimeout(held);
+  };
+  addEventListener("pointerup", finish, { once: true });
+  addEventListener("pointercancel", finish, { once: true });
 }, true);
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && owner) hide(); });
 // The page itself (document) or a box holding what it is about.

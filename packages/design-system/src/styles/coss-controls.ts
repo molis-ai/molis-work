@@ -96,23 +96,6 @@ export const COSS_CONTROL_STYLES = `
     font: 11px/20px ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
-  .preference-option {
-    border-color: var(--control-border);
-    border-radius: var(--radius-control);
-  }
-  .preference-option:hover {
-    border-color: var(--control-input);
-    background: var(--control-fill);
-  }
-  .preference-option[aria-pressed="true"],
-  .preference-option[aria-current="true"] {
-    border-color: var(--control-input);
-    color: var(--ink);
-    background: var(--control-fill-hover);
-  }
-  .preference-option[aria-pressed="true"] .preference-check,
-  .preference-option[aria-current="true"] .preference-check { color: var(--ink); }
-
   button:focus-visible:not([class^="mw-"]),
   input:focus-visible:not([class^="mw-"]),
   textarea:focus-visible:not([class^="mw-"]),

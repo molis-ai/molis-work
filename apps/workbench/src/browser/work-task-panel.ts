@@ -212,7 +212,7 @@ function installTaskStops(host: WorkBarHost, { request, again }: Pick<TaskPanelL
   };
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult, started: number): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string>; brief(subject: ActionSubject): { title: string; ring: StateRingState; step: string }[]; questions(subject: ActionSubject): { task: string; id: string; ask: string; answers: BackgroundTaskRow["decisions"][number]["answers"][number]["role"][]; busy: boolean }[] } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult, started: number): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string>; brief(subject: ActionSubject): { title: string; ring: StateRingState; step: string }[]; questions(subject: ActionSubject): { task: string; id: string; ask: string; answers: BackgroundTaskRow["decisions"][number]["answers"][number]["role"][]; hasChanges: boolean; busy: boolean }[] } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
@@ -272,13 +272,14 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (shown && slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
   };
   let unread: ReadonlySet<string> = new Set();
-  const takeTasks = (result: BackgroundTasksReadResult, started: number) => {
+  const takeTasks = (result: BackgroundTasksReadResult, started: number): boolean => {
     unread = new Set(result.issues.map(issue => issue.source.provider_id));
     const commandChanged = stops.observe(result.issues, started);
     // Same command count need not mean the same command, details or navigation target.
     const next = JSON.stringify(result.tasks);
-    if (next === tasksShown && !commandChanged) return;
+    if (next === tasksShown && !commandChanged) return false;
     tasksShown = next; tasks = result.tasks; paintTasks();
+    return true;
   };
   const showTasks = (open: boolean) => open ? shell.show() : shell.hide();
   const backToCard = () => shell.back();
@@ -349,7 +350,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       .map(task => ({ title: task.title, ring: task.state, step: task.step?.text ?? "" })),
     // What the tasks behind one event ask, as the card stack answers them: the same decision by its id, the same answers (WLN-10).
     questions: subject => [...tasks].filter(task => asks(task) && task.serves.some(one => keyOf(one) === keyOf(subject)))
-      .flatMap(task => task.decisions.map(decision => ({ task: task.id, id: decision.id, ask: decision.ask, answers: decision.answers.map(answer => answer.role), busy: answers.busy(task, decision.id) }))),
+      .flatMap(task => task.decisions.map(decision => ({ task: task.id, id: decision.id, ask: decision.ask, answers: decision.answers.map(answer => answer.role), hasChanges: decision.changes.length > 0, busy: answers.busy(task, decision.id) }))),
     // The tasks done for one event, as the objects requirements may hang on: each with the provider that reported it.
     subjects: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the

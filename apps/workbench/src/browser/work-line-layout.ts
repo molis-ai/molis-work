@@ -89,9 +89,17 @@ const ABOVE = ":scope>:is([data-plugin-stage],[data-side-panel],.side-panel-divi
 function installRise(slot: HTMLElement): void {
   const bar = slot.closest<HTMLElement>("[data-work-bar]"), shell = bar?.parentElement, row = slot.parentElement;
   if (!bar || !shell || !row) return;
+  const fineDesktop = window.matchMedia("(min-width: 960px) and (hover: hover) and (pointer: fine)");
+  let lastWide = fineDesktop.matches;
   const measure = () => {
-    // The row keeps the input's height at rest (74px; taller where its rows are a finger's): a longer input stands out above it.
-    if (slot.querySelector(".mw-composer[data-rest]")) row.style.setProperty("--foot-rest", `${slot.offsetHeight}px`);
+    // The row keeps the input's height at rest (74px on fine desktop even when a draft loads; measured on narrow/coarse): a longer input stands out above it.
+    if (fineDesktop.matches) {
+      row.style.setProperty("--foot-rest", "74px");
+    } else {
+      if (lastWide) row.style.removeProperty("--foot-rest");
+      if (slot.querySelector(".mw-composer[data-rest]")) row.style.setProperty("--foot-rest", `${slot.offsetHeight}px`);
+    }
+    lastWide = fineDesktop.matches;
     const box = slot.getBoundingClientRect(), rise = Math.max(0, Math.round(row.getBoundingClientRect().top - box.top));
     shell.style.setProperty("--line-rise", `${rise}px`);
     for (const part of shell.querySelectorAll<HTMLElement>(ABOVE)) {

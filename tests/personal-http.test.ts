@@ -410,8 +410,8 @@ test('PCSYNC-OPT-06 internal forwarded writes and /api/sync/copy/execute immedia
   const home = mkdtempSync(join(tmpdir(), 'sync-notify-internal-'));
   const peer = v2AccountPeer(() => 'alice');
   const upstream = peer.server;
-  const listen = async (value: ReturnType<typeof createServer>) => {
-    await new Promise<void>(resolve => value.listen(0, '127.0.0.1', resolve));
+  const listen = async (value: ReturnType<typeof createServer>, port = 0) => {
+    await new Promise<void>(resolve => value.listen(port, '127.0.0.1', resolve));
     const address = value.address();
     assert.ok(address && typeof address === 'object');
     return 'http://127.0.0.1:' + address.port;
@@ -531,6 +531,144 @@ test('PCSYNC-OPT-06 internal forwarded writes and /api/sync/copy/execute immedia
     assert.ok(afterMcp.progress.pending >= 1, `internal forwarded MCP write must notify sync indicator, got ${JSON.stringify(afterMcp.progress)}`);
   } finally {
     await mcpServer?.close();
+    if (server) await close(server);
+    await close(upstream);
+    if (previousAccount === undefined) delete process.env.MOLIS_WORK_ACCOUNT_CONFIG;
+    else process.env.MOLIS_WORK_ACCOUNT_CONFIG = previousAccount;
+    if (previousLocal === undefined) delete process.env.MOLIS_WORK_SYNC_LOCAL;
+    else process.env.MOLIS_WORK_SYNC_LOCAL = previousLocal;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('P1-3 /api/sync/copy/* gates on account.preparing() and cold-starts surface(selected) without catalog lock conflict', async t => {
+  const home = mkdtempSync(join(tmpdir(), 'sync-copy-cold-prep-'));
+  const peer = v2AccountPeer(() => 'alice');
+  const upstream = peer.server;
+  const listen = async (value: ReturnType<typeof createServer>, port = 0) => {
+    await new Promise<void>(resolve => value.listen(port, '127.0.0.1', resolve));
+    const address = value.address();
+    assert.ok(address && typeof address === 'object');
+    return 'http://127.0.0.1:' + address.port;
+  };
+  const close = async (value: ReturnType<typeof createServer>) => new Promise<void>(resolve => value.close(() => resolve()));
+  await listen(upstream);
+  const previousAccount = process.env.MOLIS_WORK_ACCOUNT_CONFIG;
+  const previousLocal = process.env.MOLIS_WORK_SYNC_LOCAL;
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG = '';
+  process.env.MOLIS_WORK_SYNC_LOCAL = '1';
+  let spaceId = '';
+  const originalFetch = fetch;
+  t.mock.method(globalThis, 'fetch', (async (input, init) => {
+    const url = new URL(String(input));
+    if (url.origin !== 'http://127.0.0.1:8788') return originalFetch(input, init);
+    if (url.pathname === '/v1/round') {
+      return syncRoundResponse({ spaceId, revision: 0, selections: [] }, 0);
+    }
+    if (url.pathname === '/v1/quota') return Response.json({ limitBytes: 100000000, usedBytes: 0 });
+    return Response.json({ ok: true });
+  }) as typeof fetch);
+
+  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let coldServer: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  try {
+    server = createMolisWorkWebServer({ homeDirectory: home });
+    const rootToken = readFileSync(join(home, 'config/web-control-token'), 'utf8').trim();
+    const origin = await listen(server);
+    process.env.MOLIS_WORK_ACCOUNT_CONFIG = peer.configure(origin);
+    let cookie = '';
+    let token = rootToken;
+    let seq = 0;
+    const rawReq = async (base: string, path: string, method = 'GET', body?: object, extra: Record<string, string> = {}) => {
+      const response = await fetch(base + path, {
+        method,
+        headers: {
+          Connection: 'close',
+          Cookie: cookie,
+          Origin: base,
+          'content-type': 'application/json',
+          'x-molis-work-control-token': token,
+          'x-molis-work-idempotency-key': 'copy-gate-' + (++seq),
+          ...extra,
+        },
+        ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
+        redirect: 'manual',
+      });
+      if (response.headers.get('set-cookie')?.startsWith('molis-work-session=')) {
+        cookie = response.headers.get('set-cookie')!.split(';')[0]!;
+      }
+      return response;
+    };
+
+    const localProject = await withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.createProject({ display_name: '冷启动复制项目', actor_id: 'local-user' }));
+    const proof = readFileSync(join(home, NATIVE_SESSION_FILE), 'utf8');
+    const nativeHeaders = { [NATIVE_SESSION_HEADER]: proof, 'x-molis-work-control-token': rootToken };
+    const begun = await rawReq(origin, '/api/personal/login', 'POST', {}, nativeHeaders);
+    assert.equal(begun.status, 200);
+    await completeInstallationLogin((path, init) => rawReq(origin, path, 'POST', JSON.parse(String(init?.body)), { ...nativeHeaders, ...Object.fromEntries(new Headers(init?.headers)) }), (await begun.json()).loginUrl, 'alice@example.test');
+    assert.equal((await rawReq(origin, '/api/personal/space?kind=personal', 'POST', {}, nativeHeaders)).status, 200);
+    const statusBefore = await (await rawReq(origin, '/api/personal/status', 'GET', undefined, nativeHeaders)).json() as { browserSessionTicket: string };
+    const attached = await rawReq(origin, '/api/personal/native-attach?ticket=' + statusBefore.browserSessionTicket, 'POST', {}, nativeHeaders);
+    assert.equal(attached.status, 200);
+    const scopes = await (await rawReq(origin, '/api/spaces')).json();
+    spaceId = scopes.current.spaceId;
+    token = readFileSync(join(home, 'spaces', spaceId, 'config/web-control-token'), 'utf8').trim();
+
+    // 1) While account.preparing() is active (two pages registered, switch preparation started without acking page-b),
+    //    /api/sync/copy/* MUST be refused with 409 immediately.
+    assert.equal((await rawReq(origin, '/api/personal/status?page=prep-page-a', 'GET', undefined, nativeHeaders)).status, 200);
+    assert.equal((await rawReq(origin, '/api/personal/status?page=prep-page-b', 'GET')).status, 200);
+    const startPrep = await rawReq(origin, '/api/personal/prepare?action=start&page=prep-page-a&intent=switch', 'POST', {}, nativeHeaders);
+    assert.equal(startPrep.status, 200);
+    const { id: prepId } = await startPrep.json() as { id: string };
+
+    for (const [method, path, payload] of [
+      ['GET', '/api/sync/copy/projects', undefined],
+      ['POST', '/api/sync/copy/preview', { projectIds: [localProject.project_id] }],
+      ['POST', '/api/sync/copy/execute', { projectIds: [localProject.project_id], fingerprint: 'a'.repeat(64), operationId: 'blocked-during-prep' }],
+    ] as const) {
+      const blocked = await rawReq(origin, path, method, payload);
+      assert.equal(blocked.status, 409, `${method} ${path} must return 409 while account.preparing() is true`);
+    }
+    // Cancel preparation cleanly before closing server 1.
+    assert.equal((await rawReq(origin, `/api/personal/prepare?action=cancel&page=prep-page-a&id=${encodeURIComponent(prepId)}`, 'POST', {}, nativeHeaders)).status, 200);
+    const port = Number(new URL(origin).port);
+    await close(server);
+    server = undefined;
+
+    // 2) Cold start a fresh server on the same port where no personal surface or sync service has been opened yet;
+    //    restore native session via /api/personal/status, then issue /api/sync/copy/preview + /api/sync/copy/execute
+    //    concurrently with /api/settings/projects.
+    coldServer = createMolisWorkWebServer({ homeDirectory: home });
+    const coldOrigin = await listen(coldServer, port);
+    process.env.MOLIS_WORK_ACCOUNT_CONFIG = peer.configure(coldOrigin);
+    cookie = '';
+    const coldProof = readFileSync(join(home, NATIVE_SESSION_FILE), 'utf8');
+    const coldNative = { [NATIVE_SESSION_HEADER]: coldProof };
+    token = readFileSync(join(home, 'config/web-control-token'), 'utf8').trim();
+    const coldStatus = await rawReq(coldOrigin, '/api/personal/status', 'GET', undefined, coldNative);
+    assert.equal(coldStatus.status, 200);
+    assert.equal((await coldStatus.json() as { identity?: { userId?: string } }).identity?.userId, 'alice');
+    token = readFileSync(join(home, 'spaces', spaceId, 'config/web-control-token'), 'utf8').trim();
+
+    const [previewRes, spacesRes] = await Promise.all([
+      rawReq(coldOrigin, '/api/sync/copy/preview', 'POST', { projectIds: [localProject.project_id] }, coldNative),
+      rawReq(coldOrigin, '/api/settings/projects', 'GET', undefined, coldNative),
+    ]);
+    assert.equal(previewRes.status, 200, `cold-start /api/sync/copy/preview must succeed without 409 lock conflict: ${await previewRes.clone().text()}`);
+    assert.equal(spacesRes.status, 200);
+    const previewBody = await previewRes.json() as { preview: { fingerprint: string } };
+
+    const execRes = await rawReq(coldOrigin, '/api/sync/copy/execute', 'POST', {
+      projectIds: [localProject.project_id],
+      fingerprint: previewBody.preview.fingerprint,
+      operationId: 'cold-start-copy-1',
+    }, coldNative);
+    assert.equal(execRes.status, 200, `cold-start /api/sync/copy/execute must succeed: ${await execRes.clone().text()}`);
+    const execBody = await execRes.json() as { receipt: { state: string } };
+    assert.equal(execBody.receipt.state, 'complete');
+  } finally {
+    if (coldServer) await close(coldServer);
     if (server) await close(server);
     await close(upstream);
     if (previousAccount === undefined) delete process.env.MOLIS_WORK_ACCOUNT_CONFIG;

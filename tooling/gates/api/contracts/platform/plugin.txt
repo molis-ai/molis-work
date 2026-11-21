@@ -8796,7 +8796,7 @@ export declare const pluginDataActions: {
     }, PluginDataExportResult>;
 };
 
-export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files">): PluginDataSectionDeclaration[];
+export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files" | "runtime">): PluginDataSectionDeclaration[];
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly always_on: "invalid";

@@ -99,6 +99,8 @@ export class ProjectLine<Runtime> {
   private readonly dismissed = new Set<string>();
   /** Reads that do not count as using a project (`quietly`): the Home's own reads, which must not keep every project awake. */
   private readonly quiet = new AsyncLocalStorage<true>();
+  /** Quiet reads under way, some of them started by no request (the Home's background pass): the Host waits for them before it closes. */
+  private readonly quietWork = new Set<Promise<unknown>>();
   private readonly scope = new AsyncLocalStorage<ProjectScope<Runtime>>();
 
   constructor(private readonly runtimeFactory: LocalHostRuntimeFactory<Runtime>, private readonly host: ProjectLineHost) {}
@@ -124,7 +126,17 @@ export class ProjectLine<Runtime> {
 
   /** Runs `work` without it counting as use of the projects it reads: they go to sleep as if it had not read them (`sleepIfIdle`). */
   quietly<T>(work: () => T): T {
-    return this.quiet.run(true, work);
+    const result = this.quiet.run(true, work);
+    if (result instanceof Promise) {
+      const settled: Promise<unknown> = result.then(() => undefined, () => undefined).finally(() => this.quietWork.delete(settled));
+      this.quietWork.add(settled);
+    }
+    return result;
+  }
+
+  /** Every quiet read under way has finished: once the Host stops opening projects, they end with refusals and give back what they hold. */
+  async quietSettled(): Promise<void> {
+    while (this.quietWork.size) await Promise.all([...this.quietWork]);
   }
 
   /**

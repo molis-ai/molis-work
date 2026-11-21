@@ -372,7 +372,7 @@ export class LocalHost<Runtime> {
   async close(): Promise<void> {
     if (this.state === "closed") return;
     this.state = "closing";
-    await Promise.all([this.homeLine.settled(), this.line.closeAll()]);
+    await Promise.all([this.homeLine.settled(), this.line.closeAll(), this.line.quietSettled()]);
     for (const dispose of this.globalActionDisposers) dispose();
     this.state = "closed";
   }

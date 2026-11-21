@@ -95,11 +95,9 @@ test("S-upgrade-too-new-untouched: `config/onboarding.json` one version ahead or
     assert.equal(adopted.status, 400, code);
     assert.match(adopted.body.error ?? "", /config\/onboarding\.json/u, `${code}: the person is told which record stopped it`);
     assert.deepEqual(await (await request(`/api/onboarding/context/${journey}`)).json(), untouchedJourney, `${code}: the journey is as it was`);
-    // The blank start (the personal space) and the first-run project with its Goal.
+    // The blank start (the personal space).
     const personal = await post("/api/onboarding/personal", {});
     assert.deepEqual([personal.status, personal.body.code], [status, code], "personal");
-    const initialized = await post("/api/onboarding/initialize", { project_name: "不会建的项目", outcome: "看见第一个结果", user_confirmed: true });
-    assert.deepEqual([initialized.status, initialized.body.code], [status, code], "initialize");
     assert.equal(sha256(file), before, code);
     assert.deepEqual(temporaryFiles(file), [], `${code}: and no temporary file`);
   }

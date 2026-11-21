@@ -17,4 +17,17 @@ const routes: PluginRouteDeclaration[] = [
   ].map(([name, path]): PluginRouteDeclaration => ({ route_id: `cognia.${name}`, method: "POST", path: `/library${path}`, permission: "cognia:write" })),
   { route_id: "cognia.preview", method: "POST", path: "/library/import/preview", permission: "cognia:write", max_body_bytes: 45_000_000 },
 ];
-export const cogniaManifest: PluginManifest = { sync:cogniaSync, schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: COGNIA_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Cognia", summary: "导入本地知识，带来源检索问答。", summary_text: { key: "cognia.directory.summary" }, kind: "native", publisher: { publisher_id: "molis", signature: "official-cognia-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], actions: COGNIA_ACTIONS, permissions: [...COGNIA_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按调用者授权使用 Cognia 能力" })), { permission: "storage:private", required: true, reason: "本机知识库、导入快照与审阅草稿" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, runtime: { scope: "home" }, databases: { home: COGNIA_DATABASE }, routes, ui: { locales: { default: "zh", available: ["zh", "en"] }, contributions: [COGNIA_UI_CONTRIBUTION_ID], views: [{ view_id: "cognia", slot: "navigator", title: "Cognia", contribution_id: COGNIA_UI_CONTRIBUTION_ID, icon: "book", hue: "blue", order: 36, group: "personal" }] } };
+export const cogniaManifest: PluginManifest = { sync:cogniaSync, schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: COGNIA_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Cognia", summary: "导入本地知识，带来源检索问答。", summary_text: { key: "cognia.directory.summary" }, kind: "native", publisher: { publisher_id: "molis", signature: "official-cognia-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], actions: COGNIA_ACTIONS, permissions: [...COGNIA_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按调用者授权使用 Cognia 能力" })), { permission: "storage:private", required: true, reason: "本机知识库、导入快照与审阅草稿" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, runtime: { scope: "home" }, databases: { home: COGNIA_DATABASE }, routes, ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "cognia.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "cognia.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "cognia.help.example-1" }, { key: "cognia.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "cognia.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "cognia.help.advanced-summary" }, body: { key: "cognia.help.advanced" } },
+        ],
+      }],
+    }, contributions: [COGNIA_UI_CONTRIBUTION_ID], views: [{ view_id: "cognia", slot: "navigator", title: "Cognia", contribution_id: COGNIA_UI_CONTRIBUTION_ID, icon: "book", hue: "blue", order: 36, group: "personal" }] } };

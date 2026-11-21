@@ -52,6 +52,19 @@ export const textStatsManifest: PluginManifest = {
   },
   routes: [{ route_id: "text-stats.state", method: "GET", path: "/state" }],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "text-stats.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "text-stats.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "text-stats.help.example-1" }, { key: "text-stats.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "text-stats.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "text-stats.help.advanced-summary" }, body: { key: "text-stats.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [TEXT_STATS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "browse", slot: "navigator", title: "Text stats", contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID, icon: "hash", hue: "brown", order: 66 },

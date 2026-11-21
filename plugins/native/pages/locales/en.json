@@ -339,6 +339,13 @@
     "pages.capability-library.pages-import-preview-v1.title": "Preview import",
     "pages.capability-library.pages-placement-copy-v1.title": "Page",
     "pages.capability-library.pages-placement-move-v1.title": "Page",
-    "pages.onboarding.part-k-n": " · part {k} of {n}"
+    "pages.onboarding.part-k-n": " · part {k} of {n}",
+    "pages.help.title": "Pages",
+    "pages.help.what": "Write, organize, import, and export project documents, and freeze finished drafts as immutable deliverables.",
+    "pages.help.example-1": "Draft a spec or weekly report, search by title, and star key pages",
+    "pages.help.example-2": "Save a finished page as a fixed version in project deliverables",
+    "pages.help.scope": "Documents stay in this project’s local database with automatic saving; nothing is published externally without your action.",
+    "pages.help.advanced-summary": "Import, export, and fixed versions",
+    "pages.help.advanced": "Imported files keep their original copy; fixed versions remain immutable while you keep editing the live draft."
   }
 }

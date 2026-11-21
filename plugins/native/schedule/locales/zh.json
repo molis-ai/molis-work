@@ -134,6 +134,13 @@
     "schedule.read-group.operations.title": "定时操作",
     "schedule.read-group.reminders.description": "本项目的提醒：内容（含其他插件登记的提醒的文字）、来自哪个插件和下一次时间",
     "schedule.read-group.reminders.title": "提醒",
-    "schedule.runs.source-title": "定时任务"
+    "schedule.runs.source-title": "定时任务",
+    "schedule.help.title": "定时任务",
+    "schedule.help.what": "按你定好的时间自动执行一项整理或汇报任务，结果放回当前项目；需要外发时只按你指定的对象发。",
+    "schedule.help.example-1": "每周一上午把周会纪要整理成周报并留在项目里",
+    "schedule.help.example-2": "每天傍晚汇总当天待回复的重点事项",
+    "schedule.help.scope": "以你的授权在限定范围内运行，按所连模型服务商规则计费；随时可暂停、修改或撤回权限，撤权后下一次会自动停下并写明原因。",
+    "schedule.help.advanced-summary": "时区、休眠补跑与暂停",
+    "schedule.help.advanced": "默认按本机时区执行；电脑休眠错过时间时，醒来只补跑一次，不会连续补跑多次。"
   }
 }

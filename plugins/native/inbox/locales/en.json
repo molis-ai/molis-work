@@ -104,6 +104,13 @@
     "inbox.read-group.inbox.title": "Inbox",
     "inbox.client.list-refresh-failed-input-kept": "Could not refresh the list. Your input is preserved.",
     "inbox.ui.configure-judgment-rule": "Configure judgment rule",
-    "inbox.ui.update-suggestions-first-20-open-items": "Update suggestions for the first 20 open items"
+    "inbox.ui.update-suggestions-first-20-open-items": "Update suggestions for the first 20 open items",
+    "inbox.help.title": "Inbox",
+    "inbox.help.what": "Gathers items and next-step suggestions that genuinely wait on your decision, moving finished items to History so the main list stays calm.",
+    "inbox.help.example-1": "Review items from Feed or the assistant and choose to act, defer, or dismiss",
+    "inbox.help.example-2": "Open History to revisit handled items and their original sources",
+    "inbox.help.scope": "Runs a follow-up action only when you choose it; dismissing an item never deletes the underlying source material.",
+    "inbox.help.advanced-summary": "Recommendations and rules",
+    "inbox.help.advanced": "Works manually even without a judgment rule bound; stays quiet when nothing awaits your attention."
   }
 }

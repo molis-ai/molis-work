@@ -8,9 +8,10 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser } from "./fixtures/board-browser.js";
 
-test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookback and budget through retries and later edits", async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null);
+test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prompt simplification, and Scheme A on-demand help work end-to-end", async t => {
+  const b = await openBoardBrowser(t, "user", undefined, null);
   if (!b) return;
   const { localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = b;
   assert.ok(localHost);
@@ -75,6 +76,117 @@ test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookbac
   assert.equal(updated?.state === "ok" && updated.source, "provider_default");
   assert.equal(store.setting(actor, "daily_tokens"), "");
   await assert.rejects(raw.invoke({ ...caller, actor_kind: "runtime" }, write, change), { code: "assistant.scope" });
+
+  // PF-A15: understandable daily cap tiers write through settings_entries and Computer Use shows pre-action facts + local app picker.
+  await click('[data-budget-preset="100000"]');
+  await waitFor("document.querySelector('[data-assistant-budget-input]')?.value === '100000' && document.querySelector('[data-budget-preset=\"100000\"]')?.getAttribute('aria-pressed') === 'true'");
+  assert.equal(store.setting(actor, "daily_tokens"), "100000");
+  assert.ok(await evaluate<boolean>("document.querySelectorAll('[data-assistant-computer] .mw-facts .mw-fact-row').length >= 2"), "Computer Use shows pre-action facts");
+  const computerApps = await b.web.get<{ apps: Array<{ bundle_id: string; name: string }> }>("/api/computer/apps");
+  assert.ok(Array.isArray(computerApps.apps), "GET /api/computer/apps returns verifiable app list");
+  await click("[data-budget-inherit]");
+  await waitFor("document.querySelector('[data-assistant-budget-input]')?.value === '' && document.querySelector('[data-budget-preset=\"0\"]')?.getAttribute('aria-pressed') === 'true'");
+
+  // PF-A14: simplified prompt editing preserves locked JSON format contracts and rejects broken full-text overrides with targeted errors.
+  const promptKey = "system:skills/skills.revise";
+  const promptDetail = await b.web.get<{ prompt: { key: string; body: string; user: { revision: number } | null }; editor: { editable: string; locked_format: string; required_keys: string[]; format_intact: boolean } }>(`/api/agent-definitions/prompt?key=${encodeURIComponent(promptKey)}`);
+  assert.ok(promptDetail.editor.locked_format.includes("JSON"), "server splits locked JSON contract");
+  assert.equal(promptDetail.editor.format_intact, true);
+  const savedSimple = await b.web.post<{ prompt: { body: string; effective: string; user: { revision: number } }; editor: { editable: string; format_intact: boolean } }>(`/api/agent-definitions/prompt?key=${encodeURIComponent(promptKey)}`, {
+    mode: "simplified",
+    guidance: "请用要点形式写出简洁的改动说明。",
+    expected_revision: promptDetail.prompt.user ? promptDetail.prompt.user.revision : null,
+  });
+  assert.equal(savedSimple.prompt.effective, "user");
+  assert.equal(savedSimple.editor.editable, "请用要点形式写出简洁的改动说明。");
+  assert.equal(savedSimple.editor.format_intact, true);
+  assert.ok(savedSimple.prompt.body.includes(promptDetail.editor.locked_format), "simplified edit preserves locked JSON format verbatim");
+  await assert.rejects(
+    () => b.web.post(`/api/agent-definitions/prompt?key=${encodeURIComponent(promptKey)}`, {
+      mode: "full",
+      body: "直接用纯文字回答即可",
+      validate_format: true,
+      expected_revision: savedSimple.prompt.user.revision,
+    }),
+    /JSON/u,
+    "full-text validation points out missing JSON format",
+  );
+  const resetRes = await b.web.post<{ prompt: { effective: string } }>(`/api/agent-definitions/prompt/reset?key=${encodeURIComponent(promptKey)}`, {
+    expected_revision: savedSimple.prompt.user.revision,
+  });
+  assert.equal(resetRes.prompt.effective, "default");
+
+  // VUX-55 / ONB-48: settings page mounts Scheme A Help, expanded button shows --nav-active wash, Esc closes and returns focus without losing input.
+  await waitFor("!!document.querySelector('[data-mw-help-trigger]')");
+  await click("[data-mw-help-trigger]");
+  await waitFor("!!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'true'");
+  const expandedBg = await evaluate<string>("getComputedStyle(document.querySelector('[data-mw-help-trigger]')).backgroundColor");
+  assert.notEqual(expandedBg, "rgba(0, 0, 0, 0)", `expanded ghost Help trigger must show --nav-active wash, got ${expandedBg}`);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'false'");
+  const focusDiag = await evaluate<{ same: boolean; hasFocus: boolean; active: string; count: number }>("({ same: document.activeElement === document.querySelector('[data-mw-help-trigger]'), hasFocus: document.hasFocus(), active: document.activeElement?.outerHTML.slice(0, 120) || '', count: document.querySelectorAll('[data-mw-help-trigger]').length })");
+  assert.equal(focusDiag.same, true, `Esc returns focus to the Help trigger (${JSON.stringify(focusDiag)})`);
+
+  // VUX-55 (B5): project settings routes and capabilities connections/access mount their dedicated help topics.
+  const projectId = b.projectId;
+  assert.ok(projectId);
+  const rulesHtml = await (await fetch(`${origin}/projects/${encodeURIComponent(projectId)}/settings/rules`)).text();
+  assert.match(rulesHtml, /data-help-topic="settings-authorizations"/u, "project settings rules redirects to authorizations with help");
+  const guidanceEmbedHtml = await (await fetch(`${origin}/projects/${encodeURIComponent(projectId)}/settings/guidance?embed=1`)).text();
+  assert.match(guidanceEmbedHtml, /data-help-topic="settings-guidance"/u, "embedded project settings guidance mounts guidance help");
+  const connectionsHtml = await (await fetch(`${origin}/capabilities/connections`)).text();
+  assert.match(connectionsHtml, /data-help-topic="settings-connectors"/u, "capabilities/connections maps to connectors help");
+  const accessHtml = await (await fetch(`${origin}/capabilities/access`)).text();
+  assert.match(accessHtml, /data-help-topic="settings-mcp"/u, "capabilities/access maps to mcp help");
+
+  // VUX-54 / VUX-55 / VUX-56: catalog specimens prove pre-action facts stay visible when closed, skipped tip persists across reload, failure recovers on retry, side-pane transfer renders lists+collapsible, and 390px has no overflow.
+  await navigate(() => command("Page.navigate", { url: origin + "/__ui/catalog#on-demand-help" }, sessionId));
+  await waitFor("!!document.querySelector('#on-demand-help [data-mw-help-tip]') && !!document.querySelector('#on-demand-help .mw-facts')");
+  assert.equal(await evaluate<boolean>("document.querySelector('#on-demand-help .mw-facts').getBoundingClientRect().height > 0"), true, "pre-action facts stay visible while Help is closed");
+  await click("#on-demand-help [data-mw-help-tip-skip]");
+  await waitFor("document.querySelector('#on-demand-help [data-mw-help-tip]')?.hidden === true");
+  await b.reloadPage();
+  await waitFor("!!document.querySelector('#on-demand-help [data-mw-help-trigger]')");
+  assert.equal(await evaluate<boolean>("document.querySelector('#on-demand-help [data-mw-help-tip]')?.hidden === true"), true, "skipped first-visit tip stays hidden across reload");
+  await click("#on-demand-help [data-help-specimen-fail]");
+  await click("#specimen-help-entry");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-empty--error [data-mw-help-retry]')");
+  await click(".mw-help-card [data-mw-help-retry]");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section') && !document.querySelector('.mw-help-card .mw-empty--error')");
+  await waitFor("!!document.querySelector('.mw-help-card [data-mw-help-to-side]')");
+  await click(".mw-help-card [data-mw-help-to-side]");
+  await waitFor("!document.querySelector('[data-help-specimen-side]')?.hidden && document.querySelectorAll('[data-help-specimen-side-body] .mw-help-section').length >= 3 && !!document.querySelector('[data-help-specimen-side-body] details.mw-collapsible')");
+  await click("#specimen-help-entry");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section')");
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await waitFor("document.documentElement.clientWidth <= 390");
+  assert.equal(await evaluate<boolean>("document.documentElement.scrollWidth <= 390"), true, "Scheme A Help fits 390px without horizontal overflow");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+  await command("Emulation.clearDeviceMetricsOverride", {}, sessionId);
+
+  // VUX-59: live generated-plugin example on /__ui/catalog mounts Scheme A Help automatically via PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT.
+  await waitFor("!!document.querySelector('[data-presentation-example] [data-mw-help-trigger]')");
+  await click("[data-presentation-example] [data-mw-help-trigger]");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section')");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+
+  // VUX-55 (B4): transferring Help from a framed plugin to the right side panel while another tab is open restores that prior tab on close instead of closing the side panel.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(projectId)}/?openPlugin=todo` }, sessionId));
+  await waitFor("!!document.querySelector('[data-side-panel]')");
+  const priorTab = await evaluate<string | null>(`(() => {
+    const tab = [...document.querySelectorAll('[data-side-tab]')].find((el) => !el.hidden && el.dataset.sideTab && el.dataset.sideTab !== 'help');
+    if (!tab) return null;
+    document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: tab.dataset.sideTab, focus: false }, cancelable: true }));
+    return tab.dataset.sideTab;
+  })()`);
+  assert.ok(priorTab, "project workbench has an existing right-side tab to open before Help");
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab="${priorTab}"]')?.getAttribute('aria-selected') === 'true'`);
+  await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'help', target: { title: '待办', sections: [{ id: 'what', heading: '这是什么', body: '说明' }] }, focus: true }, cancelable: true }))`);
+  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab=\"help\"]')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-side-tab=\"help\"]')?.hidden");
+  await click("[data-side-help-close]");
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab="${priorTab}"]')?.getAttribute('aria-selected') === 'true' && document.querySelector('[data-side-tab="help"]')?.hidden === true`);
 });
 
 test("ONB-28/29: after a partial adoption the reopened page retries only the unconfirmed setting", async t => {

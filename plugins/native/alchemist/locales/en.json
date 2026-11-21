@@ -337,6 +337,13 @@
     "alchemist.agent-prompt.alchemist-cross-check.title": "Cross-check evidence",
     "alchemist.agent-prompt.alchemist-cross-check.purpose": "Form grounded judgments that can be calibrated along the specified research dimensions",
     "alchemist.capability-library.alchemist-memory-playbook-revise-v1.title": "Edit research method",
-    "alchemist.capability-library.alchemist-proposals-pending-v1.title": "Review pending methods"
+    "alchemist.capability-library.alchemist-proposals-pending-v1.title": "Review pending methods",
+    "alchemist.help.title": "Alchemist",
+    "alchemist.help.what": "Collects market and public signals around a research direction, organizes evidence, and helps compare decisions.",
+    "alchemist.help.example-1": "Create a topic direction to gather public updates and distill key shifts",
+    "alchemist.help.example-2": "Keep strong findings in your saved list to back up a decision",
+    "alchemist.help.scope": "Uses your configured web search and text model only when you run a pass, billed by the provider; all directions and notes stay on this computer.",
+    "alchemist.help.advanced-summary": "Research preferences, archive, and models",
+    "alchemist.help.advanced": "If no text model is connected, existing directions and materials stay readable and intact; archived directions can be restored anytime."
   }
 }

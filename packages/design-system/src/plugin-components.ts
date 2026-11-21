@@ -251,7 +251,9 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-part-head{margin-bottom:8px}.pc-part-title{font-size:15px;font-weight:600;color:var(--ink)}.pc-part-description{color:var(--muted);margin:-4px 0 12px!important;max-width:72ch;white-space:pre-wrap}
 .pc-app-head{display:flex;align-items:center;gap:16px;padding:0!important;border:0!important;background:none!important}.pc-app-head .mw-frame__heading{flex:1;min-width:0}
 .pc-app-head h1{font-size:24px;font-weight:600;letter-spacing:-.025em;line-height:1.3;overflow-wrap:anywhere}.pc-app-description{color:var(--muted);margin-top:4px!important;font-size:13px}
-.pc-app-actions{display:flex;gap:8px;flex:none}
+.pc-app-actions{display:flex;align-items:center;gap:8px;flex:none}
+.pc-help-bar{display:flex;justify-content:flex-end;margin:0 0 12px}
+.pc-facts{flex:1 1 100%;margin:8px 0 4px}
 .pc-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;flex:none;background:var(--rail);color:var(--ink-soft)}.pc-mark .pc-icon{width:20px;height:20px;stroke-width:1.7}
 /* Inside the workbench the tab chip already names the plugin: the stage keeps its one-line purpose and its new buttons. */
 [data-framed] .pc-app-head .pc-mark,[data-framed] .pc-app-head h1{display:none}[data-framed] .pc-app-description{margin:0!important}

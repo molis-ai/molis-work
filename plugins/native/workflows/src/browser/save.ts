@@ -16,7 +16,8 @@ const uiText = globalThis.t;
 type SaveMode = "error" | "unsaved" | "saved" | "saving";
 
 const draftId = (page: WorkflowsPage) => stateKey(page) + ":drafts";
-const configured = (link: WorkflowLink) => link.kind !== "manual" || Boolean(link.title_template || link.body_template || link.instructions);
+const configured = (link: WorkflowLink) => link.kind !== "function"
+  || Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== "{正文}") || link.instructions.trim());
 const applyPatch = (flow: Flow, patch: { chain?: Chain; title?: string }) => Object.assign(flow, patch.chain || {}, patch.title === undefined ? {} : { title: patch.title });
 
 /** Keeps what is not saved yet in this tab, so a reload does not lose it. */

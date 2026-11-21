@@ -327,6 +327,13 @@
     "pages.capability-library.pages-import-preview-v1.title": "预览导入",
     "pages.capability-library.pages-placement-copy-v1.title": "文档",
     "pages.capability-library.pages-placement-move-v1.title": "文档",
-    "pages.onboarding.part-k-n": " · 第 {k} / {n} 部分"
+    "pages.onboarding.part-k-n": " · 第 {k} / {n} 部分",
+    "pages.help.title": "文档",
+    "pages.help.what": "在项目里撰写、整理和导出富文本文档，支持导入参考文件和把定稿存为固定版本。",
+    "pages.help.example-1": "新建文档起草方案或周报，随时按标题搜索和收藏常用页",
+    "pages.help.example-2": "定稿后点「存为固定版本」，留进项目成果库供后续引用",
+    "pages.help.scope": "文档只保存在当前项目本机库里，编辑自动保存；不会未经许可对外发布。",
+    "pages.help.advanced-summary": "导入导出与固定版本",
+    "pages.help.advanced": "支持导入已有文档并保留原件；固定版本不可改写，后续修改会作为工作稿继续保存。"
   }
 }

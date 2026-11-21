@@ -264,7 +264,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       const next = frame.querySelector('[data-goal-work-mode="terminal"]');
       next.click(); next.focus();
     }
-    if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
+    if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("dialog[open], .mw-help-card")) {
       const openMenu = directoryFilterMenus().find((menu) => menu.open);
       if (openMenu) { event.preventDefault(); openMenu.open = false; openMenu.querySelector("summary")?.focus(); return; }
       if (workspace.classList.contains("is-directory-drawer-open")) { event.preventDefault(); hideDirectory(); }

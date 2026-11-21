@@ -304,6 +304,13 @@
     "todo.onboarding.due-written": "Due {date} (as written: “{phrase}”)",
     "todo.onboarding.waiting-who": "Waiting on {who}",
     "todo.onboarding.owner-unclear": "Owner unclear",
-    "todo.onboarding.related-existing": "Related to an existing todo"
+    "todo.onboarding.related-existing": "Related to an existing todo",
+    "todo.help.title": "Todo",
+    "todo.help.what": "Organizes daily tasks across Today, Waiting, Upcoming, and project filters with quick capture and instant undo.",
+    "todo.help.example-1": "Type a task with a due date to place it into the right view automatically",
+    "todo.help.example-2": "Filter by project to focus on one workspace and undo accidental completions",
+    "todo.help.scope": "Stored locally in your personal space with per-project filtering; completions and removals offer immediate undo.",
+    "todo.help.advanced-summary": "Views and assistant capture",
+    "todo.help.advanced": "When you ask the assistant to jot down a reminder, it files it here under the right project or personal space."
   }
 }

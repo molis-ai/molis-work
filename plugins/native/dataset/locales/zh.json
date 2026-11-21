@@ -90,6 +90,13 @@
     "dataset.capability-library.dataset-files-content-v1.title": "数据表",
     "dataset.capability-library.dataset-files-entries-v1.title": "数据表",
     "dataset.capability-library.dataset-placement-copy-v1.title": "数据表",
-    "dataset.capability-library.dataset-placement-move-v1.title": "数据表"
+    "dataset.capability-library.dataset-placement-move-v1.title": "数据表",
+    "dataset.help.title": "数据表",
+    "dataset.help.what": "在项目里创建结构化表格，支持导入导出 CSV、按列筛选整理，以及把稳定结果存为固定版本。",
+    "dataset.help.example-1": "导入一份 CSV 表格，补充字段并整理筛选视图",
+    "dataset.help.example-2": "整理完后「存为固定版本」，交给其他插件继续分析",
+    "dataset.help.scope": "数据只存在当前项目本机库里；导入 CSV 覆盖当前表前会在按钮上明确提示，固定版本可随时回看或回滚。",
+    "dataset.help.advanced-summary": "固定版本与数据回滚",
+    "dataset.help.advanced": "存为固定版本后会进入项目成果库；之后继续编辑当前表不会改写已经固定的历史版本。"
   }
 }

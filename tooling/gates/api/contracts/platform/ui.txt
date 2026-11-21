@@ -588,6 +588,13 @@ export declare const UI_FORMAT_VERSIONS: {
     readonly registry: 1;
 };
 
+export declare const UI_HELP_LIMITS: {
+    readonly maxTopics: 16;
+    readonly maxSectionsPerTopic: 12;
+    readonly maxItemsPerSection: 12;
+    readonly maxIdLength: 64;
+};
+
 export declare const UI_HOST_CLIENT_CODES: {
     readonly crossOrigin: "ui_host.cross_origin";
     readonly unreachable: "ui_host.unreachable";
@@ -895,6 +902,27 @@ export interface UiFrameAssetReference {
 }
 
 export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "intl" | "direction">;
+
+export interface UiHelpDeclaration {
+    readonly default_topic?: string;
+    readonly topics: readonly UiHelpTopicDeclaration[];
+}
+
+export interface UiHelpSectionDeclaration {
+    readonly id: string;
+    readonly heading: TextRef;
+    readonly body?: TextRef;
+    readonly items?: readonly TextRef[];
+    readonly collapsible?: boolean;
+    readonly summary?: TextRef;
+}
+
+export interface UiHelpTopicDeclaration {
+    readonly id: string;
+    readonly title: TextRef;
+    readonly first_visit_tip?: TextRef;
+    readonly sections: readonly UiHelpSectionDeclaration[];
+}
 
 export interface UiHostApi {
     register<TModel>(contribution: OwnedUiContribution<TModel>): void;

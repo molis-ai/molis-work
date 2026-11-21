@@ -128,6 +128,10 @@ export function syncEditorChrome(page: PagesPage) {
   const { sel, starEditor } = page;
   publishContext(page);
   reportFocus(page);
+  const compareVersions = page.el("[data-pages-compare-versions]");
+  if (compareVersions) compareVersions.hidden = (sel?.artifact_version ?? 0) < 2;
+  const diffDialog = page.el<HTMLDialogElement>("[data-pages-version-diff][open]");
+  if (diffDialog && diffDialog.dataset.pageId !== sel?.id) diffDialog.close();
   if (!sel) return;
   if (starEditor) {
     starEditor.classList.toggle("is-on", Boolean(sel.starred));

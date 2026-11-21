@@ -111,11 +111,13 @@
     "esbuild": "^0.28.2",
     "fflate": "0.8.2",
     "mammoth": "1.11.0",
-    "node-pty": "^1.1.0",
     "officeparser": "8.1.1",
     "pdfjs-dist": "6.3.289",
     "typescript": "^5.8.0",
     "ws": "^8.21.3"
+  },
+  "optionalDependencies": {
+    "node-pty": "1.1.0"
   },
   "devDependencies": {
     "@types/ws": "^8.18.1"

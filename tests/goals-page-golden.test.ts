@@ -33,6 +33,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // B35-R1 adds the Sessions link to onboarding for the current project. Sessions sets its tab state after mounting.
 // Main ffd077b2df reproduced all 52 accepted hashes. Applying just these changes to its Sessions template matched the 16
 // whole pages byte for byte, including the desktop link. The other 36 hashes matched directly.
+// Batch 40 (#2204, VUX-55, VUX-58) adds Scheme A on-demand help: the hidden right-side help tab/body (`side-panel-help.ts`)
+// and sibling `<script type="application/json" data-plugin-help>` payloads on framed pages shift all 16 `page-*` records by
+// a uniform +2632 (zh) / +3174 (en), and the header Help trigger + `<script data-mw-help-data>` (plus `<section>` around
+// project rules) update the 12 `settings-*` records; all 24 `refresh-*`, `momentum-*`, and `document-*` records stay byte-for-byte identical.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

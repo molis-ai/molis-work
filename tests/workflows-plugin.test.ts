@@ -10,7 +10,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, directHandoffLink, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
@@ -53,6 +53,8 @@ test("没配好的衔接不算接上：Function 要有规则，AI 要有要求�
   const none = { available: false, code: "actions.connection_required", reason: "还没有可用的文字模型" } as const;
   const unreadable = { available: false, code: "catalog.unknown_database", reason: "文字模型的设置读不了，请检查模型设置" } as const;
   assert.deepEqual(linkReadiness(manualLink(), none), { ready: true, reason: "" });
+  assert.deepEqual(linkReadiness(directHandoffLink(), none), { ready: true, reason: "" }, "PF-A13: direct pass-through handoff is immediately ready without model or judgment rule");
+  assert.deepEqual(applyFunctionRule(directHandoffLink(), { title: "标题", body: "原文正文", url: null, source: null }), { title: "标题", body: "原文正文", url: null, source: null }, "PF-A13: direct pass-through keeps title and body unchanged");
   assert.equal(linkReadiness(fn(" "), model).ready, false);
   assert.equal(linkReadiness(fn("{正文}"), none).ready, true);
   assert.equal(linkReadiness(ai(""), model).reason, "还没写 AI 要整理成什么");

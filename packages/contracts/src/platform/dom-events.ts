@@ -68,8 +68,12 @@ export const PAGE_STATE_OWNERS = {
     state: "The displayed words and language of one document.",
   },
   "side-panel": {
-    files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
-    state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
+    files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts", "apps/workbench/src/side-panel-help.ts"],
+    state: "The right side's views, their documents and what each was asked to show (a file, a web page, help text, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
+  },
+  "on-demand-help": {
+    files: ["packages/design-system/src/browser/on-demand-help.ts"],
+    state: "The active Scheme A on-demand help card, its trigger focus return, and skippable first-visit tips.",
   },
   assistant: {
     files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
@@ -501,6 +505,11 @@ export const DOM_EVENTS = [
     name: "molis:context-tools", kind: "request", owner: "context-toolbar", on: "element", bubbles: true,
     detail: "ContextTools (services/contextual)",
     summary: "A plugin offers its tools for the context it names, as data (limits in CONTEXT_TOOL_LIMITS). The toolbar draws them at the left of the bar and ignores ones for another context.",
+  },
+  {
+    name: "molis:help-retry", kind: "announcement", owner: "on-demand-help", on: "document",
+    detail: "{ topic: string }",
+    summary: "The person clicked Try again inside a failed on-demand help card; topic providers may clear cached failures before the card re-reads the topic.",
   },
   {
     name: "molis:placement-changed", kind: "announcement", owner: "placement", on: "window",

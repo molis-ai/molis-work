@@ -60,7 +60,9 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
   const quote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`;
   // The test barrier delays only the installed launch entry; the actual release and fd 3 chain remain production code.
   async function configureWeb(environment: Record<string, string> = {}) {
-    const trustedFixtureEnvironment = Object.entries({ ...auth.environment, ...environment }).map(([key, value]) => {
+    // S-78 strips client env when MCP spawns the resident; forward NODE_TEST_CONTEXT alongside auth.environment so active-release-profile accepts the fixture account config.
+    const testContext = process.env.NODE_TEST_CONTEXT ? { NODE_TEST_CONTEXT: process.env.NODE_TEST_CONTEXT } : {};
+    const trustedFixtureEnvironment = Object.entries({ ...testContext, ...auth.environment, ...environment }).map(([key, value]) => {
       assert.match(key, /^[A-Z][A-Z0-9_]*$/);
       return `export ${key}=${quote(value)}\n`;
     }).join("");

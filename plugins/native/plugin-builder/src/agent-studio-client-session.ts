@@ -1,5 +1,5 @@
 import { cssString } from './agent-studio-view.js';
-/** Opening a build, following its event stream, acting on it, and every listener the page owns. A part of the studio page's client script (`agent-studio-client.ts` joins the parts in order). */
+/** Opening a build, following its event stream, acting on it, and every listener the page owns. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
 export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initialized=false;
  const backgroundError=e=>{if(lifetime.alive&&!viewSignal?.aborted){notice=e;schedule();}};
  function renderBuilds(){const select=$('[data-as-builds]');select.innerHTML='<option value="">'+(state.builds.length?globalThis.t.text("plugin-builder.agent-studio.my-plugins-n",{n:state.builds.length}):globalThis.t.text("plugin-builder.agent-studio.no-plugins-yet"))+'</option>'+state.builds.map(b=>'<option value="'+esc(b.id)+'"'+(b.id===current?.id?' selected':'')+'>'+esc(b.design?.title||b.title)+' · '+esc(phaseOf(b))+'</option>').join('');

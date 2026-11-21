@@ -1,4 +1,4 @@
-/** The right column: the spec and capability boards, the plugin's canvas, and the staged placing and wiring of its parts. A part of the studio page's client script (`agent-studio-client.ts` joins the parts in order). */
+/** The right column: the spec and capability boards, the plugin's canvas, and the staged placing and wiring of its parts. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
 export const STUDIO_CLIENT_BOARD = String.raw` function usedSlots(){const used=new Map();for(const el of pluginRoot.querySelectorAll('[data-slot]')){if(el.closest('[hidden]'))continue;const k=({'directory-row':'directory','button-loading-indicator':'spinner','collapsible':'accordion'})[el.dataset.slot]||el.dataset.slot;used.set(k,(used.get(k)||0)+1);}return used;}
  function renderBoard(){if(!lifetime.alive)return;
   const b=current,board=$('[data-as-board]'),panel=$('[data-as-catalog-panel]');board.hidden=!b?.design;if(board.hidden){tip.hidden=true;panel.hidden=true;return;}

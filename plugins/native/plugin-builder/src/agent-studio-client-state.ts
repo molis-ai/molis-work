@@ -1,4 +1,4 @@
-/** What the studio page holds between paints, and the words it shows for phases, agents, parts and steps. A part of the studio page's client script (`agent-studio-client.ts` joins the parts in order). */
+/** What the studio page holds between paints, and the words it shows for phases, agents, parts and steps. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
 export const STUDIO_CLIENT_STATE = String.raw` const $=s=>root.querySelector(s);
  const feed=$('[data-as-feed]'),input=$('[data-as-input]'),canvas=$('[data-as-canvas]'),scroll=$('[data-as-scroll]'),pluginRoot=$('[data-as-plugin]'),empty=$('[data-as-empty]');
  // The conversation's one scroll owner (VUX-26): it follows at the end and stops when the person reads back.

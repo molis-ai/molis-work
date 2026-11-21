@@ -1,8 +1,8 @@
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -564,8 +564,8 @@ test("B12 S-47 a page holding its own stream open keeps its authority; an idle p
     const page = authority.open("io.example.registered", null, "web-user", undefined,
       { manifest, install_id: null, project_id: null, actor_id: "web-user", assertCurrent() {}, requestAllowed: () => true });
     const send = async () => {
-      const request = { headers: { "x-molis-plugin-page": page.page_id }, method: "GET" } as IncomingMessage, response = new EventEmitter();
-      await authority.bind(request, new URL("http://127.0.0.1/api/anything"), response as unknown as ServerResponse);
+      const request = { headers: { "x-molis-plugin-page": page.page_id }, method: "GET" } as IncomingMessage, response = new ServerResponse(new IncomingMessage(new Socket()));
+      await authority.bind(request, new URL("http://127.0.0.1/api/anything"), response);
       return () => { response.emit("close"); };
     };
     const minutes = (count: number) => t.mock.timers.tick(count * 60_000);

@@ -1,4 +1,4 @@
-/** The left column and the head: who is working, the visual report, the feed, and the composer's state. A part of the studio page's client script (`agent-studio-client.ts` joins the parts in order). */
+/** The left column and the head: who is working, the visual report, the feed, and the composer's state. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
 export const STUDIO_CLIENT_FEED = String.raw` function agents(b){const rows=[];const last=(agent,f=()=>true)=>[...b.steps].reverse().find(s=>s.agent===agent&&f(s));
   const d=last('design');if(d)rows.push(['design',d.status==='active'?'<span data-mw-state="running">'+stepLabel(d)+'</span>':stepLabel(d)+(d.selection?' '+selection(d.selection):'')]);
   const u=last('ui');if(u)rows.push(['ui',stepLabel(u)+' '+selection(u.selection)]);

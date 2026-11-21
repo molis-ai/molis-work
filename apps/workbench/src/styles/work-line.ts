@@ -353,9 +353,8 @@ ${SHELL} .work-reply-peek-body :is(ul,ol){padding-inline-start:1.4em}
 .work-reply-mini{display:inline-flex;align-items:center;gap:4px;animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
-@media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}.work-stack-card:hover{transform:none}}
+@media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
 html[data-craft-still] ${ANIMATED}{animation:none}
-html[data-craft-still] .work-stack-card:hover{transform:none}
 @media (max-width:760px){
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}

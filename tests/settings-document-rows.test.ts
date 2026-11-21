@@ -191,12 +191,23 @@ test("网页搜索: broken default keeps its fix link ready for switch-away; cli
     setAttribute(name: string, value: string): void; removeAttribute(name: string): void; remove(): void; focus(): void;
     closest(selector: string): Node | null;
   };
+  const bodyNode = {} as Node;
+  let activeEl: Node | null = null;
   const make = (dataset: Record<string, string> = {}, classes: string[] = []): Node => {
+    let isDisabled = false;
     const node: Node = {
-      dataset, hidden: false, disabled: false, textContent: "", tabIndex: 0, isConnected: true, focused: false, attrs: {}, classes: new Set(classes),
+      dataset, hidden: false,
+      get disabled() { return isDisabled; },
+      set disabled(value: boolean) {
+        isDisabled = value;
+        // Real browsers apply the HTML focus fixup rule: disabling the focused control immediately blurs it to document.body.
+        if (value && activeEl === node) activeEl = bodyNode;
+      },
+      textContent: "", tabIndex: 0, isConnected: true, focused: false, attrs: {}, classes: new Set(classes),
       classList: { toggle(name, force) { if (force) node.classes.add(name); else node.classes.delete(name); } },
       setAttribute(name, value) { node.attrs[name] = value; }, removeAttribute(name) { delete node.attrs[name]; },
-      remove() { node.isConnected = false; }, focus() { node.focused = true; }, closest() { return null; },
+      remove() { node.isConnected = false; if (activeEl === node) activeEl = bodyNode; },
+      focus() { node.focused = true; activeEl = node; }, closest() { return null; },
     };
     return node;
   };
@@ -204,8 +215,9 @@ test("网页搜索: broken default keeps its fix link ready for switch-away; cli
   const rowBuiltin = make({ webSearchSource: "builtin:anysearch" }), rowBroken = make({ webSearchSource: "conn-1" }, ["is-default"]);
   const btnFromBanner = make({ webSearchUse: "builtin:anysearch", webSearchName: "AnySearch" }); btnFromBanner.closest = s => s === "[data-web-search-use]" ? btnFromBanner : null;
   const btnOther = make({ webSearchUse: "conn-2", webSearchName: "Brave" }); btnOther.closest = s => s === "[data-web-search-use]" ? btnOther : null;
+  activeEl = btnFromBanner;
   let onClick: ((event: { target: Node }) => Promise<void>) | undefined;
-  const doc = { documentElement: {}, activeElement: btnFromBanner as Node | null, querySelector: () => root };
+  const doc = { documentElement: {}, body: bodyNode, get activeElement() { return activeEl; }, querySelector: () => root };
   const root = {
     dataset: {} as Record<string, string>,
     matches: (s: string) => s === "[data-web-search-settings]",

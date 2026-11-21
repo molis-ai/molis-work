@@ -160,7 +160,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     if (all) all.hidden = !phone;
     let allotted = allot();
     const floor = hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0);
-    if (all && !phone && scrollKids.length && reserved + floor > allotted + 0.5) { all.hidden = false; allotted = allot(); }
+    if (all && !phone && scrollKids.some((el) => el.matches(".tab-group,.tab-item")) && reserved + floor > allotted + 0.5) { all.hidden = false; allotted = allot(); }
     // The titlebar's strip is as wide as its tabs want (＋ follows them). Its box takes that from here, not from its content, so
     // sharing the widths below cannot move the box it was measured in. Measured after the all-tabs button settles, using exact non-scroll chrome
     // so a cover chip arriving in a narrow strip gets its full width on the first pass.

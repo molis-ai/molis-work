@@ -2,7 +2,7 @@
  * The page's one tooltip (specs/visual-ui-experience §type-optics and §adaptive-focus, VUX-05, VUX-29): one element drawn
  * in the page, placed by its control, so no scrolling column clips it.
  * - It names an icon-only control: the dock, the side toggle, the account and project controls, and any `[data-craft-tip]`.
- *   A control whose name is already written beside its icon gets none. A rail tool shows its ⌥ shortcut.
+ *   A control whose name is already written beside its icon gets none.
  * - It shows text cut short: a control or row holding a name, path or summary cut by an ellipsis or a line clamp shows the
  *   whole text, so a long name is read in full without opening it.
  * - A pointer shows it after a short rest (at once while another was just shown), keyboard focus (`:focus-visible`) at once,
@@ -43,7 +43,7 @@ function labelFor(node: HTMLElement): string {
 function textFor(node: HTMLElement, at?: Element | null): [string, boolean] {
   const cut = cutText(node, at);
   if (cut || !node.matches(TIP_TARGETS)) return [cut, true];
-  const name = node.querySelector(":scope > span:not(.personal-account-avatar):not(.project-monogram), .personal-account-copy");
+  const name = node.querySelector(":scope > span:not(.personal-account-avatar):not(.project-monogram):not([data-n]):not(.top-corner-count), .personal-account-copy");
   return name && name.getBoundingClientRect().width > 2 ? ["", false] : [labelFor(node), false];
 }
 function place(node: HTMLElement) {

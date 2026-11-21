@@ -105,18 +105,20 @@ globalThis.molisWorkBindWebSearchSettings = (container = document) => {
     const button = event.target.closest?.("[data-web-search-use]");
     if (!button || !root.contains(button) || button.disabled) return;
     const id = button.dataset.webSearchUse, name = button.dataset.webSearchName || "", mine = ++seq;
+    // Capture focus before disabling buttons: HTML focus fixup blurs a focused button the moment disabled becomes true.
+    const hadFocus = document.activeElement === button;
     error.hidden = true; said.hidden = true; said.textContent = "";
     setBusy(true); button.setAttribute("aria-busy", "true");
     try {
       const view = await molisWorkRequest("/api/settings/web-search/default", { method: "POST", body: { source_id: id } });
       if (mine !== seq) return;
-      const hadFocus = document.activeElement === button;
       root.dataset.webSearchDefault = view.default_source;
       root.querySelectorAll("[data-web-search-source]").forEach(row => row.classList.toggle("is-default", row.dataset.webSearchSource === view.default_source));
       root.querySelector("[data-web-search-broken]")?.remove();
       said.hidden = false;
       said.textContent = globalThis.t.text("workbench.settings-web-search.switched", { name });
-      if (hadFocus && (!button.isConnected || getComputedStyle(button).display === "none")) { said.tabIndex = -1; said.focus({ preventScroll: true }); }
+      const active = document.activeElement;
+      if (hadFocus && (!active || active === document.body || active === button) && (!button.isConnected || getComputedStyle(button).display === "none")) { said.tabIndex = -1; said.focus({ preventScroll: true }); }
       const style = getComputedStyle(root), rawDur = style.getPropertyValue("--dur-hover").trim();
       const dur = rawDur.endsWith("ms") ? parseFloat(rawDur) : rawDur.endsWith("s") ? parseFloat(rawDur) * 1000 : 130;
       const easing = style.getPropertyValue("--ease-quint").trim() || "ease";

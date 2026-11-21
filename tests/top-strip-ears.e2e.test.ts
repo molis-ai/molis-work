@@ -91,12 +91,24 @@ test("the top strip holds tabs only: the current one is an ear on its sheet and 
   assert.ok(await evaluate("Boolean(document.querySelector('[data-cover-chip=settings]'))"), "Escape closes the open popover before closing the cover beneath it");
   await click("[data-cover-close]");
   await waitFor("!document.querySelector('[data-cover-chip]')");
-  // Capabilities cover highlights its own account-bar key (never Settings) and toggles closed on a second press.
+  // Capabilities cover highlights its own account-bar key (never Settings), switches cleanly to Settings, and toggles closed on a second press.
   await evaluate("document.querySelector('.bar-account [data-capabilities-open]').click()");
   await waitFor("document.querySelector('[data-titlebar-tabs] [data-cover-chip=settings]') && document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current') === 'page'");
   assert.deepEqual(await evaluate("({ cap: document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current'), set: document.querySelector('.bar-account [data-directory-open=settings]')?.getAttribute('aria-current') })"),
     { cap: "page", set: null }, "capabilities cover marks 插件 current, not 设置");
+  // Switching directly from 插件 to 设置 must switch back to Settings (never stay stuck on library).
+  await evaluate("document.querySelector('.bar-account [data-directory-open=settings]').click()");
+  await waitFor("document.querySelector('.bar-account [data-directory-open=settings]')?.getAttribute('aria-current') === 'page' && document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current') === null");
+  await evaluate("document.querySelector('.bar-account [data-directory-open=settings]').click()");
+  await waitFor("!document.querySelector('[data-cover-chip]')");
+  // Closing 插件 and then opening 设置 must open Settings rather than reopening library, and still close on second click.
   await evaluate("document.querySelector('.bar-account [data-capabilities-open]').click()");
+  await waitFor("document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current') === 'page'");
+  await evaluate("document.querySelector('.bar-account [data-capabilities-open]').click()");
+  await waitFor("!document.querySelector('[data-cover-chip]')");
+  await evaluate("document.querySelector('.bar-account [data-directory-open=settings]').click()");
+  await waitFor("document.querySelector('.bar-account [data-directory-open=settings]')?.getAttribute('aria-current') === 'page' && document.querySelector('.bar-account [data-capabilities-open]')?.getAttribute('aria-current') === null");
+  await evaluate("document.querySelector('.bar-account [data-directory-open=settings]').click()");
   await waitFor("!document.querySelector('[data-cover-chip]')");
 
   // The side sheet has its own tab: the name of the view it shows, 18px in from the sheet's edge; it opens the list of views.

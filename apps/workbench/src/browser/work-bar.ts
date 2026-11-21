@@ -135,20 +135,24 @@ interface ListReads {
  * press, Esc closes the list and gives the focus back to its key.
  */
 function installLists({ line, counts, lists, body, sources, heading }: ListParts, read: ListReads) {
-  let open: WorkListId | "" = "", earlier = false;
+  let open: WorkListId | "" = "", earlier = false, lastHtml = "";
   const rowsShown = () => open ? [...body.querySelectorAll<HTMLElement>(`[data-work-list-rows="${open}"] :is([data-work-event],[data-work-lists-earlier])`)] : [];
   const focus = () => { for (const node of body.querySelectorAll<HTMLElement>("[data-work-event]")) { if (read.current(node.dataset.workEvent ?? "")) node.setAttribute("aria-current", "true"); else node.removeAttribute("aria-current"); } };
   const draw = (fresh: (event: WorkLineEvent) => boolean = () => false) => {
-    const focusedEvent = document.activeElement instanceof HTMLElement && body.contains(document.activeElement) ? document.activeElement.dataset.workEvent : undefined;
+    const active = document.activeElement instanceof HTMLElement && body.contains(document.activeElement) ? document.activeElement : null;
+    const focusedEvent = active?.dataset.workEvent, focusedEarlier = active?.hasAttribute("data-work-lists-earlier") ?? false;
     if (sources) sources.innerHTML = read.issues();
     const nextHtml = WORK_LISTS.map(({ id }) => {
       const all = read.wing(id), cut = id === "done" && !earlier ? all.slice(0, EARLIER_AFTER) : all;
-      return `<div class="work-list" data-work-list-rows="${id}"${open === id ? "" : " hidden"}>${all.length ? cut.map(event => read.row(event, fresh(event))).join("") : `<p class="work-lists-empty">${uiText("workbench.work-line.list-empty")}</p>`}`
+      return `<div class="work-list" data-work-list-rows="${id}">${all.length ? cut.map(event => read.row(event, fresh(event))).join("") : `<p class="work-lists-empty">${uiText("workbench.work-line.list-empty")}</p>`}`
         + `${all.length > cut.length ? renderListEarlier(all.length - cut.length) : ""}</div>`;
     }).join("");
-    if (body.innerHTML !== nextHtml) {
+    if (nextHtml !== lastHtml) {
+      lastHtml = nextHtml;
       body.innerHTML = nextHtml;
+      for (const rows of body.querySelectorAll<HTMLElement>("[data-work-list-rows]")) rows.hidden = rows.dataset.workListRows !== open;
       if (focusedEvent) body.querySelector<HTMLElement>(`[data-work-event="${CSS.escape(focusedEvent)}"]`)?.focus({ preventScroll: true });
+      else if (focusedEarlier && open) body.querySelector<HTMLElement>(`[data-work-list-rows="${open}"] [data-work-lists-earlier]`)?.focus({ preventScroll: true });
     }
     for (const key of counts.querySelectorAll<HTMLElement>("[data-work-list]")) {
       const id = key.dataset.workList as WorkListId, n = read.wing(id).length, name = uiText.text(`workbench.work-line.list-${id}`);
@@ -195,7 +199,7 @@ function installLists({ line, counts, lists, body, sources, heading }: ListParts
     if (!path.includes(lists) && !target?.closest("[data-work-list]")) show("");
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !event.defaultPrevented && open) { event.preventDefault(); show("", true); }
+    if (event.key === "Escape" && !event.defaultPrevented && open && !document.querySelector("dialog[open]")) { event.preventDefault(); show("", true); }
   });
   document.addEventListener("molis-work:place-changed", () => { if (open) show(""); });
   window.addEventListener("molis:surface-interaction", () => { if (open) show(""); });
@@ -258,7 +262,7 @@ function installStack({ line, counts, stack }: FootParts & { readonly stack: HTM
     if (line.hasAttribute("data-stack-open") && !path.includes(stack) && !target?.closest("[data-work-stack-toggle]")) close();
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !event.defaultPrevented && line.hasAttribute("data-stack-open")) { event.preventDefault(); close(true); }
+    if (event.key === "Escape" && !event.defaultPrevented && line.hasAttribute("data-stack-open") && !document.querySelector("dialog[open]")) { event.preventDefault(); close(true); }
   });
   document.addEventListener("molis-work:place-changed", () => close());
   window.addEventListener("molis:surface-interaction", () => close());

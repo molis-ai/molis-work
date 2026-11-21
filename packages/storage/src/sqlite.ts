@@ -180,23 +180,6 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
         CREATE INDEX events_project_idx ON events(project_id, seq);
 `;
 
-/**
- * A fact changing owners inside one project library (a platform library step, e.g. batch 44 moving a project's guidance from Goals to
- * the platform): its journal events and receipts take the new owner's names, so the history and a retry with the same key still
- * belong to it. Event types and object types map one to one; receipts change their operation. Runs in the caller's transaction.
- */
-export function renameJournalRecords(db: { prepare(sql: string): { run(...params: unknown[]): unknown } }, renames: {
-  readonly event_types?: Readonly<Record<string, string>>;
-  readonly object_types?: Readonly<Record<string, string>>;
-  readonly operations?: Readonly<Record<string, string>>;
-}): void {
-  for (const [from, to] of Object.entries(renames.event_types ?? {})) db.prepare("UPDATE events SET type = ? WHERE type = ?").run(to, from);
-  for (const [from, to] of Object.entries(renames.object_types ?? {})) db.prepare("UPDATE events SET object_type = ? WHERE object_type = ?").run(to, from);
-  for (const [from, to] of Object.entries(renames.operations ?? {})) {
-    db.prepare("UPDATE idempotency_records SET operation = ? WHERE operation = ?").run(to, from);
-  }
-}
-
 export class LocalSqliteStorage extends LocalSqliteJournal {
   constructor(readonly path: string, options: { readonly?: boolean; fileMustExist?: boolean; journalMode?: "preserve" } = {}) {
     const db = openSqliteConnection(path, { timeout: 5000, fileMustExist: options.fileMustExist ?? false, ...(options.readonly ? { readonly: true, fileMustExist: true } : {}) });

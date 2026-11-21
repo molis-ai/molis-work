@@ -39,7 +39,11 @@ interface Harness {
   readonly connect: () => Promise<{ ws: WebSocket; messages: BrowserServerMessage[] }>;
 }
 
-async function harness(t: TestContext, immediate: Record<string, boolean> = {}): Promise<Harness> {
+async function harness(
+  t: TestContext,
+  immediate: Record<string, boolean> = {},
+  extra: { onTakeover?: (page: BrowserPage) => Promise<void> | void } = {},
+): Promise<Harness> {
   // A real host and real pages that never start Chrome: binding is recorded instead of reaching a browser.
   const home = await mkdtemp(join(tmpdir(), "browser-socket-close-"));
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -78,7 +82,7 @@ async function harness(t: TestContext, immediate: Record<string, boolean> = {}):
     return emit.call(this, event, ...rest);
   });
   const server: Server = createServer((_request, response) => { response.writeHead(404); response.end(); });
-  attachMolisWorkBrowserSocket(server, TOKEN, () => host, { projectExists });
+  attachMolisWorkBrowserSocket(server, TOKEN, () => host, { projectExists, ...(extra.onTakeover ? { onTakeover: extra.onTakeover } : {}) });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   // Upgraded sockets are no longer the HTTP server's connections: end the clients first, or `close` waits on them.
   const clients = new Set<WebSocket>();
@@ -171,4 +175,59 @@ test("BL-browser-socket-close-pending-bind: a refused project check still answer
   await settle();
   assert.equal(h.pages.get("missing"), undefined, "a refused binding drops what follows (S-04)");
   assert.equal(h.host.existingPage("missing"), undefined);
+});
+
+test("P1-F1: closing while a queued attach(late) and navigate/takeover are pending clears page and never touches the old held page", async t => {
+  const h = await harness(t, { held: true });
+  const { ws } = await h.connect();
+  sendTo(ws, { type: "attach", project_id: "held", viewport: { width: 800, height: 600 } } as BrowserClientMessage);
+  await until(() => h.pages.get("held")?.listeners.size === 1, "the first page to be attached");
+
+  const heldPage = h.host.existingPage("held")!;
+  t.mock.method(heldPage, "navigate", async (input: string) => {
+    h.pages.get("held")!.calls.push(`navigate:${input}`);
+  });
+  t.mock.method(heldPage, "setControl", (control: { mode: string }) => {
+    h.pages.get("held")!.calls.push(`control:${control.mode}`);
+  });
+
+  sendTo(ws, { type: "attach", project_id: "late", viewport: { width: 800, height: 600 } } as BrowserClientMessage);
+  sendTo(ws, { type: "navigate", input: "https://example.com" });
+  sendTo(ws, { type: "takeover" });
+  await h.checked("late");
+  await closeAndWait(h, ws);
+  h.checks.get("late")!.resolve(true);
+  await settle();
+  await settle();
+  assert.deepEqual(h.pages.get("held")!.calls, ["attach", "detach"], "old held page is never navigated or taken over after close");
+  assert.equal(h.pages.get("late"), undefined);
+  assert.equal(h.host.existingPage("late"), undefined);
+});
+
+test("P1-F1: closing during takeoverFirst prevents navigate from running on the detached page", async t => {
+  const entered = deferred<void>();
+  const release = deferred<void>();
+  const h = await harness(t, { held: true }, {
+    onTakeover: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  });
+  const { ws } = await h.connect();
+  sendTo(ws, { type: "attach", project_id: "held", viewport: { width: 800, height: 600 } } as BrowserClientMessage);
+  await until(() => h.pages.get("held")?.listeners.size === 1, "the held page to attach");
+
+  const heldPage = h.host.existingPage("held")!;
+  heldPage.setControl({ mode: "assistant", work_id: "work-1", activity: null });
+  t.mock.method(heldPage, "navigate", async (input: string) => {
+    h.pages.get("held")!.calls.push(`navigate:${input}`);
+  });
+
+  sendTo(ws, { type: "navigate", input: "https://example.com/after-close" });
+  await entered.promise;
+  await closeAndWait(h, ws);
+  release.resolve();
+  await settle();
+  await settle();
+  assert.equal(h.pages.get("held")!.calls.some(entry => entry.startsWith("navigate:")), false, "navigate does not run after close during takeover");
 });

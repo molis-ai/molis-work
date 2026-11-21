@@ -1,9 +1,9 @@
 import { versionConsumptionCompatibility } from "./compatibility.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi, ProcessItemRecord, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactLineHeadOf, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginConsumableFilter, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginArtifactErrors } from "./plugin-errors.js";
-import { pluginArtifactContracts, referenceInput, processInput, artifactInput, filterInput } from "./plugin-action-contracts.js";
+import { pluginArtifactContracts, referenceInput, processInput, artifactInput, filterInput, normalizeConsumableFilter } from "./plugin-action-contracts.js";
 
 export interface PluginArtifactOperationsInput {
   api: ArtifactsApplicationApi;
@@ -102,7 +102,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     },
     listConsumable(value) {
       requirePermission("artifact:read");
-      const filter = filterInput(checked("list", value === undefined ? {} : value));
+      const filter = filterInput(checked("list", normalizeConsumableFilter(value)) as PluginConsumableFilter);
       // Filter declarations, availability, lifecycle and the caller's filter in SQL; only one bounded content page is held at a time.
       const listed: PluginConsumableVersion[] = [];
       const walk = (query: ArtifactsApplicationApi["query"] | ProcessItemsApplicationApi["query"], types: PluginManifest["artifacts"]["consumes"], consume: (page: Array<ArtifactVersionRecord | ProcessItemRecord>) => void, personalOwner?: string) => {

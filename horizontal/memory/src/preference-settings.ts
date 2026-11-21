@@ -63,8 +63,9 @@ export function memorySettingHandlers(ledger: MemoryLedgerPort, assertActive: ()
     transaction: (scope, run) => ledger.transaction(() => {
       assertActive();
       const receiptKey = ({ key, layer, request_id }: SettingsRequestIdentity) => {
-        // A receipt read in a project may include that project's overrides, even for a personal-layer write.
-        const profile = scope.project_id ? projectPrefsKey(scope.project_id) : profileKey(key, layer, null);
+        const profile = layer === "personal"
+          ? profileKey(key, layer, null)
+          : scope.project_id ? projectPrefsKey(scope.project_id) : profileKey(key, layer, null);
         return memoryPreferenceMarkerPrefix(profile) + "receipt/" + JSON.stringify([key, layer, request_id]);
       };
       return run({

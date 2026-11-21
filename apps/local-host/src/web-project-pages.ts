@@ -231,8 +231,16 @@ export function createLocalProjectPagesHttp(ports: {
         sendJson(response, 404, { error: "页面不存在" });
         return true;
       }
+      const stageError = stageErrorsOf(view)?.[owner.project_plugin_id];
+      if (stageError) {
+        sendJson(response, actionHttpStatus(stageError), actionErrorBody(stageError));
+        return true;
+      }
       const routeError = asStagePayload(view.stage_data?.[owner.project_plugin_id])?.route_error;
-      if (routeError) { sendJson(response, routeError.status, { error: routeError.error }); return true; }
+      if (routeError) {
+        sendJson(response, routeError.status, { error: routeError.error });
+        return true;
+      }
     }
     const desktopShell = isDesktopShellRequest(request, url);
     const projectConfiguration = options.project

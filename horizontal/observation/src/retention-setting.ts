@@ -1,3 +1,4 @@
+import type { ActionAvailability, ActionCallContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { DatabaseSync } from "node:sqlite";
 import { OBSERVATION_PROVIDER_ID, OBSERVATION_RETENTION_MODES, type ObservationRetentionMode } from "@molis-ai/molis-work-contracts/services/observation";
@@ -82,8 +83,23 @@ export function retentionSettingHandlers(deps: ManagementActionDeps) {
     },
   };
   const bound = bindSettingsHandlers(retentionActions, declaration, owner);
-  return { read: bound.read, write: { ...bound.write, handle(caller: Parameters<typeof bound.write.handle>[0], input: unknown) {
-    assertPersonCaller(caller);
-    return bound.write.handle(caller, input);
-  } } };
+  const refusal = observationErrors.forbidden("只有本人能管理工作记录设置与清理");
+  const denied = { available: false, code: refusal.code, kind: refusal.kind, reason: refusal.message } as const;
+  const availability = (caller: ActionCallContext): ActionAvailability => {
+    try {
+      assertPersonCaller(caller);
+      return { available: true };
+    } catch {
+      return denied;
+    }
+  };
+  const forPerson = (binding: ActionHandlerBinding): ActionHandlerBinding => ({
+    ...binding,
+    availability,
+    handle(caller, input) {
+      assertPersonCaller(caller);
+      return binding.handle(caller, input);
+    },
+  });
+  return { read: forPerson(bound.read), write: forPerson(bound.write) };
 }

@@ -179,6 +179,11 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 - 当时 MCP 工具一律 `mutate-external`，草案将只读映射另列 P1。2026-10-27 已确认 §3.1/3.3 的三种权限方式及可信只读方向，实施仍须验证实际授权与拒绝；不能仅凭注解降级的边界保留。
 - 与 Skill/Tool 的边界：MCP prompts 不是 Skill；MCP tools 仍进 Tool 目录、走同一道门。`find-tools` / `find-skills` 不替 MCP 另开搜索。
 
+### 8.2 2026-11-20 Harness 与安全终校注记（[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58)）
+
+- 第 62 批（`62-1`）合并两条「MCP 工具登记成动作」流水线时须按升级链附带 4 份版本 JSON 升级段，并按本 spec §3.3 对可信只读 MCP 开放至 Coding 只读角色与助理（注解仍仅用于加严与展示，不独自放权）。
+- 上游 Prologue 窗口 A 同步修补 `mcp/core/invoke.ts:92` 绕过 `kernel/redact` 导致密钥/原始路径漏脱的问题；本仓第 101 批补齐 MCP Launcher `SIGINT`/`SIGTERM` 清理，第 103 批将 `apps/mcp/action-tools.ts:104` 改为 `discoverOne` O(1) 点查。
+
 ## 9. 参考
 
 - [plugin-platform-v2](../plugin-platform-v2/spec.md)：插件、MCP 与宿主装配。

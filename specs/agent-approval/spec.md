@@ -258,3 +258,8 @@ APR-12 的审批来源页根据原本人决定记录列出作出本次决定的�
 APR-10 的隔离实操用本机脚本模型发起两种待审操作。`tests/assistant-text-html.e2e.test.ts` 在专用 Chromium 读取原工作台卡片，确认待审及拒绝后无待办、批准后只写一条。请求等待期间，批准和拒绝按钮暂停提交，权限按钮保持启用。`tests/coding-git-diff-product.test.ts` 在临时 Git 工作区用实际 SDK 发起写入，批准前文件和暂存区保持原内容，批准后只改原文件，另行批准的暂存读取同一份审查结果。2026-11-16 用户委托主会话完成 dev `4207` 走查并视作通过（未由用户逐项手点）；私有试验 PR #1 的两轮 `/approve` 由用户账号发出，GitHub 记录分不清本人手点与会话代发。
 
 2026-11-16：上游 [molis-prologue#127](https://github.com/molis-ai/molis-prologue/pull/127) 合入 `main`（`e75820791e862c2605c2ff169720b6189ed9a109`）并更换正式包（`sha256: 5701942422e9e5732967580cf502463ab21cc5e44b88bbb6848c841c08e40c47`）；同步第 32 批与最新 `origin/main`（`0dceaca097`）后，完成 APR-15／16 逐项认可接入平台通用可信决定入口（收口 `BL-acceptance-first-slice-limits` 第 ③ 项的 39-2 平台入口；Goals 消费仍归 44-3），并在本机 dev 环境（Auth `8787` + Work `4207`，隔离 Home）通过四条完整真实界面走查（21 张实测截图零溢出；截图留在会话本机目录，未入库）；用户指示由主会话完成验证并视作验收通过。`BL-359`、`BL-360` 已完成删除并记入 `docs/backlog-removed.md`。
+
+## 8. 2026-11-20 防链式 RCE 与审批硬化修订（[决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ③、[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58)）
+
+- **第 105 批（[105-1](../post-anticorruption-roadmap/reference/batches/105.md#batch-105-item-1)）**：对命令前缀免批与规则匹配补齐 4 层防链式 RCE 硬护栏（黑名单 shell／解释器／包装器如 `bash`/`sh`/`python`/`node`/`env`/`xargs` 不可生成前缀免批；拒绝危险执行参数与链式操作符绕过；安全敏感路径硬排除）；补齐分类跨重启审批续接与（衔接第 62 批 `invokeAll` 后）并行工具波原子审批。所有拒绝路径登记至 `docs/system/SECURITY-INVARIANTS.md` 并附断言拒绝本身的测试。
+- **第 65 批（[65-2](../post-anticorruption-roadmap/reference/batches/65.md#batch-65-item-2)）**：受限命令、长期规则与可选 AI 低风险审批共同严守上述 4 层防链式 RCE 与防提示词注入护栏（按解析结果逐段判、AI 只批单条普通命令、外部内容不算许可、许可绑确切命令），独立审计上下文并入第 63 批评测样本。

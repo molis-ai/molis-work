@@ -277,7 +277,8 @@ export interface PluginEventResolutionRecord {
   subscriber_version: string;
   decision: "retry" | "skip";
   actor_id: string;
-  reason: string;
+  /** The person's own words, when they wrote any. The decision says what was chosen; nothing here is interface text. */
+  reason?: string;
   resolved_at: string;
 }
 
@@ -290,7 +291,8 @@ export interface PluginEventRecoveryInput extends PluginEventSubscribeSource {
   expected_version: string;
   event_id: string;
   decision: "retry" | "skip";
-  reason: string;
+  /** Optional note in the person's own words, kept as written. */
+  reason?: string;
 }
 
 export interface PluginEventRecoveryView {

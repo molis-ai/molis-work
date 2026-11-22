@@ -90,7 +90,6 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 另有一处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它是现状，不是设计：
 
-- `molis-work:place-changed`：`scripts/contextual-slice/client.ts`（情境交互的评估用脚本，不进产品页面）在 `window` 上听它，而它发在 `document` 且不冒泡，那个监听器永远不会触发。
 - `molis-work:system-view-close`（主人 `tab-workspace`）：页签工作区（`apps/workbench/src/scripts/client/system-tabs.ts`）还听着它，供平台页的主人请它关掉自己的那一页；第 36A 批壳层对话批去掉「把助理的一件工作放到工作区当一页」之后，树里暂时没有主人发它（事件页由人在页签上关）。下一个需要自己收页的平台页主人直接发它；到那时仍没有，就连登记一起删。
 
 ## 4. 迁移

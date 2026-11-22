@@ -247,6 +247,34 @@ mod tests {
     use super::{builtin_language, NativeLanguage, NativeLanguageState};
 
     #[test]
+    fn pwa137_a_stopped_host_is_never_labelled_as_running_or_recovering() {
+        // PWA-137 / MR21-09: once the desktop cannot bring the Host back, the tray's words are its own, in every built-in language.
+        let locales = &super::bootstrap().locales;
+        assert!(
+            locales.len() >= 2,
+            "both interface languages are compiled in"
+        );
+        for language in locales {
+            let tag = &language.language.tag;
+            let stopped = language.stopped_status();
+            assert!(
+                !stopped.0.is_empty() && !stopped.1.is_empty(),
+                "{tag}: stopped has words"
+            );
+            assert_ne!(
+                stopped,
+                language.synced_status(),
+                "{tag}: stopped is not running"
+            );
+            assert_ne!(
+                stopped.0,
+                language.recovering_status().0,
+                "{tag}: stopped is not reconnecting"
+            );
+        }
+    }
+
+    #[test]
     fn s14_native_language_rejects_bad_projections_and_ended_documents() {
         // FSS-34: the real IPC payload type and state transition, with no App or shared service.
         let english = builtin_language("en").unwrap();

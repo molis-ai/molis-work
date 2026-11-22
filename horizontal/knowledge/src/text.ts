@@ -25,12 +25,12 @@ function headings(content: string): Array<{ start: number; level: number; title:
   for (const raw of content.split("\n")) {
     const line = raw.replace(/\r$/u, "");
     const opens = FENCE.exec(line.trimStart())?.[1];
-    if (opens && (!fence || opens.startsWith(fence))) fence = fence ? null : opens.slice(0, 3);
+    if (opens && (!fence || opens.startsWith(fence))) fence = fence ? null : cutHead(opens, 3);
     const heading = fence ? null : HEADING.exec(line);
     if (heading) found.push({ start: offset, level: heading[1]!.length, title: cutHead(heading[2]!, TITLE_CHARS) });
     // A short line of its own that starts with a Chinese section number, and is not a sentence, heads a section too.
     const bare = line.trim(), level = !fence && bare.length <= NUMBERED_TITLE_CHARS && !/[。；;，,：:]$/u.test(bare) ? NUMBERED.find(([shape]) => shape.test(bare))?.[1] : undefined;
-    if (level !== undefined) numbered.push({ start: offset, level, title: bare.slice(0, TITLE_CHARS) });
+    if (level !== undefined) numbered.push({ start: offset, level, title: cutHead(bare, TITLE_CHARS) });
     offset += raw.length + 1;
   }
   // Markdown headings when the text has them; the numbered ones when it has none and at least two of them.

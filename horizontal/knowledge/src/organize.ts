@@ -15,6 +15,7 @@ import {
 import { SEARCH_INDEX_CONTENT_CHARS, type SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
 import { reasonOf } from "./errors.js";
 import { outlineOf } from "./text.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
 export interface KnowledgePiece {
@@ -126,7 +127,7 @@ export const OUTLINE_MIN_CHARS = 2_000;
 const MAX_NOTES = 60;
 
 const keyOf = (subject: ActionSubject) => `${subject.kind}\u0000${subject.id}`;
-const clip = (value: unknown, max: number) => (typeof value === "string" ? value : "").replace(/\s+/gu, " ").trim().slice(0, max);
+const clip = (value: unknown, max: number) => cutHead((typeof value === "string" ? value : "").replace(/\s+/gu, " ").trim(), max);
 const sameFields = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
@@ -170,10 +171,10 @@ export function draftInput(piece: KnowledgePiece): KnowledgeDraftInput {
   const sections = piece.content.length >= OUTLINE_MIN_CHARS ? outlineOf(piece.content).slice(0, MAX_NOTES) : [];
   const heads = sections.length >= 2 ? sections.map(section => ({ anchor: section.anchor, title: section.title })) : [];
   if (piece.content.length <= ORGANIZE_TEXT_CHARS || heads.length < 2) {
-    return { title: piece.title, summary: piece.summary, text: piece.content.slice(0, ORGANIZE_TEXT_CHARS), sections: heads };
+    return { title: piece.title, summary: piece.summary, text: cutHead(piece.content, ORGANIZE_TEXT_CHARS), sections: heads };
   }
   const each = Math.max(200, Math.floor(ORGANIZE_TEXT_CHARS / sections.length));
-  const text = sections.map(section => `[${section.anchor}] ${piece.content.slice(section.start, section.start + Math.min(section.own, each))}`).join("\n\n").slice(0, ORGANIZE_TEXT_CHARS);
+  const text = cutHead(sections.map(section => `[${section.anchor}] ${piece.content.slice(section.start, section.start + Math.min(section.own, each))}`).join("\n\n"), ORGANIZE_TEXT_CHARS);
   return { title: piece.title, summary: piece.summary, text, sections: heads };
 }
 

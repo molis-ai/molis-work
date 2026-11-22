@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ModelProviderStore, createModelProviderTables, readProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { isLoopbackHostname, isLoopbackHttpOrigin, isLoopbackHttpUrl, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { isPublicAddress as sharedIsPublicAddress } from "@molis-ai/molis-work-contracts/platform/public-address";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
@@ -85,7 +86,11 @@ test("S-09 a credential is bound to its first destination: plain HTTP elsewhere,
 
 // ---- S-10 ------------------------------------------------------------------------------------------------------
 
-test("S-10 the sandbox proxy and the custom RSS fetch refuse every address of the shared table that is not public, and keep the public ones", () => {
+test("S-10 the sandbox proxy and the custom RSS fetch refuse every address of the shared table that is not public, and keep the public ones; MR21-11 both are the platform's one table", () => {
+  assert.equal(isPublicAddress, sharedIsPublicAddress, "the sandbox proxy's table is the platform's");
+  assert.deepEqual(["198.18.0.1", "198.19.255.1"].map(address => [sharedIsPublicAddress(address), sharedIsPublicAddress(address, { fakeIpProxy: true }), isDisallowedResolvedAddress(address)]),
+    [[false, true, false], [false, true, false]], "the fake-IP block is public only to a caller that reaches sites by an approved name");
+  assert.deepEqual(["192.0.78.1", "192.0.1.1"].map(address => sharedIsPublicAddress(address)), [true, true], "only 192.0.0.0/24 and 192.0.2.0/24 of 192.0/16 are reserved");
   for (const address of ADDRESSES_NEVER_PUBLIC) {
     assert.equal(isPublicAddress(address), false, `sandbox proxy: ${address}`);
     assert.equal(isDisallowedResolvedAddress(address), true, `custom RSS: ${address}`);

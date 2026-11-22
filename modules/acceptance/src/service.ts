@@ -172,9 +172,20 @@ export class AcceptanceService {
     if (!before.deliveries.length) throw acceptanceErrors.version_unknown("还没有记过交付，没有可核对的版本");
     // `null`: not this object, or not a version that was ever delivered — nothing to weigh.
     const findings: Array<Finding | null> = [];
+    // Several requirements citing the same version or the same commands of the same round ask once (EVD-16): a report is one reading.
+    const once = <T,>(cache: Map<string, Promise<T>>, key: string, read: () => Promise<T>) => {
+      const hit = cache.get(key) ?? read();
+      cache.set(key, hit);
+      return hit;
+    };
+    const readable = new Map<string, Promise<boolean>>();
+    const runs = new Map<string, ReturnType<AcceptanceEvidencePorts["checkRun"]>>();
+    const asked: AcceptanceEvidencePorts = { ...ports,
+      artifactReadable: reference => once(readable, `${reference.artifact_id}@${reference.version}`, () => ports.artifactReadable(reference)),
+      checkRun: (runId, callIds) => once(runs, JSON.stringify([runId, callIds]), () => ports.checkRun(runId, callIds)) };
     for (const report of request.reports) {
       const delivery = before.deliveries.find(item => item.version === report.checked.version.trim());
-      findings.push(!delivery || (report.checked.subject && !sameSubject(report.checked.subject, subject.subject)) ? null : await weigh(report, delivery, caller, ports));
+      findings.push(!delivery || (report.checked.subject && !sameSubject(report.checked.subject, subject.subject)) ? null : await weigh(report, delivery, caller, asked));
     }
     if (ports.beforeCommit) await ports.beforeCommit();
     if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");

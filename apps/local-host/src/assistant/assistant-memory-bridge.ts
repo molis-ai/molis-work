@@ -13,6 +13,7 @@ import { hasExternalSessionContext } from "./assistant-external-sessions.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantServicePorts } from "./assistant-service-shared.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type AssistantMemoryBridgeLinks = Pick<AssistantWorkReads, "assistantPart"> & { continuations: Pick<AssistantContinuations, "currentInput"> };
 
@@ -104,7 +105,7 @@ export class AssistantMemoryBridge {
     const owner = !external && context.object ? await this.objectOwner(work, context.object.kind) ?? context.source.plugin_id : undefined;
     const situation = context && !external ? { ...(context.source.plugin_id ? { plugin_id: context.source.plugin_id } : {}), ...(context.object ? { object_kind: context.object.kind } : {}),
       ...(context.object && owner ? { objects: [{ plugin_id: owner, kind: context.object.kind, id: context.object.id }] } : {}) } : {};
-    const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000,
+    const chosen = await memory.forRun(this.memoryCaller(work, null), { query: cutHead(`${task} ${work.title}`, 2000), limit: 16, budget_chars: 3000,
       ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
     this.chosenMemory.set(work.work_id, chosen);

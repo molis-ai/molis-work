@@ -303,6 +303,9 @@ test("B36F-06 S-mainline-own-line: failed or unauthorized task placement retains
   } finally { db.close(); }
 
   await assert.rejects(me.invoke(mainlineActions.place, { task: T1, item: { kind: "item", item_id: full.item_id } }), code("mainline.limit"));
+  // MR21-04: an event and a full item together are refused before the task's owner records the event.
+  await assert.rejects(me.invoke(mainlineActions.place, { task: T1, to: { kind: "none" }, item: { kind: "item", item_id: full.item_id } }), code("mainline.limit"));
+  assert.deepEqual(background.state.serves.get(T1.id), [N1], "a combined request the item refuses leaves the task's event as it was");
   const onlyEvent = as(person(projectId, { permissions: [MAINLINE_PLACE_PERMISSION, "homebg:read"] }));
   await assert.rejects(onlyEvent.invoke(mainlineActions.place, { task: T1, to: { kind: "none" }, item: { kind: "none" } }), code("actions.forbidden"));
   assert.deepEqual(background.state.serves.get(T1.id), [N1], "the denied combined request never changes the task owner's relation");

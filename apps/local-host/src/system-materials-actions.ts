@@ -65,12 +65,6 @@ function windowCursors() {
 }
 
 const POSITION_KEY = "reading-position";
-/**
- * The project's actor-less fallback reading position (retained from the retired Files plugin): it never had an actor and
- * none is made up for it. A caller's own position comes first; this one is read only when the caller has none, and like every position
- * it is resolved against the folders the caller can read now.
- */
-export const PROJECT_POSITION_KEY = POSITION_KEY;
 /** The folder ports last carried, project-wide: reading another folder withdraws what they hand on (as Files did). */
 const LAST_FOLDER_KEY = "last-workspace";
 const POSITION_MAX = 16_384;
@@ -384,7 +378,7 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
         return readRef(nested(caller, materialsActions.read), input.ref, input.mode === "text", input.cursor);
       }),
       bindActionHandler(materialsActions.position, async (_input, caller) => {
-        const position = parsePosition(values.get(positionKey(caller.actor_id))) ?? parsePosition(values.get(PROJECT_POSITION_KEY));
+        const position = parsePosition(values.get(positionKey(caller.actor_id)));
         if (!position) return { position: null };
         const all = await folders(nested(caller, materialsActions.position));
         const workspaceId = resolveWorkspaceId(position.workspace_id, all);

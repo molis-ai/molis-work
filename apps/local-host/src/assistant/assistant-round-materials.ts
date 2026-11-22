@@ -24,6 +24,7 @@ import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
 import { promptTitle } from "./assistant-work-title.js";
 import { MATERIAL_PART_UNITS, materialParts } from "./assistant-material-parts.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** One chosen or listed method, whatever else the page sent with it: a Skill by its installation and id, a role by its installation and entry. */
 function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
@@ -104,7 +105,7 @@ export class AssistantRoundMaterials {
     // What the person did with earlier suggestions since the last round: the next round goes on from there.
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
-    if (handled.length) out.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${say.text(card.outcome).slice(0, 300)}）` : ""}`).join("\n")));
+    if (handled.length) out.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${cutHead(say.text(card.outcome), 300)}）` : ""}`).join("\n")));
     // Changes the person took back since (the base says what follows from that).
     const undone = this.store.undos(this.actorId, work.work_id).filter(item => item.state === "undone" && !item.told);
     if (undone.length) {
@@ -117,7 +118,7 @@ export class AssistantRoundMaterials {
     if (takenBack.length) {
       const lines = takenBack.map(child => {
         const made = this.store.relations.forWork(identity(child)).filter(row => row.relation === "result").map(row => `${row.object.kind} ${row.object.id}`);
-        return `- 「${child.title}」（验收标准：${child.delegated_by!.acceptance.slice(0, 300)}）${made.length ? `；它已产出：${made.slice(0, 5).join("、")}` : "；它还没有产出"}`;
+        return `- 「${child.title}」（验收标准：${cutHead(child.delegated_by!.acceptance, 300)}）${made.length ? `；它已产出：${made.slice(0, 5).join("、")}` : "；它还没有产出"}`;
       });
       out.push(...chunked({ title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留：",
         ...lines].join("\n")));
@@ -138,7 +139,7 @@ export class AssistantRoundMaterials {
     const selected = this.store.cards(work.work_id).filter(card => card.from && card.materials?.length).slice(-2);
     if (selected.length) out.push(...chunked({ title: "用户在页面上选中的内容" }, "page-selection", selected.map(card =>
       [`「${card.from!.title ?? card.from!.surface}」页面为操作卡「${card.title}」带来的选中内容：`,
-        ...card.materials!.map(item => `《${item.title}》\n${item.text.slice(0, 4000)}`)].join("\n")).join("\n\n")));
+        ...card.materials!.map(item => `《${item.title}》\n${cutHead(item.text, 4000)}`)].join("\n")).join("\n\n")));
     // What the person asked to be remembered reaches the round as Prologue memory-recall data (memoryForRound), not here;
     // only what did not come along is said, so the round can tell the person honestly.
     const left = this.chosenMemory.get(work.work_id)?.omitted ?? [];
@@ -246,7 +247,7 @@ export class AssistantRoundMaterials {
     return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,
       attached.length ? `挂在：${attached.join("、")}` : "",
       others.length ? `与它相关的其他工作：${others.map(row => `「${row.title}」（${RELATION_WORDS[row.relation]}，${row.state}）`).join("；")}` : "",
-      `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${context.content.slice(0, 6000)}`].filter(Boolean).join("\n");
+      `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${cutHead(context.content, 6000)}`].filter(Boolean).join("\n");
   }
 
   /**
@@ -282,7 +283,7 @@ export class AssistantRoundMaterials {
       }
       const where = material.source?.title ?? material.source?.plugin_id ?? "搜索";
       const text = isExternalSessionObject(subject) ? formatExternalSessionReferenceText(context, material.text)
-        : context ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${context.content.slice(0, 12_000)}`
+        : context ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${cutHead(context.content, 12_000)}`
         : `用户用“@”引用的对象。${where}没有提供正文读取，下面只是搜索结果里的摘要，不是全文：\n${material.text ?? "（没有摘要）"}`;
       out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
     }

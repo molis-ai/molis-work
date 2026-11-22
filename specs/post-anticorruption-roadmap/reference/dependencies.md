@@ -519,3 +519,16 @@ flowchart LR
 | 105（新） | 等 `39`（已合）、`100-2`；仅 `105-1` 中「并行工具波原子审批」等 `62`（`invokeAll`），其余防链式 RCE 审批/分类跨重启/子代理缓存/Mainline/约定编辑均不等 `62`（**不等 38～89**） | [105](batches/105.md) |
 | 91 / 91B / 62 / 63 / 63A / 65 / 66 / 68 / 75 / 83 | 固化 6 处精确 DAG：`61 → 62`、`Prologue 窗口 A → 窗口 B → 62`（窗口 B 含 `ModelRequestObserved` 与 `AuthenticatedEnvelopes` LRU/Scope 供 `63`/`63A` 消费）、`56-3 → 57 → 75`、`64 → 68-4`、`LSP`/`environment-prep` 归位 `66`、`76 & 82 → 83`；`91` 另等 `101`；`91B` 标明 5 个真 P0 已由 `101` 前置收口且 `91B-4` 撤脆性正则与 20 分钟 `sleep` | [91](batches/91.md)、[91B](batches/91b.md)、[62](batches/62.md)、[63](batches/63.md)、[63A](batches/63a.md)、[65](batches/65.md)、[66](batches/66.md)、[68](batches/68.md)、[75](batches/75.md)、[83](batches/83.md) |
 | 90 | 最终交付对账覆盖全部非服务端批次 `01`～`105`（含 `36A`、`63A`、`91B`） | [90](batches/90.md) |
+
+<a id="deps-2026-11-21-design"></a>
+
+### 11-21 设计系统整理、视觉升级与全站 UI/UX 方案并入 91 批（[决定 60](decisions.md#decision-60)）
+
+用户 2026-11-21 拍板将设计系统重塑（四套内置皮肤默认 A 净透云光、F1 Sans＋思源黑体 400/500/600、设置 30 页 P5 统一、组件板 93 节重构、`docs/design/` 59→9 归档、`skills/molis-design-ui/` 仓内 Skill 与五层防漂移门禁）与 91 批按四段拆解，解耦「不依赖 `36A-3`/`37-2`/Prologue 窗口 A 的设计底座」与「纯流式内核 91A」：
+
+| 批次／项 | 真实前置与精确范围 | 文件 |
+| --- | --- | --- |
+| `91-0a`（新） | 无前置，立即可做（纯文档 / Skill / 设计稿归档与统一样板 `docs/design/kit/`）：新增仓内 Skill `skills/molis-design-ui/` 与多代理接线；对齐 `DESIGN.md`／`taste.md`／`shell-page-exceptions` 等规范文档；`docs/design/` 59→9 归档与 `screen-polish` 定稿六屏刷新 | [91](batches/91.md#batch-91-item-0a) |
+| `91-0b`（新） | 等 `91-0a`（不依赖 `36A-3`、`37-2` 或 Prologue 窗口 A；与 `102-1` 的 `<80 KB` 插件基础样式表正交协同）：落 4 套内置皮肤＋暗色 `on-accent` 修复、F1 Sans＋思源黑体三字重、纸感边框／6px 状态标签与 CSS 漂移清扫（含 40 批 `on-demand-help.ts` 与 `im-ui` 补齐）、交付原 `91-1` 全站体验共用底座、重构 `/__ui/catalog` 93 节、统一全部 30 个设置页到 P5，并同步校准 `skills/molis-design-ui/` 与 `skills/molis-plugin-dev/`（`studio:replay`＋隔离 `smoke`） | [91](batches/91.md#batch-91-item-0b) |
+| `91A`（`91-2`～`91-4`） | 保持等 `91-0b`（含 `91-1` 底座）、`101`、`36A-3`/`4b`/`7`、`37-2` 与 Prologue 窗口 A，专注纯流式内核、Agent Host 热路径止血、Assistant 与 Coding SSE 接入 | [91](batches/91.md) |
+| `91B` | 紧接 `91-0b` 可并行推进 `91B-1`～`3`（补齐决定 60 漏接的 6 处平台入口／壳层／静默吞错断缝，不重复 `101` 已修的 5 个 P0）；`91B-4` 收口五层防回退门禁（含无未定义 `--*`、无遗留 `--dock-h`、无裸 `style=`、`on-accent` 暗色对比度 AA、目录与样板门禁） | [91B](batches/91b.md) |

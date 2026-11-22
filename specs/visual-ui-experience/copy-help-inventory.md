@@ -231,7 +231,7 @@
 
 ## 7. 第 40 批落地与复验（VUX-51～59，ONB-47～48 入口）
 
-本批围绕全产品按需帮助（复用第 03 批已定方案 A [`docs/design/on-demand-help/`](../../docs/design/on-demand-help/)）、执行前事实、零黑话文案与生成插件同源规则落地，对应路线书[第 40 批](../post-anticorruption-roadmap/reference/batches/40.md#batch-40-item-2)：
+本批围绕全产品按需帮助（复用第 03 批已定方案 A [`docs/design/archive/on-demand-help/`](../../docs/design/archive/on-demand-help/)）、执行前事实、零黑话文案与生成插件同源规则落地，对应路线书[第 40 批](../post-anticorruption-roadmap/reference/batches/40.md#batch-40-item-2)：
 
 - **组件板标本与共享控制器（VUX-55／VUX-56／VUX-59）。** `/__ui/catalog#on-demand-help` 新增四件生产标本：方案 A 页内「帮助」浮层（含「在右栏继续看」移入右侧栏隐藏标签 `help`、`Esc` 关闭并归还焦点）、字段旁「了解此项」、`.mw-facts` 执行前事实块（收起帮助时常驻可见）、可跳过一次的首访提示（跳过后刷新不重弹、可随时从「帮助」找回）以及帮助读取失败兜底与「再试一次」。工作台、设置、组件板与插件框架共用同一编译产物 `packages/design-system/src/browser/on-demand-help.ts`。
 - **F-06 闭环 · 全量设置与全部 24 个原生内置插件（VUX-55／VUX-58）。**

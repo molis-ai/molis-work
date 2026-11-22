@@ -1,6 +1,6 @@
 # Folio 配色定样
 
-状态：**一骏 2026-11-08 已选「杏纸与常青」grove 作为 Folio 正式配色**，另两套留作未选对照。第 16 批可操作视觉样；这次配色决定不代表 B/C 产品实现完成，生产资源裁法与增长仍待批准。沿用 2026-11-04 的方案 C「旁边一张样张，确认再用」与 2026-11-08 的 Resource Han Rounded v1.910 + Nunito；这里不重新决定字体或设置交互。需求来源：[字体、皮肤与语言系统](../../../specs/font-and-skin-system/spec.md)、[B/C 开工前检查](../../../specs/font-and-skin-system/bc-preflight.md)、[已有外观定样](../appearance-selection/README.md)。本目录不含产品实现。
+状态：**一骏 2026-11-08 已选「杏纸与常青」grove 作为 Folio 正式配色**，另两套留作未选对照。第 16 批可操作视觉样；这次配色决定不代表 B/C 产品实现完成，生产资源裁法与增长仍待批准。沿用 2026-11-04 的方案 C「旁边一张样张，确认再用」与 2026-11-08 的 Resource Han Rounded v1.910 + Nunito；这里不重新决定字体或设置交互。需求来源：[字体、皮肤与语言系统](../../../specs/font-and-skin-system/spec.md)、[B/C 开工前检查](../../../specs/font-and-skin-system/bc-preflight.md)、[已有外观定样](../archive/appearance-selection/README.md)。本目录不含产品实现。
 
 ## 配色决定
 

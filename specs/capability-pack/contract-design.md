@@ -27,7 +27,7 @@
 - 第 08 批：`system.skills` 的四个动作、`SkillRef`、`SkillCatalogEntry`、三档、`skill_settings`／`skill_uses`（[08 合同稿](../skill-packs/contract-design.md)）。
 - 能力包需求的范围、边界与用户决定（[能力包需求](spec.md)）。
 - 第 09 批第八节的统筹裁定（[09 批文件](../post-anticorruption-roadmap/reference/batches/09.md#batch-09-conditions)）。
-- 定样 A：定样分支 `claude/b09-design-kit-page-2eda30` 的 `docs/design/capability-pack/README.md`「模型」一节。
+- 定样 A：定样分支 `claude/b09-design-kit-page-2eda30` 的 `docs/design/archive/capability-pack/README.md`「模型」一节。
 
 ## 1. 现状核对（main `416ee8cef0`）
 

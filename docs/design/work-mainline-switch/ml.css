@@ -1,4 +1,4 @@
-/* Mainline switcher prototype: additions on top of ../workbench-shared-paths/styles.css. Not production CSS. */
+/* Mainline switcher prototype: additions on top of ../archive/workbench-shared-paths/styles.css. Not production CSS. */
 .titlebar{grid-template-columns:auto minmax(0,1fr) 8px var(--side-w)}.titlebar.solo{grid-template-columns:auto minmax(0,1fr)}
 .mlsw{display:flex;align-items:center;gap:7px;height:30px;max-width:260px;margin:0 8px 0 0;padding:0 8px 0 9px;border-radius:var(--r-control);border:1px solid var(--line-strong);background:var(--paper);font-weight:500;box-shadow:var(--lift-1)}
 .mlsw span.nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mlsw .proj{color:var(--ink-soft)}

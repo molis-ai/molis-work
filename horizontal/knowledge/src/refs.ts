@@ -8,6 +8,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { knowledgeErrors } from "./errors.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * A piece's ref (specs/project-knowledge §6.4, PMAT-39): `k` and the first seven hex digits of its subject's hash. The same piece
@@ -28,7 +29,7 @@ export function namedSubjects(cards: Pick<KnowledgeCardStorePort, "list">, proje
     if (typeof name !== "string") return name;
     byRef ??= new Map(cards.list(project).map(card => [knowledgeRef(card.subject), card.subject]));
     const subject = byRef.get(name.trim().toLowerCase());
-    if (!subject) throw knowledgeErrors.unknown(`项目资料里没有编号为 ${JSON.stringify(name.slice(0, 20))} 的资料：ref 照抄目录、knowledge.list、search 或 grep 给的那一个`);
+    if (!subject) throw knowledgeErrors.unknown(`项目资料里没有编号为 ${JSON.stringify(cutHead(name, 20))} 的资料：ref 照抄目录、knowledge.list、search 或 grep 给的那一个`);
     return subject;
   });
 }

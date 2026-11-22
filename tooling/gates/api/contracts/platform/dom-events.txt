@@ -42,8 +42,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "attention";
     readonly on: "document";
-    readonly detail: "none";
-    readonly summary: "Read what waits on the person again now: the person acted on a notice or on the work line, or a work of the Assistant's changed state.";
+    readonly detail: "none, or { reconnected: true } from the desktop shell once the Host answers again: the page then replaces its event stream before reading";
+    readonly summary: "Read what waits on the person again now: the person acted on a notice or on the work line, a work of the Assistant's changed state, or the desktop reconnected to the Host.";
 }, {
     readonly name: "molis-work:attention-unreachable";
     readonly kind: "announcement";
@@ -173,6 +173,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line";
     readonly summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.";
+}, {
+    readonly name: "molis-work:record-document-loaded";
+    readonly kind: "request";
+    readonly owner: "immersive-navigation";
+    readonly on: "document";
+    readonly detail: "{ recordId }";
+    readonly summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.";
 }, {
     readonly name: "molis-work:record-gone";
     readonly kind: "request";

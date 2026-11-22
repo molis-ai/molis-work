@@ -91,7 +91,7 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
     menu.querySelectorAll<HTMLButtonElement>('[data-personal-action]').forEach(b => { b.style.display = b.hidden ? 'none' : ''; b.disabled = busy || !configured; });
   };
   links.forEach(link => {
-    link.setAttribute('aria-haspopup', 'menu'); link.setAttribute('aria-controls', menu.id); link.setAttribute('aria-expanded', 'false');
+    link.setAttribute('aria-controls', menu.id); link.setAttribute('aria-expanded', 'false');
     link.addEventListener('click', event => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();

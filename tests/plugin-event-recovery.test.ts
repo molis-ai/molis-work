@@ -132,3 +132,11 @@ test("same-id reinstall never takes over the old event and close cannot resolve 
   assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "plugin.event_recovery_changed" });
   assert.equal(rig.count(), 1);
 });
+
+test("MR21-02: the workbench confirms without a reason; the record keeps the decision and no interface text", async t => {
+  const rig = await fixture(t), { reason: _reason, ...input } = confirmation(rig.bus.recoveries(EVENT_BOARD)[0]!, "skip");
+  const receipt = rig.bus.recover(EVENT_BOARD, "local-reviewer", input);
+  assert.equal(receipt.decision, "skip");
+  assert.equal("reason" in receipt, false, "nothing is stored in place of the person's own words");
+  assert.deepEqual(rig.bus.recoveryHistory(EVENT_BOARD), [receipt]);
+});

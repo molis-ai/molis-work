@@ -298,7 +298,7 @@ async function reconcileHealthFixture() {
   const check = () => { controller.signal.throwIfAborted(); if (!authority) throw new Error("authority withdrawn"); };
   const unused = () => { throw new Error("unexpected service call"); };
   // A task set for its next time gets a job; what it is matters to nothing here.
-  let jobs = 0, told = 0;
+  let jobs = 0, told = 0, stopping = false;
   const writer = { register: () => ({ job_id: `job-${++jobs}` }), cancel: unused, setEnabled: unused };
   const actions = { dependencies: {}, invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
     if (definition.capability_id === agentTaskGrantActions.clear.capability_id) await onClear?.();
@@ -309,7 +309,7 @@ async function reconcileHealthFixture() {
     actions, project_database: db,
     scheduler: { list: () => [], get: () => null, isExecuting: () => false,
       join: (_transaction: object, write: (value: typeof writer) => unknown) => write(writer) },
-    installations: { list: () => [], get: () => undefined }, notifications: { deliver: unused }, ui: { invalidate: () => { told++; } },
+    installations: { list: () => [], get: () => undefined }, notifications: { deliver: unused }, ui: { invalidate: () => { told++; if (stopping) throw new Error("the plugin is being stopped"); } },
     background: { keep: (job: string, callback: (control: PluginJobControl) => Promise<void>) => {
       assert.equal(job, "schedule-reconcile"); work = callback; return { done: Promise.resolve(), cancel: unused };
     } },
@@ -326,7 +326,7 @@ async function reconcileHealthFixture() {
       await setTimeout(5);
     }
   };
-  return { fake, health, waitFor, db, told: () => told, archiveAction: archive!,
+  return { fake, health, waitFor, db, told: () => told, archiveAction: archive!, stopping: () => { stopping = true; },
     action: (capability: string) => started.actions!.find(item => item.capability_id === capability)!,
     /** An enabled task without a job: every pass sets it for its next time (the fixture's scheduler forgets jobs). */
     live() {
@@ -398,6 +398,16 @@ test("BL-schedule-view-refresh-followups a pass that set a task for its next tim
     f.revoke(); retry.release(); await f.close();
     assert.equal(f.told(), before, "a pass that lost its authority does not tell the page");
   } finally { retry?.release(); await f.close(); }
+});
+
+test("MR21-10 a command that succeeded keeps its result when the pages cannot be told: a plugin being stopped does not turn it into a failure", async () => {
+  const f = await reconcileHealthFixture();
+  try {
+    f.live(); f.stopping();
+    const person = { actor_id: "person", project_id: "p1", audience: "user", permissions: [], beforeEffect: async () => {} } as never;
+    assert.deepEqual(await f.archiveAction.handle(person, { task_id: "sct_live" }), { archived: true });
+    assert.equal(f.told(), 1, "it tried to tell the page");
+  } finally { await f.close(); }
 });
 
 test("BL-schedule-view-refresh-followups a command through Schedule's actions tells the open page only while its caller still holds its authority", async () => {

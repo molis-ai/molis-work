@@ -88,10 +88,10 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   assert.match(await evaluate("document.querySelector('[data-shelf-chrome-tag]')?.textContent.trim() || ''"), /PDF/);
   // Soft Workbench (DESIGN.md → Plugin identity): Shelf keeps DropAgent's structure on the shared tokens —
   // the reading side is the soft surface and details are copper.
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#f5f8fb");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#f8fafc");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#66709e");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#3c6e98"); // mist-blue accent, 4.5:1 on paper (spec → 第三轮 · 对比度)
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#316896"); // mist-blue accent, 4.5:1 on paper (spec → 第三轮 · 对比度 + 决定 60)
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "请先在「模型设置」里连接文字模型");
   // 整合 stays on the bar and greys out until a second material joins.
@@ -147,12 +147,12 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await writeFile(`${dir}/confirm-light.png`, Buffer.from(confirmLight.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   await browser.evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
-  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#1f272f'");
+  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#151b22'");
   const confirmDark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/confirm-dark.png`, Buffer.from(confirmDark.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await browser.evaluate("document.documentElement.dataset.resolvedTheme = 'light'");
-  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#f5f8fb'");
+  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#f8fafc'");
   await click("[data-shelf-run]");
   await waitFor("[...document.querySelectorAll('[data-shelf-list=results] [data-shelf-item]')].some(row => row.dataset.shelfName === 'pdf.md')", 8_000);
   const preview = await evaluate<string>("document.querySelector('[data-shelf-preview]')?.innerText || ''");
@@ -234,7 +234,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await writeFile(`${dir}/drop-light.png`, Buffer.from(dropLight.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   await browser.evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
-  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#1f272f'");
+  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#151b22'");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#a6afd5");
   const dropDark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/drop-dark.png`, Buffer.from(dropDark.data, "base64"));
@@ -242,7 +242,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
     for (const node of document.querySelectorAll("[data-shelf=workbench], [data-shelf-stage], [data-shelf=directory]")) node.classList.remove("is-drop");
     document.querySelectorAll("[data-shelf-drop]").forEach((node) => node.setAttribute("aria-hidden", "true"));
   })()`);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=workbench]')).getPropertyValue('--content-paper').trim()"), "#1b2229");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=workbench]')).getPropertyValue('--content-paper').trim()"), "#192029");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf-search]')).backgroundColor === 'rgb(255, 255, 255)'"), false);
   const dark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/workbench-dark.png`, Buffer.from(dark.data, "base64"));
@@ -298,7 +298,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
     const press = await browser.evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");
     const shared = await browser.evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--nav-press').trim()");
     assert.equal(press, shared);
-    assert.match(press, theme === "light" ? /#1f2b37 11%/ : /#e8eef3 15%/);
+    assert.match(press, theme === "light" ? /#15202b 11%/ : /#ecf1f6 14%/);
     await browser.evaluate("document.querySelector('[data-shelf-settings-pane=machine]').scrollIntoView({block: 'start'})");
     // Let the compositor land on the new palette before the shot is taken.
     await browser.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");

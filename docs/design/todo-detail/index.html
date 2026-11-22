@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>待办详情页定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="todo-detail.css">
+  <script src="../kit/kit.js"></script>
+</head>
+<body class="td-body">
+  <div id="icons" hidden></div>
+  <header class="td-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>待办详情页</b>
+    <span class="td-proto-states" id="states"></span>
+    <span class="td-grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" value="1440">1440</button>
+      <button type="button" class="mw-toggle" value="1024">1024</button>
+      <button type="button" class="mw-toggle" value="820">820</button>
+      <button type="button" class="mw-toggle" value="390">390</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" value="light">浅色</button>
+      <button type="button" class="mw-toggle" value="dark">深色</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="语言" id="lang">
+      <button type="button" class="mw-toggle" value="zh">中文</button>
+      <button type="button" class="mw-toggle" value="en">English</button>
+    </span>
+  </header>
+  <main class="td-doc">
+    <h2>待办详情页：一件待办一页</h2>
+    <p class="lead">可以直接点：标题和说明能改，状态片、右边每一行、「关联一件待办」、右上角的 ⋯ 都能点开。上面的按钮各进一个状态；右边切宽度、深浅色和语言。窗口的顶部和底部只是示意，不在这次设计里。</p>
+    <div class="td-fit" id="fit"><div class="td-win" id="win"></div></div>
+    <div class="td-say" aria-live="polite"><b id="step"></b><span id="say"></span></div>
+    <div class="td-notes">
+      <div><b>第一眼：是什么、怎样了、能做什么</b><span>最大的字是这件事本身。标题下面一行说现在的状态和最要紧的日子。右上角是能做的事，其中只有一个实心按钮。</span></div>
+      <div><b>日期和归属退到右边</b><span>它们是这件事的属性，不是主角：收进右边一块浅底，一行一件，整行可点。窗口窄了，这一块挪到标题下面。</span></div>
+      <div><b>标题和说明像文档，不像表单</b><span>没有灰底输入框和小标签。直接点字就能改，停手自动保存，右上角说保存到哪一步。</span></div>
+      <div><b>状态：一枚带颜色的片</b><span>蓝是在办，青是在等别人，绿是做完，灰是没开始或不做了。点开菜单换；「完成」最常用，单独是主按钮。</span></div>
+      <div><b>用到才出现</b><span>「在等谁」只在等待他人时出现；「助理在办什么」只在交给助理后出现；修改记录平时收成一行。</span></div>
+      <div><b>不同的东西长得不一样</b><span>来源是一张带引文的卡；关联是一组行，关系用不同底色的小标签；助理的东西是浅蓝底，等你点头时变琥珀色。</span></div>
+    </div>
+  </main>
+  <script>
+    document.getElementById("icons").innerHTML = window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="todo-detail.js"></script>
+</body>
+</html>

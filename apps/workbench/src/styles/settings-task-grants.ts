@@ -9,12 +9,12 @@
 export const TASK_GRANTS_SETTINGS_STYLES = `
 .task-grants-page{container-type:inline-size;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;margin-top:12px}
 .task-grants-page[aria-busy] .task-grants-page__state{cursor:progress}
-.task-grants-page__state{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:14px 16px;border-radius:var(--sk-r-card,12px);background:var(--sk-raised,var(--paper));box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:13px;line-height:1.6}
+.task-grants-page__state{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:14px 16px;border-radius:var(--r-card,12px);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:13px;line-height:1.6}
 .task-grants-page__state.is-error{background:color-mix(in srgb,var(--red) 6%,var(--paper));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red) 26%,var(--line));color:color-mix(in srgb,var(--red) 78%,var(--ink))}
 .task-grants-page__group{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
 .task-grants-page__group-head{display:flex;align-items:center;gap:8px;margin:0;min-width:0;color:var(--ink-soft);font-size:13px;font-weight:var(--weight-title,600)}
 .task-grants-page__group-head>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.task-grants-page__task{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;padding:6px;border-radius:var(--sk-r-card,12px);background:var(--sk-raised,var(--paper));box-shadow:inset 0 0 0 1px var(--sk-card-edge,var(--line)),var(--lift-1);transition:opacity var(--dur-hover,130ms) var(--ease-quint)}
+.task-grants-page__task{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;padding:6px;border-radius:var(--r-card,12px);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line),var(--lift-1),inset 0 1px 0 var(--edge-highlight,transparent);transition:opacity var(--dur-hover,130ms) var(--ease-quint)}
 .task-grants-page__task[aria-busy]{cursor:progress}
 .task-grants-page__task[aria-busy] .mw-btn{opacity:.6}
 .task-grants-page__task-head{display:flex;align-items:center;gap:12px;min-height:40px;padding:2px 4px 2px 10px}

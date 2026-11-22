@@ -170,9 +170,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       });
     };
     const pool = document.querySelector("[data-surface-pool]");
-    const showNode = (node) => {
+    const showNode = (node, turnDirection) => {
       if (!body || !node) return;
       if (node.ownerDocument !== document) document.adoptNode(node);
+      const hadPanel = [...body.children].some((child) => child !== node && child.matches("[data-settings-panel]"));
       [...body.children].forEach((child) => {
         if (child === node || child.matches("[data-settings-return-bar]")) return;
         if (child.matches("[data-work-surface]") && pool) { child.hidden = true; pool.append(child); }
@@ -180,12 +181,22 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       });
       if (node.parentElement !== body) body.append(node);
       node.hidden = false;
+      if (hadPanel && node.matches("[data-settings-panel]")) {
+        globalThis.molisCraft?.turn?.(node, turnDirection === "back");
+      }
       const resetScroll = () => {
         body.scrollTop = 0;
         body.scrollLeft = 0;
       };
       resetScroll();
       requestAnimationFrame(resetScroll);
+    };
+    const sectionOrder = () => [...(nav?.querySelectorAll("[data-settings-section]") || [])].map((item) => item.dataset.settingsSection);
+    const directionTo = (nextSection) => {
+      const order = sectionOrder();
+      const fromIndex = order.indexOf(active);
+      const toIndex = order.indexOf(nextSection);
+      return fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex ? "back" : "forward";
     };
     const loadFromHtml = (section, html, fetchPath) => {
       const page = new DOMParser().parseFromString(html, "text/html");
@@ -202,18 +213,20 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (before) disposePage(before);
       caches.set(section, wrap);
       globalThis.molisWorkInstallSettingsText?.(wrap, page);
-      showNode(wrap);
+      const dir = directionTo(section);
+      showNode(wrap, dir);
       active = section;
       markNav(section);
       bindEmbed(wrap, options);
     };
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
+      const dir = directionTo(section);
       const local = options.local?.(section);
       if (local) {
         loading = null;
         host.noteCover?.(options.kind, section);
-        showNode(local);
+        showNode(local, dir);
         active = section;
         markNav(section);
         return;
@@ -221,7 +234,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!fetchPath && caches.has(section) && !caches.get(section).dataset.settingsAddress) {
         loading = null;
         host.noteCover?.(options.kind, section);
-        showNode(caches.get(section));
+        showNode(caches.get(section), dir);
         bindEmbed(caches.get(section), options);
         active = section;
         markNav(section);

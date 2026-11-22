@@ -288,7 +288,7 @@ function appearancePane(model: ShelfSettingsUiModel): string {
   const checked = settings.drop_wheel_enabled ? " checked" : "";
   return `${renderSettingRow({
       name: uiText.text("shelf.settings-ui.drop-wheel"), hint: uiText.text("shelf.settings-ui.shows-action-wheel-when-dragging-finder-onto-menu"), label: true,
-      control: `<input class="settings-switch" type="checkbox" role="switch" name="drop_wheel_enabled" data-shelf-drop-wheel${checked}>`,
+      control: `<span class="mw-switch"><input type="checkbox" role="switch" name="drop_wheel_enabled" data-shelf-drop-wheel${checked}><span class="mw-switch__track" aria-hidden="true"></span></span>`,
     })}
     <p class="settings-hint">${uiText("shelf.settings-ui.theme-language-follow-molis-appearance-settings")}</p>`;
 }

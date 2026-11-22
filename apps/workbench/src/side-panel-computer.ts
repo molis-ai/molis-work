@@ -36,25 +36,25 @@ export function renderSideComputer({ icon }: SidePanelPrimitives): string {
 
 export const SIDE_COMPUTER_STYLES = String.raw`
 .side-computer{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}
-.side-computer-view{position:relative;flex:1;min-height:0;display:grid;place-items:center;background:var(--sunken,#111);overflow:hidden}
+.side-computer-view{position:relative;flex:1;min-height:0;display:grid;place-items:center;background:var(--terminal-bg,#111);overflow:hidden}
 .side-computer-view canvas{max-width:100%;max-height:100%;object-fit:contain;image-rendering:auto}
 .side-computer-marker{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid var(--accent,#4c8dff);background:color-mix(in srgb,var(--accent,#4c8dff) 25%,transparent);pointer-events:none;animation:side-computer-ping var(--dur-move) var(--ease-quint)}
 @keyframes side-computer-ping{from{transform:scale(1.8);opacity:0}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion: reduce){.side-computer-marker{animation:none}}
 .side-computer-cover{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;background:var(--paper);color:var(--muted)}
 .side-computer-cover[hidden]{display:none}
-.side-computer-cover-title{font:var(--font-title-s,600 15px/1.3 system-ui);color:var(--ink);margin:0 0 6px}
+.side-computer-cover-title{font:var(--weight-title,600) 15px/1.3 var(--font);color:var(--ink);margin:0 0 6px}
 .side-computer-strip{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-top:1px solid var(--line)}
 .side-computer-doing{display:flex;flex-direction:column;gap:2px;min-width:0}
-.side-computer-app{font:var(--font-label,600 12px/1.2 system-ui);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.side-computer-activity{font:var(--font-body-s,13px/1.3 system-ui);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-computer-app{font:var(--weight-title,600) 12px/1.2 var(--font);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-computer-activity{font:13px/1.3 var(--font);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-computer-controls{display:flex;gap:4px;flex:none}
-.side-computer-btn{display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);cursor:pointer;font:var(--font-label,600 12px/1 system-ui)}
+.side-computer-btn{display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);cursor:pointer;font:var(--weight-title,600) 12px/1 var(--font)}
 .side-computer-btn[hidden]{display:none}
 .side-computer-btn[data-computer-action="stop"]{color:var(--danger,#d23)}
-.side-computer-status{flex:none;padding:12px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px;font:var(--font-body-s,13px/1.45 system-ui);color:var(--ink);overflow:auto}
+.side-computer-status{flex:none;padding:12px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px;font:13px/1.45 var(--font);color:var(--ink);overflow:auto}
 .side-computer-status[hidden]{display:none}
-.side-computer-status h3{font:var(--font-title-s,600 14px/1.3 system-ui);margin:0}
+.side-computer-status h3{font:var(--weight-title,600) 14px/1.3 var(--font);margin:0}
 .side-computer-status .side-computer-perm{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .side-computer-status button{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);cursor:pointer}
 .side-computer-status button.primary{background:var(--accent,#4c8dff);border-color:var(--accent,#4c8dff);color:#fff}
@@ -64,7 +64,7 @@ export const SIDE_COMPUTER_STYLES = String.raw`
 .side-computer-approval button{flex:1;min-width:96px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
 .side-computer-approval button.primary{background:var(--accent,#4c8dff);border-color:var(--accent,#4c8dff);color:#fff}
 .side-computer-approval button.ghost{flex:none;width:100%}
-.side-computer-live{flex:none;margin:0;padding:6px 10px;font:var(--font-body-s,12px/1.3 system-ui);color:var(--muted);min-height:1.3em}
+.side-computer-live{flex:none;margin:0;padding:6px 10px;font:12px/1.3 var(--font);color:var(--muted);min-height:1.3em}
 `;
 
 export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {

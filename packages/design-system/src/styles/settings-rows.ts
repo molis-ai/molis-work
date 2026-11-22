@@ -15,6 +15,7 @@ export const SETTINGS_DOCUMENT_STYLES = `
      kept hidden at the end of the card (an error that has not happened) or a template is not it. The rule weighs what
      a plain last-child rule weighed, so a page's own margin on its last block still wins as it did. */
   .mw-settings-section__rows { min-width: 0; padding: 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-card, 12px); background: var(--paper); }
+  :root[data-resolved-theme="dark"] .mw-settings-section__rows { box-shadow: inset 0 1px 0 var(--edge-highlight); }
   .mw-settings-section__rows > :not([hidden], template, :empty):where(:not(:has(~ :not([hidden], template, :empty)))) { margin-bottom: -1px; }
   .mw-settings-section__note { margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
   /* What a card holds that is not a row (a form, a group under its own small heading): ruled off like a row, on the note's padding. */
@@ -26,11 +27,12 @@ export const SETTINGS_DOCUMENT_STYLES = `
   .mw-setting-row__copy { flex: 1 1 200px; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; overflow-wrap: anywhere; }
   .mw-setting-row__copy > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .mw-setting-row__copy > span { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.5; }
-  .mw-setting-row__control { flex: none; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; color: var(--ink-soft); font-size: 13px; }
+  .mw-setting-row__control { flex: none; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
   .mw-setting-row[aria-disabled="true"] .mw-setting-row__copy > strong { color: var(--muted); }
   /* A row that opens a choice in place: while open the row keeps no line, the opened part closes the pair. */
   .mw-setting-fold { min-width: 0; }
-  .mw-setting-fold > summary { list-style: none; cursor: pointer; border-radius: 8px; }
+  .mw-setting-fold > summary { list-style: none; cursor: pointer; border-radius: 8px; transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-setting-fold > summary:hover { background: var(--nav-hover); margin-inline: -8px; padding-inline: 8px; }
   .mw-setting-fold > summary::-webkit-details-marker { display: none; }
   .mw-setting-fold > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .mw-setting-fold[open] > summary { border-bottom-color: transparent; }
@@ -69,7 +71,8 @@ export const SETTINGS_DOCUMENT_STYLES = `
   .mw-object-row__fold { display: contents; }
   .mw-object-row__fold::details-content { grid-area: 3 / 1 / 4 / -1; }
   .mw-object-row__head { grid-area: 1 / 1 / 2 / 2; display: flex; align-items: center; min-width: 0; min-height: 60px; padding: 12px 0; box-sizing: border-box; list-style: none; }
-  summary.mw-object-row__head { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; cursor: pointer; border-radius: 8px; }
+  summary.mw-object-row__head { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; cursor: pointer; border-radius: 8px; transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  summary.mw-object-row__head:hover { background: var(--nav-hover); }
   summary.mw-object-row__head::-webkit-details-marker { display: none; }
   summary.mw-object-row__head:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .mw-object-row__main { grid-column: 1; flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -78,7 +81,7 @@ export const SETTINGS_DOCUMENT_STYLES = `
   .mw-object-row__copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
   .mw-object-row__copy > strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
   .mw-object-row__copy > span { overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
-  .mw-object-row__state { flex: none; display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
+  .mw-object-row__state { flex: none; display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .mw-object-row__state > i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); }
   .mw-object-row__state > svg { flex: none; width: 14px; height: 14px; }
   .mw-object-row__state[data-mw-state] > :is(i, svg:not(.mw-state-ring)) { display: none; }
@@ -90,14 +93,14 @@ export const SETTINGS_DOCUMENT_STYLES = `
   .mw-object-row__chevron svg { width: 14px; height: 14px; }
   summary.mw-object-row__head:hover .mw-object-row__chevron { color: var(--ink-soft); }
   .mw-object-row__fold[open] > summary .mw-object-row__chevron { transform: rotate(90deg); color: var(--ink-soft); }
-  .mw-object-row__body { grid-area: 3 / 1 / 4 / -1; min-width: 0; margin: 0 0 0 44px; padding: 0 0 12px; }
+  .mw-object-row__body { grid-area: 3 / 1 / 4 / -1; min-width: 0; margin: 0 0 0 var(--text-start, 44px); padding: 0 0 12px; }
   .mw-object-row--plain .mw-object-row__body { margin-left: 0; }
   .mw-object-row--alert .mw-object-row__tile { color: var(--red); }
 
   .mw-question-list { margin: 0; display: grid; }
   .mw-question { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 36px; }
   .mw-question > dt { color: var(--muted); font-size: 12px; }
-  .mw-question > dd { min-width: 0; margin: 0; color: var(--ink); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+  .mw-question > dd { min-width: 0; margin: 0; color: var(--ink); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .mw-question > dd code { color: var(--ink-soft); font: 12px/1.5 var(--font-mono, ui-monospace, monospace); }
   .mw-question__action { display: flex; align-items: center; gap: 8px; }
 

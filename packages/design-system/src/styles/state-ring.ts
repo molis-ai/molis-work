@@ -17,4 +17,5 @@ export const STATE_RING_STYLES = `
   :is([data-mw-state][aria-hidden=true], .assistant-state-ring) > .mw-state-ring { margin: 0; }
   :is(.mw-btn--primary, .mw-btn--danger) .mw-state-ring { --ring-neutral: currentColor; }
   .mw-spinner > .mw-state-ring { width: 100%; height: 100%; }
+  .mw-state-ring--fixed { --ring-size: 20px; width: 20px; height: 20px; }
 `;

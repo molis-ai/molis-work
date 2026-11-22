@@ -3,6 +3,7 @@ import { workBriefActions, workBriefPersonalActions } from "./actions.js";
 import { WORK_BRIEF_DATABASE } from "./database.js";
 import { briefArtifactPreview } from "./fix.js";
 import { BRIEF_ARTIFACT_SCHEMA_VERSION, BRIEF_ARTIFACT_TYPE_ID, WORK_BRIEF_PLUGIN_ID } from "./identity.js";
+import { workBriefSync } from "./replication.js";
 import { WORK_BRIEF_VIEW_ID, workBriefPresentation, workBriefPresentationActions } from "./presentation.js";
 import { WORK_BRIEF_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -41,6 +42,7 @@ export const workBriefManifest: PluginManifest = {
   read_groups: [{ group_id: "work-brief", title: "简报", description: "项目的简报、它的版本与依据",
     actions: [workBriefActions.list.capability_id, workBriefActions.get.capability_id, "work-brief.subject.read", "work-brief.search.entries"] }],
   databases: { home: WORK_BRIEF_DATABASE },
+  sync: workBriefSync,
   capabilities: { provides: [], consumes: ["search.references"] },
   artifacts: {
     produces: [{ artifact_type_id: BRIEF_ARTIFACT_TYPE_ID, schema_version: BRIEF_ARTIFACT_SCHEMA_VERSION, title: "简报", title_text: { key: "work-brief.artifacts.type-title" },

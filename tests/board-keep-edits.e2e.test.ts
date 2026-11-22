@@ -91,7 +91,7 @@ test("N14: the board's four parts are named, in both languages and themes, insid
     const tones = await evaluate<{ kept: string; swapped: string; dot: string; theme: string }>(`(() => { const css = (s, p) => getComputedStyle(document.querySelector(s))[p];
       return { kept: css('#kept .mw-kept:not(.is-swapped)', 'backgroundColor'), swapped: css('#kept .mw-kept.is-swapped', 'backgroundColor'), dot: css('#step-dot .mw-step-dot', 'backgroundColor'), theme: getComputedStyle(document.body).colorScheme + '|' + getComputedStyle(document.documentElement).getPropertyValue('--amber-soft').trim() }; })()`);
     assert.notEqual(tones.kept, tones.swapped, `${at}: yours and the latest differ`);
-    assert.match(tones.theme, theme === "dark" ? /#30291a/i : /#f6efdf/i, `${at}: the theme's own amber`);
+    assert.match(tones.theme, theme === "dark" ? /#2d2313/i : /#fdf3e1/i, `${at}: the theme's own amber`);
     if (shots) {
       await evaluate(`(() => { let s = document.querySelector('#shot-only'); if (!s) { s = document.createElement('style'); s.id = 'shot-only'; document.head.append(s); }
         s.textContent = '.mw-catalog > .mw-catalog__section:not(${SCOPE}) { display: none !important; }'; document.querySelector('.mw-catalog').scrollTop = 0; })()`);

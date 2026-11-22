@@ -6,14 +6,12 @@
 
 ## 1. 统一骨架（严禁再写旧版 30px / 960px / 50px 导航方言）
 
-> **阶段说明**：当前 `HEAD` 设置左轨为 `220px`；下表 `228px` 统一导航轨、作用域切换段、侧栏过滤框以及第 3 节 `molisBusy` / `optimisticToggle` 均于 **`[91-0b 落定]`**。
-
 | 区域 | 唯一规范 | 禁用反例 |
 | --- | --- | --- |
-| **左列导航轨** | 固定 `228px`、`--surface-soft` 底、`1px solid var(--line)` 右分割线；顶部提供 **「全局设置 / 本项目：\<项目名\>」作用域切换段**（项目内打开时可见；记忆/能力包/角色/授权 4 个双端页一键跨作用域切换）+ **侧栏快捷过滤框** | 50px 巨高旧行、`5px` 野生圆角、`inset 2px` 左侧蓝竖条、无搜索让用户手动翻 21+ 页 |
-| **导航项** | 标准高 `32px`、`var(--r-control, 8px)` 圆角、`13px`；当前页用 `--nav-active` + `500` 字重；分组头 `11px / 500 / --muted` | 覆盖层与独立页两套不同选中样式 |
-| **右列文档区** | 左缘固定 `max-width: 760px`（`--measure-form`）纵向流；如有来路先摆 `mw-return-bar` 往返条；页头为 **`24px / 600` 标题 + 最多一句直白引言（无重底线）** | `30px` 标题加粗横线、`960px` 居中导致跨页左右跳轴 |
-| **桌面安全区** | 独立设置页左侧安全区一律读 `var(--desktop-window-safe-inline-start, 88px)`（全屏态自动归 `0`） | `project-settings-page.ts` 硬编码 `padding-left: 84px` |
+| **左列导航轨** | 固定 `228px`（独立设置页与项目设置页统一，不再 `248px` / `220px` 割裂）、`--nav-bg` 底、`1px solid var(--line)` 右分割线；全局设置顶部自带 **`[data-settings-nav-filter]` 侧栏实时过滤框**（自动隐藏空分组、`Escape` 清空，窄屏 `≤760px` 收起不干扰横向滚动条） | 50px 巨高旧行、`5px` 野生圆角、`inset 2px` 左侧竖条、无搜索让用户手动翻 20+ 页 |
+| **导航项** | 标准高 `32px`、`var(--r-control, 8px)` 圆角、`13px`、固定 `16px` 图标位 + `10px` 间距；当前页用 `--accent-soft` + `500` 字重 + `--accent-strong` 图标着色；分组头 `11px / 500 / --muted` | 覆盖层与独立页两套不同选中样式 |
+| **右列文档区** | 左缘固定 `max-width: 760px`（`--measure-form`）纵向流；如有来路先摆 `mw-return-bar` 往返条；页头为 **`24px / 600` 标题 + 最多一句直白引言（无重底线）**；卡片在深色模式下带 `1px` `--edge-highlight` 顶部高光；行内展开主体左齐 `var(--text-start, 44px)`，数值列一律 `tabular-nums` | `30px` 标题加粗横线、`960px` 居中导致跨页左右跳轴 |
+| **桌面安全区** | 独立设置页（同时匹配 `html[data-native-desktop="true"]` 与 `body[data-native-desktop="true"]`）左侧安全区一律读 `var(--desktop-window-safe-inline-start, 88px)`（全屏态自动归 `0`） | `project-settings-page.ts` 硬编码 `padding-left: 84px` |
 
 ---
 
@@ -37,7 +35,7 @@
 
 ## 3. 切页、保存反馈与插件接入契约
 
-- **切页防闪与方向感**：设置左侧切页接入 **`250ms` 延迟 `molisBusy`**（本地读库快于 `250ms` 绝不闪 `.mw-loading`）并轻触 `molisCraft.turn` 交代页面切换。
+- **切页防闪与方向感**：设置左侧切页使用 **`250ms` 延迟显现的 `.mw-loading`**（本地读库快于 `250ms` 绝不闪动，按钮保存操作走 `molisBusy`）并轻触 `molisCraft.turn` 交代页面切换方向。
 - **即时保存与失败回滚**：开关与选择型设置采用 `optimisticToggle`，保存失败当场弹回原值、恢复可点并在区块内原地标红报错（`role="alert"`），绝不静默吞错。
 - **配置往返**：从缺模型/缺连接的工作面跳来设置页时，顶部展示 `mw-return-bar`；保存成功后派发 `molis-work:model-ready`（或对应 `dom-events.ts` 事件）并带用户原路返回、保留草稿。
 - **插件设置页声明**：挂 `slot: "settings"` + `workbench.settings`，读自身数据用 `settings_data`、读路由参数用 `settings_address`、需运行时清单写 `settings_runtimes: true`（合同细则见 `skills/molis-plugin-dev/ui.md`）；数据源账号与业务列表留插件舞台，不塞进全局设置。

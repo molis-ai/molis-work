@@ -1,6 +1,7 @@
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { UPGRADE_OPENING_CLIENT_SCRIPT } from "../scripts/upgrade-opening.js";
+import { appearanceHead, type WorkbenchAppearance } from "../appearance-document.js";
 import { renderBarStatus, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 
 /**
@@ -9,7 +10,7 @@ import { renderBarStatus, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRI
  * "正在升级 n / m". It reads `/upgrade-progress` twice a second and reloads once something other than the maintenance listener answers
  * there, which is the Host serving again. It has no token, no store name and no content: only the two numbers.
  */
-export function renderUpgradeOpeningPage(lang: string): string {
+export function renderUpgradeOpeningPage(lang: string, appearance?: WorkbenchAppearance): string {
   const progress = uiText.text("workbench.upgrade-opening.upgrading", { done: "%done", total: "%total" });
   const status = renderBarStatus({ spin: true, title: progress, caption: uiText.text("workbench.upgrade-opening.caption") });
   return `<!doctype html>
@@ -21,6 +22,7 @@ export function renderUpgradeOpeningPage(lang: string): string {
   <title>Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
+  ${appearanceHead(appearance)}
 </head>
 <body class="arrival-page immersive-workbench" data-arrival="upgrading" data-upgrade-opening>
   ${renderIconSprite()}

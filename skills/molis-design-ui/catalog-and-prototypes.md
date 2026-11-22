@@ -6,12 +6,12 @@
 
 ## 1. 维护生产组件板 `/__ui/catalog`（7 章 + 子路由）
 
-1. **新增控件先上板，再进业务**：任何新 `mw-*` 原语、状态变体、反馈原语或复杂交互件，必须先在 `packages/design-system/src/primitives/catalog*.ts`（或工作台经 `extraChapters` 注入的标本文件）补齐全状态标本（默认 / 悬停 / 聚焦 / 忙碌 / 禁用 / 错误 / 空态），严禁用正则字符串拼接强插 HTML。
+1. **新增控件先上板，再进业务**：任何新 `mw-*` 原语、状态变体、反馈原语（如 `#platform-feedback`）或复杂交互件，必须先在 `packages/design-system/src/primitives/catalog*.ts`（或工作台经结构化 `CatalogExtraChapter` / `extraChapters` 注入的标本文件）补齐全状态标本（默认 / 悬停 / 聚焦 / 忙碌 / 禁用 / 错误 / 空态），严禁用 `.replace(...)` 正则字符串拼接强插 HTML。
 2. **目录与章节纪律**：
    - 保持 7 章中文名称稳定（受 `tests/design-language.test.ts` 保护）；`look-card` 标本保持紧邻 `typeface`（受 `tests/appearance-parts.test.ts` 保护）。
    - 标题不写死批次号，不留过期的「待共审」临时标签；所有标本文字走 `t()`，不得裸露未翻译 i18n 键或损坏快捷键。
-   - 左侧目录使用自适应布局（严禁写死 `grid-row: span 76` 截断新增章节），并支持按「全部 / 基础原语 / 外壳与场景 / 测试夹具」筛选。
-3. **子板 iframe 必须穿透外观**：`/bar`、`/navigation`、`/conditions`、`/assistant` 等所有子板文档必须挂齐 `appearanceHead()`，确保在组件板切换 4 套皮肤、F1 字体、明暗或紧凑密度时全部子框同步刷新。
+   - 左侧目录使用动态 `grid-row: 1 / span ${totalCount}`（严禁写死 `span 76` 截断新增章节），并提供 `[data-catalog-chapter]` 章节筛选芯片与 `[data-catalog-find]` 搜索框。
+3. **子板 iframe 必须穿透外观**：`/bar`、`/navigation`、`/conditions`、`/assistant` 等所有子板文档必须挂齐 `appearanceHead(appearance)`，确保在组件板切换 4 套皮肤、F1 字体、明暗或紧凑密度时全部子框同步刷新。
 4. **改组件板必跑关联测试**：组件板约有 70+ 个耦合单测与 E2E（`tests/*board*.test.ts`、`tests/primitives.test.ts`、`tests/design-language.test.ts`、`tests/appearance-parts.test.ts`、`tests/work-line-specimens.test.ts`），改结构后用 `node scripts/affected-tests.mjs` 挑出并全部跑绿。
 
 ---

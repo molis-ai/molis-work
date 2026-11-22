@@ -32,6 +32,12 @@ Remaining portable-owner work is Work/Coding (including fixed process items) and
 
 ## Verification
 
+### M1-B1 Risk and Work Brief acceptance scope
+
+- `AC-M1-01` Risk transfers a project-scoped risk, its business status, history, and typed references. The project owner remains authoritative for project identity and deletion. Schedule owns the risk's review task and its execution state. Receiving a risk uses the owner transaction and never schedules a review. Verify first delivery, incremental edit, a tombstone, concurrent versions and explicit resolution across two isolated personal Homes. Verify that a cross-project identity or invalid field preserves the prior record and journal.
+- `AC-M1-02` Work Brief transfers saved brief content and durable brief state through its existing Home library. Personal briefs are bound to their authenticated owner and project briefs retain their project identity. Running generation, temporary data and action-card inputs stay on the device. Restored next steps keep their text and object reference and can be handed to the assistant by the person. Verify first delivery, edit, deletion and conflict retention across two isolated personal Homes. Verify that receiving content does not dispatch a model, external API or background job.
+- `AC-M1-03` Verify each installed, enabled owner's adapter using its actual registration path: static bindings or Runtime discovery.
+
 ### Implemented slice: Workflows
 
 Per-definition and per-instance replication, not one database snapshot. Preserves station/provider versions, link rules, frozen instance chains, handoff input/output, action receipts and uncertain-attempt history. Restored instances are observation-only: a durable local marker rejects continuation/stop/save before model or receiver dispatch; copying history never transfers execution authority. The originating device remains authoritative for ongoing runs. A remote replacement of an actively executing local instance is rejected even during manual conflict resolution. Definitions remain editable on both devices with normal conflicts and target-local revision high-water marks. Restored instances wait for their workflow definition; missing station content remains an exact reference, never a fabricated replacement. No model, installer or scheduler runs during restore.

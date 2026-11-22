@@ -257,6 +257,51 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
   assert.equal(motion.closed, 0, "a closed row shows nothing under it");
   const opened = await page.evaluate<number[]>(`[${fold("gitlab")}.getBoundingClientRect().height, ${fold("gitlab")}.querySelector('.settings-connection-item__body').getBoundingClientRect().height]`);
   assert.ok(opened[0]! > 0 && Math.abs(opened[0]! - opened[1]!) <= 1, `an open row is as tall as what it holds: ${opened}`);
+
+  // BL-1062: frame by frame. The fold's height and the chevron's turn are one clock, and on every frame the clip is as tall
+  // as the fold. Both transitions are held and stepped to the same moments, so what is read does not depend on the machine.
+  type Frame = { at: number; fold: number; clip: number; turned: number };
+  const walk = await page.evaluate<{ missing?: boolean[]; clocks: { duration: number; delay: number; easing: string }[]; move: number; end: number; frames: Frame[] }>(`(() => {
+    const item = document.querySelector('[data-connector-item="notion"]');
+    const fold = item.querySelector(':scope > .settings-connection-item__fold'), clip = fold.querySelector('.settings-connection-item__clip');
+    const mark = item.querySelector('.settings-connection-item__toggle svg');
+    // Under automation the page holds still (no transition takes any time); here it moves as it does for a person.
+    document.documentElement.removeAttribute('data-craft-still');
+    void getComputedStyle(fold).blockSize;
+    // Pressed here, so the transitions are held on their first frame, before any time has passed.
+    item.querySelector('[data-connection-toggle]').click();
+    const moving = (node, names) => node.getAnimations().find(motion => names.includes(motion.transitionProperty));
+    const height = moving(fold, ['block-size', 'height']), turn = moving(mark, ['transform']);
+    if (!height || !turn) {
+      document.documentElement.setAttribute('data-craft-still', '');
+      return { missing: [Boolean(height), Boolean(turn)], clocks: [], move: 0, end: 0, frames: [] };
+    }
+    height.pause();
+    turn.pause();
+    const clock = motion => ({ duration: Number(motion.effect.getComputedTiming().duration), delay: Number(motion.effect.getComputedTiming().delay), easing: motion.effect.getTiming().easing });
+    const clocks = [clock(height), clock(turn)];
+    const frames = [.1, .3, .5, .7, .9].map(at => {
+      height.currentTime = turn.currentTime = at * clocks[0].duration;
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(mark).transform);
+      return { at, fold: fold.getBoundingClientRect().height, clip: clip.getBoundingClientRect().height, turned: Math.atan2(matrix.b, matrix.a) / Math.PI };
+    });
+    height.finish();
+    turn.finish();
+    document.documentElement.setAttribute('data-craft-still', '');
+    return { clocks, move: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-move')), end: fold.getBoundingClientRect().height, frames };
+  })()`);
+  assert.equal(walk.missing, undefined, `the fold's height and the chevron both move when a row opens: ${walk.missing}`);
+  assert.equal(walk.clocks[0]!.duration, walk.move, "the fold takes the move clock's time");
+  assert.ok(walk.move >= 100, `the move clock is a real length here, not a still page's: ${walk.move}`);
+  assert.deepEqual(walk.clocks[1], walk.clocks[0], "the chevron turns on the fold's clock: same length, same wait, same curve");
+  assert.ok(walk.end > 0, "the row ends open");
+  let last = 0;
+  for (const frame of walk.frames) {
+    assert.ok(Math.abs(frame.clip - frame.fold) <= 1, `the clip is as tall as the fold at ${frame.at}: ${frame.clip} and ${frame.fold}`);
+    assert.ok(Math.abs(frame.fold / walk.end - frame.turned) <= 0.02, `height and turn are equally far along at ${frame.at}: ${frame.fold / walk.end} and ${frame.turned}`);
+    assert.ok(frame.fold > last && frame.fold < walk.end, `the fold only grows on the way: ${frame.fold} after ${last}, of ${walk.end}`);
+    last = frame.fold;
+  }
   assert.deepEqual(exceptions, []);
 });
 

@@ -3,7 +3,6 @@
  *  Stringified into the browser factory — keep parameter lists type-annotation-free. */
 
 export const TAB_REORDER_MS = 190;
-export const TAB_REORDER_EASE = "cubic-bezier(.16, 1, .3, 1)";
 
 /** Clone state, run the same moveTab the drop handler uses, return dest order. */
 export const tabIdsAfterMove = (state: any, ops: any, fromId: string, tabId: string, toId: string, beforeId: string | undefined, copy: boolean) => {

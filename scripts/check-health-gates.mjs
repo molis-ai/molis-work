@@ -451,6 +451,7 @@ const METRIC_BASE_INPUTS = {
   oldNames: (file) => isSource(file) || oldNamesWantsText(file),
   scriptConstants: isSource,
   directEllipsisCuts: isSource,
+  curveLiterals: isSource,
   rawFetchInScripts: (file) => isSource(file) || browserWantsText(file),
   packedStatements: isSource,
   contractsPurity: (file) => isStructureSource(file) || structureWantsText(file),

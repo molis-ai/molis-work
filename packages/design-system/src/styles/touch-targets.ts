@@ -46,7 +46,8 @@ export const TOUCH_TARGET_STYLES = `
     ${SHELL} :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --ops-btn: 44px; }
     ${ASSIST} .assistant-head { height: 52px; }
-    ${ASSIST} .assistant-head .dock-window-action { width: 44px; height: 44px; }
+    /* At 44px the key is no longer a small part: it comes back without overshooting (POLISH-35). */
+    ${ASSIST} .assistant-head .dock-window-action { width: 44px; height: 44px; transition-timing-function: var(--ease-quint); }
     ${ASSIST} .info-tab { height: 44px; }
     ${ASSIST} :is(.assistant-works, .assistant-more) { top: 50px; }
     ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { top: 52px; }

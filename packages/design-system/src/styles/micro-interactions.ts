@@ -56,7 +56,7 @@ export const MICRO_INTERACTION_STYLES = `
   }
   body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before {
     transition:
-      transform 250ms var(--ease-spring);
+      transform 250ms var(--ease-quint);
   }
   body ${SEGMENTED}[data-seg-thumb] > :is(button, a) { position: relative; z-index: 1; }
   body ${SEGMENTED}[data-seg-thumb] > ${SEGMENT_CURRENT},

@@ -83,7 +83,7 @@ export async function measureServed(root, probe = []) {
     if (typeof pageAssets[name] !== "function") return fail(`apps/workbench/dist/page-assets.js no longer exports ${name}`);
   }
   if (!Array.isArray(packsModule.BUILTIN_PLUGIN_WORKBENCH)) return fail("apps/workbench/dist/plugin-workbench.js no longer exports BUILTIN_PLUGIN_WORKBENCH");
-  if (typeof packsModule.pluginOnDemandStylesheet !== "function") return fail("apps/workbench/dist/plugin-workbench.js no longer exports pluginOnDemandStylesheet");
+  if (typeof packsModule.pluginFrameServedStylesheet !== "function") return fail("apps/workbench/dist/plugin-workbench.js no longer exports pluginFrameServedStylesheet");
 
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkPluginBaseStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
   const served = assetsModule.createLocalWebAssets({
@@ -94,8 +94,8 @@ export async function measureServed(root, probe = []) {
     ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`),
     // Additional client bundles declared by a plugin's registration (e.g. Pages' editor bundle).
     ...packsModule.BUILTIN_PLUGIN_WORKBENCH.flatMap((pack) => pack.clientAssets ?? []),
-    // A framed or shell-linked plugin's own sheet (PG-070, PEQ-08): the rules of its namespace, sent only where its page links it.
-    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => packsModule.pluginOnDemandStylesheet(pack.project_plugin_id)).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.css`),
+    // Every plugin sheet the host serves at /assets/molis-work-plugins/<id>.css (PG-070, PEQ-08, 102-1).
+    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => packsModule.pluginFrameServedStylesheet(pack.project_plugin_id)).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.css`),
   ];
   const measured = {};
   const gzip = {};

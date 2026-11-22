@@ -247,6 +247,48 @@ test("102-1 plugin-frame navigation normalizes and dispatches platform-aware sho
   assert.equal(posted.length, 0);
   assert.equal(fireKey({ key: "[", code: "BracketLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, target: new FakeElement(false) }), true);
   assert.deepEqual(JSON.parse(JSON.stringify(posted)), [{ type: "shortcut", keys: "Mod+BracketLeft" }]);
+
+  // 102-1 audit: childContext ignores key repeat and IME composition for Mod+. while forwarding genuine presses.
+  const ctxBundled = buildSync({
+    entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/context-child.ts", import.meta.url))],
+    bundle: true, format: "iife", globalName: "frameContextChildMod", platform: "browser", write: false,
+  }).outputFiles[0]!.text;
+  const ctxListeners = new Map<string, Array<(e: unknown) => void>>();
+  const ctxPosted: unknown[] = [];
+  const ctxVm: Record<string, unknown> = {
+    navigator: { platform: "MacIntel" },
+    Element: FakeElement,
+    HTMLElement: FakeHTMLElement,
+    document: { querySelector: () => null, activeElement: null },
+    window: { dispatchEvent: () => {} },
+    getSelection: () => null,
+  };
+  runInNewContext(ctxBundled, ctxVm);
+  const { childContext } = ctxVm.frameContextChildMod as {
+    childContext(port: unknown, scope: unknown, root: unknown): void;
+  };
+  childContext(
+    { postMessage: (msg: unknown) => ctxPosted.push(msg) },
+    {
+      alive: true,
+      own: () => {},
+      listen: (_target: unknown, type: string, fn: (e: unknown) => void) => {
+        (ctxListeners.get(type) ?? ctxListeners.set(type, []).get(type)!).push(fn);
+      },
+    },
+    new FakeElement(false),
+  );
+  const fireContextKey = (init: Record<string, unknown>) => {
+    let prevented = false;
+    const ev = { key: ".", code: "Period", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false, isComposing: false, defaultPrevented: false, target: new FakeElement(false), preventDefault: () => { prevented = true; }, ...init };
+    for (const fn of ctxListeners.get("keydown") ?? []) fn(ev);
+    return prevented;
+  };
+  assert.equal(fireContextKey({ repeat: true }), false, "childContext must ignore held key repeats");
+  assert.equal(fireContextKey({ isComposing: true }), false, "childContext must ignore IME composition events");
+  assert.equal(ctxPosted.length, 0);
+  assert.equal(fireContextKey({}), true, "childContext forwards genuine Mod+.");
+  assert.deepEqual(JSON.parse(JSON.stringify(ctxPosted)), [{ type: "context-key" }]);
 });
 
 test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <head> and rejects foreign/non-asset/embedded links", () => {

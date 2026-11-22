@@ -651,13 +651,6 @@ ${TAB_WORKSPACE_DRAG_PART}
       const ask = panes.recordAsk(event);
       if (ask) { document.querySelector('[data-work-surface="' + CSS.escape(ask.plugin) + '"]')?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: ask.itemId, quiet: ask.quiet } })); return; }
       if (event.data.type !== "workbench-view") return;
-      const signed = event.data.signedHomeTarget;
-      if (signed) {
-        if (typeof signed.plugin !== "string" || typeof signed.href !== "string" || !signed.selection || ops.shownPlugin(ops.focused(state)) !== signed.plugin) return;
-        const target = signedHomeStage(findTopLevelSurface(signed.plugin), signed.owner, signed.href);
-        if (target) signedHomeSelection(target, signed.href, { panel: signed.selection.panel, itemId: signed.selection.itemId });
-        return;
-      }
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); if (tab) projectOwnSurface(ops.focused(state), tab.plugin, { id: event.data.view, surface: event.data.surface, panel: event.data.panel, intent: event.data.intent }, tab); }
       return;

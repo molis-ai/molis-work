@@ -331,7 +331,12 @@ ${TAB_WORKSPACE_CLONES_PART}
         node.dataset.shownAt = String(Date.now());
         mountedNow.add(node);
         if (node.matches('[data-work-surface="home"][data-pane-clone]') && !mountedHomeClones.has(node)) {
-          mountedHomeClones.set(node, host.mountHomeClone?.(node) || null);
+          const handle = host.mountHomeClone?.(node);
+          if (handle) mountedHomeClones.set(node, handle);
+        }
+        if (node.matches('[data-work-surface="materials"][data-pane-clone]') && !mountedMaterialsClones.has(node)) {
+          const handle = host.mountMaterialsClone?.(node);
+          if (handle) mountedMaterialsClones.set(node, handle);
         }
         if (tab) {
           if (!unchanged || pageClient?.(tab.plugin)?.showTab) applyTabContent(pane, tab, node, keepFrame);
@@ -374,9 +379,19 @@ ${TAB_WORKSPACE_CLONES_PART}
     collectMounted().forEach((node) => {
       if (mountedNow.has(node) || node.parentElement === pool) return;
       rememberScroll(node);
-      if (node.querySelector("iframe[data-plugin-frame]") || node.hasAttribute("data-pane-clone") || node.hasAttribute("data-pane-tab")) {
+      if (node.querySelector("iframe[data-plugin-frame]")) {
         node.hidden = true;
+      } else if (node.hasAttribute("data-pane-clone")) {
+        const ownerPane = paneById(node.closest("[data-tab-pane]")?.dataset.tabPane);
+        if (state.panes.length < 2 || !ownerPane || node.dataset.paneTab === paneFrameKey(ownerPane)) {
+          disposeClone(node);
+        } else {
+          node.hidden = true;
+        }
       } else {
+        node.hidden = true;
+        delete node.dataset.paneTab;
+        delete node.dataset.paneKey;
         pool.append(node);
       }
     });

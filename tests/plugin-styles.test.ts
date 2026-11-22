@@ -5,12 +5,12 @@ import { createServer } from "node:http";
 import nodeTest from "node:test";
 import { createLocalWebAssets, htmlLang, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
-  parseConditionFrame, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
+  parseConditionFrame, pluginFrameServedStylesheet, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
   renderCharacters, renderPluginSettingsContribution,
   pluginWorkbenchPacks, pluginWorkbenchStyles, renderMolisWorkConditionsSpecimen, renderPluginFrameSurface, selectorNames,
   splitPluginStylesheet, SETTINGS_DIRECTORY_FACTORY_SCRIPT, type BuiltinPluginWorkbenchPack, type MolisWorkSettingsView,
 } from "@molis-ai/molis-work-app-workbench";
-import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
+import { renderMolisWorkPluginBaseStylesheet, renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // PG-070: a plugin whose page runs in a frame sends the rules of its own namespace as a sheet of its own, which only the frames that
 // need it link. What moves is decided by the names in the selectors, so a rule never changes what it applies to; the shared sheet
@@ -389,7 +389,6 @@ test("PEQ-08 Goals styles live in plugins/native/goals as an on-demand sheet lin
   assert.match(withGoals, /<link rel="stylesheet" href="\/assets\/molis-work-plugins\/goals\.css" data-plugin-shell-style="goals">/, "PEQ-08: projects with Goals link goals.css on demand");
 });
 
-
 // BL-b44-feed-home-dir-and-styles: the platform's shared style modules name no Feed class; what lists share is `mw-`, and Feed's own
 // rules are in Feed's sheet. (The plugin style gate measures registered sheets, not these modules; BL-b44-shared-styles-plugin-names.)
 test("BL-b44-feed-home-dir-and-styles the platform's shared style modules name no Feed class", () => {
@@ -399,4 +398,50 @@ test("BL-b44-feed-home-dir-and-styles the platform's shared style modules name n
       assert.deepEqual(named, [], `${folder}/${file}`);
     }
   }
+});
+
+test("102-1 PEQ plugin-base stylesheet ships all core SDK primitives and plugin-workbench serves feature sheets declaratively with zero hardcoded plugin IDs", () => {
+  const base = renderMolisWorkPluginBaseStylesheet();
+  for (const marker of [
+    ".mw-label", ".mw-check-group", ".mw-number",
+    ".mw-severity-grid", ".mw-calendar", ".mw-date-picker",
+    ".mw-sidebar", ".mw-frame", ".mw-diff",
+    'html[data-resolved-terminal-theme="dark"]',
+    ':focus-visible:not([class^="mw-"])',
+    "animation-duration: .01ms !important",
+  ]) {
+    assert.ok(base.includes(marker), `102-1: molis-work-plugin-base.css must include core SDK primitive/invariant ${marker}`);
+  }
+  const wbSource = readFileSync(new URL("../apps/workbench/src/plugin-workbench.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(wbSource, /FRAMED_PLUGIN_EXTRA_STYLES|FRAMED_LAYOUT_SHELL/, "102-1 PEQ: hardcoded per-plugin style tables must not exist");
+  for (const id of ["coding", "feed", "git", "inbox", "jelly", "pages", "risk", "schedule", "shelf", "work-brief"]) {
+    assert.doesNotMatch(wbSource, new RegExp(`["']${id}["']\\s*:`), `102-1 PEQ: plugin-workbench.ts must not branch on plugin id ${id}`);
+  }
+  // Declarative feature opt-in works equally for any third-party or custom pack (with or without its own stylesheet).
+  const customPack: BuiltinPluginWorkbenchPack = {
+    project_plugin_id: "acme-custom",
+    contributions: [],
+    clientFactory: "() => {}",
+    stylesheet: ".acme-custom-root { display: grid; }",
+    frameStyleFeatures: ["composer"],
+  };
+  const served = pluginFrameServedStylesheet("acme-custom", [customPack]);
+  assert.ok(served && served.includes(".acme-custom-root") && served.includes(".mw-composer"), "102-1 PEQ: declarative frameStyleFeatures appends opted-in shared feature styles for any plugin");
+  const featureOnlyPack: BuiltinPluginWorkbenchPack = {
+    project_plugin_id: "acme-feature-only",
+    contributions: [],
+    clientFactory: "() => {}",
+    frameStyleFeatures: ["detail-reading"],
+  };
+  const featureOnlyServed = pluginFrameServedStylesheet("acme-feature-only", [featureOnlyPack]);
+  assert.ok(featureOnlyServed && featureOnlyServed.includes(".mw-detail"), "102-1 PEQ: stylesheet-less framed plugin with frameStyleFeatures still gets served");
+  // Regression guards from independent review + visual-compare + #2218 parity: expanded plugin stage matches full-stage single-record rule with no undefined --immersive-sidebar-width, dark .mw-select preserves chevron sizing/position against generic dark select shorthand, and picker trigger starts with mw- so [class^="mw-"] focus-ring rules match.
+  assert.ok(base.includes('.plugin-stage-shell[data-expanded="true"]') && !base.includes("--immersive-sidebar-width"), "102-1: plugin-base expanded stage matches #2218 single-record rule without undefined --immersive-sidebar-width");
+  for (const sheet of [base, renderMolisWorkWorkbenchStylesheet()]) {
+    assert.match(sheet, /html\[data-resolved-theme="dark"\] \.mw-select \{\s*background-repeat: no-repeat;\s*background-position: right 8px center;\s*background-size: 14px 14px;/, "102-1: dark .mw-select must explicitly restore chevron repeat/position/size");
+  }
+  assert.match(base, /body\.immersive-workbench \.mw-select-picker__trigger:focus-visible \{[^}]*border-color: var\(--accent\)/, "102-1: select-picker focus ring must keep (0,3,1) specificity over plugin field borders");
+  assert.match(base, /\.plugin-stage-detail-bar \{[\s\S]*?> span \{ flex: none;/, "102-1: detail-bar > span must stay (0,1,1) so span[data-placement-slot] (0,2,1) can shrink at 390px");
+  const selectMenuSrc = readFileSync(new URL("../packages/design-system/src/select-menu-client.ts", import.meta.url), "utf8");
+  assert.match(selectMenuSrc, /"mw-select-picker__trigger " \+ select\.className/, "102-1: select-picker trigger must start with mw- class for [class^='mw-'] focus-visible parity");
 });

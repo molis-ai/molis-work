@@ -7,7 +7,7 @@ import { frameContainerClient } from "./frame-container.js";
 import { lifecycleClient } from "./lifecycle.js";
 import { momentumClient } from "./momentum.js";
 import { navigationClient } from "./navigation.js";
-import type { PageHost } from "./page-host.js";
+import { stripCopyIds, type PageHost } from "./page-host.js";
 import { pageHooks } from "./page-hooks.js";
 import { type GoalDataElement, type PageState, pageRefresh } from "./page-refresh.js";
 import { panelsClient } from "./panels.js";
@@ -213,6 +213,7 @@ export function goalsPageClient(host: PageHost) {
         documentPane: targetPane, documentCollection, route, isAbortError,
         showError: (message) => showToast(message, true),
         afterReplace: () => {
+          stripCopyIds(targetPane);
           targetPane.dataset.boardCursor = goalData.boardCursor == null ? "" : String(goalData.boardCursor);
           events.bindGoalEventDocument(pendingRestore);
           pendingRestore = null;

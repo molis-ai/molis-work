@@ -7,7 +7,7 @@ import type { frameContainerClient } from "./frame-container.js";
 import type { momentumClient } from "./momentum.js";
 import type { CanvasView } from "./momentum-viewport.js";
 import type { navigationClient } from "./navigation.js";
-import type { PageHost, PaneRoot, PaneShowing, SavedUi, WorkbenchTab } from "./page-host.js";
+import { stripCopyIds, type PageHost, type PaneRoot, type PaneShowing, type SavedUi, type WorkbenchTab } from "./page-host.js";
 import type { GoalDataElement, PageState, pageRefresh } from "./page-refresh.js";
 import type { panelsClient } from "./panels.js";
 import type { relationClient } from "./relation.js";
@@ -221,6 +221,7 @@ export function pageHooks(parts: HookParts) {
     if (primaryList && copyList) {
       copyList.hidden = false;
       copyList.innerHTML = primaryList.innerHTML;
+      stripCopyIds(copyList);
     }
     shellNode.querySelectorAll<HTMLElement>(":scope > [data-goal-momentum], :scope > [data-goal-kanban], :scope > [data-goal-stage-chrome]").forEach((child) => { child.hidden = true; });
   };
@@ -285,7 +286,6 @@ export function pageHooks(parts: HookParts) {
       template: "shell",
       primary: q("[data-goal-canvas-shell]:not([data-pane-clone])") || q("[data-document-pane]:not([data-pane-clone])"),
       matches: "[data-goal-canvas-shell]",
-      perTab: true,
       ...(tab?.kind === "item" ? { mark: { goalWorkClone: "true" } } : {}),
     };
   const paneTemplates = () => {

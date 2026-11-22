@@ -19,34 +19,55 @@ test("VUX-14/15: stream text keeps unchanged nodes, eases in only grown text by 
   await waitFor("typeof window.molisStreamText === 'function'");
   await evaluate("window.box = document.body.appendChild(document.createElement('div')); window.put = (html, reveal = true) => window.molisStreamText(window.box, html, { reveal })");
   const put = (html: string, reveal = true) => evaluate<{ kept: number; replaced: number; fresh: number }>(`window.put(${JSON.stringify(html)}, ${reveal})`);
+  const putFresh = (html: string) => evaluate<{ kept: number; replaced: number; fresh: number; pieces: string[] }>(
+    `(() => {
+      const result = window.put(${JSON.stringify(html)}, true);
+      const pieces = [...window.box.querySelectorAll('.mw-fresh')].map(piece => piece.textContent ?? '');
+      return { ...result, pieces };
+    })()`,
+  );
   const fresh = () => evaluate<string[]>("[...window.box.querySelectorAll('.mw-fresh')].map(piece => piece.textContent)");
   const settled = async () => { await waitFor("!window.box.querySelector('.mw-fresh')", 3_000); return evaluate<string>("window.box.innerHTML"); };
 
   // The first block is kept as the same node, with a selection in it; inside the wrapper only the text that went on is fresh.
   await put(`<div class="rich"><p>先看 <strong>第一段</strong>。</p><p>第二</p></div>`, false);
   await evaluate("window.first = window.box.querySelector('p'); getSelection().selectAllChildren(window.first.querySelector('strong'))");
-  const grown = await put(`<div class="rich"><p>先看 <strong>第一段</strong>。</p><p>第二段写下去</p></div>`);
-  assert.equal(await evaluate("window.first === window.box.querySelector('p') && window.first.parentElement === window.box.firstChild"), true, "the unchanged block and its wrapper stay the same nodes");
-  assert.equal(await evaluate("getSelection().toString()"), "第一段", "a selection in a kept block survives the update");
-  assert.deepEqual(await fresh(), ["段写下去"], "only the text that went on is shown arriving");
-  assert.equal(grown.fresh, 1);
-  assert.equal(await evaluate("getComputedStyle(window.box.querySelector('.mw-fresh')).animationName"), "mw-fresh");
+  const grown = await evaluate<{ result: { kept: number; replaced: number; fresh: number }; sameNode: boolean; selection: string; fresh: string[]; animationName: string }>(
+    `(() => {
+      const result = window.put(${JSON.stringify(`<div class="rich"><p>先看 <strong>第一段</strong>。</p><p>第二段写下去</p></div>`)}, true);
+      const piece = window.box.querySelector('.mw-fresh');
+      return {
+        result,
+        sameNode: window.first === window.box.querySelector('p') && window.first.parentElement === window.box.firstChild,
+        selection: getSelection().toString(),
+        fresh: [...window.box.querySelectorAll('.mw-fresh')].map(node => node.textContent ?? ''),
+        animationName: piece ? getComputedStyle(piece).animationName : '',
+      };
+    })()`,
+  );
+  assert.equal(grown.sameNode, true, "the unchanged block and its wrapper stay the same nodes");
+  assert.equal(grown.selection, "第一段", "a selection in a kept block survives the update");
+  assert.deepEqual(grown.fresh, ["段写下去"], "only the text that went on is shown arriving");
+  assert.equal(grown.result.fresh, 1);
+  assert.equal(grown.animationName, "mw-fresh");
   assert.equal(await settled(), `<div class="rich"><p>先看 <strong>第一段</strong>。</p><p>第二段写下去</p></div>`, "finished pieces go back to the renderer's HTML");
 
   // A grapheme cut by the stream is revealed whole: the half that was already shown comes back with the rest.
   await put("<p>完成 👩</p>", false);
-  await put("<p>完成 👩‍💻 了</p>");
-  assert.deepEqual(await fresh(), ["👩‍💻 了"], "the emoji sequence is not split");
+  assert.deepEqual((await putFresh("<p>完成 👩‍💻 了</p>")).pieces, ["👩‍💻 了"], "the emoji sequence is not split");
   await settled();
 
   // A link keeps its address while its words grow; code shows at once; rewritten text is not shown arriving.
   await put(`<p>见 <a href="https://example.com/a?b=1&amp;c=2">链</a></p><pre><code>const a = 1;</code></pre>`, false);
-  await put(`<p>见 <a href="https://example.com/a?b=1&amp;c=2">链接文字</a></p><pre><code>const a = 1;\nconst b = 2;</code></pre><p>新的一段</p>`);
-  assert.deepEqual(await fresh(), ["接文字", "新的一段"], "the link's new words and the new block arrive; the code does not");
+  assert.deepEqual(
+    (await putFresh(`<p>见 <a href="https://example.com/a?b=1&amp;c=2">链接文字</a></p><pre><code>const a = 1;\nconst b = 2;</code></pre><p>新的一段</p>`)).pieces,
+    ["接文字", "新的一段"],
+    "the link's new words and the new block arrive; the code does not",
+  );
   assert.equal(await evaluate("window.box.querySelector('a').getAttribute('href')"), "https://example.com/a?b=1&c=2");
   await settled();
-  await put("<p>改写成了别的话</p>", false); await put("<p>完全不同的一句</p>");
-  assert.deepEqual(await fresh(), [], "text rewritten rather than grown shows at once");
+  await put("<p>改写成了别的话</p>", false);
+  assert.deepEqual((await putFresh("<p>完全不同的一句</p>")).pieces, [], "text rewritten rather than grown shows at once");
 
   // A fast reply never queues: at most six pieces ease at a time, and the last update finishes them all.
   await put("<p>a</p>", false);

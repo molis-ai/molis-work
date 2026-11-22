@@ -26,44 +26,57 @@ export const MATERIALS_STAGE_STYLES = String.raw`
 /** Factory: the Workbench passes `route` and the shared `kit` (the file preview and `materialsReader`, built once in initialization). */
 // Shipped without its full-line comments and indentation (they stay in this source).
 export const MATERIALS_STAGE_FACTORY_SCRIPT = String.raw`(host) => {
-  const root=document.querySelector('[data-work-surface="materials"]');
-  if(!root)return;
   const readText=globalThis.t.text;
-  const $=(selector)=>root.querySelector(selector);
-  const body=$('[data-materials-stage-body]'),title=$('[data-materials-stage-title]'),meta=$('[data-materials-stage-meta]');
   const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const post=(path,body)=>molisWorkRequest(host.route(path),{body,fallback:readText("workbench.settings-page.that-did-not-finish")});
   const {renderFilePreview,materialsReader}=host.kit;
-  const render=(file)=>{
-    const type=file.media_type||'text/plain';
-    if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif)$/.test(type)){body.innerHTML='<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
-    if(file.encoding==='base64'){body.innerHTML='<p class="side-files-note">'+esc(readText("workbench.materials-stage.no-preview",{type}))+'</p>';return;}
-    body.innerHTML=renderFilePreview({...file,truncated:false},{escape:esc,text:readText});
+  const mountMaterials=(root)=>{
+    if(!root)return null;
+    const $=(selector)=>root.querySelector(selector);
+    const body=$('[data-materials-stage-body]'),title=$('[data-materials-stage-title]'),meta=$('[data-materials-stage-meta]');
+    if(!body||!title||!meta)return null;
+    const render=(file)=>{
+      const type=file.media_type||'text/plain';
+      if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif)$/.test(type)){body.innerHTML='<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
+      if(file.encoding==='base64'){body.innerHTML='<p class="side-files-note">'+esc(readText("workbench.materials-stage.no-preview",{type}))+'</p>';return;}
+      body.innerHTML=renderFilePreview({...file,truncated:false},{escape:esc,text:readText});
+    };
+    const reader=materialsReader({name:'stage-materials',ports:true,esc,body,tools:$('[data-stage-materials-tools]'),held:$('[data-stage-materials-held]'),problem:$('[data-stage-materials-problem]'),post,renderFile:render});
+    let current='',disposed=false;
+    const show=async(id)=>{
+      const at=id.indexOf(':'),request=current=id;
+      if(at<1){reader.close();delete root.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(readText("workbench.materials-stage.outside"))+'</p>';return;}
+      const path=id.slice(at+1).split('/'),subject={kind:'workspace_file',id};
+      title.textContent=path.at(-1)||readText("workbench.settings-agent-diagnostics.file");meta.textContent=path.slice(0,-1).join(' / ');
+      reader.close();body.innerHTML='<p class="side-files-note">'+esc(readText("workbench.assistant-tabs.loading"))+'</p>';body.scrollTop=0;
+      try{
+        const file=await molisWorkRequest(host.route('/api/materials/content?id='+encodeURIComponent(id)),{fallback:readText("workbench.side-panel-files.file-could-not-be-read")});
+        if(disposed||current!==request||!root.isConnected)return;
+        // What the person is looking at, for the Assistant and for the tab workspace's check that the file is shown.
+        root.dataset.assistantContext=JSON.stringify({plugin_id:'system.materials',object:{kind:subject.kind,id,title:file.title||title.textContent}});
+        if(await reader.open({item:{subject,title:file.title},file,isCurrent:()=>!disposed&&current===request&&root.isConnected}))return;
+        if(!disposed&&current===request&&root.isConnected)render(file);
+      }catch(error){
+        if(disposed||current!==request||!root.isConnected)return;
+        delete root.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';
+        root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));
+      }
+    };
+    const onSelect=(event)=>{
+      const detail=event.detail||{};
+      if(!detail.itemId||detail.itemId===current)return;
+      void show(detail.itemId);
+    };
+    root.addEventListener('molis-work:select-item',onSelect);
+    return {
+      dispose(){
+        disposed=true;
+        current='';
+        root.removeEventListener('molis-work:select-item',onSelect);
+        reader.dispose();
+      },
+    };
   };
-  const reader=materialsReader({name:'stage-materials',ports:true,esc,body,tools:$('[data-stage-materials-tools]'),held:$('[data-stage-materials-held]'),problem:$('[data-stage-materials-problem]'),post,renderFile:render});
-  let current='';
-  const show=async(id)=>{
-    const at=id.indexOf(':'),request=current=id;
-    if(at<1){reader.close();delete root.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(readText("workbench.materials-stage.outside"))+'</p>';return;}
-    const path=id.slice(at+1).split('/'),subject={kind:'workspace_file',id};
-    title.textContent=path.at(-1)||readText("workbench.settings-agent-diagnostics.file");meta.textContent=path.slice(0,-1).join(' / ');
-    reader.close();body.innerHTML='<p class="side-files-note">'+esc(readText("workbench.assistant-tabs.loading"))+'</p>';body.scrollTop=0;
-    try{
-      const file=await molisWorkRequest(host.route('/api/materials/content?id='+encodeURIComponent(id)),{fallback:readText("workbench.side-panel-files.file-could-not-be-read")});
-      if(current!==request)return;
-      // What the person is looking at, for the Assistant and for the tab workspace's check that the file is shown.
-      root.dataset.assistantContext=JSON.stringify({plugin_id:'system.materials',object:{kind:subject.kind,id,title:file.title||title.textContent}});
-      if(await reader.open({item:{subject,title:file.title},file,isCurrent:()=>current===request}))return;
-      if(current===request)render(file);
-    }catch(error){
-      if(current!==request)return;
-      delete root.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';
-      root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));
-    }
-  };
-  root.addEventListener('molis-work:select-item',event=>{
-    const detail=event.detail||{};
-    if(!detail.itemId||detail.itemId===current)return;
-    void show(detail.itemId);
-  });
+  mountMaterials(document.querySelector('[data-work-surface="materials"]:not([data-pane-clone])'));
+  return { mountClone: mountMaterials };
 }`.replace(/^[ \t]*\/\/.*\n/gm, "").replace(/^[ \t]+/gm, "");

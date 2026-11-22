@@ -40,7 +40,7 @@ export function frameEnvironment(port: MessagePort, scope: FrameScope, root: HTM
       scope.observe(new MutationObserver(state), document.documentElement, { attributes: true,
         attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
       const workspace = document.querySelector("[data-tab-workspace]");
-      if (workspace) scope.observe(new MutationObserver(state), workspace, { attributes: true, attributeFilter: ["data-exclusive"] });
+      if (workspace) scope.observe(new MutationObserver(state), workspace, { attributes: true, attributeFilter: ["data-exclusive", "data-solo", "data-split-narrow"] });
       scope.observe(new MutationObserver(state), frame, { attributes: true, attributeFilter: ["hidden"] });
     },
   };

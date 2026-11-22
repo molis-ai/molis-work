@@ -2,7 +2,7 @@
  * The Goals page's background refresh and its receipts (specs/page-client-lifecycle): reading the board again when the
  * platform's cursor moves, keeping forms someone is editing, and the receipt a decision or factor write leaves.
  */
-import type { PageHost } from "./page-host.js";
+import { stripCopyIds, type PageHost } from "./page-host.js";
 import type { GoalRefresh } from "./refresh.js";
 import type { GoalCollection, GoalListItem, GoalsPageData } from "./types.js";
 
@@ -128,6 +128,7 @@ export function pageRefresh(context: RefreshContext) {
       const current = goalSurfaceOf(pane);
       if (current && next) {
         current.replaceChildren(...next.cloneNode(true).childNodes);
+        stripCopyIds(current);
         parts().bindCopiedEventDocument(pane);
         pane.dataset.boardCursor = String(cursor);
       }
@@ -184,7 +185,7 @@ export function pageRefresh(context: RefreshContext) {
     }
     // Split panes showing the Goals list keep the same rows as the page's own list.
     const primaryStageList = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone]) [data-goal-stage-list]");
-    if (primaryStageList) document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => { list.innerHTML = primaryStageList.innerHTML; });
+    if (primaryStageList) document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => { list.innerHTML = primaryStageList.innerHTML; stripCopyIds(list); });
   };
   const readBoard = async ({ force, signal, cursor: hint }: RefreshRequest): Promise<"reloading" | undefined> => {
     if (document.hidden || !lifetime().visible || signal?.aborted) return;

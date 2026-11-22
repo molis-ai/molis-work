@@ -1,4 +1,4 @@
-import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { PluginFrameStyleFeature, PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { drawCatalogText } from "./plugin-text.js";
@@ -11,9 +11,6 @@ import {
   INTERACTION_STYLES,
   KEEP_EDITS_STYLES,
   PRESENTATION_FORM_STYLES,
-  PRIMITIVE_PLUGIN_CALENDAR,
-  PRIMITIVE_PLUGIN_LAYOUT_SHELL,
-  PRIMITIVE_PLUGIN_SEVERITY,
   SETTINGS_DOCUMENT_STYLES,
   SOURCE_LADDER_STYLES,
 } from "@molis-ai/molis-work-design-system";
@@ -118,40 +115,44 @@ export function pluginOnDemandStylesheet(id: string, packs: readonly BuiltinPlug
   return (pack && splitOf(pack)?.scoped) || null;
 }
 
-/** Lower-specificity layout-shell primitives for framed plugins so a later dependency sheet (e.g. git.css after coding.css) never overrides the host plugin's responsive overrides. */
-const FRAMED_LAYOUT_SHELL = PRIMITIVE_PLUGIN_LAYOUT_SHELL.replaceAll(":is(.mw-catalog, .mw-layout-primitives)", ":where(.mw-catalog, .mw-layout-primitives)");
-
-const FRAMED_PLUGIN_EXTRA_STYLES: Readonly<Record<string, string>> = {
-  coding: `${FRAMED_LAYOUT_SHELL}${COMPOSER_STYLES}${CODING_BASICS_STYLES}${CODING_COMPANION_STYLES}${SETTINGS_DOCUMENT_STYLES}${INPUT_RECEIPTS_STYLES}${INTERACTION_STYLES}.assistant-code pre{tab-size:var(--code-tab,4)}`,
-  feed: `${KEEP_EDITS_STYLES}${SOURCE_LADDER_STYLES}${DETAIL_READING_STYLES}`,
-  git: `${FRAMED_LAYOUT_SHELL}${CODING_BASICS_STYLES}${CODING_COMPANION_STYLES}`,
-  inbox: `${PRESENTATION_FORM_STYLES}${DETAIL_READING_STYLES}`,
-  jelly: PRIMITIVE_PLUGIN_CALENDAR,
-  pages: CONTEXT_TOOLBAR_STYLES,
-  risk: `${PRIMITIVE_PLUGIN_SEVERITY}${FRAMED_LAYOUT_SHELL}`,
-  schedule: DETAIL_READING_STYLES,
-  shelf: SETTINGS_DOCUMENT_STYLES,
-  "work-brief": FRAMED_LAYOUT_SHELL,
+/**
+ * Declarative specialized feature sheets opted in by framed plugins via `workbench.frameStyleFeatures` (PEQ, 102-1).
+ * Core SDK UI primitives (`mw-label`, `mw-number`, `mw-severity-grid`, `mw-calendar`, `mw-sidebar`/`mw-frame`, `mw-diff`)
+ * live in `molis-work-plugin-base.css` for all plugins; no plugin IDs are hardcoded here.
+ */
+const FRAME_STYLE_FEATURES: Readonly<Record<PluginFrameStyleFeature, string>> = {
+  "coding-basics": CODING_BASICS_STYLES,
+  "coding-companions": CODING_COMPANION_STYLES,
+  composer: COMPOSER_STYLES,
+  "context-toolbar": CONTEXT_TOOLBAR_STYLES,
+  "detail-reading": DETAIL_READING_STYLES,
+  "input-receipts": INPUT_RECEIPTS_STYLES,
+  interaction: INTERACTION_STYLES,
+  "keep-edits": KEEP_EDITS_STYLES,
+  "presentation-form": PRESENTATION_FORM_STYLES,
+  "settings-document": SETTINGS_DOCUMENT_STYLES,
+  "source-ladder": SOURCE_LADDER_STYLES,
 };
 
 /**
  * Full stylesheet served at `/assets/molis-work-plugins/<id>.css` for opaque plugin frames (102-1).
- * Framed plugins now load the lightweight `molis-work-plugin-base.css` instead of `molis-work-workbench.css`,
+ * Framed plugins load the lightweight `molis-work-plugin-base.css` instead of `molis-work-workbench.css`,
  * so their served on-demand sheet includes their own `shared` split rules (e.g. `@keyframes`, `.pc-*`, `.alc-*`)
- * plus any specialized design-system feature sheet only that plugin renders. `pluginOnDemandStylesheet` stays unchanged.
+ * plus any specialized feature sheets declared in `workbench.frameStyleFeatures`. `pluginOnDemandStylesheet` stays unchanged.
  */
 export function pluginFrameServedStylesheet(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string | null {
   const pack = packs.find(candidate => candidate.project_plugin_id === id);
-  const split = pack ? splitOf(pack) : null;
-  if (!split?.scoped) return null;
-  if (!pack?.clientFactory) return split.scoped;
-  const extra = FRAMED_PLUGIN_EXTRA_STYLES[id] ?? "";
-  return `${extra}${split.shared}${split.scoped}`;
+  if (!pack) return null;
+  const split = splitOf(pack);
+  if (!pack.clientFactory) return split?.scoped || null;
+  const extra = (pack.frameStyleFeatures ?? []).map(feature => FRAME_STYLE_FEATURES[feature] ?? "").join("");
+  if (!split?.scoped && !extra) return null;
+  return `${extra}${split?.shared ?? ""}${split?.scoped ?? ""}`;
 }
 
 /** The sheets a plugin's frame links: its own, then those of the plugins whose classes it draws. */
 function framedStyles(pack: BuiltinPluginWorkbenchPack, packs: readonly BuiltinPluginWorkbenchPack[]): string[] {
-  return [...new Set([pack.project_plugin_id, ...(pack.stylesheetUses ?? [])])].filter(id => pluginOnDemandStylesheet(id, packs) !== null);
+  return [...new Set([pack.project_plugin_id, ...(pack.stylesheetUses ?? [])])].filter(id => pluginFrameServedStylesheet(id, packs) !== null);
 }
 
 /** The rules every plugin's settings pages draw with, for the settings sheet and the workbench sheet (settings open inside a project). */

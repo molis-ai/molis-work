@@ -90,8 +90,12 @@ export interface PaneRoot {
   readonly primary: Element | null;
   /** Matches the page and its copies. */
   readonly matches: string;
-  /** One copy per tab (rather than one page reused while a single pane shows it). */
-  readonly perTab?: boolean;
   /** Data attributes set on a new copy. */
   readonly mark?: Readonly<Record<string, string>>;
 }
+
+/** A pane's copy of a Goals page keeps no ids: they belong to the page itself, and a copy repeating them breaks lookups and labels (#2229). */
+export const stripCopyIds = (node: Element): void => {
+  if (node.id) node.removeAttribute("id");
+  node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+};

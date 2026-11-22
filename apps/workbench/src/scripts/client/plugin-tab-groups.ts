@@ -119,6 +119,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   };
   document.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() !== "t" || !event.shiftKey || event.altKey || !(event.metaKey || event.ctrlKey) || editable(event.target)) return;
+    if (embedded) { event.preventDefault(); notify("workbench-pane-reopen"); return; }
     if (reopen()) event.preventDefault();
   });
   /** Open a record as a tab in its plugin's group and keep the pane where it is; a split pane asks the workbench to. */

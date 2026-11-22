@@ -15,7 +15,7 @@ export function childContext(port: MessagePort, scope: FrameScope, root: HTMLEle
     const mac = typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0 ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
     const mod = mac ? (key.metaKey && !key.ctrlKey) : (key.ctrlKey !== key.metaKey);
     const inTerminal = key.target instanceof Element && Boolean(key.target.closest("[data-tui-pane],.xterm"));
-    if (!key.defaultPrevented && !inTerminal && mod && !key.shiftKey && !key.altKey && key.key === ".") {
+    if (!key.defaultPrevented && !inTerminal && !document.querySelector("dialog[open],:popover-open") && mod && !key.shiftKey && !key.altKey && key.key === ".") {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       key.preventDefault(); send({ type: "context-key" });
     }

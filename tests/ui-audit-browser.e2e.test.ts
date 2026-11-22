@@ -141,11 +141,11 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   // An active entry's visible title is Inbox's own presentation chip; the h1 keeps the same words for screen readers only.
   // VISIBLE_TITLE picks the chip's tag when there is one, else the h1; TITLE_TEXT is the element holding the words.
   // "header" is the header's content width: the title should take the whole line inside its padding, not a narrow strip.
-  const VISIBLE_TITLE = "(h1 => h1.closest('.feed-detail-header').querySelector('.inbox-object-title .mw-presentation__tag') ?? h1)";
+  const VISIBLE_TITLE = "(h1 => h1.closest('.mw-detail-header').querySelector('.inbox-object-title .mw-presentation__tag') ?? h1)";
   const TITLE_TEXT = "(shown => shown.querySelector(':scope > strong') ?? shown)";
   const title = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; spoken: boolean }>(`(() => {
     const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
-    const header = h1.closest('.feed-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
+    const header = h1.closest('.mw-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
     const box = shown.getBoundingClientRect();
     return { h1: box.width, header: header.clientWidth - parseFloat(getComputedStyle(header).paddingLeft) - parseFloat(getComputedStyle(header).paddingRight), maxWidth: getComputedStyle(shown).maxWidth, overflow: text.scrollWidth > text.clientWidth + 1,
       spoken: h1.textContent.trim() === text.textContent.trim() };
@@ -161,7 +161,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     await inboxView.waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
     const box = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; lines: number }>(`(() => {
       const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
-      const header = h1.closest('.feed-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
+      const header = h1.closest('.mw-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
       const style = getComputedStyle(text);
       return {
         h1: shown.getBoundingClientRect().width,
@@ -185,7 +185,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await click("[data-plugin-picker-toggle]");
   await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
   await click('[data-plugin-picker-popover] .plugin-rail-items [data-plugin-id="pages"]');
-  await pages.waitFor("document.querySelectorAll('button.feed-stage-entry[data-page-id]').length >= 2");
+  await pages.waitFor("document.querySelectorAll('button.mw-stage-entry[data-page-id]').length >= 2");
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open");
   await evaluate(`(() => { const input = document.querySelector('[data-global-search]'); input.value = 'Jev 的三个待验证问题'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -195,7 +195,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   assert.equal(hits.filter((id) => id === first.document.id || id === second.document.id).length, 2);
   await shot("04-pages-search.png");
   await evaluate("document.querySelector('[data-global-search-dialog]').close()");
-  await pages.evaluate(`document.querySelector('button.feed-stage-entry[data-page-id="${first.document.id}"]').click()`);
+  await pages.evaluate(`document.querySelector('button.mw-stage-entry[data-page-id="${first.document.id}"]').click()`);
   await pages.waitFor("document.querySelector('[data-pages-more]')");
   await pages.click("[data-pages-more]");
   await pages.waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'true'");

@@ -19,6 +19,7 @@ export const registration: PluginRegistration = {
     order: 7,
     contributions: [scheduleUiContribution],
     stylesheet: SCHEDULE_STYLES,
+    frameStyleFeatures: ["detail-reading"],
     clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
   },

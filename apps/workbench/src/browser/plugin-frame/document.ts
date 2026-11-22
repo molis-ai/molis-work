@@ -20,31 +20,71 @@ export function renderedFrameText(page: ParentNode, root: HTMLElement): string |
   return frameDocumentMarkup(matches[0]!);
 }
 
-const LEADING_LINK_TAG = /^\s*(<link(?=\s|>)[^>]*>)/i;
-const LINK_REL_STYLESHEET = /(?:^|\s)rel=(["'])stylesheet\1(?=\s|>|\/)/i;
-const LINK_HREF = /(?:^|\s)href=(["'])([^"']+)\1(?=\s|>|\/)/i;
+const LEADING_LINK_PREFIX = /^\s*<link(?=\s|>|\/)/i;
+
+/** Quote-aware leading `<link ...>` attribute parser so `>` or `rel=` inside another attribute value never misparses. */
+function parseLeadingLinkTag(content: string, start: number): { full: string; attrs: Map<string, string>; end: number } | null {
+  const slice = content.slice(start);
+  const prefix = LEADING_LINK_PREFIX.exec(slice);
+  if (!prefix) return null;
+  let i = start + slice.indexOf("<") + 5;
+  const attrs = new Map<string, string>();
+  while (i < content.length) {
+    while (i < content.length && /\s/.test(content[i]!)) i += 1;
+    if (i >= content.length) return null;
+    if (content[i] === ">") return { full: content.slice(start, i + 1), attrs, end: i + 1 };
+    if (content[i] === "/" && content[i + 1] === ">") return { full: content.slice(start, i + 2), attrs, end: i + 2 };
+    if (content[i] === "/") {
+      i += 1;
+      continue;
+    }
+    const nameStart = i;
+    while (i < content.length && !/[\s=/>]/.test(content[i]!)) i += 1;
+    const name = content.slice(nameStart, i).toLowerCase();
+    while (i < content.length && /\s/.test(content[i]!)) i += 1;
+    let value = "";
+    if (content[i] === "=") {
+      i += 1;
+      while (i < content.length && /\s/.test(content[i]!)) i += 1;
+      const q = content[i];
+      if (q === "\"" || q === "'") {
+        i += 1;
+        const valStart = i;
+        while (i < content.length && content[i] !== q) i += 1;
+        if (i >= content.length) return null;
+        value = content.slice(valStart, i);
+        i += 1;
+      } else {
+        const valStart = i;
+        while (i < content.length && !/[\s>]/.test(content[i]!)) i += 1;
+        value = content.slice(valStart, i);
+      }
+    }
+    if (name && !attrs.has(name)) attrs.set(name, value);
+  }
+  return null;
+}
 
 /**
  * Hoist contiguous leading same-origin `/assets/` plugin stylesheet `<link>` tags into `<head>` (102-1).
  * Only inspects leading `<link>` tags (as prepended by `renderPluginFrameSurface`), never body text or embedded JSON,
- * requires whitespace-delimited `rel`/`href` attributes (ignoring `data-rel`/`data-href`), and rejects credentials.
+ * parses real HTML attributes (ignoring `data-rel`/`data-href` or values quoted inside other attributes), and rejects credentials.
  */
 export function extractHeadStyleLinks(content: string, origin: string): { headLinks: string; bodyContent: string } {
   const headLinks: string[] = [];
   let cursor = 0;
   let keptLeading = "";
   while (cursor < content.length) {
-    const match = LEADING_LINK_TAG.exec(content.slice(cursor));
-    if (!match) break;
-    const full = match[0]!;
-    const tag = match[1]!;
-    cursor += full.length;
-    const hrefMatch = LINK_REL_STYLESHEET.test(tag) ? LINK_HREF.exec(tag) : null;
-    if (!hrefMatch) {
+    const found = parseLeadingLinkTag(content, cursor);
+    if (!found) break;
+    const { full, attrs, end } = found;
+    cursor = end;
+    const rel = attrs.get("rel")?.trim().toLowerCase();
+    const rawHref = attrs.get("href")?.trim();
+    if (rel !== "stylesheet" || !rawHref) {
       keptLeading += full;
       continue;
     }
-    const rawHref = hrefMatch[2]!;
     let resolved: URL;
     try {
       resolved = new URL(rawHref, origin);

@@ -87,12 +87,20 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);
   });
-  const watchTargets = new Set([document.querySelector('[data-tab-panes]'), document.querySelector('.directory-content-scroll') || document.querySelector('[data-directory-panel]'), document.getElementById('side-panel')].filter(Boolean));
+  const watchTargets = new Set();
+  const addWatchTarget = target => {
+    if (!target) return;
+    for (const existing of watchTargets) {
+      if (existing === target || existing.contains(target)) return;
+      if (target.contains(existing)) watchTargets.delete(existing);
+    }
+    watchTargets.add(target);
+  };
+  [document.querySelector('[data-tab-panes]'), document.querySelector('.directory-content-scroll') || document.querySelector('[data-directory-panel]'), document.getElementById('side-panel')].forEach(addWatchTarget);
   document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (![...watchTargets].some(container => container.contains(root))) {
       const holder = root.closest('[data-tab-workspace], main, [data-surface-pool]') || root.parentElement;
-      if (holder && holder !== document.body) watchTargets.add(holder);
-      else watchTargets.add(root);
+      addWatchTarget(holder && holder !== document.body ? holder : root);
     }
   });
   for (const target of watchTargets) {

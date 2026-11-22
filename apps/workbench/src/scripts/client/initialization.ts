@@ -74,6 +74,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       pagePlugin: () => tabWorkspace?.pagePlugin?.() || null,
       tabsReady: () => Boolean(tabWorkspace),
       startPage: () => tabWorkspace?.startPage, openBeside: (plugin) => tabWorkspace?.openBeside(plugin),
+      startEntries: () => projectStarts,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
     // An object named by reference (an address written by objectLink, a result named on a card): its owner's reader says where it opens (the object-open action).
@@ -104,7 +105,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       return { renderFilePreview, materialsReader }; })();
     // The materials picker (its own bundle) previews a file with the same reader.
     globalThis.molisWorkMaterials = materialsKit;
-    (${MATERIALS_STAGE_FACTORY_SCRIPT})({ route, kit: materialsKit });
+    materialsStage = (${MATERIALS_STAGE_FACTORY_SCRIPT})({ route, kit: materialsKit });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
     (${SIDE_FILES_FACTORY_SCRIPT})({ readText, route, kit: materialsKit, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
@@ -129,6 +130,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       expandDirectory: (id) => setPluginSectionExpanded(id),
     });
     const positionOffers = (${HOME_OFFERS_FACTORY_SCRIPT});
+    // What each plugin lets a person begin, on its row of the start page (specs/screen-polish §八之二): the home's own read and click.
+    const startPopover = document.querySelector("[data-plugin-picker-popover]"), startToggle = document.querySelector("[data-plugin-picker-toggle]");
+    projectStarts = state.project && startPopover && startToggle ? globalThis.molisWorkHomeView?.mountStartEntries({
+      root: startPopover,
+      read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
+      navigationFrom: () => tabWorkspace?.positionNavigationFrom(startToggle) ?? (() => false),
+      receipt: showToast,
+      close: () => { if (!startPopover.hidden) startToggle.click(); },
+    }) : null;
     projectHome = globalThis.molisWorkHomeView?.mountHome({
       read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
@@ -139,6 +149,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         if (toggle) { if (popover?.hidden !== false) toggle.click(); }
         else tabWorkspace?.setExclusive("market");
       },
+      write: () => assistantIsland?.toNow(),
+      settingsHref: (section) => route("/settings/" + section),
       lead: { adopt: (box, target) => tabWorkspace?.adoptHomeLead(box, target) ?? null, release: (node) => tabWorkspace?.releaseHomeLead(node) },
       offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
       projectKey: state.project?.project_id || "",
@@ -148,7 +160,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
     });
     const positionChanged = () => {
-      projectHome?.sync(); projectPositions?.invalidate();
+      projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); projectPositions?.invalidate();
       document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
     };
     globalThis.molisWorkbenchPositionFrom = frame => {

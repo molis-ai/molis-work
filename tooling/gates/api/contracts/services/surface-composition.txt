@@ -79,7 +79,7 @@ export interface SurfaceExclusion {
 export type SurfaceGenericOperation = (typeof SURFACE_GENERIC_OPERATIONS)[number];
 
 export interface SurfaceGroup {
-    kind: "attention" | "continue" | "plugin" | "slot" | "lead";
+    kind: "attention" | "continue" | "plugin" | "slot" | "lead" | "outline";
     owner_plugin_id?: string;
     state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared";
     read_at?: string;
@@ -98,6 +98,7 @@ export interface SurfaceGroup {
         view_id: string;
     };
     title?: OwnedTextRef;
+    outline?: SurfaceOutlineNode[];
     items: SurfaceItem[];
 }
 
@@ -170,6 +171,25 @@ export interface SurfaceItemNotice {
     next?: SurfaceItemAction;
 }
 
+export interface SurfaceLede {
+    label: OwnedTextRef;
+    as_of?: string;
+    sentences: PresentationLedeSentence[];
+    invite?: {
+        text: OwnedTextRef;
+        action: OwnedTextRef;
+    };
+}
+
+export interface SurfaceOutlineNode {
+    subject: ActionSubject;
+    depth: 0 | 1;
+    progress?: {
+        done: number;
+        total: number;
+    };
+}
+
 export interface SurfacePluginCard {
     summary?: OwnedTextRef;
     note?: OwnedTextRef;
@@ -180,6 +200,7 @@ export interface SurfacePluginCard {
         view_id: string;
     };
     enable?: SurfaceHomeEnable;
+    lede?: SurfaceLede;
 }
 
 export interface SurfaceRequest {

@@ -40,6 +40,29 @@ export const MOTION_STYLES = `
   @media (prefers-reduced-motion: reduce) { [data-craft-turn], [data-craft-ask] { animation: none; } }
 `;
 
+/** Plugin-frame motion vocabulary: same keyframes and data-craft-* animations without shell-only view transitions. */
+export const PLUGIN_MOTION_STYLES = `
+  @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  @keyframes craft-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
+  [data-craft-new] {
+    position: relative;
+    &::after {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: var(--accent-soft); opacity: 0; animation: craft-landed var(--dur-moment) var(--ease-quint);
+    }
+  }
+  @keyframes craft-landed { 0%, 100% { opacity: 0; } 12% { opacity: 1; } }
+  [data-craft-turn] { animation: craft-turn var(--dur-arrive) var(--ease-quint); &[data-craft-turn="back"] { --craft-turn-from: -16px; } }
+  @keyframes craft-turn { from { opacity: .4; transform: translateX(var(--craft-turn-from, 16px)); } to { opacity: 1; transform: none; } }
+  [data-craft-ask] { animation: craft-ask var(--dur-moment) var(--ease-quint); }
+  @keyframes craft-ask {
+    from { outline: 2px solid color-mix(in srgb, var(--tone-attention) 60%, transparent); outline-offset: 0; }
+    to { outline: 2px solid transparent; outline-offset: 8px; }
+  }
+`;
+
 /** Popovers and menus that drop from the control that opened them. */
 /** The menus whose closing plays back (the Assistant's composer, also in DROPDOWN, keeps its own motion). */
 const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu";

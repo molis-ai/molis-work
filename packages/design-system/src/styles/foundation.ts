@@ -1,28 +1,27 @@
 import { BASELINE_SKIN, baselineTerminal } from "../baseline.js";
-import { renderSkinScope } from "../appearance-tokens.js";
+import { compactTokenDeclarations, renderRootSkinScope, renderSkinScope } from "../appearance-tokens.js";
 
-/** Core tokens, body typography, focus ring and baseline field border shared by plugin frames. */
-export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
+const LAYOUT_TOKENS = `
+  --measure-reading: 700px;
+  --measure-form: 760px;
+  --measure-stage: 960px;
+  --measure-wide: 1152px;
+  --master-w: 240px;
+  --master-w-wide: 280px;
+  --text-start: 44px;
+`;
 
-  :root {
-    --measure-reading: 700px;
-    --measure-form: 760px;
-    --measure-stage: 960px;
-    --measure-wide: 1152px;
-    --master-w: 240px;
-    --master-w-wide: 280px;
-    --text-start: 44px;
-  }
+const FOUNDATION_BASE_BODY = `
+  :root {${compactTokenDeclarations(LAYOUT_TOKENS)}}
 
   body {
     background: var(--page);
     color: var(--ink);
-    font: var(--type-body-size, 13px)/var(--type-body-line-height, 1.5) var(--font);
+    font: var(--type-body-size)/var(--type-body-line-height) var(--font);
     text-rendering: optimizeLegibility;
   }
 
   svg { stroke-width: 2; }
-  button, input, textarea, select { font-family: var(--font); }
   :is(button, input, textarea, select, a, summary):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   input:not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .global-search-query, [data-feed-search]),
   textarea:not(.mw-textarea),
@@ -30,9 +29,7 @@ export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
   .dialog-shell { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
 `;
 
-/** AP3 visual layer: foundation. */
-export const FOUNDATION_STYLES = `${PLUGIN_FOUNDATION_STYLES}
-
+const TERMINAL_THEME_SCOPES = `
   html[data-resolved-terminal-theme="light"] {
     ${baselineTerminal("light")}
   }
@@ -40,6 +37,23 @@ export const FOUNDATION_STYLES = `${PLUGIN_FOUNDATION_STYLES}
   html[data-resolved-terminal-theme="dark"] {
     ${baselineTerminal("dark")}
   }
+`;
+
+const PLUGIN_TERMINAL_DARK_DIFF = Object.entries(BASELINE_SKIN.terminal.dark)
+  .filter(([name, value]) => BASELINE_SKIN.terminal.unset[name] !== value)
+  .map(([name, value]) => `--${name}:${value}`)
+  .join(";");
+
+const PLUGIN_TERMINAL_SCOPES = `
+html[data-resolved-terminal-theme="light"]{${compactTokenDeclarations(baselineTerminal("light"))}}
+html[data-resolved-terminal-theme="dark"]{${PLUGIN_TERMINAL_DARK_DIFF}}`;
+
+/** Core tokens, terminal theme tokens, body typography, focus ring and baseline field border shared by plugin frames. */
+export const PLUGIN_FOUNDATION_STYLES = `${renderRootSkinScope(BASELINE_SKIN)}${PLUGIN_TERMINAL_SCOPES}${FOUNDATION_BASE_BODY}`;
+
+/** AP3 visual layer: foundation. */
+export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}${FOUNDATION_BASE_BODY}
+  button, input, textarea, select { font-family: var(--font); }${TERMINAL_THEME_SCOPES}
 
   body[data-navigation-pending="true"] { cursor: progress; }
   .mw-navigation-loading { position: fixed; z-index: 1000; top: 8px; right: 12px; display: inline-flex; padding: 4px; border-radius: 50%; background: var(--paper); color: var(--muted); pointer-events: none; }

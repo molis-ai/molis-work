@@ -224,7 +224,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
-        refreshHome: () => projectHome?.sync(),
+        refreshHome: () => { projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); },
+        mountMaterialsClone: (surface) => materialsStage?.mountClone?.(surface) || null,
         mountHomeClone: (surface) => globalThis.molisWorkHomeView?.mountHome({
           root: surface,
           read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
@@ -236,12 +237,14 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
             if (toggle) { if (popover?.hidden !== false) toggle.click(); }
             else tabWorkspace?.setExclusive("market");
           },
+          write: () => assistantIsland?.toNow(),
+          settingsHref: (section) => route("/settings/" + section),
           lead: { adopt: () => null, release: () => {} },
           offers: () => ({ refresh() {}, clear() {} }),
           projectKey: state.project?.project_id || "",
           translate: readText,
           receipt: showToast,
-          changed: () => { projectHome?.sync(); projectPositions?.invalidate(); },
+          changed: () => { projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); projectPositions?.invalidate(); },
           offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
           words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
         }),

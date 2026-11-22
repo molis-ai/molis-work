@@ -472,9 +472,11 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);
   assert.match(withPlugins, /\.mw-stage-entry:has\(\.plugin-stage-kind\) \.mw-entry-status \{[\s\S]*background: transparent/);
   assert.match(withPlugins, /\.plugin-stage-list[\s\S]*\.mw-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
-  // Project home (DESIGN.md → Home): one centred column that scrolls in its own box, plugin cards in an auto-fit grid.
-  assert.match(workbench, /\.immersive-home \.home-scroll \{[^}]*overflow: auto;[^}]*max-width: 1280px/);
-  assert.match(workbench, /\.home-plugin-cards \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 27rem\), 1fr\)\)/);
+  // Project home (DESIGN.md → Home; POLISH-76): it scrolls in its own box, and is one reading column of at most 640px with a 216px
+  // margin of sources beside it. No grid of plugin cards.
+  assert.match(workbench, /\.immersive-home \.home-scroll \{[^}]*overflow: auto;/);
+  assert.match(workbench, /\.mw-first-page__grid\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,640px\) 56px 216px minmax\(0,1fr\)/);
+  assert.doesNotMatch(workbench, /\.home-plugin-cards?\b/);
   // A kind is not a state, so kind labels are neutral (spec → 第三轮 · 颜色: status colours only for status).
   assert.match(workbench, /\.plugin-stage-kind\[data-kind\] \{ --status-tone: var\(--ink-soft\); \}/);
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);

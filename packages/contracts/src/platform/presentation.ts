@@ -14,6 +14,10 @@ export const PRESENTATION_LIMITS = {
   /** `capability_id@version`. */
   action_ref: 212,
   overview_subjects: 5, overview_start: 3, start_view_id: 200, start_panel: 100,
+  /** The objects of one overview's `outline`, parents and children together. */
+  outline_nodes: 12,
+  /** An overview's `lede`: a few sentences, each as long as a plugin keeps one, standing on a few sources. */
+  lede_sentences: 8, lede_sentence: 600, lede_sources: 4,
 } as const;
 
 /** A `judgment` value: the owner's call on the thing. `reason` may be a `literal`: a sentence the owner writes (a-section §2.4). */
@@ -96,16 +100,71 @@ export interface PresentationOverview {
   summary: TextRef;
   subjects: ActionSubject[];
   start: Array<{ capability_id: string; version: number }>;
+  /** How far the plugin's own work has come, as a short tree of its objects (the project's first page shows it under `title`). Optional. */
+  outline?: PresentationOutline;
+  /** A few sentences that say where the project stands, for the head of the project's first page. Optional. */
+  lede?: PresentationLede;
+}
+
+/**
+ * Sentences a plugin wrote and keeps (their versions, bases and revisions stay in its own page, which the page's label opens). They
+ * are stored words, shown as they are and never translated. `as_of` is when this writing was last saved.
+ */
+export interface PresentationLede {
+  /** What this writing is called, with its version: "简报 · 第 12 版". */
+  label: TextRef;
+  as_of?: string;
+  /** In reading order; none when nothing has been written yet. */
+  sentences: PresentationLedeSentence[];
+  /** With no sentences: one line that says so, and the words of the button that opens the plugin's page to write them. */
+  invite?: { text: TextRef; action: TextRef };
+}
+export interface PresentationLedeSentence {
+  text: string;
+  /** The plugins whose content the sentence stands on, by plugin id: the page numbers them where it lists its sources. */
+  sources?: string[];
+  /** `yours`: something in it waits for the person. `changed`: it differs from the version before. `gap`: something it stands on cannot be read now. */
+  mark?: "yours" | "changed" | "gap";
+}
+
+/**
+ * A plugin's own objects as a two-level tree, in the order to read them: a node at depth 1 belongs to the nearest node at depth 0
+ * before it. `progress` is a real count the owner holds (children done of children), never an estimate. Every object is read like any
+ * other the overview names: by its declared presentation, with the caller's authority; one the caller cannot read is left out.
+ */
+export interface PresentationOutline {
+  title: TextRef;
+  nodes: PresentationOutlineNode[];
+}
+export interface PresentationOutlineNode {
+  subject: ActionSubject;
+  depth: 0 | 1;
+  progress?: { done: number; total: number };
 }
 
 const ACTION_TARGET = { type: "object", additionalProperties: false, required: ["capability_id", "version"], properties: {
   capability_id: { type: "string", minLength: 1, maxLength: PRESENTATION_LIMITS.capability_id }, version: { type: "integer", minimum: 1 } } } as const;
+const OUTLINE_PROGRESS = { type: "object", additionalProperties: false, required: ["done", "total"], properties: {
+  done: { type: "integer", minimum: 0, maximum: 9999 }, total: { type: "integer", minimum: 1, maximum: 9999 } } } as const;
+export const PRESENTATION_OUTLINE_NODE_SCHEMA = { type: "object", additionalProperties: false, required: ["subject", "depth"], properties: {
+  subject: ACTION_SUBJECT_SCHEMA, depth: { enum: [0, 1] }, progress: OUTLINE_PROGRESS } } as const;
+const PRESENTATION_OUTLINE_SCHEMA = { type: "object", additionalProperties: false, required: ["title", "nodes"], properties: {
+  title: TEXT_REF_SCHEMA, nodes: { type: "array", maxItems: PRESENTATION_LIMITS.outline_nodes, items: PRESENTATION_OUTLINE_NODE_SCHEMA } } } as const;
+const LEDE_SENTENCE = { type: "object", additionalProperties: false, required: ["text"], properties: {
+  text: { type: "string", minLength: 1, maxLength: PRESENTATION_LIMITS.lede_sentence, pattern: "\\S" },
+  sources: { type: "array", maxItems: PRESENTATION_LIMITS.lede_sources, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+  mark: { enum: ["yours", "changed", "gap"] } } } as const;
+export const PRESENTATION_LEDE_SENTENCES_SCHEMA = { type: "array", maxItems: PRESENTATION_LIMITS.lede_sentences, items: LEDE_SENTENCE } as const;
+const PRESENTATION_LEDE_SCHEMA = { type: "object", additionalProperties: false, required: ["label", "sentences"], properties: {
+  label: TEXT_REF_SCHEMA, as_of: { type: "string", format: "date-time" }, sentences: PRESENTATION_LEDE_SENTENCES_SCHEMA,
+  invite: { type: "object", additionalProperties: false, required: ["text", "action"], properties: { text: TEXT_REF_SCHEMA, action: TEXT_REF_SCHEMA } } } } as const;
 /** Fixed by the platform: the action a declaration's `overview` names carries exactly these two schemas (SSC-18). */
 export const PRESENTATION_OVERVIEW_INPUT_SCHEMA = { type: "object", properties: {}, additionalProperties: false } as const;
 export const PRESENTATION_OVERVIEW_OUTPUT_SCHEMA = { type: "object", additionalProperties: false, required: ["summary", "subjects", "start"], properties: {
   summary: TEXT_REF_SCHEMA,
   subjects: { type: "array", maxItems: PRESENTATION_LIMITS.overview_subjects, items: ACTION_SUBJECT_SCHEMA },
-  start: { type: "array", maxItems: PRESENTATION_LIMITS.overview_start, items: ACTION_TARGET } } } as const;
+  start: { type: "array", maxItems: PRESENTATION_LIMITS.overview_start, items: ACTION_TARGET },
+  outline: PRESENTATION_OUTLINE_SCHEMA, lede: PRESENTATION_LEDE_SCHEMA } } as const;
 
 /**
  * The plugin's overview: a read that calls no model and costs nothing, like `home_aggregate`. A Home-level plugin's (`scope: "home"`) is
@@ -116,7 +175,7 @@ export const PRESENTATION_OVERVIEW_OUTPUT_SCHEMA = { type: "object", additionalP
 export function definePresentationOverviewAction(capabilityId: string, version: number, title: string, permissions: readonly string[],
   scope: "project" | "home" = "project"): ActionDefinition<Record<string, never>, PresentationOverview> {
   return { capability_id: capabilityId, version, operation: "query", action: { title, kind: "query", scope, effect: "read", audiences: ["user", "workflow"],
-    description: "这个插件现在怎么样：一句概况、前几个对象和开始的入口；只读，不调用模型。", permissions: [...permissions], subject_kinds: [],
+    description: "这个插件现在怎么样：一句概况、前几个对象和开始的入口，还可以带一棵进展树和它存下的开头几句话；只读，不调用模型。", permissions: [...permissions], subject_kinds: [],
     ...(scope === "home" ? { project_reach: "person" as const } : {}), execution: { cost: "none" }, output_type: PRESENTATION_OVERVIEW_OUTPUT_TYPE,
     input_schema: PRESENTATION_OVERVIEW_INPUT_SCHEMA, output_schema: PRESENTATION_OVERVIEW_OUTPUT_SCHEMA } };
 }

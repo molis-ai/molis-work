@@ -601,8 +601,6 @@ shelf.settings.write	1	io.molis.work.shelf	io.molis.work.shelf	command	operation
 shelf.snapshot	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	concurrent	user	shelf:read	shelf_item	-	-	d746974fa9af	c87ea7c31301	-
 shelf.subject.read	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	concurrent	agent,mcp,user,workflow	shelf:read	shelf_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	3cfff55e5308
 shelf.terminal.open	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	user	shelf:read,terminal:run	shelf_item	-	-	d746974fa9af	88ae25111209	-
-text-stats.count	1	io.molis.work.text-stats	io.molis.work.text-stats	query	query	project	read	-	agent,mcp,user,workflow	-	artifact,text	-	-	6b295244c544	72c58850fea5	-
-text-stats.state	1	io.molis.work.text-stats	io.molis.work.text-stats	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read	artifact,text	-	-	d746974fa9af	160898cf69b4	-
 todo.batch.subject.read	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	todo:read	todo_batch	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	3cfff55e5308
 todo.changes.revert	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	73cdd3c55c5c	1894a4839274	2c79f91d429d
 todo.composer.pick	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	-	user	todo:read	todo_item	molis.composer.pick.query.v1	molis.composer.pick.items.v1	b3b27395239f	3fc560642f8f	ef8245d12978

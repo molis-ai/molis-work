@@ -12,7 +12,7 @@ installHostUiText();
 
 // W5-06 余项第一片（PG-060，RAC-80～84）：/__ui/catalog 的底栏样张（/__ui/catalog/bar）用同一个构建期插件目录画插件格，
 // 并像新项目那样分亮格与灰格。亮格是样例项目默认启用的插件（骨干插件加个人插件），灰格是目录里其余插件；
-// 格子数随目录增减，不再写插件名单。developer 插件（Text Stats）不进目录，也就不进样张。
+// 格子数随目录增减，不再写插件名单。
 // PG-077 / BL-177: the platform Artifact and Sessions tiles are always available to open and have no Plugin membership toggle.
 
 // The backbone is what the Manifests declare (`rail: "core"`, W5-02 PG-074), the plugins a new project starts with, before any
@@ -53,13 +53,6 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   for (const id of tiles(html).filter(id => id !== "artifacts" && id !== "sessions")) assert.ok(bright.includes(id) || grey.includes(id), `${id} is drawn as bright or grey`);
 });
 
-test("RAC-82: the developer plugin stays out of the bar specimen, as it stays out of the plugin directory", () => {
-  const html = renderMolisWorkBarSpecimen();
-  assert.equal(pluginMarketCards().some(card => card.id === "text-stats"), false, "Text Stats is not in the directory");
-  assert.doesNotMatch(html, /data-plugin-tile="text-stats"/, "and not in the specimen's tiles");
-  assert.doesNotMatch(html, /data-plugin-toggle="text-stats"/, "nor its add control");
-});
-
 test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help specimens in zh and en", () => {
   for (const lang of ["zh-CN", "en"] as const) {
     const html = renderMolisWorkPrimitiveCatalog((key) => key, lang);
@@ -80,7 +73,7 @@ test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help s
 test("VUX-55 VUX-58: every native built-in plugin manifest declares valid bilingual ui.help with all zh/en keys", () => {
   const wbZh = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
   const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
-  assert.ok(BUILTIN_PLUGIN_CATALOG.length >= 24, `expected at least 24 built-in plugins, got ${BUILTIN_PLUGIN_CATALOG.length}`);
+  assert.ok(BUILTIN_PLUGIN_CATALOG.length >= 23, `expected at least 23 built-in plugins, got ${BUILTIN_PLUGIN_CATALOG.length}`);
   const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     const help = entry.manifest.ui.help;

@@ -14,7 +14,7 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { snapshotReaderPlugin } from "./fixtures/snapshot-reader-plugin.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-source-plugin.js";
 
@@ -62,16 +62,17 @@ const defaults = (platform: ReturnType<typeof createPluginPlatform>) => platform
   .filter(item => item.origin === "default" && item.source).map(item => `${short(plugin.plugin_id)}.${item.port} ← ${short(item.source!.source_plugin_id)}.${item.source!.source_port}`)).sort();
 
 test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snapshots group is its declared default", project(async platform => {
-  // As the Host's start list gives them (`project-plugins.ts`): every one ships with the Host.
+  // As the Host's start list gives them (`project-plugins.ts`): every one ships with the Host. The snapshot reader is a test fixture
+  // standing for a Host plugin whose required input defaults to the platform's materials.
   await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } },
-    { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
+    { definition: createGitPlugin(), trust: { level: "host" } }, { definition: snapshotReaderPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   // The rows of the table this replaced (apps/local-host/src/workspace-plugin-bindings.ts before W4-03), less Coding's six inputs:
   // what the person brings into a round is now picked from project knowledge (specs/project-knowledge PMAT-18), not wired. Snapshots come
   // from the platform's materials service since Files retired (specs/batch-06-shared-tools §3, BSH-06).
   assert.deepEqual(defaults(platform), [
     "diff.after ← system.materials.after", "diff.before ← system.materials.before", "diff.changeset ← coding.changeset", "diff.git-changeset ← git.changeset",
-    "shelf.coding-changeset ← coding.changeset", "shelf.coding-report ← coding.report", "text-stats.text ← system.materials.before",
+    "example.snapshot-reader.text ← system.materials.before", "shelf.coding-changeset ← coding.changeset", "shelf.coding-report ← coding.report",
   ]);
   assert.equal(platform.wiring.selectedGroup("io.molis.work.diff"), "snapshots");
 }));
@@ -114,15 +115,15 @@ test("W4-03-04 a plugin nobody agreed for gets no default (not Coding's changese
   const reader = probe([snapshotPort("text", { plugin_id: installed, port: "summary" })]);
   // The same Manifest under a built-in's own id, given by something other than the Host's start list (a developed or generated
   // plugin can name any plugin_id): still not the Host's.
-  const impostor = probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], [{ group_id: "one", title: "一份", ports: ["text"], default: true }], "io.molis.work.text-stats");
+  const impostor = probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], [{ group_id: "one", title: "一份", ports: ["text"], default: true }], "io.molis.work.git");
   await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: snapshotSourcePlugin(), trust: { level: "host" } },
     { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: collector }, { definition: impostor }, { definition: reader, trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
-  for (const [pluginId, name] of [[installed, "changes"], [installed, "text"], ["io.molis.work.text-stats", "text"], [PROBE, "text"]] as const) {
+  for (const [pluginId, name] of [[installed, "changes"], [installed, "text"], ["io.molis.work.git", "text"], [PROBE, "text"]] as const) {
     assert.equal(port(platform, pluginId, name)?.source, undefined, `${pluginId}.${name} reads nothing nobody chose to give it`);
   }
   assert.equal(platform.wiring.selectedGroup(installed), undefined, "its default group is not selected either");
-  assert.equal(platform.wiring.selectedGroup("io.molis.work.text-stats"), undefined);
+  assert.equal(platform.wiring.selectedGroup("io.molis.work.git"), undefined);
   // The Host's own plugins are still wired to each other as before.
   assert.deepEqual(port(platform, "io.molis.work.diff", "changeset")?.source, { source_plugin_id: "io.molis.work.coding", source_port: "changeset" });
 }));

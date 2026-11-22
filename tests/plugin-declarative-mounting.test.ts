@@ -309,7 +309,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     // Files retired in batch 06: a project's folders are the platform's materials now, not a plugin a project enables.
     ["coding", "diff", "feed", "git", "goals", "inbox", "risk", "schedule",
-      "text-stats", "work-brief"]);
+      "work-brief"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
     [["coding", "Coding", "code"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]],

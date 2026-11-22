@@ -1102,8 +1102,6 @@
     "action.skills.versions.list": 1,
     "action.surfaces.compose": 1,
     "action.surfaces.correct": 1,
-    "action.text-stats.count": 1,
-    "action.text-stats.state": 1,
     "action.todo.batch.subject.read": 1,
     "action.todo.changes.revert": 1,
     "action.todo.composer.pick": 1,

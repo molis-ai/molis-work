@@ -58,6 +58,4 @@ export interface MolisWorkWebView {
    * `page_routes` declare and the request carried, as strings, and nothing else of the request. A stage that names none has no key.
    */
   stage_request?: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
-  developer_mode?: boolean;
 }

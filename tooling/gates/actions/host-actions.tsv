@@ -642,7 +642,7 @@ skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	s
 skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	bd0171f686b2	-
 skills.trials.run	1	system.skills	command	operation	home	write	concurrent	agent,user	model:invoke,skills:draft	-	-	-	e0e528ede16a	b54c16668b24	2b70679ea59b
 skills.versions.list	1	system.skills	query	query	home	read	-	user	skills:manage	-	-	-	f91d3c58c12c	793143e20d35	-
-surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	91ffd8a541f7	-
+surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	d5641dc889a3	-
 surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-
 work_terminals.close	1	system.work-terminal	command	operation	project	write	-	user	work_terminals:write	-	-	-	4d066d6f0755	d4ffecc7fc02	9a20bdba744a
 work_terminals.list	1	system.work-terminal	query	query	project	read	-	user	work_terminals:read	-	-	-	8143968439c6	5875bf21af81	-

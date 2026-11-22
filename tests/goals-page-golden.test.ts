@@ -58,6 +58,9 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // on this branch and compared token by token: the 16 whole pages differ by the same 65 tokens, all inside `data-work-surface="home"`
 // (besides the language resource's file hash, which the recorded markup leaves out), a uniform +383 (zh) / +395 (en) characters; the
 // other records are byte for byte the same. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Removing `overview.lead` (decision 62 ③) took the home's empty lead box (`data-home-lead`) out of the same 16 pages, and only it:
+// drawn on the 36A-6 branch and on this one and compared token by token, each page loses that one element, a uniform -56 characters
+// in both languages; the other records are byte for byte the same. The 16 were recorded again.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

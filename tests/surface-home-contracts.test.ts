@@ -29,6 +29,8 @@ test("SSC-18 overview declarations require the common free read protocol and an 
   assert.equal(overview.action.execution?.cost, "none");
   assert.equal(isPresentationOverviewReader(overview), true);
   assert.deepEqual(validatePresentationDeclaration(manifest), []);
+  // One home: a plugin's page does not stand in for it (decision 62). A Manifest that still names one is refused, not read around.
+  assert.match(validatePresentationDeclaration({ ...manifest, presentation: { objects: [], overview: { ...declaration, lead: { view_id: "stage" } } } }).join("\n"), /presentation\.overview 不认这些字段：lead/);
   for (const action of [
     { ...overview.action, execution: undefined },
     { ...overview.action, execution: { cost: "unknown" } },
@@ -89,6 +91,12 @@ test("SCS-11 SCS-12 SSC-18 the Kernel action contract closes home order, start r
   }
   answer = { ...description([]), groups: [{ kind: "attention", state: "ok", items: [], plugin_card: card }] };
   await assert.rejects(ask(), { code: "actions.output_invalid" });
+  // The action's output schema no longer knows a group that stands a plugin's page in for the home, nor its field.
+  const stand = { installation: release, view_id: "stage" };
+  for (const led of [{ kind: "lead", owner_plugin_id: owner, state: "ok", items: [], lead: stand }, { ...group, lead: stand }]) {
+    answer = { ...description([]), groups: [led] };
+    await assert.rejects(ask(), { code: "actions.output_invalid" });
+  }
 });
 
 test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritten or misplaced cards", () => {
@@ -106,6 +114,11 @@ test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritt
   ]) assert.throws(() => assertSurfaceDescription({ ...picked, groups: [attention, { ...group, plugin_card }] }, candidate), { code: "actions.output_invalid" });
   assert.throws(() => assertSurfaceDescription({ ...picked, groups: [{ ...attention, plugin_card: card }, group] }, candidate), { code: "actions.output_invalid" });
   assert.throws(() => assertSurfaceDescription({ ...picked, groups: [{ ...attention, plugin_card: null }, group] }, candidate), { code: "actions.output_invalid" });
+  // No group stands a plugin's page in for the home: the kind and its field are gone from the contract.
+  for (const lead of [{ kind: "lead", owner_plugin_id: owner, state: "ok", items: [], lead: { installation: release, view_id: "stage" } }, { ...group, lead: { installation: release, view_id: "stage" } }]) {
+    const wire: SurfaceGroup = JSON.parse(JSON.stringify(lead)), led = description([wire]);
+    assert.throws(() => assertSurfaceDescription(led, led), { code: "actions.output_invalid" });
+  }
   const forged = description([{ ...group, plugin_card: { ...card, summary: { owner: "other", key: "notes.home.empty" } } }]);
   assert.throws(() => assertSurfaceDescription(forged, forged), { code: "actions.output_invalid" });
   const unreadableRows = description([{ ...group, state: "unreadable" }]);

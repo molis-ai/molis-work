@@ -109,7 +109,7 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
-  const given = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
+  const given = options.actions ?? standaloneActions(projectId);
   const opened = await projectPlatform(options, given), platform = opened.platform;
   // The platform's own action handle, so what the Runtime registered for a package is the registration this host follows (one per registry).
   const actions: typeof given = { ...opened.actions, ...('inspect' in given && given.inspect ? { inspect: given.inspect } : {}) };
@@ -124,8 +124,12 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { pendingUninstalls } = listed;
   // The plugins this host has listed as its own: the close stops those even when a record went missing since, and never the built-in ones beside them.
   const owned = new Set<string>();
-  const records = () => { const rows = listed.records(); for (const row of rows) owned.add(row.plugin_id); return rows; };
-  const recordFor: typeof listed.recordFor = (pluginId, retryUninstall) => { const row = listed.recordFor(pluginId, retryUninstall); if (row) owned.add(row.plugin_id); return row; };
+  const own = <T extends { plugin_id: string } | null | undefined>(row: T): T => {
+    if (row) owned.add(row.plugin_id);
+    return row;
+  };
+  const records = () => listed.records().map(own);
+  const recordFor: typeof listed.recordFor = (pluginId, retryUninstall) => own(listed.recordFor(pluginId, retryUninstall));
   const packages = new SandboxPackageStore(homeDirectory), packagedFor = packagedReleases(packages, standing);
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
@@ -193,7 +197,11 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const failures: unknown[] = [];
     // The platform is the project's: closing the installed plugins stops and revokes theirs, never the built-in ones beside them, and
     // the project's own release closes the rest (its jobs, its coordination). Closing is not switching a plugin off: see closePlugin.
-    try { records(); } catch (error) { failures.push(error); }
+    try {
+      records();
+    } catch (error) {
+      failures.push(error);
+    }
     for (const pluginId of platform.supervisor.enabledPluginIds()) {
       if (owned.has(pluginId)) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
     }
@@ -224,6 +232,12 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
  * The project's one plugin platform, which the installed plugins start on beside the built-in ones (47-1 B): the project supervisor's,
  * opened here with the same identity when nothing has opened it yet. A project whose platform did not start runs no installed plugin either.
  */
+/** A host opened without the project's action directory (a standalone test) gets one of its own. */
+function standaloneActions(projectId: string): NonNullable<InstalledPluginHostOptions['actions']> {
+  const service = new ActionService();
+  return { registry: service, client: service, scenes: service, project_id: projectId };
+}
+
 async function projectPlatform(options: InstalledPluginHostOptions, actions: PluginPlatformOptions['actions']): Promise<{ platform: PluginPlatform; actions: PluginPlatformOptions['actions'] }> {
   const state = await ensureProjectPlugins({ store: options.store, ...openProjectVersionStores(options.store), projectId: options.projectId, actorId: options.actorId ?? 'web-user',
     homeDirectory: options.homeDirectory, actions, ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}), ...(options.routePrefix === undefined ? {} : { routePrefix: options.routePrefix }) });

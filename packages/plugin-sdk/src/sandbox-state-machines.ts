@@ -29,8 +29,34 @@ function valuesOf(contract: Contract, field: string): string[][] {
       walk(spec, depth + 1);
     }
   };
-  for (const operation of contract.operations) { walk(operation.input, 0); walk(operation.output, 0); }
+  for (const operation of contract.operations) {
+    walk(operation.input, 0);
+    walk(operation.output, 0);
+  }
   return found;
+}
+
+/** The first thing wrong with one declared machine, or nothing; `ids` holds the fields declared before it. */
+function machineProblem(contract: Contract, machine: unknown, at: string, ids: Set<string>): string | undefined {
+  if (!isRecord(machine) || Object.keys(machine).some(key => !KEYS.includes(key))) return `${at}只能写 field、version、states、initial、terminal`;
+  const { field, version, states, initial, terminal } = machine;
+  if (typeof field !== "string" || !FIELD.test(field)) return `${at}的 field 要写状态所在的字段名`;
+  const local = field.toLowerCase();
+  if (!stateMachineLocalId(local)) return `${at}的字段 ${field} 不能做状态机编号：字段名用字母开头，不超过 ${LIMITS.localId} 个字符`;
+  if (ids.has(local)) return `${at}重复申报了字段 ${field}`;
+  ids.add(local);
+  if (!validVersion(version)) return `${at}（${field}）的 version 须为正整数`;
+  if (!isRecord(states) || !Object.keys(states).length || Object.keys(states).length > LIMITS.states) return `${at}（${field}）要给每个取值写一个状态家族`;
+  const declared = Object.keys(states), lists = valuesOf(contract, field);
+  if (!lists.length) return `${at}的字段 ${field} 在操作的输入输出里不是枚举；状态字段要写成 "A|B|C" 这样的取值`;
+  const wrong = lists.find(values => values.length !== declared.length || values.some(value => !declared.includes(value)));
+  if (wrong) return `${at}（${field}）的取值要和字段的枚举完全一致：字段是 ${wrong.join("|")}，申报的是 ${declared.join("|")}`;
+  const unknown = declared.filter(value => typeof states[value] !== "string" || !FAMILIES.has(states[value] as string));
+  if (unknown.length) return `${at}（${field}）的取值 ${unknown.join("、")} 没有写可用的状态家族；可用：${[...FAMILIES].join(" / ")}`;
+  if (typeof initial !== "string" || !declared.includes(initial)) return `${at}（${field}）的 initial 要是其中一个取值`;
+  if (!Array.isArray(terminal) || terminal.some(value => typeof value !== "string" || !declared.includes(value)) || new Set(terminal).size !== terminal.length)
+    return `${at}（${field}）的 terminal 要是不重复的取值列表，没有终点就写 []`;
+  return undefined;
 }
 
 /** What is wrong with the contract's `state_machines`, in the words its author reads; empty when nothing is. */
@@ -38,29 +64,8 @@ export function sandboxStateMachineProblems(contract: Contract): string[] {
   const machines: unknown = contract.state_machines;
   if (machines === undefined) return [];
   if (!Array.isArray(machines) || machines.length > LIMITS.machines) return [`状态申报须为列表，最多 ${LIMITS.machines} 项`];
-  const problems: string[] = [], ids = new Set<string>();
-  for (const [index, machine] of machines.entries()) {
-    const at = `状态申报第 ${index + 1} 项`;
-    if (!isRecord(machine) || Object.keys(machine).some(key => !KEYS.includes(key))) { problems.push(`${at}只能写 field、version、states、initial、terminal`); continue; }
-    const { field, version, states, initial, terminal } = machine;
-    if (typeof field !== "string" || !FIELD.test(field)) { problems.push(`${at}的 field 要写状态所在的字段名`); continue; }
-    const local = field.toLowerCase();
-    if (!stateMachineLocalId(local)) { problems.push(`${at}的字段 ${field} 不能做状态机编号：字段名用字母开头，不超过 ${LIMITS.localId} 个字符`); continue; }
-    if (ids.has(local)) { problems.push(`${at}重复申报了字段 ${field}`); continue; }
-    ids.add(local);
-    if (!validVersion(version)) { problems.push(`${at}（${field}）的 version 须为正整数`); continue; }
-    if (!isRecord(states) || !Object.keys(states).length || Object.keys(states).length > LIMITS.states) { problems.push(`${at}（${field}）要给每个取值写一个状态家族`); continue; }
-    const declared = Object.keys(states), lists = valuesOf(contract, field);
-    if (!lists.length) { problems.push(`${at}的字段 ${field} 在操作的输入输出里不是枚举；状态字段要写成 "A|B|C" 这样的取值`); continue; }
-    const wrong = lists.find(values => values.length !== declared.length || values.some(value => !declared.includes(value)));
-    if (wrong) { problems.push(`${at}（${field}）的取值要和字段的枚举完全一致：字段是 ${wrong.join("|")}，申报的是 ${declared.join("|")}`); continue; }
-    const unknown = declared.filter(value => typeof states[value] !== "string" || !FAMILIES.has(states[value] as string));
-    if (unknown.length) { problems.push(`${at}（${field}）的取值 ${unknown.join("、")} 没有写可用的状态家族；可用：${[...FAMILIES].join(" / ")}`); continue; }
-    if (typeof initial !== "string" || !declared.includes(initial)) { problems.push(`${at}（${field}）的 initial 要是其中一个取值`); continue; }
-    if (!Array.isArray(terminal) || terminal.some(value => typeof value !== "string" || !declared.includes(value)) || new Set(terminal).size !== terminal.length)
-      problems.push(`${at}（${field}）的 terminal 要是不重复的取值列表，没有终点就写 []`);
-  }
-  return problems;
+  const ids = new Set<string>();
+  return machines.flatMap((machine, index) => machineProblem(contract, machine, `状态申报第 ${index + 1} 项`, ids) ?? []);
 }
 
 /**

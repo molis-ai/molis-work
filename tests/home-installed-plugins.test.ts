@@ -292,18 +292,17 @@ test("RAC-972 deleting a project changes nothing of a Home package: the instance
 // BL-586 (user 2026-11-18, scope chosen 2026-11-22): two publishers who both wrote the notes plugin under the same id are two plugins. One is
 // installed in the Home, the other in a project; the project page lists and draws both, each in its own words, each with its own data, and
 // stopping one leaves the other open, also after a restart. Within one range, a second publisher is still refused (checkExistingInstall).
-const namedNotes = (scope: "home" | "project", zh: string, en: string, publisher = newPublisher()) => signedPackage(publisher, (files, manifest) => {
+const namedNotes = (scope: "home" | "project", zh: string, en: string, publisher = newPublisher()) => signedPackage(publisher, files => {
   const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
   contract.operations.find(operation => operation.id === "notes.add")!.effects.storage = ["read", "write"];
   contract.ui = { locales: { default: "zh", available: ["zh", "en"] } };
   files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-  for (const key of Object.keys(manifest)) delete (manifest as unknown as Record<string, unknown>)[key];
-  Object.assign(manifest, sandboxPluginManifest({ pluginId: PACKAGE_PLUGIN_ID, version: "1.0.0", name: zh, publisher: { publisher_id: "example", signature: publisher.identity },
-    presentation: false, contract, ...(scope === "home" ? { runtime: { scope: "home" as const } } : {}),
-    textDeclarations: { plugin_id: PACKAGE_PLUGIN_ID, name_text: { key: "notes.directory.name" } } }));
   for (const [locale, word] of [["zh", zh], ["en", en]] as const) {
     files[`locales/${locale}.json`] = JSON.stringify({ format_version: 1, owner: PACKAGE_PLUGIN_ID, locale, messages: { "notes.directory.name": word } });
   }
+  return sandboxPluginManifest({ pluginId: PACKAGE_PLUGIN_ID, version: "1.0.0", name: zh, publisher: { publisher_id: "example", signature: publisher.identity },
+    presentation: false, contract, ...(scope === "home" ? { runtime: { scope: "home" as const } } : {}),
+    textDeclarations: { plugin_id: PACKAGE_PLUGIN_ID, name_text: { key: "notes.directory.name" } } });
 });
 const WANG = { zh: "小王的便签", en: "Wang notes" }, LI = { zh: "小李的便签", en: "Li notes" };
 const byScope = (views: readonly ActionView[], scope: "home" | "project") => views.filter(view => view.action.scope === scope);

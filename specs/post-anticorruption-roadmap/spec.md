@@ -129,7 +129,7 @@
 |  | [官方场景包：行业观察与写作、写代码](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [情境 W4 创建与准备声明](reference/batches/46.md#batch-46-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/46.md#batch-46-item-2) |
-| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../backlog/BL-586.md) |
+| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../../docs/backlog-removed.md) |
 |  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2) |
 | [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) · [BL-plugin-cli-dev-uncoded-errors](../../docs/backlog-removed.md) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/48.md#batch-48-item-2) |

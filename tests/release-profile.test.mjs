@@ -122,7 +122,9 @@ test("26-9 S-bundled-packages: the build uses the dev key reference to produce o
   }
 });
 
-test("ENV-13: packaged test runtime isolates MCP, CLI, and Host home resolution from ~/.molis-work", { timeout: 60_000 }, async t => {
+// Building the whole runtime payload alone takes about 45 s on a developer Mac (2026-11-22); with the probes the whole test takes 60–100 s
+// there and on CI, so 60 s timed out every run. The limit leaves room for a loaded machine; nothing it checks is loosened.
+test("ENV-13: packaged test runtime isolates MCP, CLI, and Host home resolution from ~/.molis-work", { timeout: 180_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-test-env-isolation-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const testSettings = workSettings("test", pathToFileURL(root), { publicOnly: true, installed: true });

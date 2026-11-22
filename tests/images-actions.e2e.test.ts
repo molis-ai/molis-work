@@ -22,7 +22,7 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
   const address = provider.address(); assert.ok(address && typeof address === "object");
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { homeDirectory, origin, projectId, command, sessionId, navigate } = browser;
-  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "images");
+  const { evaluate, waitFor, click, clientReady } = await pluginFrameBrowser(t, browser, "images");
   const baseUrl = `http://127.0.0.1:${address.port}/v1`;
   const auth = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "图像测试账号", token: "fixture-only-image-key" }));
   const replacement = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "备用图像账号", token: "fixture-only-replacement-key" }));
@@ -42,7 +42,10 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
     await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
   }
   await browser.waitFor("document.body.dataset.desktopSurface === 'images'");
-  await waitFor("document.querySelector('[data-images-history-empty] strong')");
+  // The frame's server-rendered document shows before its client has started: wait for the client (its request globals) before
+  // calling the plugin's API from inside it.
+  await clientReady();
+  await waitFor("document.querySelector('[data-images-history-empty] strong') && typeof molisWorkControlHeaders === 'function'");
   assert.equal(await evaluate("document.querySelector('[data-images-history-empty] strong').textContent"), locale === "en" ? "No images yet" : "还没有图片");
   assert.equal(await evaluate("document.querySelector('[data-images-prompt]').placeholder"), locale === "en"
     ? "For example: A desk at dawn, coffee and an open book, sunlight from the left, film photography, warm tones."

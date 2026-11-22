@@ -1,6 +1,6 @@
 # 动作的版本字段与输入类型（路线书 05 第 4 项）
 
-状态：本批范围已实现（2026-11-06 设计；N22 余片按决定 29 在第 56 批第 3 项）。N22-06（#1893，`2d6c7b56b`）、N22-01（[#1909](https://github.com/molis-ai/molis-work/pull/1909)，`077073d7b`）、N22-02（[#1939](https://github.com/molis-ai/molis-work/pull/1939)，`87a97032bd`）、N22-04 试点（[#1923](https://github.com/molis-ai/molis-work/pull/1923)，`db4d1e32b`）与防回潮计数（[#1951](https://github.com/molis-ai/molis-work/pull/1951)，`c7acb8416e`）已合入；N14 两段（[#1913](https://github.com/molis-ai/molis-work/pull/1913)，`a49d656d8`；[#1961](https://github.com/molis-ai/molis-work/pull/1961)，`e8a75e8882`）已合入；第 05 批全批随 [#1979](https://github.com/molis-ai/molis-work/pull/1979)（`500d868df3`）合入。用户 2026-11-08 定拆分（[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)，§9.1）：N14 和工具、样板留在第 05 批，余片移到[第 56 批第 3 项](../post-anticorruption-roadmap/reference/batches/56.md#batch-56-item-3)。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
+状态：本批范围已实现（2026-11-06 设计；N22 余片按决定 29 在第 56 批第 3 项）。N22-06（#1893，`2d6c7b56b`）、N22-01（[#1909](https://github.com/molis-ai/molis-work/pull/1909)，`077073d7b`）、N22-02（[#1939](https://github.com/molis-ai/molis-work/pull/1939)，`87a97032bd`）、N22-04 试点（[#1923](https://github.com/molis-ai/molis-work/pull/1923)，`db4d1e32b`）与防回潮计数（[#1951](https://github.com/molis-ai/molis-work/pull/1951)，`c7acb8416e`）已合入；N14 两段（[#1913](https://github.com/molis-ai/molis-work/pull/1913)，`a49d656d8`；[#1961](https://github.com/molis-ai/molis-work/pull/1961)，`e8a75e8882`）已合入；第 05 批全批随 [#1979](https://github.com/molis-ai/molis-work/pull/1979)（`500d868df3`）合入。用户 2026-11-08 定拆分（[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)，§9.1）：N14 和工具、样板留在第 05 批，余片移到[第 56 批第 3 项](../post-anticorruption-roadmap/reference/batches/56.md#batch-56-item-3)。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/archive/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
 
 验收编号前缀 `AIC`，见 §12。
 
@@ -135,7 +135,7 @@ sample_not_found: "not_found",
 
 用户选的是方案 A：提示就地出现，载入不丢输入，两边都改的字段摆出「你写的」。合同只负责让页面判断得出来、拿得到数据；版面和文案按设计台定样。
 
-**页面的判断（编辑器和 Feed 同一套）：** 下面的「未保存内容」指表单和基准版不同。状态名对应设计台定样（`docs/design/rule-stale-reload/README.md`，随 #1873 合入）。
+**页面的判断（编辑器和 Feed 同一套）：** 下面的「未保存内容」指表单和基准版不同。状态名对应设计台定样（`docs/design/archive/rule-stale-reload/README.md`，随 #1873 合入）。
 
 | 收到 | 条件 | 接着 | 对应定样的状态 |
 | --- | --- | --- | --- |

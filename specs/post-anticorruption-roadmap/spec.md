@@ -236,15 +236,17 @@
 |  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
-| [91](reference/batches/91.md) | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（2026-11-18 加并扩为 91A，前置 35-2／36A／37-2，[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)） |
+| [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（2026-11-21 零阻塞前置，[决定 60](reference/decisions.md#decision-60)） |
+|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（[决定 60](reference/decisions.md#decision-60)） |
+|  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（并入 `91-0b` 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
-|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5) |
+|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5)（拆入 `91-0a` 先行落地 + `91-0b` 实装校准，[决定 60](reference/decisions.md#decision-60)） |
 | [91B](reference/batches/91b.md) | [入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口](reference/batches/91b.md#batch-91b-item-1)（2026-11-18 加，紧接 91，不等 38～89，[决定 55](reference/decisions.md#decision-55)） |
 |  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
 |  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
-|  | [全站轻动效收口与三层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
+|  | [全站轻动效收口与五层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |
@@ -266,8 +268,8 @@
 |  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2)（#2189 已合入） |
 | [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2)（#2196 已合入） |
-| [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2) |
+| [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2205 已合入 `1faf24dbf0`） |
+|  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2)（#2211 已合入 `7acf6bea7a`） |
 | [104](reference/batches/104.md) | [15+ 插件非 Agent 单次 AI 调用纳管](reference/batches/104.md#batch-104-item-1)（2026-11-20 加，前置 91、101-1，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [面向非技术用户的全站统一报错翻译与安全重试](reference/batches/104.md#batch-104-item-2) |
 | [105](reference/batches/105.md) | [防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批](reference/batches/105.md#batch-105-item-1)（2026-11-20 加，前置 39、100-2，仅波次审批等 62，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |

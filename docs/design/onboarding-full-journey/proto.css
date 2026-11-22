@@ -1,6 +1,6 @@
 /* 04 · arranging the catalog's parts for this layout ([编排]); no new look of its own.
-   The product frame and controls come from ../_catalog/dist/arrival.css; approved parts the catalog lacks, and the
-   prototype strip, from ../_catalog/prototype.css. Tokens only. */
+   The product frame and controls come from ../kit/dist/arrival.css; approved parts the catalog lacks, and the
+   prototype strip, from ../kit/prototype.css. Tokens only. */
 /* [编排] the question: the assistant's mark beside the title (mw-avatar + mw-hint) */
 .q-head { display: flex; align-items: center; gap: 12px; }
 .q-head .mw-avatar { flex: none; width: 32px; height: 32px; background: var(--accent-soft); color: var(--accent-strong); }

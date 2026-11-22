@@ -1,6 +1,6 @@
 # 第 36 批第 1 项设计稿：角色的保存、生效与恢复
 
-状态：设计稿（2026-11-15），已评审（R1～R8 已改入）；用户 2026-11-15 同意角色库 1 → 2 只建表升级。合同形状沿[提前角色层次合同](role-scope-contract.md)（#1995 已合入），本稿补服务、存储、动作、执行冻结和消费者的改法。界面照[方案 C 定样](../../docs/design/role-scope/README.md)，不重出样。
+状态：设计稿（2026-11-15），已评审（R1～R8 已改入）；用户 2026-11-15 同意角色库 1 → 2 只建表升级。合同形状沿[提前角色层次合同](role-scope-contract.md)（#1995 已合入），本稿补服务、存储、动作、执行冻结和消费者的改法。界面照[方案 C 定样](../../docs/design/archive/role-scope/README.md)，不重出样。
 
 依据：[Onboarding §3.9、§3.11、§3.12、§10](spec.md)、[PF-A11](../product-flow-governance/audit-2026-10-27.md)、[第 36 批第 1 项](../post-anticorruption-roadmap/reference/batches/36.md#batch-36-item-1)与本批核账。验收：ONB-17、ONB-31、PFG-19，RSC-C01～C04 的运行时部分，以及本稿 §9 的 ROLE-01～ROLE-14。
 

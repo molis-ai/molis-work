@@ -67,6 +67,8 @@ components:
 
 # Design System: Molis Work Feed
 
+> **规范收敛（2026-11-21，决定 60）**：颜色、圆角、字体与共享 `mw-*` 控件统一以仓库根目录 [`DESIGN.md`](../../../DESIGN.md) 与 [`skills/molis-design-ui/SKILL.md`](../../../skills/molis-design-ui/SKILL.md) 为唯一准星；上方 frontmatter 的旧字面色值与字阶仅作历史参考，阅读版心按 `680–720px`（`91-0b` 下沉 `--measure-reading` 令牌）对齐。
+
 ## Overview
 
 **Creative North Star: "读的地方"**

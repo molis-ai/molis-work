@@ -4,7 +4,7 @@ import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plu
 import { authorizeLocalWebRequest, installHostUiText, pluginPagesFor, registeredBuiltinText, runWithLocale, runWithRegisteredText, readText, htmlLang, handlePageLocales, WebSessions, webPageToken, withWebSessionRequest, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import { handleLanguagePreference, languagePreview, requestLanguage } from '../apps/local-host/dist/web-ui-preference.js';
 import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet, renderPluginDocumentShell, workbenchLanguageResource,
-  BUILTIN_PLUGIN_CATALOG, STYLES, MORE_STYLES, RESPONSIVE_STYLES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
+  HOST_FRAMED_SURFACES, STYLES, MORE_STYLES, RESPONSIVE_STYLES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
 
 /** The isolated harness exercises the workbench's opaque frame; only the outer application and model are fixtures. */
 export const STUDIO_HARNESS_PATH = '/studio';
@@ -23,7 +23,8 @@ export function studioFrameAsset(response: ServerResponse, path: string): boolea
 }
 
 export function studioHarnessPage(home: string, projectId: string, routePrefix: string, proof: string, locale: WebLocale, preview = false): string {
-  const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
+  // The studio is the platform's framed surface (47-1 C), not a catalog plugin.
+  const entry = HOST_FRAMED_SURFACES.find(entry => entry.project_plugin_id === "plugin-builder")!;
   const reader = registeredBuiltinText(entry.manifest)!;
   const authorization = preview ? { page_id: "studio-language-preview", storage_scope: "studio-language-preview" } : pluginPagesFor(home).open(entry.manifest.plugin_id, projectId, "web-user", undefined, {
     manifest: entry.manifest, install_id: null, project_id: projectId, actor_id: "web-user", assertCurrent() {}, registeredText: reader,

@@ -172,7 +172,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
   t.after(async()=>{await browser.close();await rm(root,{recursive:true,force:true});});
   const projectId='project-'+randomUUID();
   const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
-  const project=await withMolisWorkProjectCatalog({homeDirectory:home},async catalog=>{const p=await catalog.ensureSyncedProject({project_id:projectId,display_name:'Actual authoring journey',actor_id:'alice'},()=>{});catalog.addProjectPlugin({project_id:p.project_id,plugin_id:'plugin-builder',actor_id:'alice'});return p;});
+  const project=await withMolisWorkProjectCatalog({homeDirectory:home},async catalog=>{const p=await catalog.ensureSyncedProject({project_id:projectId,display_name:'Actual authoring journey',actor_id:'alice'},()=>{});return p;});
   const databasePath=project.database_path;seedDemoBoard(databasePath,projectId);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0,modelHold:Promise<void>|null=null,releaseModel=()=>{},modelStarted=()=>{};

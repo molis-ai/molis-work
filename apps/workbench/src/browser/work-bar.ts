@@ -557,7 +557,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const putAway = () => { if (!dialog.hidden) host.dialog?.(false); };
   document.addEventListener("pointerdown", event => {
     const target = event.target instanceof Element ? event.target : null;
-    if (dialog.hidden || !target?.closest("[data-tab-workspace], .immersive-titlebar, [data-side-panel]") || target.closest("[data-work-line], [data-work-task-float], [popover], dialog, .mw-menu")) return;
+    if (dialog.hidden || !target?.closest("[data-tab-workspace], .immersive-titlebar, [data-side-panel]") || target.closest("[data-work-line], [data-work-task-float], [popover], dialog, .mw-menu, .mw-ctx, .mw-ctx-menu")) return;
     // After the press has ended and its click has gone out, not on the press: putting the conversation away lays the page
     // out again (a side panel that shared the width takes it back), and a key that moved from under the pointer between
     // press and release gets no click.

@@ -1,11 +1,8 @@
 import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT,
-  GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT,
-  GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT, GOALS_RELATION_CLIENT_FACTORY_SCRIPT,
-} from "@molis-ai/molis-work-plugin-goals";
+import { readFileSync } from "node:fs";
+import { goalEntryActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
 import { chinesePagePacks, installPageClientText, pageTextForPacks } from "./fixtures/page-text-packs.js";
 
@@ -28,16 +25,17 @@ const helper = (answer: Answer) => {
 };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 const unreachable = async (): Promise<Response> => { throw new TypeError("Failed to fetch"); };
+// The parts tests mount alone, bundled from src/browser by the Goals build (scripts/build-test-pieces.mjs), and the page itself.
+const goalsBundle = (name: string) => readFileSync(new URL(`../plugins/native/goals/dist/${name}-bundle.js`, import.meta.url), "utf8");
+const PAGE_CLIENT = readFileSync(new URL("../plugins/native/goals/dist/goals-page-client.js", import.meta.url), "utf8");
+const GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT = goalsBundle("lifecycle"), GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = goalsBundle("document");
 // The scripts are page text: run them with the helper standing where the page publishes it.
 const factory = <T>(source: string, request: unknown, document: unknown = undefined): (host: object) => T =>
   new Function("molisWorkRequest", "document", `return (${source});`)(request, document);
 
 test("PG094-09: every Goals client script parses and sends no request of its own", () => {
-  const factories = {
-    GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT,
-    GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT,
-    GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT, GOALS_RELATION_CLIENT_FACTORY_SCRIPT,
-  };
+  const factories: Record<string, string> = Object.fromEntries([...["dialogs", "document", "event-document", "lifecycle", "momentum", "proposal", "relation"]
+    .map((name): [string, string] => [name, goalsBundle(name)]), ["page", PAGE_CLIENT]]);
   for (const [name, source] of Object.entries(factories)) {
     assert.doesNotThrow(() => new Function(`return (${source});`), name + " does not parse");
     assert.ok(!/(^|[^.\w])fetch\(/.test(source), name + " calls fetch itself");
@@ -136,4 +134,11 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   assert.deepEqual(superseded.results, [null, false]);
   assert.deepEqual(superseded.errors, ["无法读取这条 Goal 正文"]);
   assert.equal(superseded.sent[0]!.signal!.aborted, true);
+});
+
+test("PCL-10: the page asks the platform to record the two protected Goals decisions by their contract descriptors", () => {
+  // The page bundle does not carry the contract, so src/browser/decision-actions.ts keeps a copy; it must stay the contract's.
+  for (const action of [goalEntryActions.decide, goalEntryActions.treeDecide]) {
+    assert.ok(PAGE_CLIENT.includes(`capability_id:${JSON.stringify(action.capability_id)},version:${action.version}`), action.capability_id + " is sent as the contract names it");
+  }
 });

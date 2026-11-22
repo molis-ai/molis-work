@@ -1,7 +1,7 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { goalsApprovalOutcomesBinding } from "./approval-outcomes.js";
 import { createGoalsPlugin } from "./plugin.js";
-import { GOALS_PAGE_CLIENTS } from "./workbench-clients.js";
+import { GOALS_PAGE_CLIENT_FACTORY_SCRIPT } from "./page-client.js";
 import { GOALS_WORKBENCH_STYLESHEET } from "./workbench-styles.js";
 import { goalsStageUiContribution } from "./page/workbench-stage.js";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "./index.js";
@@ -41,7 +41,7 @@ export const registration: PluginRegistration = {
   ],
     stylesheet: GOALS_WORKBENCH_STYLESHEET,
     stylesheetPrefixes: ["goal-"],
-    pageClients: GOALS_PAGE_CLIENTS,
+    pageClient: GOALS_PAGE_CLIENT_FACTORY_SCRIPT,
     recordRow: { selector: "[data-tree-item][data-goal-id]", idDataset: "goalId" },
   },
 };

@@ -274,13 +274,11 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     const isGoalFrame = plugin === "goals" && supportsGoalFrames() && tab?.kind === "item" && tab.view !== "work";
     const isGoalWork = plugin === "goals" && tab?.kind === "item" && (!supportsGoalFrames() || tab.view === "work");
     if (isGoalFrame) {
-      const existing = body && (
-        [...body.children].find((el) => el.matches("[data-goal-frame-surface]") && el.dataset.paneTab === frameKey && !claimed.has(el))
-        || (state.panes.length < 2 ? [...body.children].find((el) => el.matches("[data-goal-frame-surface]") && !claimed.has(el)) : null)
-      );
-      if (existing) return existing;
       const primary = document.querySelector("[data-goal-frame-surface]:not([data-pane-clone])");
-      if (primary && !claimed.has(primary) && (primary.parentElement === pool || primary.parentElement === body || !primary.closest("[data-tab-pane]") || state.panes.length < 2)) return primary;
+      if (primary && !claimed.has(primary) && (primary.parentElement === body || state.panes.length < 2)) return primary;
+      const existing = body && [...body.children].find((el) => el.matches("[data-goal-frame-surface]") && el.dataset.paneTab === frameKey && !claimed.has(el));
+      if (existing) return existing;
+      if (primary && !claimed.has(primary) && (primary.parentElement === pool || !primary.closest("[data-tab-pane]"))) return primary;
       const tpl = surfaceTemplates.get("__goal-frame__");
       if (!tpl) return primary;
       const clone = tpl.cloneNode(true);
@@ -290,12 +288,12 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       return clone;
     }
     if (plugin === "goals") {
+      const primary = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone])") || document.querySelector("[data-document-pane]:not([data-pane-clone])");
+      if (primary && !claimed.has(primary) && (primary.parentElement === body || state.panes.length < 2)) return primary;
       const existing = body && [...body.children].find((el) => el.matches("[data-goal-canvas-shell]") && el.dataset.paneTab === frameKey && !claimed.has(el));
       if (existing) return existing;
-      const primary = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone])") || document.querySelector("[data-document-pane]:not([data-pane-clone])");
       const primaryHeldElsewhere = primary && primary.parentElement !== pool && primary.parentElement !== body && Boolean(primary.closest("[data-tab-pane]"));
-      const primaryHeldByOtherTab = primary && primary.parentElement === body && primary.dataset.paneTab && primary.dataset.paneTab !== frameKey && pane.tabs.some((item) => item.id === primary.dataset.paneTab);
-      if (primary && !claimed.has(primary) && (!primaryHeldElsewhere || state.panes.length < 2) && !primaryHeldByOtherTab) return primary;
+      if (primary && !claimed.has(primary) && !primaryHeldElsewhere) return primary;
       const tpl = surfaceTemplates.get("__goal-shell__");
       if (!tpl) return primary;
       const clone = tpl.cloneNode(true);
@@ -327,9 +325,12 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       clone.dataset.paneKey = paneKey;
       return clone;
     }
+    if (canonical && !claimed.has(canonical) && (canonical.parentElement === body || state.panes.length < 2)) {
+      return canonical;
+    }
     const existing = body && [...body.children].find((el) => el.dataset.workSurface === plugin && !claimed.has(el));
     if (existing) return existing;
-    if (canonical && !claimed.has(canonical) && (canonical.parentElement === pool || canonical.parentElement === body || !canonical.closest("[data-tab-pane]") || state.panes.length < 2)) {
+    if (canonical && !claimed.has(canonical) && (canonical.parentElement === pool || !canonical.closest("[data-tab-pane]"))) {
       return canonical;
     }
     const tpl = surfaceTemplates.get(plugin);

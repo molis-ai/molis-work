@@ -6,6 +6,11 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-project-arrival-goals-direct-read | 已完成并删除 | 2026-11-22 第 44 批复核结清：`goalsHostActions` 已删除；`apps/local-host/src/project-arrival-http.ts` 改为经动作目录发现通用 `isResumeSummaryAction` 并读平台项目指导 `pinnedProjectGuidanceRead`（第 44 批 #2155 / #2187 / #2192） |
+| BL-memory-session-kinds | 已完成并删除 | 2026-11-22 第 44 批复核结清：`packages/contracts/src/services/memory-session.ts` 已改用通用 `MemoryScene`/`MEMORY_SESSION_SCENE_SCHEMA`，`apps/local-host/src/memory/memory-session-binding.ts` 与 `memory-learning.ts` 已按 `isMemorySessionBindingAction` + `pluginMemoryScene` 泛化发现（第 44 批 44-5 与 #2209） |
+| BL-637 | 已由平台通用工作终端替代并删除 | 2026-11-22 第 44 批复核结清：第 44 批 44-4（PEQ-17）已删除 `startGoalTerminalClient`，改为平台通用对象工作终端 `startWorkTerminalClient()`（`apps/workbench/src/terminal-client.ts`，任何声明 `work_terminals` 的插件共用）；`/desktop/pty-client.js` 按需加载仍由 [BL-first-screen-pty-client](../specs/backlog/BL-first-screen-pty-client.md) 跟踪 |
+| BL-178 | 已完成并删除 | 2026-11-22 第 44 批复核结清：第 44 批 44-5（PEQ-09）已将平台材料模型缓存迁至独立平台目录 `{home}/materials/models`（`MATERIALS_HOME_STORE`，`apps/local-host/src/material-home.ts`），不再使用 `lingguang/models` |
+| BL-1015 | 已修复并删除 | 2026-11-22 第 44 批复核结清：`plugins/native/goals/src/momentum-client.ts:125` 在未选中 Goal 时不再拼接空 `goal_id=`；`document-routes.ts:30` 与 `stage-action.ts:98` 对空 `goal_id` 亦安全归为空串而非返回 400 |
 | BL-1062 | 已完成并删除 | 2026-11-22：第 36A 批动效项（36A-7）给连接页的折叠补了逐帧断言：高度与箭头同一时钟（同时长、同延迟、同曲线，时长等于 `--dur-move`），五个时刻上裁切层与折叠同高、高度进度与箭头进度一致且单调（`tests/connections-page.e2e.test.ts`）。 |
 | BL-b44-coding-scene-enum | 已完成并删除 | 2026-11-21，[#2209](https://github.com/molis-ai/molis-work/pull/2209)（用户经弹窗定）：合同不再写 `"coding"`，场景是插件在 Manifest `memory_scene` 申报的名字，平台只有 `assistant`、`common`、`agent`、`both`；Coding 申报 `coding`，已存取值不变、不升库版本；名单在 Host 启动时从内置插件与留存包读，运行中新装的新场景重启后生效、安装预览会说。合同改动记在 `docs/system/CONTRACT-CHANGES.md` 第 8 节 |
 | BL-b44-information-plan-to-feed | 已完成并删除 | 2026-11-21，[#2209](https://github.com/molis-ai/molis-work/pull/2209)：动作改为 Feed 的 `feed.information.plan@1`，提示词键改到 Feed 名下，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（`CONTRACT-CHANGES.md`「当前保留机制」） |

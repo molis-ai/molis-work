@@ -94,7 +94,7 @@ export const PLUGIN_STAGE_STYLES = `
     > .mw-btn:not(.plugin-stage-back) { flex: none; }
     > :is(h1, span) + .mw-btn { margin-left: auto; }
     > .form-tabs + .mw-btn { margin-left: 0; }
-    :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current], [data-alchemist-delete]) {
+    :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current]) {
       color: var(--red);
       &:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red); }
     }
@@ -230,7 +230,7 @@ export const PLUGIN_STAGE_LAYER_STYLES = STAGE_ENTRY_LAYER_STYLES + `
     > .form-tabs, > :is(h1, span) + .mw-btn { margin-left: auto; }
     > .mw-btn:not(.plugin-stage-back) { flex: none; }
     > .form-tabs + .mw-btn { margin-left: 0; }
-    :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current], [data-alchemist-delete]) {
+    :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current]) {
       color: var(--red);
       &:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red); }
     }

@@ -293,7 +293,7 @@
 **目标资料库（Goals 根记录）**
 
 - 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，外键指项目库的 `project_root`，由 Goals 的 Manifest 声明：`plugins/native/goals/src/project-database-goals.ts` 的 `GOALS_BOARDS_SQL`；记录类型 `GoalsBoardRecord`，`plugins/native/goals/src/contract/goals.ts`）。它不记项目的名字（S8 起没有 `title` 列，名字的主人是项目目录的 `display_name`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
-- 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/library-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`plugins/native/goals/src/module/command-support.ts:23`，2026-10-08 起的界面文案）。托管的项目数据库必须恰好有一条（`apps/local-host/src/managed-project-database.ts:43`）。
+- 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/library-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`plugins/native/goals/src/module/command-support.ts:23`，2026-10-08 起的界面文案）。项目数据库本身的身份校验已改为核对平台 `project_root`（`apps/local-host/src/managed-project-database.ts:25-27`），不再要求每个项目库都有 `boards` 行。
 - 文档写「目标资料库」（与界面同名）；代码里仍叫 Board，改名见 R-A1。
 
 **Board**
@@ -304,7 +304,7 @@
 
 ### 2.5 其他易混的词
 
-- **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口、样本留存；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，样本留存由第 30 批接入（`observation.db` v2、`observation.holds.*@1`）。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)、[合同稿](../../specs/observation-collection/contract-design.md)与[评测设计](../../specs/observation-collection/evaluation-path-design.md)。
+- **观测和采集层**：平台共用的产品能力（包 `horizontal/observation`，用户看到的名字是「工作记录」），记录获准的用户行为、过程、结果与当时条件，提供工作记录、证据快照、覆盖登记与缺口、样本留存；读取动作、用途与跨项目权限、保留与清理、界面归第 29 批，样本留存由第 30 批接入（现行干净基线 `observation.db` v1、`observation.holds.*@1`）。评测负责判断效果，主动助理负责理解与建议，二者共用记录。第 28 批已接入写入面（#2059，2026-11-14 合入 `4417d2bcd3`）；见[独立需求](../../specs/observation-collection/spec.md)、[合同稿](../../specs/observation-collection/contract-design.md)与[评测设计](../../specs/observation-collection/evaluation-path-design.md)。
 - **工作记录**：采集层写成的一条条记录（谁、在哪、什么时候、哪个阶段、结果、当时条件、证据引用和覆盖状态）。它不是业务事实，业务状态仍向主人读；写入面见 `horizontal/observation`。
 - **端到端评测**：包 `horizontal/evaluation`、系统动作 `system.evaluation`；从初始意图与条件到真实交付，按冻结样本的独立预期判定、比较和复查。它只持有评测样本、冻结预期、运行结论与人工复查（`<Home>/evaluation/evaluation.db` v1），原始记录、证据与样本留存仍归观测采集层。
 - **评测样本留存**：`observation.holds.{put,release,list}@1` 在采集层为评测样本关联的记录与加密快照挂的豁免；有效期默认 120 天，过期失去豁免，删项目或清插件数据优先。
@@ -331,7 +331,7 @@
 - 定义：右栏的「讨论」页签（页签名「讨论」，页内标题「项目讨论」，内嵌页标题「群聊与 Thread」）：一个项目里的群聊和内联 Thread。它是在用、会继续迭代的产品功能，不是实验，也不是待删的东西（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「右栏『讨论』页签与 IM 代码」）。
 - 代码：页签与内嵌框在 `apps/workbench/src/side-panel.ts:38,42`；服务端包 `server/`（`@molis-ai/molis-work-server`，Home 下的库 `server/server.sqlite`，表名前缀 `mw_`，`server/src/database.ts`）里的群聊域；界面包 `packages/im-ui`（`@molis-ai/molis-work-im-ui`）；合同子路径 `@molis-ai/molis-work-contracts/services/im`；宿主挂载在 `apps/local-host/src/im-server.ts`。`apps/server` 是同一服务的独立启动器，没有产品入口，去留随功能迭代另定。
 - 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它也不在内置插件清单里。
-- 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 已登记进 Home 数据与备份表（`docs/system/HOME-DATA.md` 3.4），`uninstall --purge-user-data` 也清除 `server/`（W2-12）；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`，W2-06 未做）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
+- 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 已登记进 Home 数据与备份表（`docs/system/HOME-DATA.md` 3.4），`uninstall --purge-user-data` 也清除 `server/`（W2-12）；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 已于 W2-06 改走 `ContinuityService.projectOwner`）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
 
 ### 2.7 术语与翻译键
 

@@ -74,7 +74,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }
   :is(.project-preferences-page, .settings-stage) .settings-last-change { display: grid; gap: 4px; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
   :is(.project-preferences-page, .settings-stage) .settings-last-change strong { color: var(--ink); font-size: 15px; font-weight: var(--weight-control, 500); }
-  :is(.project-preferences-page, .settings-stage) .settings-rules-form { margin: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure .sync-row:last-child { border: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure > :not(summary) { padding-bottom: 8px; }
   :is(.project-preferences-page, .settings-stage) .settings-change-reason { display: grid; gap: 12px; padding-top: 12px; padding-bottom: 12px; }

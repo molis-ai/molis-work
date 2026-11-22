@@ -94,7 +94,7 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       memoryLearningActions.enqueue.capability_id, memoryLearningActions.form.capability_id,
-      searchActions.references.capability_id, "goals.subject.read", "goals.search.entries", acceptanceActions.read.capability_id,
+      searchActions.references.capability_id, "goals.subject.read", acceptanceActions.read.capability_id,
       // The embedded Git shows a file's changes through Diff, under this page.
       "diff.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",

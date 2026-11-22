@@ -46,11 +46,7 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
 ];
 
 /**
- * Declarative placement for this first-party Plugin.
- *
- * `native` rather than `app`: the shell derives navigation from these
- * declarations, while this Plugin is still composed at build time instead of
- * being started and isolated by Plugin Runtime.
+ * Declarative placement for the built-in Goals plugin (`project_runtime` via Plugin Runtime).
  */
 export const goalsManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1,
@@ -65,7 +61,7 @@ export const goalsManifest: PluginManifest = {
   // Every permission is required and written out here. The first four are what its actions ask of the caller
   // (`actionPermissionDeclarations` over `GOALS_ACTIONS`, which `tests/goals-project-database.test.ts` holds
   // this list to); the rest are what Goals asks of the platform's services: its own tables, the journal, Attention, the Context Ledger,
-  // other plugins' actions as the caller, and the Goal's work terminals (also asked by `GOALS_TERMINAL_ACTIONS`).
+  // and other plugins' actions as the caller.
   permissions: [
     { permission: "goals:read", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
     { permission: "goals:write", required: true, reason: "按调用者授权读取、推进和决定项目目标" },

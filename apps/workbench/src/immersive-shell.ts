@@ -285,8 +285,6 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="forward" aria-label="${uiText("workbench.immersive-shell.next")}" title="${uiText("workbench.immersive-shell.next")}" disabled>${icon("arrow")}</button>
     </div>
     ${pins}
-    <strong data-immersive-plugin-title hidden>Goals</strong>
-    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goals" aria-label="${uiText("workbench.immersive-shell.open-goal-list")}" title="${uiText("workbench.immersive-shell.open-goal-list")}">${icon("list")}</button></div>
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${uiText("workbench.immersive-shell.workspace-tabs")}"></nav>
     ${picker}
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${uiText("workbench.immersive-shell.workspace-tabs")}" hidden></nav>

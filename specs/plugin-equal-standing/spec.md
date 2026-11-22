@@ -1,6 +1,6 @@
 # 插件同等地位收口：Goals 减负与去特权（Plugin Equal Standing）
 
-状态：合后整改另有 [#2187](https://github.com/molis-ai/molis-work/pull/2187)、[#2192](https://github.com/molis-ai/molis-work/pull/2192)，四项转为 Backlog（BL-b44-shell-goals-state、BL-b44-coding-scene-enum、BL-b44-feed-home-dir-and-styles、BL-b44-information-plan-to-feed），外壳的 Goals 与 Feed/Inbox 点名未完成；PEQ-11 待一骏本人实物验收（2026-11-21 三天复核补记）。此前：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
+状态：合后整改另有 [#2187](https://github.com/molis-ai/molis-work/pull/2187)、[#2192](https://github.com/molis-ai/molis-work/pull/2192)；原转入 Backlog 的四项中三项（BL-b44-coding-scene-enum、BL-b44-feed-home-dir-and-styles、BL-b44-information-plan-to-feed）已由 [#2209](https://github.com/molis-ai/molis-work/pull/2209)（2026-11-21）结清并删除，现留 `BL-b44-shell-goals-state`（外壳的 Goals 与 Feed/Inbox 状态与分支）与 `BL-b44-shared-styles-plugin-names`（工作台与设计系统共享样式中的残余插件命名类）；PEQ-11 仍待一骏本人实物验收（2026-11-22 独立复核更新）。此前：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
@@ -36,7 +36,7 @@
 
 ### 2.1 判断标准（逐条可测，见第 10 节）
 
-1. **拔掉测试。** 一个项目移除 Goals（或任一普通插件）后：项目能打开、Agent 与助理能运行、MCP 能连接、设置页能打开、项目简介与胶囊能显示；只少了这个插件自己的内容。
+1. **拔掉测试。** 一个项目移除 Goals（或任一普通插件）后：项目能打开、Agent 与助理能运行、MCP 能连接、设置页能打开、项目简介能显示（桌面胶囊已按 D6 整体删除）；只少了这个插件自己的内容。
 2. **平台不认识插件。** 宿主、工作台外壳、合同、kernel、设计系统、horizontal、MCP、CLI、桌面壳里，不 import 任何插件包（生成的登记表、第 3 节的保留项除外），不写任何插件的 id、业务词（goal、feed、inbox…）或它的动作 id。
 3. **同一条路。** 今天某插件独有的位置（常开、双实例、受保护的决定入口、胶囊、CLI 命令、情境焦点、放置关联、设置节、首屏默认面），要么删掉，要么做成任何插件都能声明的平台能力，第三方按安装信任同样可用。
 4. **Goals 只管 Goal。** Goals 的事实收窄到：Goal、Goal 之间的关系、Goal 的工作状态与历史。要求、证据、认可与返工由平台能力保存，Goals 引用（D9）；其他事实各归其主（第 5.1 节）。
@@ -61,7 +61,7 @@
 | Alchemist | 构建期接线例外，删除重做 | `AGENTS.md`（2026-10-21）、BL-377 |
 | Characters | Module（`modules/characters`） | 防腐 spec §1 2026-10-18 |
 
-注意：成果库仍以插件身份登记（PG-077），这是它自己「回平台」的余项，不在本需求范围。名单是否完整由 D8 确认。
+注意：成果库已于 PG-077（#1633）回归平台 `kind: "system"` 并删除 `plugins/native/artifacts` 旧包（见 `docs/SSOT-MATRIX.md`）。名单是否完整由 D8 确认。
 
 ## 4. 盘点
 
@@ -220,13 +220,13 @@
 | --- | --- |
 | 1 事实主人 | 第 5.1 节逐项给出；搬家后每项只有一个主人，`docs/SSOT-MATRIX.md` 同步改 |
 | 2 插件同等待遇 | 本需求的目的；不新增构建期接线，删宿主私路 |
-| 3 能力注册 | 决定入口、接续摘要、胶囊、设置节、上手承接都做成声明 + 动作目录，一份供页面、Agent、MCP |
+| 3 能力注册 | 决定入口、接续摘要、设置节、上手承接都做成声明 + 动作目录，一份供页面、Agent、MCP（桌面胶囊已按 D6 删除） |
 | 4 合同 | 改：placement、action-subjects、memory、contextual、dom-events、context-ledger、skills、Goals 公开 contract、MCP 受保护决定入口（D3）、Manifest 新声明；删：胶囊的宿主路由与原生桥（D6）、CLI 的 Goals 命令（D6b）、`goal-advance` Skill（D7）。首个外部安装之前，按阶段一不留兼容期，一个 PR 改完消费者；先单独开合同片（片 1） |
 | 5 放在哪个包 | 新平台服务放 `horizontal/` 新包或 `modules/projects`，不进宿主 |
 | 6 表与存储 | 项目指导、决定记录搬家涉及表的主人变更：升版本、写升级段、补金样（[升级链设计](../upgrade-continuity/upgrade-chain-design.md)）；真实 Home 不动，开工前弹窗问 |
 | 7 兼容与迁移 | 存量数据要搬（决定记录、项目指导；个人规划方法不搬，用户 2026-11-14 定直接删）：这是迁移逻辑，开工前按 `AGENTS.md` 写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认 |
 | 8 安全边界 | 碰：MCP 受保护决定入口（可信来源）、动作网关的可信身份；改动同步 `docs/system/SECURITY-INVARIANTS.md` 与拒绝测试 |
-| 9 调用次数 | 每页请求不再额外读 Goals；胶囊与接续摘要按已装插件汇总，限定一次批量读 |
+| 9 调用次数 | 每页请求不再额外读 Goals；接续摘要按已装插件汇总，限定一次批量读 |
 | 10 升级与数据 | 现有项目的 Goal、决定、指导、方法在升级后都在、能接着用；有金样回放证明 |
 | 11 成果与过程项 | 不涉及：不新增成果类型 |
 | 12 页面、外壳与文字 | 插件样式随包；新文字按主人起键；外壳不再拿插件文案；页面资源工作台应变小，Goals 包相应变大，写明字节 |
@@ -326,7 +326,7 @@
 1. **PEQ-01** 一个项目移除 Goals 后：项目能打开，Agent Run、助理回合、MCP 连接、项目设置、项目简介都正常；项目指导仍生效。
 2. **PEQ-02** 移除后重新添加 Goals，原有 Goal、关系、历史、要求认可都在。
 3. **PEQ-03** 平台目录（`apps/local-host`、`apps/workbench` 外壳、`apps/mcp`、`apps/cli`、`apps/desktop`、`packages/contracts`、`packages/kernel`、`packages/design-system`、`horizontal/*`）不 import 任何插件包（生成的登记表与第 3 节白名单除外），由门禁检查（与现有 `boundary:check` 合并）。
-4. **PEQ-04** 合同里没有 `goal_ids`、`goal` 关联类型、【当前目标】、`goal-*` 外壳事件、`"goals"`/`"feed"` 枚举值、`"coding"` 调用方枚举（已定例外：`packages/contracts/src/services/skills.ts` 的 `"coding"` 保留为工作台调用场景类别，见 2026-11-17 D4 与 `44.md` 做法变更）、`goal-acceptance` 审查 owner 类型，以及已退役的 `io.molis.work.coding.*`/`io.molis.work.git.*`、`molis.goal.promote.*` 事件与协议字面量（由 `tests/goals-contract-ownership.test.ts` 自动守住）。
+4. **PEQ-04** 合同里没有 `goal_ids`、`goal` 关联类型、【当前目标】、`goal-*` 外壳事件、`"goals"`/`"feed"` 枚举值、`"coding"` 调用方枚举（2026-11-21 #2209 已一并清理 `packages/contracts/src/services/skills.ts` 与 `memory-scene.ts` 中的 `"coding"`，改由插件在 Manifest `memory_scene` 申报）、`goal-acceptance` 审查 owner 类型，以及已退役的 `io.molis.work.coding.*`/`io.molis.work.git.*`、`molis.goal.promote.*` 事件与协议字面量（由 `tests/goals-contract-ownership.test.ts` 自动守住）。
 5. **PEQ-05** 一个示例第三方插件（`examples/plugin-sample/`）能声明设置节、接续摘要、需要可信决定的动作，并在工作台与 MCP 里生效。
 6. **PEQ-06** 双实例对签名第三方插件开放，授权与沙箱规则与内置相同。
 7. **PEQ-07** 工作台首屏不再默认 Goals：无历史时进平台的「项目首页」（空项目按三问画：项目名、一句「还没有内容」、三个开始的地方：带入资料、开始一件工作、添加插件；用户 2026-11-17 定「一个入口」，2026-11-22 改为三个入口，见[逐屏打磨第八之二节](../screen-polish/spec.md)与 POLISH-81），有历史时回到上次的面。首页的进展段只画插件在概况里申报的树，装了 Goals 才有「目标」这一段（POLISH-78）。

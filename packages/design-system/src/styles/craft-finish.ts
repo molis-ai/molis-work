@@ -277,7 +277,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
       if (Date.now() > settledAt && fresh.length && fresh.length <= 3) fresh.forEach((id) => landed(kind, id));
     });
   };
-  const QUIET = ".xterm, .terminal, [data-tui-pane], .goal-tui-pane, .craft-burst, .craft-tip";
+  const QUIET = ".xterm, .terminal, [data-tui-pane], .craft-burst, .craft-tip";
   new MutationObserver((records) => {
     if (queued) return;
     const relevant = records.some((record) => {

@@ -161,7 +161,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - Inbox 读后检查（11-12，同日更正出处后再确认）：一次 Inbox 读以读出条目那一刻为准，读出之后、交付前的检查里才停用的不追溯，下次读才去掉；写进 S-68。这个读后检查是本 PR 在 `9a12bc8e7` 给查询加的交付前复核（`packages/kernel/src/action-execution-context.ts` 的 `prepareSubjectStateResult`），不是 main #1999 带来的；最初问用户时说成了后者，评审台指出后更正，用户仍选保留。RAC-808 只数读出之前的检查。
 - 恢复日志版本（11-12）：保持 1（#1837 统一起点），用例里「低于第一版」用 0。
 - 重试停用（11-12）：同一个操作号重试暂停或停用时，SDK 发给 Authority 的请求不带原条目，形成开关关着时重试被拒。用户定改 Prologue；评审台指出只凭已提交条目推不出原状态（已暂停再暂停、已停用再停用、停用顶替暂停都不留痕迹），用户再选「存下准确状态」：暂停或停用在最后一次操作里记下调用前是否已暂停、已停用，重试时照原样带上，与第一次问的完全相同。推送、合入、换包各一步都先问用户。
-- Coding 会话绑定（11-12）：宿主里按 Coding 与助理开的记忆会话绑定（`apps/local-host/src/memory/memory-session-binding.ts`、合同 `packages/contracts/src/services/memory-session.ts` 把会话种类写成 `"coding" | "assistant"`），记为插件同等待遇的已批例外，不在本 PR 改；以后改成任何插件都能声明会话种类，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md)。
+- Coding 会话绑定（11-12）：宿主里按 Coding 与助理开的记忆会话绑定（`apps/local-host/src/memory/memory-session-binding.ts`、合同 `packages/contracts/src/services/memory-session.ts` 把会话种类写成 `"coding" | "assistant"`），记为插件同等待遇的已批例外，不在本 PR 改；以后改成任何插件都能声明会话种类，见 BL-memory-session-kinds（第 44 批 44-5 与 #2209 已结清，见[已删除的 BL](../../docs/backlog-removed.md)）。
 - 留到 V0 之后的验收（11-12）：MEM-10、MEM-11、MEM-19（P1）与 MEM-43、MEM-44（§10.3 跨主人完整动线，归 BL-1075）描述的是 V0 之后的工作，移到 §10A，不算 #2020 的门；编号照旧占着。
 - BL-1076（11-13）：用户定「视作我通过吧，这个记录后续的 BL」。通过是用户的决定，不是本人走过一遍；代走用的是 dev Home，没动真实 Home。代走发现的问题按用户「不管是不是 Memory 带来的，链路要通」在本 PR 修掉：明说记住的也能撤销；首页说的事默认归个人；个人页可直接选项目改为项目记忆。余项见 BL-memory-own-app-walkthrough、BL-app-account-environment、BL-desktop-same-version-install、BL-blank-503-notice、BL-text-provider-conflict、BL-home-recent-coverage、BL-memory-session-residues。
 
@@ -217,7 +217,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 | # | 项 | 回答 |
 | --- | --- | --- |
 | 1 | 事实主人 | 记忆正文、版本与索引归 Prologue SDK，只经 `horizontal/agent-host` 读写；分类、偏好、遗忘决定和账本归 `horizontal/memory` 与 `packages/storage` 的记忆账本；Goals 等业务事实仍归原插件，记忆只存引用 |
-| 2 | 插件同等待遇 | 插件只写自己的命名空间，走同一个 Authority 与运行时策略。例外：记忆会话绑定按 Coding 与助理写死，用户 11-12 定记为已批例外，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md) |
+| 2 | 插件同等待遇 | 插件只写自己的命名空间，走同一个 Authority 与运行时策略。例外：记忆会话绑定按 Coding 与助理写死，用户 11-12 定记为已批例外，见 BL-memory-session-kinds（第 44 批 44-5 与 #2209 已结清，见[已删除的 BL](../../docs/backlog-removed.md)） |
 | 3 | 能力注册 | 记忆动作在动作目录注册一次，设置页、助理、MCP 共用；调用者身份取自调用上下文（`withCaller`），不从输入读 |
 | 4 | 合同 | 阶段一原位改，本 PR 改完全部消费者：五份公开 API 快照与动作快照；运行时策略主人接口 `isForgotten` → `forgettingPhase()`（用户 11-11 批准）、可选 `authorizeEach`；Run 视图 `elapsed_ms` 改为可选 |
 | 5 | 放在哪个包 | 没有新包；运行时策略在 `apps/local-host/src/memory/`，SDK 桥在 `horizontal/agent-host` |
@@ -239,7 +239,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **`tests/vendor-provenance.test.ts` 还钉着 `1128126d`。** 换到 `83bee7fc` 时漏改，CI 门禁作业会挡；`vendor/prologue-sdk/patch-history.json` 的说明同样过时。已改到 `83bee7fc`（#112），`tests/vendor-provenance.test.ts` 79/79；下一次换包再跟着改。
 - **重试停用被拒。** 见上面「本会话的用户决定」的「重试停用」。Prologue 分支 `claude/memory-deactivation-replay` 提交 `08470eb6`：最后一次操作新增可选 `before: { paused, disabled }`，只在暂停与停用上出现；读取时严格检查（别的操作带它、不是两个布尔值、暂停前已停用、两项同时为真都拒读）。没有它的旧行照旧不带原条目重试，行格式不升（旧读者忽略这一项也是这样）；SDK 公开 API 只加这一个可选字段。重试的新用例在 Prologue main 的源码上全部失败，七种拒读去掉规则后全部失败，`memory-state-lifecycle` 64/64；SDK 记忆用例 971/972，唯一失败的 `memory-context-handles`「concurrently prepared handles」在 `1128126d`、`83bee7fc` 的源码上同样失败，与这次无关。换包时 Molis 一侧随之补用例：形成开关关着时，同一个操作号重试暂停、停用都通过，且问到 Authority 的原条目与第一次相同。SDK 的 `memory-context-handles`「concurrently prepared handles」在本机失败，在 `1128126d` 与 `83bee7fc` 的源码上同样失败，与这次改动无关，另记。
 - **读后检查的出处。** 见「本会话的用户决定」的「Inbox 读后检查」：出处更正后用户仍选保留。
-- **Coding 会话绑定。** 记为已批例外，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md)。
+- **Coding 会话绑定。** 记为已批例外，见 BL-memory-session-kinds（第 44 批 44-5 与 #2209 已结清，见[已删除的 BL](../../docs/backlog-removed.md)）。
 - **巨大单元。** `apps/workbench/src/settings-memory.ts` 在本 PR 从 536 行涨到 887 行，登记的「内聚单元」理由自己列了几件事。按职责拆：改一条记忆（正文、分类与期限、续期、历史）移到 `apps/workbench/src/settings-memory-editors.ts`，沿用分类矩阵已有的工厂写法；页面文件回到 713 行，删掉它的巨大单元登记。拆出的工厂调用与参数让工作台脚本多 741 字节，复审时页面资源门因此不过；把 `memory-v0.json` 的工作台额度改成实测 +21,804（仍在用户批准的合计 +27,407 之内），门禁通过。
 - **17 条验收没有用例写出编号。** 五条按用户决定移到 §10A（见上）。其余十二条补齐：MEM-14、MEM-15、MEM-16、MEM-31 是已有用例只差标注，补了编号；MEM-14 的「收益按 §9.2 实测」归 MEM-38 的正式测量，这里不算证明。新写的用例：
   - MEM-01：正文、来源、证据、适用条件里各藏一个密钥，或正文一百万字，都被拒且存储字节不变；适用条件里塞进的深层键到不了存储（`tests/prologue-memory-current-authority.test.ts`）。

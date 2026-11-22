@@ -19,7 +19,7 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 | --- | --- | --- |
 | `apps/desktop/src/shell.ts` | 识别原生 Desktop 请求并保持本地链接的 `desktop=1` 上下文 | 页面业务渲染 |
 | `apps/desktop/adapters/tauri/` | 窗口、菜单栏、PTY、本地 Web 服务启动与恢复 | Module 业务规则 |
-| `apps/local-host/src/project-catalog-contract.ts` | 目录库 2→3 升级清理退役的 `goal_desktop_panels`、`goal_desktop_panel_aliases` 空表；有记录时拒绝升级并保留原库，等待明确的恢复决定 | Desktop 不再建这两张表；现行终端记录由平台 `plugin_terminal_panels` 持有 |
+| `apps/local-host/src/project-catalog-contract.ts` | 目录库现行干净 v1 契约（已退役的 `goal_desktop_panels`、`goal_desktop_panel_aliases` 不在基线内） | Desktop 不再建这两张表；现行终端记录由平台 `plugin_terminal_panels` 持有 |
 | `apps/desktop/src-tauri/` | Cargo/Tauri 配置、权限和打包资源 | Desktop 业务源码 |
 
 旧 `src/desktop/` 与 `src/web/desktop-shell.ts` 已删除；caller 使用 `@molis-ai/molis-work-app-desktop`。
@@ -43,11 +43,11 @@ AP4 保持并迁移了以下既有能力：
 - 内置 Molis Work Runtime 的版本比较、升级安装与 owned service 配置修复。
 - Tauri command 的显式 permission allowlist。
 
-当前产品没有系统级通知实现：界面中的通知按钮原本就是“暂不可用”的禁用占位。Desktop 也没有独立 Keychain adapter；Feed 的现有 credential backend 仍由它自己的 Host 接线管理。AP4 不把不存在的功能伪装成已迁入。将来实现系统通知、Keychain 或 App 自更新时，应作为 `apps/desktop/adapters/tauri/` 的受控 adapter 接入，但权限策略和业务判断仍由调用它的正式 owner 决定。
+当前产品没有系统级通知实现：界面中的通知按钮原本就是“暂不可用”的禁用占位。Desktop 也没有独立 Keychain adapter；平台的密钥与凭据后端（`packages/storage` 的 `FileSecretStore`，落盘 `security/secrets.json`）仍由 Local Host 接线管理。AP4 不把不存在的功能伪装成已迁入。将来实现系统通知、Keychain 或 App 自更新时，应作为 `apps/desktop/adapters/tauri/` 的受控 adapter 接入，但权限策略和业务判断仍由调用它的正式 owner 决定。
 
 ## 5. 当前退出与发布状态
 
-原混合 Tauri main.rs 已按窗口、菜单、服务、面板等职责拆分；旧 Desktop 转发、Catalog 面板兼容方法与 Web Capsule 文件均已删除，原生胶囊窗口在第 44 批删除。面板服务与启动配方在 T-148 删掉，Desktop 只留两张旧表的建表语句；Session 与 Runtime 规则归各 owner。
+原混合 Tauri main.rs 已按窗口、菜单、服务、面板等职责拆分；旧 Desktop 转发、Catalog 面板兼容方法与 Web Capsule 文件均已删除，原生胶囊窗口在第 44 批删除。旧面板服务、启动配方及退役的 `goal_desktop_panels` 表均已移除；现行对象工作终端由平台 `system.work-terminal` / `plugin_terminal_panels` 承接，Session 与 Runtime 规则归各 owner。
 
 `apps/desktop/src-tauri/` 保留 Cargo/Tauri 发布配置和资源。最终 App、DMG、zip 与 ad-hoc 签名已构建，DMG 安装至临时目录后真实启动、退出并恢复原服务。没有升级现用安装，也未进行 Developer ID 公证或公开发布。
 

@@ -20,7 +20,7 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 "$HOME/.molis-work/bin/molis-work-mcp"
 ```
 
-这个 MCP 进程启动时仍是“未连接项目”状态，不会打开某个 Board。Runtime 先调用 `molis_work_v1_context_resolve`：
+这个 MCP 进程启动时仍是“未连接项目”状态，不会自动打开任何项目或插件视图。Runtime 先调用 `molis_work_v1_context_resolve`：
 
 > **宿主身份**：Molis Work 优先读取单次调用 `_meta["molis-work/sessionId"]`、`_meta.threadId`、`_meta.sessionId`，再沿用宿主启动时提供的身份。是否提供这些字段由 Runtime host 决定；不能假设所有版本都会提供。没有 Session 信号时，唯一已验证 workspace membership 仍可只读恢复；其他情况按返回的候选/未绑定状态处理。
 
@@ -43,7 +43,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 - **连接工具**（平台工具，名称以 `molis_work_v1_` 开头）：`context_resolve`、`context_list_projects`、`context_reject_suggestion`、`context_bind`、`context_unbind`、`context_create_and_bind`、`project_delete`。连接工具不收 `actor_id`：宿主记录这次调用的 MCP 客户端与 Runtime 会话（`runtime:<runtime_id>:<会话>`；宿主没有声明稳定会话时只记 `runtime:<runtime_id>`），参数里带了身份字段会被 `mcp.unexpected_field` 拒绝，什么也不写。
 - **动作工具**：系统同一能力注册表里的每个动作，名称是 `molis_work_v1_action_<动作>__v<版本>`，例如 `molis_work_v1_action_goals.list__v1`。Goals、判断规则和各插件的能力都只经这一种方式对外。
-- **管理工具**（`MOLIS_WORK_MCP_AUDIENCE=management`）提供 `molis_work_v1_initialize`、`molis_work_v1_review_request` 和 `molis_work_v1_review_decide`。项目审批由平台把决定送到原动作提供方，同一入口适用于各插件。
+- **管理工具**（`MOLIS_WORK_MCP_AUDIENCE=management`）提供平台审查工具 `molis_work_v1_review_request` 和 `molis_work_v1_review_decide`，以及已装配插件声明的管理工具（例如 Goals 插件在登记中声明的 `molis_work_v1_initialize`）。项目审批由平台把决定送到原动作提供方，同一入口适用于各插件。
 
 动作工具只在用户为这个客户端、这个范围（全局或某个项目）逐项授权后出现。在「能力 → 对外接入」选择客户端和范围，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本与提供方；发现和每次实际执行都检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。项目绑定本身不授予任何动作。 在途搜索与已受理后台任务保留这次受理时的原精确授权代次；撤销后同值重新授权只对新受理调用生效，无关授权编辑和幂等保存不会打断合法调用。错版的授权配置由统一离线维护窗口处理，运行时拒绝并保留原件。
 

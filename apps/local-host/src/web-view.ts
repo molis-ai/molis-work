@@ -1,5 +1,5 @@
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { expectingRefusal } from "@molis-ai/molis-work-kernel";
 import { type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkWebView };
 import { inLanguagePreview, currentLocale } from "./web-locale.js";
@@ -26,12 +26,6 @@ type PluginProjection = Pick<MolisWorkWebView, "stage_data">;
  * the answer it is looking for, so the Host keeps no row in the call log about that refusal; any other refusal still leaves one.
  */
 export const lookingForArea = <T>(run: () => Promise<T>): Promise<T> => expectingRefusal(["actions.plugin_disabled", "actions.missing"], run);
-
-/**
- * A Feed pull. It outlives the request that happened to start it and is not part of it, so each pull, the one a page starts and every tick of
- * the 30-second timer, is an operation of its own, with a call number of its own; the project may have no Feed (`lookingForArea`).
- */
-export const feedPull = <T>(run: () => Promise<T>): Promise<T> => withCallId(newCallId(), () => lookingForArea(run));
 
 /** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
 export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {

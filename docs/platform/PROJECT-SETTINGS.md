@@ -48,7 +48,7 @@ const output = directories.find(item => item.roles.includes('output'));
 
 ## 数据和刷新
 
-目录事实唯一来源是 catalog（`projects/catalog.db`）的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列表示角色）和 `workspace_source_links`，不复制目录到设置存储。项目库里没有浏览选择：旧的 `project_browsing_settings` 随项目库升到第 2 版删掉，换成每个调用方的「最近用过」`material_recent_uses`。默认输出目录是 `workspaces` 里真实的一行，建项目时写入，`canonical_path` 记为 `project-output:<project_id>`、不存路径，路径由 Home 与项目编号推导；文件夹在第一次写或运行时才建，建好前 Git 的读取返回空、暂存和提交答「还没有建立，不是 Git 仓库」，平台资料服务列出空目录。
+目录事实唯一来源是 catalog（`projects/catalog.db`）的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列表示角色）和 `workspace_source_links`，不复制目录到设置存储。项目库里没有浏览选择：旧的 `project_browsing_settings` 已在干净 v1 基线中移除，换成每个调用方的「最近用过」`material_recent_uses`。默认输出目录是 `workspaces` 里真实的一行，建项目时写入，`canonical_path` 记为 `project-output:<project_id>`、不存路径，路径由 Home 与项目编号推导；文件夹在第一次写或运行时才建，建好前 Git 的读取返回空、暂存和提交答「还没有建立，不是 Git 仓库」，平台资料服务列出空目录。
 
 受保护的项目 Web 页面使用 `/projects/<id>/api/project-settings/directories`：GET 读目录（即 `projects.directories.get`），POST `{ change, input }` 做一项改动，`change` 是上表六个动作名去掉前缀后的一个（`add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`），`input` 由对应动作自己的 schema 检查；系统选文件夹的窗口走 `POST /api/workspaces/pick`。这些是可信 Host UI 路由（`apps/local-host/src/project-workspace-http.ts`），不是给插件绕过 Manifest 的 SDK。插件经 `services.actions` 调具名动作。读接口不提供写设置能力。
 
@@ -62,8 +62,8 @@ Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。�
 | --- | --- | --- |
 | 项目名称、项目维护、本地数据位置 | 项目设置 → 常规 | 保留；名称属于项目记录 |
 | 输入目录、输出目录 | 项目设置 → 输入与输出 | 目录分输入与输出两种角色；页面看哪个目录不记在项目里 |
-| 背景、共同要求、约束、协作方式、质量标准 | 项目设置 → 项目说明；Goals guidance | 保留原有长期说明契约，不纳入设置读取协议 |
-| Goals 工作规则 | 原有 `/settings/rules` 页面及 Goals 管理路径（规划方法是技能目录里的技能，第 41 批起不在项目设置里） | 保留业务 owner 和原有入口，不因“设置”改成通用 KV |
+| 背景、共同要求、约束、协作方式、质量标准 | 项目设置 → 项目说明（平台 `modules/projects`，`projects.guidance.*`） | 平台项目说明契约，第 44 批起归 `modules/projects`，不依赖 Goals，也不纳入通用 KV 设置协议 |
+| 项目审批规则 | `/settings/rules` 页面（平台 `horizontal/project-approvals`；规划方法是技能目录里的技能，第 41 批起不在项目设置里） | 平台审批规则与可信决定入口（全项目插件共用），不因“设置”改成通用 KV |
 | 外观、模型、Runtime、MCP、Connector、诊断 | 全局设置 | 属于本机/用户，继续共用；不复制到每个项目 |
 | 插件专有长期偏好 | 插件 `settings` contribution / `storage:private` | 设置槽是呈现位置，私有存储不是跨插件配置接口 |
 | Coding 的执行位置、模型、材料、运行配置 | 会话 | 一轮在输出目录里跑，或在宿主为这个会话建的独立工作树里跑（开轮时冻结）；目录候选读项目的 `projects.directories.get` |

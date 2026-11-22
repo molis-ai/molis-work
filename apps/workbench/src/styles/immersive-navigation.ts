@@ -242,7 +242,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
   html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,
   body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
-  body.immersive-workbench .immersive-titlebar > strong { font-size: 11px; font-weight: var(--weight-control, 500); }
   body.immersive-workbench .container-tabs { min-width: 0; flex: 1; height: 44px; padding-block: 8px; display: flex; align-items: stretch; overflow: auto; gap: 4px; }
   body.immersive-workbench .container-tab { max-width: 168px; min-width: 72px; flex: 0 1 auto; display: flex; align-items: center; gap: 8px; padding: 0 8px; font: inherit; font-size: 12px; font-weight: 400; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; box-shadow: none; }
   body.immersive-workbench .container-tab:hover { color: var(--ink); }
@@ -252,7 +251,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .container-tab-close { width: 18px; height: 18px; border-radius: 4px; margin-left: 4px; color: var(--muted); display: grid; place-items: center; opacity: .7; padding: 0; border: 0; background: transparent; }
   body.immersive-workbench .container-tab-close:hover { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .container-tab-close svg { width: 12px; height: 12px; }
-  body.immersive-workbench .immersive-goal-tools { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
   body.immersive-workbench .immersive-icon-button { width: 28px; height: 28px; padding: 0; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   body.immersive-workbench .immersive-icon-button svg { height: 16px; width: 16px; }
   body.immersive-workbench .workspace-chrome.project-island :is(.navigator-directory-toggle, .immersive-show-directory) { display: none; }
@@ -455,7 +453,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .workspace-chrome.project-island .navigator-directory-toggle { display: none; }
     body.immersive-workbench .is-directory-drawer-open .workspace-chrome.project-island .navigator-directory-toggle { display: grid; }
     body.immersive-workbench .is-directory-drawer-open .workspace-chrome.project-island .immersive-show-directory { display: none; }
-    body.immersive-workbench .immersive-goal-tools > span { display: none; }
     body.immersive-workbench .plugin-rail .plugin-rail-item,
     body.immersive-workbench .plugin-rail .personal-account,
     body.immersive-workbench .plugin-rail .personal-settings { width: 40px; height: 44px; min-height: 44px; }

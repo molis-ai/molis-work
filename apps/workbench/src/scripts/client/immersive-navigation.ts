@@ -1,12 +1,10 @@
 import { OWN_DIRECTORY_SURFACES, pluginSurfaceAliases } from "../../plugin-catalog.js";
-import { readClientPluginTitles } from "../../plugin-directory.js";
 
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
   const SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())};
   const canonicalSurface = (surface) => (Object.hasOwn(SURFACE_ALIASES, surface) ? SURFACE_ALIASES[surface] : surface);
-  const readTitles = ${readClientPluginTitles.toString()};
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: readText,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
@@ -16,7 +14,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const stage = document.querySelector("[data-plugin-stage]");
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
-  const directoryFilterMenus = () => [];
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
   const modesScope = getState().project?.project_id || getState().snapshot.board.project_id;
@@ -134,14 +131,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (!goalId || (modes[goalId] || {}).view || frame.dataset.viewMode !== "document") return;
     if (hasTerminalSession() && Date.now() - viewChosenAt < 2500) setView("work");
   }).observe(emptyState, { attributes: true, attributeFilter: ["hidden"] });
-  const retitle = () => {
-    const surface = getSurface(), titles = readTitles(document), label = Object.hasOwn(titles, surface) ? titles[surface] : undefined;
-    const labels = { sources: "Feed", home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"),
-      market: globalThis.t.text("workbench.immersive-navigation.plugin-market"), "project-settings": globalThis.t.text("workbench.immersive-navigation.project-settings") };
-    const title = document.querySelector("[data-immersive-plugin-title]");
-    if (title) { title.hidden = true; title.textContent = label || labels[surface] || surface; }
-  };
-  document.addEventListener("molis-work:language-changed", retitle);
   const sync = () => {
     const plugin = currentPlugin();
     if (heading) heading.hidden = false;
@@ -171,9 +160,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     document.querySelectorAll("[data-top-corner-list] [data-directory-open=project-settings]").forEach(row => {
       if (plugin === "project-settings") row.setAttribute("aria-current", "page"); else row.removeAttribute("aria-current");
     });
-    retitle();
-    const goalTools = document.querySelector("[data-immersive-goal-tools]");
-    if (goalTools) goalTools.hidden = true;
     document.querySelector("[data-directory-show]")?.setAttribute("aria-expanded", String(!narrow() && !workspace.classList.contains("is-directory-collapsed")));
     syncPresence();
   };
@@ -193,11 +179,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   };
   document.querySelector("[data-directory-show]")?.addEventListener("click", showDirectory);
   scrim?.addEventListener("click", hideDirectory);
-  document.addEventListener("click", (event) => {
-    directoryFilterMenus().forEach((menu) => {
-      if (menu.open && !menu.contains(event.target)) menu.open = false;
-    });
-  });
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-goal-work-mode]");
     if (button) {
@@ -277,8 +258,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       next.click(); next.focus();
     }
     if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("dialog[open], .mw-help-card")) {
-      const openMenu = directoryFilterMenus().find((menu) => menu.open);
-      if (openMenu) { event.preventDefault(); openMenu.open = false; openMenu.querySelector("summary")?.focus(); return; }
       if (workspace.classList.contains("is-directory-drawer-open")) { event.preventDefault(); hideDirectory(); }
     }
     if (event.key === "Tab" && workspace.classList.contains("is-directory-drawer-open")) {

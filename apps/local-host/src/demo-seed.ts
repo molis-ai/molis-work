@@ -33,10 +33,8 @@ type DemoAct = <Result = unknown>(capability: string, version: number, input: ob
  * needs, and the platform's requirements and acceptance a finished Goal stands on (contract-design §10.3).
  */
 const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "artifacts:read", "acceptance:read", "acceptance:report", "acceptance:decide"];
-const DEMO_DECIDE = "goals.decisions.record";
-/** The acts that are the person's trusted decisions, each with the request its review reads (the Goal decision's key, the accepted object). */
+/** The acts that are the person's trusted decisions, each with the request its review reads (the accepted object). */
 const DEMO_TRUSTED: Readonly<Record<string, (input: object) => string>> = {
-  [DEMO_DECIDE]: input => String((input as { idempotency_key: string }).idempotency_key),
   [acceptanceActions.decide.capability_id]: input => acceptanceRequestId((input as AcceptanceDecideRequest).subject),
 };
 const goalSubject = (goalId: string): AcceptanceSubject => ({ provider_id: "io.molis.work.goals", subject: { kind: "goal", id: goalId } });

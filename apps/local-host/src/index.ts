@@ -99,6 +99,7 @@ export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
+export { personalConfigRegistrations } from './personal-config-sync.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 

@@ -19,8 +19,8 @@ test("an older secrets file is refused rather than upgraded, and is left as it w
   });
   process.env.MOLIS_WORK_SECRET_BACKEND = "env";
   process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
-  mkdirSync(join(home, "feed"), { recursive: true });
-  const file = join(home, "feed", "secrets.json");
+  mkdirSync(join(home, "security"), { recursive: true });
+  const file = join(home, "security", "secrets.json");
   const reversible = Buffer.from(JSON.stringify({ v: Buffer.from("old credential").toString("base64") })).toString("base64");
   for (const older of [{ "model:text:api_key": reversible }, { version: 2, backend: "aes-gcm-file", entries: { "model:text:api_key": reversible } }]) {
     writeFileSync(file, JSON.stringify(older));
@@ -71,8 +71,8 @@ function envBackend(t: TestContext) {
 function nonSealedFile(t: TestContext, bad = NOT_SEALED_ENVELOPE) {
   const home = mkdtempSync(join(tmpdir(), "molis-secret-bad-entry-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  mkdirSync(join(home, "feed"), { recursive: true });
-  const file = join(home, "feed", "secrets.json");
+  mkdirSync(join(home, "security"), { recursive: true });
+  const file = join(home, "security", "secrets.json");
   createLazyFileSecretStore(home).put("good", "good-plaintext");
   const parsed = JSON.parse(readFileSync(file, "utf8"));
   parsed.entries.bad = bad;
@@ -150,7 +150,7 @@ test("N34-VS-02 a complete current seal writes v1 and refuses the identical ciph
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const store = createLazyFileSecretStore(home);
   store.put("sample", "isolated-test-value");
-  const file = join(home, "feed", "secrets.json"), body = JSON.parse(readFileSync(file, "utf8"));
+  const file = join(home, "security", "secrets.json"), body = JSON.parse(readFileSync(file, "utf8"));
   const seal = JSON.parse(Buffer.from(body.entries.sample, "base64").toString("utf8"));
   assert.equal(seal.v, 1);
   assert.equal(store.get("sample"), "isolated-test-value");

@@ -1,6 +1,6 @@
 export const FORM_STYLES = `
   .creative-artifact-row { display: flex; align-items: center; min-width: 0; }
-  body.immersive-workbench .creative-artifact-row > .feed-stage-entry { flex: 1 1 auto; min-width: 0; width: auto; }
+  body.immersive-workbench .creative-artifact-row > .mw-stage-entry { flex: 1 1 auto; min-width: 0; width: auto; }
   .creative-artifact-act {
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;

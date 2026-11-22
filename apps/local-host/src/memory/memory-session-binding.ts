@@ -10,6 +10,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { installedPluginManifest } from "../plugin-installation-directory.js";
 import { pluginMemoryScene } from "./memory-plugin-scene.js";
+import { isMemorySessionScene } from "@molis-ai/molis-work-contracts/services/memory";
 
 export interface AssistantMemoryBindingProjection {
   session_id: string | null; project_ref: LocalHostProjectReference | null; archived: boolean;
@@ -26,7 +27,7 @@ export async function bindMemorySession(input: {
   const { caller } = input;
   if (caller.audience !== "user" || caller.actor_kind === "runtime" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID)
     throw memoryErrors.forbidden("只有本人业务入口可以管理会话记忆");
-  if (!["coding", "assistant"].includes(input.kind) || !input.id.trim() || input.id.length > 200)
+  if (!isMemorySessionScene(input.kind) || !input.id.trim() || input.id.length > 200)
     throw memoryErrors.invalid("会话记忆需要明确的业务会话");
   const kind = input.kind as MemorySessionTarget["kind"], project_id = input.projectRef?.project_id ?? null;
   if (caller.project_id !== project_id) throw memoryErrors.scope("业务会话不属于当前项目");

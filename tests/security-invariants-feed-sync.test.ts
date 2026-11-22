@@ -16,7 +16,7 @@ function fixture(){
  const {db,home}=owner,sql=fromProjectConnection(db);
  const attention=new AttentionModule(db,{exists:()=>true}),signals=new SignalsModule(sql);
  const feed=new FeedModule(sql,unassignedFeedAttention(attention),{ledger:feedLedgerPort(createContextLedger(db,{authorize:()=>true})),eventSink(){effects++;}});
- const content=createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'feed','evidence')});
+ const content=createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'security','evidence')});
  return {...owner,feed,attention,signals,content,codec:owner.content!,deny(){authorized=false;},effects:()=>effects};
 }
 function seed(f:ReturnType<typeof fixture>){

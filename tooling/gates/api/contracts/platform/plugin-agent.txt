@@ -110,6 +110,8 @@ export declare const BUSINESS_SUBAGENT_HOST_TOOLS: readonly ["dispatch-subagent"
 
 export declare const MAX_SKILL_BODY_CHARS = 20000;
 
+export declare const PLATFORM_SCENE_NAMES: readonly ["assistant", "common", "agent", "both"];
+
 export interface PluginMethodDeclaration extends AgentSkillDeclaration {
     description: string;
     applies_to: SkillAppliesTo;
@@ -119,7 +121,31 @@ export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "b
     body: string;
 }
 
-export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
+export declare const SCENE_NAME_PATTERN = "^[a-z][a-z0-9-]{0,39}$";
+
+export declare const SKILL_APPLIES_TO_SCHEMA: {
+    readonly anyOf: readonly [{
+        readonly enum: readonly ["assistant", "both"];
+    }, {
+        readonly type: "string";
+        readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+        readonly not: {
+            readonly enum: readonly ["assistant", "common", "agent", "both"];
+        };
+    }];
+};
+
+export declare const SKILL_ENTRY_SCHEMA: {
+    readonly anyOf: readonly [{
+        readonly const: "assistant";
+    }, {
+        readonly type: "string";
+        readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+        readonly not: {
+            readonly enum: readonly ["assistant", "common", "agent", "both"];
+        };
+    }];
+};
 
 export declare const SKILL_LIMITS: {
     readonly skillIdChars: 64;
@@ -143,7 +169,7 @@ export declare const SKILL_RESOURCE_FOLDERS: {
 
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
-export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+export type SkillAppliesTo = string;
 
 export interface SkillResourceDeclaration {
     path: string;
@@ -154,6 +180,10 @@ export interface SkillResourceDeclaration {
 }
 
 export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
+
+export declare const isPluginSceneName: (value: unknown) => value is string;
+
+export declare const isSkillAppliesTo: (value: unknown) => value is SkillAppliesTo;
 
 export declare function orderPromptsByLayer<T extends {
     layer?: AgentPromptLayer;
@@ -170,3 +200,5 @@ export declare const platformPluginAgentContract: {
 export declare function promptLayerOf(prompt: {
     layer?: AgentPromptLayer;
 }): AgentPromptLayer;
+
+export declare const skillEntriesOf: (appliesTo: SkillAppliesTo, pluginScenes: readonly string[]) => string[];

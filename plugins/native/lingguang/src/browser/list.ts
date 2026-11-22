@@ -47,16 +47,16 @@ export function installList(page: LingguangPage): void {
   };
   const renderRow = (record: Spark) => {
     const item = document.createElement("article");
-    item.className = "feed-stage-item";
+    item.className = "mw-stage-item";
     item.setAttribute("role", "none");
     const row = document.createElement("button");
     row.type = "button";
     row.setAttribute("role", "option");
-    row.className = "feed-stage-entry directory-list-row";
+    row.className = "mw-stage-entry directory-list-row";
     row.dataset.lingguangId = record.id;
     paintRow(row, s.picks.has(record.id) || s.selected?.id === record.id);
     const leading = document.createElement("span");
-    leading.className = "feed-stage-leading";
+    leading.className = "mw-stage-leading";
     const title = document.createElement("strong");
     title.dataset.lingguangPreview = "true";
     title.title = record.title;
@@ -66,7 +66,7 @@ export function installList(page: LingguangPage): void {
     snippet.dataset.lingguangSnippet = "true";
     // Where the spark went (a document, a Goal, a todo) is filled in after paint from the placement ledger.
     const fate = document.createElement("span");
-    fate.className = "mw-status mw-status--plain mw-status--done feed-entry-status";
+    fate.className = "mw-status mw-status--plain mw-status--done mw-entry-status";
     fate.dataset.lingguangFate = record.id;
     fate.textContent = s.fates.get(record.id) || "";
     fate.hidden = !fate.textContent;

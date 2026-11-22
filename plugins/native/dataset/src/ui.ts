@@ -51,7 +51,7 @@ export function renderDatasetWorkbench(_model: DatasetUiModel): string {
     label: "Dataset",
     dataset: "dataset",
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-dataset="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-dataset="directory">
       <header class="plugin-stage-chrome dataset-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-dataset-new>${icon("plus")}<span>${uiText("dataset.action.new")}</span></button>
       </header>

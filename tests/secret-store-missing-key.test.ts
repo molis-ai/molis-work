@@ -20,8 +20,8 @@ for (const fault of ["missing", "invalid"] as const) {
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
     resetSecretStoreCache();
-    const keyFile = join(home, "feed", "secrets.key"), savedKey = join(home, "saved-test-key");
-    const secretsFile = join(home, "feed", "secrets.json");
+    const keyFile = join(home, "security", "secrets.key"), savedKey = join(home, "saved-test-key");
+    const secretsFile = join(home, "security", "secrets.json");
     runWithMolisWorkHome(home, () => {
       const store = createFileSecretStore();
       assert.equal(store.backend().kind, "aes-gcm-file");
@@ -40,7 +40,7 @@ for (const fault of ["missing", "invalid"] as const) {
     ]) {
       assert.throws(operation, /install key file is unavailable or invalid; refusing to rotate existing secrets/);
       // S-12 RAC-104-B2b-07: retain the refusal and point to this backend's original key and recovery boundary.
-      assert.throws(operation, /Restore this Home's original feed\/secrets\.key.*HOME-DATA\.md/u);
+      assert.throws(operation, /Restore this Home's original security\/secrets\.key.*HOME-DATA\.md/u);
       assert.deepEqual(readFileSync(secretsFile), sealed, "no ciphertext or backend was rewritten");
       assert.deepEqual(readFileSync(savedKey), originalKey);
       if (fault === "missing") assert.equal(existsSync(keyFile), false, "no replacement key was created");
@@ -73,7 +73,7 @@ test("S-12 RAC-104-B2b-07: only the original environment key restores an empty v
   process.env.MOLIS_WORK_SECRET_BACKEND = "env"; process.env.MOLIS_WORK_ENCRYPTION_KEY = original;
   resetSecretStoreCache();
   runWithMolisWorkHome(home, () => { const store = createFileSecretStore(); store.put("temporary", "temporary"); store.delete("temporary"); });
-  const payload = sealExistingHomePayload(home, "original-owner", "original private state"), file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+  const payload = sealExistingHomePayload(home, "original-owner", "original private state"), file = join(home, "security", "secrets.json"), before = readFileSync(file);
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; delete process.env.MOLIS_WORK_ENCRYPTION_KEY; resetSecretStoreCache();
   assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /Restore the original MOLIS_WORK_ENCRYPTION_KEY.*HOME-DATA\.md/u);
   assert.throws(() => openExistingHomePayload(home, "original-owner", payload), { code: "storage.secrets_snapshot.key_unavailable" });
@@ -82,5 +82,5 @@ test("S-12 RAC-104-B2b-07: only the original environment key restores an empty v
   process.env.MOLIS_WORK_ENCRYPTION_KEY = original; resetSecretStoreCache();
   assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().backend().kind), "env-key+aes-gcm");
   assert.equal(openExistingHomePayload(home, "original-owner", payload), "original private state");
-  assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+  assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "security", "secrets.key")), false);
 });

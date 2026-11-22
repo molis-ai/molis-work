@@ -7,9 +7,9 @@ export const SCHEDULE_STYLES = `
   .schedule-task-detail {
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   }
-  .schedule-task-detail > .feed-detail-header { flex: none; padding: 0 24px 12px; }
-  .schedule-task-detail > .feed-detail-header h1 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
-  .schedule-task-detail > .feed-detail-header p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .schedule-task-detail > .mw-detail-header { flex: none; padding: 0 24px 12px; }
+  .schedule-task-detail > .mw-detail-header h1 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+  .schedule-task-detail > .mw-detail-header p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
   .schedule-thread {
     flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
     display: flex; flex-direction: column; gap: 16px;
@@ -24,7 +24,7 @@ export const SCHEDULE_STYLES = `
     margin: 0; color: var(--ink); font-size: 13px; line-height: 1.6; white-space: pre-wrap;
   }
   .schedule-turn--system p { color: var(--muted); }
-  .schedule-task-detail > .feed-action-status { margin: 0 24px 16px; }
+  .schedule-task-detail > .mw-action-status { margin: 0 24px 16px; }
   /* A task's kind in the list: one icon in a kept place, shown once the platform's grants are read (both are drawn, one shows). */
   .schedule-kind { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: none; color: var(--muted); }
   .schedule-kind__icon { grid-area: 1 / 1; display: none; }

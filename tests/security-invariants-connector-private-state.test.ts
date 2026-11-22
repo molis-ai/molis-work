@@ -77,7 +77,7 @@ test("S-12 RAC-104-B2b-02 RAC-108-B2b-04: the real CLI's complete opaque state i
   const serialized = JSON.stringify(snapshot);
   for (const value of [secret, filename, binary.toString("base64"), f.key.toString("utf8").trim()]) assert.equal(serialized.includes(value), false);
   assert.equal(snapshot.installations[0]!.payload.backend, "aes-gcm-file");
-  assert.equal(snapshot.installations[0]!.payload.key_reference.location, "home:feed/secrets.key");
+  assert.equal(snapshot.installations[0]!.payload.key_reference.location, "home:security/secrets.key");
   const archive = join(scratch(t), "sealed.json"); writeFileSync(archive, serialized, { mode: 0o600 });
   rmSync(f.privateHome, { recursive: true });
   writeFileSync(f.vaultPath, "damaged live vault", { mode: 0o600 });
@@ -204,12 +204,12 @@ test("S-12 RAC-104-B2b-02 RAC-107-B2b-03: opaque payloads bind the Home and owne
   delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
   assert.throws(() => openExistingHomePayload(home, "owned-installation", sealed), { code: "storage.secrets_snapshot.key_unavailable" });
   unchanged(home, before); unchanged(other, elsewhere);
-  assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+  assert.equal(existsSync(join(home, "security", "secrets.key")), false);
 });
 
 test("S-12 RAC-104-B2b-02: a Home with no managed CLI needs no credential initialization for the empty owner", t => {
   const home = scratch(t), before = fileTree(home), snapshot = captureConnectorPrivateState(home);
   assert.deepEqual(snapshot.installations, []); assert.deepEqual(preflightConnectorPrivateStateRestore(home, snapshot), []);
   assert.throws(() => sealExistingHomePayload(home, "uninitialized-owner", "contents"), { code: "storage.secrets_snapshot.invalid" });
-  unchanged(home, before); assert.equal(existsSync(join(home, "feed")), false);
+  unchanged(home, before); assert.equal(existsSync(join(home, "security")), false);
 });

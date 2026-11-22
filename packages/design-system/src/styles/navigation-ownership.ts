@@ -128,8 +128,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
 
     /* Light location states stay embedded in their rail. Paper and elevation
        remain reserved for content surfaces and overlays. */
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected,
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .feed-list-item.is-selected {
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected {
       background: color-mix(in srgb, var(--blue) 8%, transparent) !important;
       box-shadow: none;
     }
@@ -174,15 +173,6 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
   @media (max-width: 760px) {
     body[data-desktop-shell="true"] .tui-focus-return { display: none !important; }
 
-    body[data-desktop-shell="true"] .feed-directory-tools { padding: 8px 12px; }
-    body[data-desktop-shell="true"] .feed-directory-toolbar {
-      min-width: 0;
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 44px;
-      align-items: center;
-      gap: 8px;
-    }
 
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .workspace { grid-row: 3; }
   }

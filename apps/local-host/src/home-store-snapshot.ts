@@ -2,7 +2,7 @@ import { join, relative } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
 import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
-import { inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
+import { HOME_SECURITY_DIRNAME, inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
 import { assertStudioProjectIdentity, ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "./project-catalog-contract.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -132,13 +132,13 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
   },
 };
 
-export const feedSnapshot: HomeStoreSnapshotPolicy = {
+export const securitySnapshot: HomeStoreSnapshotPolicy = {
   entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex", "preserve")
     : file === "secrets.key" ? { kind: "key" } : file === "secrets.json"
       || /^evidence(?:\/blobs(?:\/[0-9a-f]{2}(?:\/[0-9a-f]{64}\.blob)?)?)?$/u.test(file) ? { kind: "keep" } : unknown(file),
   validateFile: async (home, file) => {
     if (file !== "secrets.json") return undefined;
-    const inspected = inspectSealedSecretsSnapshot(home, readSnapshotFile(join(home, "feed", file), 32 * 1024 * 1024).toString("utf8"));
+    const inspected = inspectSealedSecretsSnapshot(home, readSnapshotFile(join(home, HOME_SECURITY_DIRNAME, file), 32 * 1024 * 1024).toString("utf8"));
     return inspected.key_reference ? { kind: "master-key", ...inspected.key_reference } : undefined;
   },
 };

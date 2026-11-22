@@ -232,7 +232,7 @@ test("collapsed desktop directory becomes a titlebar overlay above a full-width 
 test("Light desktop navigation and directory selections stay flat", () => {
   const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(VISUAL_FOUNDATION_STYLES, /Light location states stay embedded in their rail/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected,[\s\S]*\.feed-list-item\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
   assert.match(withPlugins, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
   // body.settings-page[data-desktop-shell="true"] never matches: every settings body renders data-desktop-shell="false". Its rules and the lines that asserted them went in W5-05 (desktop-shell dead selectors).
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings\[aria-current="page"\],[\s\S]*\.navigator-directory-toggle \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 7%, transparent\);[\s\S]*box-shadow: none;/);
@@ -465,13 +465,13 @@ test("plugin list titles yield at the squeeze edge", () => {
   // Within the title rule itself; an unrelated later rule must not decide these.
   assert.match(workbench, /\.mw-dir-row__copy strong \{[^}]*text-overflow: ellipsis/);
   assert.doesNotMatch(workbench, /\.mw-dir-row__copy strong \{[^}]*mask-image:/);
-  assert.doesNotMatch(withPlugins, /\.feed-stage-leading strong[^{}]*\{[^}]*mask-image:/);
+  assert.doesNotMatch(withPlugins, /\.mw-stage-leading strong[^{}]*\{[^}]*mask-image:/);
   assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :focus-within, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
-  assert.match(withPlugins, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
+  assert.match(withPlugins, /\.mw-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
   assert.match(withPlugins, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
   assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);
-  assert.match(withPlugins, /\.feed-stage-entry:has\(\.plugin-stage-kind\) \.feed-entry-status \{[\s\S]*background: transparent/);
-  assert.match(withPlugins, /\.plugin-stage-list[\s\S]*\.feed-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
+  assert.match(withPlugins, /\.mw-stage-entry:has\(\.plugin-stage-kind\) \.mw-entry-status \{[\s\S]*background: transparent/);
+  assert.match(withPlugins, /\.plugin-stage-list[\s\S]*\.mw-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
   // Project home (DESIGN.md → Home; POLISH-76): it scrolls in its own box, and is one reading column of at most 640px with a 216px
   // margin of sources beside it. No grid of plugin cards.
   assert.match(workbench, /\.immersive-home \.home-scroll \{[^}]*overflow: auto;/);
@@ -482,12 +482,12 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);
   // RAC-700: the stage's kind chip has no row per plugin (they all resolved to --ink-soft); one neutral rule covers every kind.
   assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
-  assert.match(withPlugins, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
-  assert.match(withPlugins, /\.feed-stage-leading strong \{ flex: 1;/);
+  assert.match(withPlugins, /\.mw-stage-entry \.mw-entry-status \{[\s\S]*overflow: visible/);
+  assert.match(withPlugins, /\.mw-stage-leading strong \{ flex: 1;/);
   assert.match(withPlugins, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
   assert.match(
     workbench,
-    /body\.immersive-workbench :is\(\.tree-entry, \.feed-stage-entry, \.source-list-item, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
+    /body\.immersive-workbench :is\(\.tree-entry, \.mw-stage-entry, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
   );
 });
 
@@ -595,7 +595,7 @@ test("inbox detail title uses full detail width and avoids hard-coded workbench 
   const shared = renderMolisWorkWorkbenchStylesheet();
   assert.doesNotMatch(shared, /\[data-inbox-workbench\]/, "Inbox-only rules load on demand in /assets/molis-work-plugins/inbox.css");
   const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
-  assert.match(withPlugins, /\[data-inbox-workbench\] \.inbox-reference-detail > \.feed-detail-header h1 \{ width: 100%; max-width: none; \}/);
+  assert.match(withPlugins, /\[data-inbox-workbench\] \.inbox-reference-detail > \.mw-detail-header h1 \{ width: 100%; max-width: none; \}/);
   const detailReading = readFileSync(new URL("../apps/workbench/src/styles/detail-reading.ts", import.meta.url), "utf8");
   assert.doesNotMatch(detailReading, /\[data-inbox-workbench\][^{]*font-size/);
   const inboxStyles = readFileSync(new URL("../plugins/native/inbox/src/styles.ts", import.meta.url), "utf8");

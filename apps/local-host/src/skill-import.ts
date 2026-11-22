@@ -26,9 +26,12 @@ import type { PluginInstallService } from './plugin-install-service.js';
 /** The name this Home's publisher is pinned under the first time the person confirms an import. */
 const PIN_LABEL = '这台电脑';
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
-/** The 「给谁用」 an import pre-selects from its source: a coding tool's Skills folder suggests `coding`, any other source `both`. Only a suggestion. */
-export function suggestedAppliesTo(source: SkillImportSource): SkillAppliesTo {
-  return source.kind === 'runtime' ? 'coding' : 'both';
+/**
+ * The 「给谁用」 an import pre-selects: `both`, from any source. Only a suggestion; the platform names no plugin scene, so a coding tool's
+ * Skills folder no longer pre-selects Coding (BL-b44-coding-scene-enum).
+ */
+export function suggestedAppliesTo(_source: SkillImportSource): SkillAppliesTo {
+  return 'both';
 }
 
 export interface SkillImportPorts {

@@ -42,9 +42,11 @@ export const MOTION_STYLES = `
 
 /** Popovers and menus that drop from the control that opened them. */
 /** The menus whose closing plays back (the Assistant's composer, also in DROPDOWN, keeps its own motion). */
-const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu";
+const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu";
 const DETAILS_MENU = `:is(${MENU_EXIT}):not([popover])`;
-export const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu)";
+// `.tui-menu.tui-menu` matches what `.tui-menu` does; it keeps the list's weight at two classes, as it was while Feed's two-class filter row
+// selector was in it, so the rules that use it still win where they did (BL-b44-feed-home-dir-and-styles).
+export const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu.tui-menu)";
 
 /** Menu entry and exit share one motion owner; the final layer supplies its existing page scope and insertion point. */
 export function renderMenuMotion(pages: string): string {

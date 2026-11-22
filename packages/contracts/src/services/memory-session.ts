@@ -1,17 +1,19 @@
 import type { ActionDefinition } from "../platform/actions.js";
 import type { AgentSessionRef } from "./agent-host.js";
 import type { MemoryScope } from "./memory.js";
+import { MEMORY_SESSION_SCENE_SCHEMA, type MemoryScene } from "./memory-scene.js";
 
 /** A business selector is navigation, never an execution identity or permission. */
 export interface MemorySessionTarget {
-  readonly kind: "coding" | "assistant";
+  /** The session owner's scene: `assistant`, or the plugin's declared scene (Coding's `coding`). */
+  readonly kind: MemoryScene;
   readonly id: string;
   readonly project_id: string | null;
 }
 /** Serializable projection of the binding checked by the protected Host entry. */
 export interface MemorySessionBinding {
   readonly session: AgentSessionRef;
-  readonly current_scene: "coding" | "assistant";
+  readonly current_scene: MemoryScene;
   readonly target: MemorySessionTarget;
 }
 export interface MemorySessionClearPreview { preview_id: string | null; memory_count: number; candidate_count: number }
@@ -43,7 +45,7 @@ export interface MemorySessionPurgePage<S extends string = MemoryScope> {
 }
 
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
-export const memorySessionTargetSchema = { type: "object", properties: { kind: { enum: ["coding", "assistant"] }, id,
+export const memorySessionTargetSchema = { type: "object", properties: { kind: MEMORY_SESSION_SCENE_SCHEMA, id,
   project_id: { anyOf: [id, { type: "null" }] } }, required: ["kind", "id", "project_id"], additionalProperties: false } as const;
 const operation = { kind: { const: "session-clear" }, operation_id: id, at: { type: "string" }, forgetting: { enum: ["accepted", "not-accepted", "unknown"] } } as const;
 export const memorySessionOperationSchemas = [

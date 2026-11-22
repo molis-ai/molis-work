@@ -20,7 +20,7 @@ function fixture(t: TestContext) {
     resetSecretStoreCache(); rmSync(home, { recursive: true, force: true });
   });
   runWithMolisWorkHome(home, () => createFileSecretStore().put("credential", "ordinary credential"));
-  const vaultPath = join(home, "feed", "secrets.json"), keyPath = join(home, "feed", "secrets.key");
+  const vaultPath = join(home, "security", "secrets.json"), keyPath = join(home, "security", "secrets.key");
   const vault = () => JSON.parse(readFileSync(vaultPath, "utf8")) as { version: number; backend: string; entries: Record<string, string> };
   const get = () => runWithMolisWorkHome(home, () => createFileSecretStore().get("credential"));
   return { home, vaultPath, keyPath, vault, get, binding: JSON.stringify({ owner: "connector-private-state", installation_id: "fixture-install", source_sha256: "fixed-source" }) };

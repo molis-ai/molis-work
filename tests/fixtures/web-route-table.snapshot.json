@@ -124,6 +124,7 @@
       "prefs",
       "project_id",
       "scanned",
+      "scenes",
       "scope",
       "stopped",
       "total"
@@ -755,6 +756,7 @@
       "prefs",
       "project_id",
       "scanned",
+      "scenes",
       "scope",
       "stopped",
       "total"

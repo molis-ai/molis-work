@@ -41,9 +41,10 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // The Alchemist search store's is what the previous build created, since no real Home had one; it lives inside the
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
-const V2_HOME_STORE_FIXTURES = new Set(["dataset", "external-sessions", "sync", "work-brief"]);
+const V2_HOME_STORE_FIXTURES = new Set(["agent-definitions", "dataset", "external-sessions", "sync", "work-brief"]);
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
+    // agent-definitions v2: the stored built-in instruction texts are rewritten once for the scene names (BL-b44-coding-scene-enum); its tables are unchanged.
     assert.equal(baseline.version, V2_HOME_STORE_FIXTURES.has(name) ? 2 : 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.

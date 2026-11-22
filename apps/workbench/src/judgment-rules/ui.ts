@@ -13,7 +13,7 @@ interface FunctionsUiModel {
 export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
   const { primitives: p } = model;
   return `<section class="functions-system-editor plugin-stage-shell" data-functions="workbench" data-expanded="false">
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-functions="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-functions="directory">
       <header class="plugin-stage-chrome functions-stage-chrome">
         <h1>${uiText("workbench.ui.judgment-rule")}</h1>
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-functions-new>${icon("plus")}<span>${uiText("workbench.ui.new-judgment")}</span></button>

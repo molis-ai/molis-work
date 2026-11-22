@@ -45,17 +45,17 @@ test("RAC-2915: the actual current Catalog, including its context ledger, passes
 });
 
 test("RAC-2915 N36: archived evidence authenticates through its single directory and original master without the live vault", { timeout: 30_000 }, async t => {
-  const f = await restoreFixture(t), root = join(f.home, "feed", "evidence");
+  const f = await restoreFixture(t), root = join(f.home, "security", "evidence");
   const content = createEvidenceContentStore({ rootDirectory: root, secretStore: createLazyFileSecretStore(f.home) });
   const text = "Original evidence kept by its actual owner", ref = content.write(text).contentRef, digest = ref.split("/").at(-1)!;
   assert.equal(content.write(text).contentRef, ref); assert.equal(content.read(ref), text);
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
-  const feed = join(f.snapshot, "data", "feed"), vault = readFileSync(join(feed, "secrets.json"), "utf8");
+  const feed = join(f.snapshot, "data", "security"), vault = readFileSync(join(feed, "secrets.json"), "utf8");
   const reference = inspectSealedSecretsSnapshot(f.home, vault).key_reference;
-  assert.ok(reference); assert.equal(reference.location, "home:feed/secrets.key");
-  const keyPath = join(f.home, "feed", "secrets.key"), key = readFileSync(keyPath);
-  rmSync(join(f.home, "feed", "secrets.json"));
-  const before = readdirSync(join(f.home, "feed")).sort();
+  assert.ok(reference); assert.equal(reference.location, "home:security/secrets.key");
+  const keyPath = join(f.home, "security", "secrets.key"), key = readFileSync(keyPath);
+  rmSync(join(f.home, "security", "secrets.json"));
+  const before = readdirSync(join(f.home, "security")).sort();
   assert.deepEqual(inspectEvidenceContentSnapshot(f.home, feed, vault), { contents: 1 });
   assertExistingHomeKeyReference(f.home, reference);
   assert.throws(() => assertExistingHomeKeyReference(f.home, { ...reference, location: "home:outside-owner.key" }));
@@ -68,7 +68,7 @@ test("RAC-2915 N36: archived evidence authenticates through its single directory
   try { assert.throws(() => inspectEvidenceContentSnapshot(f.home, feed, vault), { code: "storage.evidence_snapshot.invalid" }); }
   finally { writeFileSync(keyPath, key); }
   assert.deepEqual(inspectEvidenceContentSnapshot(f.home, feed, vault), { contents: 1 });
-  assert.deepEqual(readdirSync(join(f.home, "feed")).sort(), before); assert.deepEqual(readFileSync(keyPath), key);
+  assert.deepEqual(readdirSync(join(f.home, "security")).sort(), before); assert.deepEqual(readFileSync(keyPath), key);
   assert.deepEqual(readFileSync(current), bytes);
 });
 

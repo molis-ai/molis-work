@@ -66,6 +66,8 @@ export { createFeedSceneRuntime, type FeedSceneHost, type FeedSceneJudgmentInput
 export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
 export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot, type FeedStageData, type FeedReaderData } from "./query-actions.js";
+export { feedInformationPlanAction, feedInformationPlanContext, feedInformationPlanData, checkedFeedInformationPlan, type FeedInformationPlan, type FeedInformationPlanState } from "./information-plan.js";
+export { FEED_INFORMATION_PLAN, FEED_INSTRUCTIONS } from "./prompts.js";
 export { buildFeedStageUiModel, buildFeedReaderUiModel } from "./stage-ui.js";
 export { feedSourcePresentationId } from "./source-presentation.js";
 export { feedNotificationActions, FEED_NOTIFICATION_ACTIONS, createFeedNotificationHandlers, type FeedNotificationPorts } from "./notification-actions.js";

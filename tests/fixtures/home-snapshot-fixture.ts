@@ -79,7 +79,7 @@ export async function populatedSnapshotHome(t: TestContext) {
     "plugin-builder/project/design/retained.bin", "plugin-originals/files/retained.bin"]) await file(path, Buffer.from([0, 255, 17, 0, 3, 128, 10]));
   for (const path of ["logs/fixture.log", "cache/derived.bin", "search/rebuildable.bin", "images/runners/fixture.db", "materials/models/rebuildable.bin",
     "browser/profile/private-state", "browser/downloads/private-state", "browser/uploads/private-state", "browser/fixture.pid"]) await file(path, "Excluded transient content", 0o600, false);
-  const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "feed", "evidence") });
+  const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "security", "evidence") });
   const evidence = content.write("Retained evidence body").contentRef;
   for (const [position, item] of projects.entries()) {
     const directory = "alchemist/projects/" + encodeURIComponent(item.project_id).replaceAll(".", "%2E");

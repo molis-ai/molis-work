@@ -80,7 +80,7 @@
 
 不比数字，出现一个就失败。设计见 [golden-replay-design.md](../../specs/upgrade-continuity/golden-replay-design.md) §5、§6。
 
-- **覆盖面：** `docs/system/HOME-DATA.md` §3、§5、§6 里备份一栏以「必备份」开头的路径（§3.3 整节都是），加上设计额外要的（`storage-space.json`、`plugin-packages/`、`spaces/`、`feed/secrets.json`、`config/installation.json`、`agent-runtime/storage.key`），都要在最新一份金样的清单里，根 Home 或账号 Home 都算。路径里的 `<x>` 是一段，`**` 是任意，`{a,b}` 是其一，以 `/` 结尾是下面的任何东西。今天放不进金样的写进 `golden-coverage.json` 的 `uncovered`，带理由；已经进了金样、或不再是必备份的条目会失败，所以这张表过不了期。
+- **覆盖面：** `docs/system/HOME-DATA.md` §3、§5、§6 里备份一栏以「必备份」开头的路径（§3.3 整节都是），加上设计额外要的（`storage-space.json`、`plugin-packages/`、`spaces/`、`security/secrets.json`、`config/installation.json`、`agent-runtime/storage.key`），都要在最新一份金样的清单里，根 Home 或账号 Home 都算。路径里的 `<x>` 是一段，`**` 是任意，`{a,b}` 是其一，以 `/` 结尾是下面的任何东西。今天放不进金样的写进 `golden-coverage.json` 的 `uncovered`，带理由；已经进了金样、或不再是必备份的条目会失败，所以这张表过不了期。
 - **最小写入：** §3 里每个必备份的库，`writes` 要说由哪几个 `tests/golden-writes/` 用例写，或者为什么没有；`tests/golden-writes/` 下每个文件要么被某个库用，要么在 `other_writes` 里。文件名和 `HOME-DATA.md` 的 owner 对不上（owner 常常是「宿主」），所以要这张对应表。
 - **怎样生成的：** 最新一份的清单要有 `third_party`、`home_library`、`node`：没有样本、或不说用哪个 Node 生成的，不入库。Node 是否等于 `.nvmrc` 由 `scripts/golden-home.mjs create` 在写默认目录时拒绝，门禁不比，否则升 Node 就要重生成旧金样。
 - **50 MB：** `tests/fixtures/golden-homes/` 下被跟踪文件的工作树字节不超过 50 MB。超了失败并点名最老的一份，不看年龄（用户 2026-11-08 定）。

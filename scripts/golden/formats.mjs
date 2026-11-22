@@ -33,7 +33,8 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "database.memory_ledger_baseline": { store: "memory/memory.db" },
   // The JSON in the one row of jelly_workspace, not jelly/preferences.json (format.model.preference).
   "format.jelly.workspace": { store: "jelly/jelly.db", rows: "SELECT json_extract(body, '$.schema_version') AS version FROM jelly_workspace" },
-  "format.secret-store.map": { file: "feed/secrets.json", field: "version" },
+  // `feed/` is where goldens made before BL-b44-feed-home-dir-and-styles hold it; the upgrade renames that directory to `security/`.
+  "format.secret-store.map": { file: ["security/secrets.json", "feed/secrets.json"], field: "version" },
   "format.mcp.tool-preference": { file: "config/mcp-tools.json", field: "version" },
   "format.shelf.catalog": { file: "shelf/catalog.json", field: "version" },
   "format.home.onboarding": { file: "config/onboarding.json", field: "schema_version" },
@@ -53,7 +54,9 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
 /** A Home path without the account Home's `spaces/<id>/`. */
 const inHome = relative => relative.replace(/^spaces\/[^/]+\//u, "");
 const pattern = relativePathPattern;
-const located = (kind, relative, locations = PERSISTENT_FORMAT_LOCATIONS) => Object.entries(locations).filter(([, location]) => location[kind] && pattern(location[kind]).test(inHome(relative)));
+/** A location names one place, or every place goldens have held it at (a list), so a directory the upgrade renames keeps a reading for older goldens. */
+const placedAt = (places, relative) => [places].flat().some(place => typeof place === "string" && pattern(place).test(inHome(relative)));
+const located = (kind, relative, locations = PERSISTENT_FORMAT_LOCATIONS) => Object.entries(locations).filter(([, location]) => location[kind] && placedAt(location[kind], relative));
 
 /** The version a format holds, or the failure that says the golden would record something that is not one. */
 function version(value, where) {
@@ -94,7 +97,7 @@ export function fileFormats(bytes, relative) {
 function readRecordedFormat(home, { entry, path: relative }, schemaVersions, files, locations) {
   const location = typeof entry === "string" && Object.hasOwn(locations, entry) ? locations[entry] : null;
   if (!location || typeof relative !== "string") return undefined;
-  const at = kind => typeof location[kind] === "string" && pattern(location[kind]).test(inHome(relative));
+  const at = kind => placedAt(location[kind], relative);
   if (at("store") && schemaVersions.has(relative)) {
     if (!location.rows) return schemaVersions.get(relative);
     const db = new DatabaseSync(path.join(home, relative), { readOnly: true });

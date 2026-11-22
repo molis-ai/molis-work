@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import childProcesses from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, assertContract, assertProposalContract, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
+import { createBatchProcessMonitor, createSandboxRunner, assertContract, assertProposalContract, parsePsBatchOutput, parsePsCpuMs, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
 
 const identity: SandboxIdentity = { projectId: 'project-a', installationId: 'installation-a', pluginId: 'test', namespace: 'preview' };
@@ -455,5 +455,59 @@ test('102-2: concurrent sandbox runners share one batched /bin/ps monitor and st
     spied.mock.restore();
     syncBuiltinESMExports();
     for (const entry of runners) await entry.close().catch(() => undefined);
+  }
+});
+
+test('102-2: process monitor parser rejects malformed ps durations and isolates callback failures across batched PIDs', async () => {
+  assert.equal(parsePsCpuMs('0:01.25'), 1250);
+  assert.equal(parsePsCpuMs('02:30'), 150_000);
+  assert.equal(parsePsCpuMs('1:02:03'), 3_723_000);
+  assert.equal(parsePsCpuMs('2-01:00:00.5'), (2 * 86_400 + 3600 + 0.5) * 1000);
+  for (const malformed of ['', ':01', '1:', '1::2', '1:2:3:4', '-1:00', '1-a:00', '1.5:00', '0:01.2.3', 'abc']) {
+    assert.ok(Number.isNaN(parsePsCpuMs(malformed)), `expected NaN for malformed ps time "${malformed}"`);
+  }
+
+  const parsed = parsePsBatchOutput([
+    '  101  20480   0:01.50',
+    '  102  40960   :01',
+    '  -5   1024    0:01.00',
+    '  103  8192    1:02:03',
+    'garbage line',
+  ].join('\n'));
+  assert.deepEqual([...parsed.keys()], [101, 103]);
+  assert.deepEqual(parsed.get(101), { rssKb: 20480, cpuMs: 1500 });
+  assert.deepEqual(parsed.get(103), { rssKb: 8192, cpuMs: 3_723_000 });
+
+  const tripped: string[] = [];
+  const monitor = createBatchProcessMonitor({
+    intervalMs: 15,
+    sample: async pids => new Map(pids.map(pid => [pid, { rssKb: 99_999, cpuMs: 5000 }])),
+  });
+  const unwatchA = monitor.watch({
+    pid: 1001,
+    rssLimitKb: 1000,
+    cpuLimitMs: 10_000,
+    onExceeded(kind) {
+      tripped.push(`1001:${kind}`);
+      throw new Error('simulated callback failure');
+    },
+  });
+  const unwatchB = monitor.watch({
+    pid: 1002,
+    rssLimitKb: 200_000,
+    cpuLimitMs: 1000,
+    onExceeded(kind) {
+      tripped.push(`1002:${kind}`);
+    },
+  });
+  try {
+    const deadline = Date.now() + 1000;
+    while (tripped.length < 2 && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+    assert.deepEqual(tripped, ['1001:memory', '1002:cpu']);
+  } finally {
+    unwatchA();
+    unwatchB();
   }
 });

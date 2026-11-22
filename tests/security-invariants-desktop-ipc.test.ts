@@ -153,6 +153,10 @@ test("102-2 S-14 tiered IPC auth enforces main-window active-origin checks and f
   assert.match(main, /fn s14_tiered_ipc_auth_allows_only_explicit_low_risk_ui_and_fails_closed\(/);
   assert.match(main, /fn s14_tiered_ipc_caller_check_accepts_only_main_window_on_active_origin\(/);
   assert.match(identity, /fn s14_low_risk_health_lease_expires_and_rejects_port_change\(/);
+  assert.match(identity, /fn s14_prove_until_enforces_cumulative_deadline_under_slow_drip_peer\(/);
+  const lowRiskBlock = /fn ipc_auth_tier\([\s\S]*?=>\s*IpcAuthTier::LowRiskUi/.exec(main)?.[0] ?? "";
+  assert.ok(lowRiskBlock.includes("native_set_locale"), "ipc_auth_tier LowRiskUi block was read");
+  assert.equal(lowRiskBlock.includes("shelf_sync_device_preferences"), false, "device preference writer must stay in HighRisk");
 });
 
 // W2'-3 (specs/context-program §21.6): the page tells the shell where Shelf's side tab is, and the drop wheel treats that box

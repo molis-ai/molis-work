@@ -264,7 +264,7 @@
 |  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
 | [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，#2189 已合入，[决定 58](reference/decisions.md#decision-58)） |
 |  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2)（#2189 已合入） |
-| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2216 已合入） |
 |  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2)（#2196 已合入） |
 | [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2205 已合入 `1faf24dbf0`） |
 |  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2)（#2211 已合入 `7acf6bea7a`） |

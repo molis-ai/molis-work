@@ -153,6 +153,8 @@ export interface PluginPlatform {
   stopProjectJobs(projectId: string): Promise<void>;
   /** Whether a plugin of this project has work running that closing the project would end. */
   hasProjectWork(projectId: string): boolean;
+  /** Synchronous count of active background executions and command-kept jobs across this project's plugins. */
+  activeWorkCount(): number;
   /**
    * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
    * or `null` when it has none: then nothing is agreed to and no default binds.
@@ -303,6 +305,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     supervisor, events, hostEvents, wiring, invalidateView, viewRevision, waitForView,
     stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     hasProjectWork: projectId => executor.hasProjectWork(projectId),
+    activeWorkCount: () => executor.activeWorkCount(),
     async closeCoordination() {
       closed = true; views.close(); installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.(); detachActivation();

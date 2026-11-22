@@ -247,6 +247,13 @@ export class HomePluginExecutor implements PluginExecutor {
     return [...this.sessions.values()].some(session => !!session.background?.hasProjectWork(projectId));
   }
 
+  /** Synchronous count of active background executions and command-kept jobs across Home plugin instances. */
+  activeWorkCount(): number {
+    let count = 0;
+    for (const session of this.sessions.values()) count += session.background?.activeWorkCount() ?? 0;
+    return count;
+  }
+
   private deletionsOf(installId: string): PartitionDeletions {
     let deletions = this.partitionDeletions.get(installId);
     if (!deletions) this.partitionDeletions.set(installId, deletions = partitionDeletions());

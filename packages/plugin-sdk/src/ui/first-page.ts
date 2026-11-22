@@ -65,7 +65,7 @@ export const FIRST_PAGE_STYLES = `
 .mw-first-page__version{appearance:none;display:inline-flex;align-items:center;gap:4px;min-block-size:24px;margin-inline-end:4px;padding:0 6px 0 8px;border:0;border-radius:8px;background:var(--control-fill);color:var(--ink-soft);font:inherit;white-space:nowrap;cursor:pointer}
 .mw-first-page__version svg{inline-size:12px;block-size:12px}
 @media (hover:hover) and (pointer:fine){.mw-first-page__version:hover{color:var(--ink)}}
-.mw-first-page h1{margin:2px 0 0;font-size:30px;font-weight:600;line-height:1.25;letter-spacing:-.01em;overflow-wrap:anywhere;text-wrap:balance}
+.mw-first-page h1{margin:2px 0 0;font-size:30px;font-weight:600;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere;text-wrap:balance}
 .mw-first-page__lede{margin:14px 0 0;font-size:17px;line-height:1.8;text-wrap:pretty;overflow-wrap:anywhere}
 .mw-first-page__lede sup,.mw-first-page__source sup{font-size:11px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
 .mw-first-page__lede sup{margin-inline-start:1px;vertical-align:.5em;line-height:0}
@@ -91,7 +91,7 @@ export const FIRST_PAGE_STYLES = `
 .mw-first-page__row[data-first-page-depth] :is(.mw-item__end,.mw-status){display:contents}
 .mw-first-page__row[data-first-page-depth] .mw-status>svg{grid-area:ring;inline-size:14px;block-size:14px}
 .mw-first-page__row[data-first-page-depth] .mw-status>span{grid-area:word;font-size:12px;white-space:nowrap}
-.mw-first-page__row[data-first-page-depth] .mw-status:has(>svg:is([data-ring-family=running],[data-ring-family=done]))>span{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)}
+.mw-first-page__row[data-first-page-depth] .mw-status>svg:is([data-ring-family=running],[data-ring-family=done])+span{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)}
 .mw-first-page__row[data-first-page-depth] .mw-presentation__controls{grid-area:end}
 .mw-first-page__row[data-first-page-depth="1"] .mw-presentation--row .mw-item{padding-inline-start:24px;color:var(--ink-soft)}
 .mw-first-page__row .mw-item>span:first-child{grid-area:owner;display:grid;place-items:center}

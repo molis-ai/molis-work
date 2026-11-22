@@ -46,7 +46,6 @@ ${COPY_FEEDBACK_CLIENT_SCRIPT}${FEEDBACK_CLIENT_SCRIPT}${SCROLL_FOLLOW_CLIENT_SC
 export { COSS_CONTROL_STYLES, PLUGIN_COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 export { PLUGIN_FOUNDATION_STYLES } from "./styles/foundation.js";
 export { PRIMITIVE_STYLES, PRIMITIVE_PLUGIN_STYLES } from "./styles/primitives.js";
-export { PRIMITIVE_PLUGIN_CALENDAR, PRIMITIVE_PLUGIN_SEVERITY, PRIMITIVE_PLUGIN_LAYOUT_SHELL } from "./styles/primitives-plugin.js";
 export { MOTION_STYLES, PLUGIN_MOTION_STYLES } from "./styles/motion.js";
 export { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
 export { INTERACTION_TEXTURE_STYLES } from "./styles/interaction-texture.js";

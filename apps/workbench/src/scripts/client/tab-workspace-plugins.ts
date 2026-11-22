@@ -262,7 +262,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   const invalidateLocal = () => { host.refreshHome?.(); return [...document.querySelectorAll('[data-plugin-contribution][data-ui-client-state="ready"]')].forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }))); };
   const invalidateView = (origin, relay = true) => {
     if (!origin?.isConnected) return;
-    invalidateLocal(origin);
+    invalidateLocal();
     if (!relay) return;
     if (embedded) { notifyParent("workbench-pane-invalidate"); return; }
     document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]').forEach(frame => {
@@ -346,7 +346,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   // Only the shell calls this with the protected homepage's reply. It binds the reply back to this pane and its actual mount.
   const openHomeNavigation = (result, pane, home = true) => {
     if (!result || !pane || state.exclusive || pane !== ops.focused(state) || home && ops.shownPlugin(pane) !== "home") return false;
-    if (embedded) { notifyParent(home ? "workbench-home-navigation" : "workbench-position-navigation", { result }); return true; }
+    if (embedded) return false;
     if (home && result.kind === "settings" && result.section === "plugins") { openSettingsPage(result.section); return true; }
     if (result.kind !== "stage" || !result.selection || !result.installation || typeof result.shell_key !== "string"
       || typeof result.owner_plugin_id !== "string") return false;

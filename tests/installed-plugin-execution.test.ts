@@ -15,9 +15,9 @@ import { createPluginPlatform, MolisWorkLocalHost, molisWorkHostProjectReference
 import { createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
-import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
-import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-sandbox-definition.js';
+import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
+import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
 
 const mac = { skip: process.platform !== 'darwin', timeout: 15_000 };

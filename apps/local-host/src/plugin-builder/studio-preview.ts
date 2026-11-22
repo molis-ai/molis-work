@@ -5,14 +5,17 @@ import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platfo
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
-import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
-import { hostNetwork } from './network.js';
+import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { SandboxError } from '@molis-ai/molis-work-plugin-sandbox';
+import { hostNetwork } from '../installed-plugin-network.js';
 import { buildManifest } from './build-project.js';
 import { FRAME_QUERY } from '../plugin-builder-surface.js';
 import type { runBuilderBrowserAcceptance } from './browser.js';
-import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
-import { capabilityLimits, latestCapability, slowOperations, type Lane } from './capabilities.js';
-import { catalogCapabilities, standIn, type CatalogCapability } from './catalog.js';
+import type { ensureInstalledPlugins, SandboxTrials } from '../installed-plugin-host.js';
+import { generatedPluginManifest } from '../installed-sandbox-definition.js';
+import { buildSources, readPluginPrompts } from '../installed-plugin-prompts.js';
+import { capabilityLimits, latestCapability, slowOperations, type Lane } from '../installed-plugin-capabilities.js';
+import { catalogCapabilities, standIn, type CatalogCapability } from '../installed-plugin-catalog.js';
 import { STABLE_PREVIEW } from './storage.js';
 import type { AgentBuild, AgentStudioOptions, Studio } from './agent-surface.js';
 
@@ -179,3 +182,31 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   return { previewFor, standIns, networkFor, runnerFor, stopRunner, clearPreview, inTrial };
 }
 export type StudioPreview = ReturnType<typeof createStudioPreview>;
+
+/**
+ * What the studio answers the installed host for its trials (S-15): only a build it holds, under the trial identity it made, declares the
+ * Manifest that build would install with and reaches the capabilities its design declares. The host itself reads no build.
+ */
+export function studioTrials(studio: Pick<Studio, 'workflow'>): SandboxTrials {
+  const buildOf = (installId: string, pluginId: string) => {
+    const build = installId.startsWith(STABLE_PREVIEW) ? studio.workflow.store.get(installId.slice(STABLE_PREVIEW.length)) : undefined;
+    return build?.design?.contract.pluginId === pluginId ? { ...build, design: build.design } : undefined;
+  };
+  return {
+    declaration(identity) {
+      const build = buildOf(identity.installationId, identity.pluginId);
+      return build ? { manifest: generatedPluginManifest({ pluginId: identity.pluginId, version: 0, buildId: build.id, design: build.design }) } : undefined;
+    },
+    grants(identity) {
+      const build = buildOf(identity.installationId, identity.pluginId);
+      return build ? effectsFromContract(build.design.contract).capabilities ?? [] : [];
+    },
+    async prompts(installId, pluginId) {
+      if (!installId.startsWith(STABLE_PREVIEW)) return undefined;
+      const build = buildOf(installId, pluginId);
+      if (!build?.directory) throw new SandboxError('plugin.capability_denied', '模型调用的试运行构建已失效');
+      return readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts;
+    },
+    title: pluginId => studio.workflow.store.releases().find(item => item.pluginId === pluginId)?.design.title,
+  };
+}

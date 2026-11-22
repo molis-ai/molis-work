@@ -5,7 +5,7 @@ import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/action
 import type { PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
 import { pluginPublisherIdentity } from '@molis-ai/molis-work-plugin-runtime';
-import { HomeConsentLedger } from '../home-plugin-store.js';
+import { HomeConsentLedger } from './home-plugin-store.js';
 
 const failures = defineErrorCodes('plugin_builder', { publisher_identity_invalid: 'invalid', publisher_revoked: 'forbidden' });
 const REF = 'plugin-builder-publisher:signing-key';

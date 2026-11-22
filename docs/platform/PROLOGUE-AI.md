@@ -67,7 +67,7 @@ Alchemist 六类固定指令在 `src/prompts.ts` 登记为 `ALCHEMIST_INSTRUCTIO
 
 Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实计划内容（1 至 30 个动作，每项有标题）。现在 Jelly 只剩「拆解计划」一条登记指令，没有分段摘要或合并调用；拆解在派出前复查原 Action 的 `beforeEffect`，返回后再复查一次，不把取消或撤权写成成功拆解。
 
-生成插件的 `model.generate` 经公共 Action → `plugin-builder/model.ts` → `hostTextGeneration`，返回既有 `{ text }`。模型派出和结果复查继续调用原 Action 的 `beforeEffect`；取消信号来自当前沙箱调用。无需 Builder Agent、工作目录或另一份运行 JSON，旧私有记录保持原位。只有设计和编码继续使用 Builder Agent，其 Run 也通过 SDK `collectRun` 有界收集全部终态，原检查、活动和业务记录仍由构建模块拥有。
+生成插件的 `model.generate` 经公共 Action → `installed-plugin-model.ts` → `hostTextGeneration`，返回既有 `{ text }`。模型派出和结果复查继续调用原 Action 的 `beforeEffect`；取消信号来自当前沙箱调用。无需 Builder Agent、工作目录或另一份运行 JSON，旧私有记录保持原位。只有设计和编码继续使用 Builder Agent，其 Run 也通过 SDK `collectRun` 有界收集全部终态，原检查、活动和业务记录仍由构建模块拥有。
 
 `hostTextGeneration` 与 `hostCompleteText` 共用配置/凭据校验。前者返回 `value`、`run_ref`、`state: completed`、configuredModel、reportedModels 与 typed usage；`structured` 仅在请求的结构已通过 SDK 校验时出现。调用选项可提供 `system`、`structured: { mode: local | native, schema }`、`onProgress`、timeoutMs 和 maxOutputTokens。进度只用于展示，不代表结果已通过领域验证。失败的 `PrologueInferenceError.execution` 可带原运行与已发生的用量；取消和撤权仍由原错误说明，不能据此提交业务失败记录。
 
@@ -143,7 +143,7 @@ Host 的 `plugin-model-service.ts` 通过共同 `hostTextGeneration` 到 agent-h
 
 **放进去处的起草**（W1-7）：把选中的内容或一句话放进某个创建入口时，宿主做一次结构化文字推理（`apps/local-host/src/drafting/draft-service.ts`，经 `hostTextGeneration`，不开 Agent 轮次、不带工具、不写任何记录）。指令登记在 `system:contextual` 的 `CONTEXTUAL_DRAFT`（设置里归在“放进去处”），材料按 S-13 先过 `screenModelMaterial`，作为带“不可信”声明的 JSON 放在指令之后。模型只填入口输入里的文字与日期字段，结果逐字段按该动作自己的 schema 检查；没有模型、失败或没有可用字段时，退回不需要模型的部分并保留原话。路由是 `POST /api/contextual/draft`，只给工作台（人在界面里选了去处，或在插件页写了一句话）；助理要用时另做只读的系统动作。
 
-生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
+生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `installed-plugin-model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
 
 Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令、用户任务和资料作为正文；资料是一行 JSON，围在代码里固定的「不可信」声明之后（`fencedMaterials`，见第 14 节「材料的不可信声明」）。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 
@@ -270,7 +270,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | --- | --- | --- |
   | 文字补全的默认 | 120 秒，`max_output_tokens` 5000 | `apps/local-host/src/host-complete-text.ts` |
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
-  | 生成插件的 `model.generate` | 110 秒（内部调用超时；动作声明是 120 秒） | `apps/local-host/src/plugin-builder/model.ts` |
+  | 生成插件的 `model.generate` | 110 秒（内部调用超时；动作声明是 120 秒） | `apps/local-host/src/installed-plugin-model.ts` |
   | Shelf 的自动处理 | 600 秒、12000 个输出 token | `plugins/native/shelf/src/ai.ts`（Home 实例经 `services.model`） |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
@@ -552,7 +552,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |
 | 回复语言 | 一轮用哪种语言回复，不靠模型猜 | `apps/local-host/src/reply-language.ts` 的 `replyLanguagePrompt`；只有宿主放进 `AgentStartAuthority.reply_language`，`composeRolePrompts` 接在各层之后 | **例外：和上一行一样是代码里的固定文字，不登记、不进「设置 › 提示词」。** 它只说用哪种语言，要换语言去换界面语言；能改这句，改出来的只是回复和所选语言对不上。版本仍记进这一轮的 `frozen.prompts`（`prompt.reply-language`） | 第 16 批已接个人助理、Coding 与创作台（`apps/local-host/src/reply-language.ts`、`plugin-builder/studio-language.ts`、轮次 authority）；它之后的子角色说明、侧栏浏览器和桌面说明、步骤板仍可能带中文，真实模型下两份英文纪要正文仍为中文（FSS-71，[BL-assistant-minimax-english-minutes](../../specs/backlog/BL-assistant-minimax-english-minutes.md)） | 确定性：`tests/reply-language.test.ts`、`tests/security-invariants-ui-locale-memory.test.ts` |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
-| 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/plugin-builder/model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
+| 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/installed-plugin-model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
 | Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |
 
 **是需求、不是已运行的参考**（设计示例必须标明）：主动式助理与场景 Skill（`specs/proactive-assistant/spec.md`）、工作简报（`specs/work-brief/spec.md`）、助理统一服务接入（`specs/assistant-service-connections/spec.md`）、子代理查看与直接对话（[`specs/subagent-interaction/spec.md`](../../specs/subagent-interaction/spec.md)）。

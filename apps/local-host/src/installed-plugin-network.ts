@@ -14,7 +14,7 @@
 import { isIP } from 'node:net';
 import type { SandboxIdentity, SandboxNetworkResponse } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { publicAddress, sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from '../public-https.js';
+import { publicAddress, sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from './public-https.js';
 
 export { publicAddress };
 

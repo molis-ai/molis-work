@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { promptVersions, readPluginPrompts, releaseInstructions, resolvePluginPrompt } from "../apps/local-host/src/plugin-builder/prompts.js";
+import { promptVersions, readPluginPrompts, releaseInstructions, resolvePluginPrompt } from "../apps/local-host/src/installed-plugin-prompts.js";
 import { homeAgentDefinitions, pluginAgentRegistration } from "../apps/local-host/src/plugin-instructions.js";
 
 // A plugin the studio made is installed from its signed package (PG-083), so its prompts reach the Home's register the way every

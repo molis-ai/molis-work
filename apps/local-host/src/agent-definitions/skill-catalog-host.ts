@@ -6,7 +6,7 @@ import { directoryWordResolver } from "../ui-text-provider.js";
 import { activeLocale, DEFAULT_WEB_LOCALE } from "../web-locale.js";
 import { skillDisplayWords } from "./skill-display-words.js";
 import { nativeSkill } from "../skill-portability.js";
-import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
+import { localPublisherKeyId } from "../local-publisher-identity.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SKILLS_PROVIDER_ID, skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";

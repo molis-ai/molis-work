@@ -11,7 +11,7 @@ import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-wo
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, runBackgroundWork, runWithLocale, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
@@ -1530,7 +1530,7 @@ for (const withdrawal of ['disconnect', 'page'] as const) test('PUB-2 actual HTT
   if (withdrawal === 'disconnect') assert.ok('error' in outcome);
   else assert.equal('status' in outcome ? outcome.status : undefined, 400);
   assert.equal(writes.length, 1, 'the invalidated HTTP call performs no next publication write');
-  assert.deepEqual(installed.releases.versions(source.build.id), []);
+  assert.deepEqual(new AgentBuilderStore(installed.storage).versions(source.build.id), []);
   assert.deepEqual(await fs.readdir(join(source.root, 'releases', source.build.id)), [], 'no final version or staging directory survives');
   assert.ok(await fs.stat(join(home, 'config', 'plugin-publisher.json')), 'the identity created while authorized is preserved');
 });

@@ -41,7 +41,7 @@ test("every action that waits on a model runs beside the serial queue unless it 
 });
 
 test("real Native AI declarations reach the Builder catalog and stop metered automatic queries", async () => {
-  const { capabilityCatalog } = await import('../apps/local-host/dist/plugin-builder/catalog.js');
+  const { capabilityCatalog } = await import('../apps/local-host/dist/installed-plugin-catalog.js');
   const { normalizeEffects } = await import('@molis-ai/molis-work-plugin-builder');
   const home = await mkdtemp(join(tmpdir(), 'native-execution-policy-'));
   const host = new MolisWorkLocalHost({ homeDirectory: home });

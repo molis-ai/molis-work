@@ -108,9 +108,9 @@ test("UPG1-i-initial-04: each way the chain falls short fails on its own", () =>
 });
 
 test("UPG1-i-initial-05: a chain lets through nothing but its own persistent format", () => {
-  const anyChain = new Map(["apps/local-host/src/plugin-builder/catalog.ts#CATALOG_VERSION", "plugins/x/src/store.ts#STORED_VERSION", `${CATALOG}#OTHER_VERSION`]
+  const anyChain = new Map(["apps/local-host/src/installed-plugin-catalog.ts#CATALOG_VERSION", "plugins/x/src/store.ts#STORED_VERSION", `${CATALOG}#OTHER_VERSION`]
     .map(definition => [definition, { version: 2, froms: [1], replay_passed: true }]));
-  assert.equal(sourceVersionProblems("apps/local-host/src/plugin-builder/catalog.ts", 'const CATALOG_VERSION = "actions/2";', anyChain).length, 1, "the same name in another file is not the Shelf catalog");
+  assert.equal(sourceVersionProblems("apps/local-host/src/installed-plugin-catalog.ts", 'const CATALOG_VERSION = "actions/2";', anyChain).length, 1, "the same name in another file is not the Shelf catalog");
   assert.equal(sourceVersionProblems("plugins/x/src/store.ts", "const STORED_VERSION = 2;", anyChain).length, 1, "a constant not on the list");
   assert.equal(sourceVersionProblems(CATALOG, "const OTHER_VERSION = 2;", anyChain).length, 1, "another constant in a listed file");
   const manifest = { plugin_id: "notes", schema_version: 2, host_api_version: 2, actions: [{ capability_id: "notes.read", version: 2 }] };

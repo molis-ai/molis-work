@@ -15,7 +15,7 @@ import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { STABLE_PREVIEW, studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
-import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
+import { exposedActionId } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { bindPrologueInference } from '../apps/local-host/dist/prologue-inference-host.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';

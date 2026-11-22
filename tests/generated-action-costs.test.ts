@@ -3,8 +3,8 @@ import test from 'node:test';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { capabilityCatalog } from '../apps/local-host/src/plugin-builder/catalog.js';
-import { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from '../apps/local-host/src/plugin-builder/exposed-actions.js';
+import { capabilityCatalog } from '../apps/local-host/src/installed-plugin-catalog.js';
+import { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from '../apps/local-host/src/installed-plugin-exposed-actions.js';
 import { createMcpActionGrant, resolveMcpActionContext } from '../apps/local-host/src/mcp-action-grants.js';
 
 const caller = { actor_id: 'owner', project_id: 'p', audience: 'user' as const, permissions: [] };

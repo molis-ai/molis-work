@@ -6,7 +6,7 @@ import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-c
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
-import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/installed-plugin-catalog.js';
 import { deferred } from './fixtures/home-runtime.js';
 import { openTestHome } from './fixtures/test-home.js';
 import { initializeBoard } from "./fixtures/goals-board.js";
@@ -163,7 +163,7 @@ test('an action that only answers its own installation is on the board but not o
 });
 
 test('an installed plugin\'s functions are actions of the directory: people, the Home AI, MCP clients and other plugins can call them; uninstalling withdraws them', async () => {
-  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/dist/plugin-builder/exposed-actions.js');
+  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/dist/installed-plugin-exposed-actions.js');
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const contract = { version: 1, pluginId: 'io.molis.work.generated.words', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
     { id: 'words.list', kind: 'query', description: '列出生词', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: { storage: ['read'] }, examples: [] },
@@ -218,7 +218,7 @@ test('the designer\'s catalog stays within budget: what is in use and the most r
 });
 
 test('arbitrarily named providers drive sandbox limits, cost disclosure and rate limits through the same directory', async () => {
-  const { capabilityLimits, slowOperations } = await import('../apps/local-host/dist/plugin-builder/capabilities.js');
+  const { capabilityLimits, slowOperations } = await import('../apps/local-host/dist/installed-plugin-capabilities.js');
   const { actions } = project();
   const base = goals('research.summarize', 'query');
   const definition: ActionDefinition = { ...base, version: 2, action: { ...base.action, execution: { timeout_ms: 75_000, cost: 'metered', max_calls_per_minute: 1 } } };

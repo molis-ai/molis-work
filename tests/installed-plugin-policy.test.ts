@@ -11,9 +11,9 @@ import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime'
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { createPluginPlatform } from '@molis-ai/molis-work-app-local-host';
-import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
-import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
-import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-sandbox-definition.js';
+import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
+import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 
 // Exercise the actual exposed action with its installed identity; raw HTTP control is deliberately refused.
 const mac = { skip: process.platform !== 'darwin', timeout: 15_000 };

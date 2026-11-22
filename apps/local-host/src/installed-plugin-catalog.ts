@@ -13,12 +13,12 @@ import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contract
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { SandboxError, type SandboxServiceContext, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { MODEL_STAND_IN_PREFIX, studioCapability, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
-import { isMcpToolCapability } from '../mcp-tool-actions.js';
-import { issuePluginCaller } from '../plugin-callers.js';
-import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
-import { projectReachSubject } from '../plugin-project-reach-subject.js';
-import { activeLocale, runBackgroundWork } from '../web-locale.js';
-import { lastUsedLocale } from '../ui-locale-memory.js';
+import { isMcpToolCapability } from './mcp-tool-actions.js';
+import { issuePluginCaller } from './plugin-callers.js';
+import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './installed-plugin-capabilities.js';
+import { projectReachSubject } from './plugin-project-reach-subject.js';
+import { activeLocale, runBackgroundWork } from './web-locale.js';
+import { lastUsedLocale } from './ui-locale-memory.js';
 import { outsidePluginAction } from '@molis-ai/molis-work-plugin-runtime';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */

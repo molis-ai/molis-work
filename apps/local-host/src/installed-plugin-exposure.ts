@@ -2,7 +2,7 @@ import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platfo
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginPlatform } from './plugin-platform.js';
 import type { InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { exposeInstalledPlugin, type InstalledPluginActions } from './installed-plugin-exposed-actions.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { followInstalledActions, rememberInstalledExposure } from './installed-action-registration.js';

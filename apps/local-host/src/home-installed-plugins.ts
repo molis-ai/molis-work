@@ -20,13 +20,13 @@ import { assertHomePackageAllowed } from './home-package-admission.js';
 import { isPluginTableRefusal } from './home-unavailable-owners.js';
 import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
 import { configuredModelChoices } from './configured-models.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './plugin-builder/catalog.js';
-import { createPluginModelGeneration } from './plugin-builder/model.js';
-import { hostNetwork } from './plugin-builder/network.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './installed-plugin-catalog.js';
+import { createPluginModelGeneration } from './installed-plugin-model.js';
+import { hostNetwork } from './installed-plugin-network.js';
 import { declaredOnlyHolds, pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { pluginHomeFor } from './home-side.js';
-import { pluginSecrets } from './plugin-builder/secrets.js';
+import { pluginSecrets } from './installed-plugin-secrets.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
@@ -65,7 +65,6 @@ export interface HomeInstalledPluginsOptions {
 
 export type HomeInstalledPlugins = Awaited<ReturnType<typeof openHomeInstalledPlugins>>;
 
-const noBuilds = { get: () => null };
 
 export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOptions) {
   const { home, platform, integrations } = options;
@@ -127,14 +126,14 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   let disposePlatform = () => {};
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   // The default catalog is Home-only; a verified invocation adds only its own approved project's current actions.
-  const grantedCapabilities = (identity: Readonly<SandboxIdentity>) => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor });
+  const grantedCapabilities = (identity: Readonly<SandboxIdentity>) => sandboxGrants(identity, undefined, { recordFor, releaseFor, approvedFor });
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
     target: async (context, id) => {
       const resolved = await resolveCall(context), entry = resolved.catalog.find(item => item.id === id);
       return { catalog: resolved.catalog, actions: entry?.scope === 'project' && resolved.project ? resolved.project : actions,
         ...resolved.project && context.projectReach ? { assertCurrent: () => { reach!.assertCall(context.projectReach!, context.identity); } } : {} };
     },
-    declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
+    declaration: identity => sandboxDeclaration(identity, undefined, release => manifestOf(release), { recordFor, releaseFor }),
     granted: grantedCapabilities });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
     ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });

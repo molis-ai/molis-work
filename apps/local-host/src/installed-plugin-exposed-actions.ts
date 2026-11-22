@@ -9,11 +9,11 @@ import { actionErrorFromResponse, sandboxUpgradeOperation, sandboxOperationActio
  */
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ExactActionReference } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { InstalledRelease as AgentRelease } from '../installed-release.js';
+import type { InstalledRelease as AgentRelease } from './installed-release.js';
 import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
 
-import type { ProjectActions } from './catalog.js';
-import { latestCapability, type CapabilityExecution } from './capabilities.js';
+import type { ProjectActions } from './installed-plugin-catalog.js';
+import { latestCapability, type CapabilityExecution } from './installed-plugin-capabilities.js';
 
 /** Runs one installed operation; `status` 200 carries `{ value }`, anything else `{ error }`. */
 type InstalledOperationCall = (pluginId: string, operationId: string, input: SandboxJson, context: ActionExecutionContext) => Promise<{ status: number; body?: unknown }>;

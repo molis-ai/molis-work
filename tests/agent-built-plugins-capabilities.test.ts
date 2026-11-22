@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { capabilityLimits, type CapabilityImplementations, slowOperations } from '../apps/local-host/src/plugin-builder/capabilities.js';
+import { capabilityLimits, type CapabilityImplementations, slowOperations } from '../apps/local-host/src/installed-plugin-capabilities.js';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities } from '../apps/local-host/src/plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities } from '../apps/local-host/src/installed-plugin-catalog.js';
 import { STUDIO_CAPABILITIES, expandDesign } from '@molis-ai/molis-work-plugin-builder';
 
 const identity = (namespace: 'preview' | 'installed', installationId = 'install-1') => ({ projectId: 'p', installationId, pluginId: 'io.molis.work.generated.x', namespace });

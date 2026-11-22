@@ -2,15 +2,15 @@ import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platfo
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
-import type { InstalledRelease } from "../installed-release.js";
-import { installedVersion } from "../installed-release.js";
-import { pluginPagesFor, type installedPageSelection } from "../plugin-page-authority.js";
+import type { InstalledRelease } from "./installed-release.js";
+import { installedVersion } from "./installed-release.js";
+import { pluginPagesFor, type installedPageSelection } from "./plugin-page-authority.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { assertStageInstallation } from "../installed-stage-identity.js";
-import { directoryWordResolver } from "../ui-text-provider.js";
-import { inDesignOrder } from "../plugin-builder-surface.js";
-import { studioWordReader } from "./studio-words.js";
-import { generatedPluginManifest } from "./installed.js";
+import { assertStageInstallation } from "./installed-stage-identity.js";
+import { directoryWordResolver } from "./ui-text-provider.js";
+import { inDesignOrder } from "./plugin-builder-surface.js";
+import { studioWordReader } from "./plugin-builder/studio-words.js";
+import { generatedPluginManifest } from "./installed-sandbox-definition.js";
 
 /** The signed or local release already selected by this instance, never a catalog lookup by name. */
 function installedWords(release: InstalledRelease) {

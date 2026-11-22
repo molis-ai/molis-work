@@ -29,8 +29,8 @@ export const SPEC_SECTION3_WHITELIST = {
     "apps/local-host/src/plugin-builder-surface.ts",
     "apps/local-host/src/plugin-builder/agent-surface.ts",
     "apps/local-host/src/plugin-builder/browser.ts",
-    "apps/local-host/src/plugin-builder/catalog.ts",
-    "apps/local-host/src/plugin-builder/prompts.ts",
+    "apps/local-host/src/installed-plugin-catalog.ts",
+    "apps/local-host/src/installed-plugin-prompts.ts",
     "apps/local-host/src/plugin-builder/storage.ts",
   ]),
   "@molis-ai/molis-work-plugin-shelf": new Set([

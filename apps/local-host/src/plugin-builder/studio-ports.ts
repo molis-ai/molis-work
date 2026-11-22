@@ -16,8 +16,8 @@ import { builderAgentInLanguage, studioDesignLanguages } from './studio-language
 import { buildManifest, createBuildProject, copyBuildRevision } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
-import { slowOperations } from './capabilities.js';
-import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog } from './catalog.js';
+import { slowOperations } from '../installed-plugin-capabilities.js';
+import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog } from '../installed-plugin-catalog.js';
 import { buildEffects, type BuildExecution, type StudioPreview } from './studio-preview.js';
 import type { StudioModels } from './studio-models.js';
 import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';

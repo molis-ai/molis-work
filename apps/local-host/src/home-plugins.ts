@@ -34,7 +34,7 @@ import { bindHomeRegistration } from "./home-registration.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
-import type { ProjectActions } from "./plugin-builder/catalog.js";
+import type { ProjectActions } from "./installed-plugin-catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallCatalog, type SurfaceInstallRegistry } from "./surface-installation.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";

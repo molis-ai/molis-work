@@ -7,21 +7,21 @@ import { pluginErrors, type PluginAppContribution, type PluginDefinition, type P
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { trustedDecisionSubmitted } from '@molis-ai/molis-work-kernel';
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
-import { exposedActionReference } from './exposed-actions.js';
-import { rememberInstalledActionSource } from '../installed-action-registration.js';
+import { exposedActionReference } from './installed-plugin-exposed-actions.js';
+import { rememberInstalledActionSource } from './installed-action-registration.js';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, createBackgroundLane, readOnlySandboxStorage, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
-import { executionProjectReach } from '../plugin-project-reach-subject.js';
+import { executionProjectReach } from './plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import { actionErrorFromResponse, sandboxUpgradeOperation, actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
-import { installedStageFrame } from '../installed-stage-section.js';
-import { releaseInstructions } from './prompts.js';
-import { releaseVersion, type InstalledRelease } from '../installed-release.js';
-import { activeLocale } from '../web-locale.js';
-import { studioManifestWords, studioWordReader } from './studio-words.js';
-import { sandboxTextPacks } from '../ui-text-provider.js';
-import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
-import { assertOperationGranted, grantedEffects, projectInstalledPermissions } from '../installed-permission-projection.js';
+import { installedStageFrame } from './installed-stage-section.js';
+import { releaseInstructions } from './installed-plugin-prompts.js';
+import { releaseVersion, type InstalledRelease } from './installed-release.js';
+import { activeLocale } from './web-locale.js';
+import { studioManifestWords, studioWordReader } from './plugin-builder/studio-words.js';
+import { sandboxTextPacks } from './ui-text-provider.js';
+import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './installed-plugin-capabilities.js';
+import { assertOperationGranted, grantedEffects, projectInstalledPermissions } from './installed-permission-projection.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;

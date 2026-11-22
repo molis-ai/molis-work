@@ -1,7 +1,7 @@
 import { studioProblem, studioProblemWord } from "@molis-ai/molis-work-plugin-builder";
 import { effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
 import { studioManifestWords, studioWordReader } from "./studio-words.js";
-import { installedPluginWords, installedPluginPage } from "./installed-page.js";
+import { installedPluginWords, installedPluginPage } from "../installed-plugin-page.js";
 import { shellPageRead } from "../web-sessions.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { htmlLang, runWithRegisteredText } from "../web-locale.js";
@@ -21,7 +21,7 @@ import type { PluginInstanceRecord, PluginPrivateStorage, PluginExecutionControl
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
-import type { CapabilityImplementations } from './capabilities.js';
+import type { CapabilityImplementations } from '../installed-plugin-capabilities.js';
 import { escapeHtml, say, t as uiText, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
@@ -33,7 +33,7 @@ import { assertStageInstallation, installedStageIdentity, installedStageReleaseM
 import { captureWebSessionAuthority } from '../web-sessions.js';
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
-import { capabilityCatalog, type CatalogCapability, type ProjectActions } from './catalog.js';
+import { capabilityCatalog, type CatalogCapability, type ProjectActions } from '../installed-plugin-catalog.js';
 import { ActionError, objectLinkAt } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
@@ -42,7 +42,7 @@ import { readStudioDistribution } from './studio-release.js';
 import { builderPorts } from './studio-ports.js';
 import { studioModels } from './studio-models.js';
 import { studioImages } from './studio-images.js';
-import { createStudioPreview, studioDraftManifest } from './studio-preview.js';
+import { createStudioPreview, studioDraftManifest, studioTrials } from './studio-preview.js';
 import { captureRuntimeStageOwner } from '../project-plugin-stages.js';
 
 export type { AgentBuild, AgentBuilderPorts, AgentRelease, AgentPublicationControl };
@@ -84,6 +84,8 @@ export interface Studio {
   origin?: string;
   runners: Map<string, { key: string; runner: Promise<SandboxRunner> }>;
   catalog(scope?: 'project' | 'home'): Promise<CatalogCapability[]>;
+  /** Takes back what the studio answers the installed host for its trials. */
+  stopTrials(): void;
   /** A proposal's picture from the images plugin (W7). */
   mockupImage?(jobId: string, imageId: string): Promise<{ base64: string; mime_type: string }>;
 }
@@ -163,7 +165,8 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   studio.mockupImage = mockupImage;
   const choice = options.choice ?? selectionPorts(home);
   studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ execute, options, home, studio, installed, models, preview, mockups, choice, prompt: builderPrompts(home), instruction: builderInstructions(home) }));
-  await studio.workflow.initialize();
+  studio.stopTrials = installed.useTrials(studioTrials(studio));
+  try { await studio.workflow.initialize(); } catch (error) { studio.stopTrials(); throw error; }
   return studio;
 }
 
@@ -403,6 +406,7 @@ export async function releaseAgentStudio(store: LocalProjectDatabase, projectId:
   boards!.delete(projectId);
   const studio = await pending.catch(() => null);
   if (!studio) return;
+  studio.stopTrials();
   await studio.workflow.close();
   await Promise.all([...studio.runners.values()].map(entry => entry.runner.then(runner => runner.stop(), () => undefined)));
 }

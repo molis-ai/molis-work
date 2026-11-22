@@ -29,7 +29,7 @@
 | --- | --- |
 | 依赖哪种能力 | Manifest 的 `requires`（`PluginRequirementDeclaration`，含 `optional`） |
 | 只有声明的插件、签名的内容包、随包带上未装 | 08 的 `kind: "content"`、内容包、`plugins.bundled.list@1` |
-| 安装与信任 | `plugins.install.preview`、`plugins.install.confirm`、`verifyPluginPackageSignature`、这个 Home 现有的发布身份（`apps/local-host/src/plugin-builder/publisher-identity.ts`） |
+| 安装与信任 | `plugins.install.preview`、`plugins.install.confirm`、`verifyPluginPackageSignature`、这个 Home 现有的发布身份（`apps/local-host/src/local-publisher-identity.ts`） |
 | Skill 的精确引用与启用 | 08 的 `SkillRef`、`skills.settings.set@1` |
 | 角色 | `modules/characters` 的 `CharacterDraft`、`characters.create@1` 等；层次与生效按 36 |
 | 页面隔离 | 不透明框架 `apps/workbench/src/browser/plugin-frame/`（S-47：固定脚本清单、`connect-src none`、动作走页面网关） |
@@ -466,7 +466,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 导入通过当前项目的动作客户端调用确切 `plugin-install` 提供方，沿 `retainActionAuthority` 保留原 `skills.import.confirm@1` 的本人、授权、取消信号与尾检。包安装到 Home 不改变发起项目绑定。导入只拿发布者公钥指纹读取留存版本，不持有签名器。公钥元数据缺失时，先对最终选中内容做同一预检。试用声明若带 `compatible_from`，版本高于已装版本。导入确认和签名授权均有效时，原身份 owner 只从已封存的密钥取得公钥指纹，未有密钥便返回空。导入用这个指纹读取留存版本并确定最终包和技能版本。签名命令用真实指纹的长度预检最终稿，再沿原发布流程补回公钥元数据或首次建钥，并签名。
 
-本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/plugin-builder/publisher-identity.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
+本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/local-publisher-identity.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
 
 **合入 #1997 后的在途撤销。** Skill 正文和附带文件按 S-skill-catalog、SKC-08／09 核当前发布者。即使安装状态尚未更新，在目录检查等待期间已撤销的发布者也不再给出正文或附带文件。先完成异步准备，再读一次同意账本，并在同一个同步步骤投影目录、检查安装及设置和读取内容。一次读取多个引用复用这一份发布者快照。状态写入和使用回执仍在 `beforeEffect()` 后另取一次当前发布者快照，核对原安装与信任再写。验收用实际已签包的两个公开读取动作，暂停目录检查，真实撤销后再放行，并核对 20 个引用共用一次账本读取。
 

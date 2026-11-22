@@ -2,7 +2,7 @@
 import { renderButton, renderCard, renderDirectoryHeading, renderDirectoryPanel, renderDirectoryRow, renderEmpty, renderFrame, renderGroup, renderScrollArea, renderSidebar, renderTable } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { mark, section, specimen } from "./catalog-parts.js";
 
-export function directorySection(): string {
+export function directorySection(say: (key: string) => string = (k) => k): string {
   const catalogDirTools = renderButton({ label: "筛选", variant: "ghost", size: "icon", icon: "filter", iconOnly: true })
     + renderButton({ label: "搜索", variant: "ghost", size: "icon", icon: "search", iconOnly: true });
   const catalogDirRows = renderDirectoryRow({
@@ -14,7 +14,7 @@ export function directorySection(): string {
   }) + renderDirectoryHeading("拉取任务") + renderDirectoryRow({
     title: "设计观察",
     caption: "10 分钟前",
-    status: "workbench.settings-call-diagnostics.running",
+    status: say("workbench.settings-call-diagnostics.running"),
     statusTone: "progress",
     statusIcon: "check",
     icon: "refresh",
@@ -119,7 +119,7 @@ export function directorySection(): string {
       <div class="mw-catalog__specimens">${specimen("目录栏", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectory}</div></div>`)}${specimen("单行", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogCompact}</div></div>`)}${specimen("行让位", `<div class="mw-catalog-dir-stage is-yield"><div class="mw-catalog-dir">${catalogYield}</div></div>`)}${specimen("空态", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectoryEmpty}</div></div>`)}</div>`);
 }
 
-export function layoutSection(): string {
+export function layoutSection(say: (key: string) => string = (k) => k): string {
   const catalogDirTools = renderButton({ label: "筛选", variant: "ghost", size: "icon", icon: "filter", iconOnly: true })
     + renderButton({ label: "搜索", variant: "ghost", size: "icon", icon: "search", iconOnly: true });
   const catalogShellDirectory = renderDirectoryPanel({
@@ -137,7 +137,7 @@ export function layoutSection(): string {
     }) + renderDirectoryHeading("拉取任务") + renderDirectoryRow({
       title: "设计观察",
       caption: "10 分钟前",
-      status: "workbench.settings-call-diagnostics.running",
+      status: say("workbench.settings-call-diagnostics.running"),
       statusTone: "progress",
       statusIcon: "check",
       icon: "refresh",
@@ -195,6 +195,6 @@ export function layoutSection(): string {
       body: "<p>目录超过这一屏高度后，只在栏内滚动，外面的工作区不动。</p><p>第二段用来把滚动条唤醒：行与行仍然贴紧，组和组才拉开。</p><p>纸面用发丝线围住，不是描边玩具盒。</p><p>再往下还有一屏，确认 overflow 真的发生。</p>",
     })))}${mark("table", specimen("表格", renderTable({
       head: ["Goal", "状态", "下一步"],
-      rows: [["统一控件语言", "workbench.assistant-delivery.progress", "收口旧 class"], ["Home 月历", "可用", "接 Calendar"]],
+      rows: [["统一控件语言", say("workbench.assistant-delivery.progress"), "收口旧 class"], ["Home 月历", "可用", "接 Calendar"]],
     })))}</div>`);
 }

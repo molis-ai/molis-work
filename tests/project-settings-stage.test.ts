@@ -270,3 +270,53 @@ test("project guidance keeps runtime notes on the title hint instead of the page
   assert.match(html, /每次只把当前生效的说明发给 AI/);
   assert.doesNotMatch(html, /class="settings-footnote"/);
 });
+
+test("91-0b settings navigation ships scope switch, project settings filter, molisCraft.turn, and retires input.settings-switch", () => {
+  const globalWithProject = renderMolisWorkSettings({
+    section: "appearance",
+    context_project: { project_id: "project-1", display_name: "工作台" },
+    runtimes: [],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  });
+  assert.match(globalWithProject, /class="mw-toggle-group settings-scope-switch"/);
+  assert.match(globalWithProject, /href="\/projects\/project-1\/settings"[^>]*>本项目</);
+  assert.match(globalWithProject, /data-settings-nav-filter/);
+
+  const projectHtml = renderMolisWorkProjectGuidanceSettings({
+    snapshot: {
+      board: {
+        project_id: "board-1",
+        title: "工作台",
+        active_goal_id: null,
+        created_at: "2026-09-17T00:00:00.000Z",
+        updated_at: "2026-09-17T00:00:00.000Z",
+      },
+      cursor: 0,
+      goals: [],
+      relations: [],
+      goal_tree_proposals: [],
+    },
+    project: { project_id: "project-1", display_name: "工作台" },
+    projects: [{ project_id: "project-1", display_name: "工作台" }],
+    route_prefix: "/projects/project-1",
+    demo: false,
+    active_goal_id: null,
+    goals: [],
+    archived_goals: [],
+    trashed_goals: [],
+    counts: {},
+    input_bindings: [],
+    policy_bindings: [],
+    events: [],
+    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+  } as MolisWorkWebView, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });
+  assert.match(projectHtml, /class="mw-toggle-group settings-scope-switch"/);
+  assert.match(projectHtml, /href="\/settings\/appearance\?project=project-1"[^>]*>全局</);
+  assert.match(projectHtml, /data-settings-nav-filter/);
+  assert.match(projectHtml, /data-settings-nav-empty/);
+  assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /globalThis\.molisCraft\?\.turn\?\.\(node,/);
+  assert.doesNotMatch(PROJECT_SETTINGS_PAGE_STYLES, /input\.settings-switch/);
+  assert.doesNotMatch(renderMolisWorkSettingsStylesheet(), /input\.settings-switch/);
+});

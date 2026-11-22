@@ -198,6 +198,125 @@ wireCatalogSplit();
 wireCatalogCapabilityPacks();
 wireCatalogLanguage();
 wireCatalogOnDemandHelp();
+wireCatalogPlatformFeedback();
+
+function wireCatalogPlatformFeedback(): void {
+  document.addEventListener("click", (event) => {
+    const target = event.target as Element;
+    const insetToggle = target.closest<HTMLButtonElement>("[data-catalog-inset-toggle]");
+    if (insetToggle) {
+      const row = insetToggle.closest<HTMLElement>("[data-catalog-inset-row]");
+      if (row) {
+        const nextOpen = row.dataset.open !== "true";
+        row.dataset.open = String(nextOpen);
+        insetToggle.textContent = nextOpen ? "收起" : "展开";
+      }
+      return;
+    }
+    const busyBtn = target.closest<HTMLButtonElement>("[data-fb-busy]");
+    if (busyBtn) {
+      const fast = busyBtn.dataset.fbBusy === "fast";
+      const status = one<HTMLElement>("[data-fb-busy-status]");
+      const run = () => new Promise<void>((resolve) => {
+        window.setTimeout(resolve, fast ? 120 : 950);
+      });
+      void (window.molisBusy ? window.molisBusy(busyBtn, run) : run()).then(() => {
+        if (status) {
+          status.textContent = fast ? "120ms 完成（零转圈闪烁）" : "950ms 完成（250ms 后仅锁定本按钮）";
+        }
+      });
+      return;
+    }
+    const toastBtn = target.closest<HTMLButtonElement>("[data-fb-toast]");
+    if (toastBtn) {
+      const kind = toastBtn.dataset.fbToast;
+      if (kind === "short") {
+        window.molisToast?.("已保存更改", { tone: "success", duration: "short" });
+      } else if (kind === "warning") {
+        window.molisToast?.("连接较慢，正在后台重试", { tone: "warning", duration: "normal" });
+      } else if (kind === "error") {
+        window.molisToast?.("未能写入本地文件，请检查权限", { tone: "error", duration: "long" });
+      } else if (kind === "undo") {
+        window.molisToast?.("已归档 1 条记录", {
+          tone: "default",
+          undoLabel: "撤销",
+          undo: () => window.molisToast?.("已恢复该记录", { tone: "success", duration: "short" }),
+        });
+      }
+      return;
+    }
+    const ringNext = target.closest<HTMLButtonElement>("[data-fb-ring-next]");
+    if (ringNext) {
+      const ring = one<SVGElement>("[data-fb-ring-demo]");
+      const label = one<HTMLElement>("[data-fb-ring-label]");
+      const states = ["running", "waiting", "done", "failed"] as const;
+      if (ring) {
+        const cur = ring.dataset.mwState ?? "running";
+        const idx = (states.indexOf(cur as (typeof states)[number]) + 1) % states.length;
+        const next = states[idx]!;
+        ring.dataset.mwState = next;
+        if (label) {
+          label.textContent = next;
+        }
+      }
+      return;
+    }
+    const dangerBtn = target.closest<HTMLButtonElement>("[data-fb-confirm-danger]");
+    if (dangerBtn) {
+      one<HTMLDialogElement>("[data-fb-danger-dialog]")?.showModal();
+    }
+  });
+  const autosaveBox = one<HTMLElement>("[data-fb-autosave-box]");
+  const autosaveInput = one<HTMLInputElement>("[data-fb-autosave-input]");
+  const autosaveFail = one<HTMLInputElement>("[data-fb-autosave-fail]");
+  const autosaveStatus = one<HTMLElement>("[data-fb-autosave-status]");
+  const autosaveRetry = one<HTMLButtonElement>("[data-fb-autosave-retry]");
+  if (autosaveBox && autosaveInput && window.molisAutosave) {
+    const controller = window.molisAutosave(
+      autosaveBox,
+      () => new Promise<void>((resolve, reject) => {
+        window.setTimeout(() => {
+          if (autosaveFail?.checked) {
+            reject(new Error("保存失败"));
+          } else {
+            resolve();
+          }
+        }, 420);
+      }),
+      {
+        statusEl: autosaveStatus,
+        labels: { idle: "已同步", dirty: "有未保存修改", saving: "正在保存…", saved: "已保存", error: "保存失败" },
+        onStateChange: (state) => {
+          if (autosaveRetry) {
+            autosaveRetry.hidden = state !== "error";
+          }
+        },
+      },
+    );
+    autosaveInput.addEventListener("input", () => controller.markDirty());
+    autosaveRetry?.addEventListener("click", () => {
+      void controller.retry();
+    });
+  }
+  const optOk = one<HTMLInputElement>("[data-fb-opt-ok]");
+  optOk?.addEventListener("click", (event) => {
+    event.preventDefault();
+    void window.molisOptimisticToggle?.(optOk, () => new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 200);
+    }));
+  });
+  const optFail = one<HTMLInputElement>("[data-fb-opt-fail]");
+  optFail?.addEventListener("click", (event) => {
+    event.preventDefault();
+    void window.molisOptimisticToggle?.(
+      optFail,
+      () => new Promise<void>((_, reject) => {
+        window.setTimeout(() => reject(new Error("网络断开，开关已自动回滚")), 220);
+      }),
+    );
+  });
+  window.molisEnhanceDateInputs?.(document);
+}
 
 function wireCatalogOnDemandHelp(): void {
   const host = document.querySelector<HTMLElement>("[data-help-specimen]");

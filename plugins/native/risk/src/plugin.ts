@@ -4,6 +4,7 @@ import { createRiskActionHandlers, type RiskActionPorts } from "./actions.js";
 import { riskManifest } from "./manifest.js";
 import { riskMethods } from "./methods.js";
 import { createRiskPresentationHandlers } from "./presentation.js";
+import { riskSyncBindings } from "./replication.js";
 import { createRiskSearchHandlers } from "./search.js";
 import { RiskStore } from "./store.js";
 import { riskUiContribution } from "./ui.js";
@@ -28,7 +29,7 @@ export function createRiskPlugin(): PluginDefinition {
       schedule: (reference, input) => directory.invoke(reference, input),
       now: () => new Date().toISOString(),
     };
-    return { kind: "app", views: [riskUiContribution],
+    return { kind: "app", views: [riskUiContribution], sync: riskSyncBindings(context, projectId),
       actions: [...createRiskActionHandlers(ports), ...createRiskSearchHandlers(read), ...createRiskPresentationHandlers(read)] };
   } };
 }

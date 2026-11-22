@@ -15,9 +15,9 @@ export function renderAutomationRecommendations() {
 export const AUTOMATION_STYLES = `
 .automation-dialog { width: min(680px, calc(100% - 24px)); }
 .automation-dialog .mw-form__body { overflow: auto; }
-.automation-dialog section { padding-block: var(--space-3, 12px); border-bottom: 1px solid var(--line); }
+.automation-dialog section { padding-block: 12px; border-bottom: 1px solid var(--line); }
 .automation-dialog :is(section h3,details summary) { color: var(--ink); }
-.automation-dialog h3 { font-size: var(--text-sm, 13px); margin: 0 0 8px; }
+.automation-dialog h3 { font-size: 13px; margin: 0 0 8px; }
 .automation-dialog details { padding-block: 6px; }
 .automation-dialog summary { cursor: pointer; line-height: 1.5; }
 .automation-dialog [data-automation-error] { color: var(--danger, var(--ink)); }

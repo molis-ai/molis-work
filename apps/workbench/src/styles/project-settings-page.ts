@@ -11,8 +11,8 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   .project-preferences-chrome > a { display: grid; place-items: center; width: 32px; height: 32px; color: var(--muted); border-radius: 8px; }
   .project-preferences-chrome > a:hover { color: var(--ink); background: var(--nav-hover); }
   .project-preferences-chrome svg { width: 16px; height: 16px; }
-  :is(body.project-preferences-page, .settings-stage)[data-native-desktop="true"] .project-preferences-chrome { padding-left: 84px; }
-  :is(body.project-preferences-page, .settings-stage) .settings-shell { grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  :is(html[data-native-desktop="true"], body[data-native-desktop="true"]) .project-preferences-chrome, :is(body.project-preferences-page, .settings-stage)[data-native-desktop="true"] .project-preferences-chrome { padding-left: var(--desktop-window-safe-inline-start, 88px); }
+  :is(body.project-preferences-page, .settings-stage) .settings-shell { grid-template-columns: 228px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   :is(body.project-preferences-page, .settings-stage) .settings-navigation.settings-navigation--codex { padding: 16px 12px; border-color: var(--line); background: var(--nav-bg); }
   .settings-project-identity { display: grid; gap: 4px; padding: 16px 12px 24px; min-width: 0; }
   .settings-project-identity strong { font-size: 15px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -21,6 +21,9 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content { box-shadow: none; }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.settings-document, .appearance-document) { background: transparent; }
   :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+  :is(body.project-preferences-page, .settings-stage) .settings-content > p.mw-loading[data-settings-loading] { opacity: 0; animation: mw-loading-in var(--dur-hover) var(--ease-quint) var(--dur-move) both; }
+  :root:not([data-craft-still]) :is(body.project-preferences-page, .settings-stage) .settings-content > [data-settings-panel] { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
+  html[data-resolved-theme="dark"] :is(.project-preferences-page, .settings-stage) :is(.settings-section:not(.mw-settings-section), .guidance-settings-list, .guidance-advanced-list, .diagnostics-summary, .launcher-section) { box-shadow: inset 0 1px 0 var(--edge-highlight); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading) + .mw-settings-section { margin-top: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-body { display: block; overflow: visible; min-height: 0; padding: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) { max-width: none; margin: 0 0 24px; padding: 0; border: 0; }
@@ -44,13 +47,13 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   .setting-copy { display: grid; gap: 4px; min-width: 0; color: var(--ink); }
   .setting-copy > strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .setting-copy > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
-  body.settings-page .settings-navigation--codex .settings-nav-body > a { gap: 12px; }
+  body.settings-page .settings-navigation--codex .settings-nav-body > a { gap: 10px; }
   body.settings-page .settings-navigation--codex .settings-nav-body > a svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
   .setting-number { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
   .project-name-form input { width: 220px; min-width: 0; }
   .project-missing-plugin .mw-setting-row__copy > strong { overflow-wrap: anywhere; }
-  :is(.project-preferences-page, .settings-stage) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { max-width: 100%; min-height: 36px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; font-size: 13px; box-shadow: var(--lift-1); }
-  :is(.project-preferences-page, .settings-stage) select { padding-right: 32px; }
+  :is(.project-preferences-page, .settings-stage) :is(input:not([type=checkbox]):not([type=radio]):not(.mw-input):not([data-settings-nav-filter]), select:not(.mw-select), textarea:not(.mw-textarea)) { max-width: 100%; min-height: var(--control-h, 32px); padding: 6px 10px; border: 1px solid var(--control-input, var(--line-strong)); border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; font-size: 13px; box-shadow: none; }
+  :is(.project-preferences-page, .settings-stage) select:not(.mw-select) { padding-right: 32px; }
   :is(.project-preferences-page, .settings-stage) textarea { width: 100%; resize: vertical; line-height: 1.65; }
   :is(.project-preferences-page, .settings-stage) button:not(.mw-btn) { font-size: 12px; font-weight: 400; }
   :is(.project-preferences-page, .settings-stage) :is(button, a, input, select, textarea, summary) { transition: background-color var(--dur-hover, 130ms) var(--ease-quint), border-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint); }
@@ -69,10 +72,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .project-manager-danger h3 { margin: 0 0 8px; font-size: 13px; font-weight: var(--weight-title, 600); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger p { max-width: 62ch; margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--line-strong); cursor: pointer; }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: var(--lift-1); transition: transform var(--dur-hover) var(--ease-quint); }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch:checked { background: var(--ink); border-color: var(--ink); }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch:checked::after { transform: translateX(14px); }
   :is(.project-preferences-page, .settings-stage) .settings-last-change { display: grid; gap: 4px; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
   :is(.project-preferences-page, .settings-stage) .settings-last-change strong { color: var(--ink); font-size: 15px; font-weight: var(--weight-control, 500); }
   :is(.project-preferences-page, .settings-stage) .settings-rules-form { margin: 0; }

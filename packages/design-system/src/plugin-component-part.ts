@@ -70,7 +70,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       // The plugin's own header, as the catalog's frame header: a mark that says what it is about, its name, one line on
       // what it is for, and on the right, where the page's "new" buttons go.
       const header = make('header', undefined, 'mw-frame__header pc-app-head'), copy = make('div', undefined, 'mw-frame__heading'), mark = make('span', undefined, 'pc-mark'), actions = make('div', undefined, 'mw-frame__action pc-app-actions');
-      mark.append(glyph(MARKS.find(([pattern]) => pattern.test(node.purpose))?.[1] ?? 'sparkles'));
+      mark.append(glyph(MARKS.find(([pattern]) => pattern.test(node.purpose))?.[1] ?? 'layers'));
       header.dataset.slot = 'frame'; description.className = 'pc-app-description'; copy.append(title, description); header.append(mark, copy, actions); element.append(header);
     } else if (node.intent === 'heading') {
       const card = make('article', undefined, 'mw-card pc-app-card'), header = make('header', undefined, 'mw-card__header'), copy = make('div'); card.dataset.slot = 'card';

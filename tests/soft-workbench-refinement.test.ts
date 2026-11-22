@@ -6,6 +6,7 @@ import { PLUGIN_COMPONENT_STYLES, STATUS_ICON } from "@molis-ai/molis-work-desig
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
   renderMolisWorkArrivalStylesheet,
+  renderMolisWorkPluginBaseStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "../apps/workbench/src/page-assets.js";
@@ -211,4 +212,28 @@ test("a generated plugin's success note stays readable for its whole life before
   // It used to run a 640ms keyframe that ended invisible after about half a second, leaving a blank note for 3 seconds.
   assert.match(PLUGIN_COMPONENT_STYLES, /\.pc-success\{margin-top:12px;animation:craft-rise var\(--dur-move\) var\(--ease-quint\);transition:opacity var\(--dur-move\) var\(--ease-quint\)\}\.pc-success\.is-leaving\{opacity:0\}/);
   assert.doesNotMatch(PLUGIN_COMPONENT_STYLES, /pc-toast/);
+});
+
+test("91-0b layout measure/master tokens and plugin-frame dependencies stay available in plugin-base stylesheet", () => {
+  const base = renderMolisWorkPluginBaseStylesheet();
+  for (const token of [
+    "--measure-reading:700px",
+    "--measure-form:760px",
+    "--measure-stage:960px",
+    "--measure-wide:1152px",
+    "--master-w:240px",
+    "--master-w-wide:280px",
+    "--text-start:44px",
+    "--terminal:",
+    "--terminal-ink:",
+    "--content-tty:",
+    "--content-tty-ink:",
+    "--ease-swift:",
+    "--ease-out:",
+    "--celebrate-a:",
+    "--celebrate-b:",
+    "--celebrate-c:",
+  ]) {
+    assert.ok(base.includes(token), `molis-work-plugin-base.css must keep ${token}`);
+  }
 });

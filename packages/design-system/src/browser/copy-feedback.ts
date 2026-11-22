@@ -61,8 +61,27 @@ function settle(button: HTMLElement, state: "done" | "failed") {
   }, state === "done" ? COPY_DONE_HOLD_MS : COPY_FAILED_HOLD_MS));
 }
 
+function readCopyLabel(key: string, fallback: string): string {
+  const reader = (globalThis as { t?: { text?: (k: string) => string } }).t?.text;
+  if (typeof reader !== "function") {
+    return fallback;
+  }
+  try {
+    const value = reader(key);
+    if (value && value !== key) {
+      return value;
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
 async function molisCopy(button: HTMLElement, source: Source, labels: Labels = {}) {
-  prepare(button, { done: labels.done ?? "已复制", failed: labels.failed ?? "复制失败" });
+  prepare(button, {
+    done: labels.done ?? readCopyLabel("common.request-client.copied", "Copied"),
+    failed: labels.failed ?? readCopyLabel("common.request-client.could-not-copy", "Could not copy"),
+  });
   const press = (presses.get(button) ?? 0) + 1;
   presses.set(button, press);
   button.setAttribute("aria-busy", "true");

@@ -4,9 +4,11 @@
   "locale": "en",
   "messages": {
     "im-ui.control.cancel": "Cancel",
+    "im-ui.control.clear": "Clear",
     "im-ui.control.close": "Close",
     "im-ui.control.continue": "Continue",
     "im-ui.control.retry": "Retry",
+    "im-ui.control.undo": "Undo",
     "im-ui.error.host-closing": "Molis Work is closing. Reconnect shortly.",
     "im-ui.error.invalid-input": "Check the required fields and their length, then try again.",
     "im-ui.error.invitation-expired": "This invitation has expired. Ask the group creator for a new link.",

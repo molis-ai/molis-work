@@ -4,6 +4,16 @@ import { renderSkinScope } from "../appearance-tokens.js";
 /** Core tokens, body typography, focus ring and baseline field border shared by plugin frames. */
 export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
 
+  :root {
+    --measure-reading: 700px;
+    --measure-form: 760px;
+    --measure-stage: 960px;
+    --measure-wide: 1152px;
+    --master-w: 240px;
+    --master-w-wide: 280px;
+    --text-start: 44px;
+  }
+
   body {
     background: var(--page);
     color: var(--ink);

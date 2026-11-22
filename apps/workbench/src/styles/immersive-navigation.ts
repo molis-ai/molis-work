@@ -309,7 +309,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   }
   body.immersive-workbench .plugin-market-search input::placeholder { color: var(--muted); opacity: 1; }
   body.immersive-workbench .plugin-market-status-row { display: flex; align-items: center; gap: 12px; min-height: 20px; margin-top: 12px; }
-  body.immersive-workbench .plugin-market-status-row:not(:has([data-market-status]:not(:empty), [data-market-retry]:not([hidden]))) { min-height: 0; margin-top: 0; }
+  body.immersive-workbench .plugin-market-status-row:not(:has([data-market-status]:not([hidden]):not(:empty), [data-market-retry]:not([hidden]))) { min-height: 0; margin-top: 0; }
   body.immersive-workbench .plugin-market-status { margin: 0; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .immersive-market [data-market-retry] { min-height: 28px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
   body.immersive-workbench .plugin-market-installed { margin-top: 32px; }

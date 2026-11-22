@@ -35,7 +35,7 @@ export interface AgentReviewSurfaceModel {
 export const AGENT_REVIEW_STYLES = `
 .agent-review { min-width:0; padding:12px; border-top:1px solid var(--line); }
 .agent-review-row { min-width:0; margin-bottom:16px; font-size:12px; line-height:1.6; }
-.agent-review-row[data-agent-review-phase=pending] { padding:12px 16px; border:1px solid var(--line); border-radius:10px; background:var(--paper, #fff); box-shadow:var(--lift-1); }
+.agent-review-row[data-agent-review-phase=pending] { padding:12px 16px; border:1px solid var(--line); border-radius:10px; background:var(--paper); box-shadow:var(--lift-1),inset 0 1px 0 var(--edge-highlight,transparent); }
 .agent-review-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; color:var(--muted); }
 .agent-review-head svg { width:14px; height:14px; }
 .agent-review-row:has(> details) { margin-bottom:4px; }
@@ -67,23 +67,23 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-grants ul { margin:4px 0 0; padding:0; list-style:none; display:grid; gap:4px; }
 .agent-review-grants code { font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); word-break:break-all; }
 .agent-review-background { margin:8px 0 0; padding:8px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--accent) 10%, transparent); }
-.agent-review-warning { margin:8px 0 0; padding:8px 12px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
+.agent-review-warning { margin:8px 0 0; padding:8px 12px; border-radius:6px; color:var(--ink); background:var(--amber-soft); font-size:13px; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
 .agent-review-prompt { color:var(--muted); user-select:none; }
 .agent-review-file { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; margin:0; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
 .agent-review-tag { font-family:inherit; font-size:11px; padding:0 8px; border-radius:999px; background:var(--rail); color:var(--muted); }
-.agent-review-count[data-added] { color:var(--green, #1a7f37); }
-.agent-review-count[data-removed] { color:var(--red, #cf222e); }
+.agent-review-count[data-added] { color:var(--green); }
+.agent-review-count[data-removed] { color:var(--red); }
 .agent-review-diff-wrap { margin-top:8px; max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
 .agent-review-diff { width:100%; border-collapse:collapse; font:12px/1.55 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
 .agent-review-diff td { padding:0 8px; vertical-align:top; white-space:pre; }
 .agent-review-ln { width:1%; min-width:28px; text-align:right; color:var(--muted); user-select:none; opacity:.7; }
 .agent-review-code { width:100%; }
 .agent-review-sign { display:inline-block; width:1.2em; color:var(--muted); user-select:none; }
-.agent-review-diff tr[data-diff=insert] { background:color-mix(in srgb, var(--green, #1a7f37) 11%, transparent); }
-.agent-review-diff tr[data-diff=delete] { background:color-mix(in srgb, var(--red, #cf222e) 10%, transparent); }
-.agent-review-diff tr[data-diff=insert] .agent-review-sign { color:var(--green, #1a7f37); }
-.agent-review-diff tr[data-diff=delete] .agent-review-sign { color:var(--red, #cf222e); }
+.agent-review-diff tr[data-diff=insert] { background:color-mix(in srgb, var(--green) 11%, transparent); }
+.agent-review-diff tr[data-diff=delete] { background:color-mix(in srgb, var(--red) 10%, transparent); }
+.agent-review-diff tr[data-diff=insert] .agent-review-sign { color:var(--green); }
+.agent-review-diff tr[data-diff=delete] .agent-review-sign { color:var(--red); }
 .agent-review-gap td { color:var(--muted); background:var(--rail); text-align:center; font-family:inherit; padding:4px 8px; }
 .agent-review-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; }
 .agent-review-actions [data-agent-review-approve]:focus::after { content:"↵"; margin-left:8px; font-size:11px; opacity:.72; }

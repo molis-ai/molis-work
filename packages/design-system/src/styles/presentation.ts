@@ -26,7 +26,7 @@ export const PRESENTATION_FORM_STYLES = `
   .mw-presentation__row-title:focus-visible, .mw-presentation__more summary:focus-visible { outline: var(--focus-stroke); }
   .mw-presentation__row-title > strong, .mw-presentation .mw-preview-card > strong {
     font-family: var(--type-title-font, inherit); font-size: var(--type-title-size, inherit);
-    line-height: var(--type-title-line-height, inherit); letter-spacing: var(--type-title-tracking, inherit);
+    line-height: var(--type-title-line-height, inherit); letter-spacing: var(--tracking-title, inherit);
   }
   .mw-presentation__fields {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: .25em 1em; min-inline-size: 0; color: var(--muted);

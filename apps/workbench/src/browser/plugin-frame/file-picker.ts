@@ -31,16 +31,32 @@ export function pageFilePicker(port: MessagePort, scope: FrameScope, frame: HTML
       await check();
       if (lifetime.signal.aborted) return;
       if (!found.length) { finish(); return; }
-      popup = document.createElement("div"); popup.dataset.nativeFilePicker = ""; popup.setAttribute("role", "dialog");
+      popup = document.createElement("div");
+      popup.className = "mw-popover";
+      popup.dataset.nativeFilePicker = "";
+      popup.setAttribute("role", "dialog");
       popup.setAttribute("aria-label", uiText.text("common.file-picker.add-file"));
       const box = frame.getBoundingClientRect();
-      popup.style.cssText = `position:fixed;z-index:10000;left:${Math.max(8, box.left + 12)}px;top:${Math.max(8, box.top + 44)}px;max-width:calc(100vw - 32px);width:320px;max-height:${Math.min(280, Math.max(120, box.height - 80))}px;overflow:auto;padding:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px #0003`;
-      const label = document.createElement("strong"); label.textContent = uiText.text("common.file-picker.add-file"); popup.append(label);
-      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = uiText.text("common.control.close"); cancel.dataset.nativeFileCancel = "";
-      cancel.style.cssText = "float:right"; cancel.addEventListener("click", () => finish()); popup.append(cancel);
+      popup.style.cssText = `position:fixed;z-index:10000;left:${Math.max(8, box.left + 12)}px;top:${Math.max(8, box.top + 44)}px;max-width:calc(100vw - 32px);width:320px;max-height:${Math.min(280, Math.max(120, box.height - 80))}px;overflow:auto;padding:8px;background:var(--popover,var(--paper));color:var(--ink);border:1px solid var(--control-border);border-radius:var(--r-card,12px);box-shadow:var(--lift-3),inset 0 1px 0 var(--edge-highlight,transparent)`;
+      const head = document.createElement("div");
+      head.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 4px 8px;border-bottom:1px solid var(--line)";
+      const label = document.createElement("strong");
+      label.textContent = uiText.text("common.file-picker.add-file");
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "mw-btn mw-btn--ghost mw-btn--sm";
+      cancel.textContent = uiText.text("common.control.close");
+      cancel.dataset.nativeFileCancel = "";
+      cancel.addEventListener("click", () => finish());
+      head.append(label, cancel);
+      popup.append(head);
       for (const file of found.slice(0, 12)) {
-        const button = document.createElement("button"); button.type = "button"; button.textContent = file.name; button.dataset.nativeFileChoice = "";
-        button.style.cssText = "display:block;width:100%;margin-top:6px;padding:8px;text-align:left;overflow-wrap:anywhere";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "mw-menu__item";
+        button.textContent = file.name;
+        button.dataset.nativeFileChoice = "";
+        button.style.cssText = "margin-top:4px;overflow-wrap:anywhere";
         button.addEventListener("click", event => {
           if (!event.isTrusted || lifetime.signal.aborted) return;
           for (const control of popup?.querySelectorAll<HTMLButtonElement>("[data-native-file-choice]") ?? []) control.disabled = true;

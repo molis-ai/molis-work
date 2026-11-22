@@ -1,17 +1,19 @@
 Role
-The product face is the system sans (`FONT_STACK` in ../src/typeface.ts): SF Pro / PingFang SC on
-macOS, Segoe UI / Microsoft YaHei on Windows. The two files below are offline fallbacks only, used
-when no system face covers a glyph. Noto Sans SC ships Regular (400) alone; with
-`font-synthesis-weight: none`, 500 and 600 fall back to the system face instead of a faux bold.
-Do not add these files back as the primary face, and do not force a weight on every element.
+The default product face (F1 in `../resources/fonts/system-sans.json`) pairs bundled `Inter Variable`
+for Latin and numerals with bundled `Noto Sans SC` (full 400 Regular 6,085-glyph simplified set plus
+1,471-glyph 500 Medium and 600 SemiBold UI subsets covering 100% of all shipped Workbench, IM-UI, and
+native plugin Chinese locales including built-in skin names), falling back cleanly to platform CJK faces
+(`PingFang SC`, `Hiragino Sans GB`, `Microsoft YaHei UI`, `Microsoft YaHei`, `Noto Sans CJK SC`,
+`Source Han Sans SC`) for rare user-typed glyphs outside the 500/600 UI subset. With
+`font-synthesis-weight: none`, every UI weight uses real outlines with zero faux-bold smearing.
 
 Inter Variable (latin wght)
 Source: https://fontsource.org/fonts/inter (variable, latin)
 License: SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
 
-Noto Sans SC Regular (chinese-simplified)
-Source: https://fontsource.org/fonts/noto-sans-sc
+Noto Sans SC Regular (400 full) & Medium / SemiBold (500 / 600 common UI subsets)
+Source: https://www.npmjs.com/package/@fontsource/noto-sans-sc/v/5.3.1 (from https://fontsource.org/fonts/noto-sans-sc)
 License: SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 Copyright 2022 The Noto Project Authors (https://github.com/notofonts/noto-cjk)
 

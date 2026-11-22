@@ -8,9 +8,7 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 本 Skill 是 Molis Work **所有界面表面**（工作台外壳、到达/引导、设置全集、24 个内置插件、生成插件、侧栏、IM、独立/导出页、桌面壳、组件板 `/__ui/catalog` 与 `docs/design/` 原型）的**统一执行手册**。
 完整规范见根目录 [`DESIGN.md`](../../DESIGN.md)，生产标本见组件板 `/__ui/catalog`；插件平台协议另读 [`molis-plugin-dev`](../molis-plugin-dev/SKILL.md)，模型与 Agent 另读 [`molis-prologue-ai`](../molis-prologue-ai/SKILL.md)。
 
-**产品气质**：Soft Workbench——柔和桌面托起一张连续白纸，字阶与灰度先建层，唯一墨青/深墨主操作，琥珀只留给「轮到你」，所有动效与反馈克制、可中断、确定可恢复。
-
-> **阶段口径说明（`91-0a` → `91-0b`）**：本 Skill 随 [决定 60](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-60) 的前置段 `91-0a` 先行落地。凡标注 **`[91-0b 落定]`** 的新皮肤（`pure-studio@1` / `warm-atelier@1` 及 `soft-workbench@1` 晴朗亮底）、F1 字体栈、纸面细边次按钮、反馈原语（`molisBusy` / 统一 `host.showToast` / 五态自动保存 / `optimisticToggle` / 日期增强器）、`--measure-*` / `--stage-list-w` / `@container plugin-stage` 与 `228px` 设置左轨/侧栏筛选，将在紧邻的 `91-0b` 实装并同步去除阶段标注；在此之前开发代码以当前 `HEAD` 已有令牌与 API 为准（如底栏高度读 `--dock-h`、现役皮肤为 `soft-workbench@1` 与 `folio@1`）。
+**产品气质**：Soft Workbench（阳光净透浅底 + 静谧瓷青深底）——明净桌面托起一张连续纯白纸页，暗色以 `1px` 顶部玻璃高光（`--edge-highlight`）立面；以**对齐六律**建立一眼整洁的几何秩序，**图标与色彩优先**取代冗长状态说明字，唯一墨青/深墨主操作，琥珀只留给「轮到你」，所有切换与流式反馈坚持**无页面刷新感的连续动效**（持久化 DOM + FLIP + 容器高度呼吸 + 光影浸润流式），克制、可中断、确定可恢复。
 
 ---
 
@@ -18,13 +16,13 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 
 | 你正在做什么 | 必读章节 |
 | --- | --- |
-| 配色、4 套内置皮肤、明暗对比度、Sans + 中文排版、字阶/圆角/阴影令牌 | [tokens-and-typography.md](tokens-and-typography.md) |
+| 配色、4 套内置皮肤（阳光净透浅底 / 瓷青深底）、256 对 WCAG AA 对比度、F1 Sans+中文三字重、布局版心令牌 | [tokens-and-typography.md](tokens-and-typography.md) |
 | 工作台方案 C 顶栏、第十三版底栏、11 视图右侧栏、到达/IM/独立插件壳、桌面红绿灯安全区 | [shell-and-surfaces.md](shell-and-surfaces.md) |
-| `mw-*` 组件选型、按钮/输入框/6px 状态标材质、9 大共享机制、`@container` 与四档版心 | [components-and-mechanisms.md](components-and-mechanisms.md) |
-| 新增或修改全局设置（6 组）/ 项目设置（9 页）/ 插件设置页 | [settings-pages.md](settings-pages.md) |
-| 动效语法「一变一动」、流式输出与追底、250ms 防闪 `molisBusy`、统一 Toast、五态自动保存与 AI 反馈 | [motion-and-feedback.md](motion-and-feedback.md) |
+| `mw-*` 组件选型、**对齐六律**、区块/内嵌分组容器（`.mw-section-well` / `.mw-inset-group`）、三层标签栏、**图示优先与列表副信息换行规则**、9 大共享机制与 `@container` | [components-and-mechanisms.md](components-and-mechanisms.md) |
+| 新增或修改全局设置（6 组）/ 项目设置（9 页）/ 插件设置页（228px 左轨 + 侧栏筛选 + 250ms 防闪） | [settings-pages.md](settings-pages.md) |
+| **无刷新连续动效**、动效语法「一变一动」、流式浸润 v2 与微阻尼追底、`molisBusy` / `molisToast` / `molisAutosave` / `molisOptimisticToggle` | [motion-and-feedback.md](motion-and-feedback.md) |
 | 跨表面串联（`host.returns.go`、`dom-events.ts`、`presentation`、单一审批流）、插件布局选型与白话文案 | [flows-and-plugins.md](flows-and-plugins.md) |
-| 给 `/__ui/catalog` 加标本、用唯一 `docs/design/kit/` 画原型或归档设计稿 | [catalog-and-prototypes.md](catalog-and-prototypes.md) |
+| 给 `/__ui/catalog` 加标本（`extraChapters`）、用唯一 `docs/design/kit/` 画原型或归档设计稿 | [catalog-and-prototypes.md](catalog-and-prototypes.md) |
 | 视觉自审五律、明暗/三断点验收与全部自动化门禁命令 | [review-and-gates.md](review-and-gates.md) |
 
 ---

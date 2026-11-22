@@ -107,6 +107,21 @@ function openPlugin(host: FrameHost, surface: unknown, prefix: string, view?: un
   else location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
 }
 
+export function sanitizeFrameToastOptions(opt: unknown): boolean | { tone?: "default" | "success" | "warning" | "error"; duration?: "short" | "normal" | "long" | number } | null {
+  if (opt === undefined || typeof opt === "boolean") {
+    return opt === true;
+  }
+  if (!opt || typeof opt !== "object" || Array.isArray(opt)) {
+    return null;
+  }
+  const record = opt as Record<string, unknown>;
+  const tone = record.tone === "error" || record.tone === "warning" || record.tone === "success" || record.tone === "default" ? record.tone : undefined;
+  const duration = typeof record.duration === "number"
+    ? (Number.isFinite(record.duration) && record.duration >= 0 ? Math.min(30_000, record.duration) : undefined)
+    : (record.duration === "short" || record.duration === "normal" || record.duration === "long" ? record.duration : undefined);
+  return { tone, duration };
+}
+
 /** D0124/D0335: one typed UI boundary, after the live/visible frame check. */
 function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement): void {
   const args = message.args;
@@ -114,7 +129,12 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
   const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
   const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
   if (message.name === "showToast") {
-    if (text(args[0], 4000) && (args[1] === undefined || typeof args[1] === "boolean")) host.showToast?.(args[0], args[1] === true);
+    if (text(args[0], 4000)) {
+      const normalized = sanitizeFrameToastOptions(args[1]);
+      if (normalized !== null) {
+        host.showToast?.(args[0], normalized);
+      }
+    }
   } else if (message.name === "openPlugin") {
     if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) {
       if (paneId) host.focusPane?.(paneId);

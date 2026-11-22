@@ -70,7 +70,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-cover-copy p{margin:0 0 8px}
 .side-browser-cover-title{color:var(--ink);font-size:15px;font-weight:500}
 .side-browser-cover .mw-btn{margin-top:8px}
-.side-browser-sheet{position:absolute;left:12px;right:12px;top:12px;display:grid;gap:10px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--shadow-float,0 8px 24px rgb(0 0 0 / .12));font-size:13px;line-height:1.6}
+.side-browser-sheet{position:absolute;left:12px;right:12px;top:12px;display:grid;gap:10px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--lift-3);font-size:13px;line-height:1.6}
 .side-browser-sheet[hidden]{display:none}
 .side-browser-sheet h2{margin:0;font-size:13px;font-weight:600}
 .side-browser-sheet p{margin:0;overflow-wrap:anywhere;white-space:pre-wrap;max-height:40vh;overflow:auto}

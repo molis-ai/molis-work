@@ -21,7 +21,7 @@ export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 .mw-platform-area__kicker svg{width:13px;height:13px;flex:none}
 .mw-platform-area__owner{flex:1 1 0;min-width:0;overflow:hidden;color:var(--muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
 .mw-platform-area__lead{flex:1 0 100%;margin:0;overflow:hidden;color:var(--muted);font-size:12px;line-height:18px;text-overflow:ellipsis;white-space:nowrap}
-.mw-platform-area__body{min-height:0;overflow:auto;overscroll-behavior:contain;border-radius:var(--sk-r-card,12px)}
+.mw-platform-area__body{min-height:0;overflow:auto;overscroll-behavior:contain;border-radius:var(--r-card,12px)}
 .mw-platform-area__body[aria-busy]{cursor:progress}
 .mw-platform-area__body[aria-busy] :is(.mw-switch,.mw-btn){opacity:.6;transition:opacity var(--dur-hover,130ms) var(--ease-quint)}
 .mw-platform-area__foot{display:flex;height:48px;min-width:0}
@@ -40,6 +40,6 @@ export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 .task-grants-area__row[data-status="needs_confirmation"] .task-grants-area__note{color:color-mix(in srgb,var(--amber) 72%,var(--ink))}
 .task-grants-area__row .mw-item__end{gap:10px}
 @container (max-width:479.98px){.task-grants-area__row small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}}
-.task-grants-area__empty{margin:0;padding:14px 12px;border-radius:var(--sk-r-card,12px);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:12px;line-height:1.6}
+.task-grants-area__empty{margin:0;padding:14px 12px;border-radius:var(--r-card,12px);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:12px;line-height:1.6}
 @media (prefers-reduced-motion:reduce){.mw-platform-area,.mw-platform-area[data-shown],.mw-platform-area__foot .is-fresh{animation:none}}
 `;

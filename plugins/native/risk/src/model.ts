@@ -4,13 +4,14 @@ export const RISK_STATUSES = ["open", "mitigating", "accepted", "closed"] as con
 export type RiskStatus = (typeof RISK_STATUSES)[number];
 export const RISK_LEVELS = ["high", "medium", "low"] as const;
 export type RiskLevel = (typeof RISK_LEVELS)[number];
-const RISK_EVENT_KINDS = ["created", "updated", "status", "note", "linked", "unlinked"] as const;
+export const RISK_EVENT_KINDS = ["created", "updated", "status", "note", "linked", "unlinked"] as const;
 export type RiskEventKind = (typeof RISK_EVENT_KINDS)[number];
 /** The fields a person edits; each change is one `updated` event naming the fields, never their old or new words. */
 export const RISK_EDIT_FIELDS = ["title", "statement", "impact", "likelihood", "treatment", "owner_name"] as const;
 export type RiskEditField = (typeof RISK_EDIT_FIELDS)[number];
 
 export const RISK_LIMITS = { title: 200, statement: 8000, treatment: 8000, owner_name: 80, note: 4000, links: 20 } as const;
+export const RISK_REFERENCE_LIMITS = { kind: 100, id: 400 } as const;
 
 export interface RiskRecord {
   risk_id: string;

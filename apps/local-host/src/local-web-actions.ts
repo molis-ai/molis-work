@@ -2,7 +2,7 @@ import type { IncomingMessage } from "node:http";
 import { inDirectoryPass, type ActionSelection } from "@molis-ai/molis-work-kernel";
 import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
-import { ActionError, bindActionClient, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, isSubjectReader, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -181,7 +181,8 @@ function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostPr
     ? view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
       && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)
     : (owner.manifest.capabilities.consumes.includes(view.capability_id)
-        || requiredRoles.some(role => view.action.input_type === role.input_type && view.action.output_type === role.output_type))
+        || requiredRoles.some(role => view.action.input_type === role.input_type && view.action.output_type === role.output_type)
+        || isSubjectReader(view.action))
       && (() => {
         try { sourceChecks.set(view, view.action.permissions.map(permission => owner.capturePermission(permission))); return true; } catch { return false; }
       })()) : accepted;

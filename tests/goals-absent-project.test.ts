@@ -7,6 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
+import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { inboxActions, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
+import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { acceptanceActions, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -253,4 +257,13 @@ test("PEQ-01 PEQ-02 PEQ-07 PEQ-12 a new project does not enable Goals, opens on 
   const restoredHtml = await fetch(prefix + "/").then(r => r.text());
   assert.match(restoredHtml, /PEQ-KEEP-1/, "PEQ-02: Goal id restored after re-adding Goals");
   assert.match(restoredHtml, /移除后保留的目标/, "PEQ-02: Goal title restored after re-adding Goals");
+});
+
+test("PEQ-01 sibling built-in plugins keep Goals permissions optional and Inbox consumes no hardcoded goals.contract.read", () => {
+  for (const manifest of [pagesManifest, codingManifest, feedManifest, inboxManifest]) {
+    const requiredGoals = manifest.permissions.filter(entry => entry.required && entry.permission.startsWith("goals:"));
+    assert.deepEqual(requiredGoals, [], `${manifest.plugin_id} must not require goals:* permissions`);
+  }
+  assert.equal(inboxManifest.capabilities.consumes.includes("goals.contract.read"), false, "Inbox consumes no hardcoded goals.contract.read");
+  assert.equal(inboxActions.stage.action.permissions.includes("goals:read"), false, "inbox.stage.read does not require goals:read");
 });

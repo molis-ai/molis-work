@@ -6,8 +6,8 @@ import { inboxErrors } from "./errors.js";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createInboxActionHandlers, readInboxStageSubjects, INBOX_STAGE_GOAL_READ, type InboxActionEntry } from "./actions.js";
-import { createInboxContentHandlers, type InboxContentPorts, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
+import { createInboxActionHandlers, readInboxStageSubjects, type InboxActionEntry } from "./actions.js";
+import { createInboxContentHandlers, inboxOrigin, type InboxContentPorts, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
 import { createInboxPresentationHandlers } from "./presentation.js";
 import { inboxManifest } from "./manifest.js";
 import { createInboxPagesHandlers } from "./pages.js";
@@ -160,7 +160,7 @@ export function createInboxPlugin(): PluginDefinition {
       listEntries: () => attention.listInbox().map(recordOf),
       stageSubjects: (entries, caller) => readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
         feedAvailability: () => own.availability(FEED.briefs),
-        goal: id => own.invokeQuery<{ goal_id: string }, { goal: { title: string } }>(INBOX_STAGE_GOAL_READ, { goal_id: id }),
+        subject: async entry => (await resolveActionSubject(subjects, caller, inboxOrigin(entry))).context,
       }),
       setStatus: async (entryId, status, revision, caller) => {
         const entry = entryOf(entryId);

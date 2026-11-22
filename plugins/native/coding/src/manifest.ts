@@ -67,9 +67,9 @@ export const codingManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
-    { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
+    { permission: "goals:read", required: false, reason: "可选：读取已关联目标的当前约定、状态和固定来源" },
     { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "读取已关联目标在要求栏里的原话" },
-    { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
+    { permission: "goals:write", required: false, reason: "可选：按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
     { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
     { permission: PROMPT_COMMANDS_READ_PERMISSION, required: false, reason: "列出你自己在家目录 .molis/commands、.claude/commands 里写的命令；命令只是一段提示文字，不带任何权限" },
@@ -162,7 +162,8 @@ export const codingManifest: PluginManifest = {
   background: { jobs: [
     { job_id: "follow", reason: "跟住已经开始的这一轮，直到它结束，把会话记下的状态改对", permissions: [] },
     { job_id: "wake", reason: "会话等的事有了结果，接着开这个会话的下一轮", permissions: ["artifact:read", "storage:private"] },
-    { job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] },
+    { job_id: "observe", reason: "独立读取并保存会话状态，页面查询保持只读", permissions: ["artifact:read", "storage:private"] },
+    { job_id: "observe-goals", reason: "可选：在已授予 goals:read 时同步保存关联目标标题，供目录立即可读", permissions: ["storage:private", "goals:read"] },
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   presentation: codingPresentation,

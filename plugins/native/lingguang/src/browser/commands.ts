@@ -32,6 +32,7 @@ export function installCommands(page: LingguangPage): void {
     if (!open) return;
     await page.save();
     const goal = Boolean(target.closest("[data-lingguang-to-goal]")), jelly = Boolean(target.closest("[data-lingguang-to-jelly]"));
+    if (goal && typeof page.host.surfaceFor === "function" && !page.host.surfaceFor("goal")) return;
     s.fates.delete(open.id);
     window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: open.id },
       ...(goal ? { attach_kind: "goal" } : { station: jelly ? "jelly" : "pages" }),

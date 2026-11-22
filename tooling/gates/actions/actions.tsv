@@ -368,7 +368,7 @@ inbox.pages.results	1	io.molis.work.inbox	io.molis.work.inbox	query	query	projec
 inbox.presentation.overview	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	-	user,workflow	inbox:read	-	-	molis.presentation.overview.v1	99334726611c	b82a70f55a0b	3cfff55e5308
 inbox.presentation.values	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user	inbox:read	inbox_entry	molis.presentation.values.request.v1	molis.presentation.values.v1	b5a33e6cceef	051a8fb19d0f	3cfff55e5308
 inbox.search.entries	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	eb24cea3731b
-inbox.stage.read	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	-	user	evidence:read,feed:read,goals:read,inbox:read	inbox_entry	-	-	99334726611c	d208458cf361	-
+inbox.stage.read	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	-	user	evidence:read,feed:read,inbox:read	inbox_entry	-	-	99334726611c	d208458cf361	-
 inbox.subject.read	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	-
 issues.cancel_capture	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	7b7bf2a96001	98b02298419d	-
 issues.capture	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	57d130a9b71c	3efd82b4a94d	f5ebf1ed76cb

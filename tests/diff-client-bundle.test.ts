@@ -6,15 +6,13 @@ import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 import { DIFF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-diff";
-import { TEXT_STATS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-text-stats";
 
 const PLUGINS = [
   { name: "diff", dir: "plugins/native/diff", script: DIFF_CLIENT_FACTORY_SCRIPT, bundle: "diff-client.js" },
-  { name: "text-stats", dir: "plugins/native/text-stats", script: TEXT_STATS_CLIENT_FACTORY_SCRIPT, bundle: "text-stats-client.js" },
 ];
 const browserFiles = (dir: string) => readdirSync(join(dir, "src/browser")).map(file => join(dir, "src/browser", file));
 
-test("RAC-169 the Diff and Text Stats pages say every word by a stable key with both languages", () => {
+test("RAC-169 the Diff page says every word by a stable key with both languages", () => {
   const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
   for (const { name, dir } of PLUGINS) {
     const calls = scan.calls.filter(call => call.file.startsWith(join(dir, "src/browser") + "/"));
@@ -25,7 +23,7 @@ test("RAC-169 the Diff and Text Stats pages say every word by a stable key with 
   }
 });
 
-test("RAC-169 the Diff and Text Stats clients are typed browser code bundled by esbuild, ask the Host only through the shared request and name no plugin route", () => {
+test("RAC-169 the Diff client is typed browser code bundled by esbuild, asks the Host only through the shared request and names no plugin route", () => {
   const root = JSON.parse(readFileSync("package.json", "utf8")) as { devDependencies: Record<string, string> };
   for (const { name, dir, script, bundle } of PLUGINS) {
     for (const file of browserFiles(dir)) {

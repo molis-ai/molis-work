@@ -170,11 +170,10 @@ function inspectOptionalDeclarations(manifest: Record<string, unknown>): void {
 
 const SUMMARY_LIMIT = 120;
 
-/** What the market and the page heading show (W5-02 B2): `summary` is non-empty and at most 120 characters once trimmed, `developer` only `true`. */
+/** What the market and the page heading show (W5-02 B2): `summary` is non-empty and at most 120 characters once trimmed. */
 function inspectPresentation(manifest: Record<string, unknown>): void {
   const summary = typeof manifest.summary === "string" ? manifest.summary.trim() : null;
   if (manifest.summary !== undefined && (!summary || [...summary].length > SUMMARY_LIMIT)) invalid(`summary 必须是不超过 ${SUMMARY_LIMIT} 字的非空文字`);
-  if (manifest.developer !== undefined && manifest.developer !== true) invalid("developer 只能写 true，不是开发者插件就不写");
   if (Object.hasOwn(manifest, "name_en")) invalid("Manifest 不接收 name_en：请声明 name_text 并在语言文件中写词");
 }
 

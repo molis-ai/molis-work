@@ -52,14 +52,14 @@ test("background startup shares its instance with later UI execution adapters an
     const models = (response!.body as { models: Array<{ provider_id: string; model_id: string }> }).models;
     assert.deepEqual(models.map(({ provider_id, model_id }) => ({ provider_id, model_id })), [{ provider_id: "late", model_id: "chosen" }]);
     const directory = await actions.client.discover(caller);
-    const count = directory.find(row => row.capability_id === "text-stats.count")!;
+    const count = directory.find(row => row.capability_id === "diff.compare")!;
     assert.ok(count);
     for (const changed of [{ actorId: "other" }, { homeDirectory: home + "-other" }, { actions: { ...actions, project_id: "other" } }]) {
       await assert.rejects(ensureProjectPlugins({ ...ports, ...changed }), /身份不一致/);
     }
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.equal((await actions.client.discover(caller)).length, 0);
-    await assert.rejects(actions.client.invoke(caller, count, { text: "closed" }));
+    await assert.rejects(actions.client.invoke(caller, count, { before: "closed", after: "closed" }));
     const reopened = await ensureProjectPlugins(ports);
     assert.notEqual(reopened.platform, first.platform);
     assert.ok(reopened.platform);

@@ -435,7 +435,6 @@
 | `coding` | Coding | Coding | |
 | `git` | Git | Git | |
 | `diff` | Diff | Diff | |
-| `text-stats` | Text stats | Text Stats（导航）、Text stats（页面） | 两个标题大小写不同 |
 | `cognia` | Cognia | Cognia | |
 | `plugin-builder` | 插件创作工作台 | 插件创作工作台 | |
 | `images` | 图片 | 图片 | |
@@ -453,7 +452,7 @@
 | `risk` | 风险 | 风险 | |
 | `work-brief` | Work Brief | Work Brief | |
 
-中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue、Work Brief），8 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue、Work Brief），8 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 
@@ -551,8 +550,8 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 **U7　插件显示名中英混用，连接说明里又写英文 id（2026-11-17 已批准）**
 
-- 现状：见 3.3。连接设置的文案用英文 id 称呼插件：「Images」（`apps/local-host/src/connector-directory.ts`、`apps/workbench/src/settings-connector-guide.ts`），而插件切换器里它叫「图片」。`text-stats` 的两个标题大小写不同。`manifest.name` 也会进界面（3.1），当时只有 Characters 的名称与显示名不一致，它并入宿主（CHR-1，2026-10-22）后这条路径就没有不一致了。
-- 决定（2026-11-17）：连接说明与设置引用里的插件名一律取界面显示名（「图片」「判断规则」「设置 › 服务连接」）；`Text Stats` 与 `Text stats` 统一为 `Text stats`。
+- 现状：见 3.3。连接设置的文案用英文 id 称呼插件：「Images」（`apps/local-host/src/connector-directory.ts`、`apps/workbench/src/settings-connector-guide.ts`），而插件切换器里它叫「图片」。`text-stats` 的两个标题大小写不同（该插件 2026-11-22 已退役删除）。`manifest.name` 也会进界面（3.1），当时只有 Characters 的名称与显示名不一致，它并入宿主（CHR-1，2026-10-22）后这条路径就没有不一致了。
+- 决定（2026-11-17）：连接说明与设置引用里的插件名一律取界面显示名（「图片」「判断规则」「设置 › 服务连接」）；`Text Stats` 与 `Text stats` 统一为 `Text stats`（该插件 2026-11-22 已退役删除，此条不再有对象）。
 
 ### 4.1 面向零 AI 基础用户的界面白话准则与符号约定（2026-11-17 已批准）
 

@@ -179,8 +179,6 @@ export interface PluginManifest {
   summary?: string;
   /** The displayed summary, independent of the Manifest name and view title. */
   summary_text?: TextRef;
-  /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable, and shown where already added. Only `true`. */
-  developer?: true;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {

@@ -3,7 +3,6 @@ import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-ke
 import { type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkWebView };
 import { inLanguagePreview, currentLocale } from "./web-locale.js";
-import { developerMode } from "./developer-mode.js";
 import { PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
 
 export interface WebViewOptions {
@@ -60,12 +59,10 @@ export function cachedMolisWorkWebView(
   cache: MolisWorkWebViewCache,
   options: WebViewOptions,
 ): MolisWorkWebView {
-  const dev = developerMode();
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,
     locale: currentLocale(),
     demo: Boolean(options.demo),
-    developer_mode: dev,
     project_root: options.projectRoot ?? "",
     project: options.project ?? null,
     projects: options.projects ?? [],
@@ -75,7 +72,7 @@ export function cachedMolisWorkWebView(
   const cached = cache.get(options.databasePath);
   const base = cached?.optionsFingerprint === optionsFingerprint
     ? cached.view
-    : { ...buildMolisWorkWebView(options), developer_mode: dev };
+    : buildMolisWorkWebView(options);
   if (!inLanguagePreview()) cache.set(options.databasePath, { optionsFingerprint, view: base });
   return base;
 }

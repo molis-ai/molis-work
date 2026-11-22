@@ -4722,7 +4722,6 @@ export interface PluginManifest {
     always_on?: boolean;
     summary?: string;
     summary_text?: TextRef;
-    developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {

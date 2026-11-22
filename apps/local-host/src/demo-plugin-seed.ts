@@ -20,7 +20,6 @@ const DEMO_WITHHELD_PLUGIN_IDS: readonly string[] = [
   "workspace",
   "git",
   "diff",
-  "text-stats",
   // Work Brief takes the project's home once it is in a project. The demo has no brief to show yet, so turning it on would
   // put an empty page where the home with every plugin's cards is. It comes in with a seeded brief, not before.
   "work-brief",

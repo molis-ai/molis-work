@@ -1,4 +1,7 @@
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { relationWordKey } from "./relation-words.js";
+
+export { relationWordKey };
 
 export const GOALS_RELATION_LABELS: Record<string, { out: string; in: string }> = {
   part_of: { out: "属于", in: "包含" },
@@ -12,10 +15,6 @@ export const GOALS_RELATION_LABELS: Record<string, { out: string; in: string }> 
   migrates_from: { out: "迁移自", in: "迁移到" },
 };
 
-/** Both renderers select a word by the relation's saved type and the part of the interface being drawn. */
-export function relationWordKey(type: string, part: "out" | "in" | "label" | "description"): string {
-  return "goals.relation-kind." + type.replaceAll("_", "-") + "." + part;
-}
 
 export function goalRelationLabel(type: string, part: "out" | "in"): string | undefined {
   if (Object.hasOwn(GOALS_RELATION_LABELS, type)) return t.text(relationWordKey(type, part));

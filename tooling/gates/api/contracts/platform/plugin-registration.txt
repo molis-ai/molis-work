@@ -122,8 +122,6 @@ export type BuiltinSyncBinding = ({
     readonly locate?: (key: string) => string | null;
 };
 
-export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync">;
-
 export interface PluginApprovalOutcome {
     readonly kind: string;
     readonly id: string;
@@ -239,7 +237,7 @@ export interface PluginWorkbenchRegistration {
     readonly clientAssetSpecifiers?: Readonly<Record<string, string>>;
     readonly settingsClient?: string;
     readonly settingsStylesheet?: string;
-    readonly pageClients?: Readonly<Record<string, string>>;
+    readonly pageClient?: string;
     readonly searchRow?: PluginSearchRow;
     readonly surfaceAliases?: readonly string[];
     readonly searchRecordKinds?: readonly string[];

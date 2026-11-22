@@ -158,7 +158,7 @@
 - Goal 页、片段、设置、规划、胶囊：走 Runtime 的页面与路由声明（同其他插件），宿主删 `web-goals-read.ts`、`web-planning.ts` 和 `GoalsWebView` 里的 Goals 字段。
 - 宿主替 Goals 取数写数（H2）：项目简介、上手、演示数据各自改走公开动作目录（不钉死提供方）或声明式贡献。
 - 设置节（H3）：插件声明自己的设置节，外壳按声明排；Goals 只留属于 Goal 的设置。
-- 外壳启动（H4）：默认面取用户上次所在或首个已装插件，不写 `"goals"`；Goals 客户端只经 `pageClients` 装载。
+- 外壳启动（H4）：默认面取用户上次所在或首个已装插件，不写 `"goals"`；Goals 客户端只经登记的 `pageClient` 装载（[页面客户端生命周期](../page-client-lifecycle/spec.md)）。
 - 样式（H5）：随 Goals 包下发（按 PG-070 的按需 css）。
 - CLI（H6，D6b 已定）：写死的 7 个 Goals 动作及对应命令一并删掉（`apps/cli/src/command-dispatch.ts` 的 `GOALS` 与各分支、`protocol.ts` 的相应条目、宿主交给 CLI 的 Goals 动作端口、CLI README 与文档里的这些命令），不改成通用命令、不留旧名。删前核清谁在调（脚本、测试、文档）。
 - 胶囊（H7，D6 已定）：整个删掉——桌面壳的胶囊窗口（`apps/desktop/src/capsule-shell.ts` 及 Tauri 一侧的接线）、宿主的胶囊路由与 `capsule.ts`、Goals 的 `createGoalsCapsuleProjection` 与 `capsule-menu.ts`；删的同一个改动里登记一条重做待办，不留兼容。

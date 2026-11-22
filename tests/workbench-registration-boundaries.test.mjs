@@ -12,7 +12,7 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("DD2 UI guard rejects restored root implementations, bypassed mounts and legacy client handlers", () => {
-  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "plugins/native/goals/src/page/factories.ts", "plugins/native/goals/src/page/surfaces.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
+  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "plugins/native/goals/src/page/factories.ts", "plugins/native/goals/src/page/surfaces.ts", "plugins/native/goals/src/browser/page.ts"]
     .map(file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8")
       + (file === "apps/workbench/src/index.ts" ? readFileSync(new URL("../apps/workbench/src/ui-composition.ts", import.meta.url), "utf8") : ""));
   sources.push(readFileSync(new URL("../apps/workbench/src/plugin-workbench.ts", import.meta.url), "utf8"));
@@ -30,7 +30,7 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   const bypassed = [...sources]; bypassed[2] = bypassed[2].replace("surfaceRenderers<GoalsProposalRenderer", "oldRender<GoalsProposalRenderer");
   assert.match(checkProposalUiOwnership(...bypassed).join("\n"), /must mount/);
   const legacy = [...sources]; legacy[4] += '\nconst goalTreeDecisionForm = form.closest("[data-goal-tree-decision-form]");';
-  assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals client factory/);
+  assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals page client/);
   // The chain from the Goals page to the registered contribution is pinned at each link (T-116 review): swapping any one is refused.
   const replaced = (index, before, after) => {
     assert.ok(sources[index].includes(before), `the actual chain contains ${before}`);

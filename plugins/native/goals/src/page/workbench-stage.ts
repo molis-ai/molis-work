@@ -117,11 +117,11 @@ function renderMolisWorkRefreshFragment(
   const renderedDocumentContent = selected
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, true);
-  const goalDocument = `<section class="document-pane" id="goal-document-pane" data-document-pane aria-label="${escapeHtml(collectionTitle)}">
+  const goalDocument = `<section class="document-pane" id="goal-document-pane" data-document-pane data-surface-stage aria-label="${escapeHtml(collectionTitle)}">
     <section class="desktop-work-surface" data-work-surface="goals" data-work-surface-label="Goals">${renderedDocumentContent}</section>
   </section>`;
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection, renderGoalProposals(view));
-  const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
+  const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-surface-stage data-surface-host data-record-owner="goals" data-board-view="list">
     ${stageList}
     ${renderMomentumPlaceholder()}
     ${renderGoalKanban(view, selected?.goal.goal_id || "", view.goals)}

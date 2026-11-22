@@ -5,10 +5,13 @@ import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform
 import type { MemoryPluginScene } from "@molis-ai/molis-work-contracts/services/memory";
 import { isPluginSceneName } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { SkillSceneChoice } from "@molis-ai/molis-work-contracts/services/skills";
+import { matchLocale } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { builtinPluginByManifestId, PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
 import { BUNDLE_FILE } from "../sandbox-package-store.js";
-import { directoryWordResolver } from "../ui-text-provider.js";
+import { directoryWordResolver, hasHostUiText, registeredBuiltinText } from "../ui-text-provider.js";
+import { activeLocale, DEFAULT_WEB_LOCALE } from "../web-locale.js";
 
 /**
  * The scenes installed (signed, sandboxed) plugins declare, per project or per Home, set by the installed-plugin host when an
@@ -180,9 +183,10 @@ export function activeSkillScenePlugins(
   locale?: string,
 ): ReadonlyMap<string, ActiveSkillScene> {
   const scenes = new Map<string, ActiveSkillScene>();
-  const wordsOf = (manifest: PluginManifest, readLocalePacks?: () => PluginTextReader | null) => {
-    const reader = readLocalePacks?.() ?? null;
-    const words = projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(reader, locale));
+  const wordsOf = (manifest: PluginManifest, reader: PluginTextReader | null) => {
+    if (!reader || !hasHostUiText()) return { name: manifest.name, summary: manifest.summary ?? "" };
+    const matched = matchLocale(locale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader.default || DEFAULT_WEB_LOCALE);
+    const words = projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(reader, matched));
     return { name: words.name, summary: words.summary ?? manifest.summary ?? "" };
   };
   for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
@@ -190,19 +194,17 @@ export function activeSkillScenePlugins(
     if (!isPluginSceneName(scene) || scenes.has(scene)) continue;
     const live = installations.find(item => item.record.publisher_trust === "host" && item.record.plugin_id === entry.manifest.plugin_id
       && item.record.state === "running" && !item.recoveryCode && item.manifest);
-    const words = live?.manifest ? wordsOf(live.manifest, live.readLocalePacks) : { name: entry.manifest.name, summary: entry.manifest.summary ?? "" };
-    scenes.set(scene, { ...words, scope: "home" });
+    const manifest = live?.manifest ?? entry.manifest;
+    const reader = live?.readLocalePacks?.() ?? registeredBuiltinText(entry.manifest);
+    scenes.set(scene, { ...wordsOf(manifest, reader), scope: "home" });
   }
   const activeThirdParty = installations
     .filter((item): item is ActiveSceneInstallation & { manifest: PluginManifest & { memory_scene: string } } => {
       const { record, manifest, recoveryCode } = item;
-      if (record.publisher_trust === "host" || record.state !== "running" || recoveryCode) return false;
+      if (record.publisher_trust !== "pinned" || record.state !== "running" || recoveryCode) return false;
       if (!manifest || !isPluginSceneName(manifest.memory_scene)) return false;
-      if (record.publisher_trust === "pinned") {
-        const pin = pins.get(record.publisher_signature);
-        if (!pin || pin.revoked_at) return false;
-      }
-      return true;
+      const pin = pins.get(record.publisher_signature);
+      return Boolean(pin && !pin.revoked_at);
     })
     .sort((left, right) =>
       left.manifest.memory_scene.localeCompare(right.manifest.memory_scene)
@@ -212,14 +214,22 @@ export function activeSkillScenePlugins(
   for (const item of activeThirdParty) {
     const scene = item.manifest.memory_scene;
     if (scenes.has(scene)) continue;
-    scenes.set(scene, { ...wordsOf(item.manifest, item.readLocalePacks), scope: item.scope });
+    scenes.set(scene, { ...wordsOf(item.manifest, item.readLocalePacks?.() ?? null), scope: item.scope });
   }
   return scenes;
 }
 
+/** Upper bound matching the closed output schemas for `scenes` / `skill_scenes`. */
+export const SKILL_SCENES_MAX = 200;
+const SKILL_SCENE_NAME_MAX = 200;
+
 /** Serialized active scenes for Skill settings, capability pack reports, and install/import previews. */
 export function skillSceneChoicesOf(scenes: ReadonlyMap<string, ActiveSkillScene>): SkillSceneChoice[] {
-  return [...scenes.entries()].map(([scene, info]) => ({ scene, name: info.name, scope: info.scope }));
+  return [...scenes.entries()].slice(0, SKILL_SCENES_MAX).map(([scene, info]) => ({
+    scene,
+    name: cutHead(info.name.trim(), SKILL_SCENE_NAME_MAX) || scene,
+    scope: info.scope,
+  }));
 }
 
 /** Whether `applies_to` targets the Assistant, everyone (`both`), an active plugin scene in scope, or the declaring package's own `memory_scene`. */

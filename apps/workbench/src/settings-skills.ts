@@ -13,7 +13,8 @@ const STATES = { off: "workbench.catalog-skill-packs.off", auto: "workbench.cata
 let scenes = [];
 const setScenes = next => { scenes = Array.isArray(next) ? next.slice() : []; };
 const forText = (value, list = scenes) => value === "assistant" ? readText("workbench.common.assistant") : value === "agent" ? readText("workbench.settings-skills.agent")
-  : value === "both" ? readText("workbench.settings-skills.assistant-and-plugins", { list: list.map(row => row.name).join(readText("common.list.separator")) }) : list.find(row => row.scene === value)?.name || value;
+  : value === "both" ? (list.length ? readText("workbench.settings-skills.assistant-and-plugins", { list: list.map(row => row.name).join(readText("common.list.separator")) }) : readText("workbench.common.assistant"))
+  : list.find(row => row.scene === value)?.name || value;
 const WHY = { plugin_disabled: "workbench.settings-skills.the-plugin-is-disabled-your-settings-will-apply", publisher_revoked: "workbench.catalog-skill-packs.retracted", resource_invalid: "workbench.settings-skills.the-skill-or-its-files-are-missing-reinstall", requires_unmet: "workbench.settings-skills.a-required-capability-is-unavailable", connection_missing: "workbench.settings-skills.connect-the-required-service-first", native_only: "workbench.settings-skills.this-skill-requires-a-local-agent", not_applicable: "workbench.settings-skills.not-applicable-to-the-current-execution-mode" };
 const LOCKED = new Set(["plugin_disabled", "publisher_revoked", "resource_invalid"]);
 const key = s => s.ref.install_id + "/" + s.ref.skill_id;

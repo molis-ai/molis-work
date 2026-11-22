@@ -220,7 +220,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       heldBack: (record, release) => release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record) });
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
     const reconcileDualHalf = (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) =>
-      reconcileInstalledDualHalf({ closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, standing, definition }, pluginId, action, permission);
+      reconcileInstalledDualHalf({ projectId, closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, registerPrompts, standing, definition }, pluginId, action, permission);
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
@@ -237,6 +237,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
 
 /** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */
 async function reconcileInstalledDualHalf(ctx: {
+  projectId: string;
   closed(): boolean;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
@@ -244,6 +245,7 @@ async function reconcileInstalledDualHalf(ctx: {
   platform: ReturnType<typeof createPluginPlatform>;
   withdraw(pluginId: string): void;
   expose(release: InstalledRelease): Promise<void>;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   standing: ReturnType<typeof publisherStanding>;
   definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
 }, pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) {
@@ -260,6 +262,7 @@ async function reconcileInstalledDualHalf(ctx: {
       });
     }
     ctx.platform.supervisor.revoke(pluginId);
+    forgetInstalledMemoryScene(ctx.projectId, pluginId);
     return;
   }
   if (action === 'regrant') {
@@ -279,7 +282,10 @@ async function reconcileInstalledDualHalf(ctx: {
     await ctx.platform.start([{ definition: def, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
   }
   const state = await ctx.platform.supervisor.enable(pluginId);
-  if (state.status === 'running') await ctx.expose(release);
+  if (state.status === 'running') {
+    await ctx.expose(release);
+    ctx.registerPrompts(release, 'enabled');
+  }
 }
 
 /**

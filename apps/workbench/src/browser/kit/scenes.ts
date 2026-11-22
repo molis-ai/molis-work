@@ -21,4 +21,7 @@ export const sceneWord = (consumer: string) => consumer === "assistant" ? readTe
   : consumer === "agent" ? readText("workbench.settings-skills.agent") : active.find(row => row.scene === consumer)?.name ?? consumer;
 
 /** `both`: the Assistant and every active plugin scene in scope. */
-export const bothWord = (scope?: SkillScope) => readText("workbench.settings-skills.assistant-and-plugins", { list: joined(skillScenes(scope).map(row => row.name)) });
+export const bothWord = (scope?: SkillScope) => {
+  const names = skillScenes(scope).map(row => row.name);
+  return names.length ? readText("workbench.settings-skills.assistant-and-plugins", { list: joined(names) }) : readText("workbench.common.assistant");
+};

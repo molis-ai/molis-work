@@ -5,7 +5,7 @@ import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry, type SkillBodyReadResult, type SkillDraft, type SkillResourceContent, type SkillSceneChoice, type SkillTrial } from "@molis-ai/molis-work-contracts/services/skills";
 import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
-import { HomeConsentLedger, homeAgentDefinitions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, homeAgentDefinitions, hostTextProblems, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
@@ -225,6 +225,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
     return preview.body;
   };
 
+  const problemsBefore = hostTextProblems().length;
   // Baseline: only built-in scene (`coding`) is registered.
   assert.deepEqual((await skillScenes(projectA.project_id)).map(row => row.scene), ["coding"]);
 
@@ -295,7 +296,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
 
   // A signed content package targeting `"field-notes"` previews with `skill_scenes` in Project A, while a Home content package targeting it is refused.
   const contentPub = newPublisher();
-  const projectContentPreview = await post<{ skill_scenes?: SkillSceneChoice[] }>(`/projects/${projectA.project_id}/api/plugin-trust/install/preview`, {
+  const projectContentPreview = await post<{ preview_id: string; skill_scenes?: SkillSceneChoice[] }>(`/projects/${projectA.project_id}/api/plugin-trust/install/preview`, {
     bundle: signedContentPackage(contentPub, { pluginId: "io.molis.work.example.field-methods", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
   });
   assert.equal(projectContentPreview.status, 200, JSON.stringify(projectContentPreview.body));
@@ -305,9 +306,14 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   });
   assert.equal(homeContentRefused.body.code, "plugin.declaration_invalid");
 
-  // 3. Disable `io.molis.work.example.field-notes`: candidate disappears immediately, new bindings/replays/content-previews are refused, unrelated removal still succeeds.
+  // 3. Disable `io.molis.work.example.field-notes`: candidate disappears immediately, stale preview confirm and new bindings/replays/content-previews are refused, unrelated removal still succeeds.
   const disabled = await post(`/projects/${projectA.project_id}/api/plugin-trust/installed/disable`, { plugin_id: "io.molis.work.example.field-notes" });
   assert.equal(disabled.status, 200, JSON.stringify(disabled.body));
+  // TOCTOU check: confirming a preview held before disable must re-validate live active scenes and refuse.
+  const staleConfirmRefused = await post<{ code: string }>(`/projects/${projectA.project_id}/api/plugin-trust/install/confirm`, {
+    preview_id: projectContentPreview.body.preview_id, consent: true, pin_label: "Content Publisher",
+  });
+  assert.equal(staleConfirmRefused.body.code, "plugin.declaration_invalid");
   assert.deepEqual((await skillScenes(projectA.project_id)).map(row => row.scene), ["coding"]);
   const kitAfterDisable = await kitScenes(projectA.project_id);
   assert.deepEqual(kitAfterDisable.scenes?.map(row => row.scene), ["coding"]);
@@ -404,4 +410,6 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   });
   assert.equal(adoptAfterRevoke.body.code, "skills.authored_invalid");
   assert.equal(adoptAfterRevoke.body.details?.field, "applies_to");
+  // Reading active scenes across built-in and third-party plugins must not produce spurious ui.text_missing problems.
+  assert.deepEqual(hostTextProblems().slice(problemsBefore).filter(item => item.code === "ui.text_missing"), []);
 });

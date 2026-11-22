@@ -168,6 +168,6 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 **切换留在原处。** [`locale-switch.ts`](../../apps/workbench/src/browser/locale-switch.ts) 先准备旧、新两份表示和词包。只合并确认是界面文字的文本或属性，保留节点、草稿、焦点、选区、滚动和运行中的终端；用户文字和形状已经变动的业务部分不覆写。失败可在原位重试，晚到的旧语言结果不能盖回新语言。
 
-**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；产品代码照这样做（[定样记录](../design/appearance-selection/README.md)）。
+**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；产品代码照这样做（[定样记录](../design/archive/appearance-selection/README.md)）。
 
 改了这几处加跑：`node scripts/run-tests.mjs tests/host-ui-text.test.ts tests/ui-resources.test.ts tests/ui-baseline.test.ts`；浏览器的（要本机 Chrome）`tests/board-locale-switch.e2e.test.ts`、`tests/board-appearance.e2e.test.ts`。

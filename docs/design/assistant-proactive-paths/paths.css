@@ -1,5 +1,5 @@
-/* Three assistant paths prototype. Builds on ../workbench-shared-paths/styles.css, the decided form styles in
-   ../intelligent-surfaces-forms/forms.css and the decided task strip in ../assistant-background-tasks/tasks.css.
+/* Three assistant paths prototype. Builds on ../archive/workbench-shared-paths/styles.css, the decided form styles in
+   ../archive/intelligent-surfaces-forms/forms.css and the decided task strip in ../archive/assistant-background-tasks/tasks.css.
    Not production CSS. */
 .shell{grid-template-rows:auto minmax(0,1fr)}
 .pathbar{display:flex;align-items:baseline;gap:10px;padding:0 4px;min-width:0}

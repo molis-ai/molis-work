@@ -89,7 +89,7 @@ Molis 的扩展面很多：hooks、技能包、MCP/连接器、子代理/角色�
 
 ## 7. 决策记录：主动推荐与采用（第 61 批，2026-11-18）
 
-定样在 [`docs/design/service-coverage-automation/`](../../docs/design/service-coverage-automation/README.md) 块 ③（第一轮 `7f4a809505`，第二轮 `34e708762b`，选定 `c5f24c7165`）。
+定样在 [`docs/design/archive/service-coverage-automation/`](../../docs/design/archive/service-coverage-automation/README.md) 块 ③（第一轮 `7f4a809505`，第二轮 `34e708762b`，选定 `c5f24c7165`）。
 
 | 事项 | 定下 | 谁定 | 理由与代价 |
 | --- | --- | --- | --- |

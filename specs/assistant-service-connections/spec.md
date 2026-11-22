@@ -824,7 +824,7 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 
 ### 13.1 服务与模型连接的界面定样（第 13 批，2026-11-04）
 
-用户在可点原型（[`docs/design/service-connections/`](../../docs/design/service-connections/README.md)）里看过三块各三个方案、六种状态（正常、取消登录、登录失效、换账号、服务限流、密钥被拒）后定下：
+用户在可点原型（[`docs/design/archive/service-connections/`](../../docs/design/archive/service-connections/README.md)）里看过三块各三个方案、六种状态（正常、取消登录、登录失效、换账号、服务限流、密钥被拒）后定下：
 
 | 块 | 定下 | 否掉的 | 理由 |
 | --- | --- | --- | --- |
@@ -1016,7 +1016,7 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 | Images（生成封面要图像模型的密钥） | 生成区留空位，调 `connectionNeed(place, { kind: "image", slot_id, base_url })`；卡里只问一把密钥、醒目写只发往哪个 origin，C2 存好并接到这个目标；Images 拿到 `connected` 后照第 5 条接着生成（花钱的照它原有的确认）。#1881 留下的「在 Connectors 管理图像 API Key」旧说法在缺密钥这一处由卡取代 | 同上；改 Images 的文件排在 #1881 合入之后 |
 | ~~Coding（推送要多一项权限）~~ | **移出 ④c**（用户 11-06 定，见六第 4 项）：推送属于 Git（Git 管仓库与 PR 的事实，Coding 只是消费，§8.3），现在走本机 `gh` 登录（`plugins/native/git/src/messages.ts` 的 `git.host.pr-signin`），只有改成用平台账号时才需要这项权限。要的是另一份合同（接入方式按用途声明可选的权限组、重新授权带差额、Git 声明 GitHub 槽），登在 BL-1056 | 不在本片 |
 
-和第 12 批（⑤）的关系：卡在原处，人没离开，插件自己接着做，不需要「带人回去、还原草稿」。只有卡已不在的时候（页面关了、换了窗口、桌面壳把登录交给系统浏览器后人回来时已不在原处）才需要返回能力，它的形状假设见[原型说明](../../docs/design/service-connections/README.md)「和第 12 批的假设」：谁发起的、发起时的草稿、在等的那件工作。本设计不依赖它的任何字段、不预先存意图：卡已不在时晚到的登录只留下连接、不接到位置；下次插件再要，卡直接是选账号卡并把刚连上的排在最前。接回原位置并接着做，等返回能力带这份意图来做。返回能力归哪一批，统筹另处理（[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)的交付项里现在没有它）。
+和第 12 批（⑤）的关系：卡在原处，人没离开，插件自己接着做，不需要「带人回去、还原草稿」。只有卡已不在的时候（页面关了、换了窗口、桌面壳把登录交给系统浏览器后人回来时已不在原处）才需要返回能力，它的形状假设见[原型说明](../../docs/design/archive/service-connections/README.md)「和第 12 批的假设」：谁发起的、发起时的草稿、在等的那件工作。本设计不依赖它的任何字段、不预先存意图：卡已不在时晚到的登录只留下连接、不接到位置；下次插件再要，卡直接是选账号卡并把刚连上的排在最前。接回原位置并接着做，等返回能力带这份意图来做。返回能力归哪一批，统筹另处理（[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)的交付项里现在没有它）。
 
 **五、要新增的合同**（另开小 PR，在本稿合入之后；M1 之前，不留兼容期）
 
@@ -1156,7 +1156,7 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 
 ### 13.7 服务差异、默认网页搜索与类别（第 61 批，2026-11-18）
 
-定样在 [`docs/design/service-coverage-automation/`](../../docs/design/service-coverage-automation/README.md)（提交 `7f4a809505`、`34e708762b`、`c5f24c7165`），1440／1024／390、中英文、深浅色与异常状态都出过。
+定样在 [`docs/design/archive/service-coverage-automation/`](../../docs/design/archive/service-coverage-automation/README.md)（提交 `7f4a809505`、`34e708762b`、`c5f24c7165`），1440／1024／390、中英文、深浅色与异常状态都出过。
 
 | 事项 | 定下 | 谁定 | 理由与代价 |
 | --- | --- | --- | --- |

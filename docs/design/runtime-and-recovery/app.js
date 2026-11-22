@@ -1,7 +1,7 @@
 // 25 / 26 · Running status, a part temporarily unavailable, update and rollback, install self-check, upgrade failure
 // and recovery — the approved scheme A of each topic, rebuilt on the component board's real parts (2026-11-04).
-// Frames are the product's own: the arrival frame and workbench bar (../_catalog/dist/arrival.css) and the settings
-// page (../_catalog/dist/settings.css). Only the macOS menu bar and desktop are drawn by the prototype (they are the
+// Frames are the product's own: the arrival frame and workbench bar (../kit/dist/arrival.css) and the settings
+// page (../kit/dist/settings.css). Only the macOS menu bar and desktop are drawn by the prototype (they are the
 // system's, not ours). Every version, task, component and file is sample data; nothing runs, upgrades, signs or touches a Home.
 (() => {
   const app = document.getElementById("app");

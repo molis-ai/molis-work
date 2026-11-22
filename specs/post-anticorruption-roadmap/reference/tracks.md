@@ -176,15 +176,17 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [89-1](batches/89.md#batch-89-item-1) | 情境 W7 与总纲收口 | E | 是 | A、B、C1、D |
 | [89-2](batches/89.md#batch-89-item-2) | 回执阶段 6 的各场景 | E | 是 | F |
 | [89-3](batches/89.md#batch-89-item-3) | Skill 效果比较 | A | 是 | C3 |
-| [91-1](batches/91.md#batch-91-item-1) | Design System 流式、布局与行为反馈统一底座 | D | 是 | C1 |
+| [91-0a](batches/91.md#batch-91-item-0a) | 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口 | D | 否 | — |
+| [91-0b](batches/91.md#batch-91-item-0b) | 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 共享底座 + 组件板 93 节 + 设置页 30 页收口 | D | 是 | C1、E |
+| [91-1](batches/91.md#batch-91-item-1) | Design System 流式、布局与行为反馈统一底座（随 `91-0b` 提前交付） | D | 是 | C1 |
 | [91-2](batches/91.md#batch-91-item-2) | 平台运行流合同、Prologue 与 Agent Host 热路径减负 | C2 | 是 | C1、D |
 | [91-3](batches/91.md#batch-91-item-3) | 个人助理 SSE 增量流与对话流精修 | A | 是 | D |
 | [91-4](batches/91.md#batch-91-item-4) | Coding SSE 增量流、回滚稳态与过程精修 | B | 是 | C1、D |
-| [91-5](batches/91.md#batch-91-item-5) | 后续开发指引与插件创作台规范同步更新 | D | 是 | E |
+| [91-5](batches/91.md#batch-91-item-5) | 后续开发指引与插件创作台规范同步更新（拆入 `91-0a` 先行落地 + `91-0b` 实装校准） | D | 是 | E |
 | [91B-1](batches/91b.md#batch-91b-item-1) | 入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口 | D | 是 | F |
 | [91B-2](batches/91b.md#batch-91b-item-2) | 工作主干 9 插件 + 4 官方集成全面打磨 | E | 是 | D |
 | [91B-3](batches/91b.md#batch-91b-item-3) | 创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨 | E | 是 | B、D |
-| [91B-4](batches/91b.md#batch-91b-item-4) | 全站轻动效收口与三层自动化防回归门禁焊死 | 不归轨道 | 否 | B、D、E |
+| [91B-4](batches/91b.md#batch-91b-item-4) | 全站轻动效收口与五层自动化防回归门禁焊死 | 不归轨道 | 否 | B、D、E |
 | [92-1](batches/92.md#batch-92-item-1) | 把图片下载的漏测命令补进手册 | E | 否 | — |
 | [92-2](batches/92.md#batch-92-item-2) | 把「打开数据库会不会创建文件」写准确 | 不归轨道 | 否 | 存储包 |
 | [92-3](batches/92.md#batch-92-item-3) | 让 Goals 测试即使报错也关干净 | E | 否 | Goals 测试 |

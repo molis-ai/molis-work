@@ -1,5 +1,5 @@
 // 04 · Onboarding full journey, rebuilt on the component board's real parts (2026-11-04).
-// The frame, controls and motion are the product's own: ../_catalog/dist/arrival.css, the icon sprite, and the
+// The frame, controls and motion are the product's own: ../kit/dist/arrival.css, the icon sprite, and the
 // arrival motion (window.molisArrival). Only the parts the catalog lacks live in proto.css, marked 「组件板新增」.
 // Layout and choices are exactly the approved second version; all data is sample data (data.js), timers stand in for
 // reading, model calls and adoption. Nothing reads a folder, calls a model, stores a key or touches a Home.
@@ -35,7 +35,7 @@
   const goalText = () => S.goal.trim() || T(D.goalSuggestions[0]);
   const SHORT = { lang: ["语言", "Language"], look: ["外观", "Look"], goal: ["目的", "Goal"], materials: ["材料", "Materials"], model: ["模型", "Model"], read: ["整理", "Summary"], ask: ["补问", "Questions"], plan: ["方案", "Plan"], adopt: ["采用", "Adopt"], workdir: ["文件夹", "Folder"], back: ["回去", "Return"] };
 
-  // ---------- Catalog parts (../_catalog/parts.js: the component board's markup) ----------
+  // ---------- Catalog parts (../kit/parts.js: the component board's markup) ----------
   const P = window.molisParts(() => S.lang);
   const { esc, ic, attrs, act, btn, choices, status, badge, alert, spinner, progress, collapsible, avatar, monogram, row, rows, note, kind, ring } = P;
 

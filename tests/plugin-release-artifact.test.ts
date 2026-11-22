@@ -179,9 +179,15 @@ test("a bundled Native plugin's older install moves up to the Host's version on 
     const oldDefinition = definition("1.0.0", started);
     const firstRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor(), { hostIds: ISOLATED_HOST_IDS });
     const first = new PluginSupervisor(firstRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
-    await first.start([{ definition: oldDefinition, trust: { level: "host" }, releaseArtifact: { capture: () => "native-v1", restore: () => oldDefinition } }]);
+    let captured = 0;
+    await first.start([{ definition: oldDefinition, trust: { level: "host" }, releaseArtifact: { capture: () => { captured += 1; return "native-v1"; }, restore: () => oldDefinition } }]);
     const installId = first.state(PLUGIN_ID)?.install_id;
     assert.ok(installId);
+    // Batch 103-1: a build the Host ships is never restored, so its code is neither bundled nor kept; its Manifest still is, for the next start.
+    const archived = new SqlitePluginRuntimeReleaseArtifactRepository(db).get(PLUGIN_ID, SIGNATURE, "1.0.0", pluginManifestDigest(oldDefinition.manifest));
+    assert.equal(captured, 0, "nothing is bundled for the Host's own build");
+    assert.equal(archived?.module_source, undefined, "no code is kept for it");
+    assert.deepEqual(archived?.manifest, oldDefinition.manifest, "its Manifest is kept");
     await firstRuntime.stop(installId);
 
     const candidate = definition("2.0.0", started);

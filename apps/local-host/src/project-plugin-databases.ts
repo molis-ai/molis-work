@@ -1,5 +1,5 @@
 import { sectionsPlatformPrelude } from './plugin-sync-sections.js';
-import { pluginSyncDatabaseDeclaration, pluginSyncBusinessRecord } from './plugin-sync-database.js';
+import { pluginSyncDatabaseDeclaration, pluginSyncBusinessRecord, preparePluginSyncUpgrade } from './plugin-sync-database.js';
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -7,7 +7,7 @@ import {
   openPluginProjectDatabase, upgradePluginHomeLibrary, upgradePluginProjectTables,
   type PluginProjectDatabaseRecord, type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { sqliteErrorName } from "@molis-ai/molis-work-storage";
+import { sqliteErrorName, type ReplicaDatabase } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 import { pluginLibraryUpgradeInspector, projectPluginSchemaInspector } from "./plugin-library-inspection.js";
 export { projectPluginSchemaInspector } from "./plugin-library-inspection.js";
@@ -56,7 +56,7 @@ export function upgradePluginTables(db: PluginRuntimeDatabase, path: string, man
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
   return upgradePluginProjectTables(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, pluginLibraryUpgradeInspector,
-    { path, ...projectPluginPlatformExtension(manifest), ...control });
+    { path, ...projectPluginPlatformExtension(manifest), ...control, preparePlatform: () => preparePluginSyncUpgrade(db as ReplicaDatabase, manifest, declaration) });
 }
 
 /** A plugin's own library in the Home on `db`, by the same function (§2.4): the plugin's steps, and the library's complete statements as the platform composes them. */
@@ -64,7 +64,7 @@ export function upgradePluginLibrary(db: PluginRuntimeDatabase, path: string, ma
   const declaration = manifest.databases?.home;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明 Home 库`);
   return upgradePluginHomeLibrary(db, { plugin_id: manifest.plugin_id, declaration, schema: pluginSyncDatabaseDeclaration(manifest, declaration).schema },
-    pluginLibraryUpgradeInspector, { path, ...control });
+    pluginLibraryUpgradeInspector, { path, ...control, preparePlatform: () => preparePluginSyncUpgrade(db as ReplicaDatabase, manifest, declaration) });
 }
 
 /** Open each plugin's tables in the library at `path`; what happened to each is kept with the connection. */

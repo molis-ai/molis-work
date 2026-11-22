@@ -3,10 +3,96 @@ import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_READ, RISK_WRITE, riskActions, riskPresentationActions, riskReviewActions, riskSearchActions, toRiskReview, type RiskRecord, type RiskReview } from "@molis-ai/molis-work-plugin-risk";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
 const ref = (definition: { capability_id: string; version: number }) => ({ capability_id: definition.capability_id, version: definition.version });
 const code = async (operation: Promise<unknown>) => { try { await operation; return "accepted"; } catch (error) { return error instanceof ActionError ? error.code : String(error); } };
+
+test("AC-M1-01 Risk replicates first delivery, edits, conflicts and tombstones across personal Homes", { timeout: 90_000 }, async t => {
+  const { owner, source, target } = await syncOwnerPair(t, ["risk"], 2);
+  const call = (device: typeof source, definition: Parameters<typeof ref>[0], input: unknown, index = 0) => device.actions(index).invoke(
+    { ...person(RISK_WRITE, device.project(index).project_id), actor_id: owner }, ref(definition), input) as Promise<{ risk: RiskRecord; events: unknown[]; links: unknown[] }>;
+  const made = (await call(source, riskActions.create, { title: "Delivery risk", statement: "Schedule slips", impact: "high", likelihood: "low" })).risk;
+  const linked = (await call(source, riskActions.create, { title: "Dependency", statement: "Other vendor", impact: "low", likelihood: "low" })).risk;
+  const fields = { risk_id: made.risk_id };
+  await call(source, riskActions.addNote, { ...fields, text: "Original note" });
+  const subject = { kind: "risk", id: linked.risk_id };
+  await call(source, riskActions.addLink, { ...fields, subject });
+  const a = await source.bind("io.molis.work.risk"), b = await target.bind("io.molis.work.risk");
+  const projectId = source.project().project_id;
+  const linkedKey = JSON.stringify([projectId, JSON.stringify([projectId, "risk", linked.risk_id])]);
+  const next = () => {
+    const pending = a.withReplica(replica => replica.next({ excludeKeys: [linkedKey] }));
+    assert.ok(pending);
+    assert.equal(JSON.parse(pending.key)[0], projectId);
+    return pending;
+  };
+  const transfer = async (mutation: ReturnType<typeof next>, revision: number) => {
+    const packed = a.content!.encode(mutation.key, mutation.value);
+    const value = await b.content!.decode(mutation.key, packed.value, async ref => packed.blobs.find(blob => blob.digest === ref.digest)!.bytes);
+    const event = { ...mutation, value, revision };
+    await b.prepare(event);
+    b.withReplica(replica => replica.receive(event));
+    a.withReplica(replica => replica.acknowledge(mutation.key, mutation.operationId, revision));
+  };
+  const initial = next();
+  await transfer(initial, 1);
+  const first = await call(target, riskActions.get, fields);
+  assert.equal(first.risk.title, "Delivery risk");
+  assert.equal(first.events.length, 3);
+  assert.deepEqual(first.links.map(link => (link as { subject: unknown }).subject), [subject]);
+  assert.equal(b.withReplica(replica => replica.next()), null);
+  const update = (device: typeof source, expected_revision: number, title: string) => call(device, riskActions.update, { ...fields, expected_revision, title });
+  await call(source, riskActions.setStatus, { ...fields, expected_revision: 3, status: "mitigating" });
+  await transfer(next(), 2);
+  const imported = (await call(target, riskActions.get, fields)).risk;
+  assert.equal(imported.status, "mitigating");
+  assert.equal(await code(update(target, first.risk.revision, "Stale")), "risk.conflict");
+  await update(target, imported.revision, "Local choice");
+  await update(source, 4, "Remote choice");
+  await transfer(next(), 3);
+  const conflict = b.withReplica(replica => replica.inspectConflict!(initial.key));
+  assert.ok(conflict);
+  assert.match(JSON.stringify(conflict.local), /Local choice/);
+  assert.match(JSON.stringify(conflict.remote), /Remote choice/);
+  b.withReplica(replica => replica.resolve(initial.key, "remote", conflict.revision, conflict.state));
+  const settled = await call(target, riskActions.get, fields);
+  assert.equal(settled.risk.title, "Remote choice");
+
+  const remote = structuredClone(conflict.remote) as { value: { item: { project_id: string; status: string; title: string }; events: unknown[] } };
+  const receive = (value: unknown, revision: number) => b.withReplica(replica => {
+    replica.receive({ ...initial, value, base: 3, operationId: `bad-${revision}`, revision });
+    const refused = replica.inspectConflict!(initial.key);
+    assert.ok(refused);
+    assert.throws(() => replica.resolve(initial.key, "remote", refused.revision, refused.state));
+  });
+  const wrongProject = structuredClone(remote);
+  wrongProject.value.item.project_id = source.project(1).project_id;
+  receive(wrongProject, 4);
+  const badField = structuredClone(remote);
+  badField.value.item.status = "running";
+  receive(badField, 5);
+  const duplicateEvent = structuredClone(remote);
+  duplicateEvent.value.item.title = "This update must roll back";
+  duplicateEvent.value.events.push(duplicateEvent.value.events[0]);
+  receive(duplicateEvent, 6);
+  assert.deepEqual(await call(target, riskActions.get, fields), settled, "failed writes preserve the item and history");
+  assert.equal(b.withReplica(replica => replica.counts()).pending, 0, "the rolled-back write never queues a change");
+  assert.equal(await code(call(target, riskActions.get, { risk_id: made.risk_id }, 1)), "risk.not_found");
+
+  const db = openSqliteConnection(source.project().database_path);
+  try { db.prepare("DELETE FROM risk_items WHERE risk_id = ?").run(made.risk_id); } finally { db.close(); }
+  const deletion = next();
+  assert.equal(deletion.value, null);
+  await transfer(deletion, 7);
+  const tombstone = b.withReplica(replica => replica.inspectConflict!(deletion.key));
+  assert.ok(tombstone, "a new event does not silently discard an unresolved conflict");
+  assert.equal(tombstone.remote, null);
+  b.withReplica(replica => replica.resolve(deletion.key, "remote", tombstone.revision, tombstone.state));
+  assert.equal(await code(call(target, riskActions.get, fields)), "risk.not_found");
+});
 
 async function fixture(t: Parameters<typeof serveHomeRuntime>[0]) {
   const f = await serveHomeRuntime(t), { host } = f;

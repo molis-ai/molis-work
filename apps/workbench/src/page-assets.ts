@@ -222,7 +222,7 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
     }
   }
   sheet = sheet
-    .replace(/\.feed-stage-leading strong \{ font-size: 13px; \}/, "")
+    .replace(/\.mw-stage-leading strong \{ font-size: 13px; \}/, "")
     .replace(/  \.mw-toggle-group \{ display: inline-flex;[^\n]*\}\n?/, "")
     .replace(
       /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}\s*\.mw-btn--primary\[aria-pressed="true"\]:not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}/,

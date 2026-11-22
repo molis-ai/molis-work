@@ -15,12 +15,13 @@
 // Reads text only (one manifest, one document, one list): no install, no build. What it cannot see: whether a covered library holds a row, and whether a reader finds
 // what is in a file. The replay answers those.
 import { GOLDEN_HOMES_DIRECTORY, versionsNewestLast } from "../golden/versions.mjs";
+import { withCurrentLayout } from "../golden/layout-moves.mjs";
 
 export const GOLDEN_BYTES_LIMIT = 50 * 1024 * 1024;
 const DATA = "docs/system/HOME-DATA.md", COVERAGE = "tooling/gates/golden-coverage.json", WRITES = "tests/golden-writes/";
 const MINIMUM_REASON = 10;
 /** Not in the document's 必备份 cells, or kept by the snapshot apart from them, and still what a golden is for (§2 items 3, 6-8). */
-const DESIGN_REQUIRES = ["storage-space.json", "plugin-packages/", "spaces/", "feed/secrets.json", "config/installation.json", "agent-runtime/storage.key"];
+const DESIGN_REQUIRES = ["storage-space.json", "plugin-packages/", "spaces/", "security/secrets.json", "config/installation.json", "agent-runtime/storage.key"];
 const MUST_BACK_UP = /^必备份/u, SECTIONS = /^#{2,3} ([356])[.]/u, ALL_MUST = /^#{2,3} 3\.3 /u, PATH_COLUMN = "路径", BACKUP_COLUMN = "备份";
 
 const cellsOf = line => line.trim().replace(/^\||\|$/gu, "").split(" | ").map(cell => cell.trim());
@@ -55,7 +56,7 @@ function heldPaths(manifest) {
   const accounts = (manifest.homes ?? []).map(home => home.path).filter(Boolean);
   return [...manifest.stores ?? [], ...manifest.files ?? [], ...manifest.directories ?? []].flatMap(({ path }) => {
     const home = accounts.find(prefix => path.startsWith(`${prefix}/`));
-    return home ? [path, path.slice(home.length + 1)] : [path];
+    return (home ? [path, path.slice(home.length + 1)] : [path]).flatMap(withCurrentLayout);
   });
 }
 

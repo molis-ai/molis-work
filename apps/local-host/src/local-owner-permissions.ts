@@ -9,7 +9,6 @@ import { connectorRecordActions } from "./connector-record-actions.js";
 import { WEB_SEARCH_MANAGE, WEB_SEARCH_QUERY } from "./web-search-actions.js";
 import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
-import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_RUNS_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
@@ -81,7 +80,6 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KIT_AGENT_DEFINITIONS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [KIT_AGENT_MCP_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
-    [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [PROJECT_GUIDANCE_PROVIDER_ID, [PROJECT_GUIDANCE_READ_PERMISSION, PROJECT_GUIDANCE_WRITE_PERMISSION]],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [projectRuntimeSettingOwner.provider_id, asks(Object.values(runtimeSettingsActions))],

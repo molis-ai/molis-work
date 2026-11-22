@@ -439,14 +439,14 @@ test("system judgment editor and connection settings render without plugin contr
   assert.doesNotMatch(stage, /desktop-work-surface|data-plugin-surface/);
   assert.match(stage, /data-functions="workbench"/);
   assert.match(stage, /data-functions-new/);
-  assert.match(stage, /plugin-stage-list feed-stage-list feed-stage-tree" data-functions="directory"/);
+  assert.match(stage, /plugin-stage-list mw-stage-list mw-stage-tree" data-functions="directory"/);
   assert.match(stage, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-functions-new/);
   assert.doesNotMatch(stage, /mw-btn--secondary"[^>]*data-functions-new/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-stage-entry directory-list-row/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kindChip\(rec\.primitive \|\| "choice"/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kind \+ " · " \+ rec\.function_key/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain mw-entry-status/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);
   assert.match(stage, /data-functions-subject-list/);

@@ -37,7 +37,7 @@ import { bindMemorySession, type AssistantMemoryBindingReader } from "./memory-s
 import { memorySources } from "./memory-sources.js";
 import { hostLog } from "../host-log.js";
 import { prologueMemoryBackend } from "./memory-backend.js";
-import { pluginMemoryScene } from "./memory-plugin-scene.js";
+import { memorySceneChoices, pluginMemoryScene } from "./memory-plugin-scene.js";
 import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
 import { registerMemoryProjectDeletion } from "./memory-project-deletion.js";
 export { prologueMemoryBackend } from "./memory-backend.js";
@@ -424,7 +424,7 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
           }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
         return { status: 200, body: { scope: wanted, ...(page as object), project_id: wanted === "project" ? ports.projectRef?.project_id : null, ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
-          labels: await pageLabels(page as MemoryPageResponse), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
+          labels: await pageLabels(page as MemoryPageResponse), scenes: memorySceneChoices(hosts.get(ports.localHost)!.home), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,
         body: await call(memoryActions.pairs, { scope: url.searchParams.get("scope") ?? (ports.projectRef ? "project" : "personal") }) };

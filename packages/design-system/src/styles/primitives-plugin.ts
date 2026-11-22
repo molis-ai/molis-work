@@ -324,7 +324,7 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
   @media (prefers-reduced-motion: reduce) { .mw-choice, .mw-choice__check { transition: none; } }
   .mw-collapsible { padding-top: 4px; summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: var(--weight-control, 500); padding: 12px 0; &:hover { color: var(--ink); } } }
   /* One disclosure grammar: a rotating chevron instead of the OS triangle. Summaries that bring their own mark keep it. */
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .feed-task-extra, .coding-material, .coding-checkpoints) {
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .coding-material, .coding-checkpoints) {
     > summary:not(:has(svg)) {
       display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
       &::-webkit-details-marker { display: none; }

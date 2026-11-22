@@ -20,12 +20,12 @@ function fixture(t:TestContext){
 test('S-109 PCSYNC-23 the actual Home-bound provider opens without initialization and persists one pinned key for independent handles',t=>{
   const f=fixture(t),first=f.make();
   assert.throws(()=>first.open(Buffer.from('not initialized'),'asset'),{code:'storage.local_payload_key_unavailable'});
-  assert.equal(existsSync(join(f.home,'feed','secrets.json')),false,'read-only failure never creates a credential backend');
+  assert.equal(existsSync(join(f.home,'security','secrets.json')),false,'read-only failure never creates a credential backend');
   const bytes=randomBytes(4*1024*1024),sealed=first.seal(bytes,'asset');f.markUsed();
   const second=f.make('personal:alice:work',createLazyFileSecretStore(f.home));
   assert.deepEqual(Buffer.from(second.open(sealed,'asset')),bytes);
   assert.deepEqual(Buffer.from(first.open(second.seal(bytes,'asset'),'asset')),bytes);
-  const file=readFileSync(join(f.home,'feed','secrets.json'));
+  const file=readFileSync(join(f.home,'security','secrets.json'));
   assert.equal(file.includes(Buffer.from(f.secrets.get(keyRef)!)),false,'the provider reuses the existing sealed SecretStore');
   assert.equal(JSON.parse(file.toString()).version,1);
 });
@@ -38,7 +38,7 @@ for(const fault of ['missing','invalid','replaced','identity-missing','all-missi
     if(fault==='invalid')f.secrets.put(keyRef,'not-valid-base64-key');
     if(fault==='replaced')f.secrets.put(keyRef,randomBytes(32).toString('base64'));
     if(fault==='identity-missing'||fault==='all-missing')f.secrets.delete(keyRef+':identity');
-    const file=join(f.home,'feed','secrets.json'),before=readFileSync(file);
+    const file=join(f.home,'security','secrets.json'),before=readFileSync(file);
     assert.throws(()=>provider.open(sealed,'asset'),{code:'storage.local_payload_key_unavailable'});
     assert.throws(()=>provider.seal(body,'another-asset'),{code:'storage.local_payload_key_unavailable'});
     assert.deepEqual(readFileSync(file),before);
@@ -96,7 +96,7 @@ test('S-109 PCSYNC-23 separate processes racing first initialization pin the sam
 test('S-109 PCSYNC-12 the retained key fingerprint prevents regeneration even after all protected payloads were released',t=>{
   const f=fixture(t),provider=f.make();provider.seal(Buffer.from('completed'),'asset');
   // hasProtectedData remains false, representing a cache already released after receipt.
-  f.secrets.delete(keyRef);const path=join(f.home,'feed','secrets.json'),before=readFileSync(path);
+  f.secrets.delete(keyRef);const path=join(f.home,'security','secrets.json'),before=readFileSync(path);
   assert.throws(()=>provider.seal(Buffer.from('new'),'asset'),{code:'storage.local_payload_key_unavailable'});
   assert.deepEqual(readFileSync(path),before);assert.equal(f.secrets.get(keyRef),null);
 });

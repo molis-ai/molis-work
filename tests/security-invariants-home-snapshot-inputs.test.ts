@@ -18,7 +18,7 @@ test("RAC-104-S-01 RAC-106-S-03 RAC-109-S-05: unknown stores, unsupported/corrup
       if (kind === "unregistered-root") await f.file("unregistered-private.json");
       if (kind === "reserved-nonempty") await f.file("backups/keep.txt");
       if (kind === "renamed-sdk-key") await f.file("agent-runtime/storage.key.original", randomBytes(32));
-      if (kind === "renamed-master") await f.file("feed/secrets.key.original", randomBytes(32));
+      if (kind === "renamed-master") await f.file("security/secrets.key.original", randomBytes(32));
       if (kind === "unknown-library" || kind === "wrong-version") {
         await mkdir(join(f.home, "memory"));
         const memory = homeStores().get("memory")!, file = join(f.home, "memory", kind === "unknown-library" ? "unknown.db" : "memory.db");
@@ -59,10 +59,10 @@ test("S-12 RAC-104-S-04: the original vault backend/key is required and never re
     if (kind === "unprepared-bookmark") await f.file("directory-access/bookmarks.json", JSON.stringify({ documents: { path: f.area, bookmark: "test-only authorization" } }));
     else {
       createLazyFileSecretStore(f.home).put("snapshot-fixture", "test-only-snapshot-value");
-      if (kind === "missing") { await rm(join(f.home, "feed", "secrets.key")); code = "storage.secrets_snapshot.key_unavailable"; }
-      if (kind === "wrong") { await writeFile(join(f.home, "feed", "secrets.key"), randomBytes(32).toString("base64")); code = "storage.secrets_snapshot.integrity_failed"; }
+      if (kind === "missing") { await rm(join(f.home, "security", "secrets.key")); code = "storage.secrets_snapshot.key_unavailable"; }
+      if (kind === "wrong") { await writeFile(join(f.home, "security", "secrets.key"), randomBytes(32).toString("base64")); code = "storage.secrets_snapshot.integrity_failed"; }
       if (kind === "unsupported-vault") {
-        const file = join(f.home, "feed", "secrets.json"), vault = JSON.parse(await readFile(file, "utf8"));
+        const file = join(f.home, "security", "secrets.json"), vault = JSON.parse(await readFile(file, "utf8"));
         await writeFile(file, JSON.stringify({ ...vault, version: 2 }));
       }
     }
@@ -72,7 +72,7 @@ test("S-12 RAC-104-S-04: the original vault backend/key is required and never re
 
 test("S-12 N36: a removed evidence recovery directory refuses snapshot without reading or deleting it", async t => {
   const f = await smallSnapshotHome(t), digest = "a".repeat(64);
-  await f.file(`feed/evidence-recovered-v2/blobs/aa/${digest}.blob`, "unreadable original evidence");
+  await f.file(`security/evidence-recovered-v2/blobs/aa/${digest}.blob`, "unreadable original evidence");
   await assertSnapshotRefused(f, "host.home_snapshot.unknown_data");
 });
 

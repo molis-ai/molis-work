@@ -98,7 +98,7 @@ export const MICRO_INTERACTION_STYLES = `
   body .global-search-body[data-search-glide] .global-search-hit:hover:not([aria-selected="true"]) { background: var(--nav-hover); }
 
   /* Row Yield: list hover is a 180ms tone step. Squeezed titles ellipsize in the title slot; do not mask the row, or trailing status gets cut. */
-  body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary) {
+  body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .goal-collection-fold > summary) {
     transition:
       background-color 130ms var(--ease-quint),
       color 130ms var(--ease-quint);
@@ -127,7 +127,7 @@ export const MICRO_INTERACTION_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before { transition: none; }
     body .global-search-body[data-search-glide][data-search-ready]::before { transition: none; }
-    body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
+    body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .goal-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
     .plugin-stage-workspace.is-arriving, .is-arriving,
     :is(.mw-menu, .mw-select-picker__menu):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }

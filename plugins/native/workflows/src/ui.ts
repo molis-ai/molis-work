@@ -54,7 +54,7 @@ export function renderWorkflowsWorkbench(_model: WorkflowsUiModel): string {
     dataset: "workflows",
     extraAttrs: 'data-wf-mode="list"',
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree wf-list" data-wf-list-pane>
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree wf-list" data-wf-list-pane>
       <header class="plugin-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-wf-action="new">${icon("plus")}<span>${t("workflows.ui.new-flow")}</span></button>
       </header>

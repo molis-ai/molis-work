@@ -117,7 +117,7 @@ test("this repository: the version sources agree and the database table is the c
 test("this repository: the table lists the JSON files whose version mismatch refuses credentials or authorizations", () => {
   const checklist = readFileSync(path.join(repository, "docs/releases/CHECKLIST.md"), "utf8");
   const row = (location: string) => checklist.split("\n").find(line => line.startsWith("|") && line.includes(`\`${location}\``)) ?? "";
-  assert.match(row("feed/secrets.json"), /file-secret-store\.ts#FORMAT_VERSION` \| 拒绝读取/);
+  assert.match(row("security/secrets.json"), /file-secret-store\.ts#FORMAT_VERSION` \| 拒绝读取/);
   assert.match(row("config/mcp-tools.json"), /mcp-settings-store\.ts#MCP_TOOL_PREFERENCE_VERSION`.*\| 拒绝读取/);
 });
 

@@ -55,6 +55,16 @@ export function resolveProjectDatabaseFile(directory: string): string {
   return path.join(directory, PROJECT_DATABASE_FILENAME);
 }
 
+/**
+ * The Home's platform security directory: the SecretStore's `secrets.json`, its lock and file key, and the sealed evidence bodies
+ * (`evidence/`). It is the platform's, not a plugin's (BL-b44-feed-home-dir-and-styles); a Home that still has the old `feed/` name is
+ * moved here once by the upgrade process (`HOME_LAYOUT_MOVES`).
+ */
+export const HOME_SECURITY_DIRNAME = "security";
+
+/** Home directories renamed by the platform: the upgrade process renames `from` to `to` once, under the Home's lock, before it lists the stores. */
+export const HOME_LAYOUT_MOVES: ReadonlyArray<{ readonly from: string; readonly to: string }> = [{ from: "feed", to: HOME_SECURITY_DIRNAME }];
+
 export function resolveHomeSecurityDirectory(): string {
-  return path.join(resolveMolisWorkHome(), "feed");
+  return path.join(resolveMolisWorkHome(), HOME_SECURITY_DIRNAME);
 }

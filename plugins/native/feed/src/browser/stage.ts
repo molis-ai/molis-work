@@ -141,7 +141,7 @@ export function feedStage(page: FeedPage) {
     const materialPager = target.closest<HTMLButtonElement>("[data-feed-material-page]");
     if (materialPager) { if (materialPager.disabled || !selected) return; materialOffset = Number(materialPager.dataset.feedMaterialPage); const kept = scroll(); await select(selected, false, kept); return; }
     const pager = target.closest<HTMLButtonElement>("[data-feed-page]");
-    if (pager) { if (pager.disabled) return; offset = Number(pager.dataset.feedPage); collapse(); const list = q(".feed-stage-tree"); if (list) list.scrollTop = 0; await page.refresh(); return; }
+    if (pager) { if (pager.disabled) return; offset = Number(pager.dataset.feedPage); collapse(); const list = q(".mw-stage-tree"); if (list) list.scrollTop = 0; await page.refresh(); return; }
     if (target.closest("[data-feed-collapse]")) { if (collapse()) await page.refresh(); return; }
     if (target.closest("[data-retry-feed-detail]")) { if (selected) await select(selected, true); return; }
     const quickButton = target.closest<HTMLElement>("[data-feed-quick]"); if (quickButton) { quick = quickButton.dataset.feedQuick || "all"; reload(); return; }
@@ -173,7 +173,7 @@ export function feedStage(page: FeedPage) {
   host.scope.own(() => detailRequest?.abort());
   const scroll = () => {
     const detail = q(detailOf(selected));
-    return { list: q(".feed-stage-tree")?.scrollTop ?? 0, id: selected, detail, top: slotOf(selected)?.scrollTop ?? 0,
+    return { list: q(".mw-stage-tree")?.scrollTop ?? 0, id: selected, detail, top: slotOf(selected)?.scrollTop ?? 0,
       materialsOpen: detail?.querySelector<HTMLDetailsElement>(".feed-materials")?.open };
   };
   const open = async (id: string) => {
@@ -182,5 +182,5 @@ export function feedStage(page: FeedPage) {
     }
     await select(id, true);
   };
-  return { open, clearFocus: () => { focusedItem = ""; }, queryInput, resetPage: () => { offset = 0; }, select, collapse, filter, click, scroll, restoreScroll: (kept: ReturnType<typeof scroll>, read: boolean) => { const list = q(".feed-stage-tree"); if (list) list.scrollTop = kept.list; if (selected) void select(selected, read, kept).catch(page.error); } };
+  return { open, clearFocus: () => { focusedItem = ""; }, queryInput, resetPage: () => { offset = 0; }, select, collapse, filter, click, scroll, restoreScroll: (kept: ReturnType<typeof scroll>, read: boolean) => { const list = q(".mw-stage-tree"); if (list) list.scrollTop = kept.list; if (selected) void select(selected, read, kept).catch(page.error); } };
 }

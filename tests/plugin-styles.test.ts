@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import nodeTest from "node:test";
 import { createLocalWebAssets, htmlLang, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -389,3 +389,14 @@ test("PEQ-08 Goals styles live in plugins/native/goals as an on-demand sheet lin
   assert.match(withGoals, /<link rel="stylesheet" href="\/assets\/molis-work-plugins\/goals\.css" data-plugin-shell-style="goals">/, "PEQ-08: projects with Goals link goals.css on demand");
 });
 
+
+// BL-b44-feed-home-dir-and-styles: the platform's shared style modules name no Feed class; what lists share is `mw-`, and Feed's own
+// rules are in Feed's sheet. (The plugin style gate measures registered sheets, not these modules; BL-b44-shared-styles-plugin-names.)
+test("BL-b44-feed-home-dir-and-styles the platform's shared style modules name no Feed class", () => {
+  for (const folder of ["packages/design-system/src/styles", "apps/workbench/src/styles"]) {
+    for (const file of readdirSync(root + folder).filter(name => name.endsWith(".ts"))) {
+      const named = normal(readFileSync(`${root}${folder}/${file}`, "utf8")).match(/\.(?:feed|source)-[a-z0-9]/g) ?? [];
+      assert.deepEqual(named, [], `${folder}/${file}`);
+    }
+  }
+});

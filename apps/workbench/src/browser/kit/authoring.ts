@@ -1,3 +1,4 @@
+import { bothWord, sceneWord, skillScenes } from "./scenes.js";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SkillAuthoredFields, SkillAuthoredSource, SkillCatalogEntry, SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderTextCount } from "@molis-ai/molis-work-design-system/capability-pack";
@@ -87,7 +88,7 @@ export function fieldsMarkup(fields: Fields, errors: Partial<Record<Field, strin
   return `${field(errors, "name", say("name"), say("name-hint"), control(fields, errors, "name", 0, disabled))}
     ${field(errors, "description", say("when"), say("when-hint"), control(fields, errors, "description", 3, disabled))}
     ${field(errors, "when_not_to_use", say("when-not"), say("when-not-hint"), control(fields, errors, "when_not_to_use", 2, disabled))}
-    ${toggles(say("for"), "applies", fields.applies_to, [["assistant", readText("workbench.common.assistant")], ["coding", readText("workbench.settings-skills.coding")], ["both", readText("workbench.settings-skills.assistant-and-coding")]], disabled)}
+    ${toggles(say("for"), "applies", fields.applies_to, [["assistant", sceneWord("assistant")], ...skillScenes().map(row => [row.scene, row.name] as [string, string]), ["both", bothWord()]], disabled)}
     <div class="mw-field au-field"><label class="mw-field__label" for="au-body">${esc(say("body"))}</label>${control(fields, errors, "body", 16, disabled)}${
       renderTextCount({ hint: say("body-hint"), hintId: "au-body-hint", count: count.text, over: count.over, attrs: { "data-au-count": true } })}${errors.body ? `<p class="mw-field__error" id="au-body-error" data-au-error="body">${esc(errors.body)}</p>` : ""}</div>
     <details class="au-more"${fields.argument_hint || errors.argument_hint ? " open" : ""}><summary>${esc(say("more"))}</summary>${field(errors, "argument_hint", say("hint"), say("hint-hint"), control(fields, errors, "argument_hint", 0, disabled))}</details>`;

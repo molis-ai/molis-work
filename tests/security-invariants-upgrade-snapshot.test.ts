@@ -133,12 +133,12 @@ test("S-upgrade-snapshot-confinement S-143: a path written into the manifest is 
 
 test("S-upgrade-snapshot-confinement S-143: keys stay out of the snapshot directory, and only the dependency is written down", t => {
   const { home, file, unit, run } = upgradeHome(t);
-  const key = "test-only-key-value-".repeat(4), keyFile = join(home, "feed", "secrets.key");
-  mkdirSync(join(home, "feed"));
+  const key = "test-only-key-value-".repeat(4), keyFile = join(home, "security", "secrets.key");
+  mkdirSync(join(home, "security"));
   writeFileSync(keyFile, key, { mode: 0o600 });
   // Sealed contents are copied as they are: the store's own ciphertext is the baseline, not something this step opens.
   onStore(file, db => db.exec("INSERT INTO notes VALUES ('sealed', 'ciphertext-bytes')"));
-  const dependency = { kind: "file-key" as const, location: "home:feed/secrets.key", sha256: sha256(keyFile) };
+  const dependency = { kind: "file-key" as const, location: "home:security/secrets.key", sha256: sha256(keyFile) };
   const entry = captureUpgradeSnapshot(unit, openNode, [dependency]);
   assert.deepEqual(entry.keys, [dependency]);
   assert.deepEqual(verifyUpgradeSnapshot(unit).keys, [dependency]);

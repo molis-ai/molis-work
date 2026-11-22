@@ -94,14 +94,14 @@ test("96-2 an open task's detail shows the round that just failed and why withou
   await child.click(row(first.task_id));
   await child.waitFor(`!document.querySelector('${detail(first.task_id)}').hidden`);
   assert.equal(await child.evaluate(`document.querySelectorAll('${detail(first.task_id)} .schedule-turn--system').length`), 0);
-  const before = { next: await child.evaluate<string>(`document.querySelector('${detail(first.task_id)} .feed-detail-header p').textContent`) };
+  const before = { next: await child.evaluate<string>(`document.querySelector('${detail(first.task_id)} .mw-detail-header p').textContent`) };
   await round(first);
   await child.waitFor(`document.querySelector('${detail(first.task_id)} .schedule-turn--system')`, 30_000);
   // A one-off task that ran its time is switched off by Schedule's next pass a few seconds later; the open detail follows that too.
   await child.waitFor(`document.querySelector('${detail(first.task_id)} [data-schedule-task-enabled-action=true]')`, 30_000);
   assert.equal(await child.evaluate("window.__scheduleStayed"), true, "the detail changed in place: the page was not loaded again");
   const shown = await child.evaluate<{ open: boolean; text: string; next: string; resumable: boolean }>(`(() => { const d = document.querySelector('${detail(first.task_id)}');
-    return { open: !d.hidden, text: d.querySelector('.schedule-turn--system p').textContent, next: d.querySelector('.feed-detail-header p').textContent, resumable: Boolean(d.querySelector('[data-schedule-task-enabled-action=true]')) }; })()`);
+    return { open: !d.hidden, text: d.querySelector('.schedule-turn--system p').textContent, next: d.querySelector('.mw-detail-header p').textContent, resumable: Boolean(d.querySelector('[data-schedule-task-enabled-action=true]')) }; })()`);
   assert.equal(shown.open, true, "the failed round shows in the detail that was open");
   assert.match(shown.text, /没跑成：\S/, "with the reason it did not run");
   assert.equal(shown.resumable, true, "a one-off task that ran its time is off: the detail offers to turn it back on");

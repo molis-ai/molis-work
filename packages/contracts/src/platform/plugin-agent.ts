@@ -118,9 +118,29 @@ export interface AgentEndingReviewDeclaration {
   prompt_id: string;
 }
 
-/** Which built-in Agent may pick a method a Plugin offers to others (Manifest `methods`). */
-export const SKILL_APPLIES_TO = ["assistant", "coding", "both"] as const;
-export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+/**
+ * Scene names (BL-b44-coding-scene-enum). The platform names only its own: `assistant` (the Assistant), `common` (what every
+ * scene also reads) and `agent` (a plugin Agent with no scene of its own); `both` is the Skills word for the Assistant together with
+ * every plugin scene. A plugin names its own scene on its Manifest (`memory_scene`) with a short lowercase name — Coding declares
+ * `coding` — and memory classification and Skills both use it. Plugins that declare the same name share that scene.
+ */
+export const PLATFORM_SCENE_NAMES = ["assistant", "common", "agent", "both"] as const;
+export const SCENE_NAME_PATTERN = "^[a-z][a-z0-9-]{0,39}$";
+const SCENE_NAME = new RegExp(SCENE_NAME_PATTERN, "u");
+/** A name a plugin may declare as its own scene: well formed and none of the platform's. */
+export const isPluginSceneName = (value: unknown): value is string =>
+  typeof value === "string" && SCENE_NAME.test(value) && !(PLATFORM_SCENE_NAMES as readonly string[]).includes(value);
+
+/** Who may pick a method a Plugin offers to others (Manifest `methods`): `assistant`, `both`, or one plugin scene (Coding's `coding`). */
+export type SkillAppliesTo = string;
+export const isSkillAppliesTo = (value: unknown): value is SkillAppliesTo => value === "assistant" || value === "both" || isPluginSceneName(value);
+/** `applies_to` as a schema: the two platform words or a plugin scene. */
+export const SKILL_APPLIES_TO_SCHEMA = { anyOf: [{ enum: ["assistant", "both"] }, { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: [...PLATFORM_SCENE_NAMES] } }] } as const;
+/** One entry a Skill is offered in or replayed in: the Assistant or one plugin scene (never `both`). */
+export const SKILL_ENTRY_SCHEMA = { anyOf: [{ const: "assistant" }, { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: [...PLATFORM_SCENE_NAMES] } }] } as const;
+/** The entries `applies_to` names, given the plugin scenes there are: `both` is the Assistant and each of them. */
+export const skillEntriesOf = (appliesTo: SkillAppliesTo, pluginScenes: readonly string[]): string[] =>
+  appliesTo === "both" ? ["assistant", ...pluginScenes] : [appliesTo];
 
 /** What a file a Skill ships besides its body is for, and the folder under `skills/<skill_id>/` it lives in. */
 export const SKILL_RESOURCE_FOLDERS = { reference: "references", script: "scripts", asset: "assets" } as const;

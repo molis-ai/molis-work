@@ -179,6 +179,7 @@ feed.content.release	1	io.molis.work.feed	io.molis.work.feed	command	operation	h
 feed.demo.seed	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	workflow	artifact:write,attention:write,context-ledger:write,feed:write,sources:pull_feed,storage:private	project	-	-	99334726611c	f2fd1cea40a7	-
 feed.events	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	evidence:read,feed:read,inbox:read	feed_item,source	molis.work-events.window.v1	molis.work-events.collection.v1	88db02166b7c	1d2773da740c	-
 feed.goals.context	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	evidence:read,feed:read,goals:read	feed_item	-	-	69dea76baae0	c340833cdd90	66375f5917ae
+feed.information.plan	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	user	feed:read,inbox:read,model:invoke	-	-	-	8e2694dda5f5	4f388ba1b8eb	6556d7cb502e
 feed.items.admission	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	agent,mcp,user,workflow	feed:read	feed_item	-	-	e7b581b16414	bb4c424a0dc5	-
 feed.items.admit	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	user,workflow	attention:write,feed:read,feed:write,inbox:write	feed_item	-	-	e7b581b16414	b2078dfdcfe2	-
 feed.items.content	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	agent,mcp,user,workflow	evidence:read,feed:read	feed_item	-	-	e7b581b16414	6eb19f272245	-

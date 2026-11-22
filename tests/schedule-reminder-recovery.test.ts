@@ -141,7 +141,7 @@ test("Schedule reminder recovery can be cancelled and re-reviewed after reinstal
   await b.surfaceReady("schedule");
   await click(`[data-schedule-row][data-schedule-job-id="${job.job_id}"]`);
   assert.equal(await evaluate("document.querySelector('[data-schedule-reminder-text]').textContent"), "复习 <今天> 的笔记");
-  assert.match(await evaluate<string>("document.querySelector('[data-schedule-detail]:not([hidden]) .feed-detail-kicker').textContent"), /原笔记插件/);
+  assert.match(await evaluate<string>("document.querySelector('[data-schedule-detail]:not([hidden]) .mw-detail-kicker').textContent"), /原笔记插件/);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-schedule-detail]:not([hidden])').textContent"), /plugin-builder\.reminder|对象钥匙/);
   await click("[data-schedule-reminder-recover]");
   await click("[data-schedule-recovery-form] footer [data-schedule-recovery-close]");

@@ -118,7 +118,7 @@ export function startWebProjectSchedulers(options: {
   });
   const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: ROUND_MS,
     run: () => openDue().then(() => { if (!stopped) return round(); }).then(() => { if (!stopped) return sleepIdle(); }) });
-  return { runtimes, stop: () => stopping ??= (async () => {
+  return { runtimes, activeCount: () => inFlight.size, stop: () => stopping ??= (async () => {
     stopped = true;
     cancel();
     await opening?.catch(() => undefined);

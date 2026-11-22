@@ -120,7 +120,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
   }}));
   const mutations=new Map<string,LocalMutationState>();
   const surfaces=new Map<string,Surface>();
-  const retiring=new Map<string,{disposed:Promise<void>;token:string;retry?:()=>void}>();
+  const retiring=new Map<string,{home:string;disposed:Promise<void>;token:string;retry?:()=>void}>();
   let stopping=false;
   const syncs=new Map<string,{active:()=>boolean;service:Awaited<ReturnType<typeof createPersonalSync>>}>();
   const syncStarts=new Map<string,Promise<void>>();
@@ -239,7 +239,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     surfaces.delete(entry.space.spaceId);
     disconnectSurface(entry,graceful);
     const disposed=closeSpaceSurface(entry.server);
-    const retirement:{disposed:Promise<void>;token:string;retry?:()=>void}={disposed,token:entry.token};
+    const retirement:{home:string;disposed:Promise<void>;token:string;retry?:()=>void}={home:entry.home,disposed,token:entry.token};
     retiring.set(entry.space.spaceId,retirement);
     void disposed.then(()=>{if(retiring.get(entry.space.spaceId)===retirement)retiring.delete(entry.space.spaceId);},()=>{retirement.retry=()=>retire(entry);});
   };
@@ -316,7 +316,8 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
       },
     };
   };
-  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,copyContextFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
+  const isSpaceTransitioning=()=>Boolean(transition)||account.preparing()||retiring.size>0;
+  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,copyContextFor,resume,notifySyncChange,surfaces,retiring,stop,settleAccount,releaseRetired,isAccountReady,isSpaceTransitioning,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
 }
 
 async function closeSpaceSurface(core: SpaceWebSurface):Promise<void> {
@@ -363,7 +364,8 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   // The installation login response must survive retirement of the previous business Home.
   const loginSessions = new WebSessions(resolveConfiguredHome(options.homeDirectory) + ":installation-login");
   options = { ...options, webSessions: sessions };
-  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,copyContextFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
+  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,copyContextFor,resume,notifySyncChange,surfaces,retiring,stop,settleAccount,releaseRetired,isAccountReady,isSpaceTransitioning,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
+  const rootMaintenance=new Set<Promise<void>>();
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
   try {
     server=trackHostListener(http.createServer((request,response)=>{
@@ -385,8 +387,14 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(url.pathname==='/health'){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome&&isAccountReady(item.space.spaceId));
           const scoped=gatewayHome&&gatewayHome!==actionGatewayHomeId(home);
-          const activeWork=[...surfaces.values()].reduce((sum,item)=>sum+(item.server.activeWorkCount?.()??0),0);
-          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,active_work:activeWork,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
+          const knownScoped=scoped
+            ? ([...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome)
+              ?? [...retiring.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome))
+            : undefined;
+          let rootInFlight=0;
+          for(const state of mutations.values())if(state==='in_flight')rootInFlight+=1;
+          const activeWork=[...surfaces.values()].reduce((sum,item)=>sum+(item.server.activeWorkCount?.()??0),0)+Math.max(rootInFlight,rootMaintenance.size)+retiring.size;
+          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,active_work:activeWork,space_transitioning:isSpaceTransitioning(),account_required:!entry},entry?.token??knownScoped?.token??rootToken,url.searchParams.get('challenge'));return;
         }
         if(url.pathname===ACCOUNT_CONNECT_PATH){
           if(!native(request)){refuseLocalWebRequest(response);return;}
@@ -404,7 +412,13 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(internal&&account.preparing()){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
         if (url.pathname === HOME_MAINTENANCE_PATH && (!gatewayHome || gatewayHome === actionGatewayHomeId(home))) {
           if (!authorizeLocalWebRequest(request, response, url, rootToken, mutations)) return;
-          await handleHomeMaintenanceHttp(request, response, url, home, null);
+          const pending = handleHomeMaintenanceHttp(request, response, url, home, options.localHost ?? null).then(() => undefined);
+          rootMaintenance.add(pending);
+          try {
+            await pending;
+          } finally {
+            rootMaintenance.delete(pending);
+          }
           return;
         }
         if (internal && gatewayHome && gatewayHome !== actionGatewayHomeId(home)) {
@@ -528,7 +542,11 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   attachHostPresence(server,home);
   timer=setInterval(sweep,1000);timer.unref();
   shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);sessions.close();loginSessions.close();stop();},
-    async()=>{await releaseRetired(true);await account.drained();});
+    async () => {
+      await Promise.allSettled([...rootMaintenance]);
+      await releaseRetired(true);
+      await account.drained();
+    });
   return server;
   } catch(error){
     throw retainInitializationCleanup(error,async()=>{

@@ -141,6 +141,12 @@ export function createActivationJobs(gate: ActivationJobGate) {
       for (const job of [...jobs.values(), ...settling.values()]) if (job.called && job.project === projectId) return true;
       return false;
     },
+    /** Number of command-kept jobs currently running or unwinding (excludes activation `start()` daemon jobs). */
+    activeWorkCount(): number {
+      let count = 0;
+      for (const job of settling.values()) if (job.called) count += 1;
+      return count;
+    },
     drainProject(projectId: string): Promise<void> | undefined {
       const pending = [...settling].filter(([, job]) => job.project === projectId).map(([pending]) => pending);
       return pending.length ? Promise.allSettled(pending).then(() => undefined) : undefined;

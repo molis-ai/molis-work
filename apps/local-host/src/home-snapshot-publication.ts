@@ -24,7 +24,18 @@ function outside(home: string, destination: string): boolean {
 /** Metadata-only preparation. A busy Home must fail before create() is reached. */
 export function snapshotDestination(home: string, requested: string) {
   if (typeof requested !== "string" || !requested.trim()) throw homeSnapshotErrors.invalid("快照必须给出非空 --to 目录");
-  const supplied = resolve(requested), parent = realpathSync(dirname(supplied)), path = join(parent, basename(supplied));
+  const supplied = resolve(requested);
+  let parent: string;
+  try {
+    parent = realpathSync(dirname(supplied));
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? error.code : undefined;
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      throw homeSnapshotErrors.invalid("快照目标的父目录不存在或不是目录");
+    }
+    throw error;
+  }
+  const path = join(parent, basename(supplied));
   const parentInfo = snapshotDirectoryInfo(parent);
   if (!outside(home, path)) throw homeSnapshotErrors.invalid("快照目标必须在原 Home 之外，且不能包含 Home");
   if (lstatSync(path, { throwIfNoEntry: false })) throw homeSnapshotErrors.destination_exists("快照目标已存在，未覆盖任何内容");

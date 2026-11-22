@@ -41,7 +41,7 @@ struct TrayWords {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QuitPromptKind {
     OwnedIdle,
-    OwnedActive(u32),
+    OwnedActive,
     Upgrading,
 }
 
@@ -125,7 +125,7 @@ impl NativeLanguage {
     pub(crate) fn quit_confirmation(&self, kind: QuitPromptKind) -> (&str, &str, &str, &str) {
         let body = match kind {
             QuitPromptKind::OwnedIdle => &self.words.quit_confirm_body,
-            QuitPromptKind::OwnedActive(_) => &self.words.quit_confirm_active_body,
+            QuitPromptKind::OwnedActive => &self.words.quit_confirm_active_body,
             QuitPromptKind::Upgrading => &self.words.quit_confirm_upgrading_body,
         };
         (

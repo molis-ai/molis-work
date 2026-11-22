@@ -220,10 +220,10 @@ fn quit_prompt_kind(
     match answer {
         Ok(web_identity::Answer::Ready(health)) => match health.active_work.unwrap_or(0) {
             0 => Some(QuitPromptKind::OwnedIdle),
-            count => Some(QuitPromptKind::OwnedActive(count)),
+            _ => Some(QuitPromptKind::OwnedActive),
         },
         Ok(web_identity::Answer::Upgrading) => Some(QuitPromptKind::Upgrading),
-        Err(()) if owned_child_alive => Some(QuitPromptKind::OwnedActive(1)),
+        Err(()) if owned_child_alive => Some(QuitPromptKind::OwnedActive),
         Err(()) => None,
     }
 }
@@ -240,7 +240,7 @@ fn show_native_quit_alert(locale: &NativeLanguage, kind: QuitPromptKind) -> bool
     let alert = NSAlert::new(mtm);
     alert.setAlertStyle(match kind {
         QuitPromptKind::OwnedIdle => NSAlertStyle::Informational,
-        QuitPromptKind::OwnedActive(_) | QuitPromptKind::Upgrading => NSAlertStyle::Warning,
+        QuitPromptKind::OwnedActive | QuitPromptKind::Upgrading => NSAlertStyle::Warning,
     });
     alert.setMessageText(&NSString::from_str(title));
     alert.setInformativeText(&NSString::from_str(body));
@@ -407,16 +407,16 @@ enum IpcAuthTier {
     HighRisk,
 }
 
-/// Tiered `S-14` IPC guard: only explicitly allowlisted non-destructive UI chrome commands may reuse
-/// the 2.5 s active-port health lease; all file, directory, rollback, account, external-link, write,
-/// and unknown commands fail closed to a fresh HMAC `/health?challenge=` verification.
+/// Tiered `S-14` IPC guard: only explicitly allowlisted read/layout UI chrome commands may reuse
+/// the 2.5 s active-port health lease; all file, directory, rollback, account, external-link,
+/// device-preference write, and unknown commands fail closed to a fresh HMAC `/health?challenge=`
+/// verification.
 fn ipc_auth_tier(command: &str) -> IpcAuthTier {
     match command {
         "native_set_locale"
         | "shelf_surface_changed"
         | "shelf_setup_status"
         | "shelf_hotkey_status"
-        | "shelf_sync_device_preferences"
         | "runtime_settings_get" => IpcAuthTier::LowRiskUi,
         _ => IpcAuthTier::HighRisk,
     }
@@ -894,7 +894,7 @@ fn bootstrap_view(failure: Option<&str>) -> String {
                     }}
                     host.dataset.tokensApplied = '1';
                 }}
-            }} catch {{}}
+            }} catch {{ /* Placeholder CSSOM token injection is best-effort. */ }}
             host.querySelector('h1').textContent = data.failure === null ? language.loading : language.failed;
             const detail = host.querySelector('p');
             detail.textContent = data.failure || '';
@@ -1114,7 +1114,7 @@ fn main() {
             }
         }
         if matches!(event, tauri::RunEvent::Exit) {
-            web_identity::invalidate_health_lease();
+            web_identity::clear_verified_process_id();
             let web_service = app.state::<WebServiceState>();
             web_service.shutting_down.store(true, Ordering::Release);
             stop_owned_web_service(web_service.inner());
@@ -1310,7 +1310,6 @@ mod tests {
             "shelf_surface_changed",
             "shelf_setup_status",
             "shelf_hotkey_status",
-            "shelf_sync_device_preferences",
             "runtime_settings_get",
         ] {
             assert_eq!(
@@ -1321,6 +1320,7 @@ mod tests {
         }
         for high_risk in [
             "runtime_settings_set",
+            "shelf_sync_device_preferences",
             "open_external_url",
             "context_directory_status",
             "context_directory_authorize",
@@ -1430,7 +1430,7 @@ mod tests {
         );
         assert_eq!(
             super::quit_prompt_kind(Ok(&crate::web_identity::Answer::Ready(active_health)), true),
-            Some(super::QuitPromptKind::OwnedActive(2))
+            Some(super::QuitPromptKind::OwnedActive)
         );
         assert_eq!(
             super::quit_prompt_kind(Ok(&crate::web_identity::Answer::Upgrading), true),
@@ -1438,13 +1438,12 @@ mod tests {
         );
         assert_eq!(
             super::quit_prompt_kind(Err(()), true),
-            Some(super::QuitPromptKind::OwnedActive(1))
+            Some(super::QuitPromptKind::OwnedActive)
         );
         assert_eq!(super::quit_prompt_kind(Err(()), false), None);
 
         let zh = builtin_language("zh").unwrap();
-        let (title, body, cancel, quit) =
-            zh.quit_confirmation(super::QuitPromptKind::OwnedActive(2));
+        let (title, body, cancel, quit) = zh.quit_confirmation(super::QuitPromptKind::OwnedActive);
         assert_eq!(title, "确定要退出 Molis Work 吗？");
         assert!(body.contains("正在运行"));
         assert_eq!(cancel, "取消");

@@ -275,7 +275,7 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
     justify-content: space-between; gap: 16px; min-height: 40px; min-width: 124px; padding: 0 12px; border: 0; border-radius: 8px;
     background: var(--choice-surface, var(--paper)); color: var(--ink); text-decoration: none; cursor: pointer;
     box-shadow: var(--lift-1); font: inherit; font-size: 13px; line-height: 1.2; text-align: left;
-    transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-hover) var(--ease-spring);
+    transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-hover) var(--ease-quint);
     &:hover:not([aria-pressed="true"]):not([aria-current="true"]) { background: color-mix(in srgb, var(--ink) 3%, var(--choice-surface, var(--paper))); box-shadow: var(--lift-1); }
     &:active { transform: scale(.97); }
     &:is([aria-pressed="true"], [aria-current="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); .mw-choice__check { opacity: 1; transform: none; } }

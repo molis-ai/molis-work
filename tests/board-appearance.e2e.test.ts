@@ -307,3 +307,48 @@ test("FSS-68: the live look changes at once, fades the old ground on the move to
   if (shots) { await evaluate("document.querySelector('#look-fade').scrollIntoView({ block: 'start' })"); await evaluate("new Promise((resolve) => setTimeout(resolve, 300))"); await writeFile(join(shots, "fade-warm-1440-zh-dark.png"), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64")); }
   await command("Emulation.setEmulatedMedia", { features: [] }, sessionId);
 });
+
+// POLISH-35 (specs/screen-polish §2.5): the spring curve overshoots, so it moves only what is small. On the component board, which
+// draws every shared part, and on a project's workbench, nothing wider or taller than 32px moves or scales on it: a larger thing
+// that overshoots by a pixel or two reads as a shake, not a bounce.
+const SPRUNG = `(() => {
+  const numbers = value => (value.match(/-?\\d*\\.?\\d+/g) ?? []).map(Number).join(",");
+  const spring = numbers(getComputedStyle(document.documentElement).getPropertyValue("--ease-spring"));
+  const list = value => { const out = []; let depth = 0, part = ""; for (const ch of value) { if (ch === "(") depth += 1; if (ch === ")") depth -= 1; if (ch === "," && !depth) { out.push(part.trim()); part = ""; } else part += ch; } out.push(part.trim()); return out; };
+  const moves = new Set(["transform", "scale", "translate", "rotate", "all"]);
+  const found = new Set();
+  for (const node of document.querySelectorAll("body *")) for (const pseudo of [null, "::before", "::after"]) {
+    const style = getComputedStyle(node, pseudo);
+    if (pseudo && (style.content === "none" || style.display === "none")) continue;
+    const properties = list(style.transitionProperty), curves = list(style.transitionTimingFunction);
+    const moved = properties.some((property, index) => moves.has(property) && numbers(curves[index % curves.length]) === spring);
+    const played = style.animationName !== "none" && list(style.animationTimingFunction).some(curve => numbers(curve) === spring);
+    if (!moved && !played) continue;
+    const box = pseudo ? { width: parseFloat(style.width) || 0, height: parseFloat(style.height) || 0 } : node.getBoundingClientRect();
+    if (box.width <= 32 && box.height <= 32) continue;
+    found.add(node.tagName.toLowerCase() + "." + [...node.classList].join(".") + (pseudo ?? "") + " " + Math.round(box.width) + "x" + Math.round(box.height));
+  }
+  return { spring, found: [...found].sort() };
+})()`;
+
+test("POLISH-35: on the component board and a project's workbench, nothing wider or taller than 32px moves or scales on the spring curve", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  // A desktop window with a mouse, then a phone under a finger: there every target grows to 44px, and a key that sprang at 28px no
+  // longer may. What is hidden or has to be triggered is not on the page to measure: the rules themselves are read in
+  // soft-workbench-refinement (POLISH-35).
+  for (const touch of [false, true]) {
+    await command("Emulation.setDeviceMetricsOverride", touch ? { width: 390, height: 844, deviceScaleFactor: 1, mobile: true } : { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await command("Emulation.setTouchEmulationEnabled", { enabled: touch, ...(touch ? { maxTouchPoints: 5 } : {}) }, sessionId);
+    for (const [name, path, ready] of [["the component board", "/__ui/catalog?lang=zh", "!!document.querySelector('#look-fade')"],
+      ["a project's workbench", `/projects/${projectId}/`, "!!document.querySelector('[data-work-bar]')"]] as const) {
+      await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
+      await waitFor(`document.readyState === 'complete' && ${ready}`, 20_000);
+      assert.equal(await evaluate(`matchMedia('(pointer: coarse)').matches`), touch, `the window is a ${touch ? "coarse" : "fine"}-pointer one`);
+      const seen = await evaluate<{ spring: string; found: string[] }>(SPRUNG);
+      const where = `${name}, ${touch ? "under a finger at 390" : "with a mouse at 1440"}`;
+      assert.equal(seen.spring.split(",").length, 4, `${where}: the spring curve is read from the page's tokens`);
+      assert.deepEqual(seen.found, [], `${where}: larger than 32px and on the spring curve`);
+    }
+  }
+});

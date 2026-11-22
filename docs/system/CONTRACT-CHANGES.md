@@ -502,5 +502,6 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **`PresentationOverview.lede`**：`{ label: TextRef, as_of?, sentences: [{ text, sources?: 插件 id[], mark?: "yours"|"changed"|"gap" }], invite?: { text, action } }`，最多 8 句、每句最多 4 个来源。首页把它画成标题下面的几句话和版本条（Work Brief 用它交简报开头）；`sentences` 为空且带 `invite` 时画成一个邀请框。句子是插件存下的原文，标签与邀请是它的 `TextRef`。
   - **首页组合**（`SurfaceGroup`）多一种 `kind: "outline"` 与字段 `outline`；`SurfacePluginCard` 多 `lede`。`assertSurfaceDescription` 一并校验，不合规的整份拒绝。首页显示数据多 `display.shell_keys`（来源在外壳里的位置）。
   - **Work Brief 不再申报 `overview.lead`**（主区视图承接首页）；这项平台能力还在，现在没有内置插件用它。
+  - **`@molis-ai/molis-work-plugin-sdk/browser` 新增三个读动效令牌的函数**（36A-7）：`motionCurve(name?, fallback?)`、`motionDuration(name?, fallback?)`、`durationMs(raw, fallback)`。页面脚本要自己做动画时用它们读 `--ease-quint`、`--dur-move`，不自己写曲线；时长不管样式表写 `250ms` 还是 `.25s` 都换成毫秒。只增不改，不用它们的插件不受影响。
   - **Goals 的状态接口多一个只读一行的读法**：`GoalEventStateApi.readWorkStatus(projectId, goalId)`，只回 open、completed 或 cancelled；概况一次要问很多个目标时用它，不再逐个读整份状态。
   - **`@molis-ai/molis-work-plugin-sdk/ui` 新增首页零件**：`renderFirstPageSection`、`renderFirstPageNext`、`renderFirstPageSource`、`renderFirstPageMargin`、`renderProgressSegments` 与 `FIRST_PAGE_STYLES`；`renderPresentationForm` 多一个可选项 `compactTime`（同一天只写时刻）。

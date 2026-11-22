@@ -1708,7 +1708,7 @@
     appearance: none;
     transition-property: background-color, color, border-color, box-shadow, opacity, transform;
     transition-duration: var(--dur-hover);
-    transition-timing-function: var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-spring);
+    transition-timing-function: var(--ease-quint);
     &:active:not(:disabled) { transform: scale(.985); }
     svg { width: 14px; height: 14px; flex: none; }
     /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.
@@ -2125,7 +2125,7 @@
     justify-content: space-between; gap: 16px; min-height: 40px; min-width: 124px; padding: 0 12px; border: 0; border-radius: 8px;
     background: var(--choice-surface, var(--paper)); color: var(--ink); text-decoration: none; cursor: pointer;
     box-shadow: var(--lift-1); font: inherit; font-size: 13px; line-height: 1.2; text-align: left;
-    transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-hover) var(--ease-spring);
+    transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-hover) var(--ease-quint);
     &:hover:not([aria-pressed="true"]):not([aria-current="true"]) { background: color-mix(in srgb, var(--ink) 3%, var(--choice-surface, var(--paper))); box-shadow: var(--lift-1); }
     &:active { transform: scale(.97); }
     &:is([aria-pressed="true"], [aria-current="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); .mw-choice__check { opacity: 1; transform: none; } }
@@ -3329,7 +3329,7 @@
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) :is(.dock-pin, .bar-chat, .account-global-trigger) {
     position: relative; display: inline-grid; place-items: center; flex: none; width: var(--dock-btn); height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
     background: transparent; box-shadow: none; color: var(--ink-soft); cursor: pointer; list-style: none;
-    transition: transform var(--dur-move) var(--ease-spring), background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
+    transition: transform var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
@@ -3463,7 +3463,7 @@
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger {
     display: flex; align-items: center; gap: 8px; max-width: 100%; height: 34px; padding: 0 8px; border: 0; border-radius: 9px;
     background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring);
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint);
   }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger:hover, :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger[aria-expanded="true"] { background: var(--rail); color: var(--ink); }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger > svg { flex: none; width: 12px; height: 12px; color: var(--muted); transition: transform var(--dur-move) var(--ease-quint); }
@@ -3739,7 +3739,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary-top:not(:has(.assistant-state:not(:empty), .assistant-control:not([hidden]))) { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary-controls { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-control { height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-control[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-control:hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-control--stop:hover { color: var(--danger); }
@@ -3773,7 +3773,7 @@
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { flex: none; height: 28px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action:hover:not(:disabled) { background: var(--nav-active); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { transition: background-color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { transition: background-color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action[aria-busy="true"] { color: var(--muted); cursor: progress; }
   /* Stop, take back and cancel wait for the pointer or keyboard to reach the row; touch screens always show them. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action.is-quiet { opacity: 0; }
@@ -3945,7 +3945,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-lang { color: var(--ink-soft); font-weight: 500; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-lines { margin-right: auto; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy, body.immersive-workbench:not([data-pane-embedded]) .assistant-code-more { position: relative; height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy[data-copy=done] { color: var(--tone-done); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-rich .assistant-code pre, body.immersive-workbench:not([data-pane-embedded]) .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; tab-size: var(--code-tab, 4); }
@@ -3985,7 +3985,7 @@
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-side-action, .assistant-segment, .assistant-head .dock-window-action, .assistant-control, .assistant-start, .assistant-copy):active:not(:disabled) { transform: scale(.94); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   body.immersive-workbench:not([data-pane-embedded]) .info-tab:active { transform: scale(.98); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
@@ -3995,12 +3995,13 @@
   /* “Go to it” marks what it took you to for a moment. */
   body.immersive-workbench:not([data-pane-embedded]) [data-flash] { outline: 2px solid transparent; outline-offset: 3px; animation: assistant-flash var(--dur-moment) var(--ease-quint); }
   @keyframes assistant-flash { 0%, 45% { outline-color: var(--accent); } 100% { outline-color: transparent; } }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-attention[data-bump] { animation: assistant-bump 420ms var(--ease-spring); }
+  /* The key carries words, so it is wider than 32px: its bump is in the keyframes, on the curve that does not overshoot (POLISH-35). */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-attention[data-bump] { animation: assistant-bump 420ms var(--ease-quint); }
   @keyframes assistant-bump { 0% { transform: scale(.82); } 60% { transform: scale(1.08); } 100% { transform: none; } }
   /* The pill at the foot of the conversation: what waits below, or news that arrived while reading above. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-main { position: relative; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-jump { position: absolute; z-index: 2; left: 50%; bottom: 12px; translate: -50% 0; height: 28px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--paper); box-shadow: var(--lift-2);
-    font: inherit; font-size: 12px; cursor: pointer; animation: craft-rise-from-bar var(--dur-move) var(--ease-quint); transition: transform var(--dur-press) var(--ease-spring); }
+    font: inherit; font-size: 12px; cursor: pointer; animation: craft-rise-from-bar var(--dur-move) var(--ease-quint); transition: transform var(--dur-press) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-jump[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-jump:active { transform: scale(.95); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-jump:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
@@ -4012,7 +4013,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-title { margin: 10px 0 2px; color: var(--faint); font-size: 11px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-title:first-child { margin-top: 0; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start:hover { background: var(--nav-active); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4022,7 +4023,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-hint { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-copy { align-self: flex-start; position: relative; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
-    opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+    opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   /* BL-127: the small copy keys keep their size; what can be pressed is 28px tall. */
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-copy, .assistant-code-copy, .assistant-code-more)::after { content: ""; position: absolute; inset: -3px 0; }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-copy]) { opacity: 1; }
@@ -4361,7 +4362,7 @@
     transition:
       background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint),
       border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint),
-      transform var(--dur-move) var(--ease-spring), opacity var(--dur-hover) var(--ease-quint);
+      transform var(--dur-move) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint);
     will-change: auto;
   }
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-btn, .mw-toggle, .tree-create, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
@@ -4727,7 +4728,8 @@
     100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(.4); opacity: 0; }
   }
   @keyframes craft-ring { from { transform: scale(.3); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) [data-craft-celebrate] .goal-status--completed { animation: craft-done 640ms var(--ease-spring); }
+  /* The pill carries a word and is wider than 32px (POLISH-35): only its small mark springs. */
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) [data-craft-celebrate] .goal-status--completed { animation: craft-done 640ms var(--ease-quint); }
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) [data-craft-celebrate] .goal-status--completed svg { animation: craft-done-mark 640ms var(--ease-spring); }
   @keyframes craft-done { 0% { transform: scale(.8); } 45% { transform: scale(1.12); } 100% { transform: none; } }
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
@@ -4826,7 +4828,8 @@
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --ops-btn: 44px; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-head { height: 52px; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action { width: 44px; height: 44px; }
+    /* At 44px the key is no longer a small part: it comes back without overshooting (POLISH-35). */
+    body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action { width: 44px; height: 44px; transition-timing-function: var(--ease-quint); }
     body.immersive-workbench:not([data-pane-embedded]) .info-tab { height: 44px; }
     body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-works, .assistant-more) { top: 50px; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { top: 52px; }
@@ -4988,7 +4991,7 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 /* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
 .mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
 .mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
-  transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
 .mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-option:active:not(:disabled) { transform: scale(.97); }
 /* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
@@ -5114,7 +5117,7 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 .mw-ix-steps:not(:has(.mw-ix-step:not([hidden]))) { display: none; }
 .mw-ix-step { display: inline-flex; align-items: center; gap: 8px; height: var(--mw-ix-step-h); padding: 0 14px 0 12px; border: 0; border-radius: var(--r-composer, 15px); background: var(--paper); color: var(--ink); font: inherit;
   font-weight: var(--weight-control, 500); white-space: nowrap; cursor: pointer; box-shadow: var(--lift-2);
-  animation: mw-ix-step-in var(--dur-move) var(--ease-quint); transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  animation: mw-ix-step-in var(--dur-move) var(--ease-quint); transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
 .mw-ix-step:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-step:active:not(:disabled) { transform: scale(.97); }
 .mw-ix-step:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }

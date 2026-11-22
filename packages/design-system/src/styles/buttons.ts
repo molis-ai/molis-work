@@ -25,7 +25,7 @@ export const BUTTON_STYLES = `
     appearance: none;
     transition-property: background-color, color, border-color, box-shadow, opacity, transform;
     transition-duration: var(--dur-hover);
-    transition-timing-function: var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-spring);
+    transition-timing-function: var(--ease-quint);
     &:active:not(:disabled) { transform: scale(.985); }
     svg { width: 14px; height: 14px; flex: none; }
     /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.

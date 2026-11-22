@@ -65,6 +65,27 @@ test("motion uses four durations and two curves", () => {
   }
 });
 
+// POLISH-35 (specs/screen-polish §2.5): the spring curve overshoots, so only parts drawn at 32px or less move on it, each kind named
+// here. The browser probe (board-appearance) measures what is on the page; this reads every rule, shown or not, so a hidden menu,
+// a moment that has to be triggered (a bump, a celebration) and a plugin frame's sheet are held to the same list.
+const SPRUNG_SMALL = [/ svg$/, />svg$/, /\.mw-check$/, /\.mw-radio$/, /\.mw-radio:checked::after$/, /\.mw-switch__track::after$/, /\.mw-choice__check$/,
+  /\.mw-ix-option__check$/, /\.mw-alert__mark$/, /\.assistant-head \.dock-window-action$/, /:is\(\.goal-canvas-tools, ?\.goal-frame-tools\) button$/];
+test("POLISH-35 the spring curve is only on the named small parts", () => {
+  let seen = 0;
+  for (const [name, css] of [...sheets(), ["plugin-base", renderMolisWorkPluginBaseStylesheet()] as const]) {
+    for (const match of css.matchAll(/var\(--ease-spring\)/g)) {
+      const open = css.lastIndexOf("{", match.index), declaration = css.slice(open + 1, match.index);
+      if (/--[\w-]+\s*:\s*$/.test(declaration)) continue; // a token that names the curve, not a motion
+      const selector = css.slice(Math.max(css.lastIndexOf("}", open), css.lastIndexOf(";", open), css.lastIndexOf("{", open - 1)) + 1, open).replace(/\/\*[\s\S]*?\*\//g, "").trim();
+      for (const one of selector.split(/,(?![^(]*\))/)) {
+        seen += 1;
+        assert.ok(SPRUNG_SMALL.some(small => small.test(one.trim())), `${name}: ${one.trim()} moves on the spring curve`);
+      }
+    }
+  }
+  assert.ok(seen >= 8, "the sheets were read");
+});
+
 // specs/visual-ui-experience §5 (the guard's expected change): grid-template-rows moves only on the outer row of a
 // natural-height fold (0fr → 1fr), each named here: the shared disclosure (including the Assistant's side groups, VUX-08), and a round's steps and a step's detail in the conversation
 // (VUX-13, `disclosureHeight`), drawn by the shared `processFold` for the Assistant and for the Coding timeline's round groups

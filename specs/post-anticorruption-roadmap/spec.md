@@ -101,7 +101,7 @@
 |  | [底栏：第十三版](reference/batches/36a.md#batch-36a-item-2)（2026-11-17 改，[决定 53](reference/decisions.md#decision-53)） |
 |  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
 |  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
-|  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) · [BL-1062](../backlog/BL-1062.md) |
+|  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
 |  | [首页：项目的第一页](reference/batches/36a.md#batch-36a-item-6) |
 |  | [动效落地与曲线收口](reference/batches/36a.md#batch-36a-item-7) |
 | [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1) |

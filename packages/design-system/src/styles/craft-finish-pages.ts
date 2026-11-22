@@ -139,7 +139,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     transition:
       background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint),
       border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint),
-      transform var(--dur-move) var(--ease-spring), opacity var(--dur-hover) var(--ease-quint);
+      transform var(--dur-move) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint);
     will-change: auto;
   }
   ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
@@ -462,7 +462,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(.4); opacity: 0; }
   }
   @keyframes craft-ring { from { transform: scale(.3); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
-  ${PAGES} [data-craft-celebrate] .goal-status--completed { animation: craft-done 640ms var(--ease-spring); }
+  /* The pill carries a word and is wider than 32px (POLISH-35): only its small mark springs. */
+  ${PAGES} [data-craft-celebrate] .goal-status--completed { animation: craft-done 640ms var(--ease-quint); }
   ${PAGES} [data-craft-celebrate] .goal-status--completed svg { animation: craft-done-mark 640ms var(--ease-spring); }
   @keyframes craft-done { 0% { transform: scale(.8); } 45% { transform: scale(1.12); } 100% { transform: none; } }
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }

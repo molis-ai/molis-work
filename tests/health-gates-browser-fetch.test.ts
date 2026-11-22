@@ -302,7 +302,16 @@ test("W4-04: reading a bundle that no build step makes cannot be expanded", () =
 test("102-1: a raw fetch in a bundle built by tooling/build-*.mjs still counts in its source file", () => {
   reset();
   bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
-  put("plugins/native/beta/tooling/build-client.mjs", 'export const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }];\n');
+  put("plugins/native/beta/tooling/build-client.mjs", [
+    'import { build } from "esbuild";',
+    'const DEFAULT_BROWSER = { bundle: true, format: "iife", platform: "browser" };',
+    'const BUNDLES = [{ ...DEFAULT_BROWSER, entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }];',
+    'await Promise.all([',
+    '  Promise.all(BUNDLES.map((o) => build(o))),',
+    '  build({ ...DEFAULT_BROWSER, entryPoints: [new URL("../src/browser/entry.ts", import.meta.url).pathname], write: false }),',
+    ']);',
+    "",
+  ].join("\n"));
   commit("script-built bundle");
   const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
   assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/beta\/src\/browser\/send\.ts 0 → 1/);
@@ -311,8 +320,486 @@ test("102-1: a raw fetch in a bundle built by tooling/build-*.mjs still counts i
 test("102-1: reading a bundle omitted from tooling/build-*.mjs cannot be expanded", () => {
   reset();
   bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
-  put("plugins/native/beta/tooling/build-client.mjs", 'export const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/other-client.js" }];\n');
+  put("plugins/native/beta/tooling/build-client.mjs", [
+    'import { build } from "esbuild";',
+    'const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/other-client.js" }];',
+    'await Promise.all(BUNDLES.map((o) => build(o)));',
+    "",
+  ].join("\n"));
   commit("script-unbuilt bundle");
   const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
   assert.match(result.out, /plugins\/native\/beta\/src\/client\.ts:1:\d+: cannot statically expand browser program \(unsupported call readFileSync/);
+});
+
+// 102-1 P2-4: static tooling/build-*.mjs resolution must accept only real imported esbuild build/buildSync calls
+// with unambiguous immutable static options, and fail closed on bait literals, shadowing, mutations, or escaped esbuild refs.
+for (const [label, script] of [
+  [
+    "unreferenced bait literal",
+    'export const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];\n',
+  ],
+  [
+    "shadowed local fake build()",
+    [
+      'function build(_opts) {}',
+      'build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "bait static build plus dynamic build(opts)",
+    [
+      'import { build } from "esbuild";',
+      'const dynamicOpts = { entryPoints: [process.env.ENTRY || "src/browser/entry.ts"], outfile: "dist/beta-client.js" };',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await build(dynamicOpts);',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "conflicting outfiles across normalized paths",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "./dist/beta-client.js" });',
+      'await build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "trailing opaque spread overriding static option",
+    [
+      'import { build } from "esbuild";',
+      'const extra = globalThis.extraOpts ?? {};',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js", ...extra });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "mutated top-level const array via push",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'BUNDLES.push({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      'await Promise.all(BUNDLES.map((o) => build(o)));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "aliased top-level const array mutated via alias",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'const alias = BUNDLES;',
+      'alias.push({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      'await Promise.all(BUNDLES.map((o) => build(o)));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "top-level const passed into unknown mutating helper",
+    [
+      'import { build } from "esbuild";',
+      'function tweak(arr) { arr[0].entryPoints = ["src/browser/entry.ts"]; }',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'tweak(BUNDLES);',
+      'await Promise.all(BUNDLES.map((o) => build(o)));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "callback mutates iterated option before calling build(o)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'await Promise.all(BUNDLES.map((o) => { o.entryPoints = ["src/browser/entry.ts"]; return build(o); }));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "callback shallow-copies and escapes option before calling build(o)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'await Promise.all(BUNDLES.map((o) => { const c = { ...o }; c.entryPoints[0] = "src/browser/entry.ts"; return build(o); }));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "for-let loop variable reassigned before build(o)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'for (let o of BUNDLES) { o = { entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }; await build(o); }',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "escaped esbuild function alias",
+    [
+      'import { build } from "esbuild";',
+      'const run = build;',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await run({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "esbuild bracket access escape",
+    [
+      'import * as esbuild from "esbuild";',
+      'await esbuild.build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await esbuild["build"]({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "esbuild.context opaque call",
+    [
+      'import * as esbuild from "esbuild";',
+      'await esbuild.build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'const ctx = await esbuild.context({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      'await ctx.rebuild();',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "outdir build option fails closed even with write: false",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await build({ entryPoints: ["src/browser/entry.ts"], outdir: "dist", write: false });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "dynamic import of esbuild fails closed",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'const eb = await import("esbuild");',
+      'await eb.build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "node:module createRequire import fails closed",
+    [
+      'import { createRequire } from "node:module";',
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'createRequire(import.meta.url)("esbuild").buildSync({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "catch parameter cannot shadow build in enclosing block (P0-2)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      '{',
+      '  await build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      '  try {} catch (build) {}',
+      '}',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "switch CaseBlock declaration cannot shadow build in enclosing block (P0-2)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      '{',
+      '  await build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      '  switch (0) { case 1: let build = 1; }',
+      '}',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "setter and constructor params cannot shadow build in enclosing block (P0-2)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      '{',
+      '  await build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      '  const o = { set x(build) {} };',
+      '  class C { constructor(build) {} }',
+      '  void o; void C;',
+      '}',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "mutating forEach without build invalidates top-level const BUNDLES (P0-3)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'BUNDLES.forEach((o) => { o.entryPoints = ["src/browser/entry.ts"]; });',
+      'await Promise.all(BUNDLES.map((o) => build(o)));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "mutating for-of without build invalidates top-level const BUNDLES (P0-3)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'for (const o of BUNDLES) o.entryPoints = ["src/browser/entry.ts"];',
+      'await Promise.all(BUNDLES.map((o) => build(o)));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "non-arrow function callback using arguments[0] fails closed (P0-4)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }];',
+      'await Promise.all(BUNDLES.map(function (o) { arguments[0].entryPoints = ["src/browser/entry.ts"]; return build(o); }));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "getter on unchecked option property fails closed (P0-5)",
+    [
+      'import { build } from "esbuild";',
+      'const BUNDLES = [{',
+      '  get bundle() { this.entryPoints = ["src/browser/entry.ts"]; return true; },',
+      '  entryPoints: ["src/browser/clean.ts"],',
+      '  outfile: "dist/beta-client.js",',
+      '}];',
+      'for (const opt of BUNDLES) { await build({ ...opt }); }',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "esbuild inject option fails closed (P0-5)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], inject: ["src/browser/send.ts"], outfile: "dist/beta-client.js", bundle: true });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "esbuild plugins option fails closed (P0-5)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js", plugins: [] });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "esbuild alias option fails closed (P0-5)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js", alias: { "./a": "./send.ts" } });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "named default import from esbuild is tracked (P0-6)",
+    [
+      'import { build, default as eb } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await eb.build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    'named "module.exports" import from esbuild is tracked (P0-6)',
+    [
+      'import { build, "module.exports" as eb } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await eb.build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "re-export from esbuild fails closed (P0-6)",
+    [
+      'import { build as b } from "esbuild";',
+      'export { build as run } from "esbuild";',
+      'import { run } from "./build-client.mjs";',
+      'await b({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await run({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "process.getBuiltinModule fails closed (P0-6)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'const { createRequire } = process.getBuiltinModule("module");',
+      'createRequire(import.meta.url)("esbuild").buildSync({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "subpath esbuild import fails closed (P0-6)",
+    [
+      'import { build } from "esbuild";',
+      'import eb from "../../../node_modules/esbuild/lib/main.js";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'await eb.build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "empty array iteration calling build fails closed (P1-1)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'const EMPTY = [];',
+      'EMPTY.map((o) => build(o));',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "syntax error in build script fails closed (P1-3)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'function broken( {',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "function body var cannot shadow build in formal parameter default (P0-2b)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'function run(x = build({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" })) {',
+      '  var build = 1;',
+      '  return x;',
+      '}',
+      'await run();',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "data: URL dynamic import fails closed (P1-1b)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'const { createRequire } = await import("data:text/javascript,export { createRequire } from \'node:module\';");',
+      'createRequire(import.meta.url)("esbuild").buildSync({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "data: URL static import fails closed (P1-1b)",
+    [
+      'import { build } from "esbuild";',
+      'import { createRequire } from "data:text/javascript,export { createRequire } from \'node:module\';";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'createRequire(import.meta.url)("esbuild").buildSync({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "string-key and shorthand destructuring of process.getBuiltinModule fails closed (P1-2b)",
+    [
+      'import { build } from "esbuild";',
+      'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+      'const { "getBuiltinModule": g } = process;',
+      'g("module").createRequire(import.meta.url)("esbuild").buildSync({ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" });',
+      "",
+    ].join("\n"),
+  ],
+] as const) test(`102-1 P2-4: tooling/build-*.mjs fails closed on ${label}`, () => {
+  reset();
+  bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
+  put("plugins/native/beta/src/browser/clean.ts", "export const ok = 1;\n");
+  put("plugins/native/beta/tooling/build-client.mjs", script);
+  commit(`opaque build script: ${label}`);
+  const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /plugins\/native\/beta\/src\/client\.ts:1:\d+: cannot statically expand browser program \(unsupported call readFileSync/);
+});
+
+test("102-1 P2-4: switch CaseBlock const cannot clobber top-level BUNDLES (P0-2)", () => {
+  reset();
+  bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
+  put("plugins/native/beta/src/browser/clean.ts", "export const ok = 1;\n");
+  put("plugins/native/beta/tooling/build-client.mjs", [
+    'import { build } from "esbuild";',
+    'const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }];',
+    'switch (0) { case 1: const BUNDLES = [{ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" }]; }',
+    'await Promise.all(BUNDLES.map((o) => build(o)));',
+    "",
+  ].join("\n"));
+  commit("switch case const does not clobber top-level BUNDLES");
+  const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/beta\/src\/browser\/send\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+
+for (const [label, buildCmd] of [
+  [
+    "extra quoted tooling/build-*.mjs behind node flag (P1-2)",
+    'tsc -p tsconfig.json && node tooling/build-client.mjs && node --no-warnings "tooling/build-missing.mjs"',
+  ],
+  [
+    "esbuild CLI with --outfile space syntax (P1-2)",
+    "tsc -p tsconfig.json && esbuild src/browser/clean.ts --outfile=dist/beta-client.js && esbuild src/browser/entry.ts --outfile dist/beta-client.js",
+  ],
+  [
+    "esbuild CLI with --inject flag (P1-2)",
+    "tsc -p tsconfig.json && esbuild src/browser/clean.ts --bundle --inject:src/browser/send.ts --outfile=dist/beta-client.js",
+  ],
+] as const) test(`102-1 P2-4: package.json build command fails closed on ${label}`, () => {
+  reset();
+  bundled(buildCmd);
+  put("plugins/native/beta/src/browser/clean.ts", "export const ok = 1;\n");
+  put("plugins/native/beta/tooling/build-client.mjs", [
+    'import { build } from "esbuild";',
+    'await build({ entryPoints: ["src/browser/clean.ts"], outfile: "dist/beta-client.js" });',
+    "",
+  ].join("\n"));
+  commit(`opaque build command: ${label}`);
+  const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /plugins\/native\/beta\/src\/client\.ts:1:\d+: cannot statically expand browser program \(unsupported call readFileSync/);
+});
+
+for (const [label, script] of [
+  [
+    "namespace esbuild.buildSync passed directly to BUNDLES.map",
+    [
+      'import * as esbuild from "esbuild";',
+      'const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }];',
+      'BUNDLES.map(esbuild.buildSync);',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "for-const-of loop spreading DEFAULT_BROWSER and option",
+    [
+      'import esbuild from "esbuild";',
+      'const DEFAULT_BROWSER = { bundle: true, format: "iife" };',
+      'const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }];',
+      'for (const opt of BUNDLES) { await esbuild.build({ ...DEFAULT_BROWSER, ...opt }); }',
+      "",
+    ].join("\n"),
+  ],
+  [
+    "aliased named build import with write: false and explicit outfile",
+    [
+      'import { build as runEsbuild } from "esbuild";',
+      'const OUT = "dist/beta-client.js";',
+      'await runEsbuild({ entryPoints: ["src/browser/entry.ts"], outfile: OUT, write: false });',
+      'console.log(OUT);',
+      "",
+    ].join("\n"),
+  ],
+] as const) test(`102-1 P2-4: tooling/build-*.mjs resolves legitimate ${label}`, () => {
+  reset();
+  bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
+  put("plugins/native/beta/tooling/build-client.mjs", script);
+  commit(`legitimate build script: ${label}`);
+  const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/beta\/src\/browser\/send\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
 });

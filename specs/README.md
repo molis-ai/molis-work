@@ -39,6 +39,8 @@
 
 - [page-client-lifecycle](page-client-lifecycle/spec.md)：插件页面客户端的通用接口（`workbench.pageClient`），Goals 的页面状态从工作台外壳搬回 Goals，实现完成待合入；Claude，分支 `fix/b44-shell-goals-state`。
 - [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill；要求—证据—认可与工作终端抽成平台能力），排期为路线书第 44 批（原 44～89 顺延为 45～90；可信决定并进 39、规划方法并进 41），并含对路线书后续批次与已合入代码的复查（§9a）；片 4 已随第 41 批 #2078 完成，其余尚未实现。
+- [plugin-specials-demotion](plugin-specials-demotion/spec.md)：特殊逻辑平民化——全仓特殊插件与宿主特例盘点，必须特殊的收归平台，其余收成公开声明、白名单清零（Shelf 唯一例外只留常开）。2026-11-22 用户已拍板 D1～D8；片 0（Characters 保留 id）可立即开工，其余作为 44B 在 #2239 后开工，尚未实现。
+- [unified-partition-plugins](unified-partition-plugins/spec.md)：统一工作分区——废除个人/项目插件分类，个人空间与项目同构、Home 装包一次分区按需启用、个人空间→项目单向版本化推送、干净 v1 清零双轨；含 24 插件改造矩阵、同步规则、S-141～S-146（暂定）与 UPP-01～20。2026-11-22 用户已拍板 U1～U13，排在 44B 之后分 A／B／C 三批，尚未实现。
 
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 的本地隔离实现与 V2 账号统一已完成，并随 [#2013](https://github.com/molis-ai/molis-work/pull/2013)、[#2021](https://github.com/molis-ai/molis-work/pull/2021)、[#2025](https://github.com/molis-ai/molis-work/pull/2025) 合入 main（2026-11-11；合入提交 `ef06fed603`、`93eb5590ac`、`4d025ff4c6`）；真实存量迁移、外部服务与最终全量回归仍待补验。
 

@@ -35,8 +35,14 @@ function json(value: unknown): unknown {
 }
 
 function eventDetail(kind: unknown, value: unknown, riskId: string): void {
-  if (kind === "created") { shape(value, []); return; }
-  if (kind === "note") { requireValue(text(shape(value, ["text"]).text, RISK_LIMITS.note)); return; }
+  if (kind === "created") {
+    shape(value, []);
+    return;
+  }
+  if (kind === "note") {
+    requireValue(text(shape(value, ["text"]).text, RISK_LIMITS.note));
+    return;
+  }
   if (kind === "updated") {
     const { fields } = shape(value, ["fields"]);
     requireValue(Array.isArray(fields) && fields.length > 0 && fields.length <= RISK_EDIT_FIELDS.length && fields.every(field => RISK_EDIT_FIELDS.some(key => key === field)));
@@ -101,7 +107,10 @@ export function riskCollection(projectId: string): PluginSyncCollectionDefinitio
       for (const row of rows) insert.run(id, ...columns.map(column => row[column] ?? null));
     };
     return {
-      authorizeKey(key) { keyId(key); context.project(projectId); },
+      authorizeKey(key) {
+        keyId(key);
+        context.project(projectId);
+      },
       belongsToProject: (_key, candidate) => candidate === projectId,
       canUpload: () => context.canUploadProject(projectId),
       read(key) {

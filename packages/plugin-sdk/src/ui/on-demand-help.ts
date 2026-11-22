@@ -105,7 +105,7 @@ function helpTextProblem(value: unknown, owner: string, field: string, allowStri
   if (!allowString && "literal" in ref) return `${field} 须引用语言文件键，不能直接写原文`;
   if ("key" in ref) {
     if (ref.args !== undefined) return `${field} 不接收插值参数`;
-    if (!allowString && !ref.key.startsWith("common.") && !hasLocales) return `${field} 引用本插件的词须声明 ui.locales`;
+    if (!ref.key.startsWith("common.") && !hasLocales) return `${field} 引用本插件的词须声明 ui.locales`;
   }
   return null;
 }
@@ -193,9 +193,9 @@ export function uiHelpDeclarationProblems(manifest: Pick<PluginManifest, "plugin
 }
 
 /** Validates `SandboxPluginContract.help` (VUX-55, VUX-59): allows literal copy or owned TextRefs. */
-export function sandboxHelpDeclarationProblems(contract: Pick<SandboxPluginContract, "pluginId" | "help">): string[] {
+export function sandboxHelpDeclarationProblems(contract: Pick<SandboxPluginContract, "pluginId" | "help" | "ui">): string[] {
   if (contract.help === undefined) return [];
-  return inspectHelpObject(contract.help, contract.pluginId, "help", true, true);
+  return inspectHelpObject(contract.help, contract.pluginId, "help", true, Boolean(contract.ui?.locales));
 }
 
 /** Trigger button for Scheme A on-demand help ("帮助" at header or "了解此项" beside a field). */

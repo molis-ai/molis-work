@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AssistantRule, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantRule, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AssistantFollowUpRecords, AssistantFollowUps, AssistantStore, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "@molis-ai/molis-work-app-local-host";
 
 /**
@@ -29,7 +29,7 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
   type SendWords = Parameters<AssistantFollowUpPorts<Work>["send"]>[1];
   const sent: Array<{ words: SendWords; requestId: string }> = [];
   const settings = new Map<string, string>();
-  let rules: AssistantRule[] = [], workState: "idle" | "running" = "idle";
+  let rules: AssistantRule[] = [], workState: AssistantWorkState = "idle";
   const tasks = new Map<string, AgentScheduledTask>();
   let runner: ((task: AgentScheduledTask) => Promise<void>) | null = null;
   const schedule: AgentScheduleCapability = {
@@ -48,13 +48,13 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
     get homeActions() { return homeActions; },
-    host: async () => ({}) as never, state: async () => workState,
+    host: async () => ({}) as never, state: async () => workState, executorGone: async () => false,
     send: async (_work, words, requestId) => { sent.push({ words, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
     schedule: async () => schedule,
   };
   return { followUps: new AssistantFollowUps(ports), tasks, sent, notices, changed, settings, works, db, store,
     run: async (key: string) => { assert.ok(runner, "a runner is attached"); await runner!(tasks.get(key)!); },
-    at: (iso: string) => { now = new Date(iso); }, working: (running: boolean) => { workState = running ? "running" : "idle"; }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
+    at: (iso: string) => { now = new Date(iso); }, working: (running: boolean) => { workState = running ? "running" : "idle"; }, state: (state: AssistantWorkState) => { workState = state; }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
 }
 
 test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned instants and long original failures after a restart", async t => {
@@ -242,6 +242,26 @@ test("RES-04 a missed time of a work since archived or a follow-up since removed
   assert.deepEqual(await h.followUps.decideMissed({ run_id: secondRun!.run_id, decision: "run_now" }), { state: "gone" });
   assert.equal(h.sent.length, 0);
   assert.deepEqual(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z", expired_after: null }).missed, []);
+});
+
+test("a follow-up waits on a round the person has not checked and on a state that could not be read: skipped with its own reason, 现在做 refused", async () => {
+  for (const [state, key] of [["needs-check", "workbench.assistant-followup.needs-check"], ["unreadable", "workbench.assistant-followup.unreadable"]] as const) {
+    const h = harness("2026-11-21T08:00:00.000Z");
+    const due = "2026-11-21T09:00:00.000Z", saved = await h.followUps.save({ work_id: "w1", text: "看一眼", at: due, label: "一会儿看一眼" });
+    h.state(state);
+    h.at("2026-11-21T09:00:20.000Z");
+    await h.run(`fu-${saved.followup_id}-${Date.parse(due)}`);
+    assert.equal(h.sent.length, 0, `${state}: no new round over what the person still owes`);
+    const last = h.followUps.list("w1")[0]!.last!;
+    assert.deepEqual([last.outcome, last.detail], ["skipped", { owner: "workbench", key }]);
+    assert.notEqual(savedText(last.detail, "zh"), savedText({ owner: "workbench", key: "workbench.assistant-followup.busy" }, "zh"), "not told as a round still running");
+    const missed = await h.followUps.save({ work_id: "w1", text: "补一次", at: "2026-11-21T09:30:00.000Z", label: "补一次" });
+    h.at("2026-11-21T11:00:00.000Z");
+    await h.run(`fu-${missed.followup_id}-${Date.parse("2026-11-21T09:30:00.000Z")}`);
+    const [run] = h.followUps.runsOverview({ now: "2026-11-21T11:00:00.000Z", upcoming_until: "2026-11-22T11:00:00.000Z", expired_after: null }).missed;
+    await assert.rejects(h.followUps.decideMissed({ run_id: run!.run_id, decision: "run_now" }), { code: "assistant.state" });
+    assert.equal(h.sent.length, 0);
+  }
 });
 
 test("BL-missed-runs-never-expire a missed follow-up time waits seven days from its due time, then is skipped on its own and counted once", async () => {

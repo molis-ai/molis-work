@@ -93,7 +93,7 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 /* 办完, 在办, 接下来 inside the input's top right while the dialog is closed (POLISH-67, POLISH-74), then a hairline and the dialog's own row. */
 /* The row is drawn 24px high (§4「底栏第十三版」第 3 条) but its keys are the bar's 28px floor on a fine pointer (DESIGN.md, the desktop
    chrome's exception) and 44px for a finger, so the row stands 6px from the top and centres on the same line. */
-.work-counts{position:absolute;z-index:3;top:6px;right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
+.work-counts{position:absolute;z-index:3;top:calc(var(--counts-top,0px) + 6px);right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
 @supports (anchor-name:--x){.work-counts{position-anchor:--work-text;top:calc(anchor(top,0px) + 6px)}}
 .work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:8px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .work-count>svg{flex:none;width:14px;height:14px}
@@ -159,7 +159,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
   :is(.work-count,.work-stack-more,.work-stack-open){min-height:44px;min-width:44px;justify-content:center}
   .work-stack,.work-stack-card{height:auto;min-height:74px}
   .work-stack-card{padding:6px 12px 6px 14px}
-  .work-counts{top:4px;height:44px}
+  .work-counts{top:calc(var(--counts-top,0px) + 4px);height:44px}
   @supports (anchor-name:--x){.work-counts{top:calc(anchor(top,0px) + 4px)}}
   .work-counts>.work-reply-mini{height:44px}
   .work-counts>.work-reply-mini::before{top:12px;bottom:12px}
@@ -171,7 +171,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
    above the words, which keep the input's whole width (a 320px window left the words 32px beside them). */
 @media (max-width:540px){
   ${SHELL} .work-line-slot .mw-composer__text,${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__text{padding:48px 8px 0}
-  .work-counts{left:10px;justify-content:flex-end;pointer-events:none}
+  .work-counts{left:calc(var(--counts-left,0px) + 10px);justify-content:flex-end;pointer-events:none}
   .work-counts>*{pointer-events:auto}
   .work-counts>[data-work-line-checking]{flex:0 1 auto;min-width:0;max-width:100%;overflow:hidden}
 }

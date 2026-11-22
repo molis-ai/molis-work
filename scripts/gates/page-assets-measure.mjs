@@ -100,11 +100,12 @@ export async function measureServed(root, probe = []) {
   const measured = {};
   const gzip = {};
   const ptyClientPath = path.join(root, "dist/web/pty-client.js");
-  const ask = (asset) => {
+  // The host compacts a script or a sheet the first time it serves it, and answers once that is done (batch 103-2): wait for it.
+  const ask = async (asset) => {
     const response = fakeResponse();
-    const handled = asset === "/desktop/pty-client.js" && typeof served.servePtyClient === "function"
+    const handled = await (asset === "/desktop/pty-client.js" && typeof served.servePtyClient === "function"
       ? served.servePtyClient(fakeRequest(), response)
-      : served.serveWorkbenchAsset(fakeRequest(), response, asset);
+      : served.serveWorkbenchAsset(fakeRequest(), response, asset));
     return { handled, status: response.sent.status, bytes: handled && response.sent.status === 200 && response.sent.body !== undefined ? bodyBytes(response.sent.body) : null };
   };
   const record = (asset, bytes) => { measured[asset] = bytes.length; gzip[asset] = gzipSync(bytes, { level: 9 }).length; };
@@ -113,7 +114,7 @@ export async function measureServed(root, probe = []) {
     found.add("/desktop/pty-client.js");
   }
   for (const asset of found) {
-    const answer = ask(asset);
+    const answer = await ask(asset);
     if (!answer.bytes) {
       return fail(`the host does not serve ${asset} from this build (handled ${answer.handled}, status ${answer.status}); is the workspace fully built? pnpm workspace:build`);
     }
@@ -122,7 +123,7 @@ export async function measureServed(root, probe = []) {
   const misses = [];
   for (const asset of [...new Set(probe)].sort()) {
     if (found.has(asset)) continue;
-    const answer = ask(asset);
+    const answer = await ask(asset);
     if (!answer.bytes) continue; // the host sends nothing for it: it is gone, and its entry may go with it
     record(asset, answer.bytes);
     misses.push(asset);

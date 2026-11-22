@@ -75,6 +75,13 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       source();
       return views;
     },
+    discoverOne: async (reference: ActionReference) => {
+      const ref = checkedReference(reference), { caller, source } = delegate(originOf());
+      source();
+      const view = await options.client.discoverOne(caller, ref);
+      source();
+      return view;
+    },
     invoke: async <Output>(reference: ActionReference, input: unknown, control?: PluginExecutionControl) => {
       const ref = checkedReference(reference), scope = originOf(), original = scope.caller, { caller, check, source, audience } = delegate(scope, control);
       await check();

@@ -198,3 +198,25 @@ test("S-49 WLN-39: the Assistant's own round reads its project's task table as a
     ["a personal round, which has no project", round({ project_id: null })]] as const) await assert.rejects(invoke(T.capability_id, {}, caller as ActionCallContext), refused, why);
   assert.deepEqual(tables, ["p1"], "no refused call read the table");
 });
+
+test("the Host's entries read one state table: resume, hand over, follow up, archive, notify and count a work agree for all ten states", async () => {
+  const { ASSISTANT_WORK_STATE_TRAITS, assistantAsksPerson, assistantRoundOpen, assistantStateResumes, assistantStateUnknown, assistantUnderWay, assistantWaitsOnPerson } = await import("@molis-ai/molis-work-contracts/services/assistant");
+  const states = Object.keys(ASSISTANT_WORK_STATE_TRAITS);
+  assert.deepEqual(states.toSorted(), ["completed", "failed", "idle", "needs-check", "paused", "running", "stopped", "unreadable", "waiting-input", "waiting-review"]);
+  const which = (predicate: (state: string) => boolean) => states.filter(predicate).toSorted();
+  // Restart takes up a round that was running or stopped on the person (continuations), not a paused or unchecked one.
+  assert.deepEqual(which(assistantStateResumes), ["running", "waiting-input", "waiting-review"]);
+  // A scheduled follow-up is skipped as busy, a hand-over refused and a 「completed」 notice raised from, an open round.
+  assert.deepEqual(which(assistantRoundOpen), ["paused", "running", "waiting-input", "waiting-review"]);
+  // Archive refuses, the line shows active and the task table lists what is under way; the person still owes a check of needs-check,
+  // and a state that could not be read is not taken for settled.
+  assert.deepEqual(which(assistantUnderWay), ["needs-check", "paused", "running", "unreadable", "waiting-input", "waiting-review"]);
+  // Only a failed read is unknown: it is no check the person owes, and a follow-up, a hand-over and archive wait for a real state.
+  assert.deepEqual(which(assistantStateUnknown), ["unreadable"]);
+  assert.deepEqual(which(assistantWaitsOnPerson), ["needs-check", "waiting-input", "waiting-review"]);
+  // A decision notice stays up, and a delegated work reaches the person, only while the round asks them something.
+  assert.deepEqual(which(assistantAsksPerson), ["waiting-input", "waiting-review"]);
+  for (const unknown of ["", "archived", "__proto__", null, undefined]) {
+    assert.equal([assistantStateResumes, assistantRoundOpen, assistantUnderWay, assistantWaitsOnPerson, assistantAsksPerson, assistantStateUnknown].some(read => read(unknown)), false, `${String(unknown)} is no state`);
+  }
+});

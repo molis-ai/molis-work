@@ -101,12 +101,18 @@ test("RES-10 RES-11 the Home's missed notice and 设置 › 运行", { timeout: 
   await waitFor(`document.querySelector('[data-runtime-panel] .mw-alert--success')`);
   assert.deepEqual(await evaluate(`globalThis.__posted.map(entry => entry.body)`), [{ scope_project_id: "p1", provider_id: "schedule", run_id: "m1", decision: "skip" }]);
   assert.equal(await evaluate(`typeof globalThis.__posted[0].key === "string" && globalThis.__posted[0].key.length > 0`), true, "sent as every page's writes are, with a one-time key");
-  // BL-missed-runs-never-expire: a 409 stale summary reloads overview instead of hiding the banner; confirming the refreshed summary hides it.
+  // BL-missed-runs-never-expire: a 409 stale summary reloads overview with an inline status notice instead of hiding the banner; confirming the refreshed summary hides it.
   assert.equal(await evaluate(`document.querySelector('[data-runtime-panel] [data-runtime-expired] > strong').textContent`), await text("expired", { count: 3 }));
+  assert.equal(await evaluate(`document.querySelector('[data-runtime-panel] [data-runtime-expired-notice]')`), null, "no refresh notice before a stale confirmation");
   assert.equal(await evaluate(`document.querySelector('[data-runtime-expired-seen]').className.includes('mw-btn--secondary')`), true, "知道了 is a quiet button");
   await evaluate(`document.querySelector('[data-runtime-expired-seen]').click()`);
   await waitFor(`globalThis.__overviewReads() >= 2 && document.querySelector('[data-runtime-expired-seen]')?.dataset.runtimeExpiredSeen === '2026-11-12T09:05:00.000Z'`);
   assert.equal(await evaluate(`Boolean(document.querySelector('[data-runtime-panel] [data-runtime-expired]'))`), true, "409 reloads instead of optimistically hiding banner");
+  assert.equal(
+    await evaluate(`document.querySelector('[data-runtime-panel] [data-runtime-expired] [role="status"][data-runtime-expired-notice]')?.textContent`),
+    await text("expired-updated"),
+    "409 reload renders an inline role=status notice explaining the updated summary",
+  );
   await evaluate(`document.querySelector('[data-runtime-expired-seen]').click()`);
   await waitFor(`!document.querySelector('[data-runtime-panel] [data-runtime-expired]')`);
   assert.deepEqual(await evaluate(`globalThis.__posted.at(-1).body`), { through: "2026-11-12T09:05:00.000Z" });

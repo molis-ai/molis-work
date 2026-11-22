@@ -22,6 +22,7 @@ import {
 import type { PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import {
   identifySessionDirectory,
+  identifySessionDirectoryAsync,
   sessionSourceFailure,
   type SessionAttributionSuggester,
   type SessionCommandResult,
@@ -488,6 +489,12 @@ export function createHostSessionsPorts(
     directories: {
       identify(dirPath: string): SessionDirectoryIdentity | null {
         return identifySessionDirectory(dirPath, {
+          homeDir: homeRoot,
+          ...(options.onGitFileRead ? { onFileRead: options.onGitFileRead } : {}),
+        });
+      },
+      identifyAsync(dirPath: string): Promise<SessionDirectoryIdentity | null> {
+        return identifySessionDirectoryAsync(dirPath, {
           homeDir: homeRoot,
           ...(options.onGitFileRead ? { onFileRead: options.onGitFileRead } : {}),
         });

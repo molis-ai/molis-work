@@ -60,7 +60,7 @@ test("RAC-1011: the queue keeps a notification until a receiver takes it, once, 
     database.exec(PLUGIN_NOTIFICATIONS_SCHEMA_SQL);
     const received: string[] = [];
     let mode: "unavailable" | "broken" | "ok" = "unavailable";
-    const client: ActionClient = { discover: () => [], invoke: async (call, _reference, input) => {
+    const client: ActionClient = { discoverOne: async () => undefined, discover: () => [], invoke: async (call, _reference, input) => {
       const delivery = input as PluginNotificationDelivery;
       assert.equal(call.actor_id, PLUGIN_NOTIFICATION_DELIVERY_ACTOR); assert.equal(call.audience, "workflow"); assert.equal(call.project_id, "p");
       assert.deepEqual(call.permissions, ["feed:write"]);
@@ -131,7 +131,7 @@ test("D0206 bounded queue drains all pages once, keeps failed rows, and retries 
     for (let i = 0; i < 305; i++) queue.enqueue(row(String(i)));
     assert.equal(queue.pending("p").length, 100, "each SQL read is bounded");
     const received = new Set<string>(); let failing = true;
-    const client: ActionClient = { discover: () => [], invoke: async (_caller, _ref, value) => {
+    const client: ActionClient = { discoverOne: async () => undefined, discover: () => [], invoke: async (_caller, _ref, value) => {
       const delivery = value as PluginNotificationDelivery;
       if (delivery.key === "1" && failing) throw new ActionError("feed.invalid", "retry");
       assert.ok(!received.has(delivery.key)); received.add(delivery.key);
@@ -152,7 +152,7 @@ test("D0206 cancellation after receiver returns writes neither delivery nor fail
   try {
     const delivery = createNotificationDelivery({ project_id: "p", queue, signal: abort.signal, senderName: () => "Sender", receivers: () => [
       { plugin_id: "io.molis.work.receiver", reference: { capability_id: "receiver.take", version: 1 }, permissions: [] },
-    ], client: { discover: () => [], invoke: async () => { abort.abort(); return { item_id: "kept", created: true }; } } });
+    ], client: { discoverOne: async () => undefined, discover: () => [], invoke: async () => { abort.abort(); return { item_id: "kept", created: true }; } } });
     await assert.rejects(delivery.flush(), { name: "AbortError" });
     const stored = database.prepare("SELECT delivered_at, attempts, last_error_code FROM plugin_notifications").get();
     assert.deepEqual({ ...stored }, { delivered_at: null, attempts: 0, last_error_code: null });

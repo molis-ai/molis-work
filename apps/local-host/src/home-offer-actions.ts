@@ -1,7 +1,8 @@
 import { subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
 import { ActionError, ACTION_REFERENCE_SCHEMA, SUBJECT_OFFER_SCHEMA, SUBJECT_OFFERS_INPUT_SCHEMA,
   type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { callerDirectory, confirmSubjectOffer, prepareSubjectOffers, sameReference, type PreparedSubjectOffer, type PreparedSubjectOffers } from "./contextual/contextual-service.js";
+import { callerDirectory, confirmSubjectOffer, prepareSubjectOffers, type PreparedSubjectOffer, type PreparedSubjectOffers } from "./contextual/contextual-service.js";
+import { exactActionView } from "./exact-action-view.js";
 export type HomeActionOffer = PreparedSubjectOffer;
 export type HomeActionOffers = PreparedSubjectOffers;
 export interface HomeOfferExecutionInput extends SubjectOffersInput { offer: SubjectActionOffer & { source: ActionReference; recommendation_key?: string } }
@@ -36,7 +37,7 @@ export function createHomeOfferHandlers(client: ActionClient): ActionHandlerBind
       const guarded: ActionCallContext = { ...caller, validate_authority: async reference => {
         await caller.validate_authority?.(reference);
         await caller.validate_authority?.(offer.source);
-        const source = (await client.discover(caller)).find(view => sameReference(offer.source, { ...view, provider_id: view.provider.provider_id }));
+        const source = await exactActionView(client, caller, offer.source);
         if (!source?.availability.available) throw new ActionError("actions.offer_source_changed", "原动作提供方已失效，请重新载入事项");
       } };
       return { title: offer.title, result: await client.invoke(guarded, offer.action, offer.input) };

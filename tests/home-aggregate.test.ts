@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { collectHomeAggregate, homeAggregatePorts, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -25,8 +26,8 @@ test("RAC-2437 the Home reports a source listed in the project's plugin manifest
   const ports: HomeAggregatePorts = {
     openProjects: () => [a, b],
     whileOpen: async (_reference, work) => work(),
-    client: projectReference => ({ discover: async () => [unavailableView(projectReference.project_id)],
-      invoke: async () => assert.fail("an unavailable source is never invoked") }),
+    client: projectReference => (fakeActionClient({ discover: async () => [unavailableView(projectReference.project_id)],
+      invoke: async () => assert.fail("an unavailable source is never invoked") })),
     context: async projectReference => context(projectReference.project_id),
     // The manifest fact: A does not list the plugin, B does. Same provider, same refusal in both projects.
     projectPlugins: async projectReference => (pluginId: string) => projectReference.project_id === b.project_id && pluginId === PLUGIN,
@@ -133,8 +134,8 @@ test("RAC-2781 deferred discovery obeys the real parent's exact cancellation rea
     projectPlugins: async () => { throw new ActionError("host.catalog_unavailable", "private catalog error"); },
     whileOpen: async (_project, work) => work(),
     context: async project => context(project.project_id),
-    client: () => ({ discover: async () => { entered(); await held; return []; },
-      invoke: async () => assert.fail("discovery never finished") }),
+    client: () => (fakeActionClient({ discover: async () => { entered(); await held; return []; },
+      invoke: async () => assert.fail("discovery never finished") })),
   };
   const pending = collectHomeAggregate(ports, TYPE, {}, parent.signal);
   // Observe pending before abort so its rejection can never be unhandled.
@@ -178,7 +179,7 @@ test("SYS-05 a context resolving after its discovery timeout cannot start a late
   let captured: AbortSignal | undefined, discoveries = 0, invocations = 0;
   const result = await collectHomeAggregate({ openProjects: () => [project], projectPlugins: async () => () => true,
     whileOpen: async (_project, work) => work(), context: async (_project, signal) => { captured = signal; return held.promise; },
-    client: () => ({ discover: async () => { discoveries++; return []; }, invoke: async () => { invocations++; return {}; } }),
+    client: () => (fakeActionClient({ discover: async () => { discoveries++; return []; }, invoke: async () => { invocations++; return {}; } })),
   }, TYPE, {});
   assert.deepEqual(result, { answers: [], issues: [{ project_id: project.project_id, source: null, code: "actions.timeout" }] });
   assert.equal(captured?.aborted, true);
@@ -216,7 +217,7 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
   const portsFor = (project: { project_id: string; database_path: string }, code: string): HomeAggregatePorts => ({
     openProjects: () => [reference(project)],
     whileOpen: async (_reference, work) => work(),
-    client: () => ({ discover: async () => [view(code)], invoke: async () => assert.fail("an unavailable source is never invoked") }),
+    client: () => (fakeActionClient({ discover: async () => [view(code)], invoke: async () => assert.fail("an unavailable source is never invoked") })),
     context: async projectReference => context(projectReference.project_id),
     projectPlugins: projectReference => host.projectPluginReach(projectReference.project_id),
   });

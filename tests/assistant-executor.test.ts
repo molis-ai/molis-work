@@ -1,3 +1,4 @@
+import { fakeBoundActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -54,8 +55,8 @@ function fakeExecutor(pluginId = PLUGIN, kind = KIND) {
       case "run.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: receipt.accepted };
     }
   };
-  const actions: BoundActionClient = { discover: async () => views,
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => await respond(roleOfCapability(pluginId, definition.capability_id), input) as Output };
+  const actions: BoundActionClient = fakeBoundActionClient({ discover: async () => views,
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => await respond(roleOfCapability(pluginId, definition.capability_id), input) as Output });
   return { sessions, calls, started, actions, respond, receipt, views, controls: () => calls.filter(call => call.role === "run.control") };
 }
 
@@ -64,12 +65,12 @@ function fixture(executors: Array<ReturnType<typeof fakeExecutor>> = [fakeExecut
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
   // The project's whole directory and a call routed to the provider it names, as the person's bound client does.
-  const actions: BoundActionClient = { discover: async () => (await Promise.all(executors.map(row => row.actions.discover()))).flat(),
+  const actions: BoundActionClient = fakeBoundActionClient({ discover: async () => (await Promise.all(executors.map(row => row.actions.discover()))).flat(),
     invoke: async <In, Out>(definition: ActionDefinition<In, Out>, input: In, control?: unknown) => {
       // A call no executor publishes (the project's own plugin membership) goes to the first, which a test may answer for the Host.
       const owner = executors.find(row => row.views.some(view => view.capability_id === definition.capability_id)) ?? exec;
       return await owner.actions.invoke(definition, input, control as never) as Out;
-    } };
+    } });
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not used"); },
     personActions: async () => actions }, "web-user");
   const caller = { project_ref: PROJECT_REF };

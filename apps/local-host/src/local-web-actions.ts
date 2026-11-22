@@ -355,6 +355,13 @@ function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProje
       entry.stage_read?.assertCurrent();
       return entry.stage_read ? views.filter(view => entrance(caller, { ...view, provider_id: view.provider.provider_id })) : views;
     },
+    // The one view `discover` would list, under the same entrance rule.
+    discoverOne: async action => {
+      entry.stage_read?.assertCurrent();
+      const { caller } = await current(), view = await client.discoverOne(asEntry(caller), action);
+      entry.stage_read?.assertCurrent();
+      return view && (!entry.stage_read || entrance(caller, { ...view, provider_id: view.provider.provider_id })) ? view : undefined;
+    },
     declaredMatching: async select => {
       entry.stage_read?.assertCurrent();
       const { caller, catalog } = await current();

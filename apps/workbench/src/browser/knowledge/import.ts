@@ -234,9 +234,11 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       return row;
     }));
     if (kind() !== "online") submit.disabled = !!active || !picked.length;
-    status.textContent = picked.length > MAX_FILES || truncatedSelection
+    const base = picked.length > MAX_FILES
       ? uiText.text("workbench.import.count-chosen-only-first-max-imported-time", { count: picked.length, max: MAX_FILES })
       : picked.length ? uiText.text("workbench.import.count-count-chosen", { count: picked.length }) : "";
+    const scanNote = truncatedSelection ? uiText.text("workbench.import.folder-scan-truncated") : "";
+    status.textContent = base && scanNote ? `${base} ${scanNote}` : base || scanNote;
   };
   const take = (items: Picked[], truncated = false) => {
     // A display path can name different files; content reuse belongs to the import service.

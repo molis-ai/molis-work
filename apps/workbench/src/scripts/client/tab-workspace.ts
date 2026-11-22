@@ -1,5 +1,4 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
-import { sideItemOpenedTabs, sideOpenedTabs } from "./plugin-place.js";
 import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
 import { pluginManifestIds, pluginNoReopenRecords, pluginSurfaceAliases, pluginTabGlyphs } from "../../plugin-catalog.js";
@@ -32,23 +31,25 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, PLUGIN_MANIFEST_IDS = ${JSON.stringify(pluginManifestIds())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
-  // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
-  // the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
-  const SIDE_OPENED = ${sideOpenedTabs()};
+  // The Host's plugin directory on the page: each plugin's group colour (the hue its Manifest declares), what ＋ lists (口径 8) and
+  // where opening it lands in the side panel. A plugin added or taken out in place brings the next page, and its directory, with it.
+  const readDirectory = ${readClientPluginDirectory.toString()};
+  let directory = readDirectory(document);
+  const placeOf = (plugin) => directory.find((entry) => entry.id === plugin);
+  // A plugin whose only place is a side view (the directory's \`side\`) opens there: the right side is a pane of this workspace, so
+  // it is the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
   const openInSide = (plugin, item, title) => {
-    const key = Object.hasOwn(SIDE_OPENED, plugin) && SIDE_OPENED[plugin];
+    const key = placeOf(plugin)?.side;
     if (key) sidePane?.open(key, item ? { item, title } : null);
     return Boolean(key);
   };
   // An open that names an item of a plugin with an item side view (\`opens_items\`) lands in that view first, unless it comes from
   // the plugin's own frames (its "open as a page" goes to the main area) (context-program §21.6).
-  const SIDE_ITEM_OPENED = ${sideItemOpenedTabs()};
   const openItemInSide = (plugin, item, title, origin) => {
-    const key = item && origin !== plugin && Object.hasOwn(SIDE_ITEM_OPENED, plugin) && SIDE_ITEM_OPENED[plugin];
+    const key = item && origin !== plugin && placeOf(plugin)?.side_item;
     if (key) sidePane?.open(key, { item, title });
     return Boolean(key);
   };
-  const readDirectory = ${readClientPluginDirectory.toString()};
   const readTitles = ${readClientPluginTitles.toString()};
   const PLUGIN_TAB_TITLES = Object.create(null);
   const refreshPluginTitles = () => {
@@ -203,7 +204,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       dropParams("openPlugin", "openItem", "openTitle", "openView");
       requestedPlugin = null;
     }
-    // A side-panel plugin takes the link there (plugin-place).
+    // A side-panel plugin takes the link there (the directory's side place).
     if (requestedPlugin && (openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))
       || openItemInSide(requestedPlugin, requestedItem, paneParams.get("openTitle")))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem && offeredPlugin(requestedPlugin)) {
@@ -349,9 +350,6 @@ ${TAB_WORKSPACE_DRAG_PART}
   const KEPT_PANE_FRAMES = 4;
   // Search keeps owner-specific save/select behavior, including inside a split pane.
   const SEARCH_ROWS = ${JSON.stringify(searchRows())};
-  // The Host's plugin directory on the page: each plugin's group colour (the hue its Manifest declares) and what ＋ lists (口径 8).
-  // A plugin added or taken out in place brings the next page, and its directory, with it.
-  let directory = readDirectory(document);
   const DIRECTORY_HUES = Object.fromEntries(directory.filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
   const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, readText, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
   // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.

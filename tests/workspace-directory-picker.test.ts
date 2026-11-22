@@ -105,7 +105,7 @@ test("pick route reports the window result and does not open one without a proje
     method: "POST",
     pathname: "/api/workspaces/pick",
     hasProject: true,
-    actions: { discover: async () => [], invoke: () => Promise.reject(new Error("unused")) },
+    actions: { discoverOne: async () => undefined, discover: async () => [], invoke: () => Promise.reject(new Error("unused")) },
     readBody: async () => ({}),
     respond: (status, body) => {
       calls.push({ status, body });
@@ -151,7 +151,7 @@ test("pick route reports the window result and does not open one without a proje
     for (const request of [{ method: "GET", readBody: base.readBody }, { method: "POST", readBody: async () => ({ change: "repair", input: { workspace_id: "current", workspace_path: "/tmp/next", expected_revision: "r1" } }) }]) {
       let invoked = 0;
       await handleProjectWorkspaceHttp({ ...base, pathname: "/api/project-settings/directories", ...request,
-        actions: { discover: async () => [], invoke: async () => { invoked++; throw failure; } },
+        actions: { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { invoked++; throw failure; } },
       });
       assert.equal(invoked, 1, request.method);
       assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message, code: failure.code } }, request.method);

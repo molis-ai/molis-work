@@ -200,6 +200,25 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     );
     assert.equal(devUncodedStatus, 1);
     assert.deepEqual(JSON.parse(devUncodedStderr.join("")), { developed: false, code: "plugin.development_failed", message: "boom in plugin code" });
+    // Unserializable error.details (circular reference or BigInt) degrades cleanly to valid JSON without details.
+    const circularDetails: Record<string, unknown> = { reason: "loop" };
+    circularDetails.self = circularDetails;
+    for (const [code, message, details] of [
+      ["plugin.circular_test", "circular details", circularDetails],
+      ["plugin.bigint_test", "bigint details", { count: 42n }],
+    ] as const) {
+      const stderrLines: string[] = [];
+      const status = await runPluginCli(
+        ["dev", project, state, grants, "--allow-unsigned-development"],
+        { stdout() {}, stderr(line) { stderrLines.push(line); } },
+        {
+          async runDevelopment() { throw Object.assign(new Error(message), { code, details }); },
+          async install() { return {}; },
+        },
+      );
+      assert.equal(status, 1, code);
+      assert.deepEqual(JSON.parse(stderrLines.join("")), { developed: false, code, message }, code);
+    }
     const packUncodedStderr: string[] = [];
     const packUncodedStatus = await runPluginCli(
       ["pack", join(directory, "does-not-exist"), join(directory, "out.json")],

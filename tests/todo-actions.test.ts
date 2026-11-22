@@ -108,6 +108,28 @@ test("revisions refuse stale writes; the person's edits are recorded and the Ass
   assert.deepEqual(history.history.map(change => [change.kind, change.actor]), [["update", "user"], ["update", "assistant"], ["create", "assistant"]]);
 });
 
+test("an Agent changes a todo only from the revision it read; the person's own page may leave it out", async t => {
+  const f = fixture(t);
+  const { item } = await f.agentHome.invoke(actions.create, { title: "约设计评审" });
+  // Every write that changes an existing todo declares the revision it was read at, so the platform refuses an Agent's write without
+  // one (actions.version_required) before Todo runs: without it, a model would overwrite a newer edit unseen. Nothing of Todo's own repeats it.
+  const refused = { code: "actions.version_required", message: /expected_revision/u };
+  await assert.rejects(f.agentHome.invoke(actions.update, { id: item.id, notes: "没读过就改" }), refused);
+  await assert.rejects(f.agentHome.invoke(actions.status, { id: item.id, status: "doing" }), refused);
+  await assert.rejects(f.agentHome.invoke(actions.archive, { id: item.id, archived: true }), refused);
+  await assert.rejects(f.agentHome.invoke(actions.link, { id: item.id, add: { kind: "goal", subject: { kind: "goal", id: "g-1" }, title: "设计评审", relation: null, outcome: null, open: null } }), refused);
+  await assert.rejects(f.agentHome.invoke(actions.remove, { id: item.id }), refused);
+  await assert.rejects(f.agentHome.invoke(actions.batch, { ids: [item.id], change: { status: "doing" } }), refused);
+  await assert.rejects(f.agentHome.invoke(actions.batch, { ids: [item.id], change: { status: "doing" }, expected_revisions: {} }), refused, "every todo of a batch names its revision");
+  assert.equal((await f.me.invoke(actions.get, { id: item.id })).item.revision, 1, "nothing was written");
+  // With the revision it read, the same writes go through; the person's page still writes without one.
+  const moved = await f.agentHome.invoke(actions.status, { id: item.id, status: "doing", expected_revision: 1 });
+  const batched = await f.agentHome.invoke(actions.batch, { ids: [item.id], change: { status: "open" }, expected_revisions: { [item.id]: moved.item.revision } });
+  assert.equal(batched.changed_count, 1);
+  const mine = await f.me.invoke(actions.update, { id: item.id, notes: "我自己改的" });
+  assert.equal(mine.item.notes, "我自己改的");
+});
+
 test("status, completion and archiving; archiving needs a closed todo and reopening brings it back", async t => {
   const f = fixture(t);
   const { item } = await f.me.invoke(actions.create, { title: "交季度报告" });

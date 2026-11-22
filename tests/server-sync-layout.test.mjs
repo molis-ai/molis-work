@@ -37,11 +37,13 @@ test('sync: deployment configs and D1 fixtures use the single server baseline', 
     assert.equal(config.d1_databases[0].migrations_dir, relative);
     assert.deepEqual(config.build.watch_dir, ['src', '../../server/src/sync']);
     assert.ok(existsSync(new URL(`apps/sync-worker/${relative}/0001_sync.sql`, root)));
+    assert.ok(existsSync(new URL(`apps/sync-worker/${relative}/0002_sync_heads_revision_index.sql`, root)));
   }
-  // The fixtures apply the server's migrations by name through one reader, which reads only the shared baseline directory.
+  // The fixtures apply the server's sorted migrations through one reader, which reads only the shared baseline directory.
   assert.ok(read('apps/sync-worker/testing.mjs').includes(`new URL('${relative}/'+file,import.meta.url)`));
-  assert.ok(read('apps/sync-worker/test.mjs').includes("import {applySql} from './testing.mjs';"));
-  for (const file of ['test.mjs', 'testing.mjs']) assert.ok(read(`apps/sync-worker/${file}`).includes("'0001_sync.sql'"));
+  assert.ok(read('apps/sync-worker/testing.mjs').includes('export async function applyMigrations(db)'));
+  assert.ok(read('apps/sync-worker/test.mjs').includes("import {applyMigrations} from './testing.mjs';"));
+  assert.ok(read('apps/sync-worker/test.mjs').includes('await applyMigrations(db);'));
   assert.equal(existsSync(new URL('apps/sync-worker/migrations/0001_sync.sql', root)), false);
 });
 

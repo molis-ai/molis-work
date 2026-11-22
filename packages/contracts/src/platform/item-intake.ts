@@ -1,7 +1,7 @@
 import type { ActionReference } from "./actions.js";
 import type { TextRef } from "./ui-text.js";
 import type { ArtifactFileDeclaration } from "./plugin-manifest.js";
-import type { PresentationStartForm } from "./presentation-declaration.js";
+import type { IntakeStart } from "./intake-start.js";
 import type { SurfacePlace } from "../services/contextual.js";
 
 /**
@@ -46,19 +46,7 @@ interface DestinationDeclaration {
   readonly places?: readonly SurfacePlace[];
 }
 
-/**
- * Where a person can start one from nothing (contract-design §2.4): the home's and the overview's starting points read this. `open`, when
- * given, opens a form on this plugin's own stage instead of calling the action at once.
- */
-export interface IntakeStart {
-  readonly title: string;
-  readonly title_text?: TextRef;
-  readonly hint: string;
-  readonly hint_text?: TextRef;
-  /** An icon from the Host's catalog; omitted, the view's own. */
-  readonly icon?: string;
-  readonly open?: PresentationStartForm;
-}
+export type { IntakeStart } from "./intake-start.js";
 
 /** This action creates an Item from what a person has in hand, or from nothing (`accepts: []`). */
 export interface PersonIntake extends DestinationDeclaration {

@@ -52,7 +52,7 @@ export function renderJellyWorkbench(_model: JellyUiModel): string {
         </div>
       </div>
     </header>
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree jelly-main" data-jelly="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree jelly-main" data-jelly="directory">
       <div class="jelly-toolbar">
         <div class="jelly-period" data-jelly-period>
           ${button("jelly.nav.previous", 'data-jelly-step="-1" class="jelly-icon-button"', "back")}

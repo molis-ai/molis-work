@@ -56,7 +56,7 @@ async function open(t: TestContext, sessionMode = true) {
         if (!success) { response.statusCode = 503; response.end(JSON.stringify({ error: "新范围读取失败" })); return; }
       }
       const current = projections[scope];
-      response.end(JSON.stringify(path.endsWith("/overview") ? current : { items: current.items, total: current.total, exhausted: true, cursor: null, scanned: "unknown", cost: {} })); return;
+      response.end(JSON.stringify(path.endsWith("/overview") ? { ...current, scenes: [{ scene: "coding", name: "Coding" }] } : { items: current.items, total: current.total, exhausted: true, cursor: null, scanned: "unknown", cost: {} })); return;
     }
     let raw = ""; for await (const chunk of request) raw += chunk;
     calls.push({ path, body: JSON.parse(raw || "{}") });

@@ -57,7 +57,7 @@ test('S-141 native login and restart remain isolated from ordinary browser sessi
   try {
     const spoof=await request(origin+'/api/personal/status?desktop=1',{headers:{'x-molis-work-desktop':'1'}});
     assert.equal((await spoof.json()).identity,null);
-    assert.equal(existsSync(join(home,'feed','secrets.json')),false);
+    assert.equal(existsSync(join(home,'security','secrets.json')),false);
     const begin=await native('/api/personal/login?returnTo=%2F',true);
     assert.equal(begin.status,200);const started=await begin.json(),attempt=started.loginAttempt;
     const callback=await completeInstallationLogin((path,init)=>native(path,true,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),started.loginUrl,'native-alice@example.test');
@@ -372,10 +372,10 @@ test('ASR-02 first launch shows the login entry and refuses an anonymous busines
     assert.deepEqual(await status.json(),{configured:true,identity:null,accountChanged:false,ready:false,switching:false});
     const denied=await fetch(origin+'/api/settings/projects',{headers});assert.equal(denied.status,401,'anonymous installation control never reaches business data');
     const account=await fetch(origin+'/account',{headers,redirect:'manual'});assert.equal(account.headers.get('location'),'/');
-    assert.equal(existsSync(join(home,'feed','secrets.key')),false,'onboarding and local account must not open credentials');
+    assert.equal(existsSync(join(home,'security','secrets.key')),false,'onboarding and local account must not open credentials');
     const next=await fetch(origin+'/',{headers,redirect:'manual'});assert.notEqual(next.headers.get('location'),'/welcome');
-    assert.equal(existsSync(join(home,'feed','secrets.key')),false,'local use must not create credential material');
-    assert.equal(existsSync(join(home,'feed','secrets.json')),false,'local use must not access an account store');
+    assert.equal(existsSync(join(home,'security','secrets.key')),false,'local use must not create credential material');
+    assert.equal(existsSync(join(home,'security','secrets.json')),false,'local use must not access an account store');
   }finally{
     await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
     names.forEach((name,i)=>{if(old[i]===undefined)delete process.env[name];else process.env[name]=old[i];});
@@ -394,7 +394,7 @@ test('PTR-01 permanent cloud cleanup is refused before opening the sync service'
    const response=await fetch(origin+path,{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'trial-refusal-'+i},body:JSON.stringify({namespace:'anything',key:'unique',revision:1,confirm:true})});
    assert.equal(response.status,409);assert.match((await response.json()).error,/永久清理暂未开放/);
   }
-  assert.equal(existsSync(join(home,'feed','secrets.json')),false,'refusal does not open credentials or a sync service');
+  assert.equal(existsSync(join(home,'security','secrets.json')),false,'refusal does not open credentials or a sync service');
  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});}
 });
 

@@ -51,7 +51,7 @@ export function renderFormWorkbench(_model: FormUiModel): string {
     label: "Forms",
     dataset: "form",
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-form="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-form="directory">
       <header class="plugin-stage-chrome form-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${uiText("form.action.new")}</span></button>
       </header>

@@ -22,11 +22,33 @@ export declare const MEMORY_READ_PERMISSION = "memory:read";
 
 export declare const MEMORY_RECALL_PERMISSION = "memory:recall";
 
-export declare const MEMORY_SCENES: readonly ["coding", "assistant", "common"];
+export declare const MEMORY_SCENE_SCHEMA: {
+    readonly anyOf: readonly [{
+        readonly enum: readonly ["assistant", "common"];
+    }, {
+        readonly type: "string";
+        readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+        readonly not: {
+            readonly enum: readonly ["agent", "both"];
+        };
+    }];
+};
 
 export declare const MEMORY_SESSION_BINDING_INPUT_TYPE = "molis.memory.session-binding.v1.request";
 
 export declare const MEMORY_SESSION_BINDING_OUTPUT_TYPE = "molis.memory.session-binding.v1.result";
+
+export declare const MEMORY_SESSION_SCENE_SCHEMA: {
+    readonly anyOf: readonly [{
+        readonly const: "assistant";
+    }, {
+        readonly type: "string";
+        readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+        readonly not: {
+            readonly enum: readonly ["common", "agent", "both"];
+        };
+    }];
+};
 
 export declare const MEMORY_SOURCES: readonly MemorySource[];
 
@@ -176,8 +198,8 @@ export interface MemoryChangeResult {
 export interface MemoryClassRestriction {
     selector: {
         consumer: MemoryConsumer;
-        current_scene: typeof MEMORY_SCENES[number];
-        scene?: typeof MEMORY_SCENES[number];
+        current_scene: MemoryScene;
+        scene?: MemoryScene;
         kind?: MemoryFormalKind;
         lifecycle?: typeof MEMORY_LIFECYCLES[number];
     };
@@ -533,7 +555,7 @@ export interface MemoryPair {
 
 export type MemoryPendingOperation = MemoryScopedPendingOperation | import("services/memory-session").MemorySessionPendingOperation;
 
-export type MemoryPluginScene = "coding" | "common";
+export type MemoryPluginScene = string;
 
 export interface MemoryPrefs {
     enabled: boolean;
@@ -685,7 +707,7 @@ export interface MemoryRevisionView extends MemoryRevision {
     snapshot_available: boolean;
 }
 
-export type MemoryScene = (typeof MEMORY_SCENES)[number];
+export type MemoryScene = string;
 
 export type MemoryScope = "personal" | "project" | "character";
 
@@ -698,7 +720,7 @@ export interface MemoryScopePreview {
 
 export interface MemorySessionBinding {
     readonly session: AgentSessionRef;
-    readonly current_scene: "coding" | "assistant";
+    readonly current_scene: MemoryScene;
     readonly target: MemorySessionTarget;
 }
 
@@ -776,7 +798,7 @@ export interface MemorySessionPurgeTarget<S extends string = MemoryScope> {
 }
 
 export interface MemorySessionTarget {
-    readonly kind: "coding" | "assistant";
+    readonly kind: MemoryScene;
     readonly id: string;
     readonly project_id: string | null;
 }
@@ -909,6 +931,10 @@ export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPr
 
 export declare function isMemoryClassRestrictions(value: unknown): value is MemoryClassRestriction[];
 
+export declare const isMemoryPluginScene: (value: unknown) => value is MemoryPluginScene;
+
+export declare const isMemoryScene: (value: unknown) => value is MemoryScene;
+
 export declare function isMemorySessionBindingAction(view: {
     readonly operation: string;
     readonly action: {
@@ -916,6 +942,8 @@ export declare function isMemorySessionBindingAction(view: {
         readonly output_type?: string;
     };
 }): boolean;
+
+export declare const isMemorySessionScene: (value: unknown) => value is MemoryScene;
 
 export declare const memoryActions: {
     page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;
@@ -1009,10 +1037,26 @@ export declare const memoryClassRestrictionsSchema: {
                         enum: MemoryConsumer[];
                     };
                     current_scene: {
-                        enum: ("assistant" | "coding" | "common")[];
+                        readonly anyOf: readonly [{
+                            readonly enum: readonly ["assistant", "common"];
+                        }, {
+                            readonly type: "string";
+                            readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+                            readonly not: {
+                                readonly enum: readonly ["agent", "both"];
+                            };
+                        }];
                     };
                     scene: {
-                        enum: ("assistant" | "coding" | "common")[];
+                        readonly anyOf: readonly [{
+                            readonly enum: readonly ["assistant", "common"];
+                        }, {
+                            readonly type: "string";
+                            readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+                            readonly not: {
+                                readonly enum: readonly ["agent", "both"];
+                            };
+                        }];
                     };
                     kind: {
                         enum: MemoryFormalKind[];

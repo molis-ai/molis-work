@@ -598,7 +598,7 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages-create-more/);
   assert.match(html, /pages-template-mark/);
   assert.doesNotMatch(html, /select[^>]*data-pages-folder/);
-  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory"/);
+  assert.match(html, /plugin-stage-list mw-stage-list mw-stage-tree" data-pages="directory"/);
   assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-pages-new/);
   assert.doesNotMatch(html, /mw-btn--secondary"[^>]*data-pages-new/);
 });
@@ -742,7 +742,7 @@ test("工作台客户端保存不重挂内核", () => {
   assert.doesNotMatch(saveFunctionSource(), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(), /setDoc/);
   assert.match(fillEditorSource(), /clearTimeout\(page\.saveTimer\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /mw-stage-entry directory-list-row/);
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.kind = "page"/);
   const browser = pagesBrowserSources();

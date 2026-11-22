@@ -42,7 +42,8 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .plugin-section { position: relative; }
   body.immersive-workbench .plugin-section > .immersive-plugin-link { min-height: var(--dir-row-h); }
   body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) > [data-directory-list-actions] { min-height: var(--control-h); }
-  body.immersive-workbench .tree-pane :is(.tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row) {
+  /* .tree-filter.tree-filter keeps the weight this rule had while it also named Feed's filter row (BL-b44-feed-home-dir-and-styles). */
+  body.immersive-workbench .tree-pane .tree-filter.tree-filter {
     top: calc(var(--dir-row-h) + var(--control-h) + 4px); left: 8px; right: 8px; width: auto; box-sizing: border-box;
   }
   body.immersive-workbench .immersive-plugin-link { min-height: var(--dir-row-h); gap: 8px; padding: 0 8px 0 8px; }
@@ -97,17 +98,17 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .plugin-market-body { padding: 16px clamp(16px, 3%, 28px) 32px; }
   body.immersive-workbench .plugin-market-heading h1 { font-size: 24px; }
   body.immersive-workbench .plugin-market-list article { min-height: 48px; padding: 8px; }
-  body.immersive-workbench .feed-stage-tree { padding: 4px 12px 16px; gap: 4px; }
-  body.immersive-workbench .plugin-stage-shell > .plugin-stage-list.feed-stage-tree {
+  body.immersive-workbench .mw-stage-tree { padding: 4px 12px 16px; gap: 4px; }
+  body.immersive-workbench .plugin-stage-shell > .plugin-stage-list.mw-stage-tree {
     padding: 52px 24px 32px;
   }
   @media (max-width: 760px) {
-    body.immersive-workbench .plugin-stage-shell > .plugin-stage-list.feed-stage-tree,
-    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-list.feed-stage-tree {
+    body.immersive-workbench .plugin-stage-shell > .plugin-stage-list.mw-stage-tree,
+    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-list.mw-stage-tree {
       padding-top: 72px;
     }
   }
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-list.feed-stage-tree {
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-list.mw-stage-tree {
     padding: 52px 8px 24px;
   }
   body.immersive-workbench .tab-pane-body > .plugin-stage-shell,
@@ -128,17 +129,17 @@ export const LINEAR_DENSITY_STYLES = `
     overflow: hidden;
   }
   body.immersive-workbench .tree-pane .mw-dir-row--meta { height: var(--dir-row-2h); min-height: var(--dir-row-2h); overflow: hidden; }
-  body.immersive-workbench .feed-stage-item { min-height: 28px; }
-  body.immersive-workbench .feed-stage-item:not(.is-open) { height: auto; overflow: visible; }
-  body.immersive-workbench .feed-stage-item.is-open { margin-block: 0; height: auto; }
-  body.immersive-workbench .feed-stage-entry {
+  body.immersive-workbench .mw-stage-item { min-height: 28px; }
+  body.immersive-workbench .mw-stage-item:not(.is-open) { height: auto; overflow: visible; }
+  body.immersive-workbench .mw-stage-item.is-open { margin-block: 0; height: auto; }
+  body.immersive-workbench .mw-stage-entry {
     height: 28px; min-height: 28px; padding: 0 8px; overflow: visible;
     grid-template-columns: minmax(0, 1fr) minmax(7rem, 12rem) max-content max-content;
     grid-template-rows: 28px; column-gap: 12px; align-items: center; border-radius: 6px;
   }
-  body.immersive-workbench .feed-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-  body.immersive-workbench .feed-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  body.immersive-workbench .feed-stage-item.is-open .feed-stage-entry { height: 28px; min-height: 28px; overflow: visible; }
+  body.immersive-workbench .mw-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+  body.immersive-workbench .mw-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.immersive-workbench .mw-stage-item.is-open .mw-stage-entry { height: 28px; min-height: 28px; overflow: visible; }
   body.immersive-workbench .plugin-stage-detail-bar { min-height: 32px; padding: 4px 12px; gap: 8px; }
   body.immersive-workbench .plugin-stage-back { height: 26px; width: 26px; }
   body.immersive-workbench .plugin-stage-detail-bar > h1 { font-size: 13px; line-height: 1.3; }
@@ -185,18 +186,15 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row { height: 44px; min-height: 44px; }
     body.immersive-workbench .frame-goal-actions button { min-height: 44px; }
     body.immersive-workbench .plugin-stage-back { width: 44px; height: 44px; min-height: 44px; }
-    body.immersive-workbench .feed-stage-entry {
+    body.immersive-workbench .mw-stage-entry {
       height: auto; min-height: 44px;
       grid-template-columns: minmax(0, 1fr) max-content;
       grid-template-rows: auto;
     }
-    body.immersive-workbench .feed-entry-source,
-    body.immersive-workbench .feed-stage-entry > time { display: none; }
-    body.immersive-workbench .feed-stage-search { height: 44px; }
-    body.immersive-workbench .feed-stage-search input { font-size: 16px; }
-    body.immersive-workbench .feed-reader-footer .feed-detail-actions button { min-height: 44px; }
+    body.immersive-workbench .mw-entry-source,
+    body.immersive-workbench .mw-stage-entry > time { display: none; }
     body.immersive-workbench .form-actions > button { min-height: 44px; }
-    body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; }
+    body.immersive-workbench :is(.form-actions, .event-form-actions) { --control-h: 44px; }
     body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
   }
   @media (max-width: 600px) {

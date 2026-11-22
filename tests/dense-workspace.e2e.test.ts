@@ -35,11 +35,11 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   for(const owner of owners)await owner.waitFor("document.querySelector('[data-feed-entry-id]')");
   const reader=owners[0]!;
   // Wheel over the visible middle of the list: in a short pane its first entry may start below the fold.
-  const wheel=await reader.point('.feed-stage-tree');
+  const wheel=await reader.point('.mw-stage-tree');
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...wheel,deltaX:0,deltaY:550},sessionId);
-  await reader.waitFor("document.querySelector('.feed-stage-tree').scrollTop>0");
-  const entryId=await reader.evaluate<string>("(()=>{const tree=document.querySelector('.feed-stage-tree').getBoundingClientRect(),entry=[...document.querySelectorAll('[data-feed-entry-id]')].find(entry=>{const box=entry.getBoundingClientRect();return box.top>=tree.top&&box.bottom<=Math.min(tree.bottom,innerHeight)});return entry?.dataset.feedEntryId})()");
-  assert.ok(entryId,'one complete Feed row is visible in this pane: '+await reader.evaluate("JSON.stringify({height:innerHeight,boxes:[...document.querySelectorAll('.feed-column-head,.feed-stage-toolbar,.feed-stage-tree,.feed-column-foot,[data-feed-entry-id]')].slice(0,8).map(e=>({class:e.className,top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height}))})"));
+  await reader.waitFor("document.querySelector('.mw-stage-tree').scrollTop>0");
+  const entryId=await reader.evaluate<string>("(()=>{const tree=document.querySelector('.mw-stage-tree').getBoundingClientRect(),entry=[...document.querySelectorAll('[data-feed-entry-id]')].find(entry=>{const box=entry.getBoundingClientRect();return box.top>=tree.top&&box.bottom<=Math.min(tree.bottom,innerHeight)});return entry?.dataset.feedEntryId})()");
+  assert.ok(entryId,'one complete Feed row is visible in this pane: '+await reader.evaluate("JSON.stringify({height:innerHeight,boxes:[...document.querySelectorAll('.feed-column-head,.feed-stage-toolbar,.mw-stage-tree,.feed-column-foot,[data-feed-entry-id]')].slice(0,8).map(e=>({class:e.className,top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height}))})"));
   await reader.click(`[data-feed-entry-id="${entryId}"]`);
   await reader.waitFor(`document.querySelector('[data-feed-detail="${entryId}"]')?.textContent.includes('记录 39')`);
 

@@ -500,7 +500,7 @@ test("Feed stage list is one timeline and the source menu keeps each source's co
   assert.match(workbench, /data-feed-entry-id="entry-a"[^>]*data-feed-entry-source-id="source-a" data-feed-entry-task="source-a"/);
   assert.match(workbench, /data-feed-entry-id="entry-b"[^>]*data-feed-entry-source-id="source-b" data-feed-entry-task="source-b"/);
   assert.match(workbench, /data-feed-entry-id="entry-orphan"[^>]*data-feed-entry-task="other"/);
-  assert.match(workbench, /class="feed-entry-source">GitHub · adeptify</);
+  assert.match(workbench, /class="mw-entry-source">GitHub · adeptify</);
   // The source menu keeps configured order, counts, empty sources and a state mark that is not colour alone.
   const github = sourceMenuRow(workbench, "source-a");
   assert.match(github, /<strong>GitHub · adeptify<\/strong>/);
@@ -538,9 +538,9 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
   const sourceStage = drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: real });
   assert.match(detail, /data-feed-entry-task="source-a"/);
   assert.match(detail, /data-feed-entry-persisted="true"/);
-  assert.match(detail, /class="feed-stage-entry directory-list-row"/);
-  assert.match(detail, /class="feed-stage-leading"/);
-  assert.match(detail, /mw-status mw-status--attention mw-status--plain feed-entry-status/);
+  assert.match(detail, /class="mw-stage-entry directory-list-row"/);
+  assert.match(detail, /class="mw-stage-leading"/);
+  assert.match(detail, /mw-status mw-status--attention mw-status--plain mw-entry-status/);
   assert.match(detail, /已加入 Inbox/);
   assert.doesNotMatch(detail, /feed-entry-chevron|feed-entry-origin|feed-stage-entry-copy/);
   assert.doesNotMatch(detail, /class="feed-list-item/);
@@ -589,8 +589,8 @@ test("The Feed stylesheet keeps every rule whole: no selector list runs into the
     assert.doesNotMatch(prelude, /,\s*$/, `a selector list ends in a comma and swallowed the next rule: ${prelude.slice(-80)}`);
     if (!prelude.startsWith("@")) assert.doesNotMatch(prelude, /@\w/, `a selector swallowed an at-rule: ${prelude.slice(-80)}`);
   }
-  const reading = rules.filter(({ prelude }) => /\.feed-stage-item-detail \.feed-detail$/.test(prelude));
-  assert.equal(reading.length, 1, "the reader's own .feed-detail block");
+  const reading = rules.filter(({ prelude }) => /\.feed-stage-item-detail \.mw-detail$/.test(prelude));
+  assert.equal(reading.length, 1, "the reader's own .mw-detail block");
   assert.match(reading[0].body, /max-width:\s*700px/);
   // The reader rises once with the product's shared arrival (DESIGN「Motion」); the Workbench does not animate its frame too.
   assert.match(reading[0].body, /animation:\s*craft-rise var\(--dur-arrive\)/);

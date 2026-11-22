@@ -157,7 +157,7 @@ test("SKC-07: one catalog for the Assistant and Coding, filtered by who it appli
     assert.deepEqual(answer.skills.map(item => item.ref), [ref]);
   }
   assert.equal(calls.length, 5);
-  for (const input of [{ applies_to: "both" }, { applies_to: "designer" }, { states: [] }, { states: ["on"] }, { states: ["auto", "auto"] }, { project_id: "other" }, { scope: "home" }]) {
+  for (const input of [{ applies_to: "both" }, { applies_to: "Designer" }, { states: [] }, { states: ["on"] }, { states: ["auto", "auto"] }, { project_id: "other" }, { scope: "home" }]) {
     await assert.rejects(service.invoke(agent, reference(skillCatalogActions.list), input), invalid, JSON.stringify(input));
   }
   assert.equal(calls.length, 5);

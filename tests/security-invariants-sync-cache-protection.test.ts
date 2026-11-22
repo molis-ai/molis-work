@@ -62,10 +62,10 @@ test('S-110 PCSYNC-23 private download parts and deferred events stay sealed and
 
 test('S-110 PCSYNC-12 missing private-cache key cannot replace data or advance the rejected event',async t=>{
   const f=fixture(t),a=f.create();await a.run();a.close();const before=f.snapshot();
-  f.secrets.delete(f.keyRef);const sealedSecrets=readFileSync(join(f.home,'feed','secrets.json'));
+  f.secrets.delete(f.keyRef);const sealedSecrets=readFileSync(join(f.home,'security','secrets.json'));
   f.healthy();const b=f.create();await b.run();assert.match(b.status().error??'',/密钥不可用/);
   assert.equal(f.commits,0);assert.equal(f.chunks,1);assert.deepEqual(f.snapshot(),before);
-  assert.deepEqual(readFileSync(join(f.home,'feed','secrets.json')),sealedSecrets);
+  assert.deepEqual(readFileSync(join(f.home,'security','secrets.json')),sealedSecrets);
 });
 
 test('S-110 PCSYNC-01 dropping the trusted protection port cannot silently reopen the same namespace in plaintext mode',async t=>{

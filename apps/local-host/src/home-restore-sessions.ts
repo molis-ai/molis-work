@@ -13,6 +13,7 @@ import { memoryRestoreFile } from "./home-restore-owner-payload.js";
 import { flushRestoreDirectories } from "./home-restore-rollback.js";
 import type { HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 import { memoryRuntimePolicy } from "./memory/memory-runtime-policy.js";
+import { memorySceneTaxonomy } from "./memory/memory-plugin-scene.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { syncSnapshotPath } from "./home-snapshot-publication.js";
 
@@ -25,7 +26,7 @@ interface SessionRestorePlan {
 const prefix = "agent-runtime/";
 const recordPrefix = prefix + "records/io.molis.work~";
 const options = (home: string, control: HomeRestoreControl) => ({ storageRoot: join(home, "agent-runtime"), appVersion: PRODUCT_VERSION,
-  policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent: () => control.assertCurrent(), ...(control.signal ? { signal: control.signal } : {}) });
+  policy: memoryRuntimePolicy(() => undefined, undefined, memorySceneTaxonomy(home)).policy, assertCurrent: () => control.assertCurrent(), ...(control.signal ? { signal: control.signal } : {}) });
 
 /** Freeze current canonical terminations before any original inode moves. Missing archive roots retain the original owner bytes. */
 export async function prepareHomeRestoreSessions(home: string, inputs: HomeRestoreInputs, control: HomeRestoreControl): Promise<{

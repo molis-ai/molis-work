@@ -135,7 +135,7 @@ test("RAC-2914: the built CLI restores populated project/Memory/plugin facts and
   const originalInstalls = installed(); assert.ok(originalInstalls.length);
   const receipt = join(f.home, "config", "web-service.json");
   writeFileSync(receipt, "original machine-owned receipt", { mode: 0o600 });
-  const keys = new Map([join(f.home, "feed", "secrets.key"), join(f.sdkRoot, "storage.key"), join(f.builderRoot, "storage.key")].map(file => [file, readFileSync(file)]));
+  const keys = new Map([join(f.home, "security", "secrets.key"), join(f.sdkRoot, "storage.key"), join(f.builderRoot, "storage.key")].map(file => [file, readFileSync(file)]));
   const lock = join(f.sdkRoot, ".molis-runtime-owner.db"), inode = lstatSync(lock).ino;
   const captured = await restoreCli(t, ["snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
   assert.equal(captured.code, 0, captured.stderr);

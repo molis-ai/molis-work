@@ -47,7 +47,7 @@
       "owner": "design-system",
       "package": "@molis-ai/molis-work-design-system",
       "path": "fonts/inter-latin-variable.woff2",
-      "load": "fallback",
+      "load": "startup",
       "route": "/assets/inter-latin-variable.woff2",
       "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
       "license": {"spdx": "OFL-1.1", "source": "https://fontsource.org/fonts/inter", "notice_path": "fonts/README.md"}
@@ -58,10 +58,48 @@
       "owner": "design-system",
       "package": "@molis-ai/molis-work-design-system",
       "path": "fonts/noto-sans-sc-400.woff2",
-      "load": "fallback",
+      "load": "startup",
       "route": "/assets/noto-sans-sc-400.woff2",
-      "sha256": "eb385eca10dd39caff881c38338aefccecfaec6b42cc016fbe81434e388d6c3a",
+      "sha256": "84940d26e457660c1c608069cd812f1614bc1eded63dd26e4d650a6c47bd5220",
       "license": {"spdx": "OFL-1.1", "source": "https://fontsource.org/fonts/noto-sans-sc", "notice_path": "fonts/README.md"}
+    },
+    {
+      "id": "font.noto-sans-sc-500-common",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/noto-sans-sc-500-common.woff2",
+      "load": "startup",
+      "route": "/assets/noto-sans-sc-500-common.woff2",
+      "sha256": "684453a4dc9915db5bdf485006c5a3a6b9b46253c0fb02fe4b20364b244ef092",
+      "license": {"spdx": "OFL-1.1", "source": "https://www.npmjs.com/package/@fontsource/noto-sans-sc/v/5.3.1", "notice_path": "fonts/README.md"}
+    },
+    {
+      "id": "font.noto-sans-sc-600-common",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/noto-sans-sc-600-common.woff2",
+      "load": "startup",
+      "route": "/assets/noto-sans-sc-600-common.woff2",
+      "sha256": "7ce298398bb23aa161dc3c7bddcdd4e2409f02e472c02bf06ab77d4c0d47a28a",
+      "license": {"spdx": "OFL-1.1", "source": "https://www.npmjs.com/package/@fontsource/noto-sans-sc/v/5.3.1", "notice_path": "fonts/README.md"}
+    },
+    {
+      "id": "skin.pure-studio",
+      "kind": "skin",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/skins/pure-studio.json",
+      "load": "startup"
+    },
+    {
+      "id": "skin.warm-atelier",
+      "kind": "skin",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/skins/warm-atelier.json",
+      "load": "startup"
     },
     {
       "id": "skin.folio",

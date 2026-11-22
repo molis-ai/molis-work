@@ -4,9 +4,11 @@
   "locale": "zh",
   "messages": {
     "im-ui.control.cancel": "取消",
+    "im-ui.control.clear": "清除",
     "im-ui.control.close": "关闭",
     "im-ui.control.continue": "继续",
     "im-ui.control.retry": "重试",
+    "im-ui.control.undo": "撤销",
     "im-ui.error.host-closing": "工作台正在关闭，请稍后重新连接。",
     "im-ui.error.invalid-input": "请检查必填内容及其长度，再试一次。",
     "im-ui.error.invitation-expired": "邀请已失效，请向群创建者索取新链接",

@@ -2,7 +2,7 @@ import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/projec
 import type { SkillPickConsumer } from "@molis-ai/molis-work-contracts/services/skills";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { HostReviewFactory } from "./review-slots.js";
-import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiPageInstructionSettings } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiPageInstructionSettings, UiShowToastOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -31,7 +31,7 @@ export interface FrameHost {
   openPlugin?(...args: unknown[]): void;
   focusPane?(paneId: string): void;
   hideDirectory?(): void;
-  showToast?(message: string, failure?: boolean): void;
+  showToast?(message: string, failureOrOptions?: boolean | UiShowToastOptions): void;
   readRefusal?(status: number, code: unknown): string;
   status?(...args: unknown[]): void;
   openView?(root: HTMLElement, selection: UiViewSelection): void;

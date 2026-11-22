@@ -45,6 +45,7 @@ const listControls: Command = async (page, button) => {
     const target = state.undo;
     state.undo = null;
     el.undoButton.hidden = true;
+    page.showNote("");
     const payload = await page.request<RevertPayload>("POST", "/revert", target);
     await page.load();
     if (state.selected && payload.removed_ids.includes(state.selected.id)) await page.closeDetail();
@@ -157,8 +158,14 @@ const editorControls: Command = async (page, button) => {
   const data = button.dataset;
   const current = state.selected;
   if (!current) return false;
-  if (button.matches("[data-todo-status]")) { await page.setStatus(current.id, data.todoStatus ?? "open", current.revision); return true; }
+  if (button.matches("[data-todo-status]")) {
+    page.closePop();
+    if (data.todoStatus !== current.status) await page.setStatus(current.id, data.todoStatus ?? "open", current.revision);
+    return true;
+  }
   if (button.matches("[data-todo-placement]")) {
+    page.closePop();
+    if (button.getAttribute("aria-checked") === "true") return true;
     const payload = await page.post<ItemPayload>(current, "", { placement: data.todoPlacement });
     await page.load();
     await page.openDetail(payload.item.id);
@@ -172,11 +179,11 @@ const editorControls: Command = async (page, button) => {
     else { await page.openDetail(current.id); page.showNote(uiText.text("todo.note.undone")); }
     return true;
   }
-  if (button.matches("[data-todo-link-add]")) {
-    const target = page.$<HTMLSelectElement>("[data-todo-link-target]").value;
-    if (!target) { page.detailHint(uiText.text("todo.link.pick-first"), true); return true; }
+  if (button.matches("[data-todo-link-pick]")) {
+    const target = data.todoLinkPick ?? "";
     const other = state.linkPool.find((entry) => entry.id === target);
-    await page.post(current, "/link", { add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: page.$<HTMLSelectElement>("[data-todo-link-relation]").value } });
+    page.closePop();
+    await page.post(current, "/link", { add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: state.linkRelation } });
     await page.openDetail(current.id);
     return true;
   }
@@ -189,7 +196,7 @@ const editorControls: Command = async (page, button) => {
     page.showNote(payload.item.archived_at ? uiText.text("todo.note.archived") : uiText.text("todo.note.restored"), { undo: undoOf(payload) });
     return true;
   }
-  if (button.matches("[data-todo-reload]")) {
+  if (button.matches("[data-todo-reload],[data-todo-reload-here]")) {
     if (state.saving) await state.saving.catch(() => undefined);
     closeMenu(button);
     const refreshList = () => page.load().catch((error: Error) => page.showNote(error.message || uiText.text("todo.error.request"), { error: true }));
@@ -231,9 +238,9 @@ const CHAIN: Command[] = [listControls, reviewControls, reminderControls, detail
 
 /** One click on a button of the page. Anything but reload and delete first saves what is being typed. */
 export async function runCommand(page: TodoPage, button: HTMLButtonElement): Promise<void> {
-  if (!button.matches("[data-todo-reload],[data-todo-delete]")) {
-    // A failed draft save has already shown its recovery in the detail.
-    try { await page.flush(); } catch { return; }
+  if (!button.matches("[data-todo-reload],[data-todo-reload-here],[data-todo-delete]")) {
+    // A failed draft save has already shown its recovery in the detail; a popover left open would sit on top of it.
+    try { await page.flush(); } catch { page.closePop(); return; }
   }
   try {
     for (const command of CHAIN) if (await command(page, button)) return;

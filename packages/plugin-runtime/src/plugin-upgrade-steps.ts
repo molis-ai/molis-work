@@ -206,6 +206,7 @@ interface Run {
   /** Installed releases re-check their full physical dataset before publication. */
   readonly checkIntegrity?: boolean;
   readonly beforeSteps?: () => void;
+  readonly preparePlatform?: () => (() => void) | undefined;
 }
 
 const OWN = Symbol("plugin upgrade failure");
@@ -327,6 +328,7 @@ function inTransaction(db: PluginRuntimeDatabase, run: Run, inspector: PluginUpg
   catch (cause) { throw failure(run, "begin_failed", { cause }); }
   try {
     run.beforeSteps?.();
+    const seedPlatform = run.preparePlatform?.();
     const start = run.start(db);
     const others = new Set([...tablesNow(db).keys()].filter(name => !start.has(name)));
     const before = othersOf(db, start);
@@ -357,6 +359,7 @@ function inTransaction(db: PluginRuntimeDatabase, run: Run, inspector: PluginUpg
     if (run.checkIntegrity && (db.prepare("PRAGMA main.integrity_check(1)").get() as { integrity_check?: string } | undefined)?.integrity_check !== "ok") {
       throw failure(run, "integrity");
     }
+    seedPlatform?.();
     run.finish(db);
     db.exec("COMMIT");
   } catch (error) {
@@ -394,9 +397,16 @@ export function pluginProjectTablesVersion(connection: PluginRuntimeDatabase, pl
  * tables, less the platform's technical ones. Nothing to do when the plugin has no row or is current; a row newer than the declaration is
  * refused untouched. A failure rolls back only this plugin's transaction and throws `plugin.project_database.*`.
  */
+interface PluginLibraryUpgradeOptions {
+  readonly path: string;
+  readonly beforeCommit?: () => void;
+  readonly beforeSteps?: () => void;
+  readonly preparePlatform?: () => (() => void) | undefined;
+}
+
 export function upgradePluginProjectTables(connection: PluginRuntimeDatabase,
   owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
-  inspector: PluginUpgradeInspector, options: { readonly path: string; readonly platformSchema?: string; readonly platformPrelude?: string; readonly beforeCommit?: () => void; readonly beforeSteps?: () => void }): PluginUpgradeResult | undefined {
+  inspector: PluginUpgradeInspector, options: PluginLibraryUpgradeOptions & { readonly platformSchema?: string; readonly platformPrelude?: string }): PluginUpgradeResult | undefined {
   const { declaration } = owner, found = pluginProjectTablesVersion(connection, owner.plugin_id), to = declaration.version;
   if (found === undefined || found === to) return found === undefined ? undefined : { from: to, to };
   const where = `项目库 ${options.path} 里插件 ${owner.plugin_id} 的表`;
@@ -410,7 +420,7 @@ export function upgradePluginProjectTables(connection: PluginRuntimeDatabase,
   const business = new Set(inspectPluginProjectSchema(declaration, inspector).tables.map(fold));
   const technical = new Set(target.tables.map(fold).filter(table => !business.has(table)));
   runSteps(connection, {
-    ...label, steps, target, technical, checkIntegrity: options.beforeCommit !== undefined, beforeSteps: options.beforeSteps,
+    ...label, steps, target, technical, checkIntegrity: options.beforeCommit !== undefined, beforeSteps: options.beforeSteps, preparePlatform: options.preparePlatform,
     start: db => {
       const row = db.prepare("SELECT publisher_signature, version, tables_json FROM plugin_project_databases WHERE plugin_id = ?").get(owner.plugin_id) as
         { publisher_signature: string; version: number; tables_json: string } | undefined;
@@ -450,7 +460,7 @@ function libraryTarget(schema: string, inspector: PluginProjectSchemaInspector):
  */
 export function upgradePluginHomeLibrary(connection: PluginRuntimeDatabase,
   owner: { readonly plugin_id: string; readonly declaration: PluginDatabaseDeclaration; readonly schema: string },
-  inspector: PluginUpgradeInspector, options: { readonly path: string; readonly beforeCommit?: () => void; readonly beforeSteps?: () => void }): PluginUpgradeResult {
+  inspector: PluginUpgradeInspector, options: PluginLibraryUpgradeOptions): PluginUpgradeResult {
   const { declaration } = owner, to = declaration.version;
   const found = Number((connection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
   if (found === to) return { from: to, to };
@@ -460,7 +470,7 @@ export function upgradePluginHomeLibrary(connection: PluginRuntimeDatabase,
   const target = libraryTarget(owner.schema, inspector), business = new Set(libraryTarget(declaration.schema, inspector).tables.map(fold));
   const technical = new Set(target.tables.map(fold).filter(table => !business.has(table)));
   runSteps(connection, {
-    ...label, steps, target, technical, checkIntegrity: options.beforeCommit !== undefined, beforeSteps: options.beforeSteps,
+    ...label, steps, target, technical, checkIntegrity: options.beforeCommit !== undefined, beforeSteps: options.beforeSteps, preparePlatform: options.preparePlatform,
     start: db => {
       if (Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version) !== found) throw failure(label, "version_changed");
       // The Home's binding is not the plugin's, nor in its declaration: out of scope, and kept as it was by the third layer.

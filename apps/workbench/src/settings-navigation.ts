@@ -126,12 +126,19 @@ function renderSettingsNavigation(
   const href = (path: string) => settingsContextHref(path, project, desktopShell);
   const current = (section: SettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
   const projectHome = project ? `/projects/${encodeURIComponent(project.project_id)}/` : "/";
+  const projectSettingsHref = project ? (desktopShell ? withDesktopQuery(`/projects/${encodeURIComponent(project.project_id)}/settings`) : `/projects/${encodeURIComponent(project.project_id)}/settings`) : "";
+  const scopeSwitch = project
+    ? `<div class="mw-toggle-group settings-scope-switch" role="group" aria-label="${uiText("workbench.settings-navigation.scope-switch")}"><a class="mw-toggle is-current" href="${href("/settings/appearance")}" aria-current="true">${uiText("workbench.settings-navigation.scope-global")}</a><a class="mw-toggle" href="${projectSettingsHref}">${uiText("workbench.settings-navigation.scope-project")}</a></div>`
+    : "";
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${uiText("workbench.settings-navigation.system-settings")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${uiText("workbench.settings-navigation.return-project")}</a>
+    ${scopeSwitch}
+    <div class="settings-nav-filter"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
     <div class="settings-nav-body">
       ${groupedGlobalSettingsSections(shownPlugins, desktopShell, dynamicPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
       ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
     </div>
+    <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
   </nav>`;
 }
 
@@ -144,9 +151,12 @@ function renderProjectSettingsNavigation(
   const routePrefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
   const current = (section: ProjectSettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
+  const globalSettingsHref = settingsContextHref("/settings/appearance", project, desktopShell);
   return `<nav class="settings-navigation settings-navigation--codex project-settings-navigation" aria-label="${uiText("workbench.settings-navigation.project-settings")}">
     <a class="settings-nav-back" href="${href(`${routePrefix}/`)}">${icon("arrow")} ${uiText("workbench.settings-navigation.back-workbench")}</a>
+    <div class="mw-toggle-group settings-scope-switch" role="group" aria-label="${uiText("workbench.settings-navigation.scope-switch")}"><a class="mw-toggle" href="${globalSettingsHref}">${uiText("workbench.settings-navigation.scope-global")}</a><a class="mw-toggle is-current" href="${href(`${routePrefix}/settings`)}" aria-current="true">${uiText("workbench.settings-navigation.scope-project")}</a></div>
     <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${uiText("workbench.settings-navigation.project-settings")}</span></div>
+    <div class="settings-nav-filter"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${uiText("workbench.settings-navigation.general")}</a>
       <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${uiText("workbench.settings-navigation.inputs-output")}</a>
@@ -158,6 +168,7 @@ function renderProjectSettingsNavigation(
       <a href="${href(`${routePrefix}/settings/characters`)}"${current("characters")}>${icon("user")}${uiText("workbench.settings-sections.characters")}</a>
       <a href="${href(`${routePrefix}/settings/grants`)}"${current("grants")}>${icon("shield")}${uiText("workbench.settings-navigation.access-approvals")}</a>
     </div>
+    <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
   </nav>`;
 }
 

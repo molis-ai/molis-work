@@ -10,7 +10,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .immersive-plugin-stage > .tab-workspace { position: absolute; inset: 0; min-width: 0; min-height: 0; display: flex; overflow: hidden; background: var(--canvas); }
   body.immersive-workbench .tab-workspace-panes { flex: 1; min-width: 0; min-height: 0; display: grid; gap: 1px; background: var(--line); }
   body.immersive-workbench .tab-workspace-pool { display: none; }
-  body.immersive-workbench .tab-workspace-exclusive { display: none; }
+  body.immersive-workbench .tab-workspace-exclusive { display: none; container: plugin-stage / inline-size; }
   body.immersive-workbench .tab-workspace[data-exclusive] .tab-workspace-panes { visibility: hidden; }
   body.immersive-workbench .tab-workspace[data-exclusive] .tab-workspace-exclusive { display: block; position: absolute; inset: 0; }
   body.immersive-workbench .tab-workspace-exclusive > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; }

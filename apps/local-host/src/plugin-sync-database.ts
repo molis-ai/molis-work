@@ -2,7 +2,8 @@ import { sectionsPlatformPrelude, sectionsPlatformSchema } from './plugin-sync-s
 import { createHash } from 'node:crypto';
 import type { PluginManifest, PluginDatabaseDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { assertPluginSyncDeclarations, type PluginProjectDatabaseRecord } from '@molis-ai/molis-work-plugin-runtime';
-import { describeSqliteBaseline, sqliteBaselineTriggers, assertSqliteBaselineTriggers, replicaSchemaSql, compileSyncTrackingSql, compileAggregateTrackingSql, type ReplicaDatabase } from '@molis-ai/molis-work-storage';
+import { listProjectRoots } from '@molis-ai/molis-work-module-projects';
+import { describeSqliteBaseline, sqliteBaselineTriggers, assertSqliteBaselineTriggers, replicaSchemaSql, compileSyncTrackingSql, compileAggregateTrackingSql, syncTrackingSeedSql, aggregateTrackingSeedSql, readDatabaseSpace, type ReplicaDatabase } from '@molis-ai/molis-work-storage';
 
 /** Stable across activations, isolated by verified publisher, plugin, collection and format. */
 export function pluginSyncNamespace(manifest: PluginManifest, collectionId: string): string {
@@ -35,13 +36,42 @@ export function pluginSyncDatabaseDeclaration<T extends PluginDatabaseDeclaratio
   const technical = (manifest.sync?.collections ?? []).map(collection => {
     const namespace = pluginSyncNamespace(manifest, collection.id);
     if (businessObjects.some(name => name.toLowerCase().startsWith(namespace + '_'))) throw new Error('SYNC_TECHNICAL_NAME_RESERVED');
-    return replicaSchemaSql(namespace) + `
+    return pluginSyncJournalSchema(namespace) + '\n' + compileSyncTrackingSql(collection.tracking ?? [], namespace) + '\n' + compileAggregateTrackingSql(collection.aggregates ?? [], namespace) + '\n' + sectionsPlatformSchema(manifest, collection.id, namespace);
+  }).join('\n');
+  return technical ? { ...declaration, schema: declaration.schema + '\n' + technical } : declaration;
+}
+
+function pluginSyncJournalSchema(namespace: string): string {
+  return replicaSchemaSql(namespace) + `
 CREATE TABLE ${namespace}_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE ${namespace}_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
 INSERT INTO ${namespace}_context(id,project_id) VALUES(1,NULL);
-INSERT INTO ${namespace}_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));` + '\n' + compileSyncTrackingSql(collection.tracking ?? [], namespace) + '\n' + compileAggregateTrackingSql(collection.aggregates ?? [], namespace) + '\n' + sectionsPlatformSchema(manifest, collection.id, namespace);
-  }).join('\n');
-  return technical ? { ...declaration, schema: declaration.schema + '\n' + technical } : declaration;
+INSERT INTO ${namespace}_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));`;
+}
+
+/** Called by the versioned upgrade, before plugin SQL. Existing journals remain outside its write scope. */
+export function preparePluginSyncUpgrade(db: ReplicaDatabase, manifest: PluginManifest, declaration: PluginDatabaseDeclaration) {
+  const library = pluginSyncLibraryManifest(manifest, declaration);
+  const additions = (library.sync?.collections ?? []).flatMap(collection => {
+    const namespace = pluginSyncNamespace(library, collection.id);
+    const existing = db.prepare('SELECT 1 FROM sqlite_schema WHERE type = ? AND name = ?').get('table', `${namespace}_replica_state`);
+    if (existing) return [];
+    const prefix = `${namespace}_`;
+    if (db.prepare('SELECT 1 FROM sqlite_schema WHERE substr(name, 1, ?) = ?').get(prefix.length, prefix)) throw new Error('SYNC_LIBRARY_PARTIAL_JOURNAL');
+    db.exec(pluginSyncJournalSchema(namespace));
+    return [{ collection, namespace }];
+  });
+  if (!additions.length) return undefined;
+  return () => {
+    const project = declaration === manifest.databases?.project ? listProjectRoots(db) : undefined;
+    if (project && project.length !== 1) throw new Error('SYNC_LIBRARY_PROJECT_MISMATCH');
+    bindPluginSyncProject(db, library, project?.[0]?.project_id);
+    if (readDatabaseSpace(db)?.kind !== 'personal') return;
+    for (const { collection, namespace } of additions) {
+      db.exec(syncTrackingSeedSql(collection.tracking ?? [], namespace));
+      db.exec(aggregateTrackingSeedSql(collection.aggregates ?? [], namespace));
+    }
+  };
 }
 
 const shapes = new Map<string, ReturnType<typeof describeSqliteBaseline>>();

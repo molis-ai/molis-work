@@ -75,19 +75,17 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
   // New Goal is the Goals page's one ink-blue button, like every list page's first create action
   // (DESIGN.md → Plugin stage; specs/archive/plugin-e2e-review/spec.md §4 X5, kept by the user after #108):
-  // ink-blue --action fill (#2d4f6c), --action-ink text and glyph, 10px control corners, no outline.
-  // Values follow #1741: it made --action ink blue (DESIGN.md "Ink blue `--action`", the Primary button entry) and
-  // made the default skin 柔雾, whose controls are 10px; the earlier graphite #292a2c and 8px no longer apply.
-  assert.equal(create.bg, "rgb(45, 79, 108)", "New Goal is the ink-blue primary action");
+  // ink-blue --action fill (#1f3c56, calibrated WCAG AA in Batch 91-0b Decision 60), --action-ink text and glyph, 8px control corners (--r-control), no outline.
+  assert.equal(create.bg, "rgb(31, 60, 86)", "New Goal is the ink-blue primary action");
   assert.equal(create.color, "rgb(255, 255, 255)");
   assert.equal(create.icon, create.color);
-  assert.equal(create.radius, "10px");
+  assert.equal(create.radius, "8px");
   assert.equal(create.border, "rgba(0, 0, 0, 0)", "New Goal has no outline");
   const filter = await evaluate<{ bg: string; color: string; radius: string; icon: string; height: number; width: number; border: string }>("(()=>{const button=document.querySelector('[data-tree-filter-trigger]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,height:Math.round(button.getBoundingClientRect().height),width:Math.round(button.getBoundingClientRect().width),border:s.borderTopColor};})()");
   // The filter stays a quiet toolbar control: the ink-4% wash, ink text and glyph, same corners, no outline.
-  assert.equal(filter.bg, "color(srgb 0.121569 0.168627 0.215686 / 0.04)", "Filter keeps the quiet control wash");
-  assert.equal(filter.color, "rgb(31, 43, 55)");
-  assert.equal(filter.icon, "rgb(31, 43, 55)");
+  assert.equal(filter.bg, "color(srgb 0.0823529 0.12549 0.168627 / 0.04)", "Filter keeps the quiet control wash");
+  assert.equal(filter.color, "rgb(21, 32, 43)");
+  assert.equal(filter.icon, "rgb(21, 32, 43)");
   assert.equal(filter.radius, create.radius);
   assert.equal(filter.border, create.border);
   // Standard density controls are 32px tall (DESIGN.md → Density); compact keeps 28px. With room, the filter is named

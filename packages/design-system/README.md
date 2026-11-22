@@ -64,10 +64,10 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 - 栈保持 HTML Slot。新控件用 `render*` / `mw-*`，随共用令牌适应 Soft Workbench 与 Folio。
 - **token 只从基线文件来（`resources/`，经 `src/baseline.ts`）。** 组件规则里不写 hex，不在后面的层重新声明同名 token 换个数，不用 `!important` 或按插件覆盖去"压"前面的规则——改源头。后层绑的别名（`--desk`、`--lift-1/2/3`）留在结构样式里，规格标 `alias_of`，非基线皮肤写它会被拒。
-- **面：** 桌面 `--desk`（=`--page`、`--nav-bg`）承载标题栏和底栏；工作都在一张连续白色纸面 `--paper` 上（14px 圆角、`--sheet-shadow`）；插件目录列和内部块用 `--surface-soft`；局部分组、只读字段与现役 `HEAD` 次按钮静止态用 `--rail` / `--control-fill`（`91-0b` 决定 60 将次按钮升级为 `--paper` + `1px solid var(--line-strong)` 纸面细边，见 `DESIGN.md` 与 `skills/molis-design-ui/`）。插件不要在纸面里再画外框卡片。
+- **面：** 桌面 `--desk`（=`--page`、`--nav-bg`）承载标题栏和底栏；工作都在一张连续白色纸面 `--paper` 上（14px 圆角、`--sheet-shadow`）；插件目录列和内部块用 `--surface-soft`；局部分组与只读字段用 `--rail`，次按钮与输入框统一采用 `--paper` 纸面底 + `1px solid var(--control-border)` 细边（见 `DESIGN.md` 与 `skills/molis-design-ui/`）。插件不要在纸面里再画外框卡片。
 - **色：** 墨蓝 `--action` 只给主操作和选中的选项；雾蓝 `--accent` 给焦点、链接、进行中和选中的小细节（`--blue*` / `--focus` 已指向雾蓝）。雾蓝不填按钮。其余颜色只表达状态（`--green` / `--amber` / `--red`）。插件没有身份色：画插件的地方 `--plugin-tint` 一律是 `--ink-soft`，规则不点任何插件的名字；标签条上一组的颜色是 Manifest 视图的 `hue`。选中行用 `--nav-active`，不加左侧色条。
 - **深度：** 普通内容靠留白、字重和少量发丝线分层；只有浮起来的东西投影：`--lift-1`（当前标签、分段滑块、当前 Dock 项、主按钮）、`--lift-2`（输入胶囊、内层面板）、`--lift-3`（菜单、对话框、边缘面板、提示）。浮层不再画描边。遮罩只变暗不模糊。渐变只用于引导页的环境光。
-- **字：** 现役 `HEAD` 默认系统字体栈 `FONT_STACK`（`91-0b` 决定 60 升级为 F1 `Inter Variable + Noto Sans SC` 真 `400 / 500 / 600` 分片与中文零负字距）；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
+- **字：** 默认 F1 `FONT_STACK`（`Inter Variable` 置顶 + `Noto Sans SC` 真 `400 / 500 / 600` 分片与中文零负字距、`text-autospace: normal`）；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
 - **尺寸：** 控件 32px（紧凑 28，手机/粗指针 44），`--control-h` 只在早层声明，好让密度和触控规则赢。圆角：tag 6、control 8、row 10、card 12、sheet 14、composer 15、dialog 16。
 - **焦点：** 只用 `--focus-stroke`（2px 雾蓝、偏移 1px）；字段是雾蓝边框加 3px 雾蓝光晕。不准用 ink 或浏览器默认蓝描焦点，不准去掉焦点。危险态用 `--red`。
 - **焦点组的局部更新（VUX-28、VUX-36）：** 向页面追加普通正文时，不能因变更的父节点是 `body` 就重新测量全页焦点组；这会把大段代码的布局成本带进无关的键盘维护。`roving-focus` 对子节点增删只标记父节点所属的组，新增子树和属性变化仍检查其中受影响的组；删除、重排、隐藏祖先、禁用与选择变化后仍保留一个有效 Tab 停靠点。本次只收紧已有 DOM 观察范围，不改代码着色、键盘语义或性能门槛。`tests/keyboard-groups.e2e.test.ts` 通过真实页面的几何读取计数验证普通内容变化不再测量无关组，并验证组内更新与原有键盘路径。

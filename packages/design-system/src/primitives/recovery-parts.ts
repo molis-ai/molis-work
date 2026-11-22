@@ -107,7 +107,7 @@ export const RECOVERY_STAGE_PARTS_STYLES = `
 // 4 · Materials 5-number funnel, 5-cell progress track & issue reason row (materials-recovery B); 5 · Scope & model delta card (materials-recovery A).
 export const MATERIALS_RECOVERY_PARTS_STYLES = `
 .mw-file-kind--env{background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber)}
-.mw-file-kind--txt{color:var(--mark-text,var(--ink-soft))}
+.mw-file-kind--txt{color:var(--mark-slate,var(--ink-soft))}
 .mw-mr-funnel>li>b,.mw-mr-funnel>li>span,.mw-mr-delta__copy>small{overflow-wrap:anywhere}
 .mw-mr-cells,.mw-mr-why,.mw-mr-delta__head,.mw-mr-delta__row{font-size:12px}
 .mw-mr-why,.mw-mr-delta__head,.mw-mr-delta__row{display:flex;align-items:center;gap:8px;min-width:0}

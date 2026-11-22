@@ -58,12 +58,16 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tree-pane .tree-guide { height: var(--dir-row-h); min-height: var(--dir-row-h); }
   body.immersive-workbench .tree-pane .tree-title-line strong { line-height: 18px; }
   body.immersive-workbench .tree-pane .mw-dir-row--compact { height: var(--dir-row-h); min-height: var(--dir-row-h); }
-  body.immersive-workbench .tree-pane .settings-directory-nav { display: grid; gap: 0; padding: 4px 8px 16px; }
+  body.immersive-workbench .tree-pane .settings-scope-switch--drawer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: calc(100% - 16px); margin: 4px 8px 4px; }
+  body.immersive-workbench .tree-pane .settings-nav-filter--drawer { padding: 4px 8px 6px; }
+  body.immersive-workbench .tree-pane .settings-nav-filter--drawer > input.mw-input { width: 100%; height: 28px; min-height: 28px; padding: 0 8px; font-size: 12px; border-radius: var(--r-control, 8px); }
+  body.immersive-workbench .tree-pane .settings-directory-nav { display: grid; gap: 1px; padding: 4px 8px 16px; }
   body.immersive-workbench .tree-pane .settings-directory-nav .settings-directory-group { margin: 0; padding: 16px 8px 4px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1.5; }
   body.immersive-workbench .tree-pane .settings-directory-nav .settings-directory-group:first-child { padding-top: 4px; }
+  body.immersive-workbench .tree-pane .settings-directory-nav :is(.settings-directory-group, .mw-dir-row-wrap, .mw-dir-row)[hidden] { display: none; }
   body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row {
     display: flex; justify-content: flex-start; align-items: center;
-    height: 32px; min-height: 32px; padding: 0 8px; border-radius: 10px; gap: 8px;
+    height: 32px; min-height: 32px; padding: 0 8px; border-radius: var(--r-control, 8px); gap: 8px;
     grid-template-columns: none; text-align: left;
   }
   body.immersive-workbench .tree-pane .mw-dir-row.is-selected::before,
@@ -72,6 +76,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tree-pane .mw-dir-row-wrap:has([aria-current="page"])::before { content: none; display: none; width: 0; }
   body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row__copy { flex: none; min-width: 0; text-align: left; }
   body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row__icon { width: 16px; height: 16px; flex: none; color: var(--plugin-tint, var(--muted)); }
+  body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row:is(.is-selected, [aria-current="page"]) .mw-dir-row__icon { color: var(--accent-strong); }
   body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row__icon svg { width: 16px; height: 16px; }
   body.immersive-workbench .tree-pane .mw-dir-row--meta { height: var(--dir-row-2h); min-height: var(--dir-row-2h); }
   /* 4px here + the 8px gap before the drag strip + the tab strip's 4px keep the last titlebar control 16px from the edge. */

@@ -4,6 +4,7 @@ import { RISK_PROJECT_DATABASE } from "./database.js";
 import { RISK_PLUGIN_ID } from "./identity.js";
 import { riskMethods } from "./methods.js";
 import { riskPresentation, riskPresentationActions } from "./presentation.js";
+import { riskSync } from "./replication.js";
 import { riskReviewActions, SCHEDULE_TASKS } from "./review.js";
 import { riskSearchActions } from "./search.js";
 import { RISK_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -38,6 +39,7 @@ export const riskManifest: PluginManifest = {
   read_groups: [{ group_id: "risk", title: "风险", description: "项目里的风险、它们的关联与进展",
     actions: [riskActions.list.capability_id, riskActions.get.capability_id, riskSearchActions.subject.capability_id, riskSearchActions.entries.capability_id] }],
   databases: { project: RISK_PROJECT_DATABASE },
+  sync: riskSync,
   // A risk's review is a Schedule task (review.ts); called as the risk action's caller.
   capabilities: { provides: [], consumes: [...Object.values(SCHEDULE_TASKS).map(reference => reference.capability_id), "search.references"] },
   artifacts: { produces: [], consumes: [] },

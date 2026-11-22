@@ -32,6 +32,6 @@ test("a todo moved away from the placement panel leaves this page: the open deta
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${stay.id}` }, sessionId));
   await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '准备周会材料'`);
   await moved(stay.id, null);
-  await waitFor("document.querySelector('[data-todo-placement-choices] [aria-checked=true]')?.textContent === '个人空间'");
+  await waitFor("document.querySelector('[data-todo-placement-choices] [aria-checked=true] [data-slot=menu-item-label]')?.textContent === '个人空间' && document.querySelector('[data-todo-prop-value=place]').textContent === '个人空间'");
   assert.equal(await evaluate("document.querySelector('[data-todo-stage-workspace]').hidden"), false);
 });

@@ -40,12 +40,12 @@ projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e1
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	a2446b1f1b0d700d	-
 projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	423b08698498fad5	-
 projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
-projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	d1c505276d1b2bda	-
+projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	2	2598fbcecb5c9e39	1
 projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	60eee1da661a2c2a	-
 projects/catalog.db	apps/local-host	1	f704641f25a9cbb2	-
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	2	4ffa2f326552fc84	1
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-
 web-search/web-search.db	apps/local-host	1	8cc2e4721c5a1e6e	-
-work-brief/work-brief.db	io.molis.work.work-brief	1	57259b770650ee22	-
+work-brief/work-brief.db	io.molis.work.work-brief	2	c065145ca5603109	1
 workflows/workflows.db	io.molis.work.native.workflows	1	4bf4b5a14a13db76	-

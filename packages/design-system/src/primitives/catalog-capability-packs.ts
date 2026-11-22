@@ -17,7 +17,7 @@ export const CAPABILITY_PACK_BOARD_STYLES = CAPABILITY_PACK_STYLES + `
   .mw-catalog :is([data-primitive="sticky-detail"], [data-primitive="state-rows"]) .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
   .mw-catalog [data-primitive="replay-grid"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); align-items: start; }
   .mw-catalog [data-primitive="sticky-detail"] .mw-catalog__row { display: block; }
-  .mw-catalog [data-sticky-frame] { height: var(--settings-view-h); overflow: auto; padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-sticky-frame] { height: var(--settings-view-h); overflow: auto; padding: 12px; border-radius: var(--r-row, 10px); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-catalog [data-sticky-frame] > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 `;
 

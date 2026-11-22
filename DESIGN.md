@@ -2,55 +2,58 @@
 name: Molis Work Soft Workbench
 description: A mist-blue desk holding one continuous near-white work surface, a titlebar strip for navigation, a foot of three blocks for who you are, the one input and what waits, ink-blue actions, mist-blue focus and quiet motion.
 colors:
-  desk: "#eef3f7"
-  paper: "#fcfdfe"
-  surface-soft: "#f5f8fb"
-  rail: "#e9f0f6"
-  ink: "#1f2b37"
-  ink-soft: "#45525f"
-  muted: "#586574"
-  faint: "#616d7a"
-  line: "#e0e8ef"
-  line-strong: "#c9d5e0"
-  nav-hover: "ink 5%"
-  nav-active: "ink 8%"
+  desk: "#f5f7fa"
+  paper: "#ffffff"
+  surface-soft: "#f8fafc"
+  rail: "#eff3f8"
+  ink: "#15202b"
+  ink-soft: "#3e4c5a"
+  muted: "#5a6877"
+  faint: "#63707f"
+  line: "#e4e9ef"
+  line-strong: "#cbd4de"
+  nav-hover: "ink 4%"
+  nav-active: "ink 7%"
   nav-press: "ink 11%"
-  action: "#2d4f6c"
-  action-hover: "#3a6283"
+  action: "#1f3c56"
+  action-hover: "#284c6c"
   action-ink: "#ffffff"
-  accent: "#3c6e98"
-  accent-strong: "#2e5778"
-  accent-soft: "#e4eef7"
-  green: "#367556"
-  amber: "#8c5f0c"
-  red: "#b2454c"
-  scrim: "rgba(24, 38, 54, .16)"
-  popover: "#fcfdfe"
+  accent: "#316896"
+  accent-strong: "#245278"
+  accent-soft: "#e8f1f8"
+  green: "#1e724d"
+  amber: "#925700"
+  red: "#b83640"
+  edge-highlight: "rgba(255, 255, 255, .95)"
+  scrim: "rgba(21, 32, 43, .15)"
+  popover: "#ffffff"
   on-accent: "#ffffff"
-  dark-desk: "#141a20"
-  dark-paper: "#1b2229"
-  dark-surface-soft: "#1f272f"
-  dark-rail: "#26303a"
-  dark-ink: "#e8eef3"
-  dark-ink-soft: "#bac6d1"
-  dark-muted: "#9aa8b5"
-  dark-faint: "#8e9ba8"
-  dark-line: "#2c3640"
-  dark-line-strong: "#3f4b57"
-  dark-nav-hover: "ink 7%"
-  dark-nav-active: "ink 11%"
-  dark-nav-press: "ink 15%"
-  dark-action: "#dbe6ef"
-  dark-action-hover: "#f0f5f9"
-  dark-action-ink: "#17212b"
-  dark-accent: "#8fb8dc"
-  dark-accent-strong: "#b5d1ea"
-  dark-accent-soft: "#1e2d3b"
-  dark-green: "#86c0a0"
-  dark-amber: "#d8b46e"
-  dark-red: "#ec8a90"
-  dark-scrim: "rgba(0, 0, 0, .5)"
-  dark-popover: "#232c35"
+  dark-desk: "#0f1318"
+  dark-paper: "#192029"
+  dark-surface-soft: "#151b22"
+  dark-rail: "#212a36"
+  dark-ink: "#ecf1f6"
+  dark-ink-soft: "#b6c2cf"
+  dark-muted: "#95a5b5"
+  dark-faint: "#8797a6"
+  dark-line: "#252f3b"
+  dark-line-strong: "#374556"
+  dark-nav-hover: "ink 6%"
+  dark-nav-active: "ink 10%"
+  dark-nav-press: "ink 14%"
+  dark-action: "#e4edf6"
+  dark-action-hover: "#f5f9fc"
+  dark-action-ink: "#101924"
+  dark-accent: "#7ab3e0"
+  dark-accent-strong: "#a3ccee"
+  dark-accent-soft: "#1a2a3a"
+  dark-green: "#64c898"
+  dark-amber: "#ebb75a"
+  dark-red: "#f17c85"
+  dark-edge-highlight: "rgba(255, 255, 255, .068)"
+  dark-scrim: "rgba(0, 0, 0, .52)"
+  dark-popover: "#202935"
+  dark-on-accent: "#0d1620"
   tone-progress: "{colors.accent}"
   tone-attention: "{colors.amber}"
   tone-blocked: "{colors.red}"
@@ -58,11 +61,11 @@ colors:
   tone-quiet: "{colors.faint}"
 typography:
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Source Han Sans SC, Inter Variable, Inter, Noto Sans SC, system-ui, sans-serif"
+    fontFamily: "Inter Variable, Inter, Noto Sans SC, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Source Han Sans SC, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 400
-    lineHeight: 1.5
-    letterSpacing: "-.011em"
+    lineHeight: 1.58
+    letterSpacing: "0 (CJK) / -.011em (:lang(en))"
   control:
     fontSize: "13px"
     fontWeight: 500
@@ -131,11 +134,13 @@ components:
     height: "{sizes.control}"
     shadow: "shadow-soft"
   button-secondary:
-    backgroundColor: "control-fill (ink 4%)"
+    backgroundColor: "{colors.paper}"
+    border: "1px solid {colors.line-strong}"
     textColor: "{colors.ink}"
     fontWeight: 500
     rounded: "{rounded.control}"
     height: "{sizes.control}"
+    shadow: "shadow-soft"
   input:
     backgroundColor: "{colors.paper}"
     border: "1px ink 12%"
@@ -230,25 +235,26 @@ A later layer never re-declares a colour or metric with a different number; the 
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--desk` (`--page`, `--nav-bg`) | `#eef3f7` | `#141a20` | Titlebar, the foot, the space around sheets |
-| `--paper` (`--surface`, `--panel`, `--canvas`) | `#fcfdfe` | `#1b2229` | The work sheet, dialogs, menus, the composer; `--canvas` is a full-pane canvas inside the sheet |
-| `--surface-soft` | `#f5f8fb` | `#1f272f` | Plugin directory columns, inner blocks, pane tab strips |
-| `--rail` (`--wash`) | `#e9f0f6` | `#26303a` | Local groups, read-only fields, secondary buttons at rest |
-| `--ink` | `#1f2b37` | `#e8eef3` | Titles and body |
-| `--ink-soft` | `#45525f` | `#bac6d1` | Directory titles, secondary copy, glyphs |
-| `--muted` / `--faint` | `#586574` / `#616d7a` | `#9aa8b5` / `#8e9ba8` | Captions, counts, placeholders (`--faint` is the WCAG floor on paper) |
-| `--line` / `--line-strong` | `#e0e8ef` / `#c9d5e0` | `#2c3640` / `#3f4b57` | Hairlines where a boundary carries meaning |
-| `--nav-hover` / `--nav-active` / `--nav-press` | ink 5 / 8 / 11% | ink 7 / 11 / 15% | Row hover, selected row, press — composite over any surface |
+| `--desk` (`--page`, `--nav-bg`) | `#f5f7fa` | `#0f1318` | Titlebar, the foot, the space around sheets |
+| `--paper` (`--surface`, `--panel`, `--canvas`) | `#ffffff` | `#192029` | The work sheet, dialogs, menus, the composer; `--canvas` is a full-pane canvas inside the sheet |
+| `--surface-soft` | `#f8fafc` | `#151b22` | Plugin directory columns, inner blocks, pane tab strips |
+| `--rail` (`--wash`) | `#eff3f8` | `#212a36` | Local groups, read-only fields, section wells |
+| `--ink` | `#15202b` | `#ecf1f6` | Titles and body |
+| `--ink-soft` | `#3e4c5a` | `#b6c2cf` | Directory titles, secondary copy, glyphs |
+| `--muted` / `--faint` | `#5a6877` / `#63707f` | `#95a5b5` / `#8797a6` | Captions, counts, placeholders (`--faint` meets ≥ 4.5:1 across all four surfaces in both themes) |
+| `--line` / `--line-strong` | `#e4e9ef` / `#cbd4de` | `#252f3b` / `#374556` | Hairlines where a boundary carries meaning |
+| `--edge-highlight` | `rgba(255,255,255,.95)` | `rgba(255,255,255,.068)` | 1px top-edge specular sheen on raised cards, sheets, and grouped containers |
+| `--nav-hover` / `--nav-active` / `--nav-press` | ink 4 / 7 / 11% | ink 6 / 10 / 14% | Row hover, selected row, press — composite over any surface |
 
-Body copy uses ink or ink-soft, never muted. Do not stack extra opacity on faint or muted type. Every text token meets 4.5:1 on its own surface in both themes (checked separately for Light and Dark). Browser defaults never show through: `accent-color`, `caret-color`, `::selection`, `mark`, `::placeholder` and autofill all take tokens, and there is no system blue anywhere in the interface.
+Body copy uses ink or ink-soft, never muted. Do not stack extra opacity on faint or muted type. Every text token meets 4.5:1 on all four surfaces (`--page`, `--paper`, `--surface-soft`, `--rail`) in both themes across all four built-in skins (256 ink × surface pairs verified). Browser defaults never show through: `accent-color`, `caret-color`, `::selection`, `mark`, `::placeholder` and autofill all take tokens, and there is no system blue anywhere in the interface.
 
-**Layers.** Light: desk → paper, with floating things on the same near-white separated by `--lift-3` alone. Every plane is tinted toward the accent's blue; there is no large neutral grey (user 2026-11-03). Dark shows three distinct layers — desk `#141a20`, paper `#1b2229`, and `--popover` `#232c35` for menus, popovers, dialogs and the Assistant panel — edged by a light ring instead of a heavier shadow.
+**Layers.** Light: sunlit bright desk `#f5f7fa` → pure white paper `#ffffff`, with floating things separated by `--lift-3` alone and recessed section wells on `--surface-soft` / `--rail`. Dark shows three distinct porcelain-slate layers — desk `#0f1318`, paper `#192029`, and `--popover` `#202935` for menus, popovers, dialogs and the Assistant panel — edged by a crisp 1px top specular highlight (`--edge-highlight`) and subtle light ring instead of heavy muddy shadows.
 
 ### Primary
 
-Ink blue `--action` (`#2d4f6c`, Dark `#dbe6ef`), the accent's deep shade, with `--action-ink` fills the primary button, a selected choice, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
+Ink blue `--action` (`#1f3c56`, Dark `#e4edf6` with `--action-ink: #101924`), the accent's deep shade, fills the primary button, a selected choice, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover` (`#284c6c`, Dark `#f5f9fc`). There is exactly one filled primary per decision.
 
-Mist blue `--accent` (`#3c6e98`, Dark `#8fb8dc`) marks keyboard focus, text links, work in progress (`--tone-progress`) and a field's focus halo. `--accent-soft` is its wash (new-item landing, accent tags, the current row of the independent settings page's category column). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to the accent. The accent never fills a primary button. The palette was chosen on the component board from three candidates (mist, celadon, indigo; user 2026-11-03): immersive for long work, not sharp, no brown-red.
+Mist blue `--accent` (`#316896`, Dark `#7ab3e0`, `--on-accent: #0d1620`) marks keyboard focus, text links, work in progress (`--tone-progress`) and a field's focus halo. `--accent-soft` (`#e8f1f8`, Dark `#1a2a3a`) is its wash (new-item landing, accent tags, the current row of the independent settings page's category column). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to the accent. The accent never fills a primary button. The palette was chosen on the component board from three candidates (mist, celadon, indigo; user 2026-11-03) and calibrated to Sunlit Bright + Serene Porcelain in Decision 60 (`91-0b`): immersive for long work, bright without glare, never muddy.
 
 ### Status
 
@@ -279,7 +285,7 @@ Each colour has one meaning, and the meanings never trade places (adopted by the
 
 ## Typography
 
-**Face.** Current `HEAD` uses the system sans: SF Pro / PingFang SC on macOS, Segoe UI / Microsoft YaHei on Windows, with self-hosted Inter Variable and Noto Sans SC Regular as offline fallbacks (`font-synthesis-weight: none`, so a missing weight never renders as faux bold). Decision 60 (`91-0b`) upgrades the default stack to F1 (`Inter Variable` + true 400 / 500 / 600 `Noto Sans SC`, zero negative tracking on CJK prose, `text-autospace: normal`, `1.58` body line-height; see `## Skins` below). `--font-mono` (`MONO_FONT_STACK`) is for commands, identifiers, code and measured values.
+**Face.** F1 Sans + Chinese (Decision 60): self-hosted `Inter Variable` leads the stack for crisp Latin glyphs and numerals (`font-feature-settings: "cv02", "cv03", "cv04", "cv11"`), paired with true `400 / 500 / 600` weights of `Noto Sans SC` (self-hosted optimized subsets) and system fallbacks (`Source Han Sans SC`, `PingFang SC`, `Hiragino Sans GB`, `Microsoft YaHei UI`). `font-synthesis-weight: none` prevents faux bold; `text-autospace: normal` adds natural breathing room between CJK and Latin/digits. `--font-mono` (`MONO_FONT_STACK`) is for commands, identifiers, code and measured values.
 
 **Weights.** Three roles, exposed as variables:
 
@@ -289,7 +295,7 @@ Each colour has one meaning, and the meanings never trade places (adopted by the
 
 `TYPEFACE_STYLES` sets these on `:where()` selectors with no `!important`; a component that needs a role uses the variable. There is no global weight override.
 
-**Scale.** Eight fixed steps and no fluid sizes: **11 / 12 / 13 / 15 / 17 / 20 / 24 / 30px**, and a page uses at most four of them. Body 13px / 1.5 at `-.011em`. Captions, counts and meta 12px; 11px only for the smallest group labels. Directory titles 13px. Section and dialog titles 15px / 600. Page headings 24px / 600 at `-.02em` (20px on phones); display (Home heading, a Goal document title, onboarding question, settings heading) 30px / 600 at `-.03em`. Reading bodies use 13–15px with 1.6–1.8 line height, bounded to 76ch. Fields use 16px at 760px and below so iOS does not zoom. Only content itself goes above 30px (a Pages document title, the onboarding greeting word). `tests/soft-workbench-refinement.test.ts` enforces the steps.
+**Scale.** Eight fixed steps and no fluid sizes: **11 / 12 / 13 / 15 / 17 / 20 / 24 / 30px**, and a page uses at most four of them. Body 13px / 1.58 with `letter-spacing: 0` on Chinese/mixed copy (`-.011em` scoped to `:lang(en)` only). Captions, counts and meta 12px; 11px only for the smallest group labels. Directory titles 13px. Section and dialog titles 15px / 600. Page headings 24px / 600 at `-.02em` (20px on phones); display (Home heading, a Goal document title, onboarding question) 30px / 600 at `-.03em`. Reading bodies use 13–15px with 1.6–1.8 line height, bounded to 76ch. Fields use 16px at 760px and below so iOS does not zoom. Only content itself goes above 30px (a Pages document title, the onboarding greeting word). `tests/soft-workbench-refinement.test.ts` enforces the steps.
 
 **Roles.** A size belongs to a role, never to a component, so one kind of thing reads the same on every page (user 2026-10-22). Each step down the list is a step back in attention: the eye meets size first, weight second and contrast third, and it goes to the largest, darkest thing before it reads anything.
 
@@ -351,7 +357,7 @@ What the foot and the conversation show, and whose facts they are, is in specs/w
 
 **Goal workspace.** An opened Goal fills its pane's sheet beneath the tabs: no further inset and no extra shadow. A compact toolbar keeps Back on the left. Runtime owns the flexible main column; a closable 300px rail holds Goal information and the inline timeline, and below an 840px Goal-workspace width that rail overlays the work at up to 330px. Reading and recording keep fixed headings and actions with internally scrolling content.
 
-**Settings.** Global and project settings open in the workbench as covers over the panes, and converge onto one shared P5 shell and row system across the workbench cover and independent `/settings*` and `/projects/{id}/settings*` routes (see [`skills/molis-design-ui/settings-pages.md`](skills/molis-design-ui/settings-pages.md)). Global settings are one grouped list of six groups shared by the cover and the independent page (本机 · 个人 · AI · 工具与接入 · 系统 · 插件): a plugin's settings page is placed by the order its Manifest gives the view and joins the group of the host page it follows. Every `/settings/*` link inside the workbench opens in the cover; 能力 opens its own cover from the same list. 角色 (Characters) is a settings page: its roles open their prompts in the same cover, and Back returns to 角色. Current `HEAD` renders a 220px category column alongside a document column up to 760px wide whose left edge stays put at every width; Decision 60 (`91-0b`) unifies both cover and independent routes on a 228px `--surface-soft` rail (with a Global / Current-Project scope switcher when opened from a project, an instant sidebar filter, 32px 8px-radius rows, 11px / 500 group labels, `--nav-active`, and removal of legacy 36px input overrides / private `settings-switch` / hardcoded 84px offsets in favour of `var(--desktop-window-safe-inline-start, 88px)`). Every settings page is written the same way: a 24px / 600 heading with at most one 13px sentence under it, then titled sections — the 15px / 600 title outside, one paper card of rows under it, one thing per row with a single standard 32px shared `mw-*` control on the right; what does not fit a row opens in place under it (`mw-setting-fold`), and a problem that concerns the whole page is said once at the top (`renderSettingsSection`, `renderSettingRow`, `renderObjectRow`, `renderQuestionList` and `renderListToolbar` in the plugin SDK; specimen on the component board's 设置的行 section, `/__ui/catalog#settings-rows`). At 760px and below categories become return-plus-links above the content, forms stack and content padding becomes 24px 20px 48px. The project index is a full-page arrival surface with its own brand, search and device-settings entry. When a page, an ordinary settings link, the Assistant's 继续接入 or an in-place connection card sent the person into the settings (a return trip, `specs/draft-and-return/spec.md`), the settings surface carries one return bar at the top of its document column (`mw-return-bar` over `mw-alert`, the same 760px measure): 「从「<来处>」来」, one line of state — waiting (「配好模型后自动回去，你写的都还在。」), look (nothing to set up: 「看完点「回去」」), ready (success tone) or gone (the place was closed; the settings stay) — and one secondary button, 现在回去 while waiting and 回去 otherwise. It is announced as a status, reachable by keyboard, never covers the page's own controls, and the connections page's 「连好以后」 gives way to it. Setting up what the trip needed closes the cover onto where the person came from with a toast; a page that was blocked then asks once with the shared resume prompt (`mw-resume-prompt`: a success alert, then the step named by the page as the primary button and a secondary dismiss) and never does the step by itself.
+**Settings.** Global and project settings open in the workbench as covers over the panes, and share the exact same shell and P5 row system as independent `/settings*` and `/projects/{id}/settings*` routes (see [`skills/molis-design-ui/settings-pages.md`](skills/molis-design-ui/settings-pages.md)). Global settings are one grouped list of six groups shared by the cover and the independent page (本机 · 个人 · AI · 工具与接入 · 系统 · 插件): a plugin's settings page is placed by the order its Manifest gives the view and joins the group of the host page it follows. Every `/settings/*` link inside the workbench opens in the cover; 能力 opens its own cover from the same list. 角色 (Characters) is a settings page: its roles open their prompts in the same cover, and Back returns to 角色. Both the cover and independent `/settings*` routes share one 228px `--surface-soft` rail (with a Global / Current-Project scope switcher when opened from a project, an instant sidebar filter, 32px 8px-radius rows, 11px / 500 group labels, and `--nav-active` for the active item — no 50px legacy rows, no left inset accent bars) and a document column up to 760px wide whose left edge stays put at every width, so headings and cards line up from page to page. Every settings page is written the same way: a 24px / 600 heading with at most one 13px sentence under it, then titled sections — the 15px / 600 title outside, one paper card of rows under it, one thing per row with a single standard 32px shared `mw-*` control on the right (no 36px input override or private `settings-switch`); what does not fit a row opens in place under it (`mw-setting-fold`), and a problem that concerns the whole page is said once at the top (`renderSettingsSection`, `renderSettingRow`, `renderObjectRow`, `renderQuestionList` and `renderListToolbar` in the plugin SDK; specimen on the component board's 设置的行 section, `/__ui/catalog#settings-rows`). Independent desktop pages read `var(--desktop-window-safe-inline-start, 88px)` instead of hardcoded pixel offsets. At 760px and below categories become return-plus-links above the content, forms stack and content padding becomes 24px 20px 48px. The project index is a full-page arrival surface with its own brand, search and device-settings entry. When a page, an ordinary settings link, the Assistant's 继续接入 or an in-place connection card sent the person into the settings (a return trip, `specs/draft-and-return/spec.md`), the settings surface carries one return bar at the top of its document column (`mw-return-bar` over `mw-alert`, the same 760px measure): 「从「<来处>」来」, one line of state — waiting (「配好模型后自动回去，你写的都还在。」), look (nothing to set up: 「看完点「回去」」), ready (success tone) or gone (the place was closed; the settings stay) — and one secondary button, 现在回去 while waiting and 回去 otherwise. It is announced as a status, reachable by keyboard, never covers the page's own controls, and the connections page's 「连好以后」 gives way to it. Setting up what the trip needed closes the cover onto where the person came from with a toast; a page that was blocked then asks once with the shared resume prompt (`mw-resume-prompt`: a success alert, then the step named by the page as the primary button and a secondary dismiss) and never does the step by itself.
 
 Native window drag regions and fullscreen-aware safe insets remain platform-owned. Tabs, buttons and resizers stay outside native system controls and are never drag regions. Overlay traffic lights sit in the titlebar (`trafficLightPosition.y = 10`); the titlebar's box starts after that inset.
 
@@ -394,6 +400,8 @@ What sits together lines up, so a page reads tidy before anyone reads a word (us
 - **Words take the scale** (Typography): 11 / 12 / 13 / 15 / 17 / 20 / 24 / 30px, at most four on a page; no 10, 13.5 or 14px. Code, fields and an editor's own canvas keep their sizes.
 - **Corners take the scale** (Corners): 4 for a mark, 6 a tag, 8 a control, 10 a row, 12 a card, 14 a sheet, 16 a dialog, a capsule or a circle; a box around a rounded part is concentric with it. No 5, 7 or 9px. Density and theme change no corner and repaint no status; a skin has its own scale (Skins).
 - **Information has a place.** A list page is heading, one sentence, actions, then the list in one column; a row is lead mark, title, facts, then trailing actions, in that order on every plugin's page.
+- **Six Laws of Alignment & Inset Grouped hierarchy.** Every list, card, well (`.mw-section-well`), and inset group (`.mw-inset-group` / `.mw-inset-row`) aligns to shared grid axes: (1) shared fixed column widths (`--master-w: 240px`, `--master-w-wide: 280px`, `--measure-form: 760px`), (2) first-line optical axis (`22px` line-height lock for leading icons and marks), (3) single text-start axis (`--text-start: 44px`, so inset hairlines and expandable inline drawers align cleanly with text and never slice leading icons), (4) tabular numerals (`tabular-nums`) and right-aligned metric columns, (5) concentric radii (`R_outer - padding = R_inner`, e.g. `14px` well + `4px` pad → `10px` inner card), and (6) zero-refresh continuous motion (persistent DOM + FLIP `molisListTransition` / `molisReflow` height breathing + optical ink-soak `molisStreamText` v2).
+- **Icon + color first, zero redundant status prose.** Communicate routine status via crisp vector semantic glyphs (`.mw-glyph-status`, `.mw-signal-dot`, `.mw-signal`, `renderStateRing`) + color + subtle motion rather than verbose text pills; keep secondary explanation behind on-demand disclosure rather than cluttering rows.
 
 `tests/visual-order.e2e.test.ts` reads the project page, thirteen plugin pages, settings and the component board in light, and the pages that lay out differently in dark, compact density and on a touch phone, and fails on a mark, an icon, a font size, a corner or a row of buttons out of order (the audit is `tests/fixtures/order-audit.ts`; the few places it leaves out are listed there with why).
 
@@ -416,14 +424,14 @@ Status presentation uses the shared twelve-segment state ring (`renderStateRing`
 
 ## Skins
 
-The Home chooses a skin from Settings › Interface and language (day-to-day UI engineering guide: [`skills/molis-design-ui/SKILL.md`](skills/molis-design-ui/SKILL.md)). Current `HEAD` ships `soft-workbench@1` and `folio@1`; Decision 60 (`91-0b`) expands and calibrates the four official built-in skins sharing one semantic token contract and WCAG AA Light/Dark floor:
+The Home chooses a skin from Settings › Interface and language (day-to-day UI engineering guide: [`skills/molis-design-ui/SKILL.md`](skills/molis-design-ui/SKILL.md)). Four official built-in skins share the same semantic token contract and WCAG AA Light/Dark floor (Decision 60, implemented in `91-0b`):
 
-1. **`soft-workbench@1` (Default · A 净透云光)**: Upgraded in `91-0b` to retain mist-blue warmth without muddiness — crisp white paper, deep sea ink-teal primary action, paper-bordered secondary buttons and inputs, and cobalt focus.
-2. **`pure-studio@1` (B 极净原生, `[91-0b]`)**: High-clarity neutral desk with obsidian primary actions, reserving all hue for true semantic states.
-3. **`warm-atelier@1` (C 温润纸案, `[91-0b]`)**: Warm vellum desk, ivory paper, and deep pine-teal actions tuned for long reading and reflection.
-4. **`folio@1` (Folio 书卷)**: Apricot paper and evergreen palette in [its approved baseline](docs/design/folio-baseline/README.md), with full token parity completed in `91-0b` and recommending Folio Rounded.
+1. **`soft-workbench@1` (Default · A 净透云光)**: Upgraded Soft Workbench retaining mist-blue warmth without muddiness — crisp white paper, deep sea ink-teal primary action, paper-bordered secondary buttons and inputs, and cobalt focus.
+2. **`pure-studio@1` (B 极净原生)**: High-clarity neutral desk with obsidian primary actions, reserving all hue for true semantic states.
+3. **`warm-atelier@1` (C 温润纸案)**: Warm vellum desk, ivory paper, and deep pine-teal actions tuned for long reading and reflection.
+4. **`folio@1` (Folio 书卷)**: Apricot paper and evergreen palette in [its approved baseline](docs/design/folio-baseline/README.md), with full parity across all baseline tokens and recommending Folio Rounded.
 
-**Typography (F1 Sans + Chinese, Decision 60, `[91-0b]`).** `91-0b` upgrades the default Sans stack so `Inter Variable` sits first for crisp Latin glyphs and tabular numerals (`cv02`, `cv03`, `cv04`, `cv11`, `tabular-nums`) paired with true 400 / 500 / 600 weights of `Source Han Sans SC / Noto Sans SC` (common + tail subsets), zero negative tracking on Chinese prose (`letter-spacing: 0` on CJK, `-0.011em` only on `:lang(en)`), `text-autospace: normal`, and `1.58` body line-height (replacing current `HEAD`'s system-sans default and `-0.011em / 1.5` body tracking).
+**Typography (F1 Sans + Chinese, Decision 60).** The default Sans stack places `Inter Variable` first for crisp Latin glyphs and tabular numerals (`cv02`, `cv03`, `cv04`, `cv11`, `tabular-nums`) paired with true 400 / 500 / 600 weights of `Source Han Sans SC / Noto Sans SC` (common + tail subsets), zero negative tracking on Chinese prose (`letter-spacing: 0` on CJK, `-0.011em` only on `:lang(en)`), `text-autospace: normal`, and `1.58` body line-height.
 
 Each skin uses the roles in `packages/design-system/resources/ui-spec.json`. The Design System turns those roles into the page, specimen and recovery CSS scopes. Phones and coarse pointers retain the 44px touch targets. The component board renders the Home’s appearance (including all sub-frame routes via `appearanceHead()`) and the same component catalog that Builder uses.
 
@@ -505,7 +513,7 @@ Four rules every part keeps (user 2026-11-03):
 ### Buttons
 
 - **Primary** (`mw-btn--primary`): ink-blue fill, `--action-ink`, 500 weight, 8px corners, 32px, `--lift-1`; hover `--action-hover`. One per decision.
-- **Secondary** (`mw-btn--secondary`): current `HEAD` uses a borderless `--control-fill` wash with ink text (Decision 60 / `91-0b` upgrades secondary buttons to `--paper` with a 1px `--line-strong` hairline border and `--lift-1`); hover one step deeper. Its size is the button's own (`--sm` 28, default 32, `--lg` 36 with 15px words, 16px padding and 16px glyphs), like every variant.
+- **Secondary** (`mw-btn--secondary`): borderless `--control-fill` wash, ink text; hover one step deeper. Its size is the button's own (`--sm` 28, default 32, `--lg` 36 with 15px words, 16px padding and 16px glyphs), like every variant.
 - **Ghost** (`mw-btn--ghost`): transparent with a `--line-strong` outline, so a button with words never reads as plain text (user 2026-11-03); hover `--nav-hover`, press `--nav-press`. A ghost that is only an icon stays bare.
 - **Link** (`mw-btn--link`): accent text, underline on hover; only inside a sentence.
 - **Danger** (`mw-btn--danger`): red fill with page-coloured text, for the step that actually destroys something (usually inside an alert dialog). `mw-btn--danger-outline` is red text with a faint red boundary for a destructive entry point.
@@ -572,7 +580,7 @@ The screens a person passes through on the way into the work — the **project c
 
 ## Component board
 
-`/__ui/catalog` is built from the production renderers and styles. Like the workbench, its specimens lie on one white sheet on the desk; the header holds the language, theme and skin switches, and a section opens on its specimens, not on a paragraph about them. The index is grouped into chapters, in the order the board is read — 设计语言, 图标与状态, 控件, 反馈与浮层, 列表与条目, 模式与场景, 平台区域 — and its find field narrows it to the names that hold what was typed (Enter opens the first, Escape clears). The board opens with the design language: **设计原则** (the three questions and the five pairing rules), **色彩搭配** (the roles together on one sheet, the colour-temperature table, the measured contrast of each ink on each surface in the current theme, the five identity hues), **布局分区** (each zone's question, surface and motion) and, at the head of 动效标本, the motion grammar. Sections: 色板 (desk, surface, soft, wash, line; ink blue, mist blue, status), 字体 (role specimens at 600/500/400), 空间 · 层次 · 动效 (lifts, corners, motion table, the desk–sheet–bar diagram), buttons, choice, fields, segmented, checks and switches, menus and popovers, dialogs and sheets, directory rows, status, toasts and alerts, empty states, **到达** (the way in's parts, below), icons, **图标清单** (every plugin's glyph, the state glyphs, sizes and strokes, and the empty / loading / failed trio), **动效标本** (one clickable specimen per motion moment), **服务连接** (a service row that opens in place, the step marks with the line that says which step, and the card that connects where a connection is missing and folds into one line; plan A of the service-connection decision), and **compositions**: list + detail split, toolbar + filter menu, form with errors, a menu inside a dialog, long content with nested scroll, and narrow width with density. `/__ui/catalog/bar` renders the real bottom bar (Dock, switcher, composer, residents, project menu) with the workbench stylesheet. A shared control, state or motion that meets the bar belongs on the board.
+`/__ui/catalog` is built from the production renderers and styles. Like the workbench, its specimens lie on one white sheet on the desk; the header holds the language, theme and skin switches, and a section opens on its specimens, not on a paragraph about them. Host chapters are injected structurally via `CatalogExtraChapter` (`extraChapters`), with dynamic sticky-index spanning and instant chapter filter chips (`[data-catalog-chapter]`) alongside the find field (Enter opens the first, Escape clears). All sub-frame board routes (`/bar`, `/navigation`, `/conditions`, `/assistant`) carry `appearanceHead()` so live skin, font and theme switches propagate everywhere. The index is grouped into chapters, in the order the board is read — 设计语言, 图标与状态, 控件, 反馈与浮层, 列表与条目, 模式与场景, 平台区域 — including live interactive specimens for Inset Grouped alignment and `#platform-feedback` (`molisBusy`, `molisToast`, `molisAutosave`, `molisOptimisticToggle`, `20px` state ring morphing, danger confirm dialog, date/time enhancer). The board opens with the design language: **设计原则** (the three questions and the five pairing rules), **色彩搭配** (the roles together on one sheet, the colour-temperature table, the measured contrast of each ink on each surface in the current theme, the five identity hues), **布局分区** (each zone's question, surface and motion) and, at the head of 动效标本, the motion grammar. Sections: 色板 (desk, surface, soft, wash, line; ink blue, mist blue, status), 字体 (role specimens at 600/500/400), 空间 · 层次 · 动效 (lifts, corners, motion table, the desk–sheet–bar diagram), buttons, choice, fields, segmented, checks and switches, menus and popovers, dialogs and sheets, directory rows, status, toasts and alerts, empty states, **到达** (the way in's parts, below), icons, **图标清单** (every plugin's glyph, the state glyphs, sizes and strokes, and the empty / loading / failed trio), **动效标本** (one clickable specimen per motion moment), **服务连接** (a service row that opens in place, the step marks with the line that says which step, and the card that connects where a connection is missing and folds into one line; plan A of the service-connection decision), and **compositions**: list + detail split, toolbar + filter menu, form with errors, a menu inside a dialog, long content with nested scroll, and narrow width with density. `/__ui/catalog/bar` renders the real bottom bar (Dock, switcher, composer, residents, project menu) with the workbench stylesheet. A shared control, state or motion that meets the bar belongs on the board.
 
 ## Components in the workbench
 

@@ -12,7 +12,7 @@ interface CharacterDiscoveryOptions { userHome: string; env?: NodeJS.ProcessEnv;
 
 /** A command name more than one tool ships. */
 const sharedCommand = (name: string): boolean =>
-  EXTERNAL_TOOLS.filter(tool => "detect" in tool && (tool.detect.commands as readonly string[]).includes(name)).length > 1;
+  EXTERNAL_TOOLS.filter(tool => tool.detect?.commands.includes(name)).length > 1;
 
 /** The browser submits only a candidate id. Captured file contents never come from a browser request. */
 export function createCharacterDiscovery(options: CharacterDiscoveryOptions) {

@@ -1,4 +1,6 @@
 import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
+import { sandboxHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
 /** Expand the author's compact vocabulary for the strict validators. Map known variants and record dropped fields;
  * never invent behavior. */
@@ -816,9 +818,16 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
     dropped.push('验收都依赖别处的数据变化，改为检查列表能显示别处的记录');
   }
   if (!acceptance.browser.length) fail('细化方案', '验收时别处（其他插件、平台）的数据是固定替身：列表总有一条「示例」记录，写入后也不会变化。至少写一条能通过的验收：检查操作后界面给出的反馈，或插件自己保存的内容');
+  const rawHelp = design.help ?? (object(design.contract) ? (design.contract as Json).help : undefined);
+  let help: UiHelpDeclaration | undefined;
+  if (rawHelp !== undefined) {
+    const helpProblems = sandboxHelpDeclarationProblems({ pluginId, help: rawHelp as UiHelpDeclaration });
+    if (helpProblems.length === 0) help = rawHelp as UiHelpDeclaration;
+    else dropped.push(`按需帮助声明格式无效（${helpProblems[0]}），已改由宿主按页面与真实能力自动生成`);
+  }
   const journey = steps(pick(design, 'journey', 'journal'));
   return { id: base.id, title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
-    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser,
+    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract, ...(help ? { help } : {}) }, parts, acceptance: acceptance.browser,
     ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}), ...(ui ? { ui } : {}) };
 }

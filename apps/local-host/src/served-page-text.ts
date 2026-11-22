@@ -1,4 +1,4 @@
-import { transformSync } from "esbuild";
+import { transform } from "esbuild";
 
 /**
  * Comments in the shared workbench sheet are notes for people reading the source. The browser does not apply them,
@@ -77,10 +77,13 @@ function dedentServedCss(source: string): string {
   return out;
 }
 
-/** Compact the original program with its public names and literal text intact; parse failure leaves it unchanged. */
-export function tightenServedJs(source: string): string {
+/**
+ * Compact the original program with its public names and literal text intact; parse failure leaves it unchanged. Off the main thread
+ * (batch 103-2): esbuild works in its own process, so a first request for a large program no longer stops every other request.
+ */
+export async function tightenServedJs(source: string): Promise<string> {
   try {
-    const minified = transformSync(source, { loader: "js", minifyIdentifiers: true, minifyWhitespace: true, minifySyntax: true, legalComments: "none", charset: "utf8" }).code;
+    const minified = (await transform(source, { loader: "js", minifyIdentifiers: true, minifyWhitespace: true, minifySyntax: true, legalComments: "none", charset: "utf8" })).code;
     return Buffer.byteLength(minified) < Buffer.byteLength(source) ? minified : source;
   } catch {
     // Non-program asset fixtures keep their exact content, as does any script the parser cannot handle.
@@ -89,8 +92,12 @@ export function tightenServedJs(source: string): string {
 }
 
 /** Parse-aware whitespace compaction preserves selector tokens, strings and custom-property values. */
-export function tightenServedCss(source: string): string {
-  const original=dedentServedCss(stripServedCssComments(source));
-  try {const result=transformSync(original,{loader:"css",minifyWhitespace:true,legalComments:"none",charset:"utf8"}).code;return Buffer.byteLength(result)<Buffer.byteLength(original)?result:original;}
-  catch {return original;}
+export async function tightenServedCss(source: string): Promise<string> {
+  const original = dedentServedCss(stripServedCssComments(source));
+  try {
+    const result = (await transform(original, { loader: "css", minifyWhitespace: true, legalComments: "none", charset: "utf8" })).code;
+    return Buffer.byteLength(result) < Buffer.byteLength(original) ? result : original;
+  } catch {
+    return original;
+  }
 }

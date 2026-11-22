@@ -26,18 +26,20 @@ test("链的编辑：加站、拿掉、调顺序时，每段衔接跟着它连�
   chain = insertStation(chain, 1, newStation("pages"));
   assert.deepEqual(plugins(chain), ["feed", "pages"]);
   chain = setLink(chain, 0, fn("{正文}"));
-  // Dropped between the two: the old handoff now reaches the new station, the new station hands on by hand.
+  // Dropped between the two: the old handoff now reaches the new station, and the new station defaults to direct pass-through (PF-A13).
   chain = insertStation(chain, 1, newStation("inbox"));
   assert.deepEqual(plugins(chain), ["feed", "inbox", "pages"]);
-  assert.deepEqual(kinds(chain), ["function", "manual"]);
+  assert.deepEqual(kinds(chain), ["function", "function"]);
+  assert.equal(chain.links[1]?.body_template, "{正文}");
   chain = setLink(chain, 1, ai("整理成一页"));
   chain = insertStation(chain, 0, newStation("lingguang"));
-  assert.deepEqual(kinds(chain), ["manual", "function", "ai"]);
+  assert.deepEqual(kinds(chain), ["function", "function", "ai"]);
+  assert.equal(chain.links[0]?.body_template, "{正文}");
   // Removing the first station drops its outgoing handoff; removing a middle one keeps its incoming handoff.
   assert.deepEqual(kinds(removeStation(chain, 0)), ["function", "ai"]);
   assert.deepEqual(plugins(removeStation(chain, 2)), ["lingguang", "feed", "pages"]);
-  assert.deepEqual(kinds(removeStation(chain, 2)), ["manual", "function"]);
-  assert.deepEqual(kinds(removeStation(chain, 3)), ["manual", "function"]);
+  assert.deepEqual(kinds(removeStation(chain, 2)), ["function", "function"]);
+  assert.deepEqual(kinds(removeStation(chain, 3)), ["function", "function"]);
   const moved = moveStation(chain, 0, 4);
   assert.deepEqual(plugins(moved), ["feed", "inbox", "pages", "lingguang"]);
   assert.equal(moved.links.length, 3);

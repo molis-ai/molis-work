@@ -1,4 +1,5 @@
-import { renderHelpButton, renderHelpDataScript, t as uiText, type MwHelpTopicData } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { renderHelpButton, renderHelpDeclarationScript, t as uiText, type MwHelpTopicData } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const SETTINGS_HELP_IDS = new Set([
   "appearance",
@@ -20,6 +21,8 @@ const SETTINGS_HELP_IDS = new Set([
   "running",
   "sync",
   "capabilities",
+  "judgment-rules",
+  "call-history",
   "general",
   "workspaces",
   "guidance",
@@ -30,7 +33,44 @@ const SETTINGS_HELP_IDS = new Set([
   "rules",
 ]);
 
-/** Builds the Scheme A on-demand help topic for a global or project settings section (VUX-55). */
+/** Builds a live-translatable Scheme A declaration for a global or project settings section (VUX-55, VUX-58). */
+export function settingsHelpDeclaration(sectionId: string): UiHelpDeclaration | null {
+  if (!SETTINGS_HELP_IDS.has(sectionId)) return null;
+  const prefix = `workbench.settings-help.${sectionId}`;
+  const topicId = `settings-${sectionId}`;
+  return {
+    default_topic: topicId,
+    topics: [{
+      id: topicId,
+      title: { key: `${prefix}.title` },
+      sections: [
+        { id: "what", heading: { key: "workbench.settings-help.heading-what" }, body: { key: `${prefix}.what` } },
+        { id: "how", heading: { key: "workbench.settings-help.heading-how" }, body: { key: `${prefix}.how` } },
+        { id: "scope", heading: { key: "workbench.settings-help.heading-scope" }, body: { key: `${prefix}.scope` } },
+      ],
+    }],
+  };
+}
+
+/** Builds a live-translatable Scheme A declaration for a platform work surface (Project Home, Artifacts, Sessions). */
+export function workbenchSurfaceHelpDeclaration(surface: "home" | "artifacts" | "sessions"): UiHelpDeclaration {
+  const prefix = `workbench.surface-help.${surface}`;
+  const topicId = `workbench-${surface}`;
+  return {
+    default_topic: topicId,
+    topics: [{
+      id: topicId,
+      title: { key: `${prefix}.title` },
+      sections: [
+        { id: "what", heading: { key: "workbench.settings-help.heading-what" }, body: { key: `${prefix}.what` } },
+        { id: "how", heading: { key: "workbench.settings-help.heading-how" }, body: { key: `${prefix}.how` } },
+        { id: "scope", heading: { key: "workbench.settings-help.heading-scope" }, body: { key: `${prefix}.scope` } },
+      ],
+    }],
+  };
+}
+
+/** Builds the resolved Scheme A on-demand help topic for a global or project settings section (VUX-55). */
 export function settingsHelpTopic(sectionId: string): MwHelpTopicData | null {
   if (!SETTINGS_HELP_IDS.has(sectionId)) return null;
   const prefix = `workbench.settings-help.${sectionId}`;
@@ -60,15 +100,16 @@ export function settingsHelpTopic(sectionId: string): MwHelpTopicData | null {
 }
 
 /**
- * Attaches the uniform Scheme A 「帮助」 trigger and topic data to a settings document (both standalone
- * and embedded inside the workbench), without adding per-plugin hardcoding.
+ * Attaches the uniform Scheme A 「帮助」 trigger and live-translatable declaration script to a settings
+ * document (both standalone and embedded inside the workbench), so in-place language switches update the
+ * help card without reloading (VUX-55, VUX-58).
  */
 export function withSettingsHelp(sectionId: string, html: string): string {
   if (!html) return html;
-  const topic = settingsHelpTopic(sectionId);
-  if (!topic) return html;
+  const declaration = settingsHelpDeclaration(sectionId);
+  if (!declaration) return html;
   const button = renderHelpButton({
-    topic: topic.id,
+    topic: declaration.default_topic,
     label: uiText.text("common.help.title"),
     className: "mw-settings-help-btn",
   });
@@ -84,7 +125,7 @@ export function withSettingsHelp(sectionId: string, html: string): string {
       decorated = `<div class="mw-settings-help-bar">${button}</div>${html}`;
     }
   }
-  const dataScript = renderHelpDataScript([topic]);
+  const dataScript = renderHelpDeclarationScript(declaration);
   const lastClose = decorated.lastIndexOf("</section>");
   return lastClose >= 0
     ? `${decorated.slice(0, lastClose)}${dataScript}${decorated.slice(lastClose)}`

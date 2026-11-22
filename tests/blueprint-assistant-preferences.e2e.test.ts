@@ -7,8 +7,10 @@ import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prompt simplification, and Scheme A on-demand help work end-to-end", async t => {
   const b = await openBoardBrowser(t, "user", undefined, null);
@@ -117,14 +119,15 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   assert.equal(resetRes.prompt.effective, "default");
 
   // VUX-55 / ONB-48: settings page mounts Scheme A Help, expanded button shows --nav-active wash, Esc closes and returns focus without losing input.
-  await waitFor("!!document.querySelector('[data-mw-help-trigger]')");
-  await click("[data-mw-help-trigger]");
-  await waitFor("!!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'true'");
-  const expandedBg = await evaluate<string>("getComputedStyle(document.querySelector('[data-mw-help-trigger]')).backgroundColor");
+  const assistantHelp = '[data-mw-help-trigger][data-help-topic="settings-assistant"]';
+  await waitFor(`!!document.querySelector('${assistantHelp}')`);
+  await click(assistantHelp);
+  await waitFor(`!!document.querySelector('.mw-help-card') && document.querySelector('${assistantHelp}')?.getAttribute('aria-expanded') === 'true'`);
+  const expandedBg = await evaluate<string>(`getComputedStyle(document.querySelector('${assistantHelp}')).backgroundColor`);
   assert.notEqual(expandedBg, "rgba(0, 0, 0, 0)", `expanded ghost Help trigger must show --nav-active wash, got ${expandedBg}`);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  await waitFor("!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'false'");
-  const focusDiag = await evaluate<{ same: boolean; hasFocus: boolean; active: string; count: number }>("({ same: document.activeElement === document.querySelector('[data-mw-help-trigger]'), hasFocus: document.hasFocus(), active: document.activeElement?.outerHTML.slice(0, 120) || '', count: document.querySelectorAll('[data-mw-help-trigger]').length })");
+  await waitFor(`!document.querySelector('.mw-help-card') && document.querySelector('${assistantHelp}')?.getAttribute('aria-expanded') === 'false'`);
+  const focusDiag = await evaluate<{ same: boolean; hasFocus: boolean; active: string; count: number }>(`({ same: document.activeElement === document.querySelector('${assistantHelp}'), hasFocus: document.hasFocus(), active: document.activeElement?.outerHTML.slice(0, 120) || '', count: document.querySelectorAll('[data-mw-help-trigger]').length })`);
   assert.equal(focusDiag.same, true, `Esc returns focus to the Help trigger (${JSON.stringify(focusDiag)})`);
 
   // VUX-55 (B5): project settings routes and capabilities connections/access mount their dedicated help topics.
@@ -161,6 +164,16 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await waitFor("document.documentElement.clientWidth <= 390");
   assert.equal(await evaluate<boolean>("document.documentElement.scrollWidth <= 390"), true, "Scheme A Help fits 390px without horizontal overflow");
+  // P2-7: at <= 760px, "Keep reading in the side pane" collapses into an icon-only button left of Close in the card header.
+  assert.equal(
+    await evaluate<boolean>(`(() => {
+      const btn = document.querySelector('.mw-help-card [data-mw-help-to-side]');
+      const closeBtn = document.querySelector('.mw-help-card [data-mw-help-close]');
+      return Boolean(btn && closeBtn && btn.parentElement?.classList.contains('mw-help-card__head') && btn.classList.contains('mw-btn--icon-only') && btn.nextElementSibling === closeBtn);
+    })()`),
+    true,
+    "P2-7: mobile Scheme A Help collapses side-pane button into icon-only control left of Close in header",
+  );
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await waitFor("!document.querySelector('.mw-help-card')");
   await command("Emulation.clearDeviceMetricsOverride", {}, sessionId);
@@ -172,7 +185,70 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await waitFor("!document.querySelector('.mw-help-card')");
 
-  // VUX-55 (B4): transferring Help from a framed plugin to the right side panel while another tab is open restores that prior tab on close instead of closing the side panel.
+  // P1-1: in-place language switch on /settings/appearance updates the Scheme A Help card live without reloading.
+  const appearanceHelp = '[data-mw-help-trigger][data-help-topic="settings-appearance"]';
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance" }, sessionId));
+  await waitFor(`!!document.querySelector('${appearanceHelp}') && !!document.querySelector('[data-ui-language="en"]')`);
+  await click(appearanceHelp);
+  await waitFor("!!document.querySelector('.mw-help-card__title')");
+  assert.match(await evaluate<string>("document.querySelector('.mw-help-card__title')?.textContent || ''"), /界面与语言/u, "initial appearance Help renders in zh");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+  await evaluate("window.__helpLangSwitchMarker = 'same-document'");
+  await click('[data-ui-language="en"]');
+  await waitFor("document.documentElement.lang === 'en'");
+  assert.equal(await evaluate<string>("window.__helpLangSwitchMarker"), "same-document", "P1-1: language switch happened in place without reloading");
+  await click(appearanceHelp);
+  await waitFor("/Appearance and language/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
+  assert.match(await evaluate<string>("document.querySelector('.mw-help-card__body')?.textContent || ''"), /Choose light or dark appearance/u, "P1-1: Help body re-renders in English after in-place switch");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+  await click('[data-ui-language="zh"]');
+  await waitFor("document.documentElement.lang.startsWith('zh')");
+  await click(appearanceHelp);
+  await waitFor("/界面与语言/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+
+  // P1-2 & P1-4: /capabilities/rules and /capabilities/history each expose their own specialized Help topic and omit broken side-pane transfer on standalone pages.
+  const rulesHelp = '[data-mw-help-trigger][data-help-topic="settings-judgment-rules"]';
+  await navigate(() => command("Page.navigate", { url: origin + "/capabilities/rules" }, sessionId));
+  await waitFor(`!!document.querySelector('${rulesHelp}')`);
+  await click(rulesHelp);
+  await waitFor("/判断规则/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
+  assert.equal(
+    await evaluate<boolean>("!!document.querySelector('.mw-help-card [data-mw-help-to-side]') === !!document.querySelector('[data-side-tab=\"help\"]')"),
+    true,
+    "P1-4: side-pane transfer button matches whether the shell actually offers the help side tab",
+  );
+  const historyHelp = '[data-mw-help-trigger][data-help-topic="settings-call-history"]';
+  await navigate(() => command("Page.navigate", { url: origin + "/capabilities/history" }, sessionId));
+  await waitFor(`!!document.querySelector('${historyHelp}')`);
+  await click(historyHelp);
+  await waitFor("/调用记录/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/projects" }, sessionId));
+  await waitFor('!!document.querySelector(\'[data-mw-help-trigger][data-help-topic="settings-projects"]\')');
+  await click('[data-mw-help-trigger][data-help-topic="settings-projects"]');
+  await waitFor("/管理项目/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
+  assert.equal(
+    await evaluate<boolean>("!!document.querySelector('.mw-help-card [data-mw-help-to-side]') === !!document.querySelector('[data-side-tab=\"help\"]')"),
+    true,
+    "P1-4: settings/projects transfer button matches shell help-tab availability",
+  );
+
+  // P1-4: standalone Home plugin page (/plugins/todo) carries sideHelpAvailable="0" so Help omits the broken side-pane button.
+  const todoFrame = await pluginFrameBrowser(t, b, "todo");
+  await navigate(() => command("Page.navigate", { url: origin + "/plugins/todo" }, sessionId));
+  await todoFrame.waitFor("document.body.dataset.sideHelpAvailable === '0' && !!document.querySelector('[data-mw-help-trigger]')");
+  await todoFrame.evaluate("document.querySelector('[data-mw-help-trigger]')?.click()");
+  await todoFrame.waitFor("!!document.querySelector('.mw-help-card')");
+  assert.equal(
+    await todoFrame.evaluate<boolean>("!!document.querySelector('.mw-help-card [data-mw-help-to-side]')"),
+    false,
+    "P1-4: standalone Home plugin page hides broken side-pane transfer button",
+  );
+
+  // VUX-55 (B4 & P1-4): transferring Help to right side restores prior tab on close, AND switching directly from Help to another side tab cleans up the transient Help tab.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(projectId)}/?openPlugin=todo` }, sessionId));
   await waitFor("!!document.querySelector('[data-side-panel]')");
   const priorTab = await evaluate<string | null>(`(() => {
@@ -187,6 +263,41 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab=\"help\"]')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-side-tab=\"help\"]')?.hidden");
   await click("[data-side-help-close]");
   await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab="${priorTab}"]')?.getAttribute('aria-selected') === 'true' && document.querySelector('[data-side-tab="help"]')?.hidden === true`);
+  // Now re-open Help in side panel, then click another tab directly on the strip — transient Help tab must disappear instead of remaining orphaned.
+  await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'help', target: { title: '待办', sections: [{ id: 'what', heading: '这是什么', body: '说明' }] }, focus: true }, cancelable: true }))`);
+  await waitFor("document.querySelector('[data-side-tab=\"help\"]')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-side-tab=\"help\"]')?.hidden");
+  await evaluate(`document.querySelector('[data-side-tab="${priorTab}"]')?.click()`);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab="${priorTab}"]')?.getAttribute('aria-selected') === 'true' && document.querySelector('[data-side-tab="help"]')?.hidden === true`);
+
+  // P1-2: Project Home, Artifacts, and Sessions expose working Scheme A Help declarations and triggers.
+  assert.equal(await evaluate<boolean>("Boolean(document.querySelector('[data-work-surface=\"home\"] [data-mw-help-trigger][data-help-topic=\"workbench-home\"]'))"), true, "P1-2: Project Home has Help trigger");
+  assert.equal(await evaluate<boolean>("Boolean(document.querySelector('[data-work-surface=\"artifacts\"] script[data-mw-help-declaration]'))"), true, "P1-2: Artifacts has Help declaration");
+  assert.equal(await evaluate<boolean>("Boolean(document.querySelector('[data-work-surface=\"sessions\"] template')?.content?.querySelector('[data-mw-help-trigger][data-help-topic=\"workbench-sessions\"]'))"), true, "P1-2: Sessions has Help trigger");
+  // Navigate to Project Home and actually open its Scheme A Help card live.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(projectId)}/` }, sessionId));
+  await waitFor('!!document.querySelector(\'[data-work-surface="home"] [data-mw-help-trigger][data-help-topic="workbench-home"]\')');
+  await click('[data-work-surface="home"] [data-mw-help-trigger][data-help-topic="workbench-home"]');
+  await waitFor("/项目主页/u.test(document.querySelector('.mw-help-card__title')?.textContent || '')");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+
+  // P1-2 & P1-3: enable Goals and Work Brief on the project, verify Project Home / Goals / Artifacts / Sessions Help and work-brief dynamic re-render persistence.
+  for (const plugin_id of ["goals", "work-brief"]) {
+    await b.web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(b.web, projectId) });
+  }
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(projectId)}/?openPlugin=goals` }, sessionId));
+  await waitFor("!!document.querySelector('[data-goal-stage-chrome] [data-mw-help-trigger]')");
+  await click("[data-goal-stage-chrome] [data-mw-help-trigger]");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section')");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-help-card')");
+
+  const briefFrame = await pluginFrameBrowser(t, b, "work-brief");
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(projectId)}/?openPlugin=work-brief` }, sessionId));
+  await briefFrame.waitFor("document.body.dataset.sideHelpAvailable === '1' && !!document.querySelector('[data-help-slot] [data-mw-help-trigger]')");
+  // Trigger a dynamic header re-render inside work-brief (switch to Personal mode) and verify Help survives cleanly.
+  await briefFrame.evaluate("document.querySelector('[data-wb-act=\"mode\"][data-wb-value=\"personal\"]')?.click()");
+  await briefFrame.waitFor("!!document.querySelector('[data-help-slot] [data-mw-help-trigger]')");
 });
 
 test("ONB-28/29: after a partial adoption the reopened page retries only the unconfirmed setting", async t => {

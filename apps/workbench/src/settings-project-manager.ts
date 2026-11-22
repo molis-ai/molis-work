@@ -40,7 +40,7 @@ export function renderProjectSettings(view: MolisWorkSettingsView, desktopShell:
   return `<section class="project-manager" data-project-manager aria-labelledby="settings-title">
     <aside class="project-manager-index">
       <header class="project-manager-index-chrome">
-        <h1 id="settings-title">${uiText("workbench.settings-project-manager.project")}</h1>
+        <div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-project-manager.project")}</h1></div>
         <p>${uiText("workbench.settings-project-manager.count-count-device", { count: view.projects.length })}</p>
       </header>
       <div class="project-manager-list">

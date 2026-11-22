@@ -1,8 +1,21 @@
 import { readFileSync } from "node:fs";
-import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 
 /** The bundle name an installed signed package's page loads (`/assets/molis-work-plugins/installed-plugin.js`). */
 export const INSTALLED_PLUGIN_BUNDLE = "installed-plugin";
+
+/** The page class an installed package's view is drawn in (`installedPluginBody`), standalone or in its frame. */
+export const INSTALLED_PLUGIN_PAGE_CLASS = "installed-plugin-page";
+
+/**
+ * The sheet an installed package's frame links (`/assets/molis-work-plugins/installed-plugin.css`): the shared components every
+ * generated view is drawn with, and the page they sit on.
+ */
+export function renderMolisWorkInstalledPluginStylesheet(): string {
+  return ".installed-plugin-page{display:block;max-width:980px;margin:0 auto 32px;padding:32px clamp(16px,5%,56px);background:var(--paper);min-height:calc(100vh - 56px);"
+    + "border-radius:0 0 14px 14px;color:var(--ink);font:13px/1.65 var(--font);-webkit-font-smoothing:antialiased}.installed-plugin-page *{box-sizing:border-box}"
+    + "html:has(> body > .installed-plugin-page),body:has(> .installed-plugin-page){margin:0;background:var(--canvas,var(--rail))}" + PLUGIN_COMPONENT_STYLES;
+}
 
 /**
  * The platform's program for an installed signed package's page (`src/browser/installed-plugin/`, bundled into

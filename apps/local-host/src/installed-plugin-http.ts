@@ -3,7 +3,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { INSTALLED_PLUGIN_BUNDLE, renderPluginDocumentShell, type PluginDirectoryEntry, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, renderPluginDocumentShell, type PluginDirectoryEntry, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { installedPageSelection, pluginPageRequest } from "./plugin-page-authority.js";
 import { installedPluginBody, installedStageSurface } from './installed-stage-section.js';
@@ -80,7 +80,7 @@ export function renderHomePackageDocument(input: Omit<Parameters<typeof installe
 }
 
 function recoveryHtml(error: string): string {
-  return '<main class="as-preview-page"><h1>' + escapeHtml(uiText.text("workbench.installed-plugin.recovery-title")) + '</h1><p role="alert" translate="no">'
+  return '<main class="' + INSTALLED_PLUGIN_PAGE_CLASS + '"><h1>' + escapeHtml(uiText.text("workbench.installed-plugin.recovery-title")) + '</h1><p role="alert" translate="no">'
     + escapeHtml(error) + '</p><p>' + escapeHtml(uiText.text("workbench.installed-plugin.recovery-hint")) + '</p></main>';
 }
 

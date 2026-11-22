@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
+import { INSTALLED_PLUGIN_BUNDLE } from "./installed-plugin/client-asset.js";
 import type { UiClientMount, UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { COPY_FEEDBACK_CLIENT_SCRIPT, CRAFT_FINISH_CLIENT_SCRIPT, FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, ON_DEMAND_HELP_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, COMPOSER_LOADER_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 
@@ -13,7 +14,8 @@ import { COPY_FEEDBACK_CLIENT_SCRIPT, CRAFT_FINISH_CLIENT_SCRIPT, FEEDBACK_CLIEN
  * its document already links and before any rule of the page itself. The frame's policy allows sheets from /assets/.
  */
 function sheetLinks(bundle: string): string {
-  const styles = pluginSurfaceClients().find((client) => client.id === bundle)?.styles ?? [];
+  // An installed signed package's page is the platform's: its one sheet (installed-plugin/client-asset.ts).
+  const styles = bundle === INSTALLED_PLUGIN_BUNDLE ? [INSTALLED_PLUGIN_BUNDLE] : pluginSurfaceClients().find((client) => client.id === bundle)?.styles ?? [];
   return styles.map((name) => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(name)}.css">`).join("");
 }
 

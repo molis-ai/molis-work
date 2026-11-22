@@ -60,7 +60,7 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   assert.ok(stage.includes(`data-installed-plugin="${pluginId}" data-plugin-page-source="/projects/p/plugins/${pluginId}?frame=workbench&amp;installation=${encodeURIComponent(JSON.stringify(installation))}" data-deferred-surface hidden`));
   assert.doesNotMatch(stage, /<iframe\b/u, "the package is loaded when its surface opens");
   assert.deepEqual(pluginDocuments(stage), [
-    '<link rel="stylesheet" href="/assets/molis-work-plugins/plugin-builder.css"><main class="as-preview-page" data-installed-plugin="' + pluginId + '"></main>',
+    '<link rel="stylesheet" href="/assets/molis-work-plugins/installed-plugin.css"><main class="installed-plugin-page" data-installed-plugin="' + pluginId + '"></main>',
   ]);
   // The Host's directory entries for two packages installed in the Home (marked personal and home) and one a project runs.
   const pkg = (id: string, name: string, marks: Partial<PluginDirectoryEntry>, glyph?: string): PluginDirectoryEntry => ({ id, plugin_id: id, name, chosen: false, ...marks,

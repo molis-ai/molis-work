@@ -18,7 +18,7 @@
 | [src/fix.ts](src/fix.ts) | 把一个版本固定成成果 |
 | [src/next.ts](src/next.ts) | 下一步：按 SDK 的操作卡规则执行一次、放一放、交给助理 |
 | [src/personal.ts](src/personal.ts) | 个人简报：跨项目汇总 |
-| [src/presentation.ts](src/presentation.ts) | 呈现声明、首页概况与首页主区内容 |
+| [src/presentation.ts](src/presentation.ts) | 呈现声明与首页概况（开头几句话经 `lede` 交给首页） |
 | [src/store.ts](src/store.ts)、[src/database.ts](src/database.ts) | Home 库 `work-brief` 的表与读写 |
 | [src/browser/](src/browser/) | 页面：`client.ts` 接动作，`brief.ts` 画简报与个人简报，`parts.ts` 是小零件 |
 

@@ -91,6 +91,12 @@ test("SCS-11 SCS-12 SSC-18 the Kernel action contract closes home order, start r
   }
   answer = { ...description([]), groups: [{ kind: "attention", state: "ok", items: [], plugin_card: card }] };
   await assert.rejects(ask(), { code: "actions.output_invalid" });
+  // The action's output schema no longer knows a group that stands a plugin's page in for the home, nor its field.
+  const stand = { installation: release, view_id: "stage" };
+  for (const led of [{ kind: "lead", owner_plugin_id: owner, state: "ok", items: [], lead: stand }, { ...group, lead: stand }]) {
+    answer = { ...description([]), groups: [led] };
+    await assert.rejects(ask(), { code: "actions.output_invalid" });
+  }
 });
 
 test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritten or misplaced cards", () => {

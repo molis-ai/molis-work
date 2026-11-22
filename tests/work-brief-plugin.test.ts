@@ -372,6 +372,7 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   const withBrief = await home();
   // One home (specs/screen-polish §八之二): the brief is its opening sentences, on the brief's own card.
   assert.deepEqual(withBrief.groups.map(group => group.kind).filter(kind => kind !== "attention" && kind !== "plugin" && kind !== "outline"), []);
+  assert.equal(withBrief.groups[0]?.kind, "attention", "nothing is placed ahead of what waits for the person");
   const lede = card(withBrief)?.plugin_card?.lede;
   assert.deepEqual(lede?.sentences, [{ text: "交付有延期风险。", sources: [RISK_ID] }], "each sentence names the plugins it stands on");
   assert.deepEqual([keyed(lede?.label), lede?.invite], [[WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.lede-label"], undefined]);

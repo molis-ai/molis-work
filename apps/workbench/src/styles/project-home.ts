@@ -35,7 +35,7 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .home-groups h2 { font-size: var(--type-title-size, 1rem); margin: 0 0 .7rem; }
   .home-plugin-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 27rem), 1fr)); gap: .9rem; align-items: start; }
   .home-plugin-card { overflow: visible; min-inline-size: 0; }
-  .home-plugin-card__band { display: flex; align-items: center; gap: .5em; border-radius: var(--sk-r-card, var(--r-card)) var(--sk-r-card, var(--r-card)) 0 0; background: var(--presentation-soft); padding: .65rem .9rem; }
+  .home-plugin-card__band { display: flex; align-items: center; gap: .5em; border-radius: var(--r-card) var(--r-card) 0 0; background: var(--presentation-soft); padding: .65rem .9rem; }
   .home-plugin-card__band h3 { margin: 0; font-size: var(--type-title-size, 1rem); overflow-wrap: anywhere; }
   .home-plugin-card__body { padding: .75rem .9rem; display: grid; gap: .65rem; }
   .home-plugin-card__body p { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
@@ -53,12 +53,12 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   /* A group's rows are one list: a single edge around it and hairlines between rows, instead of a box for every row
      (and, in a plugin's card, a box inside a box). */
   .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-rows {
-    gap: 0; border-radius: var(--sk-r-card, var(--r-card)); box-shadow: 0 0 0 1px var(--line); background: var(--paper);
+    gap: 0; border-radius: var(--r-card); box-shadow: 0 0 0 1px var(--line); background: var(--paper);
   }
   .home-groups :is([data-home-group=attention], [data-home-group=continue], .home-plugin-card) .home-row + .home-row { border-block-start: 1px solid var(--line); }
   .home-groups :is([data-home-group=attention], [data-home-group=continue], .home-plugin-card) .mw-presentation--row .mw-item { border: 0; border-radius: 0; padding: 8px 8px 8px 12px; }
-  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-row:first-child .mw-item { border-start-start-radius: var(--sk-r-card, var(--r-card)); border-start-end-radius: var(--sk-r-card, var(--r-card)); }
-  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-row:last-child .mw-item { border-end-start-radius: var(--sk-r-card, var(--r-card)); border-end-end-radius: var(--sk-r-card, var(--r-card)); }
+  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-row:first-child .mw-item { border-start-start-radius: var(--r-card); border-start-end-radius: var(--r-card); }
+  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-row:last-child .mw-item { border-end-start-radius: var(--r-card); border-end-end-radius: var(--r-card); }
   .home-plugin-card .home-rows { gap: 0; margin-inline: -.9rem; }
   .home-plugin-card .mw-presentation--row .mw-item { padding-inline: .9rem .6rem; }
   .home-rows:empty { display: none; }
@@ -91,6 +91,6 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .home-offers-result pre { overflow-wrap: anywhere; white-space: pre-wrap; }
   .home-peek__bar { display: flex; justify-content: end; margin-block-end: .4rem; }
   @media (max-width: 600px), (pointer: coarse) {
-    .home-peek { inset: auto 0 0; margin: 0; inline-size: 100%; max-inline-size: none; max-block-size: 90dvh; border-radius: var(--sk-r-card, var(--r-sheet)) var(--sk-r-card, var(--r-sheet)) 0 0; }
+    .home-peek { inset: auto 0 0; margin: 0; inline-size: 100%; max-inline-size: none; max-block-size: 90dvh; border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
   }
 `;

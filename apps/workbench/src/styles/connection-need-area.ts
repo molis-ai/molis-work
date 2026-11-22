@@ -7,12 +7,12 @@
  * The accounts to choose from are the component board's choices, one a line.
  */
 export const CONNECTION_NEED_AREA_STYLES = `
-.connection-need-area__title{flex:1 0 100%;margin:0;overflow:hidden;font-size:15px;font-weight:var(--weight-strong,600);line-height:20px;text-overflow:ellipsis;white-space:nowrap}
+.connection-need-area__title{flex:1 0 100%;margin:0;overflow:hidden;font-size:15px;font-weight:var(--weight-title,600);line-height:20px;text-overflow:ellipsis;white-space:nowrap}
 .connection-need-area .mw-platform-area__body{display:grid;align-content:start;gap:10px}
 .connection-need-area__quote{margin:0;padding:2px 0 2px 10px;border-left:2px solid var(--line);color:var(--muted);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .connection-need-area__text,.connection-need-area__wait{margin:0;font-size:13px;line-height:20px;overflow-wrap:anywhere}
 .connection-need-area__wait:focus{outline:none}
-.connection-need-area__origin{margin:0;padding:8px 10px;border-radius:var(--sk-r-card,12px);background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:var(--weight-control,560);overflow-wrap:anywhere}
+.connection-need-area__origin{margin:0;padding:8px 10px;border-radius:var(--r-card,12px);background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:var(--weight-control,560);overflow-wrap:anywhere}
 .connection-need-area .mw-field{display:grid;gap:4px;margin:0}
 .connection-need-area__key{display:flex;align-items:end;gap:8px}.connection-need-area__key>.mw-field{flex:1;min-width:0}
 .connection-need-area__accounts{display:grid;gap:4px}.connection-need-area__accounts .mw-choice{min-width:0;min-height:40px;text-align:left}.connection-need-area__accounts .mw-choice__label{white-space:normal;overflow-wrap:anywhere}

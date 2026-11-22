@@ -26,20 +26,41 @@ function pageProjection(page: Document): ImLanguageProjection {
   return { language, packs };
 }
 
+const SHARED_COMMON_KEYS: Readonly<Record<string, string>> = {
+  "common.control.undo": "im-ui.control.undo",
+  "common.control.clear": "im-ui.control.clear",
+  "common.confirm-box.action-failed": "im-ui.transport.try-again",
+  "common.request-client.copied": "im-ui.invitation.copied",
+  "common.request-client.could-not-copy": "im-ui.invitation.copy-failed",
+};
+
 /** The same-origin Workbench prepares this document's own words before merging the visible text. */
 export function installImLanguage() {
   let projection = pageProjection(document), intl = imIntlLocale(projection.language);
   const produced = createProducedLog();
+  const lookup = (key: string, locale: string) => {
+    const words = projection.packs.find(pack => pack.locale === locale)?.messages;
+    return words && Object.hasOwn(words, key) ? words[key]! : null;
+  };
   installUiText({
     locale: () => projection.language.tag, intlLocale: tag => intl(tag), noContext: () => "default",
     ownerOfPrefix: prefix => prefix === IM_TEXT_OWNER ? IM_TEXT_OWNER : null,
     defaultLocale: owner => owner === IM_TEXT_OWNER ? IM_DEFAULT_LOCALE : null,
     message(owner, key, locale) {
-      const words = owner === IM_TEXT_OWNER ? projection.packs.find(pack => pack.locale === locale)?.messages : undefined;
-      return words && Object.hasOwn(words, key) ? words[key]! : null;
+      return owner === IM_TEXT_OWNER ? lookup(key, locale) : null;
     },
     produced: produced.record,
   });
+  const globalPage = globalThis as { t?: { text?: (key: string) => string } };
+  if (!globalPage.t) {
+    globalPage.t = {
+      text(key: string) {
+        const mapped = SHARED_COMMON_KEYS[key] ?? key;
+        const hit = lookup(mapped, projection.language.tag) ?? lookup(mapped, IM_DEFAULT_LOCALE);
+        return typeof hit === "string" ? hit : key;
+      },
+    };
+  }
   const select = (next: ImLanguageProjection) => {
     intl = imIntlLocale(next.language);
     projection = next;

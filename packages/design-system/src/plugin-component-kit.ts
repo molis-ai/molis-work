@@ -89,8 +89,8 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
       value = (value as Record<string, unknown>)[key];
     } return value;
   };
-  /** Status tags use the catalog badge tones: a value's place among its choices picks its tone, yes is success. */
-  const TONES = ['info', 'success', 'warning', 'neutral'];
+  /** Status tags use neutral/info/success tones (amber is reserved strictly for attention / user turn). */
+  const TONES = ['info', 'success', 'neutral'];
   /** A plugin's mark: a neutral icon that says what it is about (colour belongs to state and selection). */
   const MARKS: Array<[RegExp, string]> = [[/书|读|阅|摘抄|文章/u, 'book'], [/单词|生词|词汇|英语|背诵/u, 'library'], [/账|钱|支出|收入|花销|预算|消费|报销/u, 'hash'],
     [/待办|任务|todo|清单|计划/iu, 'completed'], [/打卡|习惯|坚持/u, 'calendar'], [/提醒|闹钟|到期/u, 'bell'], [/目标|里程碑/u, 'target'], [/日志|日记|复盘|进展|周报/u, 'history'],

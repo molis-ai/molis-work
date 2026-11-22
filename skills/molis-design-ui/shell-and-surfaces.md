@@ -12,7 +12,7 @@ Molis Work 只有一套空间外壳。插件、模块与设置页只往既定挂
    - 右端只留两键：**侧边栏开关** 与 **分屏**。
    - 桌面端左侧预留 `var(--desktop-window-safe-inline-start, 88px)` 给 macOS 红绿灯，全屏态自动回缩为 `0`（**严禁硬编码 `84px` 等死像素**）。
 2. **主工作区与 11 视图右侧栏**：
-   - 二叉树分屏纸页，每个窗格容器 `.tab-pane-body` / `.tab-workspace-exclusive` 声明 `container: plugin-stage / inline-size`（`[91-0b 落定]`）。
+   - 二叉树分屏纸页，每个窗格容器 `.tab-pane-body` / `.tab-workspace-exclusive` 声明 `container: plugin-stage / inline-size`。
    - 11 个右侧栏视图（6 内置：`项目资料 / 浏览器 / 电脑 / 讨论 IM / 停靠对话 / 按需帮助` + 5 插件：`Shelf / 灵光 / Issue / Pages 评论 / 风险`），打开/收起与宽度归宿主控制，插件通过 `molis:side-open` 请求切入。**后台任务既不是标题栏项也不是右侧栏页签**（对齐 `DESIGN.md` 与决定 48/53 ③），一律从对话栏右上角入口或信息栏「在办」进入（需要常驻对照时可将事件卡停靠进右侧「对话」）。
    - 左下侧逐项验收栏（`320px`）由平台按需呼出；情境浮条 `mw-ctx` 与全局搜索 `⌘K` 为唯二浮动工具入口。
 3. **底栏第十三版（三块等高 `74px` 浮岛，间距统一）**：

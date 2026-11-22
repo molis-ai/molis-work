@@ -42,7 +42,7 @@ export const APPEARANCE_PARTS_STYLES = `
   /* The wrapper only holds the button and its menu together for the board's menu script; both are placed against the card, so the menu is as wide as the card. */
   .mw-look-card__more { display: contents; }
   .mw-look-card__more > .mw-btn { position: absolute; top: 12px; right: 12px; z-index: 1; background: color-mix(in srgb, var(--paper) 88%, transparent); }
-  .mw-look-card__more .mw-compose__menu { top: 48px; right: 8px; left: 8px; }
+  .mw-look-card__more .mw-compose__menu { top: 44px; right: 8px; left: 8px; }
   .mw-look-card__more .mw-menu { width: 100%; min-width: 0; }
 
   /* 2 · Specimen card. The card is the page's; its canvas is drawn in another look (its tokens are the look's, in a theme the canvas can keep whatever the

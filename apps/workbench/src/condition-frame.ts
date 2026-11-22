@@ -1,4 +1,5 @@
 import { WEB_LOCALES, type WebLocale } from "./i18n.js";
+import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml, renderDirectoryRow, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -92,8 +93,10 @@ function frameBody(options: ConditionFrameOptions, sample: { question: string; r
 /** The fallback faces are the product's own last entries (design-system typeface.ts), so nothing here names another font. */
 const FALLBACK_FONT = `--font:"Inter Variable","Noto Sans SC",sans-serif;--font-mono:monospace`;
 
-export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions, ports: ConditionFramePorts): string {
-  const { readText } = ports, sample = conditionSample(options.kind, options.text), rows = options.part === "rows";
+export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions, ports: ConditionFramePorts, appearance?: WorkbenchAppearance): string {
+  const { readText } = ports;
+  const sample = conditionSample(options.kind, options.text);
+  const rows = options.part === "rows";
   const steps = rows ? [] : conditionStream(sample.reply).map((text) => assistantTextHtml(text, [], readText));
   const data = JSON.stringify({ steps, reply: sample.reply, copy: options.copy, pace: 220 }).replaceAll("<", "\\u003c");
   return `<!doctype html>
@@ -104,6 +107,7 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
   <title>${escapeHtml(uiText.text("workbench.condition-frame.conditions-states-specimen"))} · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">${rows ? boardPluginStyleLinks() : ""}
+  ${appearanceHead(appearance)}
   <style>${FRAME_STYLES}${rows ? BOARD_PLUGIN_ROW_STYLES : ""}</style>
 </head>
 <body class="immersive-workbench mw-cond-page">

@@ -4,7 +4,7 @@
 
 第 25 批（本机常驻与升级 U1～U3）和第 26 批（M1 发行准备与升级 U4～U6；2026-11-14 起这部分移到发行批 REL-2～REL-4）都写了「先定样」，两批的界面是同一件事的两半：Molis Work 在后台怎样一直干活、某一块出问题时怎样说、新版怎样装上和退回、第一次打开时怎样自检、上次出事后怎样恢复。所以合成一份可点的预览。
 
-画面用的是产品自己的框架和组件板实件：页面加载 [`../_catalog/`](../_catalog/README.md) 生成的产品样式表，到达开场和工作台底栏用 `arrival.css`，设置页用 `settings.css`（两张表按画面切换，和产品换页一样）。部件用组件板的 `mw-*` 标记。只有 macOS 的菜单栏和桌面是原型画的，因为那是系统的东西，不是我们的产品。本目录只剩版面编排（`proto.css`）和交互（`app.js`）。
+画面用的是产品自己的框架和组件板实件：页面加载 [`../kit/`](../kit/README.md) 生成的产品样式表，到达开场和工作台底栏用 `arrival.css`，设置页用 `settings.css`（两张表按画面切换，和产品换页一样）。部件用组件板的 `mw-*` 标记。只有 macOS 的菜单栏和桌面是原型画的，因为那是系统的东西，不是我们的产品。本目录只剩版面编排（`proto.css`）和交互（`app.js`）。
 
 ## 怎么打开
 
@@ -12,11 +12,11 @@
 
 ```sh
 pnpm build
-node docs/design/_catalog/export.mjs
+node docs/design/kit/build.mjs
 python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 ```
 
-第二步生成产品样式（`docs/design/_catalog/dist/`，不入库）。不跑这一步，页面没有样式。顶部斜纹条是原型控制，不是产品界面：选话题、状态，切中英文和深浅色，「从头再来」清掉点过的东西。数据全是示例，点按钮只在本页里变化，不连任何服务。
+第二步生成产品样式（`docs/design/kit/dist/`，不入库）。不跑这一步，页面没有样式。顶部斜纹条是原型控制，不是产品界面：选话题、状态，切中英文和深浅色，「从头再来」清掉点过的东西。数据全是示例，点按钮只在本页里变化，不连任何服务。
 
 ## 五个话题（已定方案 A）
 
@@ -36,7 +36,7 @@ python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 
 版面和每一处选择都照选定的方案 A，不动；换的只是部件。原来拷来的 `base.css`、`parts.css`、`immersive.css`、`icons.js` 和自写的 `rr.css` 都删了，改用产品的样式表、图标 sprite 和 `foundation.js`。
 
-- 组件板上没有、按 token 画的「组件板新增」：Dock 上的「暂不可用」点（`.cand-pin-dot`，琥珀是要处理的，蓝是要知道的）和行前的种类色块（`.cand-kind`）。清单与来由见 [`_catalog`](../_catalog/README.md#组件板新增交-d-轨补标本)。
+- 组件板上没有、按 token 画的「组件板新增」：Dock 上的「暂不可用」点（`.cand-pin-dot`，琥珀是要处理的，蓝是要知道的）和行前的种类色块（`.cand-kind`）。清单与来由见 [`kit`](../kit/README.md#组件板新增交-d-轨补标本)。
 - 底栏 Dock 只放三颗（首页、Pages、Feed），产品底栏在 1024 宽度下放得下的就是这么多；出问题的那一块总在里面。
 
 ## 依据

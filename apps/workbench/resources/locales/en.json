@@ -46,7 +46,7 @@
     "workbench.scene.on": "On",
     "workbench.scene.off": "Off",
     "workbench.scene.device-only": "This device only",
-  "workbench.scene.personal": "Personal defaults",
+    "workbench.scene.personal": "Personal defaults",
     "workbench.scene.new_project": "New project",
     "workbench.scene.provider_default": "Provider default",
     "workbench.scene.reach": "Affects future work in this scope",

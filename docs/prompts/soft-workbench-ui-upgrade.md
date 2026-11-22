@@ -6,19 +6,19 @@
 
 ## 1. 已确认的设计基准
 
-我认可的是 `docs/design/soft-workbench/` 原型的整体感觉，尤其是字体层次、布局、控件、留白、容器关系、微交互、动效和 Onboarding。先运行并实际体验它，再阅读实现与说明：
+我认可的是 `docs/design/archive/soft-workbench/` 原型的整体感觉，尤其是字体层次、布局、控件、留白、容器关系、微交互、动效和 Onboarding。先运行并实际体验它，再阅读实现与说明：
 
 ```sh
-node docs/design/soft-workbench/server.mjs
+node docs/design/archive/soft-workbench/server.mjs
 ```
 
 - 项目首页：`http://127.0.0.1:4338/#home`
 - Goals：`http://127.0.0.1:4338/#goals`
 - Feed：`http://127.0.0.1:4338/#feed`
 - Onboarding：`http://127.0.0.1:4338/#onboarding`
-- 设计说明：`docs/design/soft-workbench/DESIGN.md`
+- 设计说明：`docs/design/archive/soft-workbench/DESIGN.md`
 - 样式与交互：该目录的 `style.css`、`onboarding.css`、`app.js`、`onboarding.js`
-- 原型验证：`docs/design/soft-workbench/verification.md`
+- 原型验证：`docs/design/archive/soft-workbench/verification.md`
 - 原型需求：`specs/archive/soft-workbench-ui/spec.md`
 
 原始参考是小红书的 Orvia Mail 新手引导视频：`https://www.xiaohongshu.com/explore/6ab91c4c000000000200c061`。已实现且获认可的本地原型是本次可操作的视觉基准；原链接无法访问时，不应阻塞已明确的升级工作。

@@ -1,0 +1,22 @@
+---
+description: 开发或修改 Molis Work 任何界面、样式、皮肤、字体、组件、设置页、插件视图、桌面壳或设计原型时，自动加载 molis-design-ui Skill 并保持同步
+globs: DESIGN.md,packages/design-system/**,packages/im-ui/**,packages/ui-host/**,apps/workbench/src/**/*.{ts,css},apps/desktop/webview-placeholder/**,plugins/native/**/src/**/*{ui,view,style,browser,page,fillpage,document,markdown,agent-studio}*.ts,modules/**/src/**/*{ui,style,view}*.ts,docs/design/**,skills/molis-design-ui/**
+alwaysApply: false
+---
+
+# Molis Work 设计与前端工程 Skill（自动挂载）
+
+创建或修改任何 UI 表面、CSS 令牌、皮肤/字体、组件、`/__ui/catalog` 标本、设置页、插件视图、侧栏、IM、独立导出页、桌面占位页或 `docs/design/` 原型前，**先读 `skills/molis-design-ui/SKILL.md`**，再按路由表只读对应子章节：
+
+- 配色、4 套皮肤、F1 Sans + 中文排版 → `skills/molis-design-ui/tokens-and-typography.md`
+- 方案 C 顶栏、第十三版底栏、独立壳与桌面安全区 → `skills/molis-design-ui/shell-and-surfaces.md`
+- `mw-*` 组件、9 大共享机制、`@container` 与四档版心 → `skills/molis-design-ui/components-and-mechanisms.md`
+- 全局 / 项目 / 插件设置页（P5 行族） → `skills/molis-design-ui/settings-pages.md`
+- 「一变一动」动效、流式输出、`molisBusy`、统一 Toast 与 AI 反馈 → `skills/molis-design-ui/motion-and-feedback.md`
+- 跨表面串联协议、插件布局与文案边界 → `skills/molis-design-ui/flows-and-plugins.md`
+- `/__ui/catalog` 维护与 `docs/design/kit/` 原型归档 → `skills/molis-design-ui/catalog-and-prototypes.md`
+- 自审五律与必跑自动化门禁 → `skills/molis-design-ui/review-and-gates.md`
+
+本仓库 `.cursor/skills/molis-design-ui` 是指向 `skills/molis-design-ui` 的符号链接（由 `tests/cursor-skill-links.test.ts` 守卫）。
+
+**活文档约束**：改动设计令牌、4 套皮肤、字体栈、公共 `mw-*` 原语、设置页骨架、壳层结构或 UI 门禁时，**必须在同一任务内同步更新 `skills/molis-design-ui/` 与 `DESIGN.md`**。只改某页面内部实现且未改公共契约时不必改 Skill。

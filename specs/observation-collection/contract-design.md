@@ -256,7 +256,7 @@
 3. **暂停记录（OCL-09、design §6）**：
    - 本人调 `observation.settings.set@1({ paused: true })` 时，先刷完队列中暂停前已发生的记录，记下 `paused_at`；暂停期间新的写入不再落库，所有读取动作返回的 `recording` 状态均带 `state: "paused"` 与 `paused_at`（消费者可见「记录截至何时」）；恢复记录时写入一段 `state: "by_rule", reason: "recording_paused"` 的覆盖缺口。
 4. **保留期限、手动清理与容量提醒（OCL-12、PWA-111、PWA-112）**：
-   - 自动清理期限默认 `"keep"`（一直保留），可选 `"365"`、`"180"`、`"90"`、`"30"`、`"manual"`。对比周报依据（7 天）、跨两个月比较（60 天）、评测样本原始记录（120 天，与定样 `docs/design/work-records/data.js` 一致）给出 `requirements` 与 `shortfall`，绝不静默延长用户所选期限。
+   - 自动清理期限默认 `"keep"`（一直保留），可选 `"365"`、`"180"`、`"90"`、`"30"`、`"manual"`。对比周报依据（7 天）、跨两个月比较（60 天）、评测样本原始记录（120 天，与定样 `docs/design/archive/work-records/data.js` 一致）给出 `requirements` 与 `shortfall`，绝不静默延长用户所选期限。
    - 手动与自动清理在同一个 SQLite 事务中：删除命中范围的 `records` 与 `record_evidence`、回收不再被任何剩余记录引用的 `evidence_blobs`、在 `coverage_gaps` 记一段 `state: "expired"` 的缺口；绝不删除业务原对象、成果库版本、Pages 版本、已存简报及已留存评测样本。
    - 容量提醒线存于 `writer_state`（重启后保持），达到或超过提醒线只返回 `reminder_status: "near" | "exceeded"`，绝不自动删记录或阻断写入。
 5. **读取时核对对象主人可解析性（§13 偏离落地）**：

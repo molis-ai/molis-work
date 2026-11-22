@@ -395,7 +395,7 @@ interface SkillCatalogEntry {
 
 ## 10. 呈现（请 D 轨看）
 
-界面由 E 轨定样（用户 2026-11-04 定：A 的启用步骤加 C 的目录；原型在 `docs/design/skill-packs/`，分支 `claude/e-track-08-skill-pack-design`）。这里只列合同给什么、按组件板对应哪个控件，供 D 轨核对：
+界面由 E 轨定样（用户 2026-11-04 定：A 的启用步骤加 C 的目录；原型在 `docs/design/archive/skill-packs/`，分支 `claude/e-track-08-skill-pack-design`）。这里只列合同给什么、按组件板对应哪个控件，供 D 轨核对：
 
 | 位置 | 合同给的 | 组件板控件 |
 | --- | --- | --- |

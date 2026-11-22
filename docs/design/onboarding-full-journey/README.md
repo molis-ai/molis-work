@@ -2,7 +2,7 @@
 
 状态：用户已批准版面（2026-11-04，按「让版面说话」重做后的第二版）；同日按组件板实件重做，用户已确认。用户否掉了先前的三版（独立引导页、对话加方案草稿、在工作台里就地准备），定下全程都用打开软件时那套沉浸式全屏框架；这一版按它重做。产品代码还没写。
 
-这是参考原型，不是产品界面。需求来源是[场景搭建与渐进式 Onboarding](../../../specs/onboarding-coverage/spec.md)（§3.1～3.15、ONB-01～49）和[视觉体验 · 文案与按需帮助](../../../specs/visual-ui-experience/spec.md#copy-guidance)（VUX-51～59），排期见[第 04 批](../../../specs/post-anticorruption-roadmap/reference/batches/04.md)。框架、控件、图标、token 和动效都是产品自己的：页面加载 [`../_catalog/`](../_catalog/README.md) 生成的产品样式表（`arrival.css`）、图标 sprite 和到达动效脚本，部件用组件板的 `mw-*` 标记。组件板上还没有的已选定部件标「组件板新增」，交 D 轨补标本。本目录只剩版面编排（`proto.css`）、示例数据（`data.js`）和交互（`app.js`）。定下的细节写进原需求 §10 的决策记录。
+这是参考原型，不是产品界面。需求来源是[场景搭建与渐进式 Onboarding](../../../specs/onboarding-coverage/spec.md)（§3.1～3.15、ONB-01～49）和[视觉体验 · 文案与按需帮助](../../../specs/visual-ui-experience/spec.md#copy-guidance)（VUX-51～59），排期见[第 04 批](../../../specs/post-anticorruption-roadmap/reference/batches/04.md)。框架、控件、图标、token 和动效都是产品自己的：页面加载 [`../kit/`](../kit/README.md) 生成的产品样式表（`arrival.css`）、图标 sprite 和到达动效脚本，部件用组件板的 `mw-*` 标记。组件板上还没有的已选定部件标「组件板新增」，交 D 轨补标本。本目录只剩版面编排（`proto.css`）、示例数据（`data.js`）和交互（`app.js`）。定下的细节写进原需求 §10 的决策记录。
 
 ## 怎么打开
 
@@ -10,11 +10,11 @@
 
 ```sh
 pnpm build
-node docs/design/_catalog/export.mjs
+node docs/design/kit/build.mjs
 python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 ```
 
-第二步生成产品样式（`docs/design/_catalog/dist/`，不入库）。不跑这一步，页面没有样式。顶上一条斜纹是**原型控制**，不是产品的一部分：切场景、状态、中英文和浅深色；「从头再来」清掉本页记住的进度。
+第二步生成产品样式（`docs/design/kit/dist/`，不入库）。不跑这一步，页面没有样式。顶上一条斜纹是**原型控制**，不是产品的一部分：切场景、状态、中英文和浅深色；「从头再来」清掉本页记住的进度。
 
 ## 框架：和第一次打开软件时一样
 
@@ -71,7 +71,7 @@ python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 | 建好后的项目页 | 产品工作台底栏（插件切换、Dock、助理输入框、项目选择）与 `mw-brief`：第一期在 `mw-brief__focus` 里，三段用 `mw-goal-track`；空项目用 `mw-empty` |
 | 轻提示 | `mw-toast` |
 
-组件板上没有、按 token 画在 `../_catalog/prototype.css` 的「组件板新增」：带名字的步骤条、种类色块、进度圆环、成形中的项目卡、连接线。清单与来由见 [`_catalog`](../_catalog/README.md#组件板新增交-d-轨补标本)。
+组件板上没有、按 token 画在 `../kit/prototype.css` 的「组件板新增」：带名字的步骤条、种类色块、进度圆环、成形中的项目卡、连接线。清单与来由见 [`kit`](../kit/README.md#组件板新增交-d-轨补标本)。
 
 ## 推荐走一遍
 

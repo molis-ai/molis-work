@@ -1,6 +1,6 @@
 /* 25 / 26 · arranging the catalog's parts for these views ([编排]), plus the drawn macOS menu bar and desktop
-   ([原型] — the system's, not ours). The product frames and controls come from ../_catalog/dist/arrival.css and
-   settings.css; approved parts the catalog lacks, and the prototype strip, from ../_catalog/prototype.css. Tokens only. */
+   ([原型] — the system's, not ours). The product frames and controls come from ../kit/dist/arrival.css and
+   settings.css; approved parts the catalog lacks, and the prototype strip, from ../kit/prototype.css. Tokens only. */
 
 /* [编排] the same arrangement 04 uses: the assistant's mark beside a title, a row of buttons, rows inside a card */
 .q-head { display: flex; align-items: center; gap: 12px; }

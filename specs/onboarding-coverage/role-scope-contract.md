@@ -2,7 +2,7 @@
 
 状态：提前合同已随 [#1995](https://github.com/molis-ai/molis-work/pull/1995) 合入 `6e44827749`，供第 20 批消费。角色服务、持久化与执行生效随 [#2111](https://github.com/molis-ai/molis-work/pull/2111) 合入 `bdfcc36454`。本文保留提前片的设计记录，现行调用与持久化见[角色服务设计稿](role-service-design.md)，本人实物验收仍见 [BL-b36-roles-acceptance](../backlog/BL-b36-roles-acceptance.md)。
 
-本片依据 [Onboarding §3.9、§3.11、§3.12 和 §10](spec.md#10-决策记录)、[角色作用范围原型](../../docs/design/role-scope/README.md)及[第 36 批第 1 项](../post-anticorruption-roadmap/reference/batches/36.md#batch-36-item-1)。用户已选方案 C。第 20 批 P-2b 依赖本片的项目成员、版本、来源和回读形状。P-2a 模板内容、P-3b 场景包静态校验可独立进行。第 36 批后续角色服务的第 13 批前置照原安排，主线事项照自己的前置推进。
+本片依据 [Onboarding §3.9、§3.11、§3.12 和 §10](spec.md#10-决策记录)、[角色作用范围原型](../../docs/design/archive/role-scope/README.md)及[第 36 批第 1 项](../post-anticorruption-roadmap/reference/batches/36.md#batch-36-item-1)。用户已选方案 C。第 20 批 P-2b 依赖本片的项目成员、版本、来源和回读形状。P-2a 模板内容、P-3b 场景包静态校验可独立进行。第 36 批后续角色服务的第 13 批前置照原安排，主线事项照自己的前置推进。
 
 ## 1. 角色、成员和固定版本
 
@@ -61,7 +61,7 @@ type EffectiveCharacterSelection =
 | 恢复某个历史版本 | 指定同一角色的固定版本引用。原件按所见 `draft_revision`、项目按所见成员 `revision` 与原件版本核对。把用户看到的历史内容保存成选定作用域的新版本。若历史上跟随的节如今从原件取不到当时内容，在项目内覆盖该节以还原内容。冲突先回读当前值并给出差异，用户决定后再提交。已有任务不换版。 |
 | 场景撤销／移除 | 按 Characters 回读的成员身份、采用来源和成员 `revision` 判断。只有这次采用新建、revision 仍与创建回执相同的成员可解除。另一个请求复用时，Characters 原子更新成员 revision，使原创建者的解除凭据失效，规则见第 3 节。复用结果本身没有解除权，个人原件始终保留。 |
 
-[选择器与项目设置原型](../../docs/design/role-scope/app.js)原先显示退到个人默认。按上述决定校正这一个停用状态的取值、来源、提示和影响说明。
+[选择器与项目设置原型](../../docs/design/archive/role-scope/app.js)原先显示退到个人默认。按上述决定校正这一个停用状态的取值、来源、提示和影响说明。
 
 ## 3. 模板采用与主人回读
 
@@ -107,7 +107,7 @@ type CharacterRoleReadOutput = { results: CharacterRoleReadResult[] };
 | `packages/contracts/src/modules/character-role-scope.ts`、`packages/contracts/src/platform/blueprint-source.ts` | 相邻纯合同、来源叶定义。 |
 | `tooling/gates/api/contracts/modules/characters.txt` | `pnpm api:update` 后提交此子路径的变化。 |
 | `tests/character-role-scope-contract.test.ts`、本文 | 公开入口验收和设计说明。 |
-| `docs/design/role-scope/app.js`、`docs/design/role-scope/README.md` | 仅校正用户已定的项目默认停用取值、来源、提示和影响说明。 |
+| `docs/design/archive/role-scope/app.js`、`docs/design/archive/role-scope/README.md` | 仅校正用户已定的项目默认停用取值、来源、提示和影响说明。 |
 
 公共包根、`package.json` exports、SDK、Manifest、Host 动作快照、版本登记、存储／升级、运行时和 UI 均在本片的文件边界之外。主台协调第 36 批目录和第 20 批交接引用。源码按分支合入，只有公开子路径可消费后，P-2b 才能把类型用作交付依据。
 

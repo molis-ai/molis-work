@@ -154,7 +154,7 @@ PR 开出后 main 进了 #2101（Coding 的环境检查卡改由读状态的那�
 
 ## 后半（36A-4b）
 
-状态：已实现（2026-11-22），分支 `claude/dazzling-bouman-5a7a54`，一个 PR，交 36A 主会话评审与合并。
+状态：已实现（2026-11-22），分支 `claude/dazzling-bouman-5a7a54`，PR #2233，交 36A 主会话评审与合并。
 
 分档：独立片。动 `plugins/native/coding` 一个包和它的测试；合同上给 `coding.changesets.read@1` 原位加一个可选输入 `stats`（阶段一，登记在 `docs/system/CONTRACT-CHANGES.md` 2026-11-22）。不改 `apps/workbench` 外壳、不改 SDK、不加服务或表。类型：体验与效果，产品线 Coding。
 

@@ -1,10 +1,10 @@
 import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { collectHomeAggregate, homeAggregatePorts, homeBackgroundTasks, HomeAggregateInputEach, MolisWorkLocalHost, molisWorkHostProjectReference, runtimeOverview } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import type { HomeAggregatePorts } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HomeAggregatePorts, RuntimeOverviewPorts } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, type ActionCallContext, type ActionView, type BackgroundTaskCollection, type RunsOverview } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 // T-319 (R-63, RAC-2437): a source that is not in the project's plugin manifest is not installed here and stays out of the Home;
@@ -332,4 +332,266 @@ test("B103-01 a reading is kept only when it read the project, and shown asleep 
   assert.deepEqual(await read(plain), [], "an input made per provider without a key is read only from open projects");
   await readings.pass;
   assert.deepEqual(woken, []);
+});
+
+test("resting persistence hydrates unopened projects with zero wakes on matching fingerprint, invalidates on fingerprint or key change, and prunes unknown keys", async () => {
+  const a = reference("project-a");
+  const b = reference("project-b");
+  const source = { capability_id: "homeagg.running.read", version: 1, provider_id: "example.plugin" };
+  const answering = (projectId: string): ActionView => ({ ...unavailableView(projectId), availability: { available: true } as const });
+  const fp1 = "a".repeat(64);
+  const fp2 = "b".repeat(64);
+  let liveFp: string | null = fp1;
+  let closedList = [a, b];
+  let key = "k1";
+  const woken: string[] = [];
+  const removed: string[] = [];
+  const pruned: string[][] = [];
+  const kindPlain = JSON.stringify([TYPE, {}]);
+  const kindEach = JSON.stringify([TYPE, "each"]);
+  const disk = new Map<string, Map<string, { fingerprint: string; keys: Record<string, string>; result: { answers: Array<{ project_id: string; source: typeof source; plugin_id: string | null; subject_kinds: string[]; output: unknown }>; issues: Array<{ project_id: string; source: typeof source | null; code: string }> } }>>([
+    [a.storage_key, new Map([
+      [kindPlain, { fingerprint: fp1, keys: {}, result: { answers: [{ project_id: a.project_id, source, plugin_id: PLUGIN, subject_kinds: [], output: { project: "from-disk-a" } }], issues: [] } }],
+      [kindEach, { fingerprint: fp1, keys: { [JSON.stringify(source)]: "k1" }, result: { answers: [{ project_id: a.project_id, source, plugin_id: PLUGIN, subject_kinds: [], output: { project: "from-disk-a-each" } }], issues: [] } }],
+    ])],
+  ]);
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [],
+    whileOpen: async (_ref, work) => work(),
+    client: project => fakeActionClient({
+      discover: async () => [answering(project.project_id)],
+      invoke: async () => ({ project: `live-${project.project_id}` }),
+    }),
+    context: async project => context(project.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => closedList,
+      rest: () => ({ state: "never", usedAt: undefined }),
+      wake: async (project, work) => { woken.push(project.project_id); return work(); },
+      quietly: async work => work(),
+      changed: () => undefined,
+      running: () => true,
+      readings,
+      persistence: {
+        fingerprints: async projects => new Map(projects.map(project => [project.storage_key, liveFp])),
+        load: project => disk.get(project.storage_key) ?? null,
+        remove: storageKey => { removed.push(storageKey); disk.delete(storageKey); },
+        prune: known => { pruned.push([...known].sort()); },
+      },
+    },
+  };
+
+  // First read: A hydrates from persisted snapshot with ZERO wakes; B has no persisted snapshot and wakes in background.
+  const first = await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  assert.deepEqual(first.answers.map(answer => [answer.project_id, answer.output.project, answer.resting]), [
+    ["project-a", "from-disk-a", true],
+  ]);
+  await readings.pass;
+  assert.deepEqual(woken, ["project-b"], "only the project without a valid persisted snapshot wakes");
+  assert.equal(pruned.length, 1, "prune runs on the initial project set");
+
+  // Second read with same project set: prune does not re-scan unnecessarily, A stays hydrated with zero wakes.
+  woken.length = 0;
+  const second = await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  assert.equal(second.answers.find(answer => answer.project_id === "project-a")?.output.project, "from-disk-a");
+  assert.equal(pruned.length, 1, "unchanged known project set skips redundant disk pruning");
+  await readings.pass;
+  assert.ok(!woken.includes("project-a"), "A never wakes on repeated reads");
+
+  // Keyed input hydrates from disk when key matches, and invalidates immediately when key changes.
+  woken.length = 0;
+  const each = new HomeAggregateInputEach(() => ({}), () => key);
+  const eachHit = await collectHomeAggregate<{ project: string }>(ports, TYPE, each);
+  assert.deepEqual(eachHit.answers.map(answer => [answer.project_id, answer.output.project, answer.resting]), [
+    ["project-a", "from-disk-a-each", true],
+  ]);
+  await readings.pass;
+  assert.deepEqual(woken, ["project-b"], "A stayed resting on matching keyOf");
+  woken.length = 0;
+  key = "k2";
+  const eachMiss = await collectHomeAggregate<{ project: string }>(ports, TYPE, each);
+  assert.ok(!eachMiss.answers.some(answer => answer.project_id === "project-a"), "key change invalidates hydrated reading");
+  await readings.pass;
+  assert.ok(woken.includes("project-a"), "invalidated keyOf triggers background wake");
+
+  // Fingerprint change invalidates hydrated in-memory reading and removes stale disk copy immediately.
+  woken.length = 0;
+  liveFp = fp2;
+  const fpMiss = await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  assert.ok(!fpMiss.answers.some(answer => answer.project_id === "project-a"), "changed fingerprint never serves stale reading");
+  assert.ok(removed.includes(a.storage_key), "stale persisted cache is removed on fingerprint mismatch");
+  await readings.pass;
+  assert.ok(woken.includes("project-a"));
+
+  // Removing a project from the catalog triggers prune for the updated known set.
+  closedList = [a];
+  await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  assert.equal(pruned.length, 2);
+  assert.deepEqual(pruned[1], [a.storage_key]);
+});
+
+test("runtimeOverview invalidates resting readings once an upcoming run reaches due_at within the same hour", async () => {
+  const project = reference("project-due");
+  const source = { capability_id: "schedule.runs.overview", version: 1, provider_id: "io.molis.work.schedule" };
+  const fp = "c".repeat(64);
+  let now = new Date("2026-11-22T10:15:00.000Z");
+  const woken: string[] = [];
+  const kind = JSON.stringify([RUNS_OVERVIEW_OUTPUT_TYPE, "each"]);
+  const persistedOverview: RunsOverview = {
+    source: { surface: "schedule", title: "定时任务" },
+    upcoming: [{ run_id: "soon", title: "soon", due_at: "2026-11-22T10:30:00.000Z", project_id: project.project_id, open: null, needs: [] }],
+    missed: [],
+    expired: 0,
+  };
+  const disk = new Map([[project.storage_key, new Map([[kind, {
+    fingerprint: fp,
+    keys: { [JSON.stringify(source)]: JSON.stringify([null, Math.floor(now.getTime() / 3_600_000)]) },
+    result: { answers: [{ project_id: project.project_id, source, plugin_id: "io.molis.work.schedule", subject_kinds: [], output: persistedOverview }], issues: [] },
+  }]])]]);
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const view: ActionView = {
+    capability_id: source.capability_id, version: 1, operation: "query",
+    provider: { provider_id: source.provider_id, title: "Schedule", kind: "plugin", plugin_id: source.provider_id, project_id: project.project_id },
+    availability: { available: true },
+    action: {
+      title: "overview", description: "runs overview", kind: "query", scope: "project", audiences: ["user"], permissions: [],
+      subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "object" },
+      input_type: RUNS_OVERVIEW_INPUT_TYPE, output_type: RUNS_OVERVIEW_OUTPUT_TYPE, home_aggregate: true,
+    },
+  };
+  const ports: RuntimeOverviewPorts = {
+    aggregate: {
+      openProjects: () => [],
+      whileOpen: async (_ref, work) => work(),
+      client: () => fakeActionClient({
+        discover: async () => [view],
+        invoke: async () => ({
+          source: { surface: "schedule", title: "定时任务" },
+          upcoming: [],
+          missed: [{ run_id: "soon", title: "soon", due_at: "2026-11-22T10:30:00.000Z", missed_at: "2026-11-22T10:35:00.000Z", project_id: project.project_id, open: null, needs: [] }],
+          expired: 0,
+        } satisfies RunsOverview),
+      }),
+      context: async ref => context(ref.project_id),
+      projectPlugins: async () => () => true,
+      resting: {
+        closed: async () => [project],
+        rest: () => ({ state: "never", usedAt: undefined }),
+        wake: async (ref, work) => { woken.push(ref.project_id); return work(); },
+        quietly: async work => work(),
+        changed: () => undefined,
+        running: () => true,
+        readings,
+        persistence: {
+          fingerprints: async () => new Map([[project.storage_key, fp]]),
+          load: ref => disk.get(ref.storage_key) ?? null,
+          remove: () => undefined,
+          prune: () => undefined,
+        },
+      },
+    },
+    within: async () => undefined,
+    now: () => now,
+    online: () => true,
+    model: () => true,
+    gaps: () => [],
+    expiredSeen: () => ({}),
+  };
+
+  // At 10:15 (before 10:30 due_at, same hour): serves persisted overview with zero wakes.
+  const beforeDue = await runtimeOverview(ports);
+  assert.deepEqual(beforeDue.upcoming.map(row => row.run_id), ["soon"]);
+  await readings.pass;
+  assert.deepEqual(woken, []);
+
+  // At 10:35 (STILL hour 10, but 10:30 has passed): invalidates cached upcoming run and wakes project to re-read.
+  now = new Date("2026-11-22T10:35:00.000Z");
+  const afterDue = await runtimeOverview(ports);
+  assert.deepEqual(afterDue.upcoming, [], "past-due upcoming run is never served from stale resting cache");
+  await readings.pass;
+  assert.deepEqual(woken, [project.project_id]);
+});
+
+test("homeBackgroundTasks marks under-way readings non-persistable and refuses to serve under-way resting snapshots", async () => {
+  const project = reference("project-running");
+  const source = { capability_id: "coding.background.tasks", version: 1, provider_id: "io.molis.work.coding" };
+  const fp = "d".repeat(64);
+  const kind = JSON.stringify([BACKGROUND_TASKS_OUTPUT_TYPE, {}]);
+  const runningCollection: BackgroundTaskCollection = {
+    source: { surface: "coding", title: "Coding", icon: "code" },
+    tasks: [{
+      subject: { kind: "coding_session", id: "s1" },
+      title: "active task",
+      state: "running",
+      waiting: false,
+      details: [],
+      updated_at: "2026-11-22T10:00:00.000Z",
+      executor: { kind: "plugin", label: "Coding" },
+      serves: [],
+      scope: "project",
+      commands: [],
+      decisions: [],
+      open: { kind: "item", surface: "coding", id: "s1", title: "active task", label: "Open" },
+    }],
+  };
+  const verifiedCollection: BackgroundTaskCollection = {
+    ...runningCollection,
+    tasks: [{ ...runningCollection.tasks[0]!, state: "verify" }],
+  };
+  const view: ActionView = {
+    capability_id: source.capability_id, version: 1, operation: "query",
+    provider: { provider_id: source.provider_id, title: "Coding", kind: "plugin", plugin_id: source.provider_id, project_id: project.project_id },
+    availability: { available: true },
+    action: {
+      title: "tasks", description: "bg tasks", kind: "query", scope: "project", audiences: ["user"], permissions: [],
+      subject_kinds: ["coding_session"], input_schema: { type: "object" }, output_schema: { type: "object" },
+      output_type: BACKGROUND_TASKS_OUTPUT_TYPE, home_aggregate: true,
+    },
+  };
+  const woken: string[] = [];
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  let openList: typeof project[] = [project];
+  let liveOutput: BackgroundTaskCollection = runningCollection;
+  const disk = new Map([[project.storage_key, new Map([[kind, {
+    fingerprint: fp,
+    keys: {},
+    result: { answers: [{ project_id: project.project_id, source, plugin_id: source.provider_id, subject_kinds: ["coding_session"], output: runningCollection }], issues: [] },
+  }]])]]);
+  const ports: HomeAggregatePorts = {
+    openProjects: () => openList,
+    whileOpen: async (_ref, work) => work(),
+    client: () => fakeActionClient({ discover: async () => [view], invoke: async () => liveOutput }),
+    context: async ref => context(ref.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => openList.length ? [] : [project],
+      rest: () => openList.length ? { state: "open", usedAt: 5 } : { state: "never", usedAt: undefined },
+      wake: async (ref, work) => { woken.push(ref.project_id); return work(); },
+      quietly: async work => work(),
+      changed: () => undefined,
+      running: () => true,
+      readings,
+      persistence: {
+        fingerprints: async () => new Map([[project.storage_key, fp]]),
+        load: ref => disk.get(ref.storage_key) ?? null,
+        remove: () => undefined,
+        prune: () => undefined,
+      },
+    },
+  };
+
+  // Reading an open project with a running task marks the in-memory reading non-persistable.
+  const openRead = await homeBackgroundTasks(ports, [{ project_id: project.project_id, display_name: "Running" }]);
+  assert.equal(openRead.tasks[0]?.state, "running");
+  assert.equal(readings.projects.get(project.storage_key)?.get(kind)?.persistable, false);
+
+  // Even if a stale cache file contains an under-way task after restart, homeBackgroundTasks refuses to serve it and wakes instead.
+  readings.projects.clear();
+  openList = [];
+  liveOutput = verifiedCollection;
+  const restarted = await homeBackgroundTasks(ports, [{ project_id: project.project_id, display_name: "Running" }]);
+  assert.deepEqual(restarted.tasks, [], "stale running task from cache is never served as resting");
+  await readings.pass;
+  assert.deepEqual(woken, [project.project_id], "wakes to reconcile post-restart state");
 });

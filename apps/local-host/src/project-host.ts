@@ -67,8 +67,10 @@ import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { admitProviderRules } from "./scene-rule-admission.js";
 import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
-import { homeAggregatePorts } from "./home-aggregate.js";
+import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingReadings, persistShutdownRestingReadings } from "./home-aggregate.js";
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
+import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
+import { computeProjectRestingFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
 import { installedPluginsActiveWorkCount, installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
@@ -563,6 +565,8 @@ export class MolisWorkLocalHost {
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
+    const storageKey = typeof referenceOrStorageKey === "string" ? referenceOrStorageKey.trim() : referenceOrStorageKey.storage_key.trim();
+    clearProjectRestingReadings(this, storageKey);
     return this.host.closeProject(referenceOrStorageKey);
   }
 
@@ -576,6 +580,48 @@ export class MolisWorkLocalHost {
       .filter(reference => !open.has(reference.storage_key) && fs.existsSync(reference.storage_key));
   }
 
+  /** Canonical Home directory while both Home and catalog are bound, enabling resting snapshot persistence. */
+  restingHomeDirectory(): string | undefined {
+    return this.options.homeDirectory && this.catalogRunner ? this.options.homeDirectory : undefined;
+  }
+
+  /** Canonical Home directory for removing resting cache files on purposeful close. */
+  restingCacheHomeDirectory(): string | undefined {
+    return this.options.homeDirectory;
+  }
+
+  /** Live validity fingerprints for closed projects, combining project DB, catalog plugin membership, and Home plugin authority. */
+  async restingFingerprints(references: readonly LocalHostProjectReference[]): Promise<ReadonlyMap<string, string | null>> {
+    const home = this.options.homeDirectory;
+    if (!home || !this.catalogRunner || references.length === 0) return new Map();
+    const homePluginsStamp = homePluginsSemanticStamp(home, pluginFixturesStamp(this.options.pluginFixtures));
+    if (!homePluginsStamp) return new Map(references.map(reference => [reference.storage_key, null]));
+    try {
+      return await this.catalogRunner({ homeDirectory: home }, catalog => withFreshReadOnlyPluginDirectory(home, () => {
+        const byId = new Map(catalog.listProjects().map(project => [project.project_id, project]));
+        const result = new Map<string, string | null>();
+        for (const reference of references) {
+          const project = byId.get(reference.project_id);
+          if (!project || path.resolve(project.database_path) !== reference.storage_key) {
+            result.set(reference.storage_key, null);
+            continue;
+          }
+          const membership = catalog.projectPluginMembership(reference.project_id, () => readOnlyAlwaysOnProjectPlugins(home));
+          result.set(reference.storage_key, computeProjectRestingFingerprint({
+            homeDirectory: home,
+            reference,
+            createdAt: project.created_at,
+            membership,
+            homePluginsStamp,
+          }));
+        }
+        return result;
+      }));
+    } catch {
+      return new Map(references.map(reference => [reference.storage_key, null]));
+    }
+  }
+
   /** Runs `work` without it counting as use of the projects it reads (`ProjectLine.quietly`). */
   quietly<T>(work: () => T): T { return this.host.quietly(work); }
 
@@ -583,12 +629,12 @@ export class MolisWorkLocalHost {
   projectRest(storageKey: string) { return this.host.projectRest(storageKey); }
 
   /**
-   * Puts an open project to sleep when nobody has used it for `idleMs` and nothing of it is running (batch 103-1): no call in its
+   * Puts an open project to sleep when nobody has used it for `idleMs` and nothing of it is running: no call in its
    * line, and no plugin execution, job or terminal of the project or of a Home plugin in it that closing would end. A call that comes
-   * later opens it again. Whether it was closed.
+   * later opens it again. Persists valid resting readings right after close. Whether it was closed.
    */
-  sleepIfIdle(reference: LocalHostProjectReference, idleMs: number): Promise<boolean> {
-    return this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
+  async sleepIfIdle(reference: LocalHostProjectReference, idleMs: number): Promise<boolean> {
+    const slept = await this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
       if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
       const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
         || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
@@ -596,12 +642,34 @@ export class MolisWorkLocalHost {
       // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
       return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
     });
+    if (slept) {
+      const rest = this.host.projectRest(reference.storage_key);
+      if (rest.state === "asleep") await persistProjectRestingReadings(this, reference, rest.usedAt);
+    }
+    return slept;
   }
 
   close(): Promise<void> {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
-        ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
+        ["projects", async () => {
+          if (!this.host) return;
+          const openBeforeClose = this.host.projects()
+            .filter(project => project.state !== "closing")
+            .map(project => {
+              const persistable = project.state === "ready" && !this.host.isProjectBusy(project.storage_key);
+              return {
+                reference: { project_id: project.project_id, storage_key: project.storage_key },
+                usedAt: persistable ? this.host.projectRest(project.storage_key).usedAt : undefined,
+                persistable,
+              };
+            });
+          await this.host.close();
+          if (openBeforeClose.length) {
+            try { await persistShutdownRestingReadings(this, openBeforeClose); }
+            catch (error) { hostLog.warn("home", "resting_readings_shutdown_failed", error); }
+          }
+        }], ["functions", () => this.systemFunctions?.dispose()],
         ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["sessions", () => this.sessions?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)], ["assistant", () => this.assistantStore?.close()],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);

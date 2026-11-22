@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { lstat, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { collectHomeAggregate, homeAggregatePorts, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, HomeConsentLedger, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -276,4 +279,259 @@ test("S-49 B103-01 the Home answers a sleeping project from its last read, opens
   assert.deepEqual(await read(), ["a"]);
   await pass();
   assert.ok(plugin.calls.some(call => call.project === closed.project_id), "read again after it was used");
+});
+
+const restingCacheFile = (home: string, storageKey: string) =>
+  join(home, "cache", "resting-readings", `${createHash("sha256").update(storageKey).digest("hex")}.json`);
+
+test("S-49 resting readings persist across Host restarts with zero project opens when unchanged, and invalidate on project DB, plugin membership, Home consent, keyOf, or purposeful close", { timeout: 60_000 }, async t => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-persist-")));
+  const hosts: MolisWorkLocalHost[] = [];
+  t.after(async () => {
+    for (const host of hosts.reverse()) {
+      try { await host.close(); } catch { /* already closed */ }
+    }
+    await rm(home, { recursive: true, force: true });
+  });
+  const create = async (name: string) => {
+    const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: "user" }));
+    return molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  };
+  const p1 = await create("SleptProject");
+  const p2 = await create("OpenOnShutdown");
+  const startHost = (plugin: ReturnType<typeof aggregatePlugin>, opened: string[]) => {
+    const host = new MolisWorkLocalHost({
+      homeDirectory: home,
+      completeText: null,
+      pluginFixtures: { project: [plugin.definition] },
+      onRuntimeOpen: ref => { opened.push(ref.project_id); },
+    });
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    hosts.push(host);
+    return { host, withHostCatalog };
+  };
+  const labelOf = (answers: ReadonlyArray<{ project_id: string; resting?: true }>) =>
+    answers.map(answer => `${answer.project_id === p1.project_id ? "p1" : "p2"}${answer.resting ? ":resting" : ""}`).sort();
+
+  // Host 1: read both projects for both plain and keyed queries; sleep p1, leave p2 open until clean shutdown.
+  const plugin1 = aggregatePlugin();
+  const opened1: string[] = [];
+  const { host: host1 } = startHost(plugin1, opened1);
+  const ports1 = homeAggregatePorts(host1);
+  let key = "k1";
+  const each = new HomeAggregateInputEach(() => ({}), () => key);
+  await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+  await ports1.resting!.readings.pass;
+  await collectHomeAggregate<{ project: string }>(ports1, TYPE, each);
+  await ports1.resting!.readings.pass;
+  assert.equal(await host1.sleepIfIdle(p1, 0), true, "p1 sleeps cleanly after quiet reads");
+  assert.equal((await lstat(join(home, "cache", "resting-readings"))).mode & 0o777, 0o700);
+  assert.equal((await lstat(restingCacheFile(home, p1.storage_key))).mode & 0o777, 0o600);
+  await host1.close();
+  assert.equal((await lstat(restingCacheFile(home, p2.storage_key))).mode & 0o777, 0o600, "clean Host shutdown also persists open project readings");
+
+  // Host 2 (fresh restart): both p1 and p2 answer immediately as resting with ZERO project opens and ZERO plugin calls.
+  const plugin2 = aggregatePlugin();
+  const opened2: string[] = [];
+  const { host: host2, withHostCatalog: withHost2Catalog } = startHost(plugin2, opened2);
+  const ports2 = homeAggregatePorts(host2);
+  const restartedPlain = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(labelOf(restartedPlain.answers), ["p1:resting", "p2:resting"]);
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [], "restarted Host opens zero projects when persisted resting snapshots match");
+  assert.deepEqual(plugin2.calls, [], "restarted Host invokes zero plugin queries when persisted snapshots match");
+
+  const restartedKeyed = await collectHomeAggregate<{ project: string }>(ports2, TYPE, each);
+  assert.deepEqual(labelOf(restartedKeyed.answers), ["p1:resting", "p2:resting"]);
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [], "keyed query with unchanged keyOf also opens zero projects");
+
+  // Direct in-place SQLite commit on closed p1 invalidates p1 immediately while p2 remains resting with zero opens.
+  const db = new DatabaseSync(p1.storage_key);
+  try {
+    db.prepare("UPDATE project_root SET created_at = ? WHERE project_id = ?")
+      .run("2026-11-22T12:34:56.789Z", p1.project_id);
+  } finally {
+    db.close();
+  }
+  const afterDbChange = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(labelOf(afterDbChange.answers), ["p2:resting"], "p1 is invalidated immediately after DB write while p2 stays resting");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [p1.project_id], "only the modified project wakes quietly");
+  assert.equal(await host2.sleepIfIdle(p1, 0), true);
+
+  // Catalog plugin membership change on still-closed p2 invalidates p2 immediately without waiting for p2 to open.
+  await withHost2Catalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: p2.project_id, plugin_id: "feed", actor_id: "user" }));
+  opened2.length = 0;
+  const afterCatalogChange = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(labelOf(afterCatalogChange.answers), ["p1:resting"], "catalog plugin membership change invalidates p2 immediately");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [p2.project_id]);
+  assert.equal(await host2.sleepIfIdle(p2, 0), true);
+
+  // Home plugin publisher pin / revocation invalidates sleeping snapshots immediately.
+  const ledger = new HomeConsentLedger(home);
+  const now = new Date().toISOString();
+  ledger.pinPublisher({ key_id: "resting-test-key", public_key_spki_base64: "cHVibGlj", label: "Test", pinned_at: now, pinned_by: "user" });
+  opened2.length = 0;
+  const afterPin = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(afterPin.answers, [], "Home trust change invalidates all resting snapshots");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.equal(await host2.sleepIfIdle(p1, 0), true);
+  assert.equal(await host2.sleepIfIdle(p2, 0), true);
+
+  ledger.revokePublisher("resting-test-key", new Date().toISOString());
+  opened2.length = 0;
+  const afterRevoke = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(afterRevoke.answers, [], "publisher revocation invalidates sleeping snapshots immediately");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  // Re-record keyed query on both before closing host2 cleanly so host3 can test keyOf invalidation after restart.
+  await collectHomeAggregate<{ project: string }>(ports2, TYPE, each);
+  await host2.close();
+
+  // Host 3: verify keyOf invalidation after restart and purposeful close clearing on-disk cache.
+  const plugin3 = aggregatePlugin();
+  const opened3: string[] = [];
+  const { host: host3 } = startHost(plugin3, opened3);
+  const ports3 = homeAggregatePorts(host3);
+  assert.deepEqual(labelOf((await collectHomeAggregate<{ project: string }>(ports3, TYPE, each)).answers), ["p1:resting", "p2:resting"]);
+  await ports3.resting!.readings.pass;
+  assert.deepEqual(opened3, [], "matching keyOf serves from disk with zero opens");
+
+  key = "k2";
+  assert.deepEqual((await collectHomeAggregate<{ project: string }>(ports3, TYPE, each)).answers, [], "changed keyOf invalidates persisted snapshot");
+  await ports3.resting!.readings.pass;
+  assert.deepEqual(opened3.sort(), [p1.project_id, p2.project_id].sort());
+  assert.equal(await host3.sleepIfIdle(p1, 0), true);
+  assert.equal(existsSync(restingCacheFile(home, p1.storage_key)), true);
+
+  // Purposeful close deletes persisted cache file and excludes the project from both answers and background wakes.
+  await host3.closeProject(p1);
+  assert.equal(existsSync(restingCacheFile(home, p1.storage_key)), false, "purposeful close removes persisted cache file");
+  opened3.length = 0;
+  const afterPurposefulClose = await collectHomeAggregate<{ project: string }>(ports3, TYPE, {});
+  assert.ok(!afterPurposefulClose.answers.some(answer => answer.project_id === p1.project_id));
+  await ports3.resting!.readings.pass;
+  assert.ok(!opened3.includes(p1.project_id), "purposefully closed project is never reopened to be read");
+});
+
+test("S-49 S-12 persisted resting cache rejects symlinks and tampered files and never writes provider error messages or transient failures", { timeout: 60_000 }, async t => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-s12-")));
+  const outside = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-outside-")));
+  const hosts: MolisWorkLocalHost[] = [];
+  t.after(async () => {
+    for (const host of hosts.reverse()) {
+      try { await host.close(); } catch { /* already closed */ }
+    }
+    await rm(home, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  });
+  const create = async (name: string) => {
+    const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: "user" }));
+    return molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  };
+  const okProj = await create("CleanProject");
+  const errProj = await create("FailingProject");
+  const SECRET_REASON = "PRIVATE_PROVIDER_ERROR_BODY_NEVER_PERSIST";
+  const makeFailingPlugin = (): PluginDefinition => ({
+    manifest: {
+      schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "homeagg", kind: "app",
+      publisher: { publisher_id: "example", signature: "home-aggregate" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+      permissions: [{ permission: READ, required: true, reason: "读自己的进行中工作" }],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      actions: [tasks],
+    },
+    async start() {
+      return {
+        kind: "app",
+        views: [],
+        actions: [{
+          ...tasks,
+          async handle(caller: ActionExecutionContext) {
+            if (caller.project_id === errProj.project_id) {
+              throw new ActionError("actions.execution_failed", SECRET_REASON);
+            }
+            return { project: caller.project_id! };
+          },
+        }],
+      };
+    },
+  });
+
+  const host1 = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [makeFailingPlugin()] } });
+  host1.configurePersonalPlanning(home, withCatalog);
+  hosts.push(host1);
+  const ports1 = homeAggregatePorts(host1);
+  await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+  await ports1.resting!.readings.pass;
+  await host1.close();
+
+  const cacheDir = join(home, "cache", "resting-readings");
+  const files = await readdir(cacheDir);
+  assert.ok(files.length >= 1);
+  for (const name of files) {
+    const text = await readFile(join(cacheDir, name), "utf8");
+    assert.ok(!text.includes(SECRET_REASON), "provider error message never enters persisted cache (S-12)");
+    assert.ok(!text.includes("actions.execution_failed"), "transient failure code is not persisted to disk");
+  }
+  assert.equal(existsSync(restingCacheFile(home, errProj.storage_key)), false, "project with transient error has no persisted cache file");
+  const okFile = restingCacheFile(home, okProj.storage_key);
+  assert.equal(existsSync(okFile), true);
+  const validRaw = await readFile(okFile, "utf8");
+
+  // Tampered cache files (prototype pollution, cross-home, non-policy issue) fail closed and trigger a quiet re-read.
+  const validJson = JSON.parse(validRaw) as { home_directory: string; project_id: string; storage_key: string; updated_at: string; entries: Record<string, { fingerprint: string; keys: Record<string, string>; result: { answers: unknown[]; issues: unknown[] } }> };
+  const tamperedVariants: string[] = [
+    `{"__proto__":{"polluted":true}}`,
+    JSON.stringify({ ...validJson, home_directory: outside }),
+    JSON.stringify({
+      ...validJson,
+      entries: Object.fromEntries(Object.entries(validJson.entries).map(([k, entry]) => [
+        k,
+        { ...entry, result: { answers: [], issues: [{ project_id: okProj.project_id, source: null, code: "actions.execution_failed", message: SECRET_REASON }] } },
+      ])),
+    }),
+  ];
+  for (const payload of tamperedVariants) {
+    await writeFile(okFile, payload, { mode: 0o600 });
+    const opened: string[] = [];
+    const probeHost = new MolisWorkLocalHost({
+      homeDirectory: home, completeText: null,
+      pluginFixtures: { project: [makeFailingPlugin()] },
+      onRuntimeOpen: ref => { opened.push(ref.project_id); },
+    });
+    probeHost.configurePersonalPlanning(home, withCatalog);
+    hosts.push(probeHost);
+    const ports = homeAggregatePorts(probeHost);
+    const result = await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+    assert.ok(!result.answers.some(answer => answer.project_id === okProj.project_id), "tampered cache is never served");
+    assert.ok(!JSON.stringify(result).includes(SECRET_REASON));
+    await ports.resting!.readings.pass;
+    assert.ok(opened.includes(okProj.project_id), "tampered cache falls back to quiet background read");
+    await probeHost.close();
+  }
+
+  // Symlink confinement: a symlink at the cache file path is neither read nor written through.
+  const outsideTarget = join(outside, "escaped.json");
+  await writeFile(outsideTarget, validRaw, { mode: 0o600 });
+  await rm(okFile, { force: true });
+  await symlink(outsideTarget, okFile);
+  const openedSym: string[] = [];
+  const symHost = new MolisWorkLocalHost({
+    homeDirectory: home, completeText: null,
+    pluginFixtures: { project: [makeFailingPlugin()] },
+    onRuntimeOpen: ref => { openedSym.push(ref.project_id); },
+  });
+  symHost.configurePersonalPlanning(home, withCatalog);
+  hosts.push(symHost);
+  const symPorts = homeAggregatePorts(symHost);
+  const symResult = await collectHomeAggregate<{ project: string }>(symPorts, TYPE, {});
+  assert.ok(!symResult.answers.some(answer => answer.project_id === okProj.project_id), "symlinked cache file is rejected");
+  await symPorts.resting!.readings.pass;
+  assert.ok(openedSym.includes(okProj.project_id), "falls back to quiet read instead of following symlink");
+  await writeFile(outsideTarget, "UNCHANGED_OUTSIDE_SENTINEL", { mode: 0o600 });
+  await symHost.close();
+  assert.equal(await readFile(outsideTarget, "utf8"), "UNCHANGED_OUTSIDE_SENTINEL", "Host never writes through a symlink");
 });

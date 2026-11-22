@@ -212,7 +212,7 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
       .replace(darkTokens[0], `${darkSelector}{${darkKept.join(";")}}`);
   }
   const rootVars = new Set<string>();
-  for (const match of sheet.matchAll(/:root[^{]*\{([^}]*)\}/g)) {
+  for (const match of sheet.matchAll(/:root(?:\s*,\s*\[data-ui-[^\]]+\])*\s*\{([^}]*)\}/g)) {
     for (const entry of match[1].split(";")) {
       const split = entry.indexOf(":");
       if (split > 0) {

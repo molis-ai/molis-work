@@ -52,8 +52,6 @@ ${BUTTON_STYLES}
   }
   :is(.mw-input, .mw-textarea)::placeholder { color: var(--muted); }
   :is(.mw-input, .mw-textarea, .mw-select):hover:where(:not(:disabled, :focus-visible)) { border-color: var(--control-input); background-color: var(--paper); }
-  :is(.mw-input, .mw-textarea, .mw-select):focus-visible,
-  .mw-input:focus, .mw-textarea:focus, .mw-input-group:focus-within { ${FIELD_FOCUS}; }
   :is(.mw-input, .mw-textarea, .mw-select) {
     &[aria-invalid="true"] {
       border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
@@ -72,9 +70,12 @@ ${BUTTON_STYLES}
     background: var(--paper);
     box-shadow: inset 0 1px 1px color-mix(in srgb, var(--shadow-color) 3%, transparent);
     transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
-    &:hover { border-color: var(--control-input); background: var(--paper); }
+    &:hover:not(:focus-within) { border-color: var(--control-input); background: var(--paper); }
     svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
   }
+  .mw-input-group:focus-within,
+  .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
+  .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
   .mw-input-group .mw-input, .mw-number .mw-input {
     border: 0; outline: 0; min-height: 26px; padding: 0; min-width: 0; background: transparent; box-shadow: none; border-radius: 0;
   }
@@ -291,8 +292,6 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
     &:hover { color: var(--ink); background: var(--nav-hover); }
     &.is-active { background: var(--nav-active); color: var(--ink); }
   }
-  :is(.mw-check, .mw-radio, .mw-tabs__tab, .mw-toggle, .mw-choice, .mw-pagination__page):focus-visible,
-  .mw-switch input:focus-visible + .mw-switch__track { ${CONTAINED_FOCUS}; }
   .mw-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .mw-toggle-group { display: inline-flex; gap: 3px; padding: 3px; border: 0; border-radius: 11px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-toggle {
@@ -318,6 +317,8 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
     &:active { transform: scale(.97); }
     &:is([aria-pressed="true"], [aria-current="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); .mw-choice__check { opacity: 1; transform: none; } }
   }
+  :is(.mw-check, .mw-radio, .mw-tabs__tab, .mw-toggle, .mw-choice, .mw-pagination__page):focus-visible,
+  .mw-switch input:focus-visible + .mw-switch__track { ${CONTAINED_FOCUS}; }
   .mw-choice__label { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; svg { width: 16px; height: 16px; flex: none; } }
   .mw-choice__check { display: inline-grid; place-items: center; width: 12px; opacity: 0; transform: scale(.6); transition: opacity 250ms var(--ease-quint), transform 250ms var(--ease-spring); svg { width: 12px; height: 12px; stroke-width: 2; } }
   @media (prefers-reduced-motion: reduce) { .mw-choice, .mw-choice__check { transition: none; } }

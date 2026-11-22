@@ -250,12 +250,13 @@ function molisToast(message: string, options: boolean | MolisToastOptions = {}):
       }
     : undefined);
   const node = ensureHostToast();
+  // replaceChildren() tears down any previously focused action button without firing focusout;
+  // passive toasts (pointer-events: none) also never receive pointerleave after replacing an interactive toast.
+  hostToastFocusInside = false;
   if (!actionSpec) {
-    // Passive toasts use pointer-events: none and never receive pointerleave/focusout after replacing an interactive toast.
     hostToastPointerInside = false;
-    hostToastFocusInside = false;
   }
-  const keepPaused = Boolean(actionSpec) && (hostToastPointerInside || hostToastFocusInside) && node.classList.contains("is-visible");
+  const keepPaused = Boolean(actionSpec) && hostToastPointerInside && node.classList.contains("is-visible");
   window.clearTimeout(hostToastTimer);
   hostToastTimer = 0;
   hostToastPaused = keepPaused;

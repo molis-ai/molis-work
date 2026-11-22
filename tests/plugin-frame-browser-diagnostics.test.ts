@@ -456,6 +456,11 @@ test("91-0b feedback runtime covers molisBusy Esc/icon swap, molisToast alert/un
   assert.equal(timers.size, 0, "interactive replacement toast keeps paused state while pointer is inside");
   toastNode.dispatchEvent({ type: "pointerleave" });
   assert.equal(timers.size, 1, "leaving hovered interactive toast resumes countdown");
+  // Replacing a keyboard-focused interactive toast with another interactive toast must clear stale focus pause
+  // (replaceChildren() removes the focused button without firing focusout) and auto-dismiss when pointer is outside.
+  toastNode.dispatchEvent({ type: "focusin" });
+  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("操作失败", { tone: "error", action: { label: "重试", onClick: () => {} } });
+  assert.equal(timers.size, 1, "interactive replacement toast clears torn-down focus pause and schedules auto-dismiss");
   // Replacing a hovered/focused interactive toast with a passive (pointer-events: none) toast must reset pause flags and schedule auto-dismiss.
   toastNode.dispatchEvent({ type: "pointerenter" });
   toastNode.dispatchEvent({ type: "focusin" });

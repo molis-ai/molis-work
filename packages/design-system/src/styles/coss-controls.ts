@@ -15,11 +15,6 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
     background: var(--control-fill); color: var(--ink); box-shadow: none; font-weight: var(--weight-control);
     &:hover { background: var(--nav-hover); color: var(--ink); }
   }
-  kbd {
-    display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px;
-    border: 1px solid var(--control-border); border-radius: 6px; background: var(--control-fill); color: var(--muted);
-    font: 11px/20px var(--font-mono);
-  }
   :where(button:not(:disabled), summary):active { filter: brightness(.94); }
   :where(input, textarea, select) { transition: border-color 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint); }
   :where(dialog) {

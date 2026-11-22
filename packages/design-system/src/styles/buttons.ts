@@ -77,7 +77,7 @@ export const BUTTON_STYLES = `
     border-color: var(--control-border);
     background: var(--paper);
     color: var(--ink);
-    box-shadow: 0 1px 1.5px color-mix(in srgb, var(--shadow-color) 4%, transparent), inset 0 1px 0 var(--edge-highlight, transparent);
+    box-shadow: 0 1px 1.5px color-mix(in srgb, var(--shadow-color) 4%, transparent), inset 0 1px 0 var(--edge-highlight);
     &:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-soft); }
   }
   .mw-btn--ghost {

@@ -23,7 +23,7 @@ export const SELECT_MENU_STYLES = `
     box-shadow: var(--lift-3); color: var(--ink); z-index: 80;
     &:not(:popover-open):not(.is-open) { display: none; }
     &.is-open { display: flex; flex-direction: column; }
-    &:is(:popover-open, .is-open) { animation: craft-drop var(--dur-move) var(--ease-quint) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
+    &:is(:popover-open, .is-open) { animation: craft-drop var(--dur-move) var(--ease-quint) both; }
   }
   .mw-select-picker__item {
     flex-shrink: 0; overflow-wrap: anywhere;
@@ -31,10 +31,6 @@ export const SELECT_MENU_STYLES = `
   }
   .mw-select-picker__check { width: 14px; flex: none; color: var(--muted); visibility: hidden; font-size: 12px; }
   .mw-select-picker__group { padding: 8px 10px 4px; color: var(--muted); font-size: 11px; line-height: 1.3; }
-  @media (max-width: 760px), (pointer: coarse) {
-    .mw-select-picker > .mw-select-picker__trigger { min-height: 44px; }
-    .mw-menu.mw-select-picker__menu .mw-select-picker__item { min-height: 44px; font-size: 15px; } /* touch: the next step up, readable at arm's length */
-  }
 `;
 
 export const SELECT_MENU_CLIENT_SCRIPT = `

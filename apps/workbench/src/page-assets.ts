@@ -182,8 +182,7 @@ body .mw-toggle-group {
     color: var(--ink); background: var(--paper); box-shadow: var(--lift-1), inset 0 1px 0 var(--edge-highlight);
   }
 }
-body.immersive-workbench .mw-select-picker__trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
-@media (max-width: 760px) { body.immersive-workbench { --control-h: 44px; .plugin-stage-back { width: 44px; height: 44px; min-height: 44px; } } }`;
+body.immersive-workbench .mw-select-picker__trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

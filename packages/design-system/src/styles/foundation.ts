@@ -1,16 +1,18 @@
 import { BASELINE_SKIN, baselineTerminal } from "../baseline.js";
 import { compactTokenDeclarations, renderRootSkinScope, renderSkinScope } from "../appearance-tokens.js";
 
+const LAYOUT_TOKENS = `
+  --measure-reading: 700px;
+  --measure-form: 760px;
+  --measure-stage: 960px;
+  --measure-wide: 1152px;
+  --master-w: 240px;
+  --master-w-wide: 280px;
+  --text-start: 44px;
+`;
+
 const FOUNDATION_BASE_BODY = `
-  :root {
-    --measure-reading: 700px;
-    --measure-form: 760px;
-    --measure-stage: 960px;
-    --measure-wide: 1152px;
-    --master-w: 240px;
-    --master-w-wide: 280px;
-    --text-start: 44px;
-  }
+  :root {${compactTokenDeclarations(LAYOUT_TOKENS)}}
 
   body {
     background: var(--page);

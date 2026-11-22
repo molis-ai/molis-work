@@ -110,6 +110,9 @@ export const SHELF_STYLES = `
     background: color-mix(in srgb, var(--da-panel) 70%, var(--da-side));
     border: 1px solid var(--da-line);
   }
+  @media (min-width: 761px) {
+    [data-shelf-stage-shell][data-expanded="false"] > .plugin-stage-list > .shelf-stage-chrome > .shelf-search { min-width: min(360px, 40vw); }
+  }
   [data-shelf] .shelf-search svg { width: 14px; height: 14px; stroke: var(--da-faint); fill: none; stroke-width: 2; }
   [data-shelf] .shelf-search input {
     flex: 1; min-width: 0; border: 0 !important; background: transparent !important;

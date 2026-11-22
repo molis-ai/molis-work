@@ -26,7 +26,7 @@ export const ON_DEMAND_HELP_PLUGIN_STYLES = `
   .mw-help-next__actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .mw-help-card {
     position: fixed; z-index: 60; width: min(380px, calc(100vw - 24px)); max-height: min(62dvh, 520px);
-    background: var(--popover); border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3), inset 0 1px 0 var(--edge-highlight, transparent); overflow: hidden; color: var(--ink);
+    background: var(--popover); border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3), inset 0 1px 0 var(--edge-highlight); overflow: hidden; color: var(--ink);
     animation: craft-drop var(--dur-move) var(--ease-quint);
     &:focus { outline: none; }
     @media (max-width: 760px) {
@@ -34,7 +34,6 @@ export const ON_DEMAND_HELP_PLUGIN_STYLES = `
       width: auto !important; max-width: none; max-height: 50dvh; border-radius: var(--r-sheet); animation-name: craft-rise-from-bar;
       .mw-help-next__fact { display: none; }
     }
-    @media (prefers-reduced-motion: reduce) { animation: none !important; }
   }
   .mw-help-card__head { gap: 8px; padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--line); flex: none; svg { width: 14px; height: 14px; color: var(--muted); flex: none; } }
   .mw-help-card__title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,4 +1,4 @@
-import type { UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiDefinitionRef, UiResourceRegistry } from "@molis-ai/molis-work-contracts/platform/ui";
 import { fontTokenDeclarations, skinTokenDeclarations, type UiResolvedFont, type UiResolvedSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { BASELINE_FONT, BASELINE_SPEC } from "./baseline.js";
 
@@ -62,6 +62,19 @@ export function renderRootTypeTokens(font: UiResolvedFont): string {
   const names = Object.keys(font.tokens).filter(name => !monoTokens.includes(name));
   const families = [...new Set(font.faces.map(face => face.family))].filter(family => !baselineFamilies.has(family));
   return `:root{${compactDecls(fontTokenDeclarations(font, names))};${compactDecls(fontTokenDeclarations(font, monoTokens))};--mw-shipped-families:${families.map(family => JSON.stringify(family)).join(",") || "none"}}`;
+}
+
+const FONT_FORMATS: Readonly<Record<string, string>> = { woff2: "woff2", woff: "woff", ttf: "truetype", otf: "opentype" };
+
+/** Compact `@font-face` rules for isolated plugin frames (omits default `font-style: normal` and range spaces). */
+export function renderRootFontFaces(font: UiResolvedFont, registry: UiResourceRegistry): string {
+  return font.faces.flatMap(face => {
+    const row = registry.resources.find(candidate => candidate.id === face.resource);
+    if (row?.kind !== "font" || row.route === undefined) return [];
+    const format = FONT_FORMATS[row.route.slice(row.route.lastIndexOf(".") + 1)];
+    const weight = typeof face.weight === "number" ? String(face.weight) : face.weight.join(" ");
+    return [`@font-face{font-family:"${face.family}";font-display:swap;font-weight:${weight};src:url(${row.route})${format ? ` format("${format}")` : ""};unicode-range:${face.unicode_range.join(",")}}`];
+  }).join("");
 }
 
 /** Compact root-only custom-property declarations for terminal scopes inside isolated plugin frames. */

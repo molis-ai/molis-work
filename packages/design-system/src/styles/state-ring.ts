@@ -5,7 +5,7 @@ export const STATE_RING_STYLES = `
     display: inline-block; flex: none; vertical-align: middle; overflow: visible;
     width: var(--ring-size, calc(1em + 2px)); height: var(--ring-size, calc(1em + 2px));
     fill: none; stroke: var(--ring-neutral); stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round;
-    path { transition: stroke var(--dur-move) var(--ease-quint); @media (prefers-reduced-motion: reduce) { transition: none; } }
+    path { transition: stroke var(--dur-move) var(--ease-quint); }
     [data-ring-segments] > path { stroke-width: var(--ring-stroke, 2.585); }
     [data-ring-tone=success], &[data-ring-family=done] [data-ring-core] { stroke: var(--ring-success); }
     [data-ring-tone=attention], &[data-ring-family=verify] [data-ring-core] { stroke: var(--ring-attention); }

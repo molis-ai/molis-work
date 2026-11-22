@@ -18,9 +18,10 @@ import {
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { knowledgeErrors } from "./errors.js";
 import type { KnowledgeOrganizer } from "./organize.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 const DEFAULT_PAGE = 50;
-const words = (values: readonly string[]) => [...new Set(values.map(value => value.replace(/\s+/gu, " ").trim().slice(0, KNOWLEDGE_KEYWORD_MAX_CHARS)).filter(Boolean))].slice(0, KNOWLEDGE_CARD_MAX_KEYWORDS);
+const words = (values: readonly string[]) => [...new Set(values.map(value => cutHead(value.replace(/\s+/gu, " ").trim(), KNOWLEDGE_KEYWORD_MAX_CHARS)).filter(Boolean))].slice(0, KNOWLEDGE_CARD_MAX_KEYWORDS);
 
 /**
  * The person's management of a project's cards (spec §8.3). What the person writes on a card is theirs: the edited fields
@@ -40,8 +41,8 @@ export class KnowledgeCards {
     const card = this.card(caller, input);
     const next: KnowledgeCardRecord = { ...card, edited: [...card.edited] };
     const mark = (field: KnowledgeEditableField) => { if (!next.edited.includes(field)) next.edited.push(field); };
-    if (input.title !== undefined) { next.title = input.title.replace(/\s+/gu, " ").trim().slice(0, KNOWLEDGE_TITLE_MAX_CHARS); mark("title"); }
-    if (input.brief !== undefined) { next.brief = input.brief.replace(/\s+/gu, " ").trim().slice(0, KNOWLEDGE_BRIEF_MAX_CHARS); mark("brief"); }
+    if (input.title !== undefined) { next.title = cutHead(input.title.replace(/\s+/gu, " ").trim(), KNOWLEDGE_TITLE_MAX_CHARS); mark("title"); }
+    if (input.brief !== undefined) { next.brief = cutHead(input.brief.replace(/\s+/gu, " ").trim(), KNOWLEDGE_BRIEF_MAX_CHARS); mark("brief"); }
     if (input.keywords !== undefined) { next.keywords = words(input.keywords); mark("keywords"); }
     if (!next.title) throw knowledgeErrors.invalid("卡片的标题不能为空");
     // Adopting gives the field back to organizing: its suggestion becomes the field, and later organizing may change it again.

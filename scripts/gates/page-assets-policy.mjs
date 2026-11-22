@@ -92,8 +92,25 @@ export function budgetLooseningProblems(headBudgets, baseBudgets) {
     const after = headBudgets.routes[name];
     if (!after) {
       errors.push(`${BUDGETS_FILE}: route "${name}" removed (was maxBytes ${before.maxBytes}); budgets may only get tighter`);
-    } else if (after.maxBytes > before.maxBytes) {
-      errors.push(`${BUDGETS_FILE}: route "${name}" budget loosened ${before.maxBytes} → ${after.maxBytes}; budgets may only get tighter`);
+    } else {
+      if (after.maxBytes > before.maxBytes) {
+        errors.push(`${BUDGETS_FILE}: route "${name}" budget loosened ${before.maxBytes} → ${after.maxBytes}; budgets may only get tighter`);
+      }
+      // What a route counts is part of its budget: dropping an asset, prefix or suffix moves bytes out of the total it caps.
+      for (const key of ["assets", "prefixes", "suffixes"]) {
+        for (const matcher of before[key] ?? []) {
+          if (!(after[key] ?? []).includes(matcher)) {
+            errors.push(`${BUDGETS_FILE}: route "${name}" no longer counts ${key.slice(0, -1)} "${matcher}"; a route's coverage may only grow`);
+          }
+        }
+      }
+    }
+  }
+  // A new route names its assets one by one: a new prefix or suffix route would quietly budget every asset that is unbudgeted today.
+  for (const [name, after] of Object.entries(headBudgets.routes)) {
+    if (baseBudgets.routes[name]) continue;
+    if (after.prefixes || after.suffixes) {
+      errors.push(`${BUDGETS_FILE}: new route "${name}" may only list exact assets, not prefixes or suffixes`);
     }
   }
   if (headBudgets.maxSingleAssetBytes > baseBudgets.maxSingleAssetBytes) {

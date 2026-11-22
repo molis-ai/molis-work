@@ -190,7 +190,10 @@ async function isolatedTypecheck(root: string, files: Map<string, string>, tests
     const kill = (error: Error) => { reason ??= error; if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); } } };
     const timer = setTimeout(() => kill(new Error('Type checking exceeded its 30 second budget')), 30_000), abort = () => kill(new Error('Type checking cancelled'));
     signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
-    const collect = (chunk: Buffer) => { diagnostics += chunk.toString(); if (diagnostics.length > 32_000) kill(new Error('Type checking diagnostics exceeded limit')); };
+    // Decoded as a stream: a character split across two chunks stays one character (MR21-12).
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    const collect = (chunk: string) => { diagnostics += chunk; if (diagnostics.length > 32_000) kill(new Error('Type checking diagnostics exceeded limit')); };
     child.stdout.on('data', collect); child.stderr.on('data', collect); child.on('error', reject);
     child.on('close', code => { clearTimeout(timer); signal?.removeEventListener('abort', abort); if (reason || code !== 0) reject(reason ?? new Error(diagnostics || 'Type checker process failed')); else resolvePromise(); });
   });

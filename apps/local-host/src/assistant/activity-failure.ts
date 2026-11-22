@@ -1,6 +1,7 @@
 import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantActivityFailure } from "@molis-ai/molis-work-contracts/services/assistant";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * What sort of failure a step's refusal was (specs/visual-ui-experience ⑤, user 2026-10-23), read from the platform code its
@@ -17,6 +18,6 @@ export function activityFailure(said: string): AssistantActivityFailure | undefi
 
 /** A failed step's own text (bounded, the runtime's code prefix dropped) and how it is classified; empty for any other step. */
 export function failedStep(item: AgentToolActivity): { detail: string; failure?: AssistantActivityFailure } {
-  const detail = item.state === "failed" && item.output ? item.output.replace(/\s+/g, " ").trim().replace(/^[A-Z][A-Z_]+:\s*/, "").slice(0, 300) : "";
+  const detail = item.state === "failed" && item.output ? cutHead(item.output.replace(/\s+/g, " ").trim().replace(/^[A-Z][A-Z_]+:\s*/, ""), 300) : "";
   return { detail, failure: detail ? activityFailure(`${item.summary} ${item.output}`) : undefined };
 }

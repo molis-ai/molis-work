@@ -1,6 +1,7 @@
 import { composeInstructedPrompt, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { INFORMATION_PLANNER } from "./agent-definitions/system-prompts.js";
 import { textModelRequired, type HostTextForCommit, type HostTextRequestOptions } from "./host-complete-text.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** At most `max` whole characters: a two-unit character is never cut in half. */
 const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max)].slice(0, max).join("");
@@ -31,7 +32,7 @@ export async function planInformationWork(snapshot: InformationPlanSnapshot, pro
   if (!prompt || prompt.length > 4000) throw new Error("请用 1–4000 字说明要筛选或整理什么");
   if (!completeText) throw textModelRequired();
   const sourceIds = new Set(snapshot.sources.filter(source => source.enabled).map(source => source.source_id));
-  const items = snapshot.feed_items.slice(0, 20).map(item => ({ id: item.item_id, source_id: item.source_id, title: wholeCharacters(item.title, 200), summary: item.summary.slice(0, 1000) }));
+  const items = snapshot.feed_items.slice(0, 20).map(item => ({ id: item.item_id, source_id: item.source_id, title: wholeCharacters(item.title, 200), summary: cutHead(item.summary, 1000) }));
   const inbox = snapshot.inbox_entries.filter(entry => entry.subject_type === "feed_item" && ["open", "in_progress"].includes(entry.status))
     .slice(0, 20).map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(snapshot.feed_items.find(item => item.item_id === entry.subject_id)?.title ?? "", 200) }));
   const context = { project_id: projectId, selected_item_id: items.some(item => item.id === body.selected_item_id) ? body.selected_item_id : null,
@@ -44,7 +45,7 @@ export async function planInformationWork(snapshot: InformationPlanSnapshot, pro
   const cleaned = result.value.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
   let parsed: { message?: unknown; action?: Record<string, unknown> | null };
   try { parsed = JSON.parse(cleaned); } catch { throw new Error("助手没有返回有效方案，请重试"); }
-  const message = typeof parsed.message === "string" ? parsed.message.slice(0, 4000) : "请检查以下方案后执行。";
+  const message = typeof parsed.message === "string" ? cutHead(parsed.message, 4000) : "请检查以下方案后执行。";
   const action = parsed.action;
   if (action == null) return { message, action: null, context: { project_id: projectId, items: items.length, inbox: inbox.length } };
   const text = (key: string, max: number) => { const value = action[key]; if (typeof value !== "string" || !value.trim() || value.length > max) throw new Error("助手方案字段不完整，请重试"); return value.trim(); };

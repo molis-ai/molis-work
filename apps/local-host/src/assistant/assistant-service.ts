@@ -51,6 +51,7 @@ import { AssistantBudget } from "./assistant-budget.js";
 import { AssistantNotices } from "./assistant-notices.js";
 import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type { AssistantServicePorts, AssistantCaller } from "./assistant-service-shared.js";
 export { holdingRule } from "./assistant-notices.js";
@@ -63,9 +64,9 @@ function checkContext(value: unknown): AssistantContextSnapshot | null {
   if (value === undefined || value === null) return null;
   const context = value as AssistantContextSnapshot;
   if (!context || typeof context !== "object" || !context.source || typeof context.source.surface !== "string") throw assistantErrors.invalid("当前页面信息格式无效");
-  const selection = context.selection && typeof context.selection.text === "string" ? { text: context.selection.text.slice(0, 8000), ...(context.selection.truncated || context.selection.text.length > 8000 ? { truncated: true } : {}) } : undefined;
-  return { source: { surface: context.source.surface.slice(0, 80), ...(context.source.plugin_id ? { plugin_id: String(context.source.plugin_id).slice(0, 120) } : {}), ...(context.source.title ? { title: String(context.source.title).slice(0, 200) } : {}) },
-    ...(context.object ? { object: { kind: String(context.object.kind).slice(0, 80), id: String(context.object.id).slice(0, 200), ...(context.object.version !== undefined ? { version: context.object.version } : {}), ...(context.object.title ? { title: String(context.object.title).slice(0, 200) } : {}) } } : {}),
+  const selection = context.selection && typeof context.selection.text === "string" ? { text: cutHead(context.selection.text, 8000), ...(context.selection.truncated || context.selection.text.length > 8000 ? { truncated: true } : {}) } : undefined;
+  return { source: { surface: cutHead(context.source.surface, 80), ...(context.source.plugin_id ? { plugin_id: cutHead(String(context.source.plugin_id), 120) } : {}), ...(context.source.title ? { title: cutHead(String(context.source.title), 200) } : {}) },
+    ...(context.object ? { object: { kind: String(context.object.kind).slice(0, 80), id: cutHead(String(context.object.id), 200), ...(context.object.version !== undefined ? { version: context.object.version } : {}), ...(context.object.title ? { title: cutHead(String(context.object.title), 200) } : {}) } } : {}),
     ...(selection ? { selection } : {}), ...(context.unsaved ? { unsaved: true } : {}), ...checkLanding(context), captured_at: typeof context.captured_at === "string" ? context.captured_at : new Date().toISOString() };
 }
 

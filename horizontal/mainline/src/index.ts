@@ -7,7 +7,7 @@ import { STATE_RING_FAMILIES, type ReviewOwner, type ReviewReference, type State
 import { MAINLINE_ARRANGE_PERMISSION, mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
   type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { itemLineScope, placeInItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
+import { checkItemPlacement, itemLineScope, placeInItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
 
@@ -385,10 +385,12 @@ export async function placeTask(caller: ActionExecutionContext, client: ActionCl
   }
   // One discovery for the whole placement: the owner's serves parts, and the task table that says the caller sees the task.
   const directory = await client.discover(caller);
+  const visible = async () => (await readBackgroundTasks({ ...caller, query_only: true }, client, directory)).tasks.some(task => sameSubject(task.subject, request.task));
+  // With both an event and an item, whatever the item would refuse is found before the owner records the event (B36F-06).
+  if (request.to && request.item) await checkItemPlacement(caller, items!, request.task, request.item, visible);
   const placed = request.to ? await placeServes(caller, client, { ...request, to: request.to }, directory) : { task: request.task, serves: await currentServes(caller, client, request.task, directory) };
   // The second dimension: which work item it is in. Only `holds` changes; the task goes on as it was (WLN-32).
   if (!request.item) return placed;
-  const visible = async () => (await readBackgroundTasks({ ...caller, query_only: true }, client, directory)).tasks.some(task => sameSubject(task.subject, request.task));
   return { ...placed, items: await placeInItem(caller, items!, request.task, request.item, visible) };
 }
 

@@ -7,7 +7,7 @@ import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { CHARACTERS_CLIENT_PATH, deferredSurfaceClients, pluginOnDemandStylesheet, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
 // @ts-expect-error the gate modules are plain .mjs
-import { assetBudgetProblems, parsePageAssetBudgets } from "../scripts/gates/page-assets-policy.mjs";
+import { assetBudgetProblems, budgetLooseningProblems, parsePageAssetBudgets } from "../scripts/gates/page-assets-policy.mjs";
 // @ts-expect-error the gate modules are plain .mjs
 import { buildBaseline, command, cachedMeasurement, reportMatches, trustedRun } from "../scripts/gates/page-assets-baseline.mjs";
 const script = fileURLToPath(new URL("../scripts/gates/page-assets.mjs", import.meta.url));
@@ -139,6 +139,13 @@ test("Batch 100-2 budget schema validation rejects malformed page-asset-budgets.
   const failed = run(root, "--base", "main", "--sizes", sizesFile);
   assert.equal(failed.code, 1, failed.out);
   assert.match(failed.out, /maxPluginAssetBytes loosened 1000 → 1001/);
+
+  // MR21-05: moving an asset out of a route, or a new catch-all route, loosens a budget as surely as a larger number.
+  const narrowed = { ...base, routes: { ...base.routes, shell: { maxBytes: 4000, assets: ["/assets/a.css"] } } };
+  assert.match(budgetLooseningProblems(narrowed, base).join("\n"), /no longer counts asset/);
+  const catchAll = { ...base, routes: { ...base.routes, misc: { maxBytes: 99_999_999, prefixes: ["/assets/"] } } };
+  assert.match(budgetLooseningProblems(catchAll, base).join("\n"), /new route "misc" may only list exact assets/);
+  assert.deepEqual(budgetLooseningProblems({ ...base, routes: { ...base.routes, extra: { maxBytes: 10, assets: ["/assets/extra.js"] } } }, base), []);
 
   // Tightening passes cleanly.
   put("tooling/gates/page-asset-budgets.json", JSON.stringify(tightened, null, 2) + "\n", root);

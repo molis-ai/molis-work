@@ -1,5 +1,4 @@
 {
- "tests/acceptance-atomic-recovery.test.ts": 49,
  "tests/acceptance-requirements.test.ts": 1,
  "tests/account-cache-isolation.e2e.test.ts": 13,
  "tests/account-client.test.ts": 1,
@@ -748,7 +747,6 @@
  "tests/goal-event-create-flow.test.ts": 6,
  "tests/goal-event-document-history.test.ts": 17,
  "tests/goal-event-document.e2e.test.ts": 179,
- "tests/goal-event-evidence.test.ts": 10,
  "tests/goal-event-history.test.ts": 3,
  "tests/goal-event-http.test.ts": 93,
  "tests/goal-event-imported-requirements.test.ts": 13,
@@ -1699,7 +1697,6 @@
  "tests/security-invariants-file-document.test.ts": 1,
  "tests/security-invariants-gateway.test.ts": 22,
  "tests/security-invariants-goal-content.test.ts": 37,
- "tests/security-invariants-goal-evidence.test.ts": 31,
  "tests/security-invariants-goals-person.test.ts": 17,
  "tests/security-invariants-graph-cli-install.test.ts": 11,
  "tests/security-invariants-hidden-personal-plugin.test.ts": 38,

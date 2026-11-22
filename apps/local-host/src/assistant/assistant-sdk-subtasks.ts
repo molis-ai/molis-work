@@ -8,6 +8,7 @@ import { sessionRef, type AssistantServicePorts } from "./assistant-service-shar
 import { ownerOf } from "./assistant-round-start.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { hostLog } from "../host-log.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 const resultNoticeKey = (parent: AgentRunRef, childId: string, attemptId: string) =>
   `sdk-subtask-result:${JSON.stringify([parent.session_id, parent.run_id, childId, attemptId])}`;
@@ -145,7 +146,7 @@ export class AssistantSdkSubtasks {
     };
     const control = { beforeEffect: async () => { await caller.beforeEffect(); await execution.beforeStart?.(); current(); }, assertCurrent: current };
     return await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId,
-      ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}), ...(input.remember ? { remember: input.remember } : {}) }, control);
+      ...(input.note ? { note: cutHead(String(input.note), 2000) } : {}), ...(input.remember ? { remember: input.remember } : {}) }, control);
     } finally { entry.release(); }
   }
 

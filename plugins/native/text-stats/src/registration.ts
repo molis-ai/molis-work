@@ -9,5 +9,11 @@ export const registration: PluginRegistration = {
   project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
   manifest: textStatsManifest,
   project_runtime: { create: createTextStatsPlugin, package_name: "@molis-ai/molis-work-plugin-text-stats", factory_export: "createTextStatsPlugin" },
-  workbench: { order: 24, contributions: [textStatsUiContribution], clientFactory: TEXT_STATS_CLIENT_FACTORY_SCRIPT, stylesheet: TEXT_STATS_STYLES },
+  workbench: {
+    order: 24,
+    contributions: [textStatsUiContribution],
+    clientFactory: TEXT_STATS_CLIENT_FACTORY_SCRIPT,
+    stylesheet: TEXT_STATS_STYLES,
+    stylesheetPrefixes: ["stats-"],
+  },
 };

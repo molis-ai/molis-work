@@ -42,6 +42,12 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // `data-side-help-body` attribute, and adds Scheme A Help triggers/declarations on Goals stage, Project Home, Artifacts, and Sessions
 // (shifting all 8 `page-current*` records uniformly by +3801 zh / +3289 en and all 8 `page-{archive,trash}*` records by +2800 zh / +2284 en;
 // all 24 `refresh-*`, `momentum-*`, and `document-*` records remain byte-for-byte identical).
+// Batch 36A-3 (shell conversation batch, PR #2218): the bottom bar's markup changed (the conversation column's head and more menu,
+// the info column and its lists, the three first-place glyphs, the expand key), and only it. All 66 pages were drawn on an
+// independently built main 73d6667760 (each matched its record there) and on this branch and compared token by token: every changed
+// token of the 16 whole pages lies inside the bar (`data-assistant-island` and the work line beside it), a uniform -3154 (zh) /
+// -3134 (en) characters; the Goals content, JSON blocks and the other 50 records are byte for byte the same. The 16 were then
+// recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

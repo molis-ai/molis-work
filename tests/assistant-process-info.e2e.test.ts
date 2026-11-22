@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { toolField, untilSetup } from "./fixtures/connector-assistant-model.js";
 import { asideReply, endingReviewReply } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize } from "./fixtures/knowledge-organize.js";
-import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
+import { CURRENT_WORK, OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 /** One streamed model turn: some words, then (optionally) one tool call. */
 function turn(text: string, tool?: { name: string; input: unknown }): string {
@@ -411,6 +411,8 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   assertRevokedWindow();
   atRecovery = requests; withdrawalClosed = true;
   const keepSuggestion = '[data-assistant-panel] .assistant-side-action[aria-label^="记住："]';
+  // What the work asks of the person, a memory to keep included, is among its details: 更多 › 详情 (36A-3).
+  await evaluate(OPEN_DETAILS);
   await click(keepSuggestion);
   // The card refresh follows the completed owner write. Reading candidates during that write can see an SDK conflict.
   await waitFor(`!document.querySelector(${JSON.stringify(keepSuggestion)})`);
@@ -448,15 +450,17 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   assert.ok((await manager.invoke(memoryActions.list, {})).items.some(item => item.text === corrected && item.state === "active"));
   await capture("disabled-after-permission-recovery");
   // The work's side panel can start collapsed; open it the way the person does before using its memory row.
-  await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)");
-  if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 30_000);
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await evaluate(OPEN_DETAILS);
   // The settings directory answers molis-work:open-settings-path on document and opens the project's Memory settings cover in place (no full page reload).
   await click('[data-assistant-panel] .assistant-side-action[aria-label=' + JSON.stringify("去设置查看：" + rule) + ']');
   await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && Boolean(document.querySelector('[data-memory-list]'))");
   // Reopen the same real Work from the existing bar after visiting Memory, then use its original failed round's result card.
   // The unified composer (UIC-05) names the open work as its receiver; an empty ⌘↵ opens that work without sending anything.
-  // What was said at 「现在」 went to the project's main conversation (WLN-06), named on the bar by what it is, not its stored title.
-  const receiverName = retry.work.main ? "主对话" : retry.work.title;
+  // What was said at 「现在」 went to the project's main conversation (WLN-06); on the input it is named by whom the words go to
+  // (「助理」, POLISH-11), not by its stored title — the conversation's own head says 「主对话」.
+  const receiverName = retry.work.main ? "助理" : retry.work.title;
   await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent.includes(${JSON.stringify(receiverName)})`);
   await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
@@ -471,8 +475,7 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
       && panel?.getClientRects().length && panel.dataset.settingsSource
       && new URL(panel.dataset.settingsSource, location.origin).pathname === ${JSON.stringify(`/projects/${projectId}/settings/guidance`)}; })()`);
   await waitFor(`document.querySelector(${JSON.stringify(guidancePanel)})?.textContent.includes(${JSON.stringify(rule)})`);
-  // Opening settings preserves the Assistant. The person explicitly minimizes it to read and edit the original page.
-  await click('[data-assistant-panel-close]');
+  // A settings page opened from the conversation takes the whole work area, and the conversation gets out of its way (POLISH-21).
   await waitFor(`(() => { const panel = document.querySelector('[data-assistant-panel]'); return panel.hidden && !panel.getClientRects().length; })()`);
   const unobscured = (selector: string) => `(() => { const node = document.querySelector(${JSON.stringify(selector)}); if (!node) return false;
     const rect = node.getBoundingClientRect(), style = getComputedStyle(node);

@@ -39,17 +39,23 @@ test("VUX-36: splitting and closing, switching plugins, the side panel and the A
     await evaluate("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').click()"); await waitFor("document.body.dataset.sideOpen === 'true'", 10_000); await pause(200);
     await evaluate("document.querySelector('[data-layout-open]').click()"); await evaluate("document.querySelector('[data-layout-action=side]').click()"); await waitFor("document.body.dataset.sideOpen !== 'true'", 10_000); await pause(150);
   };
-  // The Assistant: its panel on a new work, the list of works, its side pane and the bell, each opened and closed.
+  // The Assistant: its panel on a new work, the 更多 menu, a list of the information column and the bell, each opened and
+  // closed, and the conversation maximised and restored (底栏第十三版: no tab row; the lists are the column's tabs).
   const shown = (selector: string) => `!!document.querySelector('${selector}')?.checkVisibility()`;
   const toggled = new Set<string>();
   const assistant = async () => {
     await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { new: true } }))");
     await waitFor(shown("[data-assistant-panel]"), 10_000); await pause(150);
-    for (const toggle of ["[data-assistant-works-toggle]", "[data-assistant-side-toggle]", "[data-assistant-attention]"]) {
+    for (const toggle of ["[data-assistant-more]", '[data-info-tab="now"]', "[data-assistant-attention]"]) {
       if (!(await evaluate<boolean>(shown(toggle)))) continue;
       toggled.add(toggle);
       await evaluate(`document.querySelector('${toggle}').click()`); await pause(150);
       await evaluate(`document.querySelector('${toggle}').click()`); await pause(100);
+    }
+    if (await evaluate<boolean>(shown("[data-assistant-expand]"))) {
+      toggled.add("[data-assistant-expand]");
+      await evaluate("document.querySelector('[data-assistant-expand]').click()"); await pause(150);
+      await evaluate("document.querySelector('[data-assistant-retract]').click()"); await pause(100);
     }
     await evaluate("document.querySelector('[data-assistant-panel-close]').click()");
     await waitFor(`!${shown("[data-assistant-panel]")}`, 10_000); await pause(150);
@@ -71,6 +77,6 @@ test("VUX-36: splitting and closing, switching plugins, the side panel and the A
     // gave 48 more, so 60 give about 70. Plain objects are not checked: caches the engine keeps for a while move their count by a hundred either way.
     assert.ok(after.arrays - before.arrays < 40, `${name} ×${times}: arrays ${before.arrays} → ${after.arrays}`);
   }
-  // A new work has its list and side pane; the bell shows only while something waits, which the seeded Home may not have.
-  assert.ok(toggled.has("[data-assistant-works-toggle]") && toggled.has("[data-assistant-side-toggle]"), `toggled: ${[...toggled].join(", ")}`);
+  // A new work has its menu, its lists and maximise; the bell shows only while something waits, which the seeded Home may not have.
+  assert.ok(toggled.has("[data-assistant-more]") && toggled.has('[data-info-tab="now"]') && toggled.has("[data-assistant-expand]"), `toggled: ${[...toggled].join(", ")}`);
 });

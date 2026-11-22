@@ -13,6 +13,7 @@ import { openWork, sendBrowser, waitWork } from "./fixtures/assistant-send-journ
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import type { AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
+import { openLook } from "./fixtures/attention-ways.js";
 
 const imFrame = '[data-side-body="discussion"] iframe';
 const visible = (selector: string) => '!!document.querySelector(' + JSON.stringify(selector) + ')?.checkVisibility()';
@@ -49,13 +50,13 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
   await b.setViewport(1440, 900);
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
-  const attention = '[data-assistant-attention]', notices = '[data-assistant-notices]';
+  const notices = '[data-assistant-notices]';
   const item = '[data-home-subject-kind="feed_item"][data-home-subject-id="' + material.item_id + '"]';
-  await b.waitFor(visible(attention), 20_000);
-  await b.click(attention);
+  // What wants a look opens from its card of the stack (底栏第十三版): the list is still the platform's composed display.
+  await openLook(b.evaluate);
   await b.waitFor(visible(notices + ' ' + item));
   assert.match(await b.evaluate<string>(`document.querySelector(${quoted(notices + ' ' + item)}).innerText`), /Report for the inbox mount/);
-  await b.click(attention);
+  await b.evaluate("document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))");
   const homeEntry = '[data-home-card="io.molis.work.inbox"] [data-home-subject-id="' + entry.entry_id + '"] [data-presentation-action$=":open"]';
   await waitForHomeRow(b, homeEntry, "io.molis.work.inbox"); await b.click(homeEntry);
 
@@ -445,7 +446,7 @@ test("IUI-06 IUI-21 IUI-26: the real attention popover, correction menu and quic
   const { item } = feed.ingestItem({ source, externalId: "attention-matrix", title, summary: "Read this at its source",
     occurredAt: new Date().toISOString(), attention: false });
   feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
-  const panel = "[data-assistant-notices]", button = "[data-assistant-attention]";
+  const panel = "[data-assistant-notices]";
   const itemSelector = panel + ' [data-home-subject-id="' + item.item_id + '"]', row = itemSelector + " .mw-presentation__row-title";
   const peek = "dialog:has([data-position-peek])", close = peek + ' [data-home-control="close"]';
   const dom = (selector: string) => `document.querySelector(${quoted(selector)})`;
@@ -461,8 +462,7 @@ test("IUI-06 IUI-21 IUI-26: the real attention popover, correction menu and quic
     await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, b.sessionId);
     await b.command("Network.setCookie", { name: "molis_work_locale", value: lang, url: b.origin }, b.sessionId);
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
-    await b.waitFor(visible(button), 15_000);
-    await b.click(button);
+    await openLook(b.evaluate);
     await b.waitFor(visible(row), 12_000);
     const shown = await b.evaluate<{ title: string; heading: string; status: string; overflow: boolean; theme: string }>(`(() => {
       const panel = ${dom(panel)}, row = ${dom(row)};
@@ -470,7 +470,7 @@ test("IUI-06 IUI-21 IUI-26: the real attention popover, correction menu and quic
         status: ${dom(itemSelector)}.querySelector('.mw-status')?.textContent || '',
         overflow: panel.scrollWidth > panel.clientWidth + 1, theme: document.documentElement.dataset.resolvedTheme }; })()`);
     assert.equal(shown.title, title.trim(), setting);
-    assert.equal(shown.heading, lang === "zh" ? "等你处理" : "Waiting for you", setting);
+    assert.equal(shown.heading, lang === "zh" ? "要你看的" : "For you to look at", setting);
     assert.match(shown.status, lang === "zh" ? /未读/u : /Unread/u, setting);
     assert.equal(shown.theme, theme, setting);
     assert.equal(shown.overflow, false, setting);
@@ -527,7 +527,7 @@ test("IUI-07 IUI-08 IUI-10: an Attention peek clears old content on close and a 
       occurredAt: new Date().toISOString(), attention: false });
     return { item, entry: feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry };
   });
-  const attention = "[data-assistant-attention]", panel = "[data-assistant-notices]";
+  const panel = "[data-assistant-notices]";
   const dialog = "dialog:has([data-position-peek])", close = dialog + ' [data-home-control="close"]';
   const q = (selector: string) => `document.querySelector(${quoted(selector)})`;
   const scrubbed = `!${q(dialog)}?.open && ${q("[data-position-peek]")}.childElementCount === 0 && ${q("[data-position-offers]")}.childElementCount === 0`;
@@ -555,7 +555,7 @@ test("IUI-07 IUI-08 IUI-10: an Attention peek clears old content on close and a 
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
   const itemSelector = (id: string) => panel + ' [data-home-subject-id="' + id + '"]';
   const peek = async (index: number) => {
-    if (!await b.evaluate(visible(panel))) await b.click(attention);
+    if (!await b.evaluate(visible(panel))) await openLook(b.evaluate);
     const { item } = samples[index]!;
     const row = itemSelector(item.item_id) + " .mw-presentation__row-title";
     await b.waitFor(visible(row)); await b.click(row);
@@ -607,7 +607,7 @@ test("IUI-06 QEA-189: the original Attention menu removes and restores a known o
   const { item } = feed.ingestItem({ source, externalId: "attention-corrections", title, summary: "Still available in Feed",
     occurredAt: new Date().toISOString(), attention: false });
   const original = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
-  const panel = "[data-assistant-notices]", bell = "[data-assistant-attention]", endpoint = "/projects/" + projectId + "/api/host/surface-attention";
+  const panel = "[data-assistant-notices]", endpoint = "/projects/" + projectId + "/api/host/surface-attention";
   const row = panel + ' [data-home-subject-id="' + item.item_id + '"]', menu = row + " .mw-presentation__more summary";
   const reason = panel + " [data-surface-correction-reason]", recovery = panel + ' [data-presentation-action="surface-correction:restore"]';
   const defaults = panel + " .surface-correction-default summary", reset = panel + ' [data-presentation-action="surface-correction:restore-position"]';
@@ -640,8 +640,7 @@ test("IUI-06 QEA-189: the original Attention menu removes and restores a known o
   await b.setViewport(1440, 900);
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
-  await b.waitFor(visible(bell));
-  await b.click(bell); await b.waitFor(visible(menu));
+  await openLook(b.evaluate); await b.waitFor(visible(menu));
   assert.match(await b.evaluate<string>(`${q(reason)}.textContent`), /等你处理/u);
   assert.ok(await b.evaluate(`!!${q(reason + " p")}?.textContent.trim()`), "the actual composition supplies its reason");
   const revision = (await read()).corrections_revision;

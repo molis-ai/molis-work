@@ -295,8 +295,8 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
           const conflict = await primary.evaluate<string>(`document.querySelector('${detailNote}').textContent`);
           assert.match(conflict, locale === "en" ? /changed elsewhere.*Your input is kept/ : /已在别处更新.*你的输入仍保留/);
           assert.deepEqual(read(), winning);
-          // At phone width the open detail takes the list's place, so Back is the available attempt to leave.
-          const abandon = width === 390 ? "[data-todo-back]" : `[data-todo-id="${neighbourId}"]`;
+          // An open item takes the whole Todo page at every width (36A-3), so Back is the available attempt to leave.
+          const abandon = "[data-todo-back]";
           const navigation = calls.length;
           await waitForSaveRefusal(409, () => primary.click(abandon));
           assert.deepEqual(postsAfter(navigation), [ownerRoute]);

@@ -9,6 +9,7 @@ import { raiseConnectionNotice, withConnectorConnections } from "@molis-ai/molis
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { NOTICES_WAIT, PRESS_NOTICES } from "./fixtures/attention-ways.js";
 
 // ASC-58: a connection's notice is one of the things that wait on the person (the attention button shows it), drawn in the UI language,
 // and its "打开" opens that service's connection settings through the settings' own listener; a notice whose settings address is not a
@@ -31,7 +32,7 @@ test("ASC-58 a connection notice waits on the person, opens its service's connec
   const directory = await mkdtemp(join(tmpdir(), "asc58-browser-"));
   let browser: Awaited<ReturnType<typeof ChromeHarness.start>> = null;
   try {
-    browser = await ChromeHarness.start(directory, { describe: "JSON.stringify({url:location.href,attention:document.querySelector('[data-assistant-attention]')?.outerHTML,pop:document.querySelector('[data-assistant-notices]')?.outerHTML})" });
+    browser = await ChromeHarness.start(directory, { describe: "JSON.stringify({url:location.href,attention:document.querySelector('[data-bar-notices]')?.outerHTML,pop:document.querySelector('[data-assistant-notices]')?.outerHTML})" });
     if (!browser) { t.skip("Chrome is required for the connection notice UI"); return; }
     const page = await browser.page();
     await page.command("Page.enable");
@@ -40,9 +41,9 @@ test("ASC-58 a connection notice waits on the person, opens its service's connec
     for (const locale of ["en", "zh"] as const) {
       await Promise.all([browser.event("Page.loadEventFired"), page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(path) })]);
       await page.wait(`document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}'`);
-      // Urgent: the attention button appears for it alone.
-      await page.wait("(b => b && !b.hidden)(document.querySelector('[data-assistant-attention]'))");
-      await page.evaluate("document.querySelector('[data-assistant-attention]').click()");
+      // Urgent: the notices key says so for it alone (the account bar's key; under 960px the bell beside the input).
+      await page.wait(NOTICES_WAIT);
+      await page.evaluate(PRESS_NOTICES);
       await page.wait("document.querySelectorAll('[data-assistant-notices] .assistant-notice').length === 1");
       const row = await page.evaluate<{ text: string; open: boolean }>(`(item => ({ text: item.querySelector('.assistant-notice-text').textContent,
         open: !item.querySelector('[data-notice-action=open]').hidden }))(document.querySelector('[data-assistant-notices] .assistant-notice'))`);
@@ -51,7 +52,8 @@ test("ASC-58 a connection notice waits on the person, opens its service's connec
       for (const [width, height] of [[1024, 768], [390, 844]] as const) for (const scheme of ["light", "dark"] as const) {
         await page.viewport(width, height, width < 768);
         await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: scheme }] });
-        await page.evaluate("(p => { if (p.hidden) document.querySelector('[data-assistant-attention]').click(); })(document.querySelector('[data-assistant-notices]'))");
+        await page.wait(NOTICES_WAIT);
+        await page.evaluate(`(p => { if (p.hidden) ${PRESS_NOTICES}; })(document.querySelector('[data-assistant-notices]'))`);
         await page.wait("!document.querySelector('[data-assistant-notices]').hidden");
         await page.screenshot(join(shots, `${locale}-${width}-${scheme}.png`));
       }

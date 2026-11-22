@@ -117,6 +117,9 @@ test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and 
   await child.click(`[data-shelf-item="${added.item.item_id}"] [data-shelf-row-action="copy"]`); await browser.waitFor("globalThis.nativeCalls.some(call=>call.name==='files_copy')");
   const copied = await browser.evaluate<{ name: string; input: { paths: string[] } }>("globalThis.nativeCalls.find(call=>call.name==='files_copy')");
   assert.equal(copied.name, "files_copy"); assert.deepEqual(copied.input.paths, [added.item.relative_path], "the window hands the shell the relative path, not a file path");
+  // The row's copy key is on the list, the page behind an open file (36A-3); the file is opened again for the talk key.
+  await child.click(`[data-shelf-item="${added.item.item_id}"]`);
+  await child.waitFor("document.querySelector('[data-shelf-preview]')?.textContent.includes('owned file handed off')");
   await child.click('[data-shelf-act="talk"]');
   await child.waitFor("document.querySelector('.xterm-rows')?.textContent.includes('SHELF_TERMINAL_READY')");
   await child.click("[data-shelf-tty-input]");

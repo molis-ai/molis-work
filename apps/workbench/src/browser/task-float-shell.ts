@@ -18,7 +18,7 @@ export function installTaskFloatShell(options: { dialog: string; shown?(): void;
     if (visible) return;
     if (!root) {
       document.body.insertAdjacentHTML("beforeend", renderTaskFloat(options.dialog, "")); root = document.body.lastElementChild as HTMLElement; root.tabIndex = -1;
-      cards = document.createElement("div"); cards.style.cssText = "height:100%;min-height:0"; root.append(cards);
+      cards = document.createElement("div"); cards.style.cssText = "flex:1 1 auto;height:100%;min-width:0;min-height:0"; root.append(cards);
     }
     visible = true; root.dataset.workTaskFloat = options.dialog; root.hidden = false;
     stopLayout ??= installTaskFloatLayout(root); options.shown?.();

@@ -3,6 +3,7 @@ import test from "node:test";
 import { readWork, waitWork } from "./fixtures/assistant-send-journey.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // specs/unified-input-voice K3 (UIV-12, UIV-17, UIC-06, UIC-09, RC-03): the bottom bar's Assistant is the platform's unified
 // composer. Its receiver row says who the next Send goes to (「发给：…」); Shift+Enter is a new line, Enter and ⌘↵ (Ctrl+↵) send,
@@ -39,8 +40,9 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   const type = (text: string) => command("Input.insertText", { text }, sessionId);
   const settled = `!document.querySelector('[data-assistant-composer] .mw-composer')?.matches('[data-state=sending]')`;
 
-  // A new work: the receiver row names where it is put, then the Assistant (BL-1076: 「项目 · 助理」, 「个人 · 助理」).
-  assert.match(await to(), /^发给：\s*\S.* · 助理$/, "UIV-12: the receiver row says who the next Send goes to and where the new work is put");
+  // A new work put in this page's own place: the receiver row says 「助理」 and no project name (POLISH-11); only a place
+  // that is not this page's is named first.
+  assert.match(await to(), /^发给：\s*助理$/, "UIV-12 POLISH-11: the receiver row says who the next Send goes to, without this page's own place");
 
   // UIV §10.5 (user 2026-11-16, 2026-11-18): Shift+Enter is a new line and sends nothing; no tip about the keys comes.
   await evaluate(`${field}.focus()`);
@@ -51,12 +53,14 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   assert.deepEqual(await sent(), [], "Shift+Enter sends nothing");
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-assistant-composer]').textContent"), /回车已改为换行/, "the one-time tip is gone");
 
-  // ⌘↵ sends; the new work becomes the receiver, with a mark to start a new work instead.
+  // ⌘↵ sends; said at 「现在」, the words open the main conversation and it becomes the receiver (36A-3: its tag carries no
+  // cross — there is no separate work to step out of).
   await key(CTRL);
   await waitFor("window.__sent.length === 1", 10_000);
   assert.equal((await sent())[0].text, "第一行\n第二行");
   assert.equal((await sent())[0].delivery, undefined, "nothing runs yet: the first Send carries no delivery");
-  await waitFor("Boolean(document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]'))", 15_000);
+  await waitFor(settled, 15_000);
+  await waitFor(`${CURRENT_WORK} !== null`, 15_000);
   const works = await evaluate<Array<{ work_id: string }>>("fetch('/api/assistant/works').then((r) => r.json()).then((b) => b.works)");
   const id = works[0]!.work_id;
   await waitWork(browser, id, (view) => view.rounds.at(-1)?.phase === "running");

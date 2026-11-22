@@ -372,8 +372,8 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.equal(english("副本工作区"), "Working copies");
   assert.ok(clientSays("结束多选"));
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /min-width: 761px/);
-  // Wide enough (the panel widened), the list stays beside an open item; narrower, the item covers the list (a back button).
-  assert.match(SHELF_STYLES, /@container shelf \(min-width: 640px\) \{[\s\S]*?\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
+  // An open file takes the whole stage: the directory is not kept beside it at any width.
+  assert.doesNotMatch(SHELF_STYLES, /\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\] \{[^}]*container: shelf \/ inline-size/);
   assert.match(SHELF_STYLES, /shelf-side-foot \{[\s\S]*margin-top: auto/);
   assert.match(SHELF_STYLES, /\[data-shelf\] \.shelf-stage-chrome \{[\s\S]*height: 30px;/);

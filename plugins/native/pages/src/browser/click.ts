@@ -134,10 +134,11 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
     await toggleStar(page, page.sel.id);
     return;
   }
+  // Back saves what is unsaved, as opening another document does: a document that was only read is not written again.
   if (hit("[data-pages-back]")) {
     const seq = ++page.selectionSeq;
     page.openingId = null;
-    await persist(page);
+    if (page.saveTimer || page.dirty) await persist(page); else await page.saveQueue;
     if (seq !== page.selectionSeq) return;
     page.dirty = false;
     const left = blankLeaving(page);

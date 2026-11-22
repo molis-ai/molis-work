@@ -119,8 +119,9 @@ test("SKL-11 SKL-12 SKP-10: the shell's panel says why a Skill was used, changes
   assert.ok((await panel()).includes("改用哪个"));
 });
 
-// SKL-11: the Assistant's own line. A round that used no Skill says so once it ended, and 「选一个」 opens the shell's panel beside it.
-test("SKL-11: an Assistant round that used no Skill says so above its reply, and its button opens the shell's panel", { timeout: 180_000 }, async t => {
+// SKL-11 POLISH-19: the Assistant's own line. A round that used no Skill has no Skill line before or after its reply; a page that
+// asks for the shell's panel with no pick (as 「换一个」 does) is offered the Skills that can be used, or told there is none.
+test("SKL-11 POLISH-19: an Assistant round that used no Skill shows no Skill line, and the shell's panel asked with no pick offers the usable Skills", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: "好的，已经整理。" }); },
   });
@@ -133,18 +134,16 @@ test("SKL-11: an Assistant round that used no Skill says so above its reply, and
   await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "整理一下今天的会" }, sessionId);
   await click("[data-assistant-composer] [data-composer-send]");
-  await waitFor("document.querySelector('[data-assistant-thread] .mw-skill-line [data-skill-pick]')", 20_000);
-  const line = await evaluate<{ text: string; beforeReply: boolean }>(`(() => { const line = document.querySelector('[data-assistant-thread] .mw-skill-line'), reply = document.querySelector('[data-assistant-thread] .assistant-rich');
-    return { text: line.innerText.replace(/\\s+/g, ' ').trim(), beforeReply: !!reply && !!(line.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
-  assert.deepEqual(line, { text: "这一轮没用技能 选一个", beforeReply: true });
-  await click("[data-assistant-thread] .mw-skill-line [data-skill-pick]");
+  await waitFor("document.querySelector('[data-assistant-thread] .assistant-round-status')?.dataset.phase === 'completed' && document.querySelector('[data-assistant-thread] .assistant-rich')", 20_000);
+  assert.deepEqual(await evaluate(`[document.querySelectorAll('[data-assistant-thread] .mw-skill-line').length, document.querySelectorAll('[data-assistant-thread] [data-entry=skills]').length]`), [0, 0],
+    "POLISH-19: a reply made with no Skill has no Skill line");
+  const ask = async () => assert.equal(await evaluate<boolean>(`!document.dispatchEvent(new CustomEvent("molis:skill-pick-open", { cancelable: true, detail: ${JSON.stringify({ reply: "round-none", consumer: "assistant",
+    picks: [], index: null, box: { x: 300, y: 200, width: 140, height: 28 } })} }))`), true, "the shell took the request");
+  await ask();
   await waitFor("document.querySelector('[data-skill-why] [role=menuitem][data-skill-why-action]')", 10_000);
   const choicesText = await evaluate<string>("document.querySelector('[data-skill-why]').innerText");
   assert.match(choicesText, /AI 与数据产品/u);
   assert.doesNotMatch(choicesText, /这里没有别的可用技能。/u);
-  const near = await evaluate<boolean>(`(() => { const button = document.querySelector('[data-assistant-thread] .mw-skill-line [data-skill-pick]').getBoundingClientRect(), panel = document.querySelector('[data-skill-why]').getBoundingClientRect();
-    return Math.abs(panel.left - button.left) <= 16 || panel.right <= innerWidth; })()`);
-  assert.equal(near, true, "the panel opens by the button");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await waitFor("!document.querySelector('[data-skill-why]')");
@@ -157,6 +156,6 @@ test("SKL-11: an Assistant round that used no Skill says so above its reply, and
     await web.post(path + "/set", { scope: "project", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id,
       state: "off", expected_revision: skill.settings_revision });
   }
-  await click("[data-assistant-thread] .mw-skill-line [data-skill-pick]");
+  await ask();
   await waitFor("document.querySelector('[data-skill-why]')?.innerText.includes('这里没有别的可用技能。')", 10_000);
 });

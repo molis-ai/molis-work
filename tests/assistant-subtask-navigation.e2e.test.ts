@@ -3,6 +3,7 @@ import test from "node:test";
 import type { AgentSubagentConversation } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 
@@ -54,7 +55,9 @@ for (const source of ["work", "sdk"] as const) test(`Assistant ${source} sibling
   const input = "[data-work-task-float] textarea", thread = "[data-work-task-float] [data-subtask-thread]";
   const open = async (key: "A" | "B", readyForInput = true) => {
     await b.evaluate(`(()=>{for(const button of document.querySelectorAll('button.assistant-subtask-name')) {delete button.dataset.siblingTarget;if((button.title||button.textContent).includes(${JSON.stringify(source === "sdk" ? "SAI11_CHILD_" + key : "Sibling " + key)}))button.dataset.siblingTarget='';}})()`);
-    await b.click("[data-sibling-target]"); await b.waitFor(`document.querySelector(${JSON.stringify(input)})&&document.querySelector('[data-subtask-messages]')?.textContent.includes('${key}_HISTORY_0')`);
+    // A task's card sits over the info column (36A-3): the person closes it before choosing a sibling in the work's details.
+    if (await b.evaluate("Boolean(document.querySelector('[data-work-task-float]'))")) { await b.click("[data-work-task-float] [data-subtask-close]"); await b.waitFor("!document.querySelector('[data-work-task-float]')"); }
+    await b.evaluate(OPEN_DETAILS); await b.click("[data-sibling-target]"); await b.waitFor(`document.querySelector(${JSON.stringify(input)})&&document.querySelector('[data-subtask-messages]')?.textContent.includes('${key}_HISTORY_0')`);
     if (readyForInput) await b.waitFor(`!document.querySelector(${JSON.stringify(input)}).disabled`);
   };
   const fill = async (selector: string, text: string) => b.evaluate(`(()=>{const field=document.querySelector(${JSON.stringify(selector)});field.value=${JSON.stringify(text)};field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();})()`);

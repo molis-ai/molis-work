@@ -1,8 +1,8 @@
-import { escapeHtml, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderButton, renderComposer, renderMenu, renderMenuItem, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import { renderAssistantPermissions, renderReviewPermission } from "./assistant-permissions.js";
 import { renderAutomationRecommendations } from "./automation-recommendations.js";
-import { renderTaskMark } from "./work-line-parts.js";
+import { renderContextCard, renderInfoLists, renderInfoTabs } from "./work-line-parts.js";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
@@ -10,31 +10,65 @@ const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "z
   "question", "shield", "terminal", "external", "eye", "search", "list", "refresh", "folder", "git-branch", "link", "user"];
 
 /**
- * The resident Assistant: its panel of works and the platform's composer (unified-input K3), drawn here as its first screen so
+ * The resident Assistant: its conversation (the conversation column, as wide as the input, under one line that names what is
+ * talked about; the information column to its right, over the card stack: specs/screen-polish §4「底栏第十三版」) and the platform's composer (unified-input K3), drawn here as its first screen so
  * nothing moves when the island mounts it: who the next message goes to, the text, ＋ and send. Where to go lives at the bar's
  * left and search in the project menu (and ⌘K); the project list uses the same Dock. Who the next message goes to is the tag beside ＋.
  */
 export function renderAssistantDock(primitives: { readText(value: string): string; icon(name: PluginIconName): string }): string {
   const { icon } = primitives;
+  // The conversation column's keys: 28px, a glyph each, named for a reader and on hover.
+  const key = (attr: string, glyph: PluginIconName, label: string, more = "", inside = "") => `<button class="dock-window-action" type="button" ${attr} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${more}>${icon(glyph)}${inside}</button>`;
   const add = uiText.text("workbench.composer.next-boundary");
-  return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
+  return `<div class="bar-center" data-assistant-island>
       <section class="assistant-panel" id="assistant-panel" data-assistant-panel aria-label="${uiText("workbench.assistant-dock.assistant")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
-        <header class="assistant-tabbar">
-          <div class="assistant-tabs" data-assistant-tabs data-work-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}"></div>
-          <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${uiText("workbench.assistant-dock.start-new-piece-work")}" title="${uiText("workbench.assistant-dock.start-new-piece-work")}">${icon("plus")}</button>
-          <span class="assistant-tabbar-actions">
-            ${renderTaskMark({ count: 0, panel: "work-task-panel" })}
-            <button class="dock-window-action" type="button" data-assistant-expand aria-label="${uiText("workbench.assistant-dock.expand-workspace")}" title="${uiText("workbench.assistant-dock.expand-workspace")}" disabled>${icon("external")}</button>
-            ${renderButton({ variant: "ghost", size: "sm", icon: "chevron-down", label: uiText.text("workbench.assistant-dock.return-bottom-bar"), attrs: { "data-assistant-retract": true, hidden: true } })}
-            <button class="dock-window-action" type="button" data-assistant-works-toggle aria-expanded="false" aria-controls="assistant-works" aria-label="${uiText("workbench.assistant-dock.all-work")}" title="${uiText("workbench.assistant-dock.all-work")}">${icon("list")}</button>
-            <button class="dock-window-action assistant-side-toggle" type="button" data-assistant-side-toggle aria-expanded="true" aria-controls="assistant-side" aria-label="${uiText("workbench.assistant-dock.details-work")}" title="${uiText("workbench.assistant-dock.details-work")}">${icon("sidebar")}<span class="assistant-side-dot" data-assistant-side-dot hidden></span></button>
-            <button class="dock-window-action" type="button" data-assistant-panel-close aria-label="${uiText("workbench.assistant-dock.minimize")}" title="${uiText("workbench.assistant-dock.minimize")}">${icon("chevron-down")}</button>
-          </span>
-        </header>
-        <nav class="assistant-works" id="assistant-works" data-assistant-works aria-label="${uiText("workbench.assistant-dock.all-work")}" hidden></nav>
         <div class="assistant-body">
-          <aside class="assistant-side" id="assistant-side" data-assistant-side aria-label="${uiText("workbench.assistant-dock.work")}">
+          <div class="assistant-main">
+            <header class="assistant-head" data-assistant-head>
+              <span class="assistant-head-mark" data-assistant-head-mark aria-hidden="true"></span>
+              <h2 class="assistant-head-title" data-assistant-head-title></h2>
+              <span class="assistant-head-note" data-assistant-head-note></span>
+              <span class="assistant-head-actions">
+                ${key("data-assistant-side-toggle", "list", uiText.text("workbench.assistant-dock.information"), ` aria-expanded="false" aria-controls="assistant-side"`, `<span class="assistant-side-dot" data-assistant-side-dot hidden></span>`)}
+                ${key("data-assistant-expand", "maximize", uiText.text("workbench.assistant-dock.maximize"))}
+                ${key("data-assistant-retract", "minus", uiText.text("workbench.assistant-dock.restore"), " hidden")}
+                ${key("data-assistant-more", "more", uiText.text("workbench.assistant-dock.more"), ` aria-haspopup="menu" aria-expanded="false" aria-controls="assistant-more"`)}
+                ${key("data-assistant-panel-close", "chevron-down", uiText.text("workbench.assistant-dock.minimize"))}
+              </span>
+              ${renderMenu({ className: "assistant-more", attrs: { id: "assistant-more", "data-assistant-more-menu": "", hidden: "", "aria-label": uiText.text("workbench.assistant-dock.more") },
+                items: renderMenuItem({ label: uiText.text("workbench.assistant-dock.start-new-piece-work"), iconName: "plus", attrs: { "data-assistant-new": "" } })
+                  + renderMenuItem({ label: uiText.text("workbench.assistant-dock.all-work"), iconName: "list", attrs: { "data-assistant-works-toggle": "", "aria-controls": "assistant-works" } })
+                  + renderMenuItem({ label: uiText.text("workbench.assistant-dock.details"), iconName: "info", attrs: { "data-info-details-open": "", "aria-controls": "info-details" } }) })}
+            </header>
+            <nav class="assistant-works" id="assistant-works" data-assistant-works aria-label="${uiText("workbench.assistant-dock.all-work")}" hidden></nav>
+            <div class="assistant-page-takes" data-assistant-page-takes hidden>${icon("message")}<p><b>${uiText("workbench.assistant-dock.page-takes-title")}</b>${uiText("workbench.assistant-dock.page-takes-words")}</p>${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.assistant-dock.ask-assistant-instead"), attrs: { "data-assistant-ask-assistant": "" } })}</div>
+            <div class="assistant-strip" data-assistant-strip hidden>
+              <span class="assistant-state" data-assistant-strip-state></span>
+              <span class="assistant-strip-now" data-assistant-strip-now></span>
+              <span class="assistant-strip-actions">
+                <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${uiText("workbench.assistant-dock.pause")}</button>
+                <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${uiText("workbench.assistant-dock.continue")}</button>
+                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${uiText("workbench.assistant-dock.stop")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${uiText("workbench.assistant-dock.stop-task-keep-connecting")}</button>
+              </span>
+            </div>
+            <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
+              <p class="assistant-empty" data-assistant-empty></p>
+              <p class="assistant-event-hint" data-assistant-event-hint hidden></p>
+            </div>
+            <button class="assistant-jump" type="button" data-assistant-jump hidden></button>
+          </div>
+          <aside class="assistant-side" id="assistant-side" data-assistant-side data-info="info" aria-label="${uiText("workbench.assistant-dock.information")}">
+            ${renderInfoTabs()}
+            <div class="info-pane" id="info-pane" data-info-pane role="tabpanel" aria-labelledby="info-tab-info">
+            <div class="assistant-event-card" data-assistant-event-card hidden></div>
+            <div class="work-card work-place-card" data-info-place></div>
+            ${renderContextCard()}
+            </div>
+            <section class="info-details" id="info-details" data-info-details aria-label="${uiText("workbench.assistant-dock.details")}" hidden>
+            <header class="info-details-head">${renderButton({ variant: "ghost", size: "sm", icon: "back", iconOnly: true, label: uiText.text("workbench.work-line.back"), attrs: { "data-info-details-close": "" } })}<strong>${uiText("workbench.assistant-dock.details")}</strong></header>
+            <div class="info-details-body">
+            <div class="assistant-empty-list" data-assistant-empty-list></div>
             <section class="assistant-summary" aria-label="${uiText("workbench.assistant-dock.overview")}">
               <div class="assistant-summary-top">
                 <p class="assistant-summary-state"><span class="assistant-state" data-assistant-work-state></span></p>
@@ -61,22 +95,10 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
             <section class="assistant-block" data-assistant-block="changes" aria-label="${uiText("workbench.assistant-dock.changes")}" hidden></section>
             <section class="assistant-block" data-assistant-block="background" aria-label="${uiText("workbench.assistant-dock.background-job")}" hidden></section>
             <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
+            </div>
+            </section>
+            ${renderInfoLists()}
           </aside>
-          <div class="assistant-main">
-            <div class="assistant-strip" data-assistant-strip hidden>
-              <span class="assistant-state" data-assistant-strip-state></span>
-              <span class="assistant-strip-now" data-assistant-strip-now></span>
-              <span class="assistant-strip-actions">
-                <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${uiText("workbench.assistant-dock.pause")}</button>
-                <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${uiText("workbench.assistant-dock.continue")}</button>
-                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${uiText("workbench.assistant-dock.stop")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${uiText("workbench.assistant-dock.stop-task-keep-connecting")}</button>
-              </span>
-            </div>
-            <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
-              <div class="assistant-empty" data-assistant-empty><strong>${uiText("workbench.assistant-dock.personal-work-assistant")}</strong><p>${uiText("workbench.assistant-dock.say-what-needs-doing-organize-material-draft-look")}</p><div class="assistant-empty-list" data-assistant-empty-list></div></div>
-            </div>
-            <button class="assistant-jump" type="button" data-assistant-jump hidden></button>
-          </div>
         </div>
       </section>${renderAssistantPermissions()}${renderReviewPermission()}${renderAutomationRecommendations()}
       <p class="settings-form-error" data-automation-load-error role="alert" hidden></p>

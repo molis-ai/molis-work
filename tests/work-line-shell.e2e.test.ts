@@ -52,7 +52,7 @@ async function rises(evaluate: <T>(expression: string) => Promise<T>, waitFor: (
   assert.deepEqual(await evaluate<Shell>(SHELL), rest, `${width}: back to one line, back as it was`);
 }
 
-test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to many lines and back and while the task panel opens; what the input lies over makes the same room, at 1440 and 1024 and with the side open", { timeout: 150_000 }, async t => {
+test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to many lines and back and while the conversation and its lists open; what the input lies over makes the same room, at 1440 and 1024 and with the side open", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
@@ -80,23 +80,22 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
   }))`);
   assert.deepEqual(placements, { writes: 0, moved: false, centre: 0 }, "a change in pane content does not reposition the input, which stands in the window's centre");
 
-  // The task panel floats beside the dialog: opening it moves neither the line nor what stands above it.
+  // 在办 has one way in, the mark inside the input (POLISH-69): the conversation opens over the work with that list in its
+  // information column, and moves neither the line nor what stands above it.
   const before = await evaluate<Shell>(SHELL);
-  await evaluate("document.querySelector('[data-task-mark]').click()");
-  await waitFor("Boolean(document.querySelector('[data-work-task-float] .work-task-panel'))");
-  assert.deepEqual(await evaluate<Shell>(SHELL), before, "the task panel takes no room from the line or the work");
-  await evaluate("document.querySelector('[data-task-mark]').click()");
-  await waitFor("!document.querySelector('[data-work-task-float] .work-task-panel')");
+  await evaluate(`document.querySelector('[data-work-counts] [data-work-list="now"]').click()`);
+  await waitFor(`!document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-info-tab="now"]')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-work-lists]').hidden`);
+  assert.deepEqual(await evaluate<Shell>(SHELL), before, "the conversation and its list take no room from the line or the work");
+  await evaluate("document.querySelector('[data-assistant-panel-close]').click()");
+  await waitFor("document.querySelector('[data-assistant-panel]').hidden");
 
   // With the side open: each part above the line yields only where the input lies under it.
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files' } }))");
   await waitFor("document.querySelector('[data-side-panel]')?.getBoundingClientRect().width > 0", 15_000);
   await rises(evaluate, waitFor, 1440);
   await evaluate(type("第一行\n第二行\n第三行\n第四行\n第五行"));
-  // The composer's own 「等你」 count stands in its foot row after the receiver, never over what is being written.
-  await waitFor("!document.querySelector('[data-assistant-attention]').hidden", 15_000);
-  assert.equal(await evaluate(`(() => { const at = node => document.querySelector(node).getBoundingClientRect(), chip = at('[data-assistant-attention]'), text = at('[data-assistant-composer] .mw-composer__text'), to = at('[data-assistant-composer] .mw-composer__to');
-    return chip.top >= text.bottom - 1 && chip.left >= to.right && Math.abs((chip.top + chip.bottom) / 2 - (to.top + to.bottom) / 2) <= 1; })()`), true, "the count is in the foot row, after the receiver");
+  // What waits is the card stack's and the first place's (POLISH-15, POLISH-43): the input carries no 「等你」 of its own over what is being written.
+  assert.equal(await evaluate("document.querySelector('[data-assistant-attention]')?.getClientRects().length ?? 0"), 0, "no count of its own in the input");
   await mkdir(shots, { recursive: true });
   await writeFile(new URL("line-rise-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
@@ -116,7 +115,7 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
   }
 });
 
-test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack and colours the mark, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
+test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
   // The event is a todo planned for today; the task that stops is another plugin's, done for it (its `serves`).
   let served = { kind: "todo_item", id: "" }, waiting = false, ask = false, changes: Array<{ label: string; value: string }> = [];
   const task = () => ({ subject: { kind: "homebg_task", id: "t1" }, title: "核对报价单", state: waiting ? "answer" : "running", details: [], waiting,
@@ -154,14 +153,16 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await waitFor(`${THREAD}.includes('把季度预算整理成表') && ${THREAD}.includes('再约王总明天下午')`, 10_000);
   release();
   await waitFor(`${THREAD}.includes('好的，在办。')`, 30_000);
-  await evaluate("document.querySelector('[data-task-mark]').click()");
-  await waitFor("[...document.querySelectorAll('[data-work-task-float] .work-task-row-title')].some(title => title.textContent === '核对报价单')", 15_000);
-  await evaluate("document.querySelector('[data-task-mark]').click()");
-  await waitFor("!document.querySelector('[data-work-task-float] .work-task-panel')");
+  // The plugin's task is a row of 在办, under the event it is done for (WLN-35).
+  await evaluate(`document.querySelector('[data-work-counts] [data-work-list="now"]').click()`);
+  await waitFor("[...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-title')].some(title => title.textContent === '核对报价单')", 15_000);
+  await evaluate("document.querySelector('[data-assistant-panel-close]').click()");
+  await waitFor("document.querySelector('[data-assistant-panel]').hidden");
 
-  // WLN-06: the task stops for the person. Focus is in the input with words being written; the dialog's tabs are what they were.
+  // WLN-06: the task stops for the person. Focus is in the input with words being written; the conversation stays closed, on what it was about.
   await evaluate(type("还没写完的一句"));
-  const tabs = await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')");
+  const SHOWN = "[document.querySelector('[data-assistant-panel]').hidden, document.querySelector('[data-assistant-head-title]').textContent]";
+  const shown = await evaluate<unknown[]>(SHOWN);
   // WLN-06 as §16 rewrote it: the number is the first place's amber count (POLISH-15), and the event goes into the card stack.
   const head = "document.querySelector('[data-top-corner-toggle] .top-corner-count')";
   const count = `(${head} && !${head}.hidden ? Number(${head}.textContent) : 0)`;
@@ -169,16 +170,17 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   assert.notEqual(await evaluate(`${EVENT}.dataset.state`), "wait");
   waiting = true;
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
-  await waitFor(`${EVENT}?.dataset.state === 'wait' && ${count} === ${before + 1} && Boolean(document.querySelector('[data-task-mark][data-needs-you]'))`, 20_000);
-  assert.equal(await evaluate(`${EVENT}.textContent.includes('等你')`), true, "the state is said in words, not by colour alone");
-  await waitFor("(document.querySelector('[data-work-stack] [data-work-stack-card]')?.textContent ?? '').includes('报价单')", 10_000);
-  // WLN-39: the composer's 「等你」 takes the head's number for the objects that wait, not a count of its own (nothing waits off the line here).
-  await waitFor(`document.querySelector('[data-assistant-attention-count]')?.textContent === '等你 ' + ${count}`, 10_000);
-  assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')"), tabs, "no tab is opened for it");
+  // POLISH-40: what waits for you leaves the three lists and is a card of the stack, which says 该你 in words, not by colour alone.
+  const CARD = "document.querySelector('[data-work-stack] [data-work-stack-card]')";
+  await waitFor(`${EVENT} === null && ${count} === ${before + 1} && (${CARD}?.textContent ?? '').includes('报价单')`, 20_000);
+  assert.equal(await evaluate(`${CARD}.textContent.includes('该你')`), true, "the state is said in words, not by colour alone");
+  // WLN-39: the card stack counts the same things as the first place: the card in front and how many are behind it.
+  await waitFor(`(() => { const behind = Number(/\\d+/u.exec(document.querySelector('[data-work-stack] .work-stack-more')?.textContent ?? '')?.[0] ?? 0); return behind + 1 === ${count}; })()`, 10_000);
+  assert.deepEqual(await evaluate<unknown[]>(SHOWN), shown, "the conversation is not opened for it, nor turned to it");
   assert.equal(await evaluate(`document.activeElement === ${INPUT} && ${INPUT}.value === '还没写完的一句'`), true, "the keyboard stays where the person was writing");
   // WLN-06 (user decision 2026-11-15): the main conversation has the platform's own row, at once and with no round of the model,
   // with 「去处理」; one for the task and its decision. No longer waiting, it folds and offers nothing to press; waiting again, the
-  // same row opens again, and 「去处理」 opens the event's tab.
+  // same row opens again, and 「去处理」 turns the conversation to the event.
   const ROWS = "[...document.querySelectorAll('[data-assistant-thread] .work-reply-waiting')]", ROW = `${ROWS}[0]`;
   await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROW}.textContent.includes('核对报价单') && ${ROW}.querySelector('[data-waiting-go]')?.textContent.includes('去处理')`, 10_000);
   assert.equal(await evaluate(`${ROWS}.length`), 1, "one row for the task and its decision");
@@ -190,7 +192,12 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROWS}.length === 1`, 20_000);
   await evaluate(`${ROW}.querySelector('[data-waiting-go]').click()`);
-  await waitFor(`[...document.querySelectorAll('.assistant-tab')].length === ${tabs.length + 1}`, 10_000);
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-head-title]').textContent === '报价单'", 10_000);
+  // POLISH-43: the event in front is answered in the information column, so it is no card of the stack while its conversation
+  // is open; with the conversation closed it is the stack's card again.
+  await waitFor(`!(${CARD}?.textContent ?? '').includes('报价单')`, 10_000);
+  await evaluate("document.querySelector('[data-assistant-panel-close]').click()");
+  await waitFor(`document.querySelector('[data-assistant-panel]').hidden && (${CARD}?.textContent ?? '').includes('报价单')`, 10_000);
   // POLISH-44: a decision with concrete changes stays behind 「去处理」 on the foot card; once it has no changes and at most
   // two direct choices, the next single refresh renders the direct buttons even when the line's events did not change.
   ask = true; changes = [{ label: "预算", value: "十万 → 十二万" }];
@@ -215,7 +222,7 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-stack] [data-decision-answer]')].every(b => !b.disabled)", 15_000);
 });
 
-test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read, and the task mark and panel say the connection is lost; heard again, all of that goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {
+test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read; pressing that asks again, and heard again it goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
   plugin.state.events = () => ({ source: SOURCE, events: [{ event_id: "quote", subject: { kind: "homebg_item", id: "quote" }, title: "报价单", summary: "", content: "", facts: [], category: "personal",
     placement: "active", occurred_at: new Date().toISOString(), needs_attention: false, open: null }] });
@@ -234,18 +241,15 @@ test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is bein
   assert.equal(await evaluate(`${CHIP} === null`), true);
 
   await evaluate("sessionStorage.setItem('down', '1'); document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
-  await waitFor(`Boolean(${CHIP}) && Boolean(document.querySelector('[data-task-mark][data-offline]'))`, 15_000);
+  await waitFor(`Boolean(${CHIP}) && document.querySelector('[data-work-line]').hasAttribute('data-checking')`, 15_000);
   assert.match(await evaluate<string>(`${CHIP}.textContent`), /^正在核对 · 截至 \S+/u, "said to be checked, as of the last read");
   assert.equal(await evaluate(`${EVENT}?.textContent.includes('报价单')`), true, "what it showed stays");
-  await evaluate("document.querySelector('[data-task-mark]').click()");
-  await waitFor("document.querySelector('[data-work-task-float] .work-task-banner [data-task-reconnect]') !== null");
-  assert.match(await evaluate<string>("document.querySelector('[data-work-task-float] .work-task-banner').textContent"), /截至/u);
   await mkdir(shots, { recursive: true });
   await writeFile(new URL("line-checking-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
-  // Heard again (the panel's 重新连接 asks at once): the chip, the mark's state and the banner go.
-  await evaluate("sessionStorage.setItem('down', '0'); document.querySelector('[data-work-task-float] [data-task-reconnect]').click()");
-  await waitFor(`${CHIP} === null && !document.querySelector('[data-task-mark][data-offline]') && !document.querySelector('[data-work-task-float] .work-task-banner')`, 15_000);
+  // Heard again (pressing 正在核对 asks at once): it goes.
+  await evaluate(`sessionStorage.setItem('down', '0'); ${CHIP}.click()`);
+  await waitFor(`${CHIP} === null && !document.querySelector('[data-work-line]').hasAttribute('data-checking')`, 15_000);
 
   // A reload while not heard: the last line stands at once, being checked.
   await evaluate("sessionStorage.setItem('down', '1')");

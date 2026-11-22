@@ -28,7 +28,7 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   await waitFor("document.querySelector('[data-lingguang=workbench]:not([hidden]) [data-lingguang-empty]:not([hidden])')", 8_000);
   assert.match(await evaluate("document.querySelector('[data-lingguang-empty]')?.textContent || ''"), /还没有灵光/);
   assert.equal(await evaluate("document.querySelector('[data-lingguang-confirm]')?.classList.contains('mw-dialog')"), true);
-  assert.equal(await evaluate("document.querySelector('[data-lingguang=directory]')?.classList.contains('feed-stage-list')"), true);
+  assert.equal(await evaluate("document.querySelector('[data-lingguang=directory]')?.classList.contains('mw-stage-list')"), true);
 
   const capture = async (title: string, body: string) => {
     const before = await evaluate<number>("document.querySelectorAll('[data-lingguang-id]').length");

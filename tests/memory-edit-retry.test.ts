@@ -155,7 +155,8 @@ test("missing original edit facts and incomplete history snapshots refuse writes
           revisions: [
             ...page.revisions,
             { version: 90, text: saved.text, origin: saved.origin, tags: [], meta: {} as never, created_at_ms: START, updated_at_ms: START },
-            { version: 91, text: saved.text, origin: saved.origin, tags: [], meta: { kind: "preference", source: "manual", classification: { scenes: ["unknown-scene"], lifecycle: "long-term" } } as never, created_at_ms: START, updated_at_ms: START },
+            // Plugins name their own scenes (BL-b44-coding-scene-enum), so the bad snapshot carries a scene no plugin could declare.
+            { version: 91, text: saved.text, origin: saved.origin, tags: [], meta: { kind: "preference", source: "manual", classification: { scenes: ["Not A Scene"], lifecycle: "long-term" } } as never, created_at_ms: START, updated_at_ms: START },
           ],
         };
       },

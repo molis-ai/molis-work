@@ -291,7 +291,7 @@ test("S-upgrade-too-new-untouched: an entry in the vault that is not sealed stop
     const state = remote.authorize(second.authorizationUrl!);
     const tokenRequests = remote.stats().tokenRequestCount;
     // Version and structure are fine; one entry of another owner's is not a current envelope, which only the check `put` makes finds.
-    const vault = join(temp, "feed", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
+    const vault = join(temp, "security", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
     writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));
     const before = readFileSync(vault, "utf8");
     // MCP answers every failure without a code of its own in one generic sentence (`safeError`), so what proves the vault refused is that nothing went.

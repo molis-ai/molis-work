@@ -55,7 +55,7 @@ test("RAC-212: Web resolves environment Home once for Catalog, control token and
     assert.equal(response.status, 201, await response.text());
     assert.ok(existsSync(join(envHome, "connectors/connectors.db")));
     assert.equal(existsSync(join(envHome, "sessions/sessions.db")), false, "First startup must not create the retired Sessions database");
-    assert.ok(existsSync(join(envHome, "feed/secrets.json")));
+    assert.ok(existsSync(join(envHome, "security/secrets.json")));
     await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
     resetSecretStoreCache();
     origin = await start();

@@ -262,7 +262,7 @@ function masterInfo(kind: SecretStoreBackendKind, key: Buffer): ResolvedMaster {
 function readExistingMasterKey(backend: SecretStoreBackendKind, access: SecretStoreAccess = {}): ResolvedMaster {
   if (backend === "aes-gcm-file") {
     const key = readInstallKeyFile(installKeyPath());
-    if (!key) throw new Error("install key file is unavailable or invalid; refusing to rotate existing secrets. Even an empty vault may have sealed Home data that needs its original key. Restore this Home's original feed/secrets.key, then restart Molis Work or the affected MCP connection. A new environment key cannot replace this recorded file backend. See docs/system/HOME-DATA.md#original-key-recovery.");
+    if (!key) throw new Error("install key file is unavailable or invalid; refusing to rotate existing secrets. Even an empty vault may have sealed Home data that needs its original key. Restore this Home's original security/secrets.key, then restart Molis Work or the affected MCP connection. A new environment key cannot replace this recorded file backend. See docs/system/HOME-DATA.md#original-key-recovery.");
     return masterInfo(backend, key);
   }
   if (backend === "env-key+aes-gcm") {
@@ -360,7 +360,7 @@ function parseSecretsFile(contents: string): SecretsFile {
   return parseSecretsValue(parsed);
 }
 
-/** `feed/secrets.json` for the upgrade process. Its steps go through a `SecretStore`, never around it, and its group is the stores it seals (§8.2). */
+/** `security/secrets.json` for the upgrade process. Its steps go through a `SecretStore`, never around it, and its group is the stores it seals (§8.2). */
 export const SECRET_STORE_FILE: VersionedFile<SecretsFile> = { version: FORMAT_VERSION, field: "version", upgrades: FORMAT_UPGRADES, parse: parseSecretsValue };
 
 function parseSecretsValue(parsed: unknown): SecretsFile {
@@ -485,7 +485,7 @@ export interface SealedHomePayload {
 }
 
 function masterReference(master: ResolvedMaster): SealedHomePayload["key_reference"] {
-  const location = master.kind === "aes-gcm-file" ? "home:feed/secrets.key" : master.kind === "env-key+aes-gcm"
+  const location = master.kind === "aes-gcm-file" ? "home:security/secrets.key" : master.kind === "env-key+aes-gcm"
     ? "env:MOLIS_WORK_ENCRYPTION_KEY" : "keychain:" + KEYCHAIN_SERVICE + "/" + KEYCHAIN_ACCOUNT;
   return { location, sha256: createHash("sha256").update(master.key).digest("hex") };
 }
@@ -542,7 +542,7 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
 /** Check the original key identity without creating a vault, entry or replacement key. */
 export function assertExistingHomeKeyReference(homeDirectory: string, reference: { readonly location: string; readonly sha256: string }): void {
   const home = payloadHome(homeDirectory);
-  const backend: SecretStoreBackendKind = reference.location === "home:feed/secrets.key" ? "aes-gcm-file"
+  const backend: SecretStoreBackendKind = reference.location === "home:security/secrets.key" ? "aes-gcm-file"
     : reference.location === "env:MOLIS_WORK_ENCRYPTION_KEY" ? "env-key+aes-gcm"
     : reference.location === "keychain:" + KEYCHAIN_SERVICE + "/" + KEYCHAIN_ACCOUNT ? "keychain+aes-gcm"
     : (() => { throw snapshotErrors.invalid("密钥引用不是此 owner 的固定后端位置"); })();
@@ -587,7 +587,7 @@ function writableFile(exceptRef?: string): SecretsFile {
 }
 
 /**
- * Whether a write to this Home's `feed/secrets.json` would be taken now, asked without writing. The version and structure are asked as for
+ * Whether a write to this Home's `security/secrets.json` would be taken now, asked without writing. The version and structure are asked as for
  * every versioned file (`assertVersionedFileWritable`, so the refusal has the same code), then every entry as `put` asks it (`writableFile`).
  * For a caller about to send a request whose answer it keeps here: a refusal after the request cannot take it back. Nothing is decrypted or
  * created, so no master key is needed.

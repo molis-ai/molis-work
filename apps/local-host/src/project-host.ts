@@ -14,7 +14,6 @@ import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindProjectNotifications } from "./plugin-notification-delivery.js";
 import { hostErrors } from "./host-errors.js";
-import { informationActionProvider } from "./information-actions.js";
 import { createSettingsVersionClaims } from "./declaration-owners.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
@@ -263,7 +262,7 @@ export class MolisWorkLocalHost {
               () => this.agents?.service.agentHost.descriptors() ?? [], () => this.agents?.service.ready));
             add(openProjectWorkspaceProvider(runtime, catalogOwner, this.actionClient(reference), clock, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference))); add(projectMaterialsProvider(runtime, this.actionClient(reference), options));
-            add(projectGuidanceActionProvider(reference.project_id, store.db, clock)); if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
+            add(projectGuidanceActionProvider(reference.project_id, store.db, clock));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,

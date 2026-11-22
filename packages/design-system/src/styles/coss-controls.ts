@@ -31,8 +31,7 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); &::backdrop { opacity: 0; } } }
   [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-actions { --control-h: 36px; > button { min-height: 36px; } }
-  .feed-stage-leading strong { font-size: 13px; }
-  [data-feed-task] { position: relative; }
+  .mw-stage-leading strong { font-size: 13px; }
   @media (max-width: 760px) {
     :is(.mw-btn--primary, .mw-btn--secondary, .mw-btn--danger, .form-actions > button) { min-height: 44px; }
     .form-actions { --control-h: 44px; }
@@ -168,7 +167,6 @@ export const COSS_CONTROL_STYLES = `
   }
 
   .form-disclosure summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: 400; padding: 8px 0; }
-  [data-feed-task] { position: relative; }
   .form-disclosure { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
   .form-disclosure[open] > summary { margin-bottom: 12px; }
   .event-form-body > :is(label,fieldset) { margin: 0; }
@@ -177,7 +175,7 @@ export const COSS_CONTROL_STYLES = `
   .event-form :is(input,textarea,select):focus-visible:not([class^="mw-"]) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .event-form-status:not([hidden]), .event-field-error:not([hidden]) { padding: 12px 12px; border-left: 2px solid currentColor; margin-block: 12px; font-size: 13px; line-height: 1.6; }
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; border: 0; border-radius: 8px; background: var(--red-soft); }
-  body.immersive-workbench .feed-stage-leading strong { font-size: 13px; }
+  body.immersive-workbench .mw-stage-leading strong { font-size: 13px; }
 
   /* Motion communicates focus and feedback; moving panes remain under the pointer. */
   :where(button:not(:disabled), summary):active { filter: brightness(.94); }

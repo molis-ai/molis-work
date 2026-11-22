@@ -1,3 +1,4 @@
+import { skillScenes } from "./scenes.js";
 import type { UiRequest, UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import { skillPlaceholders } from "@molis-ai/molis-work-contracts/services/skill-placeholders";
 import type { SkillAuthoredFields, SkillCase, SkillCaseFields, SkillDraft, SkillDraftAdoptResult, SkillDraftCreateTarget,
@@ -97,7 +98,7 @@ export function workshopOf(draft: SkillDraft, name: string, next: number | undef
 export const nextUntried = (w: Workshop) => w.draft.untried[0];
 export const replayedNow = (w: Workshop) => Boolean(w.draft.trial && w.draft.trial.draft_revision === w.draft.revision);
 /** The entries the Skill is replayed in, as it applies now. */
-export const consumersOf = (fields: Fields): SkillTrialConsumer[] => fields.applies_to === "both" ? ["assistant", "coding"] : [fields.applies_to];
+export const consumersOf = (fields: Fields): SkillTrialConsumer[] => fields.applies_to === "both" ? ["assistant", ...skillScenes().map(row => row.scene)] : [fields.applies_to];
 /** Model calls one replay makes: each entry with the draft, and with the version it is compared with, plus one to judge. */
 export const replayCalls = (w: Workshop) => consumersOf(w.fields).length * (w.draft.base ? 2 : 1) + 1;
 /** The placeholders a copy of a general Skill still has, and those it has replaced. */

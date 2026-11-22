@@ -153,9 +153,13 @@ test("SKC-03: a Skill id declared twice is refused", () => {
   assert.ok(problems.some(problem => problem.skill_id === SKILL && problem.reason === `方法重复：${SKILL}`), JSON.stringify(problems));
 });
 
-test("SKC-03: applies_to outside assistant, coding and both is refused", () => {
-  const problems = refused(() => parsePluginManifest(contentManifest({ methods: [skill({ applies_to: "everyone" })] })));
-  assert.deepEqual(problems, [{ skill_id: SKILL, reason: `方法 ${SKILL} 的 applies_to 只能是 assistant、coding、both` }]);
+test("SKC-03 BL-b44-coding-scene-enum: applies_to is assistant, both or a well-formed scene name; anything else is refused", () => {
+  // The SDK checks the form; whether a plugin declares the scene is the Host's check at the install review.
+  for (const applies_to of ["Everyone", "agent", "common", "1x"]) {
+    const problems = refused(() => parsePluginManifest(contentManifest({ methods: [skill({ applies_to: applies_to as never })] })));
+    assert.deepEqual(problems, [{ skill_id: SKILL, reason: `方法 ${SKILL} 的 applies_to 只能是 assistant、both，或一个插件在 Manifest 申报的场景名（如 coding）` }], applies_to);
+  }
+  assert.equal(parsePluginManifest(contentManifest({ methods: [skill({ applies_to: "notes" as never })] })).methods?.[0]?.applies_to, "notes");
 });
 
 test("SKC-03: a tool outside SKILL_TOOLS is refused; the declaration grants nothing either way", () => {
@@ -351,10 +355,10 @@ test("SKP-08 SKC-03: a method in Manifest methods must say when to pick it and w
   const problems = refused(() => parsePluginManifest(declarationManifest({ methods: [plain] })));
   assert.deepEqual(problems, [
     { skill_id: "plain", reason: "方法 plain 要写 description：什么时候用它" },
-    { skill_id: "plain", reason: "方法 plain 要写 applies_to：assistant、coding、both" },
+    { skill_id: "plain", reason: "方法 plain 要写 applies_to：assistant、both，或一个插件在 Manifest 申报的场景名（如 coding）" },
   ]);
   assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, applies_to: "assistant" }] })))), ["方法 plain 要写 description：什么时候用它"]);
-  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。" }] })))), ["方法 plain 要写 applies_to：assistant、coding、both"]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。" }] })))), ["方法 plain 要写 applies_to：assistant、both，或一个插件在 Manifest 申报的场景名（如 coding）"]);
   // A key outside the declaration is named, and an id too long to be a folder name is refused.
   assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。", applies_to: "both", purpose: "旧写法" }] })))), ["方法 plain 不能写 \"purpose\""]);
   // The key is the author's text: quoted, and cut to 200 units, as every outside key in a refusal (C-1 `quoted`).
@@ -383,8 +387,8 @@ test("skillDeclarationFromFrontmatter turns a SKILL.md into the declaration the 
 
 test("skillDeclarationFromFrontmatter refuses what the Manifest check refuses, and values it cannot read", () => {
   const head = (lines: string[]) => ["---", ...lines, "---", "正文"].join("\n");
-  assert.deepEqual(refused(() => skillDeclarationFromFrontmatter(head(["name: bad", "description: d", "applies_to: all"]))),
-    [{ skill_id: "bad", path: "skills/bad/SKILL.md", reason: "方法 bad 的 applies_to 只能是 assistant、coding、both" }]);
+  assert.deepEqual(refused(() => skillDeclarationFromFrontmatter(head(["name: bad", "description: d", "applies_to: All"]))),
+    [{ skill_id: "bad", path: "skills/bad/SKILL.md", reason: "方法 bad 的 applies_to 只能是 assistant、both，或一个插件在 Manifest 申报的场景名（如 coding）" }]);
   assert.deepEqual(reasons(refused(() => skillDeclarationFromFrontmatter(head(["description: d"])))), ["SKILL.md 的 frontmatter 要有 name（Skill 的标识）"]);
   assert.deepEqual(reasons(refused(() => skillDeclarationFromFrontmatter(head(["name: multi", "description: |", "  two lines"])))),
     ["SKILL.md 的 frontmatter 第 3 行要写成一行的 key: value（不支持嵌套和多行值）"]);

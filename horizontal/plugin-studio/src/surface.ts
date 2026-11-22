@@ -1,18 +1,18 @@
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { HostSurfaceRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./index.js";
 
-/**
- * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
- * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
- */
 import { BUILDER_CONTENT_REPLICA_ID, builderPrivateValueReplicationOwner, builderSyncProjection } from "./index.js";
 import { createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
-export const registration: PluginRegistration = {
+/**
+ * The studio as the platform draws it (47-1 C, user 2026-11-22): not a plugin, so not in the plugin catalog, Settings › 插件, the market
+ * or a project's plugins. The shell gives it its button beside the market; its stage is framed like any page, with the requests,
+ * sheet and program declared here; its drafts sync as the platform's own collection, under the identity they always had.
+ */
+export const studioSurface: HostSurfaceRegistration = {
   sync:{authoring:{scope:'project-private-values',kind:BUILDER_CONTENT_REPLICA_ID,namespace:'builder',owner:builderPrivateValueReplicationOwner,content:context=>createSyncJsonContent({...context,...builderSyncProjection})}},
-  project_plugin_id: "plugin-builder", catalog_order: 3,
+  project_plugin_id: "plugin-builder",
   manifest: builderManifest,
-  personal: true,
   workbench: {
     pageRequests: [
       { method: "GET", path: "/api/plugin-builder/studio/state" },

@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginRegistration } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
-import { BUILTIN_PLUGIN_CATALOG, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
 import { pluginOnDemandStylesheet, pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
 
 const action: ActionDefinition = { capability_id: 'fixture.future.read', version: 1, operation: 'query',
@@ -49,7 +49,8 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
 test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {
   // Native UI is composed statically, not redeemed as a Runtime contribution; the platform fills the owner from the catalog entry's Manifest (PG-098).
   const ui = createWorkbenchUiHost().list();
-  const owners = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
+  // The platform's own framed surface (the studio, 47-1 C) is composed the same way, under its Manifest's owner.
+  const owners = new Map([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
   owners.set("io.molis.work.native.artifacts.browser.v1", "io.molis.work.artifacts");
   owners.set("io.molis.work.native.artifacts.reference.v1", "io.molis.work.artifacts");
   assert.ok(ui.length > 20, 'the catalog registers its contributions');

@@ -4563,6 +4563,7 @@
     "workbench.immersive-shell.personal-2": "Personal",
     "workbench.immersive-shell.plugin": "Plugin",
     "workbench.immersive-shell.plugin-market": "Plugin market",
+    "workbench.immersive-shell.plugin-studio": "Plugin Studio",
     "workbench.immersive-shell.plugins-that-depend-not-added-list": "; plugins that depend on it are not added with it: {list}",
     "workbench.immersive-shell.previous": "Previous",
     "workbench.immersive-shell.project": "This project",

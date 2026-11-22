@@ -1,9 +1,8 @@
 import { localEnvironmentName } from "./active-release-profile.js";
 import { installHostUiText, projectTextPacks, registeredBuiltinText } from "./ui-text-provider.js";
-import { INSTALLED_PLUGIN_BUNDLE, createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage, renderWorkbenchRefreshDocument,
-  type OwnerUnavailableCard, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
+import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, createWorkbenchRenderer, renderInstalledPluginBody, renderPluginDocumentShell, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage, renderWorkbenchRefreshDocument,
+  type OwnerUnavailableCard, type PluginDirectoryEntry, type UnavailablePluginStage, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { installedPluginBody } from "./installed-stage-section.js";
 import { installedStagePath } from "./installed-stage-identity.js";
 import { readText, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref } from "./web-locale.js";
 
@@ -27,7 +26,7 @@ export function createLocalHostWorkbenchRenderer(desktop: WorkbenchRendererPorts
  * package that picked none keeps the shell's default. `installation` binds the page to the exact installation this section shows.
  */
 export function installedStageSection(input: { pluginId: string; surface: string; label: string; prefix: string; installation: SurfaceInstallationRef; icon?: string }): string {
-  return renderPluginFrameSurface(installedPluginBody(input.pluginId), input.surface, input.label, true, false, INSTALLED_PLUGIN_BUNDLE, undefined, undefined, undefined, false, {
+  return renderPluginFrameSurface(renderInstalledPluginBody(input.pluginId), input.surface, input.label, true, false, INSTALLED_PLUGIN_BUNDLE, undefined, undefined, undefined, false, {
     owner: input.pluginId, page: installedStagePath(input.prefix, input.pluginId, input.installation), icon: input.icon,
   });
 }
@@ -40,4 +39,7 @@ export function installedStageSection(input: { pluginId: string; surface: string
 export const hostRecoveryPages = { ownerUnavailablePage: renderOwnerUnavailablePage, upgradeOpeningPage: renderUpgradeOpeningPage,
   arrivalStylesheet: renderMolisWorkArrivalStylesheet, settingsSectionLabel: hostSettingsSectionLabel };
 export { renderWorkbenchRefreshDocument };
+/** The installed package page's drawing, for the Host's installed-plugin routes (`installed-plugin-http.ts`). */
+export { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, renderInstalledPluginBody, renderPluginDocumentShell };
+export type { PluginDirectoryEntry, UnavailablePluginStage };
 export type { OwnerUnavailableCard };

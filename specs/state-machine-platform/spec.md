@@ -235,7 +235,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 | [capabilities.md](../../skills/molis-plugin-dev/capabilities.md) | 迁移仍是写动作；状态机不是权限 |
 | [placement.md](../../skills/molis-plugin-dev/placement.md)、[continuity.md](../../skills/molis-plugin-dev/continuity.md) | 跨模块移动/发布读 owner 的状态，不复制 |
 
-约束：插件创作台挂载同一批章节（[skill.ts](../../apps/local-host/src/plugin-builder/skill.ts) 的 `CHAPTERS`），改 Skill 章节或创作台提示词（[agent-prompts.ts](../../plugins/native/plugin-builder/src/agent-prompts.ts)）要跑 `pnpm studio:replay` 与隔离 Home 的 `pnpm studio:replay smoke`；`skills/` 被安装类测试拷贝比较，Skill 改动要在同批改完、先 `pnpm build` 再跑全量。
+约束：插件创作台挂载同一批章节（[skill.ts](../../apps/local-host/src/plugin-builder/skill.ts) 的 `CHAPTERS`），改 Skill 章节或创作台提示词（[agent-prompts.ts](../../horizontal/plugin-studio/src/agent-prompts.ts)）要跑 `pnpm studio:replay` 与隔离 Home 的 `pnpm studio:replay smoke`；`skills/` 被安装类测试拷贝比较，Skill 改动要在同批改完、先 `pnpm build` 再跑全量。
 
 ### 6.2 平台手册
 
@@ -405,7 +405,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 - **26 与 U5（2026-11-14 起在发行批 [REL-4](../post-anticorruption-roadmap/reference/batches/rel-4.md#rel-4-item-1)）**：U5「合同过渡与保存引用改写」在 M1 当天生效；`state_machines` 必须和 U5 放在同一份 M1 前合同形状里一起定，不能等 26 之后另开一次合同变更——否则它会变成 U5 过渡之后的新增合同面，按阶段二规则处理。
 - **门禁已批「先只报告」**：本方案的两个新检查（词表检查、声明检查）用户 2026-11-08 已批「先只报告、不挡合并」，后续是否挡合并另议；`AGENTS.md` 与开发流程文字仍先给用户看。
 - **27 的容量与「去热点」目标**：27-5 本身就是「文档和门禁去热点 + 各包清理」，再加一个新门禁、一份生成文档和 Skill 新章，与这批「降热点」的方向相反；要么压到最小（只门禁+生成表，Skill 新章另放），要么单独切一条。需要统筹定。
-- **D 轨与 E 轨的文件归属**：`platform/ui-state-rings.ts`／`platform/ui.ts`、`packages/plugin-sdk/src/ui*`、design-system 是 D 轨独占；`skills/`、`apps/local-host/src/plugin-builder/skill.ts`、`plugins/native/plugin-builder/src/agent-prompts.ts` 跨 E/统筹。26/46 是 C1 轨道，不能顺手改 D 的文件；这些改动要作为 D/E 的交付行排进去，不能只写在 C1 的批次里。
+- **D 轨与 E 轨的文件归属**：`platform/ui-state-rings.ts`／`platform/ui.ts`、`packages/plugin-sdk/src/ui*`、design-system 是 D 轨独占；`skills/`、`apps/local-host/src/plugin-builder/skill.ts`、`horizontal/plugin-studio/src/agent-prompts.ts` 跨 E/统筹。26/46 是 C1 轨道，不能顺手改 D 的文件；这些改动要作为 D/E 的交付行排进去，不能只写在 C1 的批次里。
 - **第 57 批**：合同必须在 M1 外部版本前落；晚于它就要按阶段二升版本、带读取兼容，工作量明显更大。26 加合同可能挤压 M1 准备，47 加实现可能推迟阶段 2 出口，这两处要统筹按容量决定先做多少。
 - **服务端批**：若把同步状态纳入公开词表，与 SRV-1 的同步合同协调；不作为 01～90 的前置。
 - **第三方市场**：插件市场与第三方安装（BL-058、BL-167）在暂缓项里，47／48 只做现有安装预览／插件目录；市场展示等市场开放时沿用同一投影，不在本路径排批。

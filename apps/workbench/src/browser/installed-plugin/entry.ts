@@ -69,7 +69,8 @@ globalThis.molisWorkbenchPluginFactories["installed-plugin"] = (base) => {
     const unavailable = () => {
       if (!lifetime.alive) return;
       const note = document.createElement("p");
-      note.dataset.pcOpenFailed = ""; note.setAttribute("role", "alert");
+      note.dataset.pcOpenFailed = "";
+      note.setAttribute("role", "alert");
       note.textContent = uiText.text("common.generated.record-or-form-unavailable");
       root.prepend(note);
     };

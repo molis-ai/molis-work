@@ -6,6 +6,7 @@ import { renderMaterialsStage } from "./materials-stage.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import { pluginSurfaceClients, deferredSurfaceClients, pluginShellStyleLinks } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -13,7 +14,7 @@ import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { directoryPanelIdentity, renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { directoryWidthPreferenceScript } from "./directory-width.js";
-import { islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sidePlaces } from "./plugin-catalog.js";
+import { hostSurfaceDirectory, islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sidePlaces } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, renderPluginTabTitlesData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
@@ -161,7 +162,7 @@ function renderMolisWorkWeb(
   desktopShell = false,
 ): string {
   const enabledPlugins = shownPagePlugins(view);
-  const declared = renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
+  const declared = renderDeclaredStages({ enabled: enabledPlugins, hostSurfaces: true, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
     model: pluginId => stageModel(pluginId, view) });
   const page = view.page_stage ?? declared.page, parts = page?.parts;
   const title = parts?.title ?? "Molis Work";
@@ -175,9 +176,11 @@ function renderMolisWorkWeb(
   const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
   const requested = view.pane_plugin ?? view.initial_plugin;
   const surfaces = [...(view.plugin_stage_surfaces ?? []), ...declared.surfaces];
-  const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory)];
+  // The platform's own framed surfaces (the studio, 47-1 C) are on every workbench page, as the studio always was by default.
+  const hosted = HOST_FRAMED_SURFACES;
+  const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory), ...hosted.map(surface => ({ id: surface.project_plugin_id }))];
   const contributions = requested ? [view.plugin_stage_views?.[`home:${requested}`], view.plugin_stage_views?.[`project:${requested}`],
-    ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
+    ...[...BUILTIN_PLUGIN_CATALOG, ...hosted].filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
   const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(places.side, requested)
     && !(view.unavailable_plugin_stages ?? []).some(stage => stage.surface === requested)
     && contributions.some(contribution => contribution?.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"
@@ -223,7 +226,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     },
     body_html: `
   ${renderIconSprite()}
-  ${renderPluginDirectoryData(directory, offered.map(entry => entry.id), places)}
+  ${renderPluginDirectoryData([...directory, ...hostSurfaceDirectory().filter(surface => !directory.some(entry => entry.id === surface.id))], offered.map(entry => entry.id), places)}
   ${renderPluginTabTitlesData(pluginTabTitles(directory))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
@@ -231,7 +234,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
         corner: renderProjectCorner(view.project ?? null, projectOptions, desktopShell, "__PROJECT_INDEX__"),
-        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
+        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))), hostSurfaces: true,
       })}
       ${renderWorkbenchBar(primitives, { sideTabs })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">

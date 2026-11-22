@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { AgentBuilderWorkflow, BUILDER_PROMPTS, expandDesign, freezeStudioUi, parseModelJson, validateAgentDesign, type AgentBuilderPorts, type CatalogEntry } from "@molis-ai/molis-work-plugin-builder";
+import { AgentBuilderWorkflow, BUILDER_PROMPTS, expandDesign, freezeStudioUi, parseModelJson, validateAgentDesign, type AgentBuilderPorts, type CatalogEntry } from "@molis-ai/molis-work-plugin-studio";
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";

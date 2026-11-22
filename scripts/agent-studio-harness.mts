@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_STYLES } from '@molis-ai/molis-work-design-system';
-import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plugin-builder';
+import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plugin-studio';
 import { authorizeLocalWebRequest, installHostUiText, pluginPagesFor, registeredBuiltinText, runWithLocale, runWithRegisteredText, readText, htmlLang, handlePageLocales, WebSessions, webPageToken, withWebSessionRequest, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import { handleLanguagePreference, languagePreview, requestLanguage } from '../apps/local-host/dist/web-ui-preference.js';
 import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet, renderPluginDocumentShell, workbenchLanguageResource,

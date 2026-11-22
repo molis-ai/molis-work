@@ -13,7 +13,7 @@ import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
 import dns from 'node:dns';
 import { syncBuiltinESMExports } from 'node:module';
-import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,studioBuildDiagnostic,type AgentBuild,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
+import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,studioBuildDiagnostic,type AgentBuild,type AgentRelease} from '@molis-ai/molis-work-plugin-studio';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -122,7 +122,7 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
     ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
     assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json();
   };
-  type Build = import('@molis-ai/molis-work-plugin-builder').AgentBuild;
+  type Build = import('@molis-ai/molis-work-plugin-studio').AgentBuild;
   const model = (await options.models())[0]!;
   await send('/settings', { provider_id: model.provider_id, model_id: model.model_id });
   const { build: created } = await send<{ build: Build }>('/builds', { brief: 'Build an excerpt notebook; save notes and find them later.' });

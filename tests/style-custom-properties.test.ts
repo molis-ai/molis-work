@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { AGENT_STUDIO_STYLES } from "@molis-ai/molis-work-plugin-builder";
+import { AGENT_STUDIO_STYLES } from "@molis-ai/molis-work-plugin-studio";
 import {
   renderMolisWorkArrivalStylesheet,
   renderMolisWorkPluginBaseStylesheet,

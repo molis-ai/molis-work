@@ -12,7 +12,7 @@ import { actionEffect } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { SandboxError, type SandboxServiceContext, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { MODEL_STAND_IN_PREFIX, studioCapability, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { MODEL_STAND_IN_PREFIX, studioCapability, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-studio';
 import { isMcpToolCapability } from './mcp-tool-actions.js';
 import { issuePluginCaller } from './plugin-callers.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './installed-plugin-capabilities.js';

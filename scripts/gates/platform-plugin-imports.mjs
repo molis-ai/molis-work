@@ -12,7 +12,8 @@ export const GENERATED_PLUGIN_REGISTRIES = new Set([
 ]);
 
 /**
- * Spec §3 (specs/plugin-equal-standing/spec.md) whitelist: the three native plugins still wired from the Host,
+ * Spec §3 (specs/plugin-equal-standing/spec.md) whitelist: the native plugins still wired from the Host (the studio left in 47-1:
+ * it is the platform's `horizontal/plugin-studio`, not a plugin),
  * locked to their existing platform entry files so no accidental new platform imports grow.
  */
 export const SPEC_SECTION3_WHITELIST = {
@@ -22,16 +23,6 @@ export const SPEC_SECTION3_WHITELIST = {
     "apps/local-host/src/alchemist-search.ts",
     "apps/local-host/src/alchemist-service-host.ts",
     "apps/local-host/src/web-request.ts",
-  ]),
-  "@molis-ai/molis-work-plugin-builder": new Set([
-    "apps/local-host/src/agent-definitions/builtin-instructions.ts",
-    "apps/local-host/src/installed-plugin-host.ts",
-    "apps/local-host/src/plugin-builder-surface.ts",
-    "apps/local-host/src/plugin-builder/agent-surface.ts",
-    "apps/local-host/src/plugin-builder/browser.ts",
-    "apps/local-host/src/installed-plugin-catalog.ts",
-    "apps/local-host/src/installed-plugin-prompts.ts",
-    "apps/local-host/src/plugin-builder/storage.ts",
   ]),
   "@molis-ai/molis-work-plugin-shelf": new Set([
     "apps/local-host/src/demo-plugin-seed.ts",

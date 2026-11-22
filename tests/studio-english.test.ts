@@ -7,7 +7,7 @@ import { PLUGIN_COMPONENTS, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@moli
 import {
   AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
   builderUiContribution, renderAgentStudio, renderStudioStage,
-} from "@molis-ai/molis-work-plugin-builder";
+} from "@molis-ai/molis-work-plugin-studio";
 
 // The plugin studio's own words go through the host translator, so the English interface shows English controls, labels, empty
 // states, phases and pointer labels. What the build record carries (the model's answers, the host's step labels and errors)

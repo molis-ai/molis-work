@@ -1,8 +1,8 @@
 {
-  "name": "@molis-ai/molis-work-plugin-builder",
+  "name": "@molis-ai/molis-work-plugin-studio",
   "version": "0.0.0",
   "private": true,
-  "description": "Prologue-powered plugin design, live assembly and independent data applications.",
+  "description": "The plugin studio, a platform capability: Prologue-powered plugin design, live assembly and signed packages of the plugins it makes.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -14,9 +14,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./registration": {
-      "types": "./dist/registration.d.ts",
-      "import": "./dist/registration.js"
+    "./surface": {
+      "types": "./dist/surface.d.ts",
+      "import": "./dist/surface.js"
     }
   },
   "files": [
@@ -35,19 +35,5 @@
     "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sandbox": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
-  },
-  "molis-work": {
-    "maturity": "slice",
-    "capabilities": [
-      "plugin-builder.ui.v1",
-      "plugin-builder.workflow.v1"
-    ],
-    "registration": "./registration",
-    "extraWorkspaceDependencies": [
-      "@molis-ai/molis-work-design-system",
-      "@molis-ai/molis-work-plugin-sandbox",
-      "@molis-ai/molis-work-plugin-sdk"
-    ],
-    "extraDependencies": {}
   }
 }

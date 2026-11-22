@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { BASELINE_SPEC, PLUGIN_COMPONENTS } from "@molis-ai/molis-work-design-system";
-import { AgentBuilderStore } from "@molis-ai/molis-work-plugin-builder";
+import { AgentBuilderStore } from "@molis-ai/molis-work-plugin-studio";
 import { memoryStorage } from "./fixtures/builder-workflow-design.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { pageText } from "./fixtures/page-text.js";

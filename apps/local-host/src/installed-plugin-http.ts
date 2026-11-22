@@ -3,11 +3,11 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, renderPluginDocumentShell, type PluginDirectoryEntry, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { installedPageSelection, pluginPageRequest } from "./plugin-page-authority.js";
-import { installedPluginBody, installedStageSurface } from './installed-stage-section.js';
-import { installedStageSection } from './workbench-renderer.js';
+import { installedStageSurface } from './installed-stage-section.js';
+import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, installedStageSection, renderInstalledPluginBody, renderPluginDocumentShell,
+  type PluginDirectoryEntry, type UnavailablePluginStage } from './workbench-renderer.js';
 import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation } from './installed-stage-identity.js';
 import { captureWebSessionAuthority, shellPageRead } from './web-sessions.js';
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from './web-http.js';
@@ -75,7 +75,7 @@ export function renderHomePackageDocument(input: Omit<Parameters<typeof installe
   const prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
   const document = installedPluginPage({ ...input, scope: 'home', prefix });
   return input.projection ? document : renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: INSTALLED_PLUGIN_BUNDLE, lang: htmlLang(),
-    title: installedPluginWords(release).name, accountRegistration: input.accountRegistration, html: installedPluginBody(pluginId), project_id: projectId ?? '',
+    title: installedPluginWords(release).name, accountRegistration: input.accountRegistration, html: renderInstalledPluginBody(pluginId), project_id: projectId ?? '',
     route_prefix: prefix, control_token: input.controlToken, ...document });
 }
 
@@ -93,19 +93,40 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
   // The page is a frame document: opened directly, it opens the workbench at its surface instead (specs/artifact-positioning S3).
   const framed = url.searchParams.get('frame') === 'workbench';
   const projection = installedPage && framed && request.headers.accept === 'application/json';
-  if (projection && (method !== 'GET' || !shellPageRead(request, 'http://' + requestHost(request)))) { refuseLocalWebRequest(response); return true; }
+  if (projection && (method !== 'GET' || !shellPageRead(request, 'http://' + requestHost(request)))) {
+    refuseLocalWebRequest(response);
+    return true;
+  }
   const pageAuthority = pluginPageRequest(request), disconnected = new AbortController();
-  const disconnect = () => { if (!response.writableEnded) disconnected.abort(new Error('调用连接已关闭')); };
-  request.once('aborted', disconnect); response.once('close', disconnect);
+  const disconnect = () => {
+    if (!response.writableEnded) disconnected.abort(new Error('调用连接已关闭'));
+  };
+  request.once('aborted', disconnect);
+  response.once('close', disconnect);
   const signal = pageAuthority ? AbortSignal.any([pageAuthority.signal, disconnected.signal]) : disconnected.signal;
   const currentSession = captureWebSessionAuthority();
-  const assertCurrent = () => { currentSession(); signal.throwIfAborted(); pageAuthority?.assertCurrent(); };
+  const assertCurrent = () => {
+    currentSession();
+    signal.throwIfAborted();
+    pageAuthority?.assertCurrent();
+  };
   // A native workbench request has already passed the shared local control guard; its live request owns this execution.
-  const execution: PluginExecutionControl = { signal, beforeEffect: async () => { assertCurrent(); await pageAuthority?.beforeEffect(); assertCurrent(); },
-    assert_authority_current: assertCurrent };
-  const refuse = (status: number, key: string) => { sendLocalWebJson(response, status, { error: uiText.text(key) }); return true; };
+  const execution: PluginExecutionControl = { signal, assert_authority_current: assertCurrent, beforeEffect: async () => {
+    assertCurrent();
+    await pageAuthority?.beforeEffect();
+    assertCurrent();
+  } };
+  const refuse = (status: number, key: string) => {
+    sendLocalWebJson(response, status, { error: uiText.text(key) });
+    return true;
+  };
+  const sendHtml = (html: string) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    response.end(html);
+    return true;
+  };
   try {
-    if (!options.homeDirectory) throw new Error('安装插件需要本机数据目录');
+    if (!options.homeDirectory) throw new ActionError('actions.unavailable', '安装插件需要本机数据目录');
     const expected = installedPage && method === 'GET' ? requestedStageInstallation(url) : undefined;
     if (expected?.scope === "home") throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
     const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory });
@@ -118,7 +139,8 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     if (installedCall && method === 'POST') {
       const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
       if (!result) return refuse(409, "workbench.installed-plugin.not-running");
-      sendLocalWebJson(response, result.status, result.body); return true;
+      sendLocalWebJson(response, result.status, result.body);
+      return true;
     }
     if (!installedPage || method !== 'GET') return false;
     const release = installed.releaseFor(pluginId);
@@ -127,11 +149,13 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
       if (expected) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
       return refuse(404, "workbench.installed-plugin.not-found");
     }
-    if (!framed) { response.writeHead(302, { location: prefix + '/?openSurface=' + encodeURIComponent(installedStageSurface(release)), 'cache-control': 'no-store' }); response.end(); return true; }
-    const recoveryError = installed.recoveryErrors.get(pluginId);
-    if (recoveryError) {
-      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(recoveryHtml(recoveryError)); return true;
+    if (!framed) {
+      response.writeHead(302, { location: prefix + '/?openSurface=' + encodeURIComponent(installedStageSurface(release)), 'cache-control': 'no-store' });
+      response.end();
+      return true;
     }
+    const recoveryError = installed.recoveryErrors.get(pluginId);
+    if (recoveryError) return sendHtml(recoveryHtml(recoveryError));
     // The page belongs to the exact installation its stage drew, with that stage's declared object slots.
     assertStageInstallation("project", current(), expected ?? installedStageIdentity("project", record));
     const owner = manifest && captureRuntimeStageOwner(installed.platform, "project", { project_plugin_id: installedStageSurface(release), manifest });
@@ -139,17 +163,20 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     assertCurrent();
     const document = installedPluginPage({ home: options.homeDirectory, actorId: options.actorId ?? 'web-user', projectId: options.projectId,
       prefix, release, scope: 'project', running: current, selection: installedPageSelection(record, options.projectId, current, owner) });
-    if (projection) { sendLocalWebJson(response, 200, document); return true; }
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-    response.end(renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: INSTALLED_PLUGIN_BUNDLE, lang: htmlLang(),
-      title: installedPluginWords(release).name, html: installedPluginBody(pluginId), project_id: options.projectId, route_prefix: prefix, control_token: controlToken,
+    if (projection) {
+      sendLocalWebJson(response, 200, document);
+      return true;
+    }
+    return sendHtml(renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: INSTALLED_PLUGIN_BUNDLE, lang: htmlLang(),
+      title: installedPluginWords(release).name, html: renderInstalledPluginBody(pluginId), project_id: options.projectId, route_prefix: prefix, control_token: controlToken,
       accountRegistration: options.accountRegistration, ...document }));
-    return true;
   } catch (error) {
-    // The page answers a refused stage in the action shape its frame reads; a call keeps the plain refusal it always had.
-    if (installedPage && error instanceof ActionError) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); return true; }
-    const code = (error as { code?: string }).code;
-    sendLocalWebJson(response, code === 'revision_conflict' ? 409 : 400, { error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) });
+    // A refusal answers in the action shape, its status from its kind (packages/plugin-sdk/src/errors.ts).
+    const refused = actionErrorResponse(error);
+    sendLocalWebJson(response, refused.status, refused.body);
     return true;
-  } finally { request.removeListener('aborted', disconnect); response.removeListener('close', disconnect); }
+  } finally {
+    request.removeListener('aborted', disconnect);
+    response.removeListener('close', disconnect);
+  }
 }

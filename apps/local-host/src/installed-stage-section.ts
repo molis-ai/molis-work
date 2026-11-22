@@ -1,5 +1,4 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { INSTALLED_PLUGIN_PAGE_CLASS } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { InstalledRelease } from "./installed-release.js";
 import { installedStagePath } from "./installed-stage-identity.js";
@@ -12,5 +11,3 @@ export function installedStageFrame(input: { pluginId: string; label: string; pr
   return '<iframe src="' + escapeHtml(installedStagePath(input.prefix, input.pluginId, input.installation)) + '" title="' + escapeHtml(input.label)
     + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>';
 }
-
-export const installedPluginBody = (pluginId: string): string => '<main class="' + INSTALLED_PLUGIN_PAGE_CLASS + '" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';

@@ -160,6 +160,12 @@ export interface PluginManagementActionDeclaration {
 }
 
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
+/**
+ * A surface of the platform's own that the shell frames like a plugin's page (47-1 C: the plugin studio): its stage, page requests,
+ * sheet and program, and the sync collections it owns. It is not a plugin and is in no plugin catalog.
+ */
+export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync">;
+
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
   /** Trusted owner binding for freezing and verifying synced decision outcomes against platform project approvals. */

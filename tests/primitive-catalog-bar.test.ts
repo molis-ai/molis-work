@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
-import { expandDesign } from "@molis-ai/molis-work-plugin-builder";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
+import { expandDesign } from "@molis-ai/molis-work-plugin-studio";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { uiHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -80,14 +80,17 @@ test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help s
 test("VUX-55 VUX-58: every native built-in plugin manifest declares valid bilingual ui.help with all zh/en keys", () => {
   const wbZh = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
   const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
-  assert.ok(BUILTIN_PLUGIN_CATALOG.length >= 24, `expected at least 24 built-in plugins, got ${BUILTIN_PLUGIN_CATALOG.length}`);
+  // The platform's own framed surface (the studio, 47-1 C) declares its help the same way.
+  const declared = [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES];
+  assert.ok(declared.length >= 24, `expected at least 24 built-in plugins and platform surfaces, got ${declared.length}`);
   const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  for (const entry of declared) {
     const help = entry.manifest.ui.help;
     assert.ok(help && help.topics.length > 0, `${entry.project_plugin_id}: manifest.ui.help must be declared`);
     assert.deepEqual(uiHelpDeclarationProblems(entry.manifest), [], `${entry.project_plugin_id}: ui.help must pass SDK validation`);
-    const zhPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/zh.json`, import.meta.url);
-    const enPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/en.json`, import.meta.url);
+    const locales = HOST_FRAMED_SURFACES.includes(entry as typeof HOST_FRAMED_SURFACES[number]) ? "../horizontal/plugin-studio/locales" : `../plugins/native/${entry.project_plugin_id}/locales`;
+    const zhPath = new URL(`${locales}/zh.json`, import.meta.url);
+    const enPath = new URL(`${locales}/en.json`, import.meta.url);
     const zh = JSON.parse(readFileSync(zhPath, "utf8")).messages as Record<string, unknown>;
     const en = JSON.parse(readFileSync(enPath, "utf8")).messages as Record<string, unknown>;
     for (const topic of help.topics) {

@@ -14,7 +14,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage,privateValueReplicaOwner,installPrivateValueReplicationJournal,validatePrivateValueReplication} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,AgentBuilderWorkflow,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,normalizeProposal,studioBuildDiagnostic,type AgentRelease,type AgentBuild,type AgentBuilderPorts} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,AgentBuilderWorkflow,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,normalizeProposal,studioBuildDiagnostic,type AgentRelease,type AgentBuild,type AgentBuilderPorts} from '@molis-ai/molis-work-plugin-studio';
 import {pluginComponentChoices} from '@molis-ai/molis-work-design-system';
 import {createSqliteReplica,initializeReplica,namespacedReplicaDatabase,replicaMarkRowsSql,bindDatabaseSpace,personalStorageSpace,replicaSchemaSql} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState,createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';

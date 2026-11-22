@@ -1,7 +1,7 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { HostSurfaceRegistration, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import type { HomePluginEntry } from "./home-plugins.js";
 import { declaresProjectCoordination } from "./plugin-project-coordination.js";
@@ -17,9 +17,10 @@ export { PLATFORM_PLUGIN_REGISTRATIONS };
 /**
  * What makes a catalog unusable (W5-02-REG-02): two entries with one project key, Manifest id or position, or a short id in
  * `companions` or `workbench.clientUses` that names no entry. scripts/generate-plugin-registry.mjs
- * refuses these in the plugins' sources; this holds the built list to the same, and the Host does not start on one.
+ * refuses these in the plugins' sources; this holds the built list to the same, and the Host does not start on one. The platform's
+ * own framed surfaces (`host-surfaces.ts`, 47-1 C) are held to it beside the plugins: no shared key, Manifest id or class prefix.
  */
-export function catalogProblems(catalog: readonly PluginRegistration[]): string[] {
+export function catalogProblems(catalog: readonly (PluginRegistration | HostSurfaceRegistration)[]): string[] {
   const problems: string[] = [];
   const once = (what: string, values: readonly (string | number)[]) => {
     const seen = new Set<string | number>();
@@ -30,11 +31,12 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   };
   once("the project key", catalog.map(entry => entry.project_plugin_id));
   once("the Manifest id", catalog.map(entry => entry.manifest.plugin_id));
-  once("the catalog position", catalog.map(entry => entry.catalog_order));
+  once("the catalog position", catalog.flatMap(entry => "catalog_order" in entry ? [entry.catalog_order] : []));
   const listed = new Set(catalog.map(entry => entry.project_plugin_id));
   for (const entry of catalog) {
     if (entry.project_plugin_id === ARTIFACTS_PROJECT_PLUGIN_ID) problems.push("artifacts: the project key belongs to the platform, not a Plugin");
     if (entry.project_plugin_id === "sessions") problems.push("sessions: the project key belongs to the platform, not a Plugin");
+    if (!("catalog_order" in entry)) continue;
     if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
       problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
     }

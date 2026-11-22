@@ -10,7 +10,7 @@ import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace,
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
+import type { AgentRelease } from "@molis-ai/molis-work-plugin-studio";
 
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";

@@ -18,7 +18,7 @@ import { capabilityLimits, latestCapability, slowOperations, type Lane } from '.
 import { catalogCapabilities, standIn, type CatalogCapability } from '../installed-plugin-catalog.js';
 import { STABLE_PREVIEW } from './storage.js';
 import type { AgentBuild, AgentStudioOptions, Studio } from './agent-surface.js';
-import type { AgentBuilderStore } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentBuilderStore } from '@molis-ai/molis-work-plugin-studio';
 
 export function studioDraftManifest(input: Omit<Parameters<typeof sandboxPluginManifest>[0], "version">) {
   return sandboxPluginManifest({ ...input, version: "0.0.0" });

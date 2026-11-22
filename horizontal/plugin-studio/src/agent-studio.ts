@@ -15,10 +15,13 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
 
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
- const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
+ // The page's requests go through the shared request helper (UiRequest) bound to this page's lifetime; a refusal keeps the
+ // studio's own text and detail from its answer.
  async function request(url,method='GET',body,signal,fallback=globalThis.t.text("plugin-builder.agent-studio.operation-failed-content-preserved")){
-  const r=await lifetime.fetch(url,{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v?.error||fallback),{status:r.status,code:v?.code,text:v?.text,detail:v?.detail});return v;
+  let v;
+  try{v=await globalThis.molisWorkRequest(url,{method,signal,scope:lifetime,fallback,...(body===undefined?{}:{body})});}
+  catch(e){const b=e&&typeof e==='object'&&e.body&&typeof e.body==='object'?e.body:{};throw Object.assign(e,{text:b.text,detail:b.detail});}
+  lifetime.assertCurrent(signal);return v??{};
  }
  const api=(path,...args)=>request(host.api(path),...args);
  let pending=0;globalThis.__molisPluginPending=0;

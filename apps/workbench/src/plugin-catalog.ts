@@ -4,6 +4,7 @@ import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-wo
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
 export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { SESSIONS_NAVIGATION, SESSIONS_PROVIDER_ID } from "./sessions/navigation.js";
@@ -133,6 +134,7 @@ export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
   "home",
   "market",
   ...shippedSurfaces.filter(id => !Object.hasOwn(SURFACE_ALIAS_MAP, id)),
+  ...HOST_FRAMED_SURFACES.map(surface => surface.project_plugin_id),
 ]);
 
 /** Directory panels owned by a Plugin stage, including any declared surface aliases. */
@@ -141,6 +143,23 @@ export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedSurfaces;
 function buildDirectory(words: (manifest: PluginManifest) => Pick<PluginDirectoryEntry, "name" | "summary" | "ui">): PluginDirectory {
   return BUILTIN_PLUGIN_CATALOG.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, chosen: true, ...words(entry.manifest) }));
 }
+
+/**
+ * The platform's own framed surfaces (the studio, 47-1 C) as directory entries, read only for what names, marks and colours
+ * their tab; they are never in the rail, the market, settings or a project's plugin list.
+ */
+export function hostSurfaceDirectory(): PluginDirectory {
+  return HOST_FRAMED_SURFACES.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, chosen: false,
+    ...drawCatalogText(entry.manifest, resolve => projectDirectoryWords(entry.manifest, resolve)) }));
+}
+
+function hostSurfacePlacement(): PluginDirectory {
+  return HOST_FRAMED_SURFACES.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, chosen: false, ...projectDirectoryWords(entry.manifest) }));
+}
+
+/** The tab entries of the platform's own surfaces, from their own declarations (the same rule a plugin's tab follows). */
+const hostSurfaceTabs = (surfaces: PluginDirectory, artifactLabel: string, sessionsLabel: string): RailEntry[] =>
+  navigationEntries(surfaces.map(entry => entry.id), surfaces, artifactLabel, sessionsLabel).filter(entry => surfaces.some(surface => surface.id === entry.id));
 
 /** Placement-only consumers run before there is a request and never read the language tools. */
 function builtinPlacementDirectory(): PluginDirectory {
@@ -358,6 +377,7 @@ export function pluginTabGlyphs(): Record<string, string> {
     ["home", "home"],
     ["market", "grid"],
     ...navigationEntries(enabled, market, ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
+    ...hostSurfaceTabs(hostSurfacePlacement(), ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
   ]);
 }
 
@@ -387,6 +407,7 @@ function sessionsNavigationLabel(): string {
 
 /** The rail and island titles of a directory's plugins; the Host passes its own (`builtinMarketDirectory`), a page drawn without one uses the catalog's. */
 export function pluginTabTitles(market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
-  const enabled = market.map((entry) => entry.id);
-  return Object.fromEntries(navigationEntries(enabled, market, artifactNavigationLabel(), sessionsNavigationLabel()).map(entry => [entry.id, entry.label]));
+  const enabled = market.map((entry) => entry.id), artifacts = artifactNavigationLabel(), sessions = sessionsNavigationLabel();
+  const hosted = hostSurfaceDirectory().filter(surface => !enabled.includes(surface.id));
+  return Object.fromEntries([...navigationEntries(enabled, market, artifacts, sessions), ...hostSurfaceTabs(hosted, artifacts, sessions)].map(entry => [entry.id, entry.label]));
 }

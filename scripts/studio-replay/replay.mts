@@ -7,7 +7,7 @@
  * next answer. The answers are fixed, so that needs a real model (smoke.mts).
  *
  * The checks mirror `AgentBuilderWorkflow.acceptDesign` and the propose stage in
- * plugins/native/plugin-builder/src/agent-workflow.ts; tests/studio-replay.test.ts drives the real workflow with the
+ * horizontal/plugin-studio/src/agent-workflow.ts; tests/studio-replay.test.ts drives the real workflow with the
  * same answers and fails if the two ever disagree. That test covers the committed corpus and the run-record shapes its own
  * scratch Home builds, not an arbitrary Home: the copy of the workflow's checks below (`proposeAnswer`, the rework loop in
  * `designAnswer`) can drift from the original for a corpus nobody committed, until the workflow's pure checks are pulled out
@@ -16,7 +16,7 @@
  * Entries rebuilt from a run record (`shownCatalogOnly`) know only the actions the designer was shown; see `CATALOG_MISS`.
  */
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { BUILDER_PROMPTS, expandDesign, normalizeProposal, parseModelJson, validateAgentDesign, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
+import { BUILDER_PROMPTS, expandDesign, normalizeProposal, parseModelJson, validateAgentDesign, type CatalogEntry } from '@molis-ai/molis-work-plugin-studio';
 import { entryDigest, type DesignBase, type ReplayEntry } from './corpus.mjs';
 
 export interface ReplayEnv { validateContract(contract: unknown): void }

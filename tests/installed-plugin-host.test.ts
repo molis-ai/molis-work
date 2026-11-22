@@ -9,7 +9,7 @@ import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';

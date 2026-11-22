@@ -11,7 +11,7 @@ import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-wo
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, runBackgroundWork, runWithLocale, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderStore, AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
@@ -25,7 +25,7 @@ import { handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkills } from '../apps/local-host/dist/plugin-builder/skill.js';
-import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
+import { acceptExperience } from '../horizontal/plugin-studio/dist/agent-experience.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { readyPublication } from './fixtures/studio-publishing.js';
 

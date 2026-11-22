@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs";
 import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** The bundle name an installed signed package's page loads (`/assets/molis-work-plugins/installed-plugin.js`). */
 export const INSTALLED_PLUGIN_BUNDLE = "installed-plugin";
 
-/** The page class an installed package's view is drawn in (`installedPluginBody`), standalone or in its frame. */
+/** The page class an installed package's view is drawn in (`renderInstalledPluginBody`), standalone or in its frame. */
 export const INSTALLED_PLUGIN_PAGE_CLASS = "installed-plugin-page";
+
+/** The page an installed package's program mounts its declared view in (`src/browser/installed-plugin/entry.ts`). */
+export const renderInstalledPluginBody = (pluginId: string): string =>
+  '<main class="' + INSTALLED_PLUGIN_PAGE_CLASS + '" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
 
 /**
  * The sheet an installed package's frame links (`/assets/molis-work-plugins/installed-plugin.css`): the shared components every

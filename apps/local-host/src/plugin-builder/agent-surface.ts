@@ -1,4 +1,4 @@
-import { studioProblem, studioProblemWord } from "@molis-ai/molis-work-plugin-builder";
+import { studioProblem, studioProblemWord } from "@molis-ai/molis-work-plugin-studio";
 import { effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
 import { studioManifestWords, studioWordReader } from "./studio-words.js";
 import { modelRoundLocale } from "../reply-language.js";
@@ -21,7 +21,7 @@ import type { PluginPlatformOptions } from '../plugin-platform.js';
 import type { CapabilityImplementations } from '../installed-plugin-capabilities.js';
 import { escapeHtml, say, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-studio';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { captureWebSessionAuthority } from '../web-sessions.js';

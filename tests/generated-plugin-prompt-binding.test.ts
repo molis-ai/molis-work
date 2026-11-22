@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';

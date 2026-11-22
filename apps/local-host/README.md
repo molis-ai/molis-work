@@ -50,6 +50,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | --- | --- |
 | [src/project-host.ts](src/project-host.ts) | 项目运行实例装配 |
 | [src/home-plugins.ts](src/home-plugins.ts) | 个人 Home 插件 Runtime 装配与关闭 |
+| [src/host-surfaces.ts](src/host-surfaces.ts) | 平台自己的框架界面装配（插件创作台，47-1 C）：宿主据此给它页面请求、界面文字、提示词主人与草稿同步，不进插件目录与项目插件成员 |
 | [src/system-agent-service.ts](src/system-agent-service.ts) | Host 拥有的 Agent/Git 装配与原模型、连接引用 |
 | [src/local-host.ts](src/local-host.ts) | Host Client 与调用生命周期 |
 | [src/project-call-caller.ts](src/project-call-caller.ts) | 宿主自己的项目客户端（`LocalHost.invoke`）调动作时的调用者：本项目、`local-host`、用户受众、无额外权限；调用经 `ActionService.invoke` 结算 |

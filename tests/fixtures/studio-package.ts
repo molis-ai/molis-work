@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
+import type { AgentRelease } from "@molis-ai/molis-work-plugin-studio";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { HomeConsentLedger, readKeptPackage, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";

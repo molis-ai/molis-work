@@ -32,6 +32,16 @@ test("FSS-53 the locale gate reads the declared owner, t aliases, constants and 
   assert.deepEqual(result.dead, ["alpha.page.unused"]);
 });
 
+// 47-1 C (user 2026-11-22): a platform package's framed surface (the plugin studio) declares its words in its Manifest, as a plugin does.
+test("FSS-53 a platform package's surface Manifest owns its words like a plugin's, and an undeclared horizontal pack fails", () => {
+  const moved = Object.fromEntries(Object.entries(core()).map(([file, text]) => [file.replace(DIR, "horizontal/alpha-studio"), text]));
+  const result = read(moved);
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(new Set(result.calls.map(call => call.key)), new Set(["alpha.page.open", "alpha.page.close"]));
+  const orphan = read({ ...moved, "horizontal/alpha-studio/src/manifest.ts": "export const manifest = {};" }).problems;
+  assert.ok(orphan.some(problem => problem.includes("horizontal/alpha-studio/locales/en.json: no locale declaration reaches this file")), orphan.join("\n"));
+});
+
 test("FSS-53 the locale gate refuses missing English, invalid key shapes and dropped declarations", () => {
   const files = core();
   const missing = read({ ...files, [EN]: messages("en", { "alpha.page.close": "Close", "alpha.page.unused": "Old" }) }).problems;

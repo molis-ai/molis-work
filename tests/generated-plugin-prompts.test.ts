@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
+import type { AgentRelease } from "@molis-ai/molis-work-plugin-studio";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { promptVersions, readPluginPrompts, releaseInstructions, resolvePluginPrompt } from "../apps/local-host/src/installed-plugin-prompts.js";

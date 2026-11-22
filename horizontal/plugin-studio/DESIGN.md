@@ -116,7 +116,7 @@ components:
 
 # Design System: Molis 插件创作工作台
 
-> **规范收敛（2026-11-21，决定 60）**：颜色、圆角、字体、明暗对比度与控件全面迁回根目录 [`DESIGN.md`](../../../DESIGN.md) 与 [`skills/molis-design-ui/SKILL.md`](../../../skills/molis-design-ui/SKILL.md) 的共享 `mw-*` 原语（`.as-*` 历史方言在 `91B-3` 清退）；上方 frontmatter 与旁侧 `.impeccable/design.json` 仅保留作历史 sidecar 参考。
+> **规范收敛（2026-11-21，决定 60）**：颜色、圆角、字体、明暗对比度与控件全面迁回根目录 [`DESIGN.md`](../../DESIGN.md) 与 [`skills/molis-design-ui/SKILL.md`](../../skills/molis-design-ui/SKILL.md) 的共享 `mw-*` 原语（`.as-*` 历史方言在 `91B-3` 清退）；上方 frontmatter 与旁侧 `.impeccable/design.json` 仅保留作历史 sidecar 参考。
 
 ## Overview
 
@@ -124,7 +124,7 @@ components:
 
 连续对话解释正在做什么，白色作品画布展示实际结果。暖灰地面、轻边界与紧凑工具保持安静，内容图片和作品标题承担视觉重心；蓝、绿角色提示把界面装配与功能接通对应到具体控件。
 
-本文件只约束 `plugins/native/plugin-builder`，不覆盖宿主或其他插件。保留现有 Molis Work 的直接中文、真实状态、键盘操作和本地数据边界，不新增全局品牌承诺。此处为既有 Operate 表面的设计记录；表面目标与范围仍以工作项约定为准。
+本文件只约束 `horizontal/plugin-studio`，不覆盖宿主或其他插件。保留现有 Molis Work 的直接中文、真实状态、键盘操作和本地数据边界，不新增全局品牌承诺。此处为既有 Operate 表面的设计记录；表面目标与范围仍以工作项约定为准。
 
 **Key Characteristics:**
 
@@ -133,7 +133,7 @@ components:
 - 控件以墨色为主，装配与接通用具名角色及局部状态表达。
 - 示例、实时构建、预览记录和正式插件数据始终可区分。
 
-依据：[已批准视觉](../../../specs/archive/plugin-builder/ui/design/approved-comp.png)、[视觉基准](../../../specs/archive/plugin-builder/ui/design/视觉基准.md)、[迁入约束](../../../specs/archive/plugin-builder/work-items/prologue-runtime/visual-direction.md)、[当前任务与验证边界](../../../specs/archive/plugin-builder/work-items/prologue-runtime/spec.md)。实际值来自旧创作台的 `styles.ts`，交互来自 `ui.ts`、`client.ts`、`record-client.ts` 与 `visuals.ts`；这五个文件随旧创作台在 33a7c276（S1b）删除，要看原文从 Git 历史取。本记录以最终实现为准，不把参考稿尺寸当作已实现值。
+依据：[已批准视觉](../../specs/archive/plugin-builder/ui/design/approved-comp.png)、[视觉基准](../../specs/archive/plugin-builder/ui/design/视觉基准.md)、[迁入约束](../../specs/archive/plugin-builder/work-items/prologue-runtime/visual-direction.md)、[当前任务与验证边界](../../specs/archive/plugin-builder/work-items/prologue-runtime/spec.md)。实际值来自旧创作台的 `styles.ts`，交互来自 `ui.ts`、`client.ts`、`record-client.ts` 与 `visuals.ts`；这五个文件随旧创作台在 33a7c276（S1b）删除，要看原文从 Git 历史取。本记录以最终实现为准，不把参考稿尺寸当作已实现值。
 
 ## Colors
 

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import ts from 'typescript';
 import { defineInstructionPrompt, type InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { AgentDefinitionRegistration } from '@molis-ai/molis-work-contracts/services/agent-definitions';
-import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-studio';
 import { agentDefinitionsFor } from './agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from './agent-definitions/builtin-agents.js';
 

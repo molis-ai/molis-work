@@ -34,7 +34,7 @@ import { SUBTASK_CONVERSATION_STYLES } from "@molis-ai/molis-work-design-system"
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, hostSurfaceDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
@@ -45,7 +45,7 @@ import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.
  * which already leaves developer plugins out) grey "not added". The board runs no Runtime and no Host, so it is drawn from the
  * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
  */
-const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "plugin-builder", "images", "jelly", "shelf", "lingguang", "todo",
+const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "images", "jelly", "shelf", "lingguang", "todo",
   "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
 
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
@@ -55,10 +55,13 @@ const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
   { id: SESSIONS_NAVIGATION.id, name: SESSIONS_NAVIGATION.label, icon: SESSIONS_NAVIGATION.glyph },
 ];
 
-/** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
+/**
+ * The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), and
+ * the platform's framed surfaces' (the plugin studio, 47-1 C), after the workbench's own surfaces.
+ */
 function iconInventoryPlugins(): CatalogPluginIcon[] {
   const glyphs = pluginTabGlyphs(), registered = registeredIconNames();
-  return [...SURFACE_GLYPHS, ...builtinPluginDirectory().flatMap(entry => {
+  return [...SURFACE_GLYPHS, ...[...builtinPluginDirectory(), ...hostSurfaceDirectory()].flatMap(entry => {
     const glyph = registered.find(name => name === glyphs[entry.id]);
     return glyph ? [{ id: entry.id, name: entry.name, icon: glyph }] : [];
   })];
@@ -80,7 +83,7 @@ function renderBarSpecimen(): string {
     corner,
     enabled: SAMPLE_PROJECT_PLUGINS,
     rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
-    projectChrome: renderWorkspaceChrome(primitives, projectMenu),
+    projectChrome: renderWorkspaceChrome(primitives, projectMenu), hostSurfaces: true,
   });
   const bar = renderWorkbenchBar(primitives);
   return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip}${bar}</div>`;

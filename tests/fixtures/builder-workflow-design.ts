@@ -1,5 +1,5 @@
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 
 export function memoryStorage(): PluginPrivateStorage {
   const values = new Map<string, string>();

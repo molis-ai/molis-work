@@ -57,7 +57,7 @@
 | Shelf | 常开（`always_on`）、右栏第一格 | `docs/system/GLOSSARY.md`「常开插件」；S-34 |
 | 成果库（Artifacts） | 平台事实，不算插件 | 防腐 spec §1 2026-10-18「四个构建期例外」 |
 | Sessions | 平台事实（已清理，BL-177 重做） | 同上 |
-| 插件创作台 | 平台能力；构建期接线例外，防腐收尾后删除重做 | 同上，2026-10-21 改；`AGENTS.md`、BL-377 |
+| 插件创作台 | 平台能力，不是插件（`horizontal/plugin-studio`）：不进插件目录、设置、市场与项目成员；外壳按平台「宿主界面」名单（`apps/local-host/src/host-surfaces.ts`、`apps/workbench/src/host-surfaces.ts`）把它画进自己的框架。只有它产出的才是插件，走同一套机制 | 同上，2026-10-21 改；第 47 批 47-1 C（用户 2026-11-22 定）；BL-377 |
 | Alchemist | 构建期接线例外，删除重做 | `AGENTS.md`（2026-10-21）、BL-377 |
 | Characters | Module（`modules/characters`） | 防腐 spec §1 2026-10-18 |
 

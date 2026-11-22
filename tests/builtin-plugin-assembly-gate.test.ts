@@ -47,7 +47,6 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
  */
 const APPROVED_BUILD_TIME_EXCEPTIONS: ReadonlyMap<string, string> = new Map([
   ["alchemist", "user 2026-10-21, 2026-10-23: not migrated, not deleted, bypassed this round; redone under BL-377 (user 2026-10-27)"],
-  ["plugin-builder", "user 2026-10-21, 2026-10-23: not migrated, not deleted, bypassed this round; redone under BL-377 (user 2026-10-27)"],
 ]);
 
 /**
@@ -58,7 +57,7 @@ const NATIVE_PLUGIN_HTTP_FILES: ReadonlyMap<string, string> = new Map([
   ["alchemist", "the routes of an approved build-time exception (APPROVED_BUILD_TIME_EXCEPTIONS)"],
 ]);
 
-test("RAC-2650 every built-in catalog entry is started by a supervisor or is one of the two build-time exceptions the user approved", async () => {
+test("RAC-2650 every built-in catalog entry is started by a supervisor or is the build-time exception the user approved", async () => {
   const buildTime = BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string)
     .filter(id => !RUNTIME_ASSEMBLED.has(id) && !HOME_RUNTIME_IDS.has(id)).sort();
   assert.deepEqual(buildTime, [...APPROVED_BUILD_TIME_EXCEPTIONS.keys()].sort(),

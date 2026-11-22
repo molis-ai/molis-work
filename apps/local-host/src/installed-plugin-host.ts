@@ -12,9 +12,9 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginInstanceRecord, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
-import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-studio';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
-export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { LocalProjectDatabase } from './project-database.js';

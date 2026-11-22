@@ -117,7 +117,7 @@
 
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
-| 构建期内置插件（只剩用户批过的两个例外 Alchemist、插件创作台，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
+| 构建期内置插件（只剩用户批过的例外 Alchemist，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`；插件创作台第 47 批起是平台能力，不在插件种类里） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
 | Runtime 内置插件（Coding、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成与签名安装的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`）管安装记录与批准，插件跑在项目监督器（`project-plugins.ts`）那同一套平台上、在隔离沙箱进程里运行（第 47 批）；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
@@ -324,7 +324,7 @@
 
 ##### 插件创作台
 
-创作台入口为 `apps/local-host/src/plugin-builder/agent-surface.ts`，前四行路径相对于 `/api/plugin-builder/studio`。构建和发布记录由 `plugins/native/plugin-builder/src/agent-workflow.ts` 与它的存储持有。旧 `/secrets` 独立写路由已在 `9247de39a` 移除，必要的密钥由人随安装或升级授权交给 `apps/local-host/src/installed-plugin-lifecycle.ts`，密钥值在宿主的封存存储内。
+创作台是平台能力（第 47 批 47-1 C，用户 2026-11-22）：外壳按「宿主界面」名单（`apps/workbench/src/host-surfaces.ts`）画它的入口与舞台，宿主按自己的名单（`apps/local-host/src/host-surfaces.ts`）给它的页面请求、界面文字与草稿同步；地址与界面编号仍是 `plugin-builder`，不改链接与已存状态。入口为 `apps/local-host/src/plugin-builder/agent-surface.ts`，前四行路径相对于 `/api/plugin-builder/studio`。构建和发布记录由 `horizontal/plugin-studio/src/agent-workflow.ts` 与它的存储持有。旧 `/secrets` 独立写路由已在 `9247de39a` 移除，必要的密钥由人随安装或升级授权交给 `apps/local-host/src/installed-plugin-lifecycle.ts`，密钥值在宿主的封存存储内。
 
 | 路径 | 主人和实际效果 | 接入时保留 |
 | --- | --- | --- |
@@ -332,7 +332,7 @@
 | `POST /builds` | 创作台创建构建记录并启动设计作业 | 固定项目、现有模型检查与任务归属 |
 | `POST /builds/<id>/action` | 创作台处理范围、选择、意见、组件、检查、暂停、续跑、撤销和删除。启用依赖插件交项目目录，发布交创作台发布流程，安装、升级、回滚、启停和卸载交现有插件生命周期 | 区分草稿、项目登记和安装效果。保持所见 revision、同一构建的执行令牌、权限确认、安装失败回滚和密钥封存 |
 | `POST /builds/<id>/call` | 按界面组件的 `read` 或 `submit` 绑定，把操作交给创作台试用或验收沙箱 | 构建、试用身份、操作声明与取消沿现行核对 |
-| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/47.md#batch-47-item-1) |
+| `POST /api/plugins/<generated>/call` | 平台的已装插件路由（`apps/local-host/src/installed-plugin-http.ts`，第 47 批起不在创作台）把请求交现有安装平台路由，由已装插件执行其声明操作；拒绝按动作形状回答（`actionErrorResponse`） | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/47.md#batch-47-item-1) |
 | 首次读取创作台 | `ensureStudio` 初次打开时，创作台初始化会恢复已持久化的构建，先把旧活动阶段标记暂停，再从原检查点续跑 | 把初始化恢复与普通状态、预览、下载及事件流分开盘点，避免一次读取另起一轮恢复 |
 
 ### 10.2 已定要修的偏离

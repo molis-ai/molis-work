@@ -2,11 +2,11 @@ import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { UI_FILE_PATTERNS, type UiAppearanceChoice, type UiAppearanceReceipt, type UiAppearanceSelection, type UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord, parseSyncDocumentValue } from "@molis-ai/molis-work-plugin-sdk";
 import { entryAt, readVersionedFile, sqliteVersionRefusal, type VersionedFile, type VersionedFileRead } from "@molis-ai/molis-work-storage";
 
 export const APPEARANCE_STATE_PATH = join("interface", "state.json");
-export const APPEARANCE_STATE_VERSION = /* @version format.ui.appearance-state */ 1;
+export const APPEARANCE_STATE_VERSION = /* @version format.ui.appearance-state */ 2;
 
 export interface AppearanceApplication {
   readonly actor_id: string;
@@ -15,7 +15,7 @@ export interface AppearanceApplication {
   readonly undone?: UiAppearanceReceipt;
 }
 
-export interface AppearanceState {
+export interface AppearanceValues {
   readonly schema_version: typeof APPEARANCE_STATE_VERSION;
   readonly selection_revision: number;
   readonly selection: UiAppearanceSelection;
@@ -24,6 +24,8 @@ export interface AppearanceState {
   readonly undo_selection: UiAppearanceSelection | null;
   readonly applications: readonly AppearanceApplication[];
 }
+export type AppearanceJournal = Omit<ReturnType<typeof parseSyncDocumentValue<AppearanceValues>>, 'data'>;
+export interface AppearanceState extends AppearanceValues { readonly sync: AppearanceJournal | null }
 
 function hasFields(value: unknown, required: readonly string[], optional: readonly string[] = []): value is Record<string, unknown> {
   return isRecord(value) && required.every(key => Object.hasOwn(value, key))
@@ -37,7 +39,7 @@ function isRef(value: unknown): value is UiDefinitionRef {
     && UI_FILE_PATTERNS.definition_id.test(value.id) && positiveRevision(value.revision);
 }
 
-function isSelection(value: unknown): value is UiAppearanceSelection {
+export function isSelection(value: unknown): value is UiAppearanceSelection {
   if (!hasFields(value, ["skin", "font", "mono"]) || !isRef(value.skin) || (value.mono !== null && !isRef(value.mono))) return false;
   const { font } = value;
   return (hasFields(font, ["policy"]) && font.policy === "follow-skin")
@@ -76,21 +78,42 @@ function hasConsistentReceipts(applications: readonly AppearanceApplication[], s
     && (undoSelection === null) === Boolean(last?.undone);
 }
 
-function parse(value: unknown): AppearanceState {
+export function parseAppearanceValues(value: unknown): AppearanceValues {
   if (hasFields(value, ["schema_version", "selection_revision", "selection", "last_recoverable", "undo_selection", "applications"])
-    && value.schema_version === APPEARANCE_STATE_VERSION && positiveRevision(value.selection_revision)
+    && value.schema_version === APPEARANCE_STATE_VERSION && (value.selection_revision === 0 || positiveRevision(value.selection_revision))
     && isSelection(value.selection) && isSelection(value.last_recoverable)
     && (value.undo_selection === null || isSelection(value.undo_selection))
     && Array.isArray(value.applications) && value.applications.every(isApplication)
-    && hasConsistentReceipts(value.applications, value.selection, value.selection_revision, value.undo_selection)) {
+    && (value.selection_revision === 0 ? value.applications.length === 0 && value.undo_selection === null && isDeepStrictEqual(value.selection, value.last_recoverable)
+      : hasConsistentReceipts(value.applications, value.selection, value.selection_revision, value.undo_selection))) {
     return { schema_version: value.schema_version, selection_revision: value.selection_revision, selection: value.selection,
       last_recoverable: value.last_recoverable, undo_selection: value.undo_selection, applications: value.applications };
   }
   throw new Error("interface/state.json is not an appearance record of this version");
 }
 
+const APPEARANCE_STATE_UPGRADES = [{
+  from: 1,
+  transform(value: unknown) {
+    if (!isRecord(value) || Object.hasOwn(value, 'sync')) throw new Error('外观的历史结构无效');
+    return { ...value, sync: null };
+  },
+}];
+
 /** The Host registers the same declaration for upgrade inspection. Only this owner reads or replaces the state. */
-export const APPEARANCE_STATE_FILE: VersionedFile<AppearanceState> = { version: APPEARANCE_STATE_VERSION, field: "schema_version", upgrades: [], parse };
+export const APPEARANCE_STATE_FILE: VersionedFile<AppearanceState> = {
+  version: APPEARANCE_STATE_VERSION, field: 'schema_version',
+  upgrades: APPEARANCE_STATE_UPGRADES,
+  parse(value) {
+    if (!isRecord(value) || !Object.hasOwn(value, 'sync')) throw new Error('外观的同步状态无效');
+    const { sync, ...data } = value;
+    const values = parseAppearanceValues(data);
+    if (sync === null) return { ...values, sync };
+    if (!isRecord(sync) || typeof sync.spaceId !== 'string' || Object.hasOwn(sync, 'data')) throw new Error('外观的同步状态无效');
+    const { data: _data, ...journal } = parseSyncDocumentValue({ ...sync, data: values }, sync.spaceId, parseAppearanceValues);
+    return { ...values, sync: journal };
+  },
+};
 
 export function createStateFile(home: string, baseline: UiAppearanceSelection) {
   const path = join(home, APPEARANCE_STATE_PATH), directory = dirname(path);
@@ -102,7 +125,7 @@ export function createStateFile(home: string, baseline: UiAppearanceSelection) {
     return readVersionedFile(APPEARANCE_STATE_FILE, path, home);
   };
   const empty: AppearanceState = { schema_version: APPEARANCE_STATE_VERSION, selection_revision: 0, selection: baseline,
-    last_recoverable: baseline, undo_selection: null, applications: [] };
+    last_recoverable: baseline, undo_selection: null, applications: [], sync: null };
   return {
     path, read, empty,
     writable(seen: VersionedFileRead<AppearanceState>): AppearanceState {

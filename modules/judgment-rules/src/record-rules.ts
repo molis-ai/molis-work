@@ -13,6 +13,8 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { functionsErrors, assertOptionKey, isPinnedJevModel } from "./keys.js";
 
+export const FIRST_PUBLISHED_RULE_REVISION = 1;
+
 const DEFAULT_CHOICE: readonly ChoiceCriterion[] = [
   { key: "yes", description: "" },
   { key: "no", description: "" },

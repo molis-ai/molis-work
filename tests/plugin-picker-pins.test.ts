@@ -22,7 +22,7 @@ const primitives = {
 
 /**
  * The directory as the Host writes it (W5-02 B1): its own registry puts the marks on the chosen entries, and the switcher only reads
- * them. Goals is 常开; Text Stats comes with Files and Feed with Inbox.
+ * them. Goals is 常开; Feed comes with Inbox.
  */
 const HOST_MARKS: Readonly<Record<string, { always_on?: true; companions?: readonly string[] }>> = {
   goals: { always_on: true }, feed: { companions: ["inbox"] },

@@ -20,7 +20,7 @@ Molis Work 是插件基座加多个插件。想加一个东西时，最好只动
 - **外加一项，两端都不计入「处」**：新内置插件还要在 `docs/SSOT-MATRIX.md` 加一行 owner（文档，按上一条本来就不计）。门禁 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 从生成的登记读，新插件不改它（W5-02、PG-067；2026-10-31 W6-01 第二片改）。
 - **不计功能本身的产品集成**。例如待办被助理、首页、简介引用，是待办这个产品功能的一部分，不是扩展点。
 - **目标是上限**，等于对应切片完成后手改的文件数。没有对应切片的写「无切片」，并在第 4.3 节给出建议。路线图以外的建议不算已定。
-- **复核方法**（Text Stats，包外的包名引用）：
+- **复核方法**（Text Stats，包外的包名引用；Text Stats 2026-11-22 已退役删除，下面的命令要在基线提交上跑）：
 
 ```bash
 git grep -l -E '@molis-ai/molis-work-plugin-text-stats|plugins/native/text-stats/|TEXT_STATS_(PROJECT_)?PLUGIN_ID' \
@@ -58,7 +58,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 下表及其成本数字保留 2026-10-08 基线与各行注明的后续修订，不是新增插件的操作清单；没有逐项重新计量。新增步骤按上面的现行入口与插件开发手册执行，旧宿主装配和词典接线只用于解释历史成本。
 
-**现在要改**（历史基线包外 11 处，另需 SSOT 文档一行）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；SSOT 的 owner 文档行在两端都不计入源码/配置处数；现行门禁名单从生成登记读取，新插件不手改。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
+**现在要改**（历史基线包外 11 处，另需 SSOT 文档一行）。最小样本是 Text Stats（2026-11-22 已退役删除，数字是基线时的）：包外被 11 个源码或配置文件点名；SSOT 的 owner 文档行在两端都不计入源码/配置处数；现行门禁名单从生成登记读取，新插件不手改。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析）。PR-C 后由 `node scripts/generate-plugin-registry.mjs` 写，`--check` 核对，与生成文件 import 的包一致时门禁不计 |
 | 登记 | `apps/local-host/src/project-plugins.ts` | 历史接线：当时在此 import / 构造 `PluginSupervisorEntry`；现行新增项目插件在自己的 `registration.project_runtime` 登记，由此文件统一装配，不为新增插件改此文件（PG-067） |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
-| 登记 | 插件自己的 Manifest 与登记 | 有 `workbench` surface 的插件按 Manifest 视图进入 `apps/workbench/src/declared-stages.ts`。PG-036 C9 后，Coding、Git、Diff 和 Text Stats 均从各自声明提供舞台（Files 第 06 批退役，资料归平台），Characters 归平台设置。旧基线的两处宿主接线只用于历史计数 |
+| 登记 | 插件自己的 Manifest 与登记 | 有 `workbench` surface 的插件按 Manifest 视图进入 `apps/workbench/src/declared-stages.ts`。PG-036 C9 后，Coding、Git、Diff 均从各自声明提供舞台（Files 第 06 批、Text Stats 2026-11-22 退役，资料归平台），Characters 归平台设置。旧基线的两处宿主接线只用于历史计数 |
 | 名单 | 插件自己的 `locales/<语言>.json` | 第 16 批起每个插件自带每种语言一个词表，在 Manifest 的 `ui.locales` 声明；新增插件不改工作台的词表（`apps/workbench/resources/locales/`），也没有要 import 的总表 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
 

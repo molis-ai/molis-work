@@ -154,7 +154,7 @@ test('a plugin that is not enabled in the project shows as not installed; its ac
 test('an action that only answers its own installation is on the board but not offered', async () => {
   const { actions } = project();
   const own = goals('sdk.artifacts.install-1.read', 'query');
-  actions.registry.registerProvider({ provider: { provider_id: 'sdk.artifacts.install-1', title: 'Text stats · 成果 SDK', kind: 'system', project_id: 'p' },
+  actions.registry.registerProvider({ provider: { provider_id: 'sdk.artifacts.install-1', title: 'Word count · 成果 SDK', kind: 'system', project_id: 'p' },
     definitions: [{ ...own, provider_id: 'sdk.artifacts.install-1', action: { ...own.action, audiences: ['plugin'] } }],
     availability: call => call.plugin_install_id === 'install-1' ? { available: true } : { available: false, code: 'artifacts.plugin_denied', kind: 'forbidden', reason: '成果 SDK 属于其他安装实例或用户' },
     handlers: [{ capability_id: own.capability_id, version: 1, handle: () => ({ recorded: true }) }] });

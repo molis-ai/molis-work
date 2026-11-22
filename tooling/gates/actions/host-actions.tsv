@@ -418,8 +418,8 @@ plugins.home.installed.enable	1	plugin-install	command	operation	home	write	-	us
 plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	3865972801c3	-
 plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	57ec6c573f4d	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
-plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	f5134430d9ae	37223a324d06	-
-plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	edbcc66ce22a	-
+plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
+plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	a1c787ae381e	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	f97bfdcc54f1	ed1bbfdbc8a1	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	a4dc540d7a61	-
@@ -593,14 +593,6 @@ sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c.process-own	1	sdk.
 sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c.publish	1	sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-
 sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c.read	1	sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	2859b2436279	-
 sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c.record	1	sdk.artifacts.plugin-install-ca555f34f4090939bc580012e756d92c	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	4b70788eb322	594bfb4904e7	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.head	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	de63eacfccec	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.list	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query	query	project	read	-	plugin	artifact:read	artifact	-	-	3d23272c4d90	c70758cdd87a	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.own	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	151cd0f968d2	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.process-head	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	4f71dc751a95	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.process-own	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	04a5e3cfe9cb	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.publish	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.read	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	2859b2436279	-
-sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.record	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	4b70788eb322	594bfb4904e7	-
 sdk.artifacts.plugin-install-da3726a85a96dceede918bef171fbc66.head	1	sdk.artifacts.plugin-install-da3726a85a96dceede918bef171fbc66	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	de63eacfccec	-
 sdk.artifacts.plugin-install-da3726a85a96dceede918bef171fbc66.list	1	sdk.artifacts.plugin-install-da3726a85a96dceede918bef171fbc66	query	query	project	read	-	plugin	artifact:read	artifact	-	-	3d23272c4d90	c70758cdd87a	-
 sdk.artifacts.plugin-install-da3726a85a96dceede918bef171fbc66.own	1	sdk.artifacts.plugin-install-da3726a85a96dceede918bef171fbc66	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	151cd0f968d2	-
@@ -650,8 +642,6 @@ skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	s
 skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	bd0171f686b2	-
 skills.trials.run	1	system.skills	command	operation	home	write	concurrent	agent,user	model:invoke,skills:draft	-	-	-	e0e528ede16a	b54c16668b24	2b70679ea59b
 skills.versions.list	1	system.skills	query	query	home	read	-	user	skills:manage	-	-	-	f91d3c58c12c	793143e20d35	-
-state_machines.get	1	system.state-machines	query	query	home	read	-	agent,mcp,user	-	-	-	-	05b01d674886	9f86f8210cab	-
-state_machines.list	1	system.state-machines	query	query	home	read	-	agent,mcp,user	-	-	-	-	82e8507efab6	c6eb5b240004	-
 surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	91ffd8a541f7	-
 surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-
 work_terminals.close	1	system.work-terminal	command	operation	project	write	-	user	work_terminals:write	-	-	-	4d066d6f0755	d4ffecc7fc02	9a20bdba744a

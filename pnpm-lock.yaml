@@ -166,9 +166,6 @@ importers:
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:horizontal/plugin-studio
-      '@molis-ai/molis-work-plugin-text-stats':
-        specifier: workspace:*
-        version: link:plugins/native/text-stats
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:plugins/native/todo
@@ -468,9 +465,6 @@ importers:
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:../../horizontal/plugin-studio
-      '@molis-ai/molis-work-plugin-text-stats':
-        specifier: workspace:*
-        version: link:../../plugins/native/text-stats
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
@@ -674,9 +668,6 @@ importers:
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:../../horizontal/plugin-studio
-      '@molis-ai/molis-work-plugin-text-stats':
-        specifier: workspace:*
-        version: link:../../plugins/native/text-stats
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
@@ -1441,19 +1432,6 @@ importers:
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:../../../modules/shelf
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-    devDependencies:
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-
-  plugins/native/text-stats:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk

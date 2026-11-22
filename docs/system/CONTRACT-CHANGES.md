@@ -128,6 +128,8 @@
 
 ### 当前保留机制
 
+- **个人同步 M1-B2（用户已批准）**。项目库、Agent 定义库、蓝图库、Functions 库和外观文件各自保留一段 v1→v2 升级。四个库新增 owner 同步日志并登记已有可同步记录，外观保留选择和回执并加入同步状态。读取只认 v2，转换由既有独立升级入口执行。Attention 保留现有集合的 v1 标识和日志。
+
 以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
@@ -162,6 +164,11 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
+| `agent-definitions/agent-definitions.db` | 2 → 3 | 个人同步 M1-B2，用户 2026-11-22 批准。创建提示词改写同步流水，将已有改写按现行键登记为待同步。保留 #2209 的 1 → 2，两条升级路径均在隔离 Home 回放 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
+| `blueprints/blueprints.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE#1→2` |
+| `functions/functions.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE#1→2` |
+| `interface/state.json` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION#1→2` |
 | `projects/<project_id>/molis-work.db#risk` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留风险、引用和历史 | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE#1→2` |
 | `work-brief/work-brief.db` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留简报与操作记录 | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
 | `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | `plugins/native/dataset/src/database.ts#DATASET_DATABASE#1→2` |
@@ -292,7 +299,7 @@
 4. **消费者清单**：窗口开始时列全：仓库内的调用方（用 `git grep` 找能力 id、工具名、导出名）、外部消费者（使用 MCP 工具的 Runtime 与 Skill）、已安装的插件（用户 Home 里的发行物，创作台生成的插件）。每一项写：谁负责迁、迁移 PR、状态。
 5. **删除条件**：每个窗口写一个可检查的条件，例如「清单里的消费者全部迁完，并且已经过一个发布版本，用户 Home 的库都已升到新版本」。条件满足后，一个 PR 删除兼容代码、兼容测试和登记行。**提议：** 兼容代码旁放带窗口编号的标记，登记表（第 6 节）有对应一行，门禁据此放行（第 5 节）。这是本文的提议，没有经过用户确认；`AGENTS.md` 要求新增兼容机制先写进本文「当前保留机制」并经用户确认，所以起点之前要先过这一步。
 6. **合同测试**：窗口里每一段兼容配两个测试：旧形状被读取并映射成新形状；写入只产生新形状。关窗口时和兼容代码一起删。
-7. **插件回放**：合同或运行时的变更，用存量插件样本回放，确认它们仍能加载（解析 Manifest、校验授权声明）、升级（按 `upgrade_compatibility`）、运行（调用一个动作）。工具是 `scripts/replay-plugins.mjs`（在构建好的工作区上跑，每个样本一份临时 Home），样本集在 `tests/fixtures/replay-plugins/corpus.json`：`examples/plugin-sample`、按 `pnpm pack` 打包的内置插件 text-stats（在它自己的位置上以打包的代码升级）；W4-01 的两个真实来源样本也已入库：MiniMax 生成的计数器，以及模型生成后端加用户批准人工验收／文案适配的清单，各目录 README 保留来源与失败边界。签包样本走真实 CLI 预览／确认 pin、同安装兼容升级和 Host 关闭重开；macOS 已有两份独立回放结果，其它平台明确报告 unsupported，不能把未运行算通过。原始模型源码是 source.json 数据夹具，回放只执行已签包中的真实 bundle。`tests/replay-plugins.test.ts` 跑它，并确认坏样本会失败。把回放结果贴在 PR 里。
+7. **插件回放**：合同或运行时的变更，用存量插件样本回放，确认它们仍能加载（解析 Manifest、校验授权声明）、升级（按 `upgrade_compatibility`）、运行（调用一个动作）。工具是 `scripts/replay-plugins.mjs`（在构建好的工作区上跑，每个样本一份临时 Home），样本集在 `tests/fixtures/replay-plugins/corpus.json`：`examples/plugin-sample`、按 `pnpm pack` 打包的内置插件 Diff（在它自己的位置上以打包的代码升级）；W4-01 的两个真实来源样本也已入库：MiniMax 生成的计数器，以及模型生成后端加用户批准人工验收／文案适配的清单，各目录 README 保留来源与失败边界。签包样本走真实 CLI 预览／确认 pin、同安装兼容升级和 Host 关闭重开；macOS 已有两份独立回放结果，其它平台明确报告 unsupported，不能把未运行算通过。原始模型源码是 source.json 数据夹具，回放只执行已签包中的真实 bundle。`tests/replay-plugins.test.ts` 跑它，并确认坏样本会失败。把回放结果贴在 PR 里。
 8. **PR 里写清楚**：公开 API 有没有变（快照 diff）、版本怎么变、消费者列表、删除条件。`.github/pull_request_template.md` 有对应的栏目。
 
 ## 5. 起点之前要先有的东西
@@ -507,7 +514,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **共用列表样式：** SDK 与组件板的共用类名 `feed-stage-list`、`feed-stage-tree`、`feed-stage-item`、`feed-stage-entry`、`feed-stage-leading`、`feed-entry-source`、`feed-entry-status`、`feed-detail*`、`feed-action-status`、`feed-action-subtle` 改为 `mw-` 前缀同名，`feed-linked-goal` 改为 `mw-detail-link`；插件页面用旧名的要改。只属于 Feed 的规则从平台共用样式搬进 Feed 自己的样式表。
   - **`information.plan` 归 Feed：** 动作改为 Feed 的 `feed.information.plan@1`，提示词键从 `system:information/information.plan` 改为 `io.molis.work.feed/feed.information-plan`，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（见「当前保留机制」）。
   - **Home 目录：** `feed/secrets.json` 与 `feed/evidence/` 改在 `security/` 下，升级时整目录改名一次；Keychain 服务名 `com.molis.work.feed.secretstore` 与证据引用前缀不变。
-- **`agent.run.reviews@1` 的结果多一类行：以这一轮为来源的整合审批**（第 99 批 99-1，DEL-07）：在原版本上改，输入输出形状不变。读一轮审批时，除了这一轮自己的审批，也带上同一插件发起、`document.source` 指向这一轮的 `git-integration` 审批；这类行的 `request.run` 是 `null`（整合由人在轮次结束后发起，没有自己的轮次）。按 `request.run` 筛行的消费者要先判空；只认 `text-edit`、`command` 的消费者不受影响。Coding 用它把子任务整合确认带回的文件（新增、修改、删除）列进本轮固定变更；会话自己独立工作树的整合不归给任何一轮，Coding 不收。
+- **`agent.run.reviews@1` 的结果多一类行：以这一轮为来源的整合审批**（第 99 批 99-1，DEL-07）：在原版本上改，输入输出形状不变。读一轮审批时，除了这一轮自己的审批，也带上同一插件、同一安装（`install_id`）发起且 `document.source` 指向这一轮的 `git-integration` 审批；这类行的 `request.run` 是 `null`（整合由人在轮次结束后发起，没有自己的轮次）。按 `request.run` 筛行的消费者要先判空；只认 `text-edit`、`command` 的消费者不受影响。Coding 用它把子任务整合确认带回的文件（新增、修改、删除）列进本轮固定变更；会话自己独立工作树的整合不归给任何一轮，Coding 不收。
 - **概况多两项可选内容、首页组合多一种分组，首页零件进 SDK**（36A 第 6 项，2026-11-22 用户定；在原版本上加可选字段，不升版本）。**对已有插件的影响**：没申报首页概况的插件不受影响；申报了概况的插件，输出 schema 由平台定、申报时要求逐字相同（`isPresentationOverviewReader`），所以要用带这两项的 SDK 重新构建才能启动。内置插件随仓库一起构建；装在 Home 里、申报了概况的旧签名包要重新打包（和第 15 批在原版本上给 `start` 加字段时一样）：
   - **`PresentationOverview.outline`**（概况处理器的返回）：`{ title: TextRef, nodes: [{ subject, depth: 0|1, progress?: { done, total } }] }`，最多 12 个节点，第一个不能是子项，同一对象只出现一次，`done ≤ total`。首页把它画成进展段（Goals 用它交「目标」）。SDK 的 `presentationOutlineProblems` 给作者自查。
   - **`PresentationOverview.lede`**：`{ label: TextRef, as_of?, sentences: [{ text, sources?: 插件 id[], mark?: "yours"|"changed"|"gap" }], invite?: { text, action } }`，最多 8 句、每句最多 4 个来源。首页把它画成标题下面的几句话和版本条（Work Brief 用它交简报开头）；`sentences` 为空且带 `invite` 时画成一个邀请框。句子是插件存下的原文，标签与邀请是它的 `TextRef`。

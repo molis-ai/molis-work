@@ -10,8 +10,8 @@ import { projectOutputOf, readProjectDirectories } from "./fixtures/project-dire
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.js";
 
 // specs/visual-ui-experience VUX-40「中英文…不溢出、不混排」: a page shown in English says everything it says itself in English.
-// Goals' status words (the projection words them in Chinese), Jelly's fixed "uncategorized" category, and the Git,
-// Diff and Text Stats pages with the shell around them used to stay Chinese in English. What a person wrote (Goal titles,
+// Goals' status words (the projection words them in Chinese), Jelly's fixed "uncategorized" category, and the Git
+// and Diff pages with the shell around them used to stay Chinese in English. What a person wrote (Goal titles,
 // project names) is theirs and is not checked. The same places in Chinese still say it in Chinese, and the longer English
 // fits where the Chinese did. The Coding page's markup (its dialogs, composer, results and settings, which the Host draws
 // before Coding's script fills them) is checked the same way, hidden parts included, and then the page as Coding's own script
@@ -31,13 +31,13 @@ const HAN_IN = (selector: string) => `(() => {
   return [...new Set(out)];
 })()`;
 
-test("VUX-40: Goals statuses, Jelly's fixed category and the Git, Diff and Text Stats pages speak English in English", { timeout: 240_000 }, async (t) => {
+test("VUX-40: Goals statuses, Jelly's fixed category and the Git and Diff pages speak English in English", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
   assert.ok(projectId);
   const output = projectOutputOf(await readProjectDirectories(browser.web, projectId)).canonical_path;
   await assert.rejects(stat(output), { code: "ENOENT" });
-  const views = Object.fromEntries(await Promise.all(["jelly", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  const views = Object.fromEntries(await Promise.all(["jelly", "git", "diff", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
@@ -53,7 +53,6 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Git, Diff and Text 
     ["jelly", "document.querySelector('[data-jelly-category-filters] [data-jelly-filter=uncategorized]')", "[data-jelly-category-filters]", "未分类"],
     ["git", "document.querySelector('[data-companion=git] [data-git-status]')?.textContent", "[data-companion=git]", "Git 改动"],
     ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开资料"],
-    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件版本后"],
   ];
   for (const [plugin, ready, selector, zh] of pages) {
     await open(plugin, ready);
@@ -204,7 +203,7 @@ const HAN_IN_MARKUP = (url: string, selector: string, own = "") => `(async () =>
 test("VUX-40: the Coding page, its own script's words and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
-  const views = Object.fromEntries(await Promise.all(["jelly", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  const views = Object.fromEntries(await Promise.all(["jelly", "git", "diff", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);

@@ -73,3 +73,23 @@ test("ASR-04 existing draft writes finish before account preparation and a faile
   await child.waitFor("!document.body.inert");
   assert.equal(await child.evaluate("testPageDrafts.read('prepared-draft')"),"saved after retry");
 });
+
+// The CI sign-out in scripts/account-installation.test.mjs failed when the person clicked 退出登录 while a side view was still
+// connecting: the view closed itself, and a view leaving mid-preparation cancels the sign-out.
+test("ASR-04 a view still connecting when the account preparation starts stays open, keeps the preparation and connects after it", {timeout:60_000}, async t => {
+  const browser=await openGoalBrowser(t,true);if(!browser)return;
+  await browser.command("Page.addScriptToEvaluateOnNewDocument",{source:`if(window.top===window)addEventListener('message',event=>{
+    if(event.data?.type!=='molis:plugin-mount'||window.preparationStarted)return;
+    const transition=window.molisWorkAccountTransition;window.preparationStarted=true;window.preparationChanges=0;
+    transition.changed(()=>window.preparationChanges++);
+    transition.prepare().then(()=>window.accountPrepared=true,error=>window.accountPrepared='failed: '+error.message);
+  },true);`},browser.sessionId);
+  await browser.navigate(()=>browser.command("Page.navigate",{url:browser.origin+"/projects/"+browser.projectId+"/?openPlugin=cognia"},browser.sessionId));
+  await browser.waitFor("window.accountPrepared");
+  assert.equal(await browser.evaluate("window.accountPrepared"),true,"a view with nothing saved yet does not hold up or fail the preparation");
+  assert.equal(await browser.evaluate("molisWorkAccountTransition.preparing && window.preparationChanges"),0,"the connecting view did not close (which would cancel a sign-out)");
+  assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=cognia]')?.dataset.uiClientState"),"loading","the view waits instead of connecting during the preparation");
+  await browser.evaluate("molisWorkAccountTransition.resume()");
+  await browser.surfaceReady("cognia");
+  assert.equal(await browser.evaluate("window.preparationChanges"),0);
+});

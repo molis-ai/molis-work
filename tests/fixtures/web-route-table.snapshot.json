@@ -464,7 +464,6 @@
     "type": "application/json",
     "keys": [
       "demo",
-      "developer_mode",
       "plugin_directory",
       "plugin_overlays",
       "plugin_panels",
@@ -974,7 +973,6 @@
     "type": "application/json",
     "keys": [
       "demo",
-      "developer_mode",
       "plugin_directory",
       "plugin_overlays",
       "plugin_panels",

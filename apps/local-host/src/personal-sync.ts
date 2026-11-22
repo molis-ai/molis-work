@@ -2,18 +2,19 @@ import { configuredAccountEnvironment, configuredSyncOrigin, localEnvironmentNam
 import { personalRuntimeSyncAuthority } from './personal-runtime-sync-authority.js';
 import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
-import { PersonalSync, resolveSyncEndpoint, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
+import { PersonalSync, resolveSyncEndpoint, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { builtinPluginByProjectKey } from './plugin-registry.js';
 import { hostSurfaceByProjectKey } from './host-surfaces.js';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 import type { PersonalAccountLease } from './personal-auth.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
-import { isPlatformSyncSelection } from './platform-sync-catalog.js';
+import { isPlatformSyncSelection, PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
 import {createPersonalFixedVersionBindings} from './personal-artifact-sync.js';
 import {createPersonalPluginRegistrations,createPersonalCharacterRegistration} from './personal-plugin-sync.js';
 import {createPersonalProjectRegistrations} from './personal-project-sync.js';
 import {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 import {createAcceptanceSyncRegistration,createProjectApprovalSyncRegistration,createProjectGuidanceSyncRegistration} from './personal-project-approval-sync.js';
+import { personalConfigRegistrations } from './personal-config-sync.js';
 
 /** Built-in bindings only; the sync service and Rust transport never import plugin owners. */
 export async function createPersonalSync(home:string,space:StorageSpace,lease:PersonalAccountLease,withCatalog:LocalWebCatalogRunner,assertActive:()=>void,discover?: (authorize:()=>void)=>Promise<readonly SyncRegistration[]>,lifecycleService?:ProjectDeletionService,readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader) {
@@ -48,13 +49,20 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
   await guidance.refresh();
   const acceptance=createAcceptanceSyncRegistration(home,space.spaceId,check,withCatalog,readCatalog,()=>service.policy());
   await acceptance.refresh();
-  children=[approvals,guidance,acceptance,...projectPlugins,...versions,...plugins];
+  const configuration = personalConfigRegistrations({ home, spaceId: space.spaceId, actor: lease.userId, authorize: check, catalog: withCatalog,
+    ...(readCatalog ? { readCatalog } : {}), selected: () => service.policy() });
+  for (const registration of configuration) await registration.refresh();
+  const projectConfiguration = new Set(PLATFORM_SYNC_COLLECTIONS
+    .filter(row => row.owner === 'surfaces' || row.owner === 'attention').map(row => syncNamespace(row.selection)));
+  children = [approvals, guidance, acceptance, ...projectPlugins, ...versions, ...plugins,
+    ...configuration.filter(row => projectConfiguration.has(syncNamespace(row.selection)))];
   const runtimeAuthority=personalRuntimeSyncAuthority({home,spaceId:space.spaceId,authorize:check,policy:()=>service.policy(),withCatalog,readCatalog,hasArtifact:(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),hasReference:(projectId,reference)=>artifacts.hasReference(projectId,reference)});
   const tagGroup = (registration: SyncRegistration): SyncRegistration => ({
     ...registration,
     group: isPlatformSyncSelection(registration.selection) ? 'platform' : 'plugin',
   });
-  const staticRegistrations = [catalog, approvals, guidance, acceptance, ...projectPlugins, ...versions, ...plugins].map(tagGroup);
+  const staticRegistrations = [catalog, approvals, guidance, acceptance, ...projectPlugins, ...versions, ...plugins, ...configuration].map(tagGroup);
+  const platformConfiguration = new Set(configuration.map(row => syncNamespace(row.selection)));
   service = new PersonalSync({
     home,
     spaceId: space.spaceId,
@@ -65,7 +73,8 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
       ? {
           discover: async () => {
             await runtimeAuthority.refresh();
-            discovered = (await discover(check)).map(registration => tagGroup(runtimeAuthority.bind(registration)));
+            discovered = (await discover(check)).filter(row => !platformConfiguration.has(syncNamespace(row.selection)))
+              .map(registration => tagGroup(runtimeAuthority.bind(registration)));
             return discovered;
           },
         }

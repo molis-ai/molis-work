@@ -62,7 +62,7 @@ export async function syncOwnerPair(t: TestContext, plugins: readonly string[], 
     };
     return { ...runtime, home, project, actions, bind };
   };
-  return { owner, source: await open(f.homes[0]!), target: await open(f.homes[1]!), requests: () => fetch.mock.callCount() };
+  return { owner, space: f.space, source: await open(f.homes[0]!), target: await open(f.homes[1]!), requests: () => fetch.mock.callCount() };
 }
 /** Explicitly opens the user's already enabled projects; the coordinator only discovers their current Runtime contributions. */
 export async function runtimePersonalSync(home:string,space:StorageSpace,authorize:()=>void=()=>{},options:{accessToken?:()=>Promise<string>;authOrigin?:string}={}) {

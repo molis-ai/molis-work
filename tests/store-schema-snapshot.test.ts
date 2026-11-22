@@ -28,10 +28,10 @@ test("UPG-01 the snapshot holds the catalog, the project database, every Home li
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 
-test("APR-19 the built snapshot records both the project database and Goals at v1 baseline with no pre-release upgrades", () => {
+test("UPG-01 the shared project database records its v1 to v2 upgrade while Goals stays at its v1 baseline", () => {
   const project = rows.find(row => row.store === "projects/*/molis-work.db");
   const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [1, []]);
+  assert.deepEqual([project?.version, project?.froms], [2, [1]]);
   assert.deepEqual([goals?.version, goals?.froms], [1, []]);
 });
 

@@ -182,9 +182,10 @@ export function projectRuntimeDeclarations(): ProjectRuntimeDeclaration[] {
  * computed here because the Projects service applies companions one level deep: it enables what this returns, not what that in
  * turn needs.
  */
-function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[] {
+export function requiredCompanions(projectPluginId: ProjectPluginId, catalog: readonly PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS): ProjectPluginId[] {
   const producers = new Map<string, ProjectPluginId>();
-  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+  const manifestOf = (key: ProjectPluginId) => catalog === PLATFORM_PLUGIN_REGISTRATIONS ? builtinPluginByProjectKey(key)?.manifest : catalog.find(entry => entry.project_plugin_id === key)?.manifest;
+  for (const entry of catalog) {
     for (const port of entry.manifest.ports?.outputs ?? []) {
       const key = `${port.artifact_type_id}@${port.schema_version}`;
       if (!producers.has(key)) producers.set(key, entry.project_plugin_id);
@@ -194,7 +195,7 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
   const pending = [projectPluginId];
   while (pending.length > 0) {
     const current = pending.pop()!;
-    const manifest = builtinPluginByProjectKey(current)?.manifest;
+    const manifest = manifestOf(current);
     if (manifest === undefined) continue;
     for (const port of manifest.ports?.inputs ?? []) {
       if (port.optional === true) continue;

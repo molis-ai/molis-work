@@ -165,7 +165,7 @@ const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLL
  * stylesheets without breaking `:where()` resets, stage overrides, or focus contrast.
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
-  return `@layer reset, tokens, foundation;
+  let sheet = `@layer reset, tokens, foundation;
 @layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
 @layer tokens { ${PLUGIN_TYPEFACE_STYLES}${PLUGIN_MOTION_STYLES} }
 @layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
@@ -184,6 +184,94 @@ body .mw-toggle-group {
   }
 }
 body.immersive-workbench .mw-select-picker__trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }`;
+  const rootVars = new Set<string>();
+  for (const match of sheet.matchAll(/:root(?:\s*,\s*\[data-ui-[^\]]+\])*\s*\{([^}]*)\}/g)) {
+    for (const entry of match[1].split(";")) {
+      const split = entry.indexOf(":");
+      if (split > 0) {
+        const name = entry.slice(0, split).trim();
+        if (name.startsWith("--")) rootVars.add(name);
+      }
+    }
+  }
+  sheet = sheet
+    .replace(/  \.mw-toggle-group \{ display: inline-flex;[^\n]*\}\n?/, "")
+    .replaceAll("width='16' height='16' viewBox='0 0 24 24'", "viewBox='0 0 24 24'")
+    .replace(/ui-monospace,\s*SFMono-Regular,\s*Menlo,\s*monospace/g, "var(--font-mono)")
+    .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`)
+    .replace(/var\((--[\w-]+),\s+/g, "var($1,")
+    .replace(/color-mix\(in srgb,\s+/g, "color-mix(in srgb,")
+    .replace(/,\s+transparent\)/g, ",transparent)")
+    .replace(/,\s+var\(/g, ",var(")
+    .replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3\b/g, "#$1$2$3")
+    .replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([.\d]+)\)/g, "rgb($1 $2 $3/$4)")
+    .replace(/\boutline:\s*none\b/g, "outline:0")
+    .replace(/\b130ms\b/g, ".13s")
+    .replace(/\b250ms\b/g, ".25s")
+    .replace(/\b420ms\b/g, ".42s")
+    .replace(/\b640ms\b/g, ".64s")
+    .replace(/\b0\.(\d)/g, ".$1")
+    .replace(/\s*-webkit-appearance:\s*none;/g, "");
+  {
+    let stripped = "";
+    let index = 0;
+    while (index < sheet.length) {
+      if (sheet.startsWith("var(--", index)) {
+        const comma = sheet.indexOf(",", index + 4);
+        const close = sheet.indexOf(")", index + 4);
+        if (comma !== -1 && (close === -1 || comma < close)) {
+          const name = sheet.slice(index + 4, comma).trim();
+          if (/^--[\w-]+$/.test(name) && rootVars.has(name)) {
+            let depth = 1;
+            let end = comma + 1;
+            while (end < sheet.length && depth > 0) {
+              if (sheet[end] === "(") depth += 1;
+              else if (sheet[end] === ")") depth -= 1;
+              end += 1;
+            }
+            if (depth === 0) {
+              stripped += `var(${name})`;
+              index = end;
+              continue;
+            }
+          }
+        }
+      }
+      stripped += sheet[index];
+      index += 1;
+    }
+    sheet = stripped.replace(/\btransparent\b/g, "#0000");
+  }
+  const reducedMotionBodies: string[] = [];
+  sheet = sheet.replace(/(^|\n|\})[ \t]*@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
+    const trimmed = body.trim();
+    if (!trimmed || /^[&>]/.test(trimmed) || !trimmed.includes("{")) {
+      return whole;
+    }
+    reducedMotionBodies.push(trimmed);
+    return lead;
+  });
+  if (reducedMotionBodies.length > 0) {
+    const grouped = new Map<string, string[]>();
+    const other: string[] = [];
+    for (const block of reducedMotionBodies) {
+      for (const rule of block.matchAll(/([^{};]+)\{([^{}]+)\}/g)) {
+        const sel = rule[1]!.trim();
+        const rawDecl = rule[2]!.trim().replace(/;$/, "");
+        const decl = rawDecl.replace(/\s*:\s*/g, ":").replace(/\s*;\s*/g, ";");
+        if (decl === "animation:none" || decl === "transition:none" || decl === "animation:none;transition:none") {
+          const list = grouped.get(decl) ?? [];
+          list.push(sel);
+          grouped.set(decl, list);
+        } else {
+          other.push(`${sel}{${rawDecl}}`);
+        }
+      }
+    }
+    const merged = [...other, ...[...grouped.entries()].map(([decl, sels]) => `${sels.join(",")}{${decl}}`)];
+    sheet += `\n@media (prefers-reduced-motion: reduce) { ${merged.join(" ")} }`;
+  }
+  return sheet;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

@@ -46,7 +46,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 22 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（15）：coding、dataset、diff、feed、form、git、goals、inbox、lingguang、pages、ppt、schedule、shelf、text-stats、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。
+- `RUNTIME_ASSEMBLED`（14）：coding、dataset、diff、feed、form、git、goals、inbox、lingguang、pages、ppt、schedule、shelf、workflows（text-stats 2026-11-22 退役删除），由 `apps/local-host/src/project-plugins.ts` 的监督器启动。
 - Home 级（5）：issues、todo、cognia、images、jelly，Manifest 写 `runtime: { scope: "home" }`、包自己的 `registration` 带 `runtime: { create, … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
 - `APPROVED_BUILD_TIME_EXCEPTIONS`（2）：alchemist、plugin-builder；其余目录条目都在上面两类里。
 

@@ -22,7 +22,7 @@ import {
 } from "./judgments.js";
 import { functionsErrors, assertFunctionKey, suggestFunctionKey } from "./keys.js";
 import {
-  alreadyPublished, assertAvailableKey, assertRuleVersion, uniqueKey, assertPrimitive, assertReadyToPublish, assertSceneReference, defaultCriteria, defaultName, normalizeActionMap,
+  FIRST_PUBLISHED_RULE_REVISION, alreadyPublished, assertAvailableKey, assertRuleVersion, uniqueKey, assertPrimitive, assertReadyToPublish, assertSceneReference, defaultCriteria, defaultName, normalizeActionMap,
   normalizeCriteria, normalizeDraftInstructions, normalizeName, normalizeSampleInput, normalizeSampleLabel, normalizeSceneId,
   normalizeSceneMap, normalizeSubjectKinds, pinModel, pruneSceneMap, staleRule,
 } from "./record-rules.js";
@@ -218,9 +218,9 @@ export class FunctionsStore {
       : current.last_preview;
     const written = this.db.prepare(`
       UPDATE functions
-      SET status = 'published', version = 1, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, scene_version = ?, scene_provider_id = ?
+      SET status = 'published', version = ?, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, scene_version = ?, scene_provider_id = ?
       WHERE id = ? AND status = 'draft' AND updated_at = ?
-    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, laterThan(current.updated_at), scene?.version ?? current.scene_version ?? null,
+    `).run(FIRST_PUBLISHED_RULE_REVISION, model, config_hash, last_preview ? JSON.stringify(last_preview) : null, laterThan(current.updated_at), scene?.version ?? current.scene_version ?? null,
       scene?.provider_id ?? current.scene_provider_id ?? null, id, expectedUpdatedAt);
     if (written.changes !== 1) {
       const latest = this.require(id);

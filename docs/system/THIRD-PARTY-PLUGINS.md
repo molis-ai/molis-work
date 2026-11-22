@@ -26,7 +26,7 @@
 - 没有从已验签的包起一个插件的加载器。`loadDevelopmentPlugin`（`packages/plugin-runtime/src/development-loader.ts`）是开发用的本地源码加载，在宿主进程里执行；它是唯一的进程内例外：`runPluginDevelopment` 只放行刚加载出的那一个定义对象（Runtime 的 `inProcess.admit`，BL-588），别的非 `host` 等级的进程内代码在安装与每次启动前都被 `plugin.in_process_denied` 拒绝。
 - 沙箱只认生成插件的形态：一份 JSON 的 `operations` 合同加平台的 UI 目录。第三方的 `native`、`app`、`integration` 插件（有路由、视图、事件、轮询）没有对应的沙箱形态。
 - 市场只列内置目录（`pluginMarketCards()` 读 `BUILTIN_PLUGIN_CATALOG`）；BL-058「插件市场的上架与审核流程」列在「明确后续做」。
-- 官方内置插件的 `publisher.signature` 是标签（例如 text-stats 的 `official-text-stats-binding`），不是密钥指纹；它们的可信来自编进发行物，不来自验签。
+- 官方内置插件的 `publisher.signature` 是标签（例如 Diff 的 `official-diff-binding`），不是密钥指纹；它们的可信来自编进发行物，不来自验签。
 
 ## 2. 原则
 

@@ -215,7 +215,6 @@ export const PRIMITIVE_PLUGIN_DIR_COMPACT = `
     align-items: center; column-gap: 8px; width: 100%; min-height: 32px; padding: 0 8px;
     border: 0; color: var(--ink-soft); background: transparent; box-shadow: none;
     font: inherit; text-align: left; text-decoration: none; cursor: pointer; appearance: none;
-    transition-property: background-color, color; transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint);
     &:has(.mw-dir-row__icon) { grid: auto / 16px minmax(0, 1fr); }
     &:hover { color: var(--ink); background: var(--nav-hover); }
     &:active { background: var(--nav-press); }
@@ -237,7 +236,7 @@ export const PRIMITIVE_PLUGIN_DIR_COMPACT = `
     .mw-dir-row__headline { display: contents; }
   }
   .mw-dir-row--meta {
-    height: 36px; min-height: 36px; align-items: center; padding-block: 0;
+    height: 36px; min-height: 36px;
     &:not(.pc-row) {
       .mw-dir-row__copy { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); grid-auto-columns: auto; grid-auto-flow: column; align-items: baseline; column-gap: 8px; }
       .mw-dir-row__headline { display: contents; > :not(strong) { order: 2; justify-self: end; } }

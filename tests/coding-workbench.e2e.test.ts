@@ -13,7 +13,7 @@ import { CODING_BOX, CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures
 test("QEA-186: Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { command, sessionId } = b;
-  const views = Object.fromEntries(await Promise.all(["git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
+  const views = Object.fromEntries(await Promise.all(["git", "diff", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
   let active: Pick<typeof b, "evaluate" | "waitFor" | "click"> = b;
   const evaluate: typeof b.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof b.waitFor = (...args) => active.waitFor(...args);
@@ -89,7 +89,7 @@ test("QEA-186: Coding tools open real stages, preserve session tabs and read fix
   // Since S1 Diff compares the versions fixed through the materials service, from the reader's 固定快照 menu.
   await fixFromCoding("after", "second");
   await command("Network.enable", {}, sessionId);
-  // Diff and Text Stats are laid out as plugin stages (E-14): the heading drawn by the stage, the page's actions at its right,
+  // Diff is laid out as a plugin stage (E-14): the heading drawn by the stage, the page's actions at its right,
   // one centred column at most 960px wide, and the content inside it, not from the window's edge.
   const stage = (id: string) => evaluate<{ heading: string; actions: string[]; inset: number; column: number; contentLeft: number }>(`(() => {
     const shell = document.querySelector('[data-companion="${id}"]'), list = shell.querySelector(':scope > .plugin-stage-list'), chrome = list.querySelector(':scope > .plugin-stage-chrome');
@@ -104,12 +104,6 @@ test("QEA-186: Coding tools open real stages, preserve session tabs and read fix
   assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开资料", "帮助"]);
   assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
   await capture("diff-desktop");
-  await open("text-stats");
-  await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
-  const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料", "帮助"]);
-  assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
-  await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
   git("add", "note.txt");
   await writeFile(join(workspace, "note.txt"), "second\n中文🙂\n");

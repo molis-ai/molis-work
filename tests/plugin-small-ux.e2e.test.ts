@@ -616,23 +616,3 @@ test("灵光: 「记下第一条灵光」 left empty is thrown away when the per
   assert.equal(kept().length, 1);
 });
 
-test("Text Stats is not in the plugin list unless developer mode is on, and is when it is", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
-
-  const { navigate, command, sessionId, origin, projectId, evaluate, waitFor } = b;
-  const previous = process.env.MOLIS_WORK_DEVELOPER_MODE;
-  t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_DEVELOPER_MODE; else process.env.MOLIS_WORK_DEVELOPER_MODE = previous; });
-  delete process.env.MOLIS_WORK_DEVELOPER_MODE;
-  const open = async () => {
-    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
-  };
-  await open();
-  // Diff stands for any listed plugin (Files, which this used to name, retired in batch 06).
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-tile=diff]'))"), true, "the list itself is there");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-market-plugin=diff]'))"), true);
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-tile=\"text-stats\"], [data-market-plugin=\"text-stats\"]'))"), false);
-  process.env.MOLIS_WORK_DEVELOPER_MODE = "1";
-  await open();
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-tile=\"text-stats\"]')) && Boolean(document.querySelector('[data-market-plugin=\"text-stats\"]'))"), true);
-});

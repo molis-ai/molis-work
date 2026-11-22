@@ -82,7 +82,6 @@
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@molis-ai/molis-work-plugin-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-studio": "workspace:*",
-    "@molis-ai/molis-work-plugin-text-stats": "workspace:*",
     "@molis-ai/molis-work-plugin-todo": "workspace:*",
     "@molis-ai/molis-work-plugin-work-brief": "workspace:*",
     "@molis-ai/molis-work-plugin-workflows": "workspace:*",

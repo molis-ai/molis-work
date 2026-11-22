@@ -2,7 +2,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import type { MaterialRef } from "./project-materials.js";
-import type { TextRef } from "./ui-text.js";
+import type { PlacementRelationDeclaration, PlacementRelationRole, PlacementRelationTarget } from "./placement-relation.js";
 
 /**
  * How a plugin lets the system move or copy one of its objects between locations (specs/archive/work-placement §7.1).
@@ -62,21 +62,7 @@ export function isObjectCopier(action: { input_type?: string; output_type?: stri
   return action.input_type === PLACEMENT_COPY_INPUT_TYPE && action.output_type === PLACEMENT_COPY_OUTPUT_TYPE;
 }
 
-/**
- * A relation between an object and a target its owner keeps (a document's Goal, the work item that holds it), which placement lists, binds and
- * releases for the person (PG-032; 「挂到…」, specs/plugin-equal-standing/contract-design.md §2.2). Each action of the owner says which part it
- * plays with `placement_relation`; placement finds them in the directory by that declaration, never by a capability id, so the relation's
- * owner is whoever declares it. `target` is on the `list` role only: the subject kind of the other end and the noun a person reads it by
- * (`noun_text` when the owner's words have it, `noun` as written otherwise).
- */
-export const PLACEMENT_RELATION_ROLES = ["list", "bind", "release", "candidates", "create"] as const;
-export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
-export interface PlacementRelationTarget { readonly kind: string; readonly noun: string; readonly noun_text?: TextRef }
-export interface PlacementRelationDeclaration {
-  readonly relation: string;
-  readonly role: PlacementRelationRole;
-  readonly target?: PlacementRelationTarget;
-}
+export { PLACEMENT_RELATION_ROLES, type PlacementRelationDeclaration, type PlacementRelationRole, type PlacementRelationTarget } from "./placement-relation.js";
 export function isPlacementRelation(action: { placement_relation?: PlacementRelationDeclaration }, relation: string, role: PlacementRelationRole): boolean {
   return action.placement_relation?.relation === relation && action.placement_relation.role === role;
 }

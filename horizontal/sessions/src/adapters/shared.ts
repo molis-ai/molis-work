@@ -454,14 +454,18 @@ type JsonlRecordKind = "housekeeping" | "sidechain" | "session_header" | "messag
 const HOUSEKEEPING_TYPES = new Set(["summary", "file-history-snapshot", "queue-operation"]);
 const KNOWN_MESSAGE_TYPES = new Set(["user", "human", "assistant", "model", "tool", "system"]);
 
-export function classifyJsonlRecord(obj: Record<string, unknown>): JsonlRecordKind {
+/**
+ * `subagent`: the file is a subagent's own trajectory (batch 103-2), whose records all carry `isSidechain: true`; there they are the
+ * content, not a side branch to leave out.
+ */
+export function classifyJsonlRecord(obj: Record<string, unknown>, subagent = false): JsonlRecordKind {
   const schemaVer = typeof obj.schemaVersion === "number"
     ? obj.schemaVersion
     : typeof obj.schema_version === "number"
       ? obj.schema_version
       : undefined;
   if (schemaVer !== undefined && schemaVer > 1) return "unsupported_version";
-  if (obj.isSidechain === true) return "sidechain";
+  if (obj.isSidechain === true && !subagent) return "sidechain";
   const type = typeof obj.type === "string" ? obj.type : undefined;
   if (type && HOUSEKEEPING_TYPES.has(type)) return "housekeeping";
   if (type === "session") return "session_header";
@@ -537,7 +541,7 @@ function appendMessageBlocks(
  * Shared parser for JSONL message-style local session logs (Claude Code, Qoder CN, Kimi Code, MiniMax Code).
  * Preserves append-stable byte offsets, omits `thinking` / reasoning / sidechain blocks, turns attachments into `note`, and pairs tool steps.
  */
-export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initialStopped: { code: string; retryable: boolean } | null): ParsedTranscriptResult {
+export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initialStopped: { code: string; retryable: boolean } | null, subagent = false): ParsedTranscriptResult {
   const entries: ExternalSessionEntry[] = [];
   const sourceBytes: number[] = [];
   const toolUseIndex = new Map<string, number>();
@@ -577,7 +581,7 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
     }
     if (!isRecord(obj)) continue;
 
-    const kind = classifyJsonlRecord(obj);
+    const kind = classifyJsonlRecord(obj, subagent);
     if (kind === "housekeeping" || kind === "sidechain") continue;
     if (kind === "unsupported_version") {
       unsupportedRecords++;
@@ -649,7 +653,7 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
   };
 }
 
-export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallbackMtimeMs: number): {
+export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallbackMtimeMs: number, subagent = false): {
   sessionId: string | null;
   title: string | null;
   cwd: string | null;
@@ -683,7 +687,7 @@ export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallback
     if (!isRecord(obj)) continue;
     validJsonCount++;
 
-    const kind = classifyJsonlRecord(obj);
+    const kind = classifyJsonlRecord(obj, subagent);
     if (kind === "sidechain") {
       sidechainCount++;
       continue;

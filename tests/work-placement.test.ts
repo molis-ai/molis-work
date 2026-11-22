@@ -9,7 +9,7 @@ import { inflateRawSync } from "node:zlib";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
   ActionError, bindActionHandler, bindHomeObjectMoveHandler, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction,
-  defineSubjectContextAction, defineWorkflowContentActions, subjectContext, type ActionCallContext,
+  defineSubjectContextAction, defineWorkflowContentActions, subjectContext, type ActionCallContext, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -162,7 +162,9 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
     const caller = owner(projectId);
     // The Host keeps Home actions on the home client. A project catalog must not be able to undo a todo move.
     const client = hooks?.homeCatalog && projectId !== null
-      ? { discover: (context: ActionCallContext) => Promise.resolve(actions.discover(context)).then(views => views.filter(view => view.action.scope !== "home")), invoke: actions.invoke.bind(actions) }
+      ? { discover: (context: ActionCallContext) => Promise.resolve(actions.discover(context)).then(views => views.filter(view => view.action.scope !== "home")),
+        discoverOne: async (context: ActionCallContext, reference: ActionReference) => { const view = await actions.discoverOne(context, reference); return view?.action.scope !== "home" ? view : undefined; },
+        invoke: actions.invoke.bind(actions) }
       : actions;
     return { client, caller };
   };

@@ -286,6 +286,31 @@ test("CIP-06 CIP-08 a single-file shard keeps timeout, retries, failure status a
   assert.match(success, /1 of 1 files passed in/);
 });
 
+test("single file with explicit --retries or --timeout-seconds enters the coordinator pool while plain single-file runs stay direct", () => {
+  const made = directory();
+  const flaky = attemptFixture(made, "single-flaky", 1);
+  const retried = spawnSync(process.execPath, [runner, "--retries", "1", flaky], { encoding: "utf8", timeout: 120_000 });
+  const retriedOutput = `${retried.stdout}${retried.stderr}`;
+  assert.equal(retried.status, 0, retriedOutput);
+  assert.match(retriedOutput, /run-tests: 1 files, 1 at a time/);
+  assert.match(retriedOutput, /\[retry 1\] ok\s+\S*single-flaky\.test\.mjs/);
+  assert.match(retriedOutput, /1 of 1 files passed \(1 only on a retry\)/);
+
+  const slow = attemptFixture(made, "single-slow", 0, "await new Promise((resolve) => setTimeout(resolve, 60_000));");
+  const timedOut = spawnSync(process.execPath, [runner, "--timeout-seconds", "3", slow], { encoding: "utf8", timeout: 60_000 });
+  const timedOutOutput = `${timedOut.stdout}${timedOut.stderr}`;
+  assert.equal(timedOut.status, 1, timedOutOutput);
+  assert.match(timedOutOutput, /run-tests: 1 files, 1 at a time/);
+  assert.match(timedOutOutput, /\(killed after 3 s\)/);
+  assert.match(timedOutOutput, /0 of 1 files passed/);
+
+  const direct = spawnSync(process.execPath, [runner, attemptFixture(made, "single-direct", 0)], { encoding: "utf8", timeout: 60_000 });
+  const directOutput = `${direct.stdout}${direct.stderr}`;
+  assert.equal(direct.status, 0, directOutput);
+  assert.doesNotMatch(directOutput, /run-tests: 1 files, 1 at a time/);
+  assert.match(directOutput, /single-direct-attempt-1/);
+});
+
 test("strata: VISUAL_AUDIT_TESTS exist on disk, isGateMetaTest excludes only gate/CI self-tests, and --exclude-* flags filter before sharding", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
   assert.equal(VISUAL_AUDIT_TESTS.length, 13);

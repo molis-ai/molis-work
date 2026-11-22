@@ -62,6 +62,7 @@ test("V2-03: a sync round from a managed test Home uses test properties and igno
   const arrivalCss = renderer.renderMolisWorkArrivalStylesheet();
   assert.equal(arrivalCss.includes("body::after"), false, "CSS must not inject a hardcoded body::after badge");
   assert.equal(arrivalCss.includes(".mw-env-badge"), true, "shared stylesheet defines .mw-env-badge using semantic tokens");
+  assert.match(renderer.renderMolisWorkWorkbenchStylesheet(), /body\.immersive-workbench > \.mw-env-badge\s*\{\s*bottom:\s*calc\(var\(--dock-h,\s*0px\) \+ 12px\);/u, "immersive workbench lifts .mw-env-badge above --dock-h");
   const chooserHtml = renderer.renderMolisWorkProjectIndex([], "token", false, { now: "2026-11-20T00:00:00.000Z", last_project_id: null, opened: {} });
   assert.equal(chooserHtml.includes('class="mw-env-badge" data-env-badge="test" role="note"'), true, "Workbench renders semantic environment badge element");
 });

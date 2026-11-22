@@ -100,7 +100,8 @@ const clip = (text: string, max = 24) => { const chars = Array.from(text.replace
 /** The words for a work's state, short and unlike 「已完成」: a part that ended is only said to have ended. */
 function workWords(say: (text: string, values?: Record<string, string | number>) => string): Record<AssistantWorkState, string> {
   return { idle: say("workbench.assistant-delivery.not-started"), running: say("workbench.assistant-delivery.progress"), "waiting-input": say("workbench.assistant-delivery.needs-answer"), "waiting-review": say("workbench.assistant-delivery.needs-approval"), paused: say("workbench.assistant-delivery.paused"),
-    completed: say("workbench.assistant-delivery.ended"), failed: say("workbench.assistant-delivery.failed"), stopped: say("workbench.assistant-delivery.stopped"), "needs-check": say("workbench.assistant-delivery.needs-checking") };
+    completed: say("workbench.assistant-delivery.ended"), failed: say("workbench.assistant-delivery.failed"), stopped: say("workbench.assistant-delivery.stopped"), "needs-check": say("workbench.assistant-delivery.needs-checking"),
+    unreadable: say("workbench.assistant-delivery.unreadable") };
 }
 
 /** How a result stands now, in the words the card in the conversation uses; empty when it is as recorded. */

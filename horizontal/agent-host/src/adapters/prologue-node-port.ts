@@ -15,7 +15,7 @@ import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
 import { createPrologueImageIntake } from "./prologue-images.js";
-import { createPrologueGitReviews } from "./prologue-git.js";
+import { createPrologueGitReviews, GIT_REVIEW_RULE } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { workPaths } from "./prologue-project-work.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
@@ -85,6 +85,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
+      // Host-initiated Git reviews (index, worktree, integration, operations) always stop for explicit person approval.
+      GIT_REVIEW_RULE,
       // A suggestion, a delegated work, a memory: recorded under the Host's own rules and limits, as before, without asking.
       ...HOST_GOVERNED_TOOLS.map(name => ({ source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name } })),
       // The side panel's browser: looking is allowed, every action asks, the person's standing site decisions apply.

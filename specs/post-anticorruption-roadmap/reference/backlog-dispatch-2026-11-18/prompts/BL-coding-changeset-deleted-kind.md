@@ -2,7 +2,7 @@
 
 如果能证明这一轮成功删除了旧配置，变更清单就显示路径和「已删除」。只有一条删除命令或文件碰巧不见，还不够。
 
-预计 **10–20 工时**。维护范围为B／Coding、Files 与 Git。正式交付项为 [99-1](../../batches/99.md#batch-99-item-1)。[原始待办](../../../../backlog/BL-coding-changeset-deleted-kind.md) · [派工总表](../README.md)
+预计 **10–20 工时**。维护范围为B／Coding、Files 与 Git。正式交付项为 [99-1](../../batches/99.md#batch-99-item-1)。[原始待办](https://github.com/molis-ai/molis-work/blob/b428472f46/specs/backlog/BL-coding-changeset-deleted-kind.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

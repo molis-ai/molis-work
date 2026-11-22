@@ -199,7 +199,44 @@ test("QEA-07 dropping a folder keeps every eligible selection beyond 400 and ski
     return new Promise(resolve => setTimeout(() => resolve(maxDepth), 200));
   })()`);
   assert.equal(deepDepthVisited, 16, "dropped directory recursion stops cleanly at depth 16");
+  await b.waitFor("document.querySelector('[data-knowledge-import-status]').textContent.includes(globalThis.t.text('workbench.import.folder-scan-truncated'))", 10_000);
+  const deepStatus = await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent");
+  assert.match(deepStatus, /16/, "shows the actual scanned count when <= 200");
+  assert.doesNotMatch(deepStatus, /200/, "must not show the 200-per-batch limit message when <= 200 files were selected");
+  // Dropping > 200 files together with a deep truncated tree shows BOTH the 200-per-batch limit and the folder-scan-truncated notice.
+  await b.evaluate(`(() => {
+    const entries = Array.from({ length: 205 }, (_, i) => ({
+      isFile: true,
+      isDirectory: false,
+      name: "extra-" + i + ".txt",
+      file: (ok) => ok(new File(["extra " + i], "extra-" + i + ".txt", { type: "text/plain" })),
+    }));
+    let readOnce = false;
+    const rootEntry = {
+      isFile: false,
+      isDirectory: true,
+      name: "wide-dir",
+      createReader: () => ({
+        readEntries: (resolve) => {
+          if (readOnce) { resolve([]); return; }
+          readOnce = true;
+          resolve(entries);
+        },
+      }),
+    };
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: { types: ["Files"], items: [{ webkitGetAsEntry: () => rootEntry }] },
+    });
+    document.querySelector("[data-knowledge-import-drop]").dispatchEvent(event);
+  })()`);
   await b.waitFor("document.querySelector('[data-knowledge-import-status]').textContent.includes('200')", 10_000);
+  const bothStatus = await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent");
+  assert.match(bothStatus, /200/, "shows the 200-per-batch limit once > 200 files are selected");
+  assert.ok(
+    bothStatus.includes(await b.evaluate<string>("globalThis.t.text('workbench.import.folder-scan-truncated')")),
+    "keeps the folder-scan-truncated explanation alongside the 200-per-batch limit",
+  );
 });
 
 // QEA-06: a display path is not a file identity; the artifact service owns content deduplication.

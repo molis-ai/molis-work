@@ -436,6 +436,9 @@ export class MolisWorkProjectCatalog {
   listProjectDeletions(): MolisWorkProjectDeletionRecord[] {
     return this.projects.query.listProjectDeletions();
   }
+  findProjectDeletion(actorId: string, idempotencyKey: string) {
+    return this.projects.lifecycle.findDeletion(actorId.trim(), idempotencyKey.trim());
+  }
   async deleteProject(
     input: DeleteMolisWorkProjectInput,
     options?: { allowRecycled?: boolean; beforeCommit?: () => void },

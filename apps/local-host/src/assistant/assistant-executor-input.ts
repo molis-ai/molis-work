@@ -4,6 +4,7 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 import { ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { localWebActionContext } from "../local-web-actions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
+import { exactActionView } from "../exact-action-view.js";
 
 /** What one Assistant dispatch hands the executor beyond the action input: the person's original text, and the Skills the round named. */
 export interface ExecutorHanded {
@@ -24,8 +25,7 @@ export function executorInputActions(host: MolisWorkLocalHost, project: LocalHos
   const used = { original: false, skills: false };
   /** The executor's own installation behind this action, found again in the directory: another plugin's action takes nothing. */
   const installOf = async (definition: ActionDefinition, refusal: string) => {
-    const target = (await client.discover(await current)).find(view => view.capability_id === definition.capability_id
-      && view.version === definition.version && view.provider.provider_id === definition.provider_id);
+    const target = definition.provider_id ? await exactActionView(client, await current, definition) : undefined;
     if (target?.provider.plugin_id !== pluginId || workExecutorRoleOf(target.action) !== workExecutorRoleOf(definition.action) || !target.provider.plugin_install_id) {
       throw new ActionError("actions.forbidden", refusal);
     }
@@ -34,6 +34,7 @@ export function executorInputActions(host: MolisWorkLocalHost, project: LocalHos
   const exact = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version, provider_id: definition.provider_id! });
   return {
     discover: async () => client.discover(await current),
+    discoverOne: async reference => client.discoverOne(await current, reference),
     invoke: async (definition, input, control, transport) => {
       const caller = await current, role = workExecutorRoleOf(definition.action);
       if (role === "run.start" && skills && !used.skills) {

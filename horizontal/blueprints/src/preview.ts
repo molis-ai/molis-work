@@ -112,7 +112,7 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     if (reuse && current.value_unavailable) return { ...details, decision: "skip", reason: "value_unavailable" };
     plans.set(part_id, {
       binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,
-      ...(entry.layers.includes("project") && { has_project_layer: true as const }),
+      ...(!entry.layers.includes("project") && { personal_only: true as const }),
       ...(current.layer_revisions?.[layer] !== undefined && { original_layer_revision: current.layer_revisions[layer] }),
     });
     return { ...details, decision: reuse ? "reuse" : "update" };

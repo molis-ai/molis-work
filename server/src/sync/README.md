@@ -11,7 +11,7 @@ This is one server module, not the entire Molis Work server. It owns the persona
 - `changes.rs`, `round.rs`, `protocol.rs`, `quota.rs`: replication, validation, round summaries and accounting.
 - `blobs.rs`, `blob_store.rs`: authenticated private attachment transfer. Every upload and read runs under an active collection selection, checked before the work and again inside the SQL that publishes it.
 - `history.rs`, `retention.rs`, `maintenance.rs`: history, trash and bounded cleanup.
-- [`server/migrations/sync/0001_sync.sql`](../../migrations/sync/0001_sync.sql): the fresh D1 baseline, v6. Moving this file does not upgrade or reinitialize an existing database.
+- [`server/migrations/sync/0001_sync.sql`](../../migrations/sync/0001_sync.sql) and [`0002_sync_heads_revision_index.sql`](../../migrations/sync/0002_sync_heads_revision_index.sql): the fresh D1 baseline, v6, plus the `sync_heads_revision` covering index for `/v1/round`. Moving these files does not upgrade or reinitialize an existing database.
 
 The Server root owns [Cargo.toml](../../Cargo.toml) and [Cargo.lock](../../Cargo.lock), alongside the Node build manifests. `apps/sync-worker` owns Cloudflare event registration, the release build, Wrangler configuration and runtime integration tests. It calls only this library's two public functions. See its [operator and verification guide](../../../apps/sync-worker/README.md).
 

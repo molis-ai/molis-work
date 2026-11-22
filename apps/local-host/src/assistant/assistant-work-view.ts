@@ -86,7 +86,7 @@ export async function readWorkView(workId: string, store: AssistantStore, ports:
     const rounds = link.dispatcher.settleUnsent(work, [...(assistant?.rounds ?? []), ...(plugin?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
     const latest = rounds.at(-1);
     const problem = await assistantSessionLifecycleProblem(ports, work) ?? assistant?.problem ?? plugin?.problem;
-    const state = plugin?.unreadable && work.executor.kind === "plugin" ? "needs-check"
+    const state = plugin?.unreadable && work.executor.kind === "plugin" ? "unreadable"
       : await link.continuations.state(work, stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || plugin?.recovery)));
     const shown: StoredWork = work.executor.kind === "plugin" && plugin?.mode ? { ...work, executor: { ...work.executor, mode: plugin.mode } } : work;
     // Its task board: the sub-tasks it handed out, each as its own work.

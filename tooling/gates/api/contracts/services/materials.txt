@@ -24,7 +24,7 @@ export interface ConversationAttachment {
         chars: number;
         truncated: boolean;
         pages: number | null;
-        coverage: MaterialExtraction["coverage"]["status"];
+        coverage: MaterialCoverageStatus;
         issues: string[];
     };
 }
@@ -49,6 +49,8 @@ export interface ConversationAttachmentUploadRequest {
     signal?: AbortSignal;
     expected_kind?: "image";
 }
+
+export type MaterialCoverageStatus = "sufficient" | "partial" | "insufficient";
 
 export interface MaterialDocument {
     name: string;
@@ -86,7 +88,7 @@ export interface MaterialExtraction {
     }[];
     duration_seconds?: number;
     coverage: {
-        status: "sufficient" | "partial" | "insufficient";
+        status: MaterialCoverageStatus;
         truncated?: boolean;
         processed_pages: number;
         total_pages: number;

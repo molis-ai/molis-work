@@ -202,9 +202,31 @@ test("work-line CSS keeps static fallbacks before CSS Anchor Positioning overrid
     },
     catalogTextPacks: () => [],
   }).renderMolisWorkWorkbenchStylesheet();
-  assert.match(css, /\.work-counts\{[^}]*top:6px;/u, "desktop .work-counts has static top:6px fallback");
-  assert.match(css, /@media \(max-width:760px\),\(pointer:coarse\)\{[^@]*\.work-counts\{[^}]*top:4px;/u, "compact .work-counts has static top:4px fallback");
-  assert.match(css, /@supports \(anchor-name:--x\)\{[\s\S]*?\.assistant-attention\{[^}]*position-anchor:--assistant-receiver/u, "anchor positioning for .assistant-attention is guarded by @supports");
+  assert.match(css, /\.work-counts\{[^}]*top:calc\(var\(--counts-top,0px\) \+ 6px\);/u, "desktop .work-counts has --counts-top fallback before anchor()");
+  assert.match(css, /@media \(max-width:760px\),\(pointer:coarse\)\{[^@]*\.work-counts\{[^}]*top:calc\(var\(--counts-top,0px\) \+ 4px\);/u, "compact .work-counts has --counts-top fallback before anchor()");
+  assert.match(css, /@media \(max-width:540px\)\{[^@]*\.work-counts\{[^}]*left:calc\(var\(--counts-left,0px\) \+ 10px\);/u, "narrow .work-counts offsets left by --counts-left for non-anchor column-1 bell");
+  assert.match(css, /\.assistant-composer:has\(> \.mw-composer ~ \.assistant-attention:not\(\[hidden\]\)\)\s*\{[^}]*display:\s*grid/u, "non-anchor fallback puts .assistant-attention in column 1 for both rest and active composer");
+  assert.match(css, /@supports \(anchor-name:\s*--x\)\s*\{[\s\S]*?\.mw-composer:not\(\[data-rest\]\) ~ \.assistant-attention\s*\{[^}]*position-anchor:\s*--assistant-receiver/u, "active composer .assistant-attention anchor positioning is guarded by @supports");
+  assert.match(css, /@supports \(anchor-name:--x\)\{[\s\S]*?\.assistant-attention\{[^}]*position-anchor:--assistant-receiver/u, "resting work-line .assistant-attention anchor positioning is guarded by @supports");
   assert.match(css, /@supports \(anchor-name:--x\)\{[^}]*\.work-counts\{[^}]*top:calc\(anchor\(top,0px\) \+ 6px\)/u, "desktop anchor() for .work-counts is guarded by @supports");
   assert.match(css, /@supports \(anchor-name:--x\)\{[^}]*\.work-counts\{[^}]*top:calc\(anchor\(top,0px\) \+ 4px\)/u, "compact anchor() for .work-counts is guarded by @supports");
+  assert.match(css, /body\.immersive-workbench > \.mw-env-badge\s*\{\s*bottom:\s*calc\(var\(--dock-h,\s*0px\) \+ 12px\);/u, ".mw-env-badge clears --dock-h on immersive workbench");
+  // Every CSS Anchor declaration in the stylesheet must live inside an @supports (anchor-name: ...) block.
+  let withoutAnchorSupports = "";
+  for (let i = 0; i < css.length; ) {
+    const match = /^@supports\s*\(\s*anchor-name\s*:[^)]*\)\s*\{/u.exec(css.slice(i));
+    if (match) {
+      i += match[0].length;
+      let depth = 1;
+      while (i < css.length && depth > 0) {
+        if (css[i] === "{") depth += 1;
+        else if (css[i] === "}") depth -= 1;
+        i += 1;
+      }
+    } else {
+      withoutAnchorSupports += css[i];
+      i += 1;
+    }
+  }
+  assert.doesNotMatch(withoutAnchorSupports, /\b(?:anchor-name|position-anchor)\s*:|\banchor\(/u, "no CSS Anchor property or function leaks outside @supports (anchor-name: ...)");
 });

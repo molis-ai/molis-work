@@ -1,5 +1,6 @@
-import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderHelpButton, renderHelpDeclarationScript, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { EXTERNAL_SESSION_QUERY_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/sessions";
+import { workbenchSurfaceHelpDeclaration } from "../settings-help-topics.js";
 
 /**
  * Work-area surface for external AI tool sessions (`data-work-surface="sessions"`).
@@ -14,6 +15,7 @@ export function renderSessionsStage(projectId?: string): string {
     `<button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-sessions-refresh title="${uiText("workbench.sessions.refresh")}" aria-label="${uiText("workbench.sessions.refresh")}">${icon("refresh")}</button>`,
     `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-sessions-open-scope="tools">${icon("settings")}<span>${uiText("workbench.sessions.read-scope")}</span></button>`,
     projectId ? `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/onboarding?project=${encodeURIComponent(projectId)}&amp;sessions=1">${uiText("workbench.context-onboarding.start-organizing")}</a>` : "",
+    renderHelpButton({ topic: "workbench-sessions", label: uiText.text("common.help.title"), size: "sm" }),
     `</div></header>`,
     `<div class="sessions-views mw-toggle-group" role="tablist" aria-label="${uiText("workbench.sessions.view-group")}">`,
     `<button class="mw-toggle" id="sessions-tab-project" type="button" role="tab" aria-controls="sessions-list-panel" data-sessions-view="project">${uiText("workbench.sessions.view-project")}</button>`,
@@ -32,7 +34,7 @@ export function renderSessionsStage(projectId?: string): string {
     `</div><div class="sessions-detail-pane">`,
     `<div class="sessions-detail-empty" data-sessions-detail-empty>${uiText("workbench.sessions.select-prompt")}</div>`,
     `<div class="sessions-detail" data-sessions-detail hidden></div>`,
-    `</div></div></template></section>`,
+    `</div></div>${renderHelpDeclarationScript(workbenchSurfaceHelpDeclaration("sessions"))}</template></section>`,
   ].join("");
 }
 

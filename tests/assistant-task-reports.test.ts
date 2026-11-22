@@ -333,12 +333,33 @@ test("RRC-02 a person's words stop a round under way only when its stored mark s
   await assert.rejects(reportTurn(stuck, ref, run("running"), () => true, false), { code: "assistant.state" }, "a report that did not stop keeps the words out");
 });
 
-test("WRB-05 followed scans beyond 50 works and propagates jobs.views failure instead of misreporting into main conversation", async () => {
+test("WRB-05 followed scans beyond 50 works, ignores corrupt cards, and propagates real work-graph read failure instead of misreporting into main conversation", async () => {
   const db = new DatabaseSync(":memory:");
   const store = new AssistantStore(db);
-  let failViews = false;
+  let failGraphRead = false;
   let oldestWorkId = "";
-  const host = { adapter: () => ({ readSession: async () => ({ latest_run: null }) }) };
+  const host = {
+    adapter: () => ({
+      readSession: async () => ({ latest_run: null }),
+      collaboration: {
+        works: {
+          read: async (graphId: string) => {
+            if (failGraphRead) throw new Error("graph read failed");
+            if (graphId === "graph-oldest") {
+              return [{
+                graph_id: "graph-oldest",
+                node_id: `job.${oldestWorkId}.0123456789abcdef`,
+                title: "旧后台任务",
+                state: "done",
+                job: { job_id: "job-oldest", started_at: new Date().toISOString(), ended: "done", ended_at: new Date().toISOString() },
+              }];
+            }
+            return [];
+          },
+        },
+      },
+    }),
+  };
   const service = new AssistantService(store, {
     pages: async () => ["home"],
     host: async () => host as never,
@@ -349,11 +370,6 @@ test("WRB-05 followed scans beyond 50 works and propagates jobs.views failure in
     started.push(args[1]);
     return {} as never;
   };
-  service.jobs.views = async work => {
-    if (failViews) throw new Error("jobs read failed");
-    if (work.work_id === oldestWorkId) return [{ job_id: "job-oldest" }] as never;
-    return [];
-  };
   try {
     const oldest = store.create({
       actor_id: "user",
@@ -363,6 +379,13 @@ test("WRB-05 followed scans beyond 50 works and propagates jobs.views failure in
       origin: null,
     });
     oldestWorkId = oldest.work_id;
+    store.update("user", oldest.work_id, null, { graph_id: "graph-oldest" });
+    // Corrupt card JSON on a historical work must never break report deduplication (followedJobIds skips cards storage).
+    db.prepare("INSERT INTO assistant_cards(card_id, work_id, revision, status, created_at, body) VALUES (?, ?, 1, 'running', ?, '{corrupt')").run(
+      "card-corrupt",
+      oldest.work_id,
+      new Date().toISOString(),
+    );
     // Create 55 more works so the oldest work falls past the default LIMIT 50.
     for (let i = 0; i < 55; i++) {
       store.create({
@@ -387,15 +410,23 @@ test("WRB-05 followed scans beyond 50 works and propagates jobs.views failure in
       project_id: "p",
       tasks: [{ row: ended("job-oldest"), end: "done" }],
     };
-    assert.equal(await service.reports.report(taskReport), "none", "oldest work beyond 50 is still found in followed");
+    assert.equal(await service.reports.report(taskReport), "none", "oldest work beyond 50 is still found in followed via real AssistantJobs.followedJobIds");
     assert.equal(started.length, 0);
 
-    failViews = true;
+    // Unfollowed task still reports normally despite the corrupt card row on the historical work.
+    assert.equal(await service.reports.report({
+      project_id: "p",
+      tasks: [{ row: ended("job-unfollowed"), end: "done" }],
+    }), "reported", "corrupt cards on another work do not block reporting");
+    assert.equal(started.length, 1);
+
+    // Real work-graph read error propagates instead of being swallowed inside AssistantJobs.
+    failGraphRead = true;
     await assert.rejects(service.reports.report({
       project_id: "p",
       tasks: [{ row: ended("job-other"), end: "done" }],
-    }), /jobs read failed/);
-    assert.equal(started.length, 0, "jobs.views error never misreports into main conversation");
+    }), /graph read failed/);
+    assert.equal(started.length, 1, "work-graph read error never misreports into main conversation");
   } finally {
     service.continuations.close();
     db.close();
@@ -473,7 +504,7 @@ test("WRB-06 transient failures retry via pending, batches stay bounded, permane
 
     const noModelReport: TaskReport = { project_id: "p", tasks: [{ row: ended("nomodel"), end: "failed" }] };
     startError = Object.assign(new Error("no model"), { code: "agent.model_not_configured" });
-    assert.equal(await rounds.report(noModelReport), "reported");
+    assert.equal(await rounds.report(noModelReport), "noticed", "permanent refusal returns noticed rather than reported");
     assert.equal(countNotices(), 2, "permanent model refusal still raises one notice");
 
     // 3. executorDispatch explicitly rejects report_only rounds.
@@ -498,5 +529,101 @@ test("WRB-06 transient failures retry via pending, batches stay bounded, permane
     service.continuations.close();
   } finally {
     db.close();
+  }
+});
+
+test("WRB-07 notice-only overflow batches drain all 25 notices without stalling, transient failures self-retry via backoff timer, and close cancels pending timers", async () => {
+  // 1. 25 ended tasks + agent.model_not_configured: all 25 notices are emitted across two batches without stalling in #pending.
+  const db = new DatabaseSync(":memory:");
+  const store = new AssistantStore(db);
+  try {
+    mainWork(store);
+    const rounds = new AssistantReportRounds({
+      store,
+      actorId: "user",
+      session: async () => ({ latest_run: null }),
+      continuation: async () => undefined,
+      start: async () => { throw Object.assign(new Error("no model"), { code: "agent.model_not_configured" }); },
+      followed: async () => new Set(),
+    });
+    const twentyFive = Array.from({ length: 25 }, (_, i) => ended(`notice-only-${i}`));
+    let listener: ((projectId: string | null) => void) | undefined;
+    const answers: Array<{ size: number; answer: string }> = [];
+    const noticeWatcher = new AssistantTaskReports({
+      table: async () => table(...twentyFive),
+      reportsTo: id => rounds.reportsTo(id),
+      changes: next => { listener = next; return () => { listener = undefined; }; },
+      report: async batch => {
+        const answer = await rounds.report(batch);
+        answers.push({ size: batch.tasks.length, answer });
+        return answer;
+      },
+      lookMs: 5,
+    });
+    noticeWatcher.start();
+    listener?.("p");
+    await noticeWatcher.idle();
+    noticeWatcher.close();
+    assert.deepEqual(answers, [{ size: 20, answer: "noticed" }, { size: 5, answer: "noticed" }], "overflow notice-only batches re-queue directly instead of stalling");
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM assistant_notices").get() as { n: number }).n, 25, "all 25 notices raised");
+  } finally {
+    db.close();
+  }
+
+  // 2. Transient failure self-drives retry via bounded backoff timer without any external listener(null) trigger.
+  {
+    let listener: ((projectId: string | null) => void) | undefined;
+    let attempts = 0;
+    let resolveReported: (() => void) | undefined;
+    const reportedPromise = new Promise<void>(resolve => { resolveReported = resolve; });
+    const reportedIds: string[] = [];
+    const retryWatcher = new AssistantTaskReports({
+      table: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("transient storage hiccup");
+        return table(ended("auto-retried"));
+      },
+      reportsTo: () => true,
+      changes: next => { listener = next; return () => { listener = undefined; }; },
+      report: async batch => {
+        reportedIds.push(...batch.tasks.map(t => t.row.subject.id));
+        resolveReported?.();
+        return "reported";
+      },
+      lookMs: 5,
+      retryDelayMs: 15,
+    });
+    retryWatcher.start();
+    listener?.("p");
+    await retryWatcher.idle();
+    assert.deepEqual([attempts, reportedIds], [1, []], "first attempt fails transiently");
+    await reportedPromise;
+    await retryWatcher.idle();
+    retryWatcher.close();
+    assert.deepEqual([attempts, reportedIds], [2, ["auto-retried"]], "backoff timer retries automatically and finishes reporting");
+  }
+
+  // 3. close() clears any scheduled retry timer cleanly so no further read fires after close.
+  {
+    let listener: ((projectId: string | null) => void) | undefined;
+    let attempts = 0;
+    const closeWatcher = new AssistantTaskReports({
+      table: async () => {
+        attempts += 1;
+        throw new Error("always failing");
+      },
+      reportsTo: () => true,
+      changes: next => { listener = next; return () => { listener = undefined; }; },
+      report: async () => "reported",
+      lookMs: 5,
+      retryDelayMs: 25,
+    });
+    closeWatcher.start();
+    listener?.("p");
+    await closeWatcher.idle();
+    assert.equal(attempts, 1);
+    closeWatcher.close();
+    await new Promise(resolve => setTimeout(resolve, 60));
+    assert.equal(attempts, 1, "closed watcher cancels its retry timer and does not fire again");
   }
 });

@@ -1,4 +1,4 @@
-/** Shared plugin stage master-detail: full list, then --tree-width + detail. */
+/** Shared plugin stage: the list fills it; an open record takes it whole. */
 export const PLUGIN_STAGE_STYLES = `
   .immersive-plugin-stage > .plugin-stage-shell,
   .tab-pane-body > .plugin-stage-shell {
@@ -127,38 +127,13 @@ export const PLUGIN_STAGE_STYLES = `
       :is(.plugin-stage-fact, .plugin-stage-meta) { display: none; }
     }
   }
-  @media (min-width: 761px) {
-    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] {
-      display: grid; grid-template-columns: var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr); overflow: hidden; padding: 0;
-      .plugin-stage-list {
-        display: block; position: relative; inset: auto; z-index: 4;
-        min-width: 0; min-height: 0; width: var(--tree-width, var(--immersive-sidebar-width)); height: auto; overflow: auto;
-        border-right: 1px solid var(--line); padding: 52px 8px 24px; box-sizing: border-box;
-        grid-column: 1; grid-row: 1;
-      }
-      .plugin-stage-workspace {
-        position: relative; inset: auto; z-index: 3;
-        min-width: 0; min-height: 0; width: auto; height: auto;
-        display: flex; flex-direction: column; overflow: hidden;
-        grid-column: 2; grid-row: 1;
-      }
-      .plugin-stage-chrome { visibility: inherit; }
-      .feed-stage-entry {
-        grid-template-columns: minmax(0, 1fr) auto;
-        > time { display: none; }
-        &:has(.plugin-stage-kind) { grid-template-columns: minmax(0, 1fr) max-content max-content; }
-      }
-      :is(.feed-entry-source, .plugin-stage-fact, .plugin-stage-meta) { display: none; }
-    }
-  }
-  /* The side panel takes its width from the stage, not from the window: a wide window with the panel open can leave the
-     stage too narrow for the list beside an open record. Then the record takes the whole stage, as on a phone. */
-  @container plugin-stage (max-width: 600px) {
-    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] {
-      display: block;
-      :is(.plugin-stage-chrome, .plugin-stage-list) { display: none !important; }
-      .plugin-stage-workspace { position: absolute; inset: 0; display: flex; flex-direction: column; grid-column: auto; grid-row: auto; }
+  /* An open record is its own page (specs/screen-polish §4「底栏第十三版」: 一件事一页): it takes the whole stage at every
+     width, and the plugin's list is the page behind it — the back key, or the list's own tab. Nothing stands at its left. */
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] {
+    display: block; overflow: hidden; padding: 0;
+    :is(.plugin-stage-chrome, .plugin-stage-list) { display: none !important; }
+    .plugin-stage-workspace {
+      position: absolute; inset: 0; z-index: 3; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
     }
   }
   .plugin-stage-more {

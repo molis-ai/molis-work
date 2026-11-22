@@ -41,9 +41,11 @@ test("RAC-2516 RAC-2517 RAC-2519 in-place membership owns every Feed mount, sour
   assert.equal(await feed.evaluate(`molisWorkRequest(t403Host.route('/api/stage/feed/objects/${item.item_id}?surface=persisted-detail')).then(()=>0,error=>error.status)`), 403, "the child cannot fetch the old Host-only stage URL");
   assert.equal(await feed.evaluate(`t403Host.view.readDocument({object:{id:${JSON.stringify(item.item_id)},surface:'foreign-surface'}}).then(()=>false,()=>true)`), true, "an undeclared object surface is refused");
   await feed.evaluate("for(const [name,value] of [['search','Membership live'],['sort','title']]){const field=document.querySelector('[data-feed-'+name+']');field.value=value;field.dispatchEvent(new Event(name==='search'?'input':'change',{bubbles:true}))}");
-  await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${item.item_id}"]`);
-  await feed.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"][data-feed-detail-read=read] [data-feed-action=inbox]') && t403Reads.pending===0`);
+  // The filter menu is on the list, the page behind an open item (36A-3): it is opened before the item is.
   await feed.click('[data-feed-filter-trigger]');
+  // The open menu lies over the middle of the row; the row is pressed at its start, beside the menu.
+  await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${item.item_id}"]`, 1, "start");
+  await feed.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"][data-feed-detail-read=read] [data-feed-action=inbox]') && t403Reads.pending===0`);
   await feed.click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`);
   await feed.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-destination-state=inbox]') && t403Reads.pending===0`);
   const admitted = library.listInboxEntries(projectId!).find(entry => entry.subject_id === item.item_id);

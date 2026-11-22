@@ -39,24 +39,58 @@ export interface LineEventView {
   readonly current?: boolean;
   /** Just arrived on the line: plays the arrival once. */
   readonly fresh?: boolean;
+  /** A next step its owner suggests, not something under way: a dashed mark, and 建议 before its note. */
+  readonly suggestion?: boolean;
 }
 
 const ring = (state: StateRingState) => renderStateRing({ state, size: 14 });
-const attr = (name: string, value: string | undefined) => value ? ` ${name}="${escapeHtml(value)}"` : "";
 const text = (className: string, value: string) => `<span class="${className}">${escapeHtml(value)}</span>`;
 
 /** The mark of who registered a thing: its glyph on its hue. */
 export const renderOwnerMark = (owner: LineOwnerView) => `<span class="work-event-mark"${owner.hue ? ` style="--event-hue:var(--hue-${escapeHtml(owner.hue)})"` : ""} aria-hidden="true">${icon(owner.glyph)}</span>`;
 
-/** One event on the line. Its accessible name is the owner, the kind, the title, the state and the note, so a reader hears more than a sighted person sees, never less. */
+/**
+ * One line of plain words from what may be Markdown: a place that holds one line (a card of the stack, a row, a fact) shows
+ * the words only: emphasis, code and heading marks, list and quote marks go, a link keeps its words.
+ */
+export function plainLine(value: string): string {
+  return value.replace(/```[^\n]*/gu, " ").replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/gu, "$1").replace(/^[ \t]*(?:#{1,6}|>+|[-*+]|\d+[.)])[ \t]+/gmu, "")
+    .replace(/\*\*|__|~~|`/gu, "").replace(/(^|[\s（(「“])\*([^*\n]+)\*(?=$|[\s，。；：！？,.;:!?）)」”])/gmu, "$1$2").replace(/\s+/gu, " ").trim();
+}
+
+/**
+ * The state marks of the foot and the conversation (§4「底栏第十三版」, helm.html): an amber dot is your turn, a red one failed,
+ * a turning ring is under way, a hollow accent circle waits its turn, a hollow grey one comes next, a dashed one is a
+ * suggestion, a tick is done. Colour never stands alone: the words beside it say the same.
+ */
+export type StateGlyph = "you" | "bad" | "run" | "wait" | "next" | "sug" | "done";
+export const renderStateGlyph = (glyph: StateGlyph) => glyph === "done" ? `<span class="work-dg" data-g="done" aria-hidden="true">${icon("check")}</span>` : `<i class="work-dg" data-g="${glyph}" aria-hidden="true"></i>`;
+const RING_RUN: ReadonlySet<StateRingState> = new Set(["doing", "starting", "running", "generating", "saving", "indexing", "syncing", "retrying"]);
+const RING_YOU: ReadonlySet<StateRingState> = new Set(["answer", "approval", "reauth", "verify", "conflict", "partial", "interrupted"]);
+const RING_BAD: ReadonlySet<StateRingState> = new Set(["failed", "blocked", "unavailable", "quarantined", "disconnected"]);
+const RING_DONE: ReadonlySet<StateRingState> = new Set(["done", "saved", "round-ended", "staged"]);
+const RING_WAIT: ReadonlySet<StateRingState> = new Set(["queued", "waiting"]);
+/** The mark a task's ring reads as. */
+export const glyphOfRing = (state: StateRingState): StateGlyph => RING_RUN.has(state) ? "run" : RING_YOU.has(state) ? "you" : RING_BAD.has(state) ? "bad" : RING_DONE.has(state) ? "done" : RING_WAIT.has(state) ? "wait" : "next";
+const GLYPH_OF: Readonly<Record<LineEventState, StateGlyph>> = { "": "next", queued: "wait", running: "run", wait: "you", failed: "bad", stopped: "next", verify: "you", done: "done", gone: "next", denied: "next" };
+
+/** The mark an event's state reads as; a suggestion is dashed whatever its owner says of it. */
+export const glyphOfEvent = (event: { readonly state: LineEventState; readonly suggestion?: boolean | undefined }): StateGlyph => event.suggestion ? "sug" : GLYPH_OF[event.state];
+
+/**
+ * One event in a list: its state mark, then two lines — its name, and under it the step it is on (or what its owner says of
+ * it) and what sort of thing it is. Its accessible name is the owner, the kind, the
+ * title, the state and the note, so a reader hears more than a sighted person sees, never less.
+ */
 export function renderLineEvent(event: LineEventView): string {
   const attention = ATTENTION.has(event.state);
-  const tasks = event.tasks && event.tasks.count > 0
-    ? `<span class="work-event-tasks">${ring(event.tasks.lead)}${event.tasks.count > 1 ? event.tasks.count : ""}</span>`
-    : event.state === "done" ? `<span class="work-event-tasks">${ring("done")}</span>` : "";
+  // A state that asks for attention is a word on the row, not only a colour (WLN-17): it leads what the owner says of it.
+  const said = attention && event.note ? `${event.stateLabel} · ${event.note}` : event.note || event.stateLabel;
+  const under = (event.suggestion ? [uiText.text("workbench.work-line.suggestion"), said] : [said, event.kind || event.owner.name]).filter(Boolean).join(" · ");
   const label = [event.owner.name, event.kind, event.title, event.stateLabel, event.note].filter(Boolean).join(" · ");
-  return `<button type="button" class="work-event" data-work-event="${escapeHtml(event.id)}" data-state="${event.state}"${attention ? " data-attn" : ""}${event.fresh ? " data-fresh" : ""}${event.current ? ' aria-current="true"' : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
-    + `${renderOwnerMark(event.owner)}${event.state === "denied" ? icon("lock") : text("work-event-name", event.title)}${attention ? text("work-event-state", event.stateLabel) : ""}${event.note ? text("work-event-note", event.note) : ""}${tasks}</button>`;
+  const mark = event.state === "denied" ? icon("lock") : renderStateGlyph(glyphOfEvent(event));
+  return `<button type="button" class="work-event" data-work-event="${escapeHtml(event.id)}" data-state="${event.state}"${attention ? " data-attn" : ""}${event.suggestion ? " data-suggestion" : ""}${event.fresh ? " data-fresh" : ""}${event.current ? ' aria-current="true"' : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
+    + `${mark}<span class="work-event-n">${text("work-event-name", event.title)}${under ? text("work-event-note", under) : ""}</span></button>`;
 }
 
 /** A source that could not be read stands beside the head as its own dashed item, never scrolled out of sight: the rest of the line is unaffected, and it can be tried again. */
@@ -71,43 +105,66 @@ export function renderLineChecking(since: string): string {
   return `<button type="button" class="work-event" data-work-line-checking data-state="verify" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon("refresh")}${text("work-event-name", label)}</button>`;
 }
 
-/** The line's head (WLN-19): the work item the line belongs to, its state ring when it has one, and how many of its events wait for the person. With a `menu` (the id of the menu it opens, empty while that menu is not mounted) it opens that menu; without one (a project's own line, which has nothing to switch to yet) a press goes to what the line belongs to. */
-export function renderLineHead(head: { readonly name: string; readonly waiting: number; readonly ring?: StateRingState; readonly menu?: string }): string {
-  const waiting = head.waiting > 0 ? `<span class="work-line-count" aria-hidden="true">${head.waiting}</span>` : "";
-  const label = head.waiting > 0 ? uiText.text("workbench.work-line.head-with-waiting", { name: head.name, n: head.waiting }) : head.name;
-  return `<button type="button" class="work-line-head" data-work-line-head data-waiting="${head.waiting}"${head.menu !== undefined ? ` aria-haspopup="menu" aria-expanded="false"${attr("aria-controls", head.menu || undefined)}` : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
-    + `${head.ring ? ring(head.ring) : icon("folder")}${text("work-line-head-name", head.name)}${waiting}${head.menu !== undefined ? icon("chevron-down") : ""}</button>`;
-}
-
-/** The three lists the input carries while the dialog is closed (§4「底栏第十三版」第 4 条): the wing each holds and its glyph. */
+/** The three lists (§4「底栏第十三版」第 4 条): the wing each holds and its glyph. Keys inside the input while the conversation is closed, tabs of the information column while it is open. */
 export const WORK_LISTS = [
-  { id: "done", glyph: "status-done" },
-  { id: "now", glyph: "status-progress" },
-  { id: "next", glyph: "status-todo" },
-] as const satisfies readonly { id: WorkLineWing; glyph: PluginIconName }[];
+  { id: "done", glyph: "done" },
+  { id: "now", glyph: "run" },
+  { id: "next", glyph: "next" },
+] as const satisfies readonly { id: WorkLineWing; glyph: StateGlyph }[];
 export type WorkLineWing = "done" | "now" | "next";
 export type WorkListId = WorkLineWing;
 /** 办完 shows this many events, newest first; 更早 N brings the rest. */
 export const EARLIER_AFTER = 8;
 
 /**
- * The foot of the window (specs/screen-polish §4「底栏第十三版」; specs/work-line §16): the account bar on the left (`account`,
- * drawn by the shell), the one input in the middle (`slot`) with 办完, 在办 and 接下来 and their counts inside its top right, and
- * the card stack of what waits for the person on the right. The lists those three open stand where the info bar will stand,
- * right above the stack. The page draws the counts, the lists and the cards from the line read (browser/work-bar.ts), so it is
- * served with empty ones.
+ * The foot of the window (specs/screen-polish §4「底栏第十三版」; specs/work-line §2): the account bar on the left (`account`,
+ * drawn by the shell), the one input in the middle (`slot`) with 办完, 在办 and 接下来 and their counts inside its top right, then
+ * a hairline and the key that opens the conversation (a dot on it when a reply came while it was closed, amber when the
+ * Assistant waits for the person's confirmation), and the card stack of what waits for the person on the right. The lists those
+ * three open are the information column's (`renderInfoLists`, in the conversation). The page draws the counts and the cards from
+ * the line read (browser/work-bar.ts), so it is served with empty ones.
  */
-export function renderWorkLine(line: { readonly slot: string; readonly account?: string; readonly mini?: string }): string {
+export function renderWorkLine(line: { readonly slot: string; readonly account?: string }): string {
   const keys = WORK_LISTS.map(({ id, glyph }) => {
     const name = uiText.text(`workbench.work-line.list-${id}`);
-    return `<button type="button" class="work-count" data-work-list="${id}" data-zero aria-expanded="false" aria-controls="work-lists" aria-label="${escapeHtml(uiText.text("workbench.work-line.list-count", { name, n: 0 }))}" title="${escapeHtml(name)}">${icon(glyph)}<span data-n>0</span></button>`;
+    return `<button type="button" class="work-count" data-work-list="${id}" data-zero aria-expanded="false" aria-controls="work-lists" aria-label="${escapeHtml(uiText.text("workbench.work-line.list-count", { name, n: 0 }))}" title="${escapeHtml(name)}">${renderStateGlyph(glyph)}<span data-n>0</span></button>`;
   }).join("");
-  return `<div class="work-line" data-work-line${line.mini ? " data-mini" : ""} role="region" aria-label="${uiText("workbench.work-line.foot")}"><div class="work-line-row">${line.account ?? ""}`
-    + `<div class="work-line-slot" data-work-line-slot>${line.slot}<div class="work-counts" data-work-counts role="group" aria-label="${uiText("workbench.work-line.lists")}"><button type="button" class="work-count work-your-turn" data-work-stack-toggle aria-expanded="false" hidden>${icon("status-needs-you")}<span data-n>0</span></button>${keys}${line.mini ?? ""}</div></div>`
-    + `<div class="work-side"><section class="work-lists" id="work-lists" data-work-lists aria-labelledby="work-lists-title" hidden><header class="work-lists-head"><strong id="work-lists-title" data-work-lists-title></strong>`
-    + `${iconButton("x", uiText.text("workbench.work-line.close-list"), { "data-work-lists-close": "" })}</header><div class="work-lists-sources" data-work-lists-sources></div><div class="work-lists-body" data-work-lists-body></div></section>`
-    + `<div class="work-stack" data-work-stack role="region" aria-label="${uiText("workbench.work-line.stack")}" aria-live="polite">${renderStackEmpty()}</div></div></div></div>`;
+  const open = uiText.text("workbench.work-line.open-conversation");
+  return `<div class="work-line" data-work-line role="region" aria-label="${uiText("workbench.work-line.foot")}"><div class="work-line-row">${line.account ?? ""}`
+    + `<div class="work-line-slot" data-work-line-slot>${line.slot}<div class="work-counts" data-work-counts role="group" aria-label="${uiText("workbench.work-line.lists")}"><button type="button" class="work-count work-your-turn" data-work-stack-toggle aria-expanded="false" hidden>${icon("status-needs-you")}<span data-n>0</span></button>${keys}`
+    + `<button type="button" class="work-expand" data-dialog-open aria-expanded="false" aria-controls="assistant-panel" aria-label="${escapeHtml(open)}" title="${escapeHtml(open)}">${icon("chevron-up")}<i class="work-expand-dot" data-work-expand-dot hidden></i></button></div></div>`
+    + `<div class="work-side"><div class="work-stack" data-work-stack role="region" aria-label="${uiText("workbench.work-line.stack")}" aria-live="polite">${renderStackEmpty()}</div></div></div></div>`;
 }
+
+/**
+ * The tabs at the top of the information column (§4「底栏第十三版」第 4 条): 信息, then 办完, 在办 and 接下来 with their counts —
+ * the three the input carries while the conversation is closed. One is selected; ← → move between them.
+ */
+export function renderInfoTabs(): string {
+  const tab = (id: "info" | WorkListId, glyph?: StateGlyph) => `<button type="button" role="tab" class="info-tab" id="info-tab-${id}" data-info-tab="${id}" aria-selected="${id === "info"}" tabindex="${id === "info" ? 0 : -1}" aria-controls="${id === "info" ? "info-pane" : "work-lists"}">`
+    + `${glyph ? renderStateGlyph(glyph) : ""}<span>${uiText(id === "info" ? "workbench.work-line.info" : `workbench.work-line.list-${id}`)}</span>${id === "info" ? "" : "<em data-n>0</em>"}</button>`;
+  return `<div class="info-tabs" data-info-tabs role="tablist" aria-label="${uiText("workbench.work-line.info-column")}">${tab("info")}${WORK_LISTS.map(({ id, glyph }) => tab(id, glyph)).join("")}</div>`;
+}
+
+/**
+ * The list the selected tab shows, in the information column's place: one card — how many it holds with the pin that parks it
+ * in the side panel, the sources that could not be read, the rows, and one quiet line that says what a press does.
+ */
+export function renderInfoLists(): string {
+  return `<section class="work-lists" id="work-lists" data-work-lists role="tabpanel" hidden><header class="work-lists-head"><small id="work-lists-title" data-work-lists-title></small>`
+    + `${iconButton("pin", uiText.text("workbench.work-line.park-list"), { "data-work-lists-pin": "" })}</header><div class="work-lists-sources" data-work-lists-sources></div><div class="work-lists-body" data-work-lists-body></div>`
+    + `<p class="work-lists-foot" data-work-lists-foot></p></section>`;
+}
+
+/** A list parked in the side panel: its name, the way back into the conversation and its close; the page keeps its rows as the list's own. */
+export function renderParkedList(list: { readonly id: WorkListId; readonly rows: string }): string {
+  const name = uiText.text(`workbench.work-line.list-${list.id}`);
+  return `<article class="work-card work-card--list" data-parked-list="${list.id}" aria-label="${escapeHtml(name)}"><div class="work-card-head"><span class="work-card-name"><strong>${escapeHtml(name)}</strong></span>`
+    + `${iconButton("message", uiText.text("workbench.work-line.back-to-dialog"), { "data-list-unpark": list.id })}${iconButton("x", uiText.text("workbench.work-line.close"), { "data-list-close": list.id })}</div><div class="work-list" data-parked-rows>${list.rows}</div></article>`;
+}
+
+/** The head of a group inside a list: 不属于事件 at the end of 在办. */
+export const renderListGroup = (label: string) => `<p class="work-list-group">${escapeHtml(label)}</p>`;
 
 /** The end of 办完 when more than `EARLIER_AFTER` are done: the rest, on a press. */
 export const renderListEarlier = (n: number) => `<button type="button" class="work-lists-earlier" data-work-lists-earlier>${uiText("workbench.work-line.earlier-n", { n })}</button>`;
@@ -135,63 +192,72 @@ export function renderStackCard(card: StackCardView): string {
     ? `<button type="button" class="work-stack-more" data-work-stack-next>${uiText("workbench.work-line.your-turn-more", { n: card.more })}${icon("chevron-right")}</button>`
     : `<span class="work-stack-more">${uiText("workbench.work-line.your-turn")}</span>`;
   const answers = card.decision?.answers.map(role => renderButton({ variant: "secondary", size: "sm", label: uiText.text(`workbench.work-line.decision-${role}`), attrs: { "data-decision-answer": role, ...(card.decision?.busy ? { disabled: "" } : {}) } })).join("") ?? "";
-  const ask = `<p class="work-stack-ask" title="${escapeHtml(card.ask)}">${escapeHtml(card.ask)}</p>`;
+  const said = plainLine(card.ask), ask = `<p class="work-stack-ask" title="${escapeHtml(said)}">${escapeHtml(said)}</p>`;
   return `<article class="work-stack-card" data-work-stack-card="${escapeHtml(card.id)}"${card.more > 0 ? ` data-behind="${Math.min(card.more, 2)}"` : ""} aria-label="${escapeHtml(card.title)}">`
     + `<div class="work-stack-head">${renderOwnerMark(card.owner)}<strong title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</strong>${more}</div>`
     + `<div class="work-stack-body"${card.decision ? ` data-task-decision="${escapeHtml(card.decision.id)}" data-task="${escapeHtml(card.decision.task)}"${card.decision.busy ? ' aria-busy="true"' : ""}` : ""}>${ask}${answers}`
     + `<button type="button" class="work-stack-open" data-work-stack-open="${escapeHtml(card.id)}">${uiText("workbench.work-line.open")}${icon("chevron-right")}</button></div></article>`;
 }
 
-/** Who a reply is from: the Assistant's glyph, or a Character's initial. */
-export function renderReplyWho(who: { readonly name: string; readonly character?: boolean }): string {
-  return who.character ? `<span class="work-reply-who" aria-hidden="true">${escapeHtml(Array.from(who.name)[0] ?? "")}</span>` : `<span class="work-reply-who" data-who="assistant" aria-hidden="true">AI</span>`;
+/**
+ * The stack's card for the Assistant's main conversation while it waits for the person's confirmation (第九节「等你的有哪几种」;
+ * user decision 2026-11-21, scheme A): an amber dot, 助理在等你确认, what it asks in one line, and 打开 ›, which opens that
+ * conversation. The answer is given there, where the confirmation card is: the stack offers none.
+ */
+export function renderStackMain(card: { readonly ask: string; readonly more: number }): string {
+  return stackNote({ id: "main", title: uiText.text("workbench.work-line.assistant-waits-confirm"), ask: card.ask, more: card.more, open: "data-work-stack-main" });
 }
 
-export interface TaskMarkView {
-  /** Tasks that have not ended. */
-  readonly count: number;
-  /** The ring of the task that matters most; absent when there is none. */
-  readonly lead?: StateRingState;
-  readonly needsYou?: boolean;
-  readonly failed?: boolean;
-  /** The connection to the local service is lost: states are as of the last update. */
-  readonly offline?: boolean;
-  readonly expanded?: boolean;
-  readonly panel?: string;
+/**
+ * The stack's last card of this place: the objects that want a look and are not already a card of the stack (第九节「等你的有哪几种」,
+ * the bell's objects; user 2026-11-17 第 19 条). One card for all of them, with how many, and 打开 ›, which opens their list —
+ * each object's own short form on a card comes with the owners' declarations (53-2).
+ */
+export function renderStackLook(card: { readonly n: number; readonly more: number }): string {
+  return stackNote({ id: "look", title: uiText.text("workbench.work-line.to-look-at", { n: card.n }), ask: uiText.text("workbench.work-line.to-look-at-note"), more: card.more, open: "data-work-stack-look" });
 }
 
-/** The background-task mark: at the dialog's top right, and beside the one reply left when the dialog is closed. */
-export function renderTaskMark(view: TaskMarkView): string {
-  const title = uiText.text("workbench.work-line.background-tasks");
-  const label = view.offline ? uiText.text("workbench.work-line.background-tasks-offline")
-    : view.count > 0 ? uiText.text("workbench.work-line.background-tasks-n", { n: view.count }) : title;
-  return `<button type="button" class="work-task-mark" data-task-mark aria-expanded="${Boolean(view.expanded)}"${attr("aria-controls", view.panel)}${view.needsYou ? " data-needs-you" : ""}${view.failed ? " data-failed" : ""}${view.offline ? " data-offline" : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
-    + `${view.offline ? icon("circle-alert") : view.lead ? ring(view.lead) : icon("activity")}${view.count > 0 ? `<span class="work-task-mark-count" data-background-tasks-count>${view.count}</span>` : ""}</button>`;
+function stackNote(card: { readonly id: "main" | "look"; readonly title: string; readonly ask: string; readonly more: number; readonly open: string }): string {
+  const said = plainLine(card.ask);
+  const more = card.more > 0
+    ? `<button type="button" class="work-stack-more" data-work-stack-next>${uiText("workbench.work-line.your-turn-more", { n: card.more })}${icon("chevron-right")}</button>`
+    : `<span class="work-stack-more">${uiText("workbench.work-line.your-turn")}</span>`;
+  return `<article class="work-stack-card" data-work-stack-card="${card.id}" data-${card.id}${card.more > 0 ? ` data-behind="${Math.min(card.more, 2)}"` : ""} aria-label="${escapeHtml(card.title)}">`
+    + `<div class="work-stack-head"><span class="work-stack-dot" aria-hidden="true"></span><strong title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</strong>${more}</div>`
+    + `<div class="work-stack-body"><p class="work-stack-ask" title="${escapeHtml(said)}">${escapeHtml(said)}</p>`
+    + `<button type="button" class="work-stack-open" ${card.open}${card.id === "look" ? ' aria-haspopup="true"' : ""}>${uiText("workbench.work-line.open")}${icon("chevron-right")}</button></div></article>`;
 }
 
 export interface TaskRowView {
   readonly id: string;
   readonly title: string;
   readonly ring: StateRingState;
-  /** The step it is on first, then who is doing it; or why it waits. */
+  /** The step it is on or why it waits, then who is doing it. */
   readonly step: string;
-  /** The event it is done for; null when it belongs to none. Left out inside an event's own card. */
-  readonly serves?: string | null;
+  /** 1: a task under its event; 2: a step a task gave a sub-agent, under its task. */
+  readonly level?: 1 | 2;
+  /** A sub-agent's step: what opens its own conversation (the page's key for it); the row then opens that, not a task's card. */
+  readonly sub?: string;
   readonly done?: boolean;
   /** The one control the row offers in place: stop while it runs, retry once it failed, "decide" where it waits on the person. */
   readonly control?: "stop" | "retry" | "decide";
   /** This page is waiting for the offered control's response or its subsequent owner read. */
   readonly busy?: boolean;
+  /** The connection is lost: the row says it is being checked and offers nothing to press. */
+  readonly checking?: boolean;
 }
 
-/** One task: its ring, its name, the step it is on, which event it is done for (each on its own line, so none squeezes another), and the control it offers in place. */
+/**
+ * One task, wherever it is listed (a list of the information column, 在办 of an event's information): its ring, its name, then the
+ * step it is on and who does it, on one row that never wraps, and the control it offers in place. A press opens the task's card
+ * (a sub-agent's step: its own conversation) in the float that takes the information column's place.
+ */
 export function renderTaskRow(row: TaskRowView): string {
-  const none = row.serves === null ? uiText.text("workbench.work-line.no-event") : "";
-  const serves = row.serves === undefined ? ""
-    : `<span class="work-task-serves"${row.serves === null ? ' data-serves="none"' : ""} title="${escapeHtml(row.serves ?? none)}">${row.serves === null ? "" : icon("link")}${text("work-task-serves-name", row.serves ?? none)}</span>`;
-  const control = row.control ? renderButton({ variant: row.control === "decide" ? "primary" : "secondary", size: "sm", label: uiText.text(`workbench.work-line.${row.control === "decide" ? "go-handle" : row.control}`), attrs: { "data-task-control": row.control, "data-task": row.id, ...(row.busy ? { disabled: "" } : {}) } }) : "";
-  return `<div class="work-task-row" data-state="${row.done ? "done" : "live"}"><button type="button" class="work-task-row-main" data-task-open="${escapeHtml(row.id)}">${ring(row.ring)}`
-    + `<span class="work-task-row-text"><span class="work-task-row-title" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</span><span class="work-task-row-step" title="${escapeHtml(row.step)}">${escapeHtml(row.step)}</span>${serves}</span></button>${control}</div>`;
+  const step = row.checking ? uiText.text("workbench.work-line.checking") : row.step && plainLine(row.step);
+  const control = row.control && !row.checking ? `<button type="button" class="work-task-row-key"${row.control === "decide" ? " data-lead" : ""} data-task-control="${row.control}" data-task="${escapeHtml(row.id)}"${row.busy ? " disabled" : ""}>${uiText(`workbench.work-line.${row.control === "decide" ? "go-handle" : row.control}`)}</button>` : "";
+  const label = [row.title, step].filter(Boolean).join(" · ");
+  return `<div class="work-task-row" data-level="${row.level ?? 1}" data-state="${row.done ? "done" : "live"}"><button type="button" class="work-task-row-main" ${row.sub ? `data-subtask-open="${escapeHtml(row.sub)}"` : `data-task-open="${escapeHtml(row.id)}"`}${row.checking ? " disabled" : ""} title="${escapeHtml(label)}">${renderStateGlyph(row.checking ? "wait" : row.done ? "done" : glyphOfRing(row.ring))}`
+    + `<b class="work-task-row-title">${escapeHtml(row.title)}</b>${step ? `<small class="work-task-row-step">${escapeHtml(step)}</small>` : ""}</button>${control}</div>`;
 }
 
 export interface TaskDecisionView {
@@ -218,8 +284,11 @@ export interface TaskDecisionView {
 export function renderTaskDecision(view: TaskDecisionView): string {
   const say = (key: string, values?: Record<string, string | number>) => uiText.text(`workbench.work-line.${key}`, values);
   const button = (role: string, variant: "primary" | "secondary", attrs: Record<string, string>) => renderButton({ variant, size: "sm", label: say(`decision-${role}`), attrs: { ...attrs, ...(view.busy ? { disabled: "" } : {}) } });
-  const why = [view.from ? say("decision-from", { task: view.from }) : "", view.why ?? ""].filter(Boolean).join(" · ");
-  const changes = view.changes.map(line => `<div><dt title="${escapeHtml(line.label)}">${escapeHtml(line.label)}</dt><dd title="${escapeHtml(line.value)}">${escapeHtml(line.value)}</dd></div>`).join("");
+  const why = [view.from ? say("decision-from", { task: view.from }) : "", view.why ? say("decision-why", { why: view.why }) : ""].filter(Boolean).join(" · ");
+  const changes = view.changes.map(line => {
+    const words = [line.label, line.value].filter(Boolean).join(" ");
+    return `<li title="${escapeHtml(words)}">${icon("edit")}<span><b>${escapeHtml(line.label)}</b> ${escapeHtml(line.value)}</span></li>`;
+  }).join("");
   const answers = view.revising
     ? `<textarea class="work-decision-note" data-decision-note rows="2" maxlength="2000" aria-label="${escapeHtml(say("decision-how"))}" placeholder="${escapeHtml(say("decision-how"))}"${view.busy ? " disabled" : ""}></textarea>`
       + `<div class="work-card-actions">${button("send", "primary", { "data-decision-send": "" })}${button("cancel", "secondary", { "data-decision-cancel": "" })}</div>`
@@ -227,59 +296,23 @@ export function renderTaskDecision(view: TaskDecisionView): string {
       ? view.answers.map(role => button(role, role === "approve" && view.lead ? "primary" : "secondary", { "data-decision-answer": role })).join("")
       : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-handle"), attrs: { "data-decision-go": "" } })}</div>`;
   return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}"${view.reference ? ` data-review-reference="${escapeHtml(view.reference.id)}" data-review-version="${escapeHtml(view.reference.version)}"` : ""} aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
-    + `<div class="work-decision-ask">${ring("approval")}<strong title="${escapeHtml(view.ask)}">${escapeHtml(view.ask)}</strong></div>`
-    + (why ? `<p class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</p>` : "")
-    + (changes ? `<dl class="work-decision-changes" aria-label="${escapeHtml(say("decision-changes"))}">${changes}</dl>` : "") + answers + `</section>`;
+    + `<p class="work-decision-ask" title="${escapeHtml(plainLine(view.ask))}">${escapeHtml(plainLine(view.ask))}</p>`
+    + (changes ? `<ul class="work-decision-changes" aria-label="${escapeHtml(say("decision-changes"))}">${changes}</ul>` : "")
+    + (why ? `<small class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</small>` : "") + answers + `</section>`;
 }
 
 const iconButton = (glyph: PluginIconName, label: string, attrs: Record<string, string>) => renderButton({ variant: "ghost", size: "sm", icon: glyph, iconOnly: true, label, attrs });
-
-export interface TaskCountsView { readonly working: number; readonly needsYou: number; readonly failed: number }
-
-/** How many wait for the person, failed, or are being worked on (in the list's order); "all done" when none is left. */
-export function renderTaskCounts(counts: TaskCountsView): string {
-  // A ring and a number each, so the head holds them in any language; the words are the title and what a reader hears.
-  const one = (kind: string, state: StateRingState, n: number) => {
-    const words = escapeHtml(uiText.text(`workbench.work-line.n-${kind}`, { n }));
-    return n ? `<span data-count="${kind}" role="img" aria-label="${words}" title="${words}">${ring(state)}<span aria-hidden="true">${n}</span></span>` : "";
-  };
-  const parts = one("need-you", "answer", counts.needsYou) + one("failed", "failed", counts.failed) + one("working", "running", counts.working);
-  return `<span class="work-task-counts">${parts || uiText("workbench.work-line.all-done")}</span>`;
-}
-
-/**
- * The task panel as a list: the tasks that have not ended (those waiting for the person first, then the failed ones — the
- * caller orders them), then the ones just handed back. With nothing at all it says so. When the connection is lost every
- * state is only what was last heard: each row says so and offers no control, and a banner at the foot has the way to reconnect.
- */
-export function renderTaskPanel(panel: {
-  readonly id?: string; readonly live: readonly TaskRowView[]; readonly returned: readonly TaskRowView[];
-  readonly counts?: TaskCountsView; readonly offlineSince?: string;
-}): string {
-  const any = panel.live.length + panel.returned.length > 0, offline = panel.offlineSince !== undefined;
-  const row = (view: TaskRowView) => renderTaskRow(offline && !view.done
-    ? { id: view.id, title: view.title, ring: "verify", step: uiText.text("workbench.work-line.state-unverified-was", { step: view.step }), ...(view.serves === undefined ? {} : { serves: view.serves }) } : view);
-  const rows = any
-    ? panel.live.map(row).join("") + (panel.returned.length ? `<div class="work-task-group">${uiText("workbench.work-line.just-handed-back")}</div>${panel.returned.map(row).join("")}` : "")
-    : `<div class="work-task-empty">${uiText("workbench.work-line.nothing-running-background-tasks-show-here")}</div>`;
-  const banner = offline ? `<div class="work-task-banner" role="status">${icon("circle-alert")}${text("work-task-banner-text", uiText.text("workbench.work-line.disconnected-states-as-of", { time: panel.offlineSince ?? "" }))}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.reconnect"), attrs: { "data-task-reconnect": "" } })}</div>` : "";
-  return `<section class="work-task-panel"${attr("id", panel.id)} data-task-panel role="dialog" aria-label="${uiText("workbench.work-line.background-tasks")}">`
-    + `<header class="work-task-panel-head">${icon("activity")}<span class="work-task-panel-title">${uiText("workbench.work-line.background-tasks")}</span>${any && panel.counts && !offline ? renderTaskCounts(panel.counts) : ""}${iconButton("x", uiText.text("workbench.work-line.close"), { "data-task-panel-close": "" })}</header>`
-    + `<div class="work-task-panel-body">${rows}</div>${banner}</section>`;
-}
 
 /** One step of a task's breakdown: done, the one being worked on (with its ring), or still to do; `who` says who does it where a card lists several doers. */
 export interface TaskStepView { readonly name: string; readonly at: "done" | "current" | "todo"; readonly ring?: StateRingState; readonly who?: string }
 
 /** A task's breakdown, one step a row. */
 export function renderTaskSteps(steps: readonly TaskStepView[]): string {
-  return steps.map(step => `<div class="work-task-step" data-step="${step.at}">${ring(step.at === "done" ? "done" : step.at === "current" ? step.ring ?? "running" : "idle")}${text("work-task-step-name", step.name)}${step.who ? text("work-task-step-who", step.who) : ""}</div>`).join("");
+  return steps.map(step => `<div class="work-task-step" data-step="${step.at}">${ring(step.at === "done" ? "done" : step.at === "current" ? step.ring ?? "running" : "idle")}${text("work-task-step-name", plainLine(step.name))}${step.who ? text("work-task-step-who", step.who) : ""}</div>`).join("");
 }
 
 export interface TaskCardView {
   readonly id: string;
-  /** The panel's element id, when the task mark names what it controls. */
-  readonly panel?: string;
   readonly title: string;
   readonly owner: LineOwnerView;
   readonly ring: StateRingState;
@@ -295,16 +328,16 @@ export interface TaskCardView {
   readonly decisions?: string;
 }
 
-/** One task's card, in the panel's place, with the way back to the list. The head holds only its name; its state stands with the other facts. */
+/** One task's card, in the float that takes the information column's place, with the way back to what the column showed. The head holds only its name; its state stands with the other facts. */
 export function renderTaskCard(card: TaskCardView): string {
-  const steps = renderTaskSteps(card.steps);
+  const steps = renderTaskSteps(card.steps), under = [plainLine(card.state), card.serves].filter(Boolean).join(" · ");
   const fact = (key: string, value: string, more = "") => `<dt>${uiText(`workbench.work-line.${key}`)}</dt><dd>${more}<span title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;
-  return `<section class="work-task-panel"${attr("id", card.panel)} data-task-panel data-task-card="${escapeHtml(card.id)}" role="dialog" aria-label="${escapeHtml(card.title)}">`
-    + `<header class="work-task-panel-head">${renderOwnerMark(card.owner)}<span class="work-task-panel-title" title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</span>${iconButton("back", uiText.text("workbench.work-line.back-to-list"), { "data-task-panel-list": "" })}${iconButton("x", uiText.text("workbench.work-line.close"), { "data-task-panel-close": "" })}</header>`
-    + `<div class="work-task-panel-body" data-card>${card.decisions ?? ""}<dl class="work-task-facts">${fact("state", card.state, ring(card.ring))}</dd>${fact("who", card.who)}</dd>`
+  return `<section class="work-task-panel" id="work-task-panel" data-task-panel data-task-card="${escapeHtml(card.id)}" role="dialog" aria-label="${escapeHtml(card.title)}">`
+    + `<header class="work-task-panel-head">${iconButton("back", uiText.text("workbench.work-line.back"), { "data-task-panel-close": "" })}${renderStateGlyph(glyphOfRing(card.ring))}<span class="work-task-panel-n"><b class="work-task-panel-title" title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</b>${under ? `<small title="${escapeHtml(under)}">${escapeHtml(under)}</small>` : ""}</span></header>`
+    + `<div class="work-task-panel-body" data-card>${card.decisions ?? ""}<dl class="work-task-facts">${fact("state", plainLine(card.state), ring(card.ring))}</dd>${fact("who", card.who)}</dd>`
     + `${fact("for-event", card.serves)}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.change"), attrs: { "data-place-change": card.id, "aria-haspopup": "menu" } })}</dd>`
     + `${fact("returns-to", card.returnsTo)}</dd></dl><div data-task-acceptance hidden></div>`
-    + `<div class="work-card-section"><h4>${uiText("workbench.work-line.steps")}</h4>${steps}</div>${card.actions ? `<div class="work-card-actions">${card.actions}</div>` : ""}</div></section>`;
+    + `${steps ? `<div class="work-card-section"><h4>${uiText("workbench.work-line.steps")}</h4>${steps}</div>` : ""}${card.actions ? `<div class="work-card-actions">${card.actions}</div>` : ""}</div></section>`;
 }
 
 /** Where a task can go from its card (specs/work-line §4.5): an event of the line, an event of its own, or none. The one it is on now is ticked. */
@@ -315,7 +348,7 @@ export function renderPlaceMenu(menu: { readonly task: string; readonly events: 
       + to("new_event", uiText.text("workbench.work-line.register-as-event"), menu.own) + to("none", uiText.text("workbench.work-line.no-event"), menu.none) });
 }
 
-/** The task panel in its place by a dialog: beside it, or over its right side where there is no room (the layout script decides). `dialog` is the dialog's element id. */
+/** The float that takes the information column's place (a task's card, a sub-agent's conversation); the layout script lays it over the column. `dialog` is the dialog's element id. */
 export const renderTaskFloat = (dialog: string, panel: string) => `<div class="work-task-float" data-work-task-float="${escapeHtml(dialog)}">${panel}</div>`;
 
 /**
@@ -355,21 +388,73 @@ export function renderReplyCarried(round: number, most: number): string {
   return `<div class="work-reply-carried">${icon("zap")}<span>${escapeHtml(uiText.text("workbench.work-line.carried-within-request-n-of-most", { n: round, most }))}</span></div>`;
 }
 
-/** The dot on a main conversation's tab that is not the current one, when a task handed back there. */
-export function renderTabUnread(): string {
-  return `<i class="work-tab-unread" role="img" aria-label="${uiText("workbench.work-line.result-came-back")}"></i>`;
+/**
+ * What is known about an event, as the information column shows it under 信息 and as it stays in the side panel once parked
+ * (specs/work-line §2「这件事的信息」): 该你做的 — what the tasks behind it ask, or its owner's display when the owner says it
+ * waits — shown only when something is asked; then 这件事现在怎样 — who registered it and how it stands, the pin that parks it,
+ * and the body the caller draws. Parked (`parked`) it names the event and carries the way back to the conversation and its close.
+ */
+export function renderEventCard(card: { readonly id: string; readonly facts: string; readonly body: string; readonly parked?: boolean; readonly title?: string; readonly mark?: string }): string {
+  const id = escapeHtml(card.id);
+  const buttons = card.parked
+    ? iconButton("message", uiText.text("workbench.work-line.back-to-dialog"), { "data-event-unpark": card.id }) + iconButton("x", uiText.text("workbench.work-line.close"), { "data-event-close": card.id })
+    : iconButton("pin", uiText.text("workbench.work-line.park-side-panel"), { "data-event-park": card.id });
+  return `<article class="work-card" data-event-card="${id}"${card.parked ? " data-parked" : ""}>`
+    + `<section class="work-card-part work-card-ask" data-card-ask hidden><h4 data-card-ask-title>${uiText("workbench.work-line.asked-of-you")}</h4><div class="work-card-decisions" data-card-decisions hidden></div><div data-card-ask-body></div></section>`
+    + `<section class="work-card-part work-card-now"><div class="work-card-part-head"><h4>${uiText("workbench.work-line.how-it-stands")}</h4>${buttons}</div>`
+    + `<div class="work-card-name" data-card-name>${card.parked ? `${card.mark ?? ""}<strong title="${escapeHtml(card.title ?? "")}">${escapeHtml(card.title ?? "")}</strong>` : ""}</div>`
+    + `<p class="work-card-facts" title="${escapeHtml(card.facts)}">${escapeHtml(card.facts)}</p>${card.body}</section></article>`;
 }
 
 /**
- * The event card: who registered the event and its state, then the body the caller draws. In an event's tab it carries "park in
- * the side panel"; parked there (`parked`) it names the event, since no tab does, and carries the way back to the dialog and its close.
+ * 信息 with no event in front (specs/work-line §2「这件事的信息」, last sentence): how the place stands — how many wait for the
+ * person, are under way, come next and are done — and the tasks handed out from the main conversation, which belong to no event.
+ * A count that names a list opens that list; 该你 is the card stack beside it and is not a key.
  */
-export function renderEventCard(card: { readonly id: string; readonly facts: string; readonly body: string; readonly parked?: boolean; readonly title?: string; readonly mark?: string }): string {
-  const id = escapeHtml(card.id), name = card.parked ? `<span class="work-card-name" data-card-name>${card.mark ?? ""}<strong title="${escapeHtml(card.title ?? "")}">${escapeHtml(card.title ?? "")}</strong></span>` : "";
-  const buttons = card.parked
-    ? iconButton("message", uiText.text("workbench.work-line.back-to-dialog"), { "data-event-unpark": card.id }) + iconButton("x", uiText.text("workbench.work-line.close"), { "data-event-close": card.id })
-    : iconButton("sidebar", uiText.text("workbench.work-line.park-side-panel"), { "data-event-park": card.id });
-  return `<article class="work-card" data-event-card="${id}"${card.parked ? " data-parked" : ""}><div class="work-card-head">${name}<span class="work-card-facts" title="${escapeHtml(card.facts)}">${escapeHtml(card.facts)}</span>${buttons}</div>${card.body}</article>`;
+export function renderPlaceCard(card: { readonly waiting: number; readonly counts: Readonly<Record<WorkListId, number>>; readonly tasks: string }): string {
+  const lists = { now: WORK_LISTS[1], next: WORK_LISTS[2], done: WORK_LISTS[0] } as const;
+  const key = (id: WorkListId) => `<button type="button" class="work-place-n" data-place-list="${id}"${card.counts[id] ? "" : " data-zero"}>${renderStateGlyph(lists[id].glyph)}<span>${uiText(`workbench.work-line.list-${id}`)}</span><em>${card.counts[id]}</em></button>`;
+  return `<section class="work-card-part work-card-now work-place"><div class="work-card-part-head"><h4>${uiText("workbench.work-line.place-stands")}</h4></div>`
+    + `<div class="work-place-counts"><span class="work-place-n"${card.waiting ? " data-waits" : " data-zero"}>${renderStateGlyph("you")}<span>${uiText("workbench.work-line.your-turn")}</span><em>${card.waiting}</em></span>${key("now")}${key("next")}${key("done")}</div>`
+    + `${card.tasks ? `<div class="work-card-tasks"><small>${uiText("workbench.work-line.handed-from-here")}</small>${card.tasks}</div>` : ""}</section>`;
+}
+
+/**
+ * 上下文, the last card of 信息 (§4「底栏第十三版」第 5 条): who the words go to, how it works, what the next words carry and
+ * where the work is kept — four quiet rows the page fills from what the input is set to. They are read here and chosen at the
+ * input (给谁, ＋); a row with nothing to say is left out.
+ */
+export function renderContextCard(): string {
+  const row = (id: string) => `<div class="info-context-row" data-context-row="${id}" hidden><dt>${uiText(`workbench.work-line.context-${id}`)}</dt><dd data-context-value></dd></div>`;
+  return `<section class="info-context" data-info-context aria-labelledby="info-context-title"><h4 id="info-context-title">${uiText("workbench.assistant-dock.context-title")}</h4><dl>${row("who")}${row("way")}${row("carry")}${row("place")}</dl></section>`;
+}
+
+/**
+ * The page the platform draws for an event whose owner has no page of its own (specs/work-line §2「焦点」; POLISH-68): two
+ * columns — what the owner gave (its composed display with the actions it declared, or its own words, and what is asked of the
+ * person first), then who registered it, how it stands, where it is kept and the tasks done for it. One column when narrow, the
+ * owner's part first. The hooks are the event card's own, so one reader paints the column, a parked card and this page.
+ */
+export function renderEventPage(page: { readonly id: string; readonly place: string }): string {
+  const id = escapeHtml(page.id), say = (key: string) => uiText(`workbench.work-line.${key}`);
+  return `<article class="work-event-page" data-event-card="${id}" data-event-page><div class="work-event-page-sheet">`
+    + `<header class="work-event-page-head"><h2 data-card-name></h2></header>`
+    + `<div class="work-event-page-cols"><div class="work-event-page-main">`
+    + `<section class="work-card-part work-card-ask" data-card-ask hidden><h4 data-card-ask-title>${say("asked-of-you")}</h4><div class="work-card-decisions" data-card-decisions hidden></div><div data-card-ask-body></div></section>`
+    + `<section class="work-event-page-owner" data-card-body-home><div class="work-card-body" data-card-body></div><div class="work-card-own" data-card-own hidden></div><div class="work-card-result" data-card-result hidden></div>`
+    + `<p class="work-event-page-none" data-card-nothing hidden>${say("event-page-nothing-more")}</p></section></div>`
+    + `<aside class="work-event-page-side"><p class="work-card-facts" hidden></p><dl class="work-event-page-facts"><dt>${say("fact-registered")}</dt><dd data-fact-owner></dd><dt>${say("fact-now")}</dt><dd data-fact-state></dd>`
+    + (page.place ? `<dt>${say("kept-in")}</dt><dd title="${escapeHtml(page.place)}">${escapeHtml(page.place)}</dd>` : "")
+    + `</dl><div data-card-tasks hidden></div><div data-card-acceptance hidden></div></aside></div></div></article>`;
+}
+
+/**
+ * What the event's owner registered about it — its words and its facts (a todo's notes, the day it is planned for) — where the
+ * owner declared no fuller display for a conversation (POLISH-22): the card and the page say it in the owner's own words.
+ */
+export function renderCardOwn(own: { readonly words: string; readonly facts: readonly (readonly [string, string])[] }): string {
+  return (own.words ? `<p class="work-card-own-words">${escapeHtml(own.words)}</p>` : "")
+    + (own.facts.length ? `<dl class="work-card-own-facts">${own.facts.map(([name, value]) => `<dt>${escapeHtml(name)}</dt><dd title="${escapeHtml(value)}">${escapeHtml(value)}</dd>`).join("")}</dl>` : "");
 }
 
 /**
@@ -386,18 +471,4 @@ export function renderCardResult(result: { readonly id: string; readonly preview
 /** How it was done, under what was done: the rows of the tasks behind a finished event, folded until asked for (WLN-11). */
 export function renderCardProcess(rows: string): string {
   return `<details class="work-card-section work-card-process"><summary>${uiText("workbench.work-line.process")}</summary>${rows}</details>`;
-}
-
-/**
- * With the dialog closed: the latest reply above the composer, with the task mark and the way to open the dialog. Only the reply
- * itself is announced. `body` is rendered reply HTML; the page leaves it out and puts the reply's own blocks in (work-task-panel.ts).
- */
-export function renderReplyPeek(peek: { readonly who: { readonly name: string; readonly character?: boolean }; readonly returned?: string; readonly body?: string; readonly mark: string }): string {
-  return `<div class="work-reply-peek" data-reply-peek><div class="work-reply-peek-head">${renderReplyWho(peek.who)}<span>${escapeHtml(peek.who.name)}</span>${peek.returned ? renderReplyReturned(peek.returned) : ""}<span class="work-reply-peek-fill"></span>${peek.mark}`
-    + `${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div><div class="work-reply-peek-body" role="status">${peek.body ?? ""}</div></div>`;
-}
-
-/** Once the person has clicked the work surface the reply folds away: only the task mark and the way to open the dialog stay, at the line's own right end (user decision 2026-11-15: on the line, never over the work). */
-export function renderReplyMini(taskMark: string): string {
-  return `<div class="work-reply-mini" data-reply-mini>${taskMark}${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div>`;
 }

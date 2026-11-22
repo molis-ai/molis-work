@@ -84,7 +84,7 @@ export const PAGE_STATE_OWNERS = {
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "task-float": {
-    files: ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"],
+    files: ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-tasks.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"],
     state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.",
   },
   "context-toolbar": {

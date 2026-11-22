@@ -9,8 +9,14 @@ import { WEB_CONTROL_TOKEN_RELATIVE_PATH, webHealthProof } from "./web-control-t
 
 export type McpResidentHealth = "absent" | "starting" | "upgrading" | "ready" | "pending";
 
-/** Read-only challenge probe. A listener that cannot prove this Home is never a reason to spawn or send credentials. */
-export async function probeMcpResident(home: string, address: string, signal: AbortSignal): Promise<McpResidentHealth> {
+export interface McpResidentHealthReport {
+  readonly status: McpResidentHealth;
+  /** Signed by the verified installation Host when a personal space transition/retirement is in flight. */
+  readonly spaceTransitioning: boolean;
+}
+
+/** Read-only challenge probe returning the verified status plus signed space-transition metadata. */
+export async function probeMcpResidentReport(home: string, address: string, signal: AbortSignal): Promise<McpResidentHealthReport> {
   const origin = residentHostOrigin(address);
   signal.throwIfAborted();
   const challenge = randomBytes(32).toString("base64url");
@@ -43,8 +49,8 @@ export async function probeMcpResident(home: string, address: string, signal: Ab
     req.end();
   });
   signal.throwIfAborted();
-  if (!result) return "absent";
-  if (result === "pending") return result;
+  if (!result) return { status: "absent", spaceTransitioning: false };
+  if (result === "pending") return { status: "pending", spaceTransitioning: false };
   let token: string | undefined;
   try { token = (await readFile(path.join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH), { encoding: "utf8", signal })).trim(); }
   catch { signal.throwIfAborted(); /* Missing Home key means this listener cannot be authenticated. */ }
@@ -61,10 +67,18 @@ export async function probeMcpResident(home: string, address: string, signal: Ab
   try { body = JSON.parse(result.body.toString("utf8")); }
   catch { throw new ActionError("actions.transport_invalid", "常驻服务健康内容无效"); }
   if (body && typeof body === "object" && "status" in body) {
-    if (result.status === 200 && body.status === "ok" && "desktop_tui" in body && body.desktop_tui === true) return "ready";
-    if (result.status === 503 && body.status === "starting") return "starting";
+    const spaceTransitioning = "space_transitioning" in body && body.space_transitioning === true;
+    if (result.status === 200 && body.status === "ok" && "desktop_tui" in body && body.desktop_tui === true) {
+      return { status: "ready", spaceTransitioning };
+    }
+    if (result.status === 503 && body.status === "starting") return { status: "starting", spaceTransitioning };
     // A kind of starting (upgrade-chain-design §4.3): this Home's Host is there and busy with its data. No one should start another.
-    if (result.status === 503 && body.status === "upgrading") return "upgrading";
+    if (result.status === 503 && body.status === "upgrading") return { status: "upgrading", spaceTransitioning };
   }
   throw new ActionError("actions.transport_invalid", "常驻服务健康状态无效");
+}
+
+/** Read-only challenge probe. A listener that cannot prove this Home is never a reason to spawn or send credentials. */
+export async function probeMcpResident(home: string, address: string, signal: AbortSignal): Promise<McpResidentHealth> {
+  return (await probeMcpResidentReport(home, address, signal)).status;
 }

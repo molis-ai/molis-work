@@ -63,7 +63,9 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     close.title = closeWords + "·" + label;
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
-    trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
+    // A system view's owner says its glyph where it registers (\`data-system-view-icon\`); without one it is the platform's own.
+    const systemIcon = tab.kind === "system" ? document.querySelector('[data-system-view-owner="' + CSS.escape(tab.owner) + '"]')?.dataset.systemViewIcon || "sparkles" : "";
+    trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + systemIcon.replace(/[^a-z-]/g, "") + '"></use></svg>' : iconMarkup(tab.plugin);
     name.className = "tab-item-name";
     trigger.append(name);
     if (mark === "failed") trigger.insertAdjacentHTML("beforeend", '<span class="nav-warn-dot" aria-hidden="true"></span>');

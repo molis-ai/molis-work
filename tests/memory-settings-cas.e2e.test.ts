@@ -43,14 +43,17 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   };
   const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
-  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, "", false, section));
-  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance)) : html;
+  let pageLocale: "zh" | "en" = "zh";
+  const htmlFor = (locale: "zh" | "en") => runWithLocale(locale, () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, "", false, section));
+  const guidanceHtmlFor = (locale: "zh" | "en") => guidanceFlow ? runWithLocale(locale, () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance)) : htmlFor(locale);
   const server = createServer(async (request, response) => {
     requests.push({ method: request.method ?? "GET", url: request.url ?? "/" }); visits.push(request.url ?? "/");
-    const path = new URL(request.url!, "http://local").pathname;
-    if (runWithLocale("zh", () => assets.serveWorkbenchAsset(request, response, path))) return;
+    const parsed = new URL(request.url!, "http://local"), path = parsed.pathname;
+    if (parsed.searchParams.get("lang") === "en") pageLocale = "en";
+    else if (parsed.searchParams.get("lang") === "zh") pageLocale = "zh";
+    if (runWithLocale(pageLocale, () => assets.serveWorkbenchAsset(request, response, path))) return;
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
-    if (!path.includes("/api/memory/") && !path.includes("/api/contextual/") && !(section === "plugins" && ["/api/plugin-trust/", "/api/settings/plugin-permissions/", "/api/settings/plugin-project-reach/"].some(prefix => path.includes(prefix)))) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(guidanceFlow && path.endsWith("/settings/guidance") ? guidanceHtml : html); return; }
+    if (!path.includes("/api/memory/") && !path.includes("/api/contextual/") && !(section === "plugins" && ["/api/plugin-trust/", "/api/settings/plugin-permissions/", "/api/settings/plugin-project-reach/"].some(prefix => path.includes(prefix)))) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(guidanceFlow && path.endsWith("/settings/guidance") ? guidanceHtmlFor(pageLocale) : htmlFor(pageLocale)); return; }
     response.setHeader("content-type", "application/json");
     if (path.endsWith("/operations")) { response.end(JSON.stringify({ items: [], exhausted: true })); return; }
     if (path.endsWith("/overview")) { response.end(JSON.stringify(section === "plugins" ? {plugins:[],publishers:[]} : overview)); return; }
@@ -140,6 +143,11 @@ test("Partial clear and unknown retry retain the original confirmation; only com
           { memory_id: "c", outcome: "unknown" }, { memory_id: "d", outcome: "not-executed" }] } };
       }
       if (clears === 2 || clears === 4) return { status: 503, body: { error: "结果待核对", code: "memory.conflict" } };
+      if (clears === 5) {
+        return { body: { removed: 1, complete: false, items: [
+          { memory_id: "a", outcome: "completed" }, { memory_id: "b", outcome: "conflict" },
+          { memory_id: "c", outcome: "unknown" }, { memory_id: "d", outcome: "not-executed" }] } };
+      }
       return { body: { removed: 4, complete: true, items: ["a", "b", "c", "d"].map(memory_id => ({ memory_id, outcome: "completed" })) } };
     }
     return { body: {} };
@@ -170,6 +178,13 @@ test("Partial clear and unknown retry retain the original confirmation; only com
   assert.equal(previews, 2); assert.equal(clears, 4, "resetting does not perform any new deletion");
   await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')");
   assert.equal(previews, 3); assert.equal(clears, 4, "the new scope still waits for confirmation");
+  // English incomplete clear uses parameterized locale keys (Deleted: 1 · Version conflicts: 1 · Outcome unknown: 1 · Not run yet: 1).
+  await page.command("Page.navigate", { url: `${f.origin}/?lang=en` });
+  await page.wait("document.querySelector('[data-memory-id=active]')");
+  await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')"); await page.click("[data-memory-confirm-yes]");
+  await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('Version conflicts:')");
+  const enStatus = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
+  assert.match(enStatus, /Deleted: 1/); assert.match(enStatus, /Version conflicts: 1/); assert.match(enStatus, /Outcome unknown: 1/); assert.match(enStatus, /Not run yet: 1/);
 });
 
 

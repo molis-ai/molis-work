@@ -16,7 +16,8 @@ export interface ActionNamedSkills {
 
 /** Who a round's Skill reads are for (`ActionCallContext.skill_round`). */
 export interface ActionSkillRound {
-  readonly consumer: "assistant" | "coding" | "agent";
+  /** Who the round's Skill reads are for; omitted on the person's own protected settings preview (`audience: "user"`), which sees every Skill in one snapshot without listing first. */
+  readonly consumer?: "assistant" | "coding" | "agent";
   /** The round's frozen list of Skills the person named: a `manual` Skill outside it is `not_named`. */
   readonly named: readonly SkillRef[];
   /** `local`: a local Agent engine runs the round, so a `native_only` Skill may be read. */

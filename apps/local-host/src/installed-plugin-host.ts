@@ -80,6 +80,11 @@ export function installedPluginsHaveWork(store: LocalProjectDatabase, projectId:
   return !!entry && (!entry.current || entry.current.platform.hasProjectWork(projectId));
 }
 
+/** Synchronous count of active background executions and command-kept jobs in this project's installed plugins. */
+export function installedPluginsActiveWorkCount(store: LocalProjectDatabase, projectId: string): number {
+  return hosts.get(store)?.get(projectId)?.current?.platform.activeWorkCount() ?? 0;
+}
+
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map();
   const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };

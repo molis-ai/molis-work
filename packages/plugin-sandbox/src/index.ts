@@ -11,4 +11,5 @@ export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './htt
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';
 export { assertContract, assertProposalContract, assertSchema, assertMatches, assertEffects, assertJson, sandboxNotAuthorized, sandboxResponseTooLarge, SandboxError } from './schema.js';
 export { seatbeltProfile } from './seatbelt.js';
+export { createBatchProcessMonitor, parsePsBatchOutput, parsePsCpuMs, type BatchProcessMonitor, type ProcessSample, type WatchedSandboxProcess } from './process-monitor.js';
 export { SANDBOX_SDK_CONTRACT_DECLARATIONS } from './sdk-declarations.js';

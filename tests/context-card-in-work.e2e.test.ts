@@ -18,7 +18,9 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
   if (!browser) return;
   const child=await pluginFrameBrowser(t,browser,"pages");
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // Tall enough that the open conversation (it rises from the bar, over the right panel too since 36A-3) leaves the top of the
+  // file preview clear: a passage the conversation covers gets no toolbar (context-bar's cover rule).
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1300, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: TEXTS.map(paragraph) } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));

@@ -45,6 +45,9 @@ test("RAC-2092 PCL-01 the shell's page script takes Goals' page client from the 
   assert.equal(count(script, client), 1, "the page client is in the page script once");
   assert.match(pluginPageClientScript(), /^\[\["goals", \(host\) => /u, "the shell lists every registered page client with its plugin");
   assert.equal(pluginPageClientScript([]), "[]", "a registration list without page clients gives none");
+  // The shell no longer holds the Goals page's `state`; the project comes from `project` (bootstrap). Code merged in from
+  // elsewhere that still reads `state.project` or `state.snapshot` throws when it runs (a split pane, the work line's place name).
+  assert.doesNotMatch(script, /(?<![\w.$])state\.(?:project|snapshot)\b/u);
 });
 
 // PCL-02: the shell's page scripts do not name Goals. The four files below are the follow-ups the spec leaves out (placement's

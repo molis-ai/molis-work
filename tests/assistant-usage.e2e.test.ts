@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openWork, readWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
+import { openWork, putInput, readWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
 
 // specs/visual-ui-experience VUX-11: the context window, this round's tokens, cache, cost and the account's quota are told
 // apart, each from the runtime's own report for that round; a share only with both its parts known, an estimate marked,
@@ -63,4 +63,18 @@ test("VUX-11: the usage box tells the context window, this round, cost and quota
   assert.deepEqual(fresh.parts[0]![1], ["已用=进行中"]);
   assert.match(fresh.parts[0]![3], /^MiniMax-M2\.1 · 进行中$/);
   assert.deepEqual(fresh.parts[1]![1], ["输入=进行中", "输出=进行中"], "never the round before's 12,000 and 800");
+
+  // 36A-3 (POLISH-22): the usage box is among the work's details, behind 更多 › 详情. A work at its cap offers
+  // 「提高这件工作的上限」 under what went wrong: a press brings the details forward on the cap's own field.
+  await evaluate(`(() => { const fetch1 = window.fetch; window.fetch = async (input, init) => {
+    const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+    if (init?.method === "POST" && /\\/send$/.test(path)) return new Response(JSON.stringify({ error: "这件工作用到了你给它的上限", code: "assistant.invalid", details: { action_kind: "raise_work_budget" } }), { status: 400, headers: { "content-type": "application/json" } });
+    return fetch1(input, init); }; })()`);
+  await putInput(browser, "接着算");
+  await browser.click("[data-assistant-composer] [data-composer-send]");
+  const raise = "[...document.querySelectorAll('.assistant-problem button')].find(button => button.textContent.includes('上限'))";
+  await waitFor(raise, 15_000);
+  assert.equal(await evaluate("document.querySelector('[data-info-details]').hidden"), true, "the details are put away until asked for");
+  await evaluate(`${raise}.click()`);
+  await waitFor(`!document.querySelector('[data-info-details]').hidden && ${box}.getClientRects().length > 0 && ${box}.querySelector('details').open && ${box}.contains(document.activeElement) && document.activeElement.matches('input')`, 5_000);
 });

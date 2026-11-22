@@ -174,6 +174,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line";
     readonly summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.";
 }, {
+    readonly name: "molis-work:record-document-loaded";
+    readonly kind: "request";
+    readonly owner: "immersive-navigation";
+    readonly on: "document";
+    readonly detail: "{ recordId }";
+    readonly summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.";
+}, {
     readonly name: "molis-work:record-gone";
     readonly kind: "request";
     readonly owner: "tab-workspace";
@@ -589,7 +596,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.";
     };
     readonly "task-float": {
-        readonly files: readonly ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"];
+        readonly files: readonly ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-tasks.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"];
         readonly state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.";
     };
     readonly "context-toolbar": {

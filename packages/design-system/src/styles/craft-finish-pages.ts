@@ -52,12 +52,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
     ${SHELL} .bar-start .plugin-picker-current, ${SHELL} .bar-start .plugin-picker-trigger > svg:last-child { display: none; }
     ${SHELL} .bar-start .plugin-picker-all { display: inline-grid; place-items: center; color: var(--ink-soft); }
-    /* On a phone the panel spans the screen: the side pane covers the whole conversation when opened; tabs scroll. */
-    ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { width: 100%; box-shadow: none; }
-    /* Only the current tab shows by name; the others are one tap away in 全部工作, where their marks are too. */
-    ${ASSIST} .assistant-tab:not([data-current]) { display: none; }
-    ${ASSIST} .assistant-tabs { flex: 1 1 auto; }
-    ${ASSIST} .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
@@ -547,7 +541,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${PAGES} *, ${PAGES} *::before, ${PAGES} *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
     ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .home-day, [data-kanban-card], .mw-check, .mw-radio, .dock-pin, .bar-chat, .account-global-trigger, .plugin-picker-trigger):is(:active, :hover) { transform: none !important; }
     ${PAGES} :is(.mw-btn, .tab-item, [data-kanban-card], .plugin-market-body .mw-card, .plugin-market-installed-row > *):hover { transform: none !important; }
-    ${PAGES} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close, .assistant-tab-main, .assistant-jump):active { transform: none !important; }
+    ${PAGES} :is(.assistant-side-action, .assistant-segment, .assistant-head .dock-window-action, .info-tab, .assistant-control, .assistant-start, .assistant-copy, .assistant-jump):active { transform: none !important; }
     .craft-burst, .craft-tip { transition: none; }
     .craft-burst { display: none; }
   }

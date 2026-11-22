@@ -5,6 +5,10 @@ import type { TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
+// The compose form is open over the whole Images page (36A-3: the history is the page behind it), so the services are
+// opened from its own bar; the history's own key is only there while no service is connected and nothing is open.
+const SERVICES = ".plugin-stage-detail-bar [data-images-connections]";
+
 // BL-985: the five texts of the Images page keep the service's own limits, counted as the service counts them: characters (one 🟢 is one,
 // though it is two UTF-16 units) of the trimmed text. Prompt 32,000, size 64, aspect ratio 32, service name 100, model name 200
 // (plugins/native/images/src/limits.ts). The page had `maxlength`, which counts units: it let a size or a ratio through to 100 units (past
@@ -74,7 +78,7 @@ async function openImages(t: TestContext) {
     validity: (field: Field) => evaluate<string>(`document.querySelector(${JSON.stringify(field.selector)}).validationMessage`),
     /** Saves a custom service with this name and model, in the given protocol, through the dialog's own fields. */
     async saveService(name: string, model: string, format: "openai-images" | "gemini") {
-      await click("[data-images-connections]");
+      await click(SERVICES);
       await waitFor("document.querySelector('[data-images-dialog]').open");
       if (await evaluate<boolean>("Boolean(document.querySelector('[data-images-saved-connections] [data-images-edit-connection]'))")) await click("[data-images-add-connection]");
       await click('[data-images-preset="custom"]');
@@ -124,7 +128,7 @@ async function checkEdges(images: NonNullable<Awaited<ReturnType<typeof openImag
 test("BL-985: the five Images fields take exactly the service's limit in characters, one more is left out, with emoji and a Chinese input method", { timeout: 240_000 }, async t => {
   const images = await openImages(t); if (!images) return;
   // The service dialog: service name 100, model name 200.
-  await images.click("[data-images-connections]");
+  await images.click(SERVICES);
   await images.waitFor("document.querySelector('[data-images-dialog]').open");
   await images.click('[data-images-preset="custom"]');
   await images.waitFor("document.querySelector('[data-images-advanced]').open");

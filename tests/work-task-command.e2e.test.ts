@@ -28,9 +28,10 @@ test("QEA-17 a project task uses the owner's new command input and returns a suc
   const project = await createProject(b.web, "Command owner");
   await startProjectPlugins(b.localHost, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${project.project_id}/` }, b.sessionId));
-  await b.waitFor("document.querySelector('[data-reply-mini] [data-task-mark] [data-background-tasks-count]')", 15_000);
-  await b.click("[data-reply-mini] [data-task-mark]");
-  const stop = "[data-task-panel] [data-task-control=stop]";
+  // POLISH-17: 在办 is the one way in to the background tasks; the key inside the input opens the conversation on that list.
+  await b.waitFor("document.querySelector('[data-work-counts] [data-work-list=\"now\"]')", 15_000);
+  await b.evaluate("document.querySelector('[data-work-counts] [data-work-list=\"now\"]').click()");
+  const stop = "[data-work-lists] [data-task-control=stop]";
   await b.waitFor(`document.querySelector('${stop}')`);
   await b.evaluate(`window.__taskReads = []; window.__taskCommands = []; document.addEventListener('molis-work:attention', event => window.__taskReads.push(event.detail.tasks));
     const fetchBefore = window.fetch; window.fetch = function(input, init) { if (String(input).endsWith('/api/mainline/tasks/command')) window.__taskCommands.push(JSON.parse(init.body)); return fetchBefore.apply(this, arguments); };`);

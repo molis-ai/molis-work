@@ -42,7 +42,7 @@ export const SHELF_STYLES = `
     -webkit-appearance: none;
   }
   /* Shelf is the side panel's tab (specs/context-program/side-shelf.md §3.2) and fills it. The list takes the whole tab; an open file takes
-     it too, with a back button above; from 640px the 213px list (DropAgent's 213pt) stays beside the open file. */
+     it too at every width, with a back button above (36A-3: an open record is its own page). */
   [data-shelf-stage-shell] {
     position: fixed; inset: 0; overflow: hidden; container: shelf / inline-size;
     background: var(--paper); font-family: var(--da-font);
@@ -57,13 +57,6 @@ export const SHELF_STYLES = `
     background: var(--da-panel); overflow: hidden;
   }
   [data-shelf-stage-shell][data-expanded="true"] > [data-shelf="directory"] { display: none; }
-  @container shelf (min-width: 640px) {
-    [data-shelf-stage-shell][data-expanded="true"] > [data-shelf="directory"] { display: flex; right: auto; width: 213px; border-right: 1px solid var(--da-line); }
-    [data-shelf-stage-shell][data-expanded="true"] > .plugin-stage-workspace { left: 213px; }
-    /* Beside an open file the list keeps its search; adding stays one icon away. */
-    [data-shelf-stage-shell][data-expanded="true"] .shelf-side-op--add { width: 30px; padding: 0; }
-    [data-shelf-stage-shell][data-expanded="true"] .shelf-side-op--add b { display: none; }
-  }
   [data-shelf-stage-shell] .plugin-stage-workspace > .shelf-stage {
     flex: 1; min-height: 0; border: 0; border-radius: 0;
   }

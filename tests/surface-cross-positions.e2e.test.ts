@@ -57,8 +57,13 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
   await b.waitFor(visible(notices + ' ' + item));
   assert.match(await b.evaluate<string>(`document.querySelector(${quoted(notices + ' ' + item)}).innerText`), /Report for the inbox mount/);
   await b.evaluate("document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))");
-  const homeEntry = '[data-home-card="io.molis.work.inbox"] [data-home-subject-id="' + entry.entry_id + '"] [data-presentation-action$=":open"]';
+  // A row of the first page has no button of its own: its name opens it (specs/screen-polish §八之二).
+  const homeEntry = '[data-home-owner="io.molis.work.inbox"][data-home-subject-id="' + entry.entry_id + '"] .mw-presentation__row-title';
   await waitForHomeRow(b, homeEntry, "io.molis.work.inbox"); await b.click(homeEntry);
+  // An object that can be looked at in place opens its peek first; the peek's own "open" goes to the owner.
+  const peekOpen = '[data-home-peek] [data-presentation-action$=":peek-open"]';
+  await b.waitFor(`${visible(peekOpen)} || !document.querySelector(${quoted(homeEntry)})?.checkVisibility()`);
+  if (await b.evaluate(visible(peekOpen))) await b.click(peekOpen);
 
   const own = '[data-inbox-detail="' + entry.entry_id + '"]', slot = '[data-inbox-origin-slot]';
   await inbox.waitFor(`document.querySelector(${quoted(own)})?.hidden === false`);
@@ -335,7 +340,7 @@ test("IUI-21: changing an actual owner's displayed values replaces the Home row 
   const prefix = "/projects/" + projectId;
   await b.setViewport(1440, 900);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
-  const item = (index: number) => '[data-home-card="io.molis.work.feed"] [data-home-subject-id="' + items[index]!.item_id + '"]';
+  const item = (index: number) => '[data-home-owner="io.molis.work.feed"][data-home-subject-id="' + items[index]!.item_id + '"]';
   const title = (index: number) => item(index) + " .mw-presentation__row-title";
   const read = (index: number) => b.web.post(prefix + "/api/plugins/io.molis.work.feed/items/" + items[index]!.item_id + "/read", {});
   const dom = (selector: string) => `document.querySelector(${quoted(selector)})`;

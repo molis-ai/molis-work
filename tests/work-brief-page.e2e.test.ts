@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
-import { WORK_BRIEF_WRITE, workBriefActions, type BriefSaved } from "@molis-ai/molis-work-plugin-work-brief";
+import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, type BriefSaved } from "@molis-ai/molis-work-plugin-work-brief";
 import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { person } from "./fixtures/home-runtime.js";
@@ -12,14 +12,24 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 /**
- * Work Brief as a person meets it (docs/design/work-brief-core): with the plugin in the project the brief fills the project's home;
- * its sentences show what they stood on, a refresh reports only what changed, the person's own change survives a new draft, a
- * version can be fixed, a next step runs once, and the basic home is one press away.
+ * Work Brief as a person meets it (docs/design/work-brief-core; specs/screen-polish §八之二): with the plugin in the project the
+ * project's one home opens with the brief's sentences, drawn by the home from what Work Brief hands it; the label over the title
+ * opens Work Brief's own page, where the sentences show what they stood on, a refresh reports only what changed, the person's own
+ * change survives a new draft, a version can be fixed and a next step runs once.
  */
+const LEDE = `[data-home-lede="${WORK_BRIEF_PLUGIN_ID}"]`, CHIP = "[data-home-version] [data-home-control]";
+const shown = (selector: string) => `!!document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`;
+/** The home with the brief's sentences on it, no plugin page standing in for it; then Work Brief's own page behind the label (POLISH-82). */
+async function fromHomeToBrief(browser: { waitFor(expression: string, timeout?: number): Promise<unknown>; evaluate<T>(expression: string): Promise<T>; click(selector: string): Promise<void> }) {
+  await browser.waitFor(`${shown(LEDE)} && ${shown(CHIP)}`, 30_000);
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-work-surface=home] iframe').length"), 0, "the home is one page: no plugin frame on it");
+  await browser.click(CHIP);
+  await browser.waitFor("!!document.querySelector('[data-work-surface=\"work-brief\"]:not([hidden]) iframe[data-plugin-frame]')", 30_000);
+}
 const WIDTHS = (process.env.WB_WIDTHS ?? "1440,1024,390").split(",").map(Number);
 const ref = (definition: { capability_id: string; version: number }) => ({ capability_id: definition.capability_id, version: definition.version });
 
-for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the project's home at ${width}px: bases, refresh, edit, proposal, versions, next steps, basic home`, { timeout: 240_000 }, async t => {
+for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brief's sentences on the project's home and its own page at ${width}px: bases, refresh, edit, proposal, versions, next steps`, { timeout: 240_000 }, async t => {
   // A Host of its own (no model): the test seeds the brief through the same actions the Assistant uses.
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
@@ -52,9 +62,19 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the p
   };
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  // The project's own address, no plugin named: the home shows, and the brief is what fills it.
+  // The project's own address, no plugin named: the home shows, and it opens with the brief's sentences.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await browser.waitFor("document.querySelector('[data-home-lead]') && !document.querySelector('[data-home-lead]').hidden && document.querySelector('[data-home-lead] iframe[data-plugin-frame]')");
+  await browser.waitFor(shown(LEDE), 30_000);
+  const sentences = await browser.evaluate<Array<{ text: string; mark: string | null; cites: string }>>(`[...document.querySelectorAll(${JSON.stringify(LEDE + " > span")})].map(node =>
+    ({ text: node.textContent, mark: node.getAttribute("data-home-sentence"), cites: node.nextElementSibling?.tagName === "SUP" ? node.nextElementSibling.textContent : "" }))`);
+  assert.deepEqual(sentences.map(sentence => sentence.text), ["交付有延期风险，关键部件可能晚两周。", "汇率在可控范围内，本周没有新的敞口。", "预算我已经和财务口头确认过。"]);
+  // Both cited sentences stand on Risk, the margin's first source; the one the person said has no number. What waits for the person is marked.
+  assert.deepEqual(sentences.map(sentence => [sentence.cites, sentence.mark]), [["1", "yours"], ["1", "yours"], ["", null]]);
+  assert.match(await browser.evaluate<string>("document.querySelector('[data-home-sources] [data-home-card] sup').textContent"), /^1$/u);
+  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CHIP)}).textContent`), /1/u, "the label says which writing this is");
+  assert.ok(await browser.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "首页不应横向滚动");
+  await screenshot("home");
+  await fromHomeToBrief(browser);
   const page = await pluginFrameBrowser(t, browser, "work-brief");
   const { evaluate, waitFor, click } = page;
   const noOverflow = async () => assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "页面不应横向滚动");
@@ -69,7 +89,7 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the p
   assert.doesNotMatch((await words(".wb-pulse > li")).join(" "), /未授权|读不到/u, "本人读得到的来源照实显示");
   assert.match((await words(".wb-pulse > li")).join(" "), /风险/u);
   await noOverflow();
-  await screenshot("home");
+  await screenshot("page");
 
   // A basis opens where the sentence is, with what it read then.
   await click('.wb-fn[data-wb-value$=":0"]');
@@ -155,17 +175,6 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the p
   await click(act("mode", "project"));
   await waitFor(has(".wb-claims"));
 
-  // WBR-22 the basic home is one press away, and so is the way back.
-  const toggle = "document.querySelector('[data-home-control=\"lead-toggle\"]')";
-  await browser.waitFor(toggle);
-  await browser.evaluate(`${toggle}.click()`);
-  await browser.waitFor("document.querySelector('[data-home-lead]').hidden");
-  // The basic home is really there: its scroll area shows and at least one plugin's group is drawn.
-  await browser.waitFor("(() => { const home = document.querySelector('[data-home-scroll]'); return Boolean(home) && home.getClientRects().length > 0 && home.querySelectorAll('[data-home-group]').length > 0; })()");
-  await screenshot("basic");
-  await browser.evaluate(`${toggle}.click()`);
-  await browser.waitFor("!document.querySelector('[data-home-lead]').hidden");
-
   // WBR-24 an item of another project says so and takes the person there: the shell opens that project's home (S-47).
   const made = await createProject(web, "另一个项目"), elsewhere = made.project_id;
   for (const plugin_id of ["risk", "work-brief"]) await web.post(`/api/settings/projects/${elsewhere}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(web, elsewhere) });
@@ -178,7 +187,8 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the p
   await waitFor(has(jump), 30_000);
   await noOverflow();
   await navigate(() => click(jump).catch(() => undefined));
-  await browser.waitFor(`location.pathname === ${JSON.stringify(`/projects/${elsewhere}/`)} && document.querySelector('[data-home-lead] iframe[data-plugin-frame]')`, 30_000);
+  await browser.waitFor(`location.pathname === ${JSON.stringify(`/projects/${elsewhere}/`)} && ${shown(LEDE)}`, 30_000);
+  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(LEDE)}).textContent`), /场地还没签。/u);
 });
 
 for (const width of WIDTHS) test(`WBR-22 the brief in English on the dark theme at ${width}px: the page's words change, the person's sentences stay`, { timeout: 180_000 }, async t => {
@@ -195,16 +205,22 @@ for (const width of WIDTHS) test(`WBR-22 the brief in English on the dark theme 
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
-  await browser.waitFor("document.documentElement.lang === 'en' && document.documentElement.dataset.resolvedTheme === 'dark' && document.querySelector('[data-home-lead] iframe[data-plugin-frame]')");
+  await browser.waitFor(`document.documentElement.lang === 'en' && document.documentElement.dataset.resolvedTheme === 'dark' && ${shown(LEDE)}`, 30_000);
+  // The home's own words change with the language; the sentences are the person's and stay as written.
+  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(LEDE)}).textContent`), /交付有延期风险/u);
+  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CHIP)}).textContent`), /version 1/iu);
+  const output = new URL(`../${specEvidenceDirectory("specs/work-brief/verification")}/`, import.meta.url);
+  await mkdir(output, { recursive: true });
+  await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(new URL(`brief-home-en-dark-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await fromHomeToBrief(browser);
   const page = await pluginFrameBrowser(t, browser, "work-brief");
   await page.waitFor("document.querySelectorAll('.wb-claims > li').length === 2 && [...document.querySelectorAll('.wb-att [data-wb-slot]')].every(node => node.getBoundingClientRect().height > 20)");
   assert.match(await page.evaluate<string>(`document.querySelector('[data-wb-act="refresh"]').textContent`), /Refresh/u);
   assert.match(await page.evaluate<string>("document.querySelector('.wb-claims > li').textContent"), /交付有延期风险/u);
   assert.ok(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "the English page must not scroll sideways");
-  const output = new URL(`../${specEvidenceDirectory("specs/work-brief/verification")}/`, import.meta.url);
-  await mkdir(output, { recursive: true });
   await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await writeFile(new URL(`brief-home-en-dark-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await writeFile(new URL(`brief-page-en-dark-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 });
 
 test("WBR-11 what other plugins and drafts wrote is shown as text: markup in a title, a sentence or a reason builds no element and runs nothing", { timeout: 180_000 }, async t => {
@@ -221,7 +237,12 @@ test("WBR-11 what other plugins and drafts wrote is shown as text: markup in a t
     attention: [{ subject: cite, why: `要决定 ${mark("why")}` }], next: [{ text: `起草 ${mark("next")}`, why: mark("next-why"), act: { kind: "assistant" } }] } });
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await browser.waitFor("document.querySelector('[data-home-lead] iframe[data-plugin-frame]')");
+  // The home draws the sentence as text too: what a draft wrote builds no element on the shell's own page.
+  await browser.waitFor(shown(LEDE), 30_000);
+  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(LEDE)}).textContent`), /<img src=x onerror=/u);
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-work-surface=home] img[src=\"x\"], [data-work-surface=home] script').length"), 0);
+  assert.equal(await browser.evaluate("window.__wb_ran ?? null"), null);
+  await fromHomeToBrief(browser);
   const page = await pluginFrameBrowser(t, browser, "work-brief");
   await page.waitFor("document.querySelectorAll('.wb-claims > li').length === 1 && document.querySelector('.wb-step')");
   await page.click('.wb-fn[data-wb-value$=":0"]');

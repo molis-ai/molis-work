@@ -165,11 +165,13 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
 
-  // The project home is composed from each plugin's presentation (batch 15). Todo declares none yet, so it has its card in the
-  // undeclared state and its items are not listed there (BL-todo-home-presentation); its reminders below stay in Todo itself.
+  // The project home is composed from each plugin's presentation (batch 15). Todo declares none yet, so its items are not listed
+  // there (BL-todo-home-presentation) and it is not a source of the page: it is among the ones with nothing new. Its reminders
+  // below stay in Todo itself.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await browser.waitFor("document.querySelector('[data-home-card=\"io.molis.work.todo\"]')?.dataset.homeState === 'undeclared'");
-  assert.doesNotMatch(String(await browser.evaluate("document.querySelector('[data-home-card=\"io.molis.work.todo\"]').textContent")), /交报销单|逾期的方案/);
+  await browser.waitFor("!!document.querySelector('[data-work-surface=home] [data-home-sources]')?.checkVisibility()");
+  assert.equal(await browser.evaluate("document.querySelector('[data-home-card=\"io.molis.work.todo\"]')"), null);
+  assert.doesNotMatch(String(await browser.evaluate("document.querySelector('[data-work-surface=home]').textContent")), /交报销单|逾期的方案/);
   await screenshot("home");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));

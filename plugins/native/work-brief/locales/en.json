@@ -62,6 +62,13 @@
     "work-brief.error.failed": "That didn’t finish. Try again.",
     "work-brief.error.no-answer": "No answer. Check the local service and try again.",
     "work-brief.fixed.toast": "Fixed and kept in the library",
+    "work-brief.help.advanced": "Shows one project inside a project workspace and cross-project highlights in personal view; works without a text model connected.",
+    "work-brief.help.advanced-summary": "Project view vs. personal summary",
+    "work-brief.help.example-1": "Open project home to scan today’s updates and decisions waiting for you",
+    "work-brief.help.example-2": "Click any card to jump straight into the owning plugin",
+    "work-brief.help.scope": "Reads summaries from existing plugins without copying or altering their data; disabling it falls back cleanly to the basic project home with all data intact.",
+    "work-brief.help.title": "Work Brief",
+    "work-brief.help.what": "Brings together recent project changes, items waiting on you, and clear next steps so you can pick up right where you left off.",
     "work-brief.mode.label": "Scope",
     "work-brief.mode.personal": "Personal",
     "work-brief.mode.project": "Project",
@@ -120,6 +127,10 @@
     "work-brief.personal.title": "Personal brief",
     "work-brief.presentation.empty": "No brief yet",
     "work-brief.presentation.home-title": "Project brief",
+    "work-brief.presentation.invite": "This page is not written up yet. The assistant can read the project and say it in a few sentences.",
+    "work-brief.presentation.invite-action": "Write a brief",
+    "work-brief.presentation.lede-label": "Brief · version {version}",
+    "work-brief.presentation.lede-label-changed": "Brief · version {version} · {count} changed",
     "work-brief.presentation.nothing-waiting": "Nothing needs you",
     "work-brief.presentation.summary": {
       "plural_arg": "count",
@@ -189,13 +200,6 @@
     "work-brief.version.none": "No other versions yet. The next change makes a new one; this one stays as it is.",
     "work-brief.version.open": "View",
     "work-brief.version.shown": "Showing",
-    "work-brief.view.brief": "Brief",
-    "work-brief.help.title": "Work Brief",
-    "work-brief.help.what": "Brings together recent project changes, items waiting on you, and clear next steps so you can pick up right where you left off.",
-    "work-brief.help.example-1": "Open project home to scan today’s updates and decisions waiting for you",
-    "work-brief.help.example-2": "Click any card to jump straight into the owning plugin",
-    "work-brief.help.scope": "Reads summaries from existing plugins without copying or altering their data; disabling it falls back cleanly to the basic project home with all data intact.",
-    "work-brief.help.advanced-summary": "Project view vs. personal summary",
-    "work-brief.help.advanced": "Shows one project inside a project workspace and cross-project highlights in personal view; works without a text model connected."
+    "work-brief.view.brief": "Brief"
   }
 }

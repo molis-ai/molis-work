@@ -7,48 +7,81 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 const home = '[data-work-surface="home"]';
-const goals = '[data-home-card="io.molis.work.goals"]';
-const start = goals + ' [data-home-control$=":start:0"]';
-const row = goals + ' [data-home-row]';
+const GOALS = "io.molis.work.goals";
+const source = `[data-home-card="${GOALS}"]`;
+const since = '[data-home-group="since"]';
+const outline = `[data-home-group="outline:${GOALS}"]`;
+const next = '[data-home-group="next"]';
+const row = since + ' [data-home-row]';
 const title = row + ' .mw-presentation__row-title';
 const endpoint = "/api/host/surface-home";
 // 项目主页 from the start page: the browser's window is under 760px, where the strip's ⌂ shows only while the home is the
 // current page (specs/screen-polish §3 方案 C, POLISH-07), and the start page lists it at every width.
 const HOME_ENTRY = '[data-plugin-strip] [data-plugin-id="home"]';
 
-test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form and renders real rows at twelve settings", { timeout: 150_000 }, async t => {
+test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 IUI-26 SCS-11 WBR-21: the project's first page says where it stands from what its plugins declare, at twelve settings", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const project = await createProject(b.web, "Home journey"), prefix = "/projects/" + project.project_id;
   await addProjectPlugin(b.web, project.project_id, "goals");
   const go = (query = "") => b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" + query }, b.sessionId));
-  const painted = () => b.waitFor(`document.querySelector(${JSON.stringify(goals)}) && !document.querySelector(${JSON.stringify(home)}).hidden`, 15_000);
-  const rows = async () => (await b.web.post<SurfaceHomeDisplay>(prefix + endpoint, {})).display.rows.filter(item => item.owner === "io.molis.work.goals");
+  const shown = (selector: string) => b.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility() && !document.querySelector(${JSON.stringify(home)}).hidden`, 15_000);
+  const rows = async () => (await b.web.post<SurfaceHomeDisplay>(prefix + endpoint, {})).display.rows.filter(item => item.owner === GOALS);
+  const captures = reviewEvidenceUrl("surface-home-consumers/");
+  await mkdir(captures, { recursive: true });
+  const capture = async (name: string) => {
+    const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, b.sessionId);
+    await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64"));
+  };
+  await b.setViewport(1440, 900, false);
   await go();
-  await painted();
+  await shown('[data-home-group="start"]');
   assert.equal((await rows()).length, 0);
-  await b.click(start);
-  await b.waitFor("document.querySelector('[data-create-dialog]').open");
-  await b.click('[data-create-dialog] [data-close-create]');
-  await b.waitFor("!document.querySelector('[data-create-dialog]').open");
-  assert.equal((await rows()).length, 0, "opening and cancelling the real form write no Goal");
-  await b.click(HOME_ENTRY);
-  await painted();
-  await b.click(start);
-  await b.waitFor("document.querySelector('[data-create-dialog]').open");
-  await b.evaluate(`(() => {
-    const form = document.querySelector('[data-create-form]');
-    form.elements.title.value = 'Homepage object · a long title with real values';
-    form.elements.title.dispatchEvent(new Event('input', { bubbles: true }));
+  // A project with nothing in it: one line that says so and three places to begin (user decision 2026-11-22); the first is the one
+  // ink-blue button. Nothing here starts a plugin's own work: that is the start page's (specs/screen-polish §八之二).
+  const begin = await b.evaluate<{ entries: string[]; primary: number; bring: string; sections: string[]; starts: number }>(`(() => {
+    const box = document.querySelector(${JSON.stringify(home)}), steps = [...box.querySelectorAll('[data-home-group="start"] .mw-first-page__step')];
+    return { entries: steps.map(step => step.querySelector('a,button')?.getAttribute('data-home-start') || step.querySelector('button')?.getAttribute('data-home-control') || ''),
+      primary: box.querySelectorAll('.mw-btn--primary').length, bring: steps[0]?.querySelector('a')?.getAttribute('href') || '',
+      sections: [...box.querySelectorAll('[data-home-group]')].map(node => node.getAttribute('data-home-group')),
+      starts: box.querySelectorAll('[data-home-control*=":start:"]').length };
   })()`);
-  await b.navigate(() => b.click('[data-create-form] [type="submit"]'));
-  assert.match(await b.evaluate<string>("location.pathname"), /\/goals\//u);
-  assert.equal((await rows()).length, 1, "one submit creates one Goal");
-  await b.click(HOME_ENTRY);
-  await painted();
+  assert.deepEqual(begin.entries, ["bring", "write", "picker"]);
+  assert.equal(begin.primary, 1, "one primary action on the page");
+  assert.match(begin.bring, /\/settings\/workspaces$/u);
+  assert.deepEqual(begin.sections, ["start"], "no 目标 section and no rows before there is anything to say");
+  assert.equal(begin.starts, 0, "the first page carries no plugin start entry");
+  await capture("home-new-1440-zh-light");
+  await b.click('[data-home-group="start"] [data-home-control="write"]');
+  await b.waitFor("document.activeElement?.closest('[data-assistant-island], .assistant-island, [data-work-bar]') !== null");
+
+  // The owner's own tree: a parent with two parts, one of them done. The page learns it from the overview, not from Goals' tables.
+  const create = (body: Record<string, unknown>) => b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/" + GOALS + "/goals", body);
+  const parent = await create({ title: "Homepage object · a long title with real values", idempotency_key: "home-parent" });
+  await create({ title: "First part of the homepage object", parent_goal_id: parent.goal.goal_id, idempotency_key: "home-part-1" });
+  await create({ title: "Second part of the homepage object", parent_goal_id: parent.goal.goal_id, idempotency_key: "home-part-2" });
+  assert.equal((await rows()).length, 3);
+  await go();
+  await shown(row);
+  const page = await b.evaluate<{ groups: string[]; depths: string[]; progress: string; nextPrimary: number[]; steps: number; source: string; pins: number }>(`(() => {
+    const box = document.querySelector(${JSON.stringify(home)});
+    return { groups: [...box.querySelectorAll('[data-home-group]')].map(node => node.getAttribute('data-home-group')),
+      depths: [...box.querySelectorAll(${JSON.stringify(outline + " [data-home-row]")})].map(node => node.getAttribute('data-first-page-depth')),
+      progress: box.querySelector(${JSON.stringify(outline + " .mw-first-page__progress small")})?.textContent || '',
+      nextPrimary: [...box.querySelectorAll(${JSON.stringify(next + " .mw-first-page__step")})].map(step => step.querySelectorAll('.mw-btn--primary').length),
+      steps: box.querySelectorAll(${JSON.stringify(next + " .mw-first-page__step")}).length,
+      source: box.querySelector(${JSON.stringify(source + " .mw-first-page__word")})?.textContent || '',
+      pins: box.querySelectorAll(${JSON.stringify(since + ' [data-surface-correction*="pin"]')}).length };
+  })()`);
+  assert.deepEqual(page.groups, ["since", "outline:" + GOALS, "next"]);
+  assert.deepEqual(page.depths, ["0", "1", "1"], "the parent and then its parts");
+  assert.equal(page.progress, "0 / 2");
+  assert.ok(page.steps > 0 && page.steps <= 3, "at most three next steps");
+  assert.deepEqual(page.nextPrimary, [1, ...Array(page.steps - 1).fill(0)], "only the first next step is primary");
+  assert.match(page.source, /正常|No change|有变化|Changed/u);
 
   // Take the actual Tab stop, then use the real browser keyboard, not a direct DOM click or focus on the dialog.
-  await b.evaluate(`document.querySelector(${JSON.stringify(goals + ' h3')}).setAttribute('tabindex','-1');document.querySelector(${JSON.stringify(goals + ' h3')}).focus()`);
+  await b.evaluate(`document.querySelector(${JSON.stringify(since + ' h2')}).setAttribute('tabindex','-1');document.querySelector(${JSON.stringify(since + ' h2')}).focus()`);
   const key = async (name: string, code: number) => {
     await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: name, code: name, windowsVirtualKeyCode: code }, b.sessionId);
     await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code }, b.sessionId);
@@ -62,35 +95,43 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
   await key("Escape", 27);
   await b.waitFor(`!document.querySelector('[data-home-peek]').open && document.activeElement.matches(${JSON.stringify(title)})`);
 
+  // The source in the margin opens the plugin; the page returns from the strip.
+  await b.click(source + " .mw-first-page__source-name");
+  await b.waitFor(`!document.querySelector(${JSON.stringify(home)}).checkVisibility()`);
+  await b.click(HOME_ENTRY);
+  await shown(row);
+
   for (const width of [1440, 1024, 390]) for (const lang of ["zh", "en"]) for (const theme of ["light", "dark"]) {
     await b.setViewport(width, 900, width === 390);
     await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, b.sessionId);
     await b.command("Network.setCookie", { name: "molis_work_locale", value: lang, url: b.origin }, b.sessionId);
     await go();
-    await painted();
-    const sample = await b.evaluate<{ words: string; content: string; theme: string; overflow: boolean; starts: string[] }>(`(() => {
+    await shown(row);
+    const sample = await b.evaluate<{ words: string; content: string; theme: string; overflow: boolean; margin: string; column: number; heads: string[]; wraps: boolean }>(`(() => {
       const box = document.querySelector(${JSON.stringify(home)}), mark = box.querySelector(${JSON.stringify(row + ' .mw-status')});
-      const grid = box.querySelector('.home-plugin-cards');
+      const scroll = box.querySelector('.home-scroll'), column = box.querySelector('.mw-first-page__column'), margin = box.querySelector('.mw-first-page__margin');
+      const a = column.getBoundingClientRect(), m = margin.getBoundingClientRect();
+      const name = box.querySelector(${JSON.stringify(title)});
       return { words: mark?.textContent || '', content: box.innerText, theme: document.documentElement.dataset.resolvedTheme,
-        overflow: grid.scrollWidth > grid.clientWidth + 1,
-        starts: [...box.querySelectorAll('.home-plugin-card__actions [data-home-control]')].map(button => (button.innerText + ' ' + (button.getAttribute('aria-label') || '')).trim()) };
+        overflow: scroll.scrollWidth > scroll.clientWidth + 1, margin: m.left >= a.right ? 'beside' : m.top >= a.bottom - 1 ? 'below' : 'overlap',
+        column: Math.round(a.width), heads: [...box.querySelectorAll('.mw-first-page__section h2')].map(node => node.textContent.trim()),
+        wraps: name.getBoundingClientRect().height > parseFloat(getComputedStyle(name).lineHeight) * 1.5 };
     })()`);
-    assert.ok(sample.content.includes("Homepage object"), width + "/" + lang + "/" + theme);
+    const at = width + "/" + lang + "/" + theme;
+    assert.ok(sample.content.includes("Homepage object"), at);
     assert.equal(sample.theme, theme);
-    assert.equal(sample.overflow, false);
+    assert.equal(sample.overflow, false, at);
+    assert.equal(sample.wraps, false, at + ": a row stays on one line");
+    // POLISH-76: one reading column of at most 640px with its sources beside it; under 980px of page the sources go below the column.
+    assert.ok(sample.column <= 640, at + " column " + sample.column);
+    assert.equal(sample.margin, width >= 1440 ? "beside" : "below", at);
     assert.match(sample.words, lang === "zh" ? /进行中/ : /In progress/);
-    // RAC-603 on this home: the plugins' start entries are labelled, and in the English interface they carry no Chinese.
-    assert.ok(sample.starts.length > 0 && sample.starts.every(Boolean), JSON.stringify(sample.starts));
-    if (lang === "en") assert.doesNotMatch(sample.starts.join("\n"), /\p{Script=Han}/u, JSON.stringify(sample.starts));
+    assert.deepEqual(sample.heads.slice(-2), lang === "zh" ? ["目标", "下一步"] : ["Goals", "Next"], at);
+    if (lang === "en") assert.doesNotMatch(sample.content.replace(/Homepage object[^\n]*/gu, ""), /\p{Script=Han}/u, at);
     assert.doesNotMatch(sample.content, /(?:接着做|Pick up where you left off|当天的事件|Today’s events)/u);
     // F-11 (batch 27 item 14, now on this home): no standing greeting or slogan, and no second explanation of how to start above the actions.
     assert.doesNotMatch(sample.content, /(?:早上好|中午好|下午好|晚上好|夜深了|Good (?:morning|midday|afternoon|evening)|Working late|今天的工作|Today’s work|插件提供的新事项和待处理事项会出现在这里|New and pending items from plugins appear here)/u);
-    if (width === 1440 && lang === "zh" && theme === "light" || width === 390 && lang === "en" && theme === "dark") {
-      const captures = reviewEvidenceUrl("surface-home-consumers/");
-      await mkdir(captures, { recursive: true });
-      const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, b.sessionId);
-      await writeFile(new URL(`home-${width}-${lang}-${theme}.png`, captures), Buffer.from(shot.data, "base64"));
-    }
+    if (theme === "light" && lang === "zh" || theme === "dark" && lang === "en") await capture(`home-${width}-${lang}-${theme}`);
   }
 });
 

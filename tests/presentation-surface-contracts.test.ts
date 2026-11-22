@@ -90,12 +90,25 @@ test("SSC-18 (schema half): the overview action carries the platform's two schem
   assert.deepEqual(await ask(), answer);
   answer = { summary: { literal: "三篇草稿" }, subjects: [], start: [] };
   await ask();
+  // POLISH-78, POLISH-82: a tree of the plugin's own objects with how far each has come, and a few sentences for the head of the first page.
+  const outline = { title: { key: "notes.overview.outline" }, nodes: [{ subject: note, depth: 0, progress: { done: 1, total: 3 } }, { subject: { kind: "note", id: "n9" }, depth: 1 }] };
+  const lede = { label: { key: "notes.overview.version" }, as_of: "2026-11-22T08:00:00.000Z", sentences: [{ text: "三篇草稿在等你看。", sources: ["notes"], mark: "yours" }] };
+  answer = { summary: { literal: "三篇草稿" }, subjects: [], start: [], outline, lede };
+  assert.deepEqual(await ask(), answer);
+  answer = { summary: { literal: "x" }, subjects: [], start: [], lede: { label: { key: "notes.overview.title" }, sentences: [], invite: { text: { key: "notes.overview.invite" }, action: { key: "notes.overview.write" } } } };
+  await ask();
   const refused: ReadonlyArray<readonly [string, unknown]> = [
     ["an owner in the summary", { summary: { owner: "notes", key: "notes.overview.summary" }, subjects: [], start: [] }],
     ["six objects", { summary: { literal: "x" }, subjects: Array.from({ length: 6 }, (_, index) => ({ kind: "note", id: `n${index}` })), start: [] }],
     ["four starts", { summary: { literal: "x" }, subjects: [], start: Array.from({ length: 4 }, () => start[0]) }],
     ["no start list", { summary: { literal: "x" }, subjects: [] }],
     ["a start without its version", { summary: { literal: "x" }, subjects: [], start: [{ capability_id: "notes.create" }] }],
+    ["thirteen outline nodes", { summary: { literal: "x" }, subjects: [], start: [], outline: { ...outline, nodes: Array.from({ length: 13 }, (_, index) => ({ subject: { kind: "note", id: `n${index}` }, depth: 0 })) } }],
+    ["a third outline level", { summary: { literal: "x" }, subjects: [], start: [], outline: { ...outline, nodes: [{ subject: note, depth: 2 }] } }],
+    ["an outline without its title", { summary: { literal: "x" }, subjects: [], start: [], outline: { nodes: outline.nodes } }],
+    ["nine sentences", { summary: { literal: "x" }, subjects: [], start: [], lede: { ...lede, sentences: Array.from({ length: 9 }, () => ({ text: "x" })) } }],
+    ["an unknown sentence mark", { summary: { literal: "x" }, subjects: [], start: [], lede: { ...lede, sentences: [{ text: "x", mark: "urgent" }] } }],
+    ["a label naming its own owner", { summary: { literal: "x" }, subjects: [], start: [], lede: { ...lede, label: { owner: "notes", key: "notes.overview.version" } } }],
   ];
   for (const [what, value] of refused) {
     answer = value;
@@ -229,6 +242,13 @@ test("SSC-18 (runtime half): the starts an overview returns only pick among the 
     ["start[1] notes.publish@1 不在声明的 overview.start 里", "start[2] notes.create@1 重复"]);
   assert.deepEqual(presentationOverviewProblems({ capability_id: "notes.presentation.overview", version: 1 }, { summary, subjects: [], start: [ownStart] }),
     ["start[0] notes.create@1 不在声明的 overview.start 里"]);
+  // POLISH-78: an outline reads top to bottom, each object once, and never counts past its total.
+  const title = { key: "notes.overview.outline" }, child = { subject: { kind: "note", id: "n2" }, depth: 1 } as const;
+  const tree = (nodes: unknown[]) => presentationOverviewProblems(declaration.overview, { summary, subjects: [], start: [], outline: { title, nodes } } as never);
+  assert.deepEqual(tree([{ subject: note, depth: 0, progress: { done: 1, total: 2 } }, child]), []);
+  assert.deepEqual(tree([child]), ["outline.nodes[0] 是子项，前面没有它的上一级"]);
+  assert.deepEqual(tree([{ subject: note, depth: 0 }, { subject: note, depth: 1 }]), ["outline.nodes[1] 重复"]);
+  assert.deepEqual(tree([{ subject: note, depth: 0, progress: { done: 3, total: 2 } }]), ["outline.nodes[0] 的完成数大于总数"]);
 });
 
 test("SSC-13 (code half): an answer whose stale item has no read_at, or that says more than was asked, has a problem the page shows as unreadable", () => {

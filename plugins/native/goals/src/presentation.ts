@@ -1,7 +1,7 @@
 import { bindActionHandler, defineItemCreateAction, defineItemNextAction, type ActionHandlerBinding, type WorkItemNextStep } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindPresentationValuesHandler, definePresentationOverviewAction, definePresentationValuesAction, PRESENTATION_LIMITS,
-  type PresentationDeclaration, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
+  type PresentationDeclaration, type PresentationOutline, type PresentationOutlineNode, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { goalEntryActions } from "./contract/goal-actions.js";
 import type { CreateGoalIntentResult } from "./contract/goals.js";
 import type { GoalRecord, GoalsQueryApi } from "./contract/goals.js";
@@ -58,7 +58,36 @@ export function goalAcceptanceStatus(status: GoalPresentationStatus, view: Accep
 }
 export type ReadGoalAcceptance = (caller: ActionExecutionContext, goalIds: string[]) => Promise<ReadonlyMap<string, AcceptanceView> | undefined>;
 
-export function createGoalsPresentationHandlers(projectId: string, query: Pick<GoalsQueryApi, "getGoal" | "listGoals">,
+/**
+ * The project's Goals as the short tree the first page reads: Goals that are no part of another, those still open first, each followed
+ * by its parts. A parent's count is its parts that are completed, of its parts that still count (a cancelled one does not).
+ */
+function goalsOutline(projectId: string, query: Pick<GoalsQueryApi, "listGoals" | "listRelations">, events: Pick<GoalEventApplication, "readState">): PresentationOutline {
+  const goals = query.listGoals(projectId).filter(currentGoal), byId = new Map(goals.map(goal => [goal.goal_id, goal]));
+  const status = new Map(goals.map(goal => [goal.goal_id, events.readState(projectId, goal.goal_id).work_status]));
+  const parts = new Map<string, GoalRecord[]>(), child = new Set<string>();
+  for (const relation of query.listRelations(projectId)) {
+    const part = byId.get(relation.from_goal_id);
+    if (relation.type !== "part_of" || relation.state !== "active" || !part || !byId.has(relation.to_goal_id) || child.has(part.goal_id)) continue;
+    child.add(part.goal_id);
+    parts.set(relation.to_goal_id, [...parts.get(relation.to_goal_id) ?? [], part]);
+  }
+  const open = (goal: GoalRecord) => status.get(goal.goal_id) === "open";
+  const recent = (a: GoalRecord, b: GoalRecord) => b.updated_at.localeCompare(a.updated_at) || a.goal_id.localeCompare(b.goal_id);
+  const tops = goals.filter(goal => !child.has(goal.goal_id)).sort((a, b) => Number(open(b)) - Number(open(a)) || recent(a, b));
+  const nodes: PresentationOutlineNode[] = [];
+  for (const top of tops) {
+    if (nodes.length >= PRESENTATION_LIMITS.outline_nodes) break;
+    const own = (parts.get(top.goal_id) ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.goal_id.localeCompare(b.goal_id));
+    const counted = own.filter(goal => status.get(goal.goal_id) !== "cancelled");
+    nodes.push({ subject: { kind: "goal", id: top.goal_id }, depth: 0,
+      ...(counted.length ? { progress: { done: counted.filter(goal => status.get(goal.goal_id) === "completed").length, total: counted.length } } : {}) });
+    for (const part of own.slice(0, PRESENTATION_LIMITS.outline_nodes - nodes.length)) nodes.push({ subject: { kind: "goal", id: part.goal_id }, depth: 1 });
+  }
+  return { title: { key: "goals.presentation.outline-title" }, nodes };
+}
+
+export function createGoalsPresentationHandlers(projectId: string, query: Pick<GoalsQueryApi, "getGoal" | "listGoals" | "listRelations">,
   events: Pick<GoalEventApplication, "readState">, read: <T>(body: () => T) => T, ready: Promise<void>, acceptance: ReadGoalAcceptance) {
   return [
     bindPresentationValuesHandler(values, async (input, caller) => {
@@ -79,8 +108,11 @@ export function createGoalsPresentationHandlers(projectId: string, query: Pick<G
       return read(() => {
         const recent = query.listGoals(projectId).filter(currentGoal)
           .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.goal_id.localeCompare(b.goal_id)).slice(0, PRESENTATION_LIMITS.overview_subjects);
-        return { summary: { key: recent.length ? "goals.presentation.summary" : "goals.presentation.empty" },
-          subjects: recent.map(goal => ({ kind: "goal", id: goal.goal_id })), start: [start] };
+        const outline = goalsOutline(projectId, query, events), all = query.listGoals(projectId).filter(currentGoal);
+        const number = (name: string, value: number) => ({ name, kind: "number" as const, number: value });
+        const open = all.filter(goal => events.readState(projectId, goal.goal_id).work_status === "open").length;
+        return { summary: recent.length ? { key: "goals.presentation.summary", args: [number("count", all.length), number("open", open)] } : { key: "goals.presentation.empty" },
+          subjects: recent.map(goal => ({ kind: "goal", id: goal.goal_id })), start: [start], ...(outline.nodes.length ? { outline } : {}) };
       });
     }),
   ];

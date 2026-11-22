@@ -1,6 +1,6 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
-import { homeButton, homeLeadName, homeLeadWord, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
+import { homeButton, homeLeadName, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
@@ -11,6 +11,10 @@ interface HomeHost {
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
   market(): void;
   picker?(): void;
+  /** The caret into the conversation's input: a new project's "start a piece of work". */
+  write?(): void;
+  /** The address of one of this project's settings pages. */
+  settingsHref?(section: string): string;
   projectKey: string;
   translate(key: string): string;
   changed(): void;
@@ -44,7 +48,7 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMa
   // Keep open menus while the same controls are repainted with the current data.
   const retained = "[data-home-row], [data-surface-correction-reason], .surface-correction-default";
   template.content.querySelectorAll(retained).forEach(node => retainedMarkup.set(node, node.outerHTML));
-  const branch = "[data-home-group], .home-plugin-cards, .home-plugin-card__body, .home-rows";
+  const branch = "[data-home-group], .home-rows";
   const key = (node: Element) => node.getAttribute("data-home-row") ?? node.getAttribute("data-home-group") ?? (node.matches(branch) ? node.className : null);
   function patch(parent: Element, incoming: HTMLCollection) {
     const current = new Map([...parent.children].map(node => [key(node), node]));
@@ -81,6 +85,7 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMa
 
 export { createPositionViews } from "./project-position.js";
 export { mountSkillPicks } from "./skill-picks.js";
+export { mountStartEntries } from "./project-start-entries.js";
 export { presentationWord, renderHomePeek, renderPositionGroup, surfaceCorrectionWord } from "./project-home-render.js";
 
 function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void,
@@ -98,7 +103,9 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     } else if (event.target.closest("[data-home-close]")) closePeek();
     else {
       const title = event.target.closest<HTMLElement>(".mw-presentation__row-title[aria-haspopup]");
+      const opens = title ? null : event.target.closest<HTMLElement>("[data-home-row-open] .mw-presentation__row-title");
       if (title) void act(title.closest<HTMLElement>("[data-home-row-peek]")!.dataset.homeRowPeek!, title);
+      else if (opens) void act(opens.closest<HTMLElement>("[data-home-row-open]")!.dataset.homeRowOpen!, opens);
     }
   });
   root.addEventListener("keydown", event => {
@@ -106,9 +113,10 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     positionMenuKey(event);
     if (!(event.target instanceof HTMLElement)) return;
     const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
-    if (key && event.target.matches(".mw-presentation__row-title[aria-haspopup]") && (event.key === "Enter" || event.key === " ")) {
-      event.preventDefault(); void act(key, event.target);
-    }
+    const open = event.target.closest<HTMLElement>("[data-home-row-open]")?.dataset.homeRowOpen;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (key && event.target.matches(".mw-presentation__row-title[aria-haspopup]")) { event.preventDefault(); void act(key, event.target); }
+    else if (open && event.target.matches(".mw-presentation__row-title")) { event.preventDefault(); void act(open, event.target); }
   });
   peek.addEventListener("close", onClose);
 }
@@ -125,39 +133,64 @@ const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) =>
   !!a && JSON.stringify({ ...a, surface_text: undefined }) === JSON.stringify({ ...b, surface_text: undefined });
 
 /**
- * The plugin page a `lead` group names, shown in place of the groups, and the thin bar that switches between the two. Whether this person
- * is looking at the basic home is page state: it lasts for the browser session and is never sent anywhere.
+ * The plugin page a `lead` group names, shown in place of the platform's own page: the same first page, written by that plugin
+ * (specs/screen-polish §八之二). There is no switch between the two; a page that does not open leaves the platform's page, which says so.
  */
 function createHomeLead(root: HTMLElement, host: HomeHost) {
-  const box = root.querySelector<HTMLElement>("[data-home-lead]")!, bar = root.querySelector<HTMLElement>("[data-home-lead-bar]")!;
-  const basicKey = "molis-work-home-basic:" + host.projectKey;
-  const stored = (write?: boolean) => {
-    try {
-      if (write === undefined) return sessionStorage.getItem(basicKey) === "1";
-      if (write) sessionStorage.setItem(basicKey, "1"); else sessionStorage.removeItem(basicKey);
-    } catch { /* Storage may be blocked; the choice then lasts until the page is left. */ }
-    return Boolean(write);
-  };
-  let basic = stored(), node: HTMLElement | null = null;
-  /** Shows the page, or the groups with the way back; a page that is not there leaves the basic home and says so. */
-  const show = (shown: SurfaceHomeDisplay | null) => {
-    const lead = shown?.lead, name = shown ? homeLeadName(shown) : "";
-    const next = lead && !basic ? host.lead.adopt(box, lead.target) : null;
+  const box = root.querySelector<HTMLElement>("[data-home-lead]")!;
+  let node: HTMLElement | null = null;
+  /** Shows the page and says whether it is there; the name of one that did not open is the caller's to tell. */
+  const show = (shown: SurfaceHomeDisplay | null): { failed?: string } => {
+    const lead = shown?.lead;
+    const next = lead ? host.lead.adopt(box, lead.target) : null;
     if (node && node !== next) host.lead.release(node);
     node = next;
     root.toggleAttribute("data-home-leading", Boolean(node));
-    box.hidden = !node; bar.hidden = !lead;
-    bar.innerHTML = !lead ? "" : (!node && !basic ? "<p>" + escapeHtml(homeLeadWord("lead-failed", name)) + "</p>" : "")
-      + '<button type="button" class="mw-btn mw-btn--ghost" data-home-control="lead-toggle">'
-      + escapeHtml(node ? homeWord("lead-basic") : homeLeadWord("lead-back", name)) + "</button>";
+    box.hidden = !node;
+    return lead && !node && shown ? { failed: homeLeadName(shown) } : {};
   };
-  /** With the page shown this goes to the groups; otherwise back to the page, which is also the retry after a failure. */
-  const toggle = (shown: SurfaceHomeDisplay | null) => {
-    basic = stored(Boolean(node));
-    show(shown);
-    bar.querySelector<HTMLElement>("[data-home-control]")?.focus({ preventScroll: true });
+  return { show };
+}
+
+/**
+ * When this person was last on this project's first page, on this device: page state like a scroll position, never sent anywhere.
+ * It is read once as a visit begins and written as the visit ends, so 「自你上次来」 stays put while the page is open.
+ */
+function createLastVisit(projectKey: string) {
+  const key = "molis-work-home-seen:" + projectKey;
+  let since: string | null | undefined;
+  return {
+    begin() {
+      if (since !== undefined) return since;
+      try { since = localStorage.getItem(key); } catch { since = null; }
+      if (since && !Number.isFinite(Date.parse(since))) since = null;
+      return since;
+    },
+    end() {
+      if (since === undefined) return;
+      since = undefined;
+      try { localStorage.setItem(key, new Date().toISOString()); } catch { /* Storage may be blocked: the page then reads as a first visit. */ }
+    },
   };
-  return { show, toggle };
+}
+
+/**
+ * One ink-blue button a screen (specs/screen-polish §八之二 第 6 条): while the assistant's conversation is open its send key has it,
+ * and the page's own first step steps down to a plain button; it comes back when the conversation closes.
+ */
+function yieldPrimary(root: Element) {
+  const panel = root.ownerDocument.querySelector<HTMLElement>("[data-assistant-panel]");
+  const apply = () => {
+    const open = Boolean(panel && !panel.hidden);
+    for (const button of root.querySelectorAll(".mw-first-page__step :is(.mw-btn--primary, [data-home-yielded])")) {
+      button.toggleAttribute("data-home-yielded", open);
+      button.classList.toggle("mw-btn--primary", !open);
+      button.classList.toggle("mw-btn--secondary", open);
+    }
+  };
+  const observer = panel ? new MutationObserver(apply) : null;
+  if (panel) observer?.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  return { apply, stop: () => observer?.disconnect() };
 }
 
 /** When the home is shown, hidden or has to read again: the root, its holder, the plugin list and the place. */
@@ -194,6 +227,10 @@ export function mountHome(host: HomeHost) {
   if (!surface) return null;
   const root = surface;
   const groups = root.querySelector<HTMLElement>("[data-home-groups]")!, status = root.querySelector<HTMLElement>("[data-home-status]")!;
+  const margin = root.querySelector<HTMLElement>("[data-home-margin]")!;
+  /** Where the label of the writing the page's sentences are from goes, in the line over the title. */
+  const version = root.querySelector<HTMLElement>("[data-home-version]");
+  const visit = createLastVisit(host.projectKey);
   const peek = root.querySelector<HTMLDialogElement>("[data-home-peek]")!, peekContent = peek.querySelector<HTMLElement>("[data-home-peek-content]")!;
   const controls = new Map<string, HomeControl>();
   const peekControls = new Map<string, HomeControl>();
@@ -207,7 +244,9 @@ export function mountHome(host: HomeHost) {
       ? host.offerApi(path, method, body, inspecting.signal) : Promise.reject(new DOMException("View closed", "AbortError")),
     refresh: async () => sync() });
   let display: SurfaceHomeDisplay | null = null, reading: AbortController | null = null, clicking: AbortController | null = null;
-  let restoreFocus: HTMLElement | null = null, shown = false, needsRead = true, receipt: HomeControl | null = null;
+  let restoreFocus: HTMLElement | null = null, shown = false, needsRead = true, receipt: HomeControl | null = null, leadFailed: string | undefined;
+  /** Whether the person opened every row of 「自你上次来」 during this visit. */
+  let showAll = false;
   const holder = window.frameElement;
   const visible = () => root.isConnected && !document.hidden && !root.closest("[hidden]") && (!holder || holder.isConnected && !holder.closest("[hidden]"));
   const placement = createPositionPeek(groups, (body, signal) => host.read(body.click ? "/click" : "", body.click ?? body, signal), host,
@@ -227,10 +266,18 @@ export function mountHome(host: HomeHost) {
   const cancel = (release: boolean) => {
     reading?.abort(); reading = null; clicking?.abort(); clicking = null;
     closePeek(); placement.close(false); needsRead = true;
-    if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); showLead(null); }
+    if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); margin.replaceChildren(); version?.replaceChildren(); showLead(null); }
   };
   const releaseText = (old: SurfaceHomeDisplay | null) => releaseHomeText(host, old);
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
+
+  function paint(result: SurfaceHomeDisplay) {
+    const page = renderHome(result, controls, { since: visit.begin(), readAt: new Date().toISOString(), ...(leadFailed ? { leadFailed } : {}), showAll,
+      settingsHref: section => host.settingsHref?.(section) ?? "#" }, corrections.rendering(result));
+    reconcileSurfaceRows(groups, page.column, rowMarkup);
+    margin.innerHTML = page.margin;
+    if (version) version.innerHTML = page.version;
+  }
 
   async function sync(invalidate = false) {
     needsRead = true;
@@ -253,19 +300,19 @@ export function mountHome(host: HomeHost) {
         if (JSON.stringify(previous) !== JSON.stringify(next)) closePeek();
       }
       releaseText(display); display = result; needsRead = false;
-      const editing = corrections.rendering(result);
-      if (!before) {
+      const lead = showLead(result);
+      if (!before || lead.failed !== leadFailed) {
         placement.close(false);
-        const html = renderHome(result, controls, editing);
-        reconcileSurfaceRows(groups, html, rowMarkup);
+        leadFailed = lead.failed;
+        paint(result);
       }
+      primary.apply();
       corrections.afterPaint();
-      showLead(result);
       if (inspected?.read.state === "ok") offers.refresh();
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);
     } catch (error) {
       if (request.signal.aborted || reading !== request || !visible()) return;
-      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); placement.close(false); showLead(null); }
+      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); margin.replaceChildren(); version?.replaceChildren(); closePeek(); placement.close(false); showLead(null); }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
   }
@@ -279,7 +326,15 @@ export function mountHome(host: HomeHost) {
     }
     if (key === "market") { host.market(); return; }
     if (key === "picker") { (host.picker ?? host.market)(); return; }
-    if (key === "lead-toggle") { lead.toggle(display); return; }
+    if (key === "write") { host.write?.(); return; }
+    if (key === "lead-retry") { await sync(); return; }
+    if (key === "more" || key === "less") {
+      showAll = key === "more";
+      if (!display) return;
+      paint(display); primary.apply(); corrections.afterPaint();
+      groups.querySelector<HTMLElement>('[data-home-control="' + (showAll ? "less" : "more") + '"]')?.focus({ preventScroll: true });
+      return;
+    }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);
     if (!control) return;
     if (isPlacementControl(control.target.kind)) { placement.open(key, focus); return; }
@@ -312,7 +367,7 @@ export function mountHome(host: HomeHost) {
       }
     } catch (error) {
       if (!request.signal.aborted && clicking === request && visible()) {
-        if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
+        if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); margin.replaceChildren(); version?.replaceChildren(); closePeek(); }
         caption(key === "open-result" ? "open-failed" : "navigation-failed", key === "open-result" ? key : "refresh");
       }
     } finally {
@@ -332,13 +387,15 @@ export function mountHome(host: HomeHost) {
     if (next === shown) return;
     shown = next;
     if (shown && needsRead) void sync();
-    else if (!shown) cancel(true);
+    else if (!shown) { visit.end(); cancel(true); }
   };
-  const unwatch = watchHome(root, holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { shown = false; cancel(true); });
+  const primary = yieldPrimary(root);
+  const unwatch = watchHome(root, holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { shown = false; visit.end(); cancel(true); });
   return {
     sync,
     dispose() {
       unwatch();
+      primary.stop();
       shown = false;
       cancel(true);
     },

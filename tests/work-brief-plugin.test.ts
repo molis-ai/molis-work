@@ -276,32 +276,38 @@ test("WBR-06 WBR-07 a next step runs the prepared action once as the person; a c
   assert.notEqual(await code(call(workBriefActions.runNext, { brief_id: id, option_id: close }, { ...caller, audience: "agent" })), "accepted");
 });
 
-test("WBR-22 WBR-23 with Work Brief in the project the home names its main-area view first, beside every plugin's own card; taken out, the basic home is what is left", { timeout: 90_000 }, async t => {
+test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries the opening sentences for the one home, beside every plugin's own card; taken out, the same home is what is left", { timeout: 90_000 }, async t => {
   const { call, caller, risk, change } = await fixture(t);
+  const home = () => call<SurfaceDescription>(surfaceCompositionActions.compose, { slot: { kind: "home" } }, person([...caller.permissions], caller.project_id));
+  const card = (description: SurfaceDescription) => description.groups.find(group => group.kind === "plugin" && group.owner_plugin_id === WORK_BRIEF_PLUGIN_ID);
+  // Installed and nothing written yet: an invitation in its own words, no sentence, and nothing starts by itself.
+  const unwritten = card(await home())?.plugin_card?.lede;
+  assert.deepEqual([unwritten?.sentences, unwritten?.invite?.text.key, unwritten?.invite?.action.key, unwritten?.invite?.action.owner],
+    [[], "work-brief.presentation.invite", "work-brief.presentation.invite-action", WORK_BRIEF_PLUGIN_ID]);
   const made = await risk("供应商延期");
   await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "交付有延期风险。", cites: [{ kind: "risk", id: made.risk_id }] }] } });
-  const home = () => call<SurfaceDescription>(surfaceCompositionActions.compose, { slot: { kind: "home" } }, person([...caller.permissions], caller.project_id));
   const withBrief = await home();
-  assert.deepEqual(withBrief.groups.map(group => group.kind).filter(kind => kind === "lead"), ["lead"]);
-  const lead = withBrief.groups[0]!;
-  assert.deepEqual([lead.kind, lead.owner_plugin_id, lead.lead?.view_id, lead.items.length], ["lead", WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_VIEW_ID, 0]);
+  // One home (specs/screen-polish §八之二): no plugin page stands in for it.
+  assert.equal(withBrief.groups.some(group => group.kind === "lead"), false);
+  const lede = card(withBrief)?.plugin_card?.lede;
+  assert.deepEqual(lede?.sentences, [{ text: "交付有延期风险。", sources: [RISK_ID] }], "each sentence names the plugins it stands on");
+  assert.deepEqual([lede?.label.owner, lede?.label.key, lede?.invite], [WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.lede-label", undefined]);
+  assert.ok(lede?.as_of);
   const cards = (description: SurfaceDescription) => description.groups.filter(group => group.kind === "plugin").map(group => [group.owner_plugin_id, group.state]);
   assert.ok(cards(withBrief).some(([owner, state]) => owner === RISK_ID && state === "ok"), "the source keeps its own card");
-  assert.ok(cards(withBrief).some(([owner, state]) => owner === WORK_BRIEF_PLUGIN_ID && state === "ok"), "Work Brief is a plugin like the others: it has a card too");
-  // Its overview is the same public read every plugin gives: a sentence and the brief as an object, no model.
+  // Its overview is the same public read every plugin gives, no model. The project's own brief is the page's sentences, not a row of it.
   const overview = await call<PresentationOverview>(workBriefPresentationActions.find(action => action.capability_id.endsWith("presentation.overview"))!, {});
-  assert.equal(overview.subjects.length, 1);
-  assert.equal(overview.subjects[0]!.kind, "brief");
-  // Taken out of the project: no lead, the other plugins' cards as before, and the source's facts untouched.
+  assert.deepEqual([overview.subjects, overview.lede?.sentences.length], [[], 1]);
+  // Taken out of the project: no sentences, the other plugins' cards as before, and the source's facts untouched.
   await change("DELETE", "work-brief");
   const basic = await home();
-  assert.equal(basic.groups.some(group => group.kind === "lead"), false);
+  assert.equal(card(basic)?.plugin_card?.lede, undefined);
   assert.ok(cards(basic).some(([owner, state]) => owner === RISK_ID && state === "ok"));
   assert.deepEqual(cards(basic).find(([owner]) => owner === WORK_BRIEF_PLUGIN_ID), [WORK_BRIEF_PLUGIN_ID, "disabled"], "what is left of it is the card that offers to add it back");
   // Put back: the brief is still there (its data follows the plugin's lifecycle, not the page's).
   await change("POST", "work-brief");
   assert.equal((await call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
-  assert.equal((await home()).groups[0]!.kind, "lead");
+  assert.equal(card(await home())?.plugin_card?.lede?.sentences.length, 1);
 });
 
 test("WBR-24 the personal brief gathers what waits in the briefs of the projects the person reaches, each labelled with its project; deleting a project takes only its rows", { timeout: 120_000 }, async t => {

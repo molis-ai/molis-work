@@ -94,12 +94,14 @@ test("UXUP-03 one change, one motion: turn, ask and carry are written once, on t
     "without view transitions, or with reduced motion, the change simply happens");
 });
 
-test("UXUP-01 UXUP-02 Home is headed by the project's name, and only the first waiting row carries the ink-blue button", () => {
+test("UXUP-01 UXUP-02 POLISH-79 Home is headed by the project's name, and only the first next step carries the ink-blue button", () => {
   const page = source("apps/workbench/src/project-home.ts");
-  assert.match(page, /<header class="home-heading"><p class="home-heading__place">\$\{uiText\("workbench\.project-home\.project-home"\)\}<\/p><h1>\$\{e\(name\)\}<\/h1><\/header>/u);
+  assert.match(page, /<div class="mw-first-page__meta"><span>\$\{uiText\("workbench\.project-home\.project-home"\)\}<\/span>[\s\S]*?<h1>\$\{e\(name\)\}<\/h1>/u);
   const render = source("apps/workbench/src/browser/project-home-render.ts");
-  assert.match(render, /primary: ref === "open" && group\.kind === "attention" && lead/u);
-  assert.match(render, /class="home-clear" data-home-group="attention"/u, "nothing waiting is one quiet line, still the attention group");
+  assert.match(render, /variant: index === 0 \? "primary" as const : "secondary" as const/u, "the first next step is the page's one primary button");
+  assert.match(render, /primary: false \}\];/u, "a row's own actions are all at rest");
+  // What waits for the person is the bottom bar's (specs/screen-polish §八之二 第 4 条): the first page lists no second copy of it.
+  assert.doesNotMatch(render, /home-clear|data-home-group="attention"/u);
   for (const locale of ["zh", "en"]) {
     assert.ok(!("workbench.home.lead" in JSON.parse(source(`apps/workbench/resources/locales/${locale}.json`))), `${locale}: the lead sentence is gone with its key`);
   }

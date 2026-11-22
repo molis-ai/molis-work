@@ -46,7 +46,7 @@
     "workbench.scene.on": "On",
     "workbench.scene.off": "Off",
     "workbench.scene.device-only": "This device only",
-  "workbench.scene.personal": "Personal defaults",
+    "workbench.scene.personal": "Personal defaults",
     "workbench.scene.new_project": "New project",
     "workbench.scene.provider_default": "Provider default",
     "workbench.scene.reach": "Affects future work in this scope",
@@ -10636,7 +10636,13 @@
     "workbench.package-install-card.key": "Key",
     "workbench.package-install-card.sent-in-header": "Sent in header",
     "workbench.package-install-card.always-needed": "Always needed",
-    "workbench.package-install-card.background-count-things-first": "Background, {count} things: {first} and more",
+    "workbench.package-install-card.background-count-things-first": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "In the background, {count} job: {first}",
+        "other": "In the background, {count} jobs: {first} and more"
+      }
+    },
     "workbench.package-install-card.background-reason": "Background: {reason}",
     "workbench.package-install-card.count-optional-switched-in-settings-after": {
       "plural_arg": "count",

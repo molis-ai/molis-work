@@ -37,9 +37,9 @@ test("FSS-53 a platform package's surface Manifest owns its words like a plugin'
   const moved = Object.fromEntries(Object.entries(core()).map(([file, text]) => [file.replace(DIR, "horizontal/alpha-studio"), text]));
   const result = read(moved);
   assert.deepEqual(result.problems, []);
-  assert.deepEqual(new Set(result.calls.map(call => call.key)), new Set(["alpha.page.open", "alpha.page.close"]));
+  assert.deepEqual(new Set(result.calls.map((call: { key: string }) => call.key)), new Set(["alpha.page.open", "alpha.page.close"]));
   const orphan = read({ ...moved, "horizontal/alpha-studio/src/manifest.ts": "export const manifest = {};" }).problems;
-  assert.ok(orphan.some(problem => problem.includes("horizontal/alpha-studio/locales/en.json: no locale declaration reaches this file")), orphan.join("\n"));
+  assert.ok(orphan.some((problem: string) => problem.includes("horizontal/alpha-studio/locales/en.json: no locale declaration reaches this file")), orphan.join("\n"));
 });
 
 test("FSS-53 the locale gate refuses missing English, invalid key shapes and dropped declarations", () => {

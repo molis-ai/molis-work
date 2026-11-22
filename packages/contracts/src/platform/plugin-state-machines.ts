@@ -86,14 +86,14 @@ export const stateMachineActions = {
       description: "列出平台和当前范围内各插件申报的状态机：每台机器的状态、所属状态家族、起始与终止状态。只含元数据，停用或没启动的插件也能读到。",
       input_schema: {
         type: "object", additionalProperties: false,
-        properties: { plugin_id: { type: "string", minLength: 1, maxLength: 200 }, project_id: { type: "string", minLength: 1, maxLength: 200 } },
+        properties: { plugin_id: { type: "string", minLength: 1, maxLength: 200 } },
       },
       output_schema: {
         type: "object", additionalProperties: false, required: ["entries"],
         properties: { entries: { type: "array", items: ENTRY_SCHEMA }, empty_reason: { type: "string", enum: ["no_home", "no_plugins_in_scope"] } },
       },
     },
-  } as ActionDefinition<{ plugin_id?: string; project_id?: string }, StateMachineListResult>,
+  } as ActionDefinition<{ plugin_id?: string }, StateMachineListResult>,
   get: {
     capability_id: "state_machines.get", version: /* @version action.state_machines.get */ 1, operation: "query",
     action: {
@@ -104,7 +104,7 @@ export const stateMachineActions = {
         type: "object", additionalProperties: false, required: ["machine_id"],
         properties: {
           machine_id: { type: "string", minLength: 1, maxLength: STATE_MACHINE_DECLARATION_LIMITS.id },
-          install_id: { type: "string", minLength: 1, maxLength: 200 }, project_id: { type: "string", minLength: 1, maxLength: 200 },
+          install_id: { type: "string", minLength: 1, maxLength: 200 },
         },
       },
       output_schema: {
@@ -112,5 +112,5 @@ export const stateMachineActions = {
         properties: { entry: { anyOf: [ENTRY_SCHEMA, { type: "null" }] } },
       },
     },
-  } as ActionDefinition<{ machine_id: string; install_id?: string; project_id?: string }, StateMachineGetResult>,
+  } as ActionDefinition<{ machine_id: string; install_id?: string }, StateMachineGetResult>,
 } as const;

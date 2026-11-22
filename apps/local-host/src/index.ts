@@ -482,4 +482,4 @@ export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-sourc
 export { offerProjectAutomation } from "./automation-proactive.js";
 // A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.
 export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
-export { studioTrials } from "./plugin-builder/studio-preview.js";
+export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";

@@ -46,7 +46,7 @@
     "workbench.scene.on": "开启",
     "workbench.scene.off": "关闭",
     "workbench.scene.device-only": "仅此设备",
-  "workbench.scene.personal": "个人默认",
+    "workbench.scene.personal": "个人默认",
     "workbench.scene.new_project": "新建项目",
     "workbench.scene.provider_default": "提供方默认",
     "workbench.scene.reach": "会影响此范围内后续的工作",
@@ -9803,7 +9803,12 @@
     "workbench.package-install-card.key": "密钥",
     "workbench.package-install-card.sent-in-header": "放在请求头",
     "workbench.package-install-card.always-needed": "一定要用",
-    "workbench.package-install-card.background-count-things-first": "后台会做 {count} 件事：{first} 等",
+    "workbench.package-install-card.background-count-things-first": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "后台会做 {count} 件事：{first} 等"
+      }
+    },
     "workbench.package-install-card.background-reason": "后台：{reason}",
     "workbench.package-install-card.count-optional-switched-in-settings-after": {
       "plural_arg": "count",

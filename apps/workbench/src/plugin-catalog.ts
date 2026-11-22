@@ -382,12 +382,12 @@ export function pluginMarketCards(options: PluginMarketOptions = {}, directory: 
 }
 
 export function pluginTabGlyphs(): Record<string, string> {
-  const market = builtinPlacementDirectory(), enabled = market.map((entry) => entry.id);
+  // The platform's own framed surfaces sit in the same one registry as the plugins: their glyphs follow the same rule.
+  const directory = [...builtinPlacementDirectory(), ...hostSurfacePlacement()], enabled = directory.map((entry) => entry.id);
   return Object.fromEntries([
     ["home", "home"],
     ["market", "grid"],
-    ...navigationEntries(enabled, market, ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
-    ...hostSurfaceTabs(hostSurfacePlacement(), ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
+    ...navigationEntries(enabled, directory, ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => [entry.id, entry.glyph]),
   ]);
 }
 

@@ -73,6 +73,8 @@ export const pluginInstallActions = {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, dual_instance: { const: true }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] }, local: { const: true } } },
       secrets: { type: "array", maxItems: 64, items: { type: "object", additionalProperties: false, required: ["name", "saved"], properties: { name: text, saved: { type: "boolean" } } } },
+      // The package declares a memory scene this running Molis Work lists only after a restart (BL-b44-coding-scene-enum).
+      memory_scene_after_restart: { const: true },
       agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt", "body", "total_chars", "truncated"], properties: {
         kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 8000 }, total_chars: { type: "integer", minimum: 0, maximum: 8000 }, truncated: { type: "boolean" }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
       // An upgrade lists the Skills it removes besides the package's own, so twice the most one package declares.

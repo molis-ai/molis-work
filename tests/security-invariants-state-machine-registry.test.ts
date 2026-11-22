@@ -228,7 +228,8 @@ test("SMP-07 SMP-08 S-state-machine-registry-metadata stored declarations are da
       assert.deepEqual(definition.action.permissions, [], "the registry asks for no permission and adds none");
       assert.equal(definition.action.kind, "query");
     }
-    await assert.rejects(f.invoke("state_machines.list", { project_id: "another-project" }), { code: "actions.scope_mismatch" });
+    // The project is the caller's own: neither query takes one in its input, so a caller cannot read another project's registry.
+    for (const definition of [stateMachineActions.list, stateMachineActions.get]) assert.equal(Object.hasOwn(definition.action.input_schema.properties as object, "project_id"), false);
     await assert.rejects(f.invoke("state_machines.list", {}, { ...agent, signal: AbortSignal.abort() }), { name: "AbortError" });
   } finally { f.db.close(); }
 });

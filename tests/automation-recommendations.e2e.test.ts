@@ -17,7 +17,7 @@ import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 // AUT-06, AUT-07 and AUT-08 are the three cases this e2e proves; AUT-01 is the scan citation.
 test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested Skill applies until it is turned off", { timeout: 95_000 }, async t => {
   const fixture = await openTestHome(t);
-  const project = await fixture.createProject("Automation browser project", ["pages", "plugin-builder"]);
+  const project = await fixture.createProject("Automation browser project", ["pages"]);
   const { withCatalog } = fixture.host.ensureWebCatalog(fixture.home, openMolisWorkProjectCatalog);
   const model = await issueModel(t, fixture.home, { replyText: "已检查这轮要求。" }, withCatalog);
   const base = "/projects/" + project.project_id;

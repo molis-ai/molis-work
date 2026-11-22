@@ -163,7 +163,8 @@ export function packageInstallHtml(say: Say, owner: string, view: PackageInstall
     const w = words(t, sheet, row), on = view.on.has(row.permission), tags = (w.tag ? `<em class="install-tile__tag" data-tint="amber">${escape(w.tag)}</em>` : "")
       + (row.fresh ? `<em class="install-tile__tag" data-tint="accent">${escape(t("workbench.package-install-card.new"))}</em>` : "");
     const copy = `${mark(w.icon, w.tint)}<span class="install-tile__copy"><strong><span title="${escape(w.name)}">${escape(w.name)}</span>${tags}</strong><span title="${escape(w.note)}">${escape(w.note)}</span></span>`;
-    if (!pick) return `<li class="install-tile">${copy}<span class="install-tile__lock" title="${escape(t("workbench.package-install-card.required"))}">${icon("lock")}<span class="mw-sr-only">${escape(t("workbench.package-install-card.required"))}</span></span></li>`;
+    // A required tile takes keyboard focus, so a cut name or note is shown whole by the shared tooltip there too (VUX-05).
+    if (!pick) return `<li class="install-tile" tabindex="0">${copy}<span class="install-tile__lock" title="${escape(t("workbench.package-install-card.required"))}">${icon("lock")}<span class="mw-sr-only">${escape(t("workbench.package-install-card.required"))}</span></span></li>`;
     // The whole tile presses (`tile:`), and the switch itself holds the keyboard (`switch:`); both are the one choice.
     return `<li><label class="install-tile" data-pick data-on="${on}" data-framed-control="${escape("tile:" + row.permission)}">${copy}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(w.name)}"${on ? " checked" : ""}${view.busy ? " disabled" : ""} data-framed-control="${escape("switch:" + row.permission)}"><span class="mw-switch__track" aria-hidden="true"></span></span></label></li>`;
   };

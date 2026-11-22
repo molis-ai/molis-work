@@ -21,7 +21,7 @@ export const PACKAGE_INSTALL_AREA_STYLES = `
 .install-sheet__app svg{width:22px;height:22px}
 .install-sheet__id{flex:1;min-width:0;display:grid;gap:6px}
 .install-sheet__name{display:flex;align-items:center;gap:8px;min-width:0;height:22px}
-.install-sheet__name strong{min-width:0;overflow:hidden;font-size:16px;line-height:22px;font-weight:var(--weight-strong,600);text-overflow:ellipsis;white-space:nowrap}
+.install-sheet__name strong{min-width:0;overflow:hidden;font-size:17px;line-height:22px;font-weight:var(--weight-strong,600);text-overflow:ellipsis;white-space:nowrap}
 .install-sheet__ver{flex:none;display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--rail);color:var(--muted);font-size:11px;font-weight:var(--weight-strong,600);font-variant-numeric:tabular-nums}
 .install-sheet__ver[data-new]{background:var(--action);color:var(--action-ink)}
 .install-sheet__arrow{flex:none;display:inline-grid;color:var(--muted)}.install-sheet__arrow svg{width:12px;height:12px}
@@ -47,16 +47,16 @@ export const PACKAGE_INSTALL_AREA_STYLES = `
 .install-tile[data-pick]:hover{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,var(--line-strong))}
 .install-tile[data-on=true]{background:color-mix(in srgb,var(--accent-soft) 55%,var(--paper));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 55%,transparent)}
 .install-tile[data-on=true] .install-tile__copy>span{color:var(--ink-soft)}
-.install-tile[data-pick]:has(input:focus-visible){outline:var(--focus-stroke);outline-offset:2px}
+.install-tile[data-pick]:has(input:focus-visible),li.install-tile:focus-visible{outline:var(--focus-stroke);outline-offset:2px}
 .install-tile[data-pick]:has(input:disabled){cursor:default;opacity:.6}
 .install-tile__lock{display:inline-grid;color:var(--muted)}.install-tile__lock svg{width:14px;height:14px}
-.install-tile__mark{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--paper);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.install-tile__mark{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--paper);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
 .install-tile__mark svg{width:16px;height:16px}
 .install-tile__mark:not([data-tint=plain]){box-shadow:none}
 .install-tile__mark[data-tint=blue]{background:var(--blue-soft);color:var(--blue)}.install-tile__mark[data-tint=green]{background:var(--green-soft);color:var(--green)}
 .install-tile :is(.install-tile__mark,.install-tile__tag)[data-tint=amber]{background:var(--amber-soft);color:var(--amber)}
 .install-tile :is(.install-tile__mark,.install-tile__tag)[data-tint=accent]{background:var(--accent-soft);color:var(--accent-strong)}
-.install-tile__tag{flex:none;height:16px;padding:0 6px;border-radius:999px;font-style:normal;font-size:10px;line-height:16px;font-weight:var(--weight-strong,600)}
+.install-tile__tag{flex:none;height:16px;padding:0 6px;border-radius:999px;font-style:normal;font-size:11px;line-height:16px;font-weight:var(--weight-strong,600)}
 .install-sheet__strip{display:flex;align-items:center;gap:8px;height:28px;margin:0;padding:0 4px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden}
 .install-sheet__strip svg{flex:none;width:14px;height:14px}.install-sheet__strip span{overflow:hidden;text-overflow:ellipsis}
 .install-sheet__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;box-sizing:border-box;min-width:0;height:60px;padding:0 20px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--rail) 45%,var(--paper))}
@@ -65,8 +65,8 @@ export const PACKAGE_INSTALL_AREA_STYLES = `
 .install-sheet__acts{display:flex;flex:none;gap:8px}
 .install-sheet .mw-btn{flex:none;height:36px;min-height:0;margin-block:0}
 .install-steps{display:flex;align-items:center;max-width:100%;margin:0 auto;padding:0;overflow:hidden;list-style:none}
-.install-steps li{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:12px;font-weight:var(--weight-control,560);white-space:nowrap;transition:color var(--dur-move,240ms) var(--ease-quint)}
-.install-steps li>span{overflow:hidden;text-overflow:ellipsis}
+.install-steps li{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:12px;font-weight:var(--weight-control,560);transition:color var(--dur-move) var(--ease-quint)}
+.install-steps li>span{min-width:0;overflow-wrap:anywhere}
 .install-steps li+li::before{content:"";flex:none;width:28px;height:1px;margin:0 10px;background:var(--line-strong)}
 .install-steps li:is([data-state=doing],[data-state=done]){color:var(--ink)}.install-steps li[data-state=failed]{color:var(--red)}
 .install-steps .mw-state-ring{flex:none;margin:0}

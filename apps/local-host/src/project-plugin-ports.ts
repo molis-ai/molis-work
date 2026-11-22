@@ -63,9 +63,11 @@ export async function prepareInstalledPlugins(source: ProjectPluginHost, referen
   opened?: ProjectPluginState): Promise<void> {
   if (!source.options.homeDirectory) return;
   // The installed plugins run on the project's platform (47-1 B): one that did not start runs none of them, and its page says why.
-  const state = opened ?? await ensureProjectPlugins(projectPluginPorts(source, reference, runtime));
-  if (!state.platform) return;
-  await (await installedPluginsOf(source, reference, runtime, state)).refreshPublicActions();
+  // Preparing reads never starts the project's plugins: only a caller that activates them (or a platform already running) brings them in,
+  // so a page's several prepared reads do not each re-read the project's plugin list either.
+  const ready = opened ? !!opened.platform : !!await runningProjectPlatform(runtime.store, runtime.project_id);
+  if (!ready) return;
+  await (await installedPluginsOf(source, reference, runtime, true)).refreshPublicActions();
 }
 
 /** Prepare the actual providers for the action entrance; a preview reads the prepared directory and cannot reconcile it. */
@@ -79,10 +81,10 @@ export async function prepareProjectActionDirectory(source: ProjectPluginHost, r
   signal?.throwIfAborted();
 }
 
-async function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime, opened?: ProjectPluginState) {
+async function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime, platformOpen = false) {
   const { host, options } = source;
   // The installed plugins run on the project's one platform (47-1 B): open it with the Runtime's own stores first, unless this request already did.
-  if (!opened) await ensureProjectPlugins(projectPluginPorts(source, reference, runtime));
+  if (!platformOpen) await ensureProjectPlugins(projectPluginPorts(source, reference, runtime));
   return ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: options.homeDirectory!, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
@@ -193,9 +195,9 @@ export function projectActionInstallationsIn({ store, project_id }: MolisWorkPro
 export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string): Promise<InstalledPluginEntry[]> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
-  const opened = await ensureProjectPluginActions(source, reference);
+  await ensureProjectPluginActions(source, reference);
   const entries = await source.host.withRuntime(reference, async runtime => {
-    const installed = source.options.homeDirectory ? await installedPluginsOf(source, reference, runtime, opened) : undefined;
+    const installed = source.options.homeDirectory ? await installedPluginsOf(source, reference, runtime, true) : undefined;
     // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
     await installed?.reconcilePublishers();
     // Why a package of this project is not running, when its plugin host knows; a plugin of the Host's build has none here.
@@ -215,7 +217,7 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
 export async function regrantPluginInProject(source: ProjectPluginHost, projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
-  const opened = await ensureProjectPluginActions(source, reference);
+  await ensureProjectPluginActions(source, reference);
   await source.host.withRuntime(reference, async runtime => {
     const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
     const record = platform?.runtime.list().find(row => row.install_id === installId);
@@ -226,7 +228,7 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
       return;
     }
     if (source.options.homeDirectory) {
-      const installed = await installedPluginsOf(source, reference, runtime, opened);
+      const installed = await installedPluginsOf(source, reference, runtime, true);
       const owned = installed.records().find(row => row.install_id === installId);
       if (owned && installed.releaseFor(owned.plugin_id)) {
         assertPermissionSwitchTarget(owned, expected);

@@ -8969,12 +8969,10 @@ export declare const skillEntriesOf: (appliesTo: SkillAppliesTo, pluginScenes: r
 export declare const stateMachineActions: {
     readonly list: ActionDefinition<{
         plugin_id?: string;
-        project_id?: string;
     }, StateMachineListResult>;
     readonly get: ActionDefinition<{
         machine_id: string;
         install_id?: string;
-        project_id?: string;
     }, StateMachineGetResult>;
 };
 

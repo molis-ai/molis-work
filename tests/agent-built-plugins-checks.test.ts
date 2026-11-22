@@ -234,16 +234,17 @@ test('with a settled directory, another operation being written at the same time
 
 test('S-47 an installed raw operation refuses actor names, JSON and Host route control without its exposed action', mac, async () => {
   const { sandboxedPluginDefinition } = await import('../apps/local-host/src/installed-plugin-sandbox-definition.js');
-  const { generatedPluginManifest } = await import('../apps/local-host/src/plugin-builder/studio-preview.js');
+  const { sandboxPluginManifest } = await import('@molis-ai/molis-work-plugin-sdk');
   const f = await fixture();
   try {
     const checked = await runPluginChecks(f.options); assert.equal(checked.passed, true, JSON.stringify(checked.gates));
     const values = new Map<string, string>();
     const storage = { get: (key: string) => values.get(key) ?? null, set: (key: string, value: string) => { values.set(key, value); }, delete: (key: string) => values.delete(key),
       compareAndSet: (key: string, expected: string | null, value: string) => { if ((values.get(key) ?? null) !== expected) return false; values.set(key, value); return true; } };
-    const release = { buildId: 'b', pluginId: f.options.contract.pluginId, version: 1, design: { title: '回声', contract: f.options.contract, parts: [], acceptance: [] }, nodes: [],
+    const release = { buildId: 'b', pluginId: f.options.contract.pluginId, version: 1, design: { title: '回声', contract: f.options.contract, parts: [], acceptance: [] }, nodes: [], prompts: [],
       manifest: f.options.manifest, directory: f.root, bundlePath: checked.bundlePath!, packagePath: f.root, permissions: {}, publishedAt: '' } as never;
-    const definition = sandboxedPluginDefinition(release, {}, generatedPluginManifest(release));
+    const definition = sandboxedPluginDefinition(release, {}, sandboxPluginManifest({ pluginId: f.options.contract.pluginId, version: '1.0.0', name: '回声', presentation: false,
+      publisher: { publisher_id: 'example', signature: 'agent-built:b' }, contract: f.options.contract, actionIdentity: { buildId: 'b', version: 1 } }));
     const running = await definition.start({ requireGrant() {}, grants: ['storage:private'], services: { storage }, project_id: 'p', install_id: 'install-1' } as never) as { routes: Array<{ handle(request: unknown): Promise<{ status: number; body: unknown }> }> };
     const execution = { signal: new AbortController().signal, beforeEffect: async () => {} };
     const request = { method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: 'web-user', body: { operation: 'echo', input: 'hi' } };

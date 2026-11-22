@@ -5,8 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { generatedPluginManifest } from "../apps/local-host/dist/plugin-builder/studio-preview.js";
+import { generatedPluginManifest, sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -219,7 +218,7 @@ test("BL-491 RAC-2654 a package that asks for model settings or image generation
   const context = { project_id: "p", install_id: "refusal", installation_generation: "1", requireGrant: () => {} } as Partial<PluginStartContext> as PluginStartContext;
   for (const effects of [{ imageGeneration: ["read"] }, { modelSettings: ["read"] }] satisfies SandboxEffects[]) {
     const contract = { pluginId: "io.molis.work.example.projectrefusal", operations: [{ id: "draw", kind: "command" as const, effects, input: { type: "null" }, output: { type: "null" } }] };
-    const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", nodes: [], design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
+    const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", nodes: [], prompts: [], design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
     await assert.rejects(sandboxedPluginDefinition(release, effects, generatedPluginManifest(release)).start(context), (error: { code?: string; message?: string }) =>
       error.code === "plugin.declaration_invalid" && /模型设置和图片生成只给装在 Home 里的插件/u.test(error.message ?? ""), JSON.stringify(effects));
   }

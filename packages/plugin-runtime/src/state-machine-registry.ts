@@ -1,4 +1,4 @@
-import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler, requireSynchronous, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   STATE_MACHINES_PROVIDER_ID, stateMachineActions,
   type PluginInstanceRecord, type PluginManifest, type StateMachineDeclaration, type StateMachineListResult, type StateMachineRegistryEntry,
@@ -87,24 +87,19 @@ async function readEntries(ports: StateMachineRegistryPorts, projectId: string |
   }
 }
 
-function requestedProject(caller: ActionCallContext, requested?: string): string | undefined {
-  if (caller.project_id && requested && requested !== caller.project_id) throw new ActionError("actions.scope_mismatch", "请求与当前项目不一致");
-  return requested ?? caller.project_id ?? undefined;
-}
-
 /**
  * `system.state-machines`: the read-only registry. It stays registered on a host without a Home and answers an empty list with the reason.
  * A query reads stored Manifests only: it starts no plugin, runs no plugin code and grants nothing.
  */
 export function stateMachineActionProvider(ports?: StateMachineRegistryPorts): ActionProviderRegistration {
-  const read = async (caller: ActionCallContext, requested?: string) => {
+  const read = async (caller: ActionCallContext) => {
     const assertCurrent = () => {
       caller.signal?.throwIfAborted();
       requireSynchronous(caller.assert_authority_current?.());
     };
     assertCurrent();
-    const projectId = requestedProject(caller, requested);
-    const entries = ports ? await readEntries(ports, projectId, assertCurrent) : [];
+    // The project is the caller's own, never one named in the input (MCP and Agents get it from their connection).
+    const entries = ports ? await readEntries(ports, caller.project_id ?? undefined, assertCurrent) : [];
     assertCurrent();
     return entries;
   };
@@ -113,13 +108,13 @@ export function stateMachineActionProvider(ports?: StateMachineRegistryPorts): A
     definitions: [stateMachineActions.list, stateMachineActions.get],
     handlers: [
       bindActionHandler(stateMachineActions.list, async (input, caller): Promise<StateMachineListResult> => {
-        const all = await read(caller, input.project_id);
+        const all = await read(caller);
         const entries = input.plugin_id ? all.filter(entry => entry.owner === "plugin" && entry.owner_id === input.plugin_id) : all;
         if (!ports) return { entries, empty_reason: "no_home" };
         return entries.some(entry => entry.owner === "plugin") ? { entries } : { entries, empty_reason: "no_plugins_in_scope" };
       }),
       bindActionHandler(stateMachineActions.get, async (input, caller) => {
-        const all = await read(caller, input.project_id);
+        const all = await read(caller);
         const found = all.find(entry => (!input.install_id || entry.install_id === input.install_id)
           && entry.machines.some(machine => machine.machine_id === input.machine_id));
         return { entry: found ? { ...found, machines: found.machines.filter(machine => machine.machine_id === input.machine_id) } : null };

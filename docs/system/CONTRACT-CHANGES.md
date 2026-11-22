@@ -497,3 +497,10 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **`information.plan` 归 Feed：** 动作改为 Feed 的 `feed.information.plan@1`，提示词键从 `system:information/information.plan` 改为 `io.molis.work.feed/feed.information-plan`，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（见「当前保留机制」）。
   - **Home 目录：** `feed/secrets.json` 与 `feed/evidence/` 改在 `security/` 下，升级时整目录改名一次；Keychain 服务名 `com.molis.work.feed.secretstore` 与证据引用前缀不变。
 - **`agent.run.reviews@1` 的结果多一类行：以这一轮为来源的整合审批**（第 99 批 99-1，DEL-07）：在原版本上改，输入输出形状不变。读一轮审批时，除了这一轮自己的审批，也带上同一插件发起、`document.source` 指向这一轮的 `git-integration` 审批；这类行的 `request.run` 是 `null`（整合由人在轮次结束后发起，没有自己的轮次）。按 `request.run` 筛行的消费者要先判空；只认 `text-edit`、`command` 的消费者不受影响。Coding 用它把子任务整合确认带回的文件（新增、修改、删除）列进本轮固定变更；会话自己独立工作树的整合不归给任何一轮，Coding 不收。
+- **概况多两项可选内容、首页组合多一种分组，首页零件进 SDK**（36A 第 6 项，2026-11-22 用户定；在原版本上加可选字段，不升版本）。**对已有插件的影响**：没申报首页概况的插件不受影响；申报了概况的插件，输出 schema 由平台定、申报时要求逐字相同（`isPresentationOverviewReader`），所以要用带这两项的 SDK 重新构建才能启动。内置插件随仓库一起构建；装在 Home 里、申报了概况的旧签名包要重新打包（和第 15 批在原版本上给 `start` 加字段时一样）：
+  - **`PresentationOverview.outline`**（概况处理器的返回）：`{ title: TextRef, nodes: [{ subject, depth: 0|1, progress?: { done, total } }] }`，最多 12 个节点，第一个不能是子项，同一对象只出现一次，`done ≤ total`。首页把它画成进展段（Goals 用它交「目标」）。SDK 的 `presentationOutlineProblems` 给作者自查。
+  - **`PresentationOverview.lede`**：`{ label: TextRef, as_of?, sentences: [{ text, sources?: 插件 id[], mark?: "yours"|"changed"|"gap" }], invite?: { text, action } }`，最多 8 句、每句最多 4 个来源。首页把它画成标题下面的几句话和版本条（Work Brief 用它交简报开头）；`sentences` 为空且带 `invite` 时画成一个邀请框。句子是插件存下的原文，标签与邀请是它的 `TextRef`。
+  - **首页组合**（`SurfaceGroup`）多一种 `kind: "outline"` 与字段 `outline`；`SurfacePluginCard` 多 `lede`。`assertSurfaceDescription` 一并校验，不合规的整份拒绝。首页显示数据多 `display.shell_keys`（来源在外壳里的位置）。
+  - **Work Brief 不再申报 `overview.lead`**（主区视图承接首页）；这项平台能力还在，现在没有内置插件用它。
+  - **Goals 的状态接口多一个只读一行的读法**：`GoalEventStateApi.readWorkStatus(projectId, goalId)`，只回 open、completed 或 cancelled；概况一次要问很多个目标时用它，不再逐个读整份状态。
+  - **`@molis-ai/molis-work-plugin-sdk/ui` 新增首页零件**：`renderFirstPageSection`、`renderFirstPageNext`、`renderFirstPageSource`、`renderFirstPageMargin`、`renderProgressSegments` 与 `FIRST_PAGE_STYLES`；`renderPresentationForm` 多一个可选项 `compactTime`（同一天只写时刻）。

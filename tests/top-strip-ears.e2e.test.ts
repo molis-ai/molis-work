@@ -287,7 +287,8 @@ test("the first place names the project and opens its list; the tabs and the sta
   // A press outside the open list closes it and changes nothing.
   await click("[data-top-corner-toggle]");
   await waitFor("!document.querySelector('[data-top-corner-list]').hidden");
-  await click("[data-plugin-stage]");
+  // The first page's rows open things when pressed: the press outside lands on the page's own name, which does nothing.
+  await click('[data-work-surface="home"] h1');
   await waitFor("document.querySelector('[data-top-corner-list]').hidden");
   assert.deepEqual(await state(), { ...before, tabs: ["pages"] }, "POLISH-62: a press outside closes the list and changes nothing");
 

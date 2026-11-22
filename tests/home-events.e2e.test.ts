@@ -55,7 +55,7 @@ test("QEA-92/93 an unknown plugin keeps its event actions while retired Home Eve
     await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.homeRequests=[];
       const original=window.fetch;window.fetch=(url,options)=>{window.homeRequests.push(String(url));return original(url,options)}` }, sessionId);
     await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
-    await waitFor("document.querySelector('[data-home-card]')");
+    await waitFor("document.querySelector('[data-home-sources]')");
     assert.equal(await evaluate("homeRequests.some(path=>path.endsWith('/api/home/events'))"), false);
     assert.equal(await evaluate("document.querySelector('[data-home-subject-kind=fixture-note]')"), null, "a separate Events declaration cannot invent a presentation");
     const readsBefore = eventReads;

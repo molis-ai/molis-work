@@ -27,6 +27,8 @@ export interface PresentationFormValues {
   readonly read: Pick<PresentationValueItem, "state" | "values" | "read_at"> | { readonly state: "unreadable" };
   readonly actions?: readonly PresentationControl[];
   readonly notices?: readonly { readonly reason: OwnedTextRef; readonly next?: PresentationControl }[];
+  /** A row's times in a narrow column: the hour for today, else how long ago. The full moment stays in the element's `datetime`. */
+  readonly compactTime?: boolean;
 }
 
 type ReadUnavailable = "unreadable" | "forbidden" | "deleted";
@@ -92,6 +94,13 @@ interface DisplayContext {
   readonly locale: string | null;
   readonly word: Words;
   readonly owned: (ref: unknown) => string;
+  readonly compactTime?: boolean;
+}
+
+/** Today by the reader's own calendar day. */
+function isToday(at: string): boolean {
+  const then = new Date(at), now = new Date();
+  return then.getFullYear() === now.getFullYear() && then.getMonth() === now.getMonth() && then.getDate() === now.getDate();
 }
 
 function statusMark(object: OwnedPresentationObject, raw: unknown, text: DisplayContext): string {
@@ -129,7 +138,7 @@ function fieldContent(field: PresentationField, value: unknown, label: string, t
     case "happened_at":
     case "updated_at": {
       if (typeof value !== "string") return "";
-      const style: TextDateStyle = field.role === "due_at" ? "date" : "datetime";
+      const style: TextDateStyle = field.role === "due_at" ? "date" : !text.compactTime || !isReadTime(value) ? "datetime" : isToday(value) ? "time" : "relative";
       return `<time${isReadTime(value) ? ` datetime="${escapeHtml(value)}"` : ""}>${escapeHtml(formatDate(value, style, text.locale ?? undefined))}</time>`;
     }
     case "children": {
@@ -193,7 +202,7 @@ export function renderPresentationForm(object: OwnedPresentationObject, form: Fo
 
   const locale = ownerFormatLocale(object.owner, values.locale);
   const word = (key: string) => say.text(platformWord(key), { locale });
-  const text: DisplayContext = { locale, word, owned: ref => say.text(tryOwnedTextRef(ref, object.owner) ?? unavailableWord, { locale }) };
+  const text: DisplayContext = { locale, word, owned: ref => say.text(tryOwnedTextRef(ref, object.owner) ?? unavailableWord, { locale }), compactTime: values.compactTime };
   const shown = read.values ?? {};
   const value = (key: string) => Object.hasOwn(shown, key) ? shown[key] : undefined;
   const fields = selected.fields.flatMap(key => object.fields.find(field => field.key === key) ?? []);

@@ -111,9 +111,12 @@ export async function projectHomeDisplay(sample: HomeReadSample, signal: AbortSi
     ...group.items.map(item => item.owner_plugin_id)]));
   const owners = Object.fromEntries(catalog.entries.filter(entry => ids.has(entry.plugin.plugin_id))
     .map(entry => [entry.plugin.plugin_id, entry.display]));
-  const rows = await displayRows(sample, description.groups.flatMap(group => group.items), signal, invoke);
+  const shell_keys = Object.fromEntries(catalog.entries.filter(entry => ids.has(entry.plugin.plugin_id) && entry.route)
+    .map(entry => [entry.plugin.plugin_id, entry.route!.shell]));
+  // An object may stand in two groups (waiting, and in its owner's outline): it is read and listed once.
+  const rows = await displayRows(sample, [...new Map(description.groups.flatMap(group => group.items).map(item => [key(item.subject), item])).values()], signal, invoke);
   return { ...description, groups: [...surfaceActionGroups(sample, description.groups)], ...(sample.position ? { position: sample.position } : {}),
-    ...leadDisplay(sample, navigation), display: { owners, rows } };
+    ...leadDisplay(sample, navigation), display: { owners, shell_keys, rows } };
 }
 
 /** Keep private unreadable subjects out of the response, including disabled counts and stale handles. */

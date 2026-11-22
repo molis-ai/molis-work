@@ -114,6 +114,51 @@ test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritt
   assert.throws(() => assertSurfaceDescription(failedOverview, failedOverview), { code: "actions.output_invalid" });
 });
 
+test("POLISH-78 POLISH-82 the SDK keeps an owner's outline and opening sentences as the candidates give them and refuses a wrong tree or forged words", () => {
+  const goal = (id: string) => ({ kind: "note", id });
+  const row = (id: string) => ({ subject: goal(id), owner_plugin_id: owner, form: "row", state: "ok", fields: [{ key: "title", role: "title" }], actions: [] }) satisfies SurfaceGroup["items"][number];
+  const outline = { kind: "outline", owner_plugin_id: owner, state: "ok", title: { owner, key: "notes.home.outline" }, items: [row("a"), row("b")],
+    outline: [{ subject: goal("a"), depth: 0, progress: { done: 1, total: 2 } }, { subject: goal("b"), depth: 1 }] } satisfies SurfaceGroup;
+  const lede = { label: { owner, key: "notes.home.version" }, as_of: "2026-11-22T08:00:00.000Z",
+    sentences: [{ text: "交付有延期风险。", sources: ["io.molis.work.risk"], mark: "yours" }, { text: "其余按计划。" }] } satisfies NonNullable<SurfacePluginCard["lede"]>;
+  const written = { ...group, plugin_card: { ...card, lede } } satisfies SurfaceGroup;
+  const candidate = description([written, outline]);
+  assert.deepEqual(assertSurfaceDescription(candidate, candidate), { description: candidate, dropped: [] });
+  // Lengths are counted as the overview's schema counts them (code points): a sentence the owner's answer passed is not refused
+  // here, where a refusal would cost every plugin its place on the page.
+  const astral = "𠀀", full = description([{ ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: astral.repeat(600), sources: [astral.repeat(200)] }] } } }]);
+  assert.deepEqual(assertSurfaceDescription(full, full).dropped, []);
+  // The assistant arranges; it cannot rewrite the tree, the counts or the sentences.
+  const picked = (groups: unknown[]) => ({ ...candidate, composed_by: "assistant", groups }) as SurfaceDescription;
+  assert.deepEqual(assertSurfaceDescription(picked([{ ...written, plugin_card: undefined }, { ...outline, outline: undefined }]), candidate).description.groups, candidate.groups);
+  for (const [what, groups] of [
+    ["a rewritten count", [written, { ...outline, outline: [{ ...outline.outline[0], progress: { done: 2, total: 2 } }, outline.outline[1]] }]],
+    ["a rewritten sentence", [{ ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "一切正常。" }] } } }, outline]],
+  ] as const) assert.throws(() => assertSurfaceDescription(picked([...groups]), candidate), { code: "actions.output_invalid" }, what);
+  const wrong: ReadonlyArray<readonly [string, unknown]> = [
+    ["a tree that starts with a child", { ...outline, outline: [{ subject: goal("a"), depth: 1 }] }],
+    ["more done than there is", { ...outline, outline: [{ subject: goal("a"), depth: 0, progress: { done: 3, total: 2 } }] }],
+    ["the same object twice", { ...outline, outline: [outline.outline[0], outline.outline[0]] }],
+    ["a third level", { ...outline, outline: [outline.outline[0], { subject: goal("b"), depth: 2 }] }],
+    ["more than twelve nodes", { ...outline, outline: Array.from({ length: 13 }, (_, index) => ({ subject: goal("n" + index), depth: 0 })) }],
+    ["no title", { ...outline, title: undefined }],
+    ["a tree on a plugin group", { ...group, outline: outline.outline }],
+    ["an outline group without its tree", { ...outline, outline: undefined }],
+    ["another plugin's object in it", { ...outline, items: [{ ...row("a"), owner_plugin_id: "io.molis.work.todo" }] }],
+    ["a label that is not the owner's", { ...written, plugin_card: { ...card, lede: { ...lede, label: { owner: "other", key: "notes.home.version" } } } }],
+    ["nine sentences", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: Array.from({ length: 9 }, () => ({ text: "x" })) } } }],
+    ["a sentence of 601 characters", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "𠀀".repeat(601) }] } } }],
+    ["an empty sentence", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: " " }] } } }],
+    ["five sources on a sentence", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "x", sources: ["a", "b", "c", "d", "e"] }] } } }],
+    ["an unknown mark", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "x", mark: "urgent" }] } } }],
+    ["sentences on a card without a summary", { ...written, state: "unreadable", plugin_card: { ...card, summary: undefined, lede } }],
+  ];
+  for (const [what, value] of wrong) {
+    const composed = description([value as SurfaceGroup]);
+    assert.throws(() => assertSurfaceDescription(composed, composed), { code: "actions.output_invalid" }, what);
+  }
+});
+
 const project = "project";
 const common = { project_id: project, plugin_id: owner, plugin_install_id: release.install_id, kind: "plugin", title: "Notes" } as const;
 const caller: ActionCallContext = { actor_id: "local-person", audience: "user", project_id: project, permissions: [] };

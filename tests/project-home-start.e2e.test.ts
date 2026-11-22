@@ -95,7 +95,10 @@ test("The project button holds settings and the account, and opens settings in t
 });
 
 const endpoint = "/api/host/surface-home";
-const homeCard = (owner: string) => '[data-home-card="io.molis.work.' + owner + '"]';
+// The margin of the first page: where its facts were read from. It is drawn with every composed home.
+const homeSources = '[data-work-surface="home"] [data-home-sources]';
+/** A plugin's own "start" on its row of the start page under ＋ (specs/screen-polish §八之二, POLISH-83). */
+const startOf = (plugin: string) => '[data-plugin-picker-popover] .plugin-rail-tile[data-plugin-tile="' + plugin + '"] [data-rail-start]';
 const homeRow = (kind: string, id: string) => '[data-home-subject-kind="' + kind + '"][data-home-subject-id="' + id + '"]';
 const visible = (selector: string) => '!!document.querySelector(' + JSON.stringify(selector) + ')?.checkVisibility()';
 
@@ -121,27 +124,63 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
   // The project home is a row of the list under the top strip's first place (§4「底栏第十三版」第 1 条).
   const home = async () => { await open('[data-top-corner-toggle]'); await b.click('[data-corner-home]'); };
   // Each owner answers the home under one budget; a slow one shows 重试, which openRow presses as a person would (fixtures/home-rows.ts).
-  const openRow = async (selector: string, owner: string) => { await waitForHomeRow(b, selector, "io.molis.work." + owner); await b.click(selector); };
+  // The page opens with the latest few rows; the rest are one press away, in place (「另有 N 件」).
+  const more = '[data-work-surface=home] [data-home-control="more"]', peekOpen = '[data-home-peek] [data-presentation-action$=":peek-open"]';
+  const openRow = async (selector: string, owner: string) => {
+    await b.waitFor(visible(homeSources), 15_000);
+    if (!await b.evaluate<boolean>(visible(selector)) && await b.evaluate<boolean>(visible(more))) await b.click(more);
+    await waitForHomeRow(b, selector, "io.molis.work." + owner); await b.click(selector);
+    // A row's name opens the object: through its peek when the owner declares one, whose own "open" goes on to the owner's page.
+    await b.waitFor(`${visible(peekOpen)} || !${visible(homeSources)}`, 15_000);
+    if (await b.evaluate<boolean>(visible(peekOpen))) await b.click(peekOpen);
+  };
   await openRow(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title', "inbox");
-  await open('[data-home-peek] [data-presentation-action$=":peek-open"]');
   await inbox.waitFor(`document.querySelector('[data-inbox-detail="${entry.entry_id}"]')?.hidden === false`);
   await home();
-  await openRow(homeRow("source", source.source_id) + ' [data-presentation-action$=":open"]', "feed");
+  await openRow(homeRow("source", source.source_id) + ' .mw-presentation__row-title', "feed");
   await sourceView.waitFor(`document.querySelector('[data-source-detail="${source.source_id}"]')?.hidden === false`);
   assert.equal(await b.evaluate("document.querySelectorAll('[data-tab-id][data-plugin=sources]').length"), 0);
   await home();
-  await openRow(homeRow("feed_item", material.item_id) + ' [data-presentation-action$=":open"]', "feed");
+  await openRow(homeRow("feed_item", material.item_id) + ' .mw-presentation__row-title', "feed");
   await feedView.waitFor(`document.querySelector('[data-feed-detail="${material.item_id}"][data-feed-detail-read=read]')`);
   await home();
   const sessions = async () => (await b.web.post<SurfaceHomeDisplay>("/projects/" + projectId + endpoint, {})).display.rows
     .filter(row => row.subject.kind === "coding_session").map(row => row.subject.id);
   const before = await sessions();
-  await open(homeCard("coding") + ' [data-home-control$=":start:0"]');
+  // The first page does not start work: a plugin's own "start" is on its row of the start page under ＋ (POLISH-83).
+  assert.equal(await b.evaluate("document.querySelectorAll('[data-work-surface=home] [data-home-control*=\":start:\"]').length"), 0);
+  // From here on is "since the last visit": the session begun next is what is new on the first page afterwards.
+  const mark = new Date().toISOString();
+  await b.click('[data-plugin-picker-toggle]');
+  await open(startOf("coding"));
   // Coding takes the workbench bar's one input (batch 11): the new session is current in its frame and the bar's box takes words.
   await coding.waitFor("!!document.querySelector('[data-coding-session][aria-current=true]')");
   await b.waitFor(CODING_OPEN);
   const selected = await coding.evaluate<string>("document.querySelector('[data-coding-session][aria-current=true]').dataset.codingSession");
   assert.deepEqual((await sessions()).filter(id => !before.includes(id)), [selected]);
+
+  // POLISH-77: back on the first page after something new. What is new since the last visit is listed; the rest is one press away
+  // under 「更早」, and the new rows stay where they are when it opens — two lists of one section, each with its own rows.
+  await b.evaluate(`(() => { const key = Object.keys(localStorage).find(name => name.startsWith('molis-work-home-seen:')); localStorage.setItem(key, ${JSON.stringify(mark)}); })()`);
+  await home();
+  const session = homeRow("coding_session", selected), less = '[data-work-surface=home] [data-home-control="less"]';
+  await b.waitFor(`${visible(session)} && ${visible(more)}`, 15_000);
+  const lists = () => b.evaluate<{ fresh: string[]; earlier: string[]; divider: boolean; focus: string | null }>(`(() => {
+    const ids = part => [...document.querySelectorAll('[data-work-surface=home] [data-home-group="since"] [data-home-rows="' + part + '"] [data-home-row]')].map(node => node.getAttribute('data-home-subject-id'));
+    return { fresh: ids('fresh'), earlier: ids('earlier'), divider: Boolean(document.querySelector('[data-work-surface=home] [data-home-earlier]')), focus: document.activeElement?.getAttribute('data-home-control') ?? null };
+  })()`);
+  const closed = await lists();
+  assert.ok(closed.fresh.includes(selected) && !closed.fresh.includes(entry.entry_id), `only what is new is listed first: ${closed.fresh}`);
+  assert.deepEqual([closed.earlier, closed.divider], [[], false]);
+  await b.click(more);
+  await b.waitFor(visible(less), 10_000);
+  const opened = await lists();
+  assert.deepEqual(opened.fresh, closed.fresh, "the new rows stay as they were");
+  assert.ok(opened.divider && opened.earlier.includes(entry.entry_id) && !opened.earlier.some(id => opened.fresh.includes(id)), `the earlier ones are under their own word, each object once: ${opened.earlier}`);
+  assert.equal(opened.focus, "less", "the focus stays on the key that was pressed");
+  await b.click(less);
+  await b.waitFor(visible(more), 10_000);
+  assert.deepEqual(await lists(), { ...closed, focus: "more" });
 });
 
 test("WBR-21 QHR-01 QEA-164: a real background Home refresh keeps the current row, newer values win, and another project is isolated", { timeout: 90_000 }, async t => {
@@ -221,14 +260,14 @@ test("WBR-21 QHR-01 QEA-164: a real background Home refresh keeps the current ro
   } finally { await b.evaluate("homeProbe.releaseRetry()"); }
   await b.waitFor(`${visible(goal(recovered))} && !${status}.textContent.trim()`);
   await go(second.project_id);
-  await b.waitFor(visible(homeCard("goals")));
+  await b.waitFor(visible(homeSources));
   assert.equal(await b.evaluate("document.querySelectorAll('[data-home-row]').length"), 0);
 });
 
-test("SCS-11: a reply from the Home in an older focused split cannot open Goals in the other pane", { timeout: 90_000 }, async t => {
+test("SCS-11 POLISH-83: a start pressed on the start page in an older focused split cannot open Goals in the other pane", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null);
   if (!b) return;
-  const start = homeCard("goals") + ' [data-home-control$=":start:0"]';
+  const start = startOf("goals");
   const go = () => b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/" }, b.sessionId));
   await b.setViewport(1440, 960);
   await go();
@@ -238,7 +277,9 @@ test("SCS-11: a reply from the Home in an older focused split cannot open Goals 
   await b.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   await b.click('[data-corner-home]');
   const homePane = "[...document.querySelectorAll('[data-tab-pane]')].find(p=>p.querySelector('[data-work-surface=home]:not([hidden])'))";
-  await b.waitFor(`${homePane}?.querySelector(${JSON.stringify(start)})`);
+  await b.waitFor(`!!${homePane}`);
+  await b.click('[data-plugin-picker-toggle]');
+  await b.waitFor(visible(start));
   const from = await b.evaluate<string>(`${homePane}.dataset.tabPane`);
   const other = await b.evaluate<string>(`[...document.querySelectorAll('[data-tab-pane]')].find(pane=>pane.dataset.tabPane!==${JSON.stringify(from)}).dataset.tabPane`);
   const otherTab = '[data-tab-pane="' + other + '"] [data-tab-id][data-plugin="goals"]';
@@ -250,7 +291,7 @@ test("SCS-11: a reply from the Home in an older focused split cannot open Goals 
       if(String(url).endsWith(${JSON.stringify(endpoint + "/click")})){ window.oldHomeClick=await response.clone().json(); await held; }
       return response;
     };
-    (${homePane}).querySelector(${JSON.stringify(start)}).click();
+    document.querySelector(${JSON.stringify(start)}).click();
   })()`);
   try {
     await b.waitFor("window.oldHomeClick?.selection?.panel === 'create-dialog'");
@@ -269,7 +310,7 @@ test("WBR-21: the retired website shortcut entry does not delete its saved data"
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/" }, b.sessionId));
   await b.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(saved)})`);
   await b.reloadPage();
-  await b.waitFor(visible(homeCard("goals")));
+  await b.waitFor(visible(homeSources));
   assert.equal(await b.evaluate(`localStorage.getItem(${JSON.stringify(key)})`), saved);
   assert.equal(await b.evaluate("document.querySelector('[data-home-shortcut-add], [data-home-shortcut-link], [data-home-day]') === null"), true);
 });

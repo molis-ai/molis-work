@@ -18,6 +18,37 @@ export declare const PRESENTATION_FIELD_ROLES: readonly ["title", "status", "sum
 
 export declare const PRESENTATION_FORM_KINDS: readonly ["chip", "row", "card", "peek"];
 
+export declare const PRESENTATION_LEDE_SENTENCES_SCHEMA: {
+    readonly type: "array";
+    readonly maxItems: 8;
+    readonly items: {
+        readonly type: "object";
+        readonly additionalProperties: false;
+        readonly required: readonly ["text"];
+        readonly properties: {
+            readonly text: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 600;
+                readonly pattern: "\\S";
+            };
+            readonly sources: {
+                readonly type: "array";
+                readonly maxItems: 4;
+                readonly uniqueItems: true;
+                readonly items: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 200;
+                };
+            };
+            readonly mark: {
+                readonly enum: readonly ["yours", "changed", "gap"];
+            };
+        };
+    };
+};
+
 export declare const PRESENTATION_LIMITS: {
     readonly objects: 32;
     readonly fields: 32;
@@ -33,6 +64,53 @@ export declare const PRESENTATION_LIMITS: {
     readonly overview_start: 3;
     readonly start_view_id: 200;
     readonly start_panel: 100;
+    readonly outline_nodes: 12;
+    readonly lede_sentences: 8;
+    readonly lede_sentence: 600;
+    readonly lede_sources: 4;
+};
+
+export declare const PRESENTATION_OUTLINE_NODE_SCHEMA: {
+    readonly type: "object";
+    readonly additionalProperties: false;
+    readonly required: readonly ["subject", "depth"];
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        readonly depth: {
+            readonly enum: readonly [0, 1];
+        };
+        readonly progress: {
+            readonly type: "object";
+            readonly additionalProperties: false;
+            readonly required: readonly ["done", "total"];
+            readonly properties: {
+                readonly done: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                    readonly maximum: 9999;
+                };
+                readonly total: {
+                    readonly type: "integer";
+                    readonly minimum: 1;
+                    readonly maximum: 9999;
+                };
+            };
+        };
+    };
 };
 
 export declare const PRESENTATION_OVERVIEW_INPUT_SCHEMA: {
@@ -82,6 +160,111 @@ export declare const PRESENTATION_OVERVIEW_OUTPUT_SCHEMA: {
                     readonly version: {
                         readonly type: "integer";
                         readonly minimum: 1;
+                    };
+                };
+            };
+        };
+        readonly outline: {
+            readonly type: "object";
+            readonly additionalProperties: false;
+            readonly required: readonly ["title", "nodes"];
+            readonly properties: {
+                readonly title: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                readonly nodes: {
+                    readonly type: "array";
+                    readonly maxItems: 12;
+                    readonly items: {
+                        readonly type: "object";
+                        readonly additionalProperties: false;
+                        readonly required: readonly ["subject", "depth"];
+                        readonly properties: {
+                            readonly subject: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly type: "string";
+                                        readonly minLength: 1;
+                                    };
+                                    readonly id: {
+                                        readonly type: "string";
+                                        readonly minLength: 1;
+                                    };
+                                };
+                                readonly required: readonly ["kind", "id"];
+                                readonly additionalProperties: false;
+                            };
+                            readonly depth: {
+                                readonly enum: readonly [0, 1];
+                            };
+                            readonly progress: {
+                                readonly type: "object";
+                                readonly additionalProperties: false;
+                                readonly required: readonly ["done", "total"];
+                                readonly properties: {
+                                    readonly done: {
+                                        readonly type: "integer";
+                                        readonly minimum: 0;
+                                        readonly maximum: 9999;
+                                    };
+                                    readonly total: {
+                                        readonly type: "integer";
+                                        readonly minimum: 1;
+                                        readonly maximum: 9999;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        readonly lede: {
+            readonly type: "object";
+            readonly additionalProperties: false;
+            readonly required: readonly ["label", "sentences"];
+            readonly properties: {
+                readonly label: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                readonly as_of: {
+                    readonly type: "string";
+                    readonly format: "date-time";
+                };
+                readonly sentences: {
+                    readonly type: "array";
+                    readonly maxItems: 8;
+                    readonly items: {
+                        readonly type: "object";
+                        readonly additionalProperties: false;
+                        readonly required: readonly ["text"];
+                        readonly properties: {
+                            readonly text: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 600;
+                                readonly pattern: "\\S";
+                            };
+                            readonly sources: {
+                                readonly type: "array";
+                                readonly maxItems: 4;
+                                readonly uniqueItems: true;
+                                readonly items: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                            };
+                            readonly mark: {
+                                readonly enum: readonly ["yours", "changed", "gap"];
+                            };
+                        };
+                    };
+                };
+                readonly invite: {
+                    readonly type: "object";
+                    readonly additionalProperties: false;
+                    readonly required: readonly ["text", "action"];
+                    readonly properties: {
+                        readonly text: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+                        readonly action: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
                     };
                 };
             };
@@ -210,6 +393,22 @@ export interface PresentationJudgment {
     readonly reason?: TextRef;
 }
 
+export interface PresentationLede {
+    label: TextRef;
+    as_of?: string;
+    sentences: PresentationLedeSentence[];
+    invite?: {
+        text: TextRef;
+        action: TextRef;
+    };
+}
+
+export interface PresentationLedeSentence {
+    text: string;
+    sources?: string[];
+    mark?: "yours" | "changed" | "gap";
+}
+
 export interface PresentationObject {
     readonly kind: string;
     readonly fields: readonly PresentationField[];
@@ -245,6 +444,20 @@ export interface PresentationObjectAction {
     };
 }
 
+export interface PresentationOutline {
+    title: TextRef;
+    nodes: PresentationOutlineNode[];
+}
+
+export interface PresentationOutlineNode {
+    subject: ActionSubject;
+    depth: 0 | 1;
+    progress?: {
+        done: number;
+        total: number;
+    };
+}
+
 export interface PresentationOverview {
     summary: TextRef;
     subjects: ActionSubject[];
@@ -252,6 +465,8 @@ export interface PresentationOverview {
         capability_id: string;
         version: number;
     }>;
+    outline?: PresentationOutline;
+    lede?: PresentationLede;
 }
 
 export interface PresentationOverviewDeclaration {

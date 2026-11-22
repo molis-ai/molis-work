@@ -1,6 +1,6 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
-import { homeButton, homeLeadName, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
+import { homeButton, homeLeadName, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
@@ -45,11 +45,14 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMa
     node.setAttribute("aria-haspopup", "dialog");
     node.setAttribute("role", "button");
   });
+  // A name that opens the object itself is a button too, to a screen reader as to the hand.
+  template.content.querySelectorAll("[data-home-row-open] .mw-presentation__row-title").forEach(node => node.setAttribute("role", "button"));
   // Keep open menus while the same controls are repainted with the current data.
   const retained = "[data-home-row], [data-surface-correction-reason], .surface-correction-default";
   template.content.querySelectorAll(retained).forEach(node => retainedMarkup.set(node, node.outerHTML));
   const branch = "[data-home-group], .home-rows";
-  const key = (node: Element) => node.getAttribute("data-home-row") ?? node.getAttribute("data-home-group") ?? (node.matches(branch) ? node.className : null);
+  // Two lists of one section (what is new, and what is earlier) are two branches: each keeps its own rows.
+  const key = (node: Element) => node.getAttribute("data-home-row") ?? node.getAttribute("data-home-group") ?? (node.matches(branch) ? node.className + " " + (node.getAttribute("data-home-rows") ?? "") : null);
   function patch(parent: Element, incoming: HTMLCollection) {
     const current = new Map([...parent.children].map(node => [key(node), node]));
     let next = parent.firstElementChild;
@@ -191,7 +194,7 @@ function yieldPrimary(root: Element) {
   const panel = root.ownerDocument.querySelector<HTMLElement>("[data-assistant-panel]");
   const apply = () => {
     const open = Boolean(panel && !panel.hidden);
-    for (const button of root.querySelectorAll(".mw-first-page__step :is(.mw-btn--primary, [data-home-yielded])")) {
+    for (const button of root.querySelectorAll(":is(.mw-first-page__step, .mw-first-page__ask) :is(.mw-btn--primary, [data-home-yielded])")) {
       button.toggleAttribute("data-home-yielded", open);
       button.classList.toggle("mw-btn--primary", !open);
       button.classList.toggle("mw-btn--secondary", open);
@@ -326,6 +329,10 @@ export function mountHome(host: HomeHost) {
         placement.close(false);
         leadFailed = lead.failed;
         paint(result);
+      } else {
+        // Nothing shown changed, but the page was read again: the margin says when.
+        const read = margin.querySelector(".mw-first-page__margin-head small");
+        if (read) read.textContent = homeReadAt(new Date().toISOString());
       }
       primary.apply();
       corrections.afterPaint();
@@ -419,6 +426,7 @@ export function mountHome(host: HomeHost) {
   /** The visit ends: when it ended is kept for 「自你上次来」, and the page is taken off. */
   const leave = () => {
     visit.end();
+    showAll = false;
     cancel(true);
   };
   const visibility = () => {

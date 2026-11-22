@@ -159,6 +159,11 @@ export class GoalEventApplication {
     this.ports.events.state.adoptOwner(input);
   }
 
+  /** Open, completed or cancelled, and nothing else of the Goal's state: what a list of many Goals asks for each. */
+  readWorkStatus(projectId: string, goalId: string): GoalEventStateView["work_status"] {
+    return this.ports.events.state.readWorkStatus(projectId, goalId);
+  }
+
   readState(projectId: string, goalId: string): GoalEventStateView {
     const goal = this.requireGoal(projectId, goalId);
     const config = this.ports.events.readConfig(projectId, goalId);

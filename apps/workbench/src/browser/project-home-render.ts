@@ -119,6 +119,8 @@ function turnOf(row: SurfaceHomeRowDisplay, waiting: boolean): FirstPageTurn {
 const after = (at: string | null, since: string | null) => Boolean(at && since && Date.parse(at) > Date.parse(since));
 const dateArg = (name: string, at: string, style: "time" | "datetime") => ({ name, kind: "date" as const, at, style });
 const sameDay = (at: string) => new Date(at).toDateString() === new Date().toDateString();
+/** 「读于 …」 for the margin: when the page's facts were last read. */
+export const homeReadAt = (at: string) => homeAt("read-at", at);
 const homeAt = (key: string, at: string) => say.text({ owner: "workbench", key: "workbench.home." + key, args: [dateArg("at", at, sameDay(at) ? "time" : "datetime")] });
 
 /** Every object on the page once, the waiting ones first and then the latest. */
@@ -157,13 +159,13 @@ function sinceSection(data: SurfaceHomeDisplay, shown: readonly Shown[], view: H
   if (!rows.length && !excluded && !unreadable) return "";
   // The rest are one press away, in place; pressed again the list is the few it opened with.
   const fold = more > 0 ? { key: "more", label: home("since-more", more) } : view.showAll && (pool.length > opening || earlier.length) ? { key: "less", label: home("show-less") } : null;
-  const list = (entries: readonly Shown[]) => `<div class="home-rows mw-first-page__rows">${entries.map(({ row, item, group }) =>
+  const list = (entries: readonly Shown[], part: "fresh" | "earlier") => `<div class="home-rows mw-first-page__rows" data-home-rows="${part}">${entries.map(({ row, item, group }) =>
     rowHtml(row, item, group, data, controls, mixed, undefined, fix, { page: true })).join("")}</div>`;
-  const older = view.showAll && earlier.length ? `<p class="mw-first-page__quiet" data-home-earlier>${e(home("earlier"))}</p>${list(earlier)}` : "";
+  const older = view.showAll && earlier.length ? `<p class="mw-first-page__quiet" data-home-earlier>${e(home("earlier"))}</p>${list(earlier, "earlier")}` : "";
   const quiet = (fold ? `<p class="mw-first-page__quiet"><button type="button" class="mw-first-page__link" data-home-control="${fold.key}" aria-expanded="${fold.key === "less"}">${e(fold.label)}</button></p>` : "")
     + [unreadable ? home("attention-unreadable") : "", excluded ? home("excluded", excluded) : ""].filter(Boolean).map(line => `<p class="mw-first-page__quiet">${e(line)}</p>`).join("");
   return renderFirstPageSection({ title: home(since ? "since" : "recent"), note: since ? homeAt("since-after", view.since!) : view.since ? home("recent-note") : undefined,
-    attrs: { "data-home-group": "since" }, body: list(rows) + older + quiet });
+    attrs: { "data-home-group": "since" }, body: list(rows, "fresh") + older + quiet });
 }
 
 function outlineSections(data: SurfaceHomeDisplay, byKey: ReadonlyMap<string, SurfaceHomeRowDisplay>, controls: Map<string, HomeControl>, fix?: CorrectionRender): string {
@@ -274,7 +276,7 @@ function marginHtml(data: SurfaceHomeDisplay, shown: readonly Shown[], view: Hom
       attrs: { "data-home-card": owner, "data-home-state": unreadable ? "unreadable" : group.state } });
   }).join("");
   const add = written ? "" : `<div class="mw-first-page__add" data-home-write>${e(home("write-hint"))} <button type="button" class="mw-first-page__link" data-home-control="picker">${e(home("write-link"))}</button></div>`;
-  return renderFirstPageMargin({ title: home("sources"), note: sources ? homeAt("read-at", view.readAt) : undefined, sources,
+  return renderFirstPageMargin({ title: home("sources"), note: sources ? homeReadAt(view.readAt) : undefined, sources,
     rest: sources ? quiet ? home("rest", quiet) : undefined : home("no-sources"),
     foot: (sources ? add : "") + `<div class="mw-first-page__all"><button type="button" class="mw-first-page__link" data-home-control="picker">${e(home("all-plugins"))}</button></div>`,
     attrs: { "data-home-sources": "" } });

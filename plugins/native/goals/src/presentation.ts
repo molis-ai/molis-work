@@ -62,9 +62,8 @@ export type ReadGoalAcceptance = (caller: ActionExecutionContext, goalIds: strin
  * The project's Goals as the short tree the first page reads: Goals that are no part of another, those still open first, each followed
  * by its parts. A parent's count is its parts that are completed, of its parts that still count (a cancelled one does not).
  */
-function goalsOutline(projectId: string, query: Pick<GoalsQueryApi, "listGoals" | "listRelations">, events: Pick<GoalEventApplication, "readState">): PresentationOutline {
-  const goals = query.listGoals(projectId).filter(currentGoal), byId = new Map(goals.map(goal => [goal.goal_id, goal]));
-  const status = new Map(goals.map(goal => [goal.goal_id, events.readState(projectId, goal.goal_id).work_status]));
+function goalsOutline(projectId: string, query: Pick<GoalsQueryApi, "listRelations">, goals: readonly GoalRecord[], status: ReadonlyMap<string, string>): PresentationOutline {
+  const byId = new Map(goals.map(goal => [goal.goal_id, goal]));
   const parts = new Map<string, GoalRecord[]>(), child = new Set<string>();
   for (const relation of query.listRelations(projectId)) {
     const part = byId.get(relation.from_goal_id);
@@ -88,7 +87,7 @@ function goalsOutline(projectId: string, query: Pick<GoalsQueryApi, "listGoals" 
 }
 
 export function createGoalsPresentationHandlers(projectId: string, query: Pick<GoalsQueryApi, "getGoal" | "listGoals" | "listRelations">,
-  events: Pick<GoalEventApplication, "readState">, read: <T>(body: () => T) => T, ready: Promise<void>, acceptance: ReadGoalAcceptance) {
+  events: Pick<GoalEventApplication, "readState" | "readWorkStatus">, read: <T>(body: () => T) => T, ready: Promise<void>, acceptance: ReadGoalAcceptance) {
   return [
     bindPresentationValuesHandler(values, async (input, caller) => {
       await ready;
@@ -106,11 +105,13 @@ export function createGoalsPresentationHandlers(projectId: string, query: Pick<G
       await ready;
       caller.signal?.throwIfAborted();
       return read(() => {
-        const recent = query.listGoals(projectId).filter(currentGoal)
-          .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.goal_id.localeCompare(b.goal_id)).slice(0, PRESENTATION_LIMITS.overview_subjects);
-        const outline = goalsOutline(projectId, query, events), all = query.listGoals(projectId).filter(currentGoal);
+        // The Goals and each one's state are read once; the count, the recent few and the tree are all made of that one reading.
+        const all = query.listGoals(projectId).filter(currentGoal);
+        const status = new Map(all.map(goal => [goal.goal_id, events.readWorkStatus(projectId, goal.goal_id)]));
+        const recent = [...all].sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.goal_id.localeCompare(b.goal_id)).slice(0, PRESENTATION_LIMITS.overview_subjects);
+        const outline = goalsOutline(projectId, query, all, status);
         const number = (name: string, value: number) => ({ name, kind: "number" as const, number: value });
-        const open = all.filter(goal => events.readState(projectId, goal.goal_id).work_status === "open").length;
+        const open = all.filter(goal => status.get(goal.goal_id) === "open").length;
         return { summary: recent.length ? { key: "goals.presentation.summary", args: [number("count", all.length), number("open", open)] } : { key: "goals.presentation.empty" },
           subjects: recent.map(goal => ({ kind: "goal", id: goal.goal_id })), start: [start], ...(outline.nodes.length ? { outline } : {}) };
       });

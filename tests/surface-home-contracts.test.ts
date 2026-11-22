@@ -124,6 +124,10 @@ test("POLISH-78 POLISH-82 the SDK keeps an owner's outline and opening sentences
   const written = { ...group, plugin_card: { ...card, lede } } satisfies SurfaceGroup;
   const candidate = description([written, outline]);
   assert.deepEqual(assertSurfaceDescription(candidate, candidate), { description: candidate, dropped: [] });
+  // Lengths are counted as the overview's schema counts them (code points): a sentence the owner's answer passed is not refused
+  // here, where a refusal would cost every plugin its place on the page.
+  const astral = "𠀀", full = description([{ ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: astral.repeat(600), sources: [astral.repeat(200)] }] } } }]);
+  assert.deepEqual(assertSurfaceDescription(full, full).dropped, []);
   // The assistant arranges; it cannot rewrite the tree, the counts or the sentences.
   const picked = (groups: unknown[]) => ({ ...candidate, composed_by: "assistant", groups }) as SurfaceDescription;
   assert.deepEqual(assertSurfaceDescription(picked([{ ...written, plugin_card: undefined }, { ...outline, outline: undefined }]), candidate).description.groups, candidate.groups);
@@ -143,6 +147,7 @@ test("POLISH-78 POLISH-82 the SDK keeps an owner's outline and opening sentences
     ["another plugin's object in it", { ...outline, items: [{ ...row("a"), owner_plugin_id: "io.molis.work.todo" }] }],
     ["a label that is not the owner's", { ...written, plugin_card: { ...card, lede: { ...lede, label: { owner: "other", key: "notes.home.version" } } } }],
     ["nine sentences", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: Array.from({ length: 9 }, () => ({ text: "x" })) } } }],
+    ["a sentence of 601 characters", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "𠀀".repeat(601) }] } } }],
     ["an empty sentence", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: " " }] } } }],
     ["five sources on a sentence", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "x", sources: ["a", "b", "c", "d", "e"] }] } } }],
     ["an unknown mark", { ...written, plugin_card: { ...card, lede: { ...lede, sentences: [{ text: "x", mark: "urgent" }] } } }],

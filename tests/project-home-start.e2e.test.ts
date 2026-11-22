@@ -149,6 +149,8 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
   const before = await sessions();
   // The first page does not start work: a plugin's own "start" is on its row of the start page under ＋ (POLISH-83).
   assert.equal(await b.evaluate("document.querySelectorAll('[data-work-surface=home] [data-home-control*=\":start:\"]').length"), 0);
+  // From here on is "since the last visit": the session begun next is what is new on the first page afterwards.
+  const mark = new Date().toISOString();
   await b.click('[data-plugin-picker-toggle]');
   await open(startOf("coding"));
   // Coding takes the workbench bar's one input (batch 11): the new session is current in its frame and the bar's box takes words.
@@ -156,6 +158,29 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
   await b.waitFor(CODING_OPEN);
   const selected = await coding.evaluate<string>("document.querySelector('[data-coding-session][aria-current=true]').dataset.codingSession");
   assert.deepEqual((await sessions()).filter(id => !before.includes(id)), [selected]);
+
+  // POLISH-77: back on the first page after something new. What is new since the last visit is listed; the rest is one press away
+  // under 「更早」, and the new rows stay where they are when it opens — two lists of one section, each with its own rows.
+  await b.evaluate(`(() => { const key = Object.keys(localStorage).find(name => name.startsWith('molis-work-home-seen:')); localStorage.setItem(key, ${JSON.stringify(mark)}); })()`);
+  await home();
+  const session = homeRow("coding_session", selected), less = '[data-work-surface=home] [data-home-control="less"]';
+  await b.waitFor(`${visible(session)} && ${visible(more)}`, 15_000);
+  const lists = () => b.evaluate<{ fresh: string[]; earlier: string[]; divider: boolean; focus: string | null }>(`(() => {
+    const ids = part => [...document.querySelectorAll('[data-work-surface=home] [data-home-group="since"] [data-home-rows="' + part + '"] [data-home-row]')].map(node => node.getAttribute('data-home-subject-id'));
+    return { fresh: ids('fresh'), earlier: ids('earlier'), divider: Boolean(document.querySelector('[data-work-surface=home] [data-home-earlier]')), focus: document.activeElement?.getAttribute('data-home-control') ?? null };
+  })()`);
+  const closed = await lists();
+  assert.ok(closed.fresh.includes(selected) && !closed.fresh.includes(entry.entry_id), `only what is new is listed first: ${closed.fresh}`);
+  assert.deepEqual([closed.earlier, closed.divider], [[], false]);
+  await b.click(more);
+  await b.waitFor(visible(less), 10_000);
+  const opened = await lists();
+  assert.deepEqual(opened.fresh, closed.fresh, "the new rows stay as they were");
+  assert.ok(opened.divider && opened.earlier.includes(entry.entry_id) && !opened.earlier.some(id => opened.fresh.includes(id)), `the earlier ones are under their own word, each object once: ${opened.earlier}`);
+  assert.equal(opened.focus, "less", "the focus stays on the key that was pressed");
+  await b.click(less);
+  await b.waitFor(visible(more), 10_000);
+  assert.deepEqual(await lists(), { ...closed, focus: "more" });
 });
 
 test("WBR-21 QHR-01 QEA-164: a real background Home refresh keeps the current row, newer values win, and another project is isolated", { timeout: 90_000 }, async t => {

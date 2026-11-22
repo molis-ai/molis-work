@@ -450,6 +450,8 @@ export interface GoalEventFactsApi {
 /** The writes and reads of a Goal's event state (its owner, work state, progress, concerns, decisions, agreement, closure, resume, notes). */
 export interface GoalEventStateApi {
   readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
+  /** Only whether the Goal is open, completed or cancelled: one row, for a reader that asks about many Goals at once. */
+  readWorkStatus(projectId: string, goalId: string): GoalEventWorkStateView["work_status"];
   adoptOwner(input: {
     project_id: string;
     goal_id: string;

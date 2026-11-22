@@ -36,6 +36,7 @@ export const CODING_BASICS_STYLES = `
   .mw-checks__errors span { min-width: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
   @media (max-width: 760px) { .mw-checks__fact.is-done > small { display: none; } }
   @media (prefers-reduced-motion: reduce) { .mw-cmdchip { animation: none; } }
+  .assistant-code pre { tab-size: var(--code-tab, 4); }
 `;
 
 export const CODING_BASICS_BOARD_STYLES = CODING_BASICS_STYLES + `

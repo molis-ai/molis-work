@@ -41,7 +41,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     document.querySelector('[data-tab-pane="'+state.focusedPaneId+'"] [data-tab-edge=bottom]').click(); })()`);
   try { await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3"); }
   catch (error) {
-    const state = await browser.command('Runtime.evaluate', { expression: `(()=>({stage:'nested split after bottom edge click',saved:localStorage.getItem(${JSON.stringify(key)}),panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),box:p.getBoundingClientRect().toJSON()})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState}))}))()`, returnByValue: true }, browser.sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    const state = await browser.command('Runtime.evaluate', { expression: `(()=>({stage:'nested split after bottom edge click',saved:localStorage.getItem(${JSON.stringify(key)}),panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),box:p.getBoundingClientRect().toJSON(),surface:p.querySelector('[data-work-surface]:not([hidden]),[data-goal-frame-surface]:not([hidden])')?.dataset.workSurface||p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal||null}))}))()`, returnByValue: true }, browser.sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic('T405 current tabs nested split failed ' + JSON.stringify({ paneReads, state }));
     throw error;
   }

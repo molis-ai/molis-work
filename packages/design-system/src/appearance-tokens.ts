@@ -29,3 +29,42 @@ export function renderFontScope(font: UiResolvedFont, baseline = false): string 
 export function renderMonoScope(font: UiResolvedFont, baseline = false): string {
   return `${baseline ? ":root, " : ""}${scope("mono", font.ref)} { ${fontTokenDeclarations(font, monoTokens)} }`;
 }
+
+const compactDecls = (decls: string): string => decls
+  .split(";")
+  .map(entry => entry.trim())
+  .filter(Boolean)
+  .map(entry => {
+    const colon = entry.indexOf(":");
+    if (colon < 0) return entry;
+    const value = entry
+      .slice(colon + 1)
+      .trim()
+      .replace(/,\s+/g, ",")
+      .replace(/#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3\b/gi, "#$1$2$3");
+    return `${entry.slice(0, colon).trim()}:${value}`;
+  })
+  .join(";");
+
+const compactSkinAliases = roles.flatMap(role => role.alias_of === undefined ? [] : [`--${role.name}:var(--${role.alias_of})`]).join(";");
+
+/** Root-only baseline skin tokens for isolated plugin frames (no catalog proof selectors, dark emits only theme-differing tokens). */
+export function renderRootSkinScope(skin: UiResolvedSkin): string {
+  const darkNames = themeTokens.filter(name => JSON.stringify(skin.dark[name]) !== JSON.stringify(skin.light[name]));
+  const light = compactDecls(skinTokenDeclarations(skin, { theme: "light", terminal: "unset", names: skinTokens }));
+  const dark = compactDecls(skinTokenDeclarations(skin, { theme: "dark", names: darkNames }));
+  return `:root{color-scheme:light;${light};${compactSkinAliases}}
+${rootDark}{color-scheme:dark;${dark}}`;
+}
+
+/** Root-only baseline proportional and monospace font tokens in one :root block for isolated plugin frames. */
+export function renderRootTypeTokens(font: UiResolvedFont): string {
+  const names = Object.keys(font.tokens).filter(name => !monoTokens.includes(name));
+  const families = [...new Set(font.faces.map(face => face.family))].filter(family => !baselineFamilies.has(family));
+  return `:root{${compactDecls(fontTokenDeclarations(font, names))};${compactDecls(fontTokenDeclarations(font, monoTokens))};--mw-shipped-families:${families.map(family => JSON.stringify(family)).join(",") || "none"}}`;
+}
+
+/** Compact root-only custom-property declarations for terminal scopes inside isolated plugin frames. */
+export function compactTokenDeclarations(declarations: string): string {
+  return compactDecls(declarations);
+}

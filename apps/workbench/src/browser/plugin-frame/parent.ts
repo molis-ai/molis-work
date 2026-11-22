@@ -462,6 +462,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         clearTimeout(deadline);
         childReady = true;
         if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
+        const sideRoot = root.closest<HTMLElement>("[data-side-view-root]");
+        if (sideRoot) {
+          sideRoot.inert = false;
+          sideRoot.removeAttribute("aria-busy");
+        }
         root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); readyResolve();
       }
       else if (message.type === "failed") fail(new Error(message.message));

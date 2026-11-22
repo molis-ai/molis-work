@@ -1,5 +1,5 @@
 import { BASELINE_FONT, BASELINE_FONT_FACES, baselineFontRoute, baselinePackageFile } from "./baseline.js";
-import { renderFontScope, renderMonoScope } from "./appearance-tokens.js";
+import { renderFontScope, renderMonoScope, renderRootTypeTokens } from "./appearance-tokens.js";
 
 /** Same-origin font files served by local-host. Bundled Inter Variable + Noto Sans SC 400/500/600 (F1). */
 export const INTER_VARIABLE_ASSET_PATH = baselineFontRoute("font.inter-latin-variable");
@@ -60,5 +60,21 @@ ${BASELINE_FONT_FACES}
   :where(input, textarea, select, option) { font-weight: var(--weight-body); }
   :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
   :where(.mw-reading-text, .mw-look-proof__read) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }
+  :where(time, data, .mw-num) { font-variant-numeric: tabular-nums; }
+`;
+
+/** Root-only baseline font faces, tokens, and typographic defaults for opaque plugin frames (102-1). */
+export const PLUGIN_TYPEFACE_STYLES = `
+${BASELINE_FONT_FACES}
+  ${renderRootTypeTokens(BASELINE_FONT)}
+  html, body { font-family: var(--font); font-weight: var(--weight-body); line-height: var(--type-body-line-height); letter-spacing: var(--tracking-body); font-feature-settings: "cv02", "cv03", "cv04", "cv11"; text-autospace: normal; font-synthesis-weight: none; }
+  :where(html:lang(en), [lang="en"], [lang^="en-"]) { letter-spacing: -.011em; }
+  :where(h1, h2, h3, h4, h5, h6) { font-family: var(--type-title-font); font-weight: var(--weight-title); letter-spacing: var(--tracking-title); }
+  :where(h1) { letter-spacing: var(--tracking-display); }
+  :where(strong, b, th, dt) { font-weight: var(--weight-control); }
+  .mw-btn { font-family: var(--type-control-font); }
+  :where(input, textarea, select, option) { font-weight: var(--weight-body); }
+  :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
+  :where(.mw-reading-text) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }
   :where(time, data, .mw-num) { font-variant-numeric: tabular-nums; }
 `;

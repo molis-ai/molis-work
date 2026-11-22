@@ -9,7 +9,7 @@ import { defineStateMachine, stateMachineErrors } from "@molis-ai/molis-work-plu
  */
 export const PLUGIN_LIFECYCLE_MACHINE = defineStateMachine({
   machine_id: "platform.plugin-runtime.lifecycle",
-  version: 1,
+  version: /* @version state-machine.platform.plugin-runtime.lifecycle */ 1,
   states: STATE_VOCABULARIES.pluginLifecycle.states,
   initial: "installed",
   terminal: [],

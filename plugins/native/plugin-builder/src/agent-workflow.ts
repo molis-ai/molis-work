@@ -19,7 +19,7 @@ import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT } from './choice-pr
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
 import { validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './model-json.js';
-import { expandDesign, normalizeProposal } from './agent-authoring.js';
+import { expandDesign, normalizeProposal, versionedStateMachines } from './agent-authoring.js';
 import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
 import { proposalSketch, experienceTask, acceptExperience } from './agent-experience.js';
 import { acceptPresentationReview } from './agent-review.js';
@@ -263,6 +263,9 @@ export class AgentBuilderWorkflow {
     const language = this.ports.designLanguages?.();
     const value = parseModelJson(output, language !== undefined), dropped: string[] = [];
     const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped, capabilities);
+    // A state machine's version is counted from what was last published, not from the drafts in between.
+    const released = this.store.releases().filter(release => release.buildId === id).reduce<PublishedAgentRelease | undefined>((latest, release) => !latest || release.version > latest.version ? release : latest, undefined);
+    design.contract.state_machines = versionedStateMachines(design.contract.state_machines ?? [], released?.design.contract.state_machines);
     const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
     if (language) freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);

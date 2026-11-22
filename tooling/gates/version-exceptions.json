@@ -1080,5 +1080,23 @@
     "name": "memory-forgetting-v2.json",
     "values": { "memory-forgetting-v2.json": 1 },
     "reason": "遗忘决定文件在 Home 里的文件名，v2 只标物理代（2026-11-06 更名片），是名字不是版本；文件里的格式版本由 format.memory.forgetting 管。"
+  },
+  {
+    "file": "apps/workbench/src/package-install-specimens.ts",
+    "name": "version",
+    "values": { "1.0.0": 1, "1.1.0": 1 },
+    "reason": "组件板里安装单标本的示例插件版本号，只用来预览安装与升级两种画面，不是真实安装记录，也不是产品或合同的版本（用户 2026-11-22 批准登记）。"
+  },
+  {
+    "file": "apps/workbench/src/package-install-specimens.ts",
+    "name": "from_version",
+    "values": { "1.0.0": 1 },
+    "reason": "组件板里升级安装单标本的「原版本」示例值，只用来预览升级画面，不是真实安装记录，也不是产品或合同的版本（用户 2026-11-22 批准登记）。"
+  },
+  {
+    "file": "plugins/native/plugin-builder/src/agent-authoring.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "创作台生成的插件状态机的起始修订号：新申报的状态机从第 1 版起，接受设计时相对上次发布再算（versionedStateMachines），是生成插件自己的数据，不是平台自有版本（用户 2026-11-22 批准登记）。"
   }
 ]

@@ -7,7 +7,7 @@
    - 只有需求本身含糊、不同理解会做出不同功能时（且 clarificationAllowed 为 true），才只返回 {"questions": ["…"], "summary": "…"}：1–3 个问题。需求已经说清楚时直接给方案。
    - 否则返回 {"summary": "一两句话说明你的理解和假设", "candidates": [2 或 3 个方案]}。方案之间要在页面结构或关键行为上有实质差异，不只是换名字。
    - 每个方案：{"id", "title", "description", "rationale", "journey": ["…"], "operations": […], "pages": […]}。operations 只写 id、kind、description、input、output；pages 里的组件只写 id、intent、purpose、uses（它使用的操作 id）。
-2. mode = "detail"（细化）：任务里的 proposal 是用户选定的产品方案和冻结前的体验草图；experience 是 UI Agent 的决策与具体场景。草图的一块可以 uses 多个既有操作，你负责将这种体验分组拆成最终可绑定的部件，不能因此丢失行内操作或强迫用户多走一步。按草图建立部件绑定，把 scenarios 的真实内容和可观察结果转成 acceptance；场景是验收输入，不是要预置到正式数据中的记录。可以纠正草图无法表达的细节，但保留用户任务与体验取舍，不退回示例里的通用表单顺序。它的操作里已选定的能力（effects.capabilities）照用，不要换成别的。返回 {"summary": "…", "design": {…}}，design 含完整的 title、description、journey、operations、pages、acceptance，以及下述 uiText。
+2. mode = "detail"（细化）：任务里的 proposal 是用户选定的产品方案和冻结前的体验草图；experience 是 UI Agent 的决策与具体场景。草图的一块可以 uses 多个既有操作，你负责将这种体验分组拆成最终可绑定的部件，不能因此丢失行内操作或强迫用户多走一步。按草图建立部件绑定，把 scenarios 的真实内容和可观察结果转成 acceptance；场景是验收输入，不是要预置到正式数据中的记录。可以纠正草图无法表达的细节，但保留用户任务与体验取舍，不退回示例里的通用表单顺序。它的操作里已选定的能力（effects.capabilities）照用，不要换成别的。返回 {"summary": "…", "design": {…}}，design 含完整的 title、description、journey、operations、states、pages、acceptance，以及下述 uiText。
 3. mode = "revise"（修订）：current 是现在的设计（你之前写的格式），request 是用户的修改意见。返回 {"summary": "改了什么、保留了什么", "design": {…完整的修订后设计…}}。没有被要求改的操作和组件保持完全一致（同样的 id 和内容），这样已完成的代码能复用。如果要改的是操作内部的做法而合同不用变（例如给模型的要求、排序细节、文字处理），在回答里加 "rework": [{"op": "操作 id", "why": "要在代码里做的具体改变"}]，宿主会让代码 Agent 按 why 修改这个操作。
 4. 任务含 repair 时：repair.previousAnswer 是你上次被宿主拒绝的回答，repair.validationError 是原因。只修正这个问题，其余不变，返回完整 JSON。
 
@@ -25,6 +25,11 @@
   · 查询在空存储上只能得到空结果：{"input": {}, "output": []}；
   · 新增类命令用 includes（输出至少包含这些字段值，适合含随机 id 的输出）：{"input": {"text": "买牛奶"}, "includes": {"text": "买牛奶"}}；
   · 修改、删除这类需要已有记录的命令，在空存储上找不到记录，示例写 {"input": {"id": "missing"}, "error": "not_found"}，并在 errors 里声明这个 code；成功的情形写进 acceptance。
+
+【状态 states】detail / revise 必须写，与 operations 同级；哪些字段算状态按《插件开发规范 · 设计》的「状态」一段。记录没有状态就写 "states": []。有状态时每个状态字段一项：
+{"field": "status", "values": {"未读": "unread", "在读": "running", "已读": "read"}, "initial": "未读", "terminal": ["已读"]}
+- field 是这个状态在操作输入输出里的字段名；values 的键和该字段的枚举完全一致，值从这些状态家族里选：idle 未开始、waiting 排队或等待、running 进行中、answer 等用户处理、paused 暂停或停用、blocked 无法继续、done 完成、failed 失败、partial 部分完成、verify 需要核对、stale 已过时、unsaved 草稿、unread 未读、read 已读、archived 已收存、trashed 回收站、connected 已就绪、syncing 同步中、retrying 重试中、interrupted 已中断、disconnected 已断开。
+- initial 是新记录的取值；terminal 是到了就不再变的取值，没有就写 []。
 
 【界面 pages】"pages": [{"id": "home", "title": "随手记", "parts": [组件…]}]。通常一页就够，流程确实分几步时才用多页。
 集合记录已含全文时，UI Agent 可以把它呈现成目录与详情：集合用 props.idField、titleField、textField 指向真实字段即可，不必再造一个按选中 id 读取的详情操作或组件。selection: 后必须是本页真实的组件 id，不是操作 id 或泛称 list。
@@ -53,6 +58,7 @@
   {"id": "notes.list", "kind": "query", "description": "列出笔记，最新在前", "input": {}, "output": [{"id": "string", "text": "string"}], "effects": {"storage": ["read"]}, "examples": [{"input": {}, "output": []}]},
   {"id": "notes.add", "kind": "command", "description": "保存一条笔记", "input": {"text": "string(1..500) 笔记"}, "output": {"id": "string", "text": "string"}, "effects": {"storage": ["read", "write"]}, "examples": [{"input": {"text": "买牛奶"}, "includes": {"text": "买牛奶"}}]},
   {"id": "notes.remove", "kind": "command", "description": "删除一条笔记", "input": {"id": "string"}, "output": {"removed": "boolean"}, "effects": {"storage": ["read", "write"]}, "errors": [{"code": "not_found", "description": "笔记不存在"}], "examples": [{"input": {"id": "missing"}, "error": "not_found"}]}],
+ "states": [],
  "pages": [{"id": "home", "title": "随手记", "parts": [
   {"id": "title", "intent": "heading", "purpose": "说明插件", "props": {"title": "随手记", "description": "想到就写"}},
   {"id": "editor", "intent": "input", "purpose": "写一条笔记", "props": {"submitLabel": "保存"}, "submit": "notes.add"},

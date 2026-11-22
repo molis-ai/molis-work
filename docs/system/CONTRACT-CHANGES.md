@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-21 第 47 批（SMP-11 生成插件申报状态机）。沙箱插件合同 `SandboxPluginContract` 增加可选的 `state_machines`（新类型 `SandboxStateMachine`：状态所在的字段、每个取值的状态家族、起始与终止取值、版本）。合同带这一项时，`sandboxPluginManifest` 只按它写出 Manifest 的 `state_machines`（SDK 新增 `sandboxStateMachineDeclarations`、`sandboxStateMachineProblems`），包自己另写的声明与合同不一致即验包不过；合同没有这一项（这一项之前冻结的设计、手工打的签名包）时照旧。创作台的设计答卷从此必须带 `states`（没有状态写空列表），漏写由宿主退回补；设计者提示词升到第 4 版。只加可选字段，已装的包与已存的草稿不受影响；API 快照已刷新。
+
 2026-11-21 第 47 批（47-1 原处的安装单）。页面宿主接口 `UiPluginClientHost` 增加 `packageInstall(place, { bundle })`：页面把自己持有的签名包整包交给外壳，外壳在页面框外画安装单并经宿主安装；页面只得到装上的插件编号与版本、本人先不装、或拒绝的错误码。`plugins.install.confirm@1` 增加可选输入 `optional_permissions`（只能是那次预览里包自己请求的可选权限）与可选输出 `permission_changes_failed`；`plugins.install.preview@1` 的输出增加可选的 `publisher.local` 与 `secrets`。都是只加可选字段，现有调用方不受影响；API 与动作快照已刷新。安全记录见 [S-package-install-sheet](security-invariants/S-package-install-sheet.md)。
 
 2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。

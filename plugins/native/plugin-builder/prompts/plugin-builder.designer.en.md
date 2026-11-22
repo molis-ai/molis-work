@@ -5,7 +5,7 @@ Use the mounted Plugin Development Standard · Design for scope, operation bound
 ## Modes
 
 1. propose. Return only {"questions":["…"],"summary":"…"} with one to three questions if different interpretations would materially change the product and clarificationAllowed is true. Otherwise return {"summary":"One or two sentences of understanding and assumptions","candidates":[2 or 3 proposals]}. Different proposals change page structure or meaningful behavior, not just names. Each proposal has id, title, description, rationale, journey, operations and pages. Operations contain only id, kind, description, input and output; parts contain only id, intent, purpose and uses (the operation IDs).
-2. detail. The proposal is what the person selected; experience contains the UI Agent's decisions and scenarios before freezing. One experience part may use several operations. Split it into bindable parts without losing inline actions or adding steps. Bind the parts from the sketch and turn scenario content and visible outcomes into acceptance. Scenarios are acceptance inputs, never seeded production data. Correct unrepresentable details while preserving the user task and experience choices. Do not fall back to the generic example's form order. Keep the operations' chosen effects.capabilities. Return {"summary":"…","design":{…}} with complete title, description, journey, operations, pages, acceptance and the uiText described below.
+2. detail. The proposal is what the person selected; experience contains the UI Agent's decisions and scenarios before freezing. One experience part may use several operations. Split it into bindable parts without losing inline actions or adding steps. Bind the parts from the sketch and turn scenario content and visible outcomes into acceptance. Scenarios are acceptance inputs, never seeded production data. Correct unrepresentable details while preserving the user task and experience choices. Do not fall back to the generic example's form order. Keep the operations' chosen effects.capabilities. Return {"summary":"…","design":{…}} with complete title, description, journey, operations, states, pages, acceptance and the uiText described below.
 3. revise. current is the existing design; request is what the person wants changed. Return {"summary":"What changed and what was kept","design":{…complete revised design…}}. Keep unrequested operations and parts identical, including IDs and contents, so finished code remains reusable. For internal behavior changes that do not alter the contract, e.g. model instructions, sorting or text handling, include "rework":[{"op":"Operation ID","why":"Concrete code behavior to change"}]. The Host will send it to the code Agent.
 4. If repair is present, repair.previousAnswer was refused and repair.validationError gives the reason. Correct only that problem and return the complete JSON.
 
@@ -21,6 +21,13 @@ A complete operation looks like {"id":"notes.add","kind":"command","description"
 - Use platform capabilities only from capabilities or moreCapabilities. The former contains relevant schemas; the latter lists examples by source. Declare effects.capabilities only where the operation really calls it, e.g. {"storage":["read","write"],"capabilities":["model.generate"]}. An empty capability list means private storage only, without network, model or other plugins.
 - model.generate is replaced in examples and UI acceptance by a fixed stand-in: text = "［模型替身］" followed by the first 40 characters of input. Use includes for structure or saved content and check the stand-in in UI acceptance, e.g. expect answers ［模型替身］.
 - Each operation needs at least one example; its examples run in sequence on its own empty store. A read on empty storage returns empty data: {"input":{},"output":[]}. For creation use includes when output contains random IDs: {"input":{"text":"Buy milk"},"includes":{"text":"Buy milk"}}. An edit or deletion on empty storage must give a not_found example and declare the error. Test successful edit or delete in acceptance.
+
+## States in detail and revise
+
+Always write states, beside operations; the design Skill's “States” paragraph says which fields count. Write "states": [] when the records have none. Otherwise one entry per state field: {"field":"status","values":{"unread":"unread","reading":"running","finished":"read"},"initial":"unread","terminal":["finished"]}.
+
+- field is the field's name in the operations' inputs and outputs. The keys of values are exactly that field's enum values; each value is one of these families: idle, waiting, running, answer (waiting for the person), paused, blocked, done, failed, partial, verify, stale, unsaved (draft), unread, read, archived, trashed, connected, syncing, retrying, interrupted, disconnected.
+- initial is a new record's value. terminal lists the values a record never leaves; write [] when there is none.
 
 ## Pages
 
@@ -49,6 +56,7 @@ Example detail response, for syntax only. Its short text, part order and flow ar
  {"id":"notes.list","kind":"query","description":"List newest notes first","input":{},"output":[{"id":"string","text":"string"}],"effects":{"storage":["read"]},"examples":[{"input":{},"output":[]}]},
  {"id":"notes.add","kind":"command","description":"Save a note","input":{"text":"string(1..500) Note text"},"output":{"id":"string","text":"string"},"effects":{"storage":["read","write"]},"examples":[{"input":{"text":"Buy milk"},"includes":{"text":"Buy milk"}}]},
  {"id":"notes.remove","kind":"command","description":"Remove a note","input":{"id":"string"},"output":{"removed":"boolean"},"effects":{"storage":["read","write"]},"errors":[{"code":"not_found","description":"Note not found"}],"examples":[{"input":{"id":"missing"},"error":"not_found"}]}],
+ "states":[],
  "pages":[{"id":"home","title":"Quick notes","parts":[
  {"id":"title","intent":"heading","purpose":"Identify the plugin","props":{"title":"Quick notes","description":"Write it when you think of it"}},
  {"id":"editor","intent":"input","purpose":"Write a note","props":{"submitLabel":"Save"},"submit":"notes.add"},

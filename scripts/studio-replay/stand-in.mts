@@ -24,7 +24,7 @@ export function standInAnswers(corpusFile: string): StandInAnswers {
   const corpus = JSON.parse(readFileSync(corpusFile, 'utf8')) as { entries: Array<{ id: string; answerJson?: unknown; answer?: string }> };
   const answerOf = (id: string) => { const entry = corpus.entries.find(item => item.id === id); if (!entry) throw new Error(`the stand-in needs corpus entry ${id}`); return entry.answerJson !== undefined ? JSON.stringify(entry.answerJson) : entry.answer!; };
   const proposed = JSON.parse(answerOf('propose-two-candidates')) as { candidates: Array<{ journey: string[]; pages: unknown[] }> }, first = proposed.candidates[0]!;
-  const detail = JSON.parse(answerOf('detail-notes-plain'));
+  const detail = JSON.parse(answerOf('detail-notes-plain-s1'));
   detail.design.uiText = { default: 'zh', locales: {
     zh: { 'plugin/name': '笔记板', 'page/home/title': '笔记板', 'region/home/main/title': '笔记板',
       'part/title/title': '笔记板', 'part/editor/submitLabel': '添加', 'field/notes.add/text/label': '笔记' },

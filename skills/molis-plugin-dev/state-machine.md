@@ -41,4 +41,4 @@ const state_machines = [collection.describe()];
 
 在 `start` 的返回值里交出代码运行的状态机：`state_machines: [machine.describe()]`。平台启动前把它和 Manifest 的 `state_machines` 逐台核对（编号、版本、状态与家族、起始与终止状态），不一致就不启动，并指出是哪一台。随宿主发布的插件必须交出；本地开发的插件交出才核对；`plugin create` 的模板已带这一行。转换上的触发动作引用只作登记，不核对。
 
-已申报的状态机可用 `state_machines.list@1`、`state_machines.get@1`（提供方 `system.state-machines`）查询，插件停用或没启动也读得到；只返回申报的五项，不含业务数据。生成插件继续按创作台交付流程申报已有的设计字段。
+已申报的状态机可用 `state_machines.list@1`、`state_machines.get@1`（提供方 `system.state-machines`）查询，插件停用或没启动也读得到；只返回申报的五项，不含业务数据。创作台生成的插件没有自己写的状态机代码：设计里的 `states` 写明状态所在的字段、每个取值的状态家族、起始与终止取值（没有状态写空列表），宿主核对它与字段的枚举一致，并据此写出 Manifest 的 `state_machines`。机器以字段命名，状态 ID 取家族名，同一家族的第二个取值加序号（`running`、`running-2`）；状态集合、家族、起点或终点相对上一次发布有变化时，宿主给机器升版。

@@ -427,6 +427,7 @@ export interface SandboxPluginContract {
         schema: SandboxSchema;
         description?: string;
     }>;
+    state_machines?: SandboxStateMachine[];
     pages: Array<{
         id: string;
         title: SandboxVisibleText;
@@ -629,6 +630,14 @@ export type SandboxSqlValue = null | number | string;
 
 export interface SandboxSqlWrite extends SandboxSqlStatement {
     expected_changes?: number;
+}
+
+export interface SandboxStateMachine {
+    field: string;
+    version: number;
+    states: Record<string, string>;
+    initial: string;
+    terminal: string[];
 }
 
 export type SandboxVisibleText = string | TextRef;

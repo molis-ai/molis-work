@@ -7,7 +7,8 @@ function fields(value: object, allowed: readonly string[]): void {
 }
 
 export function validateBuilderContractFields(contract: SandboxPluginContract): void {
-  fields(contract, ['version', 'pluginId', 'revision', 'operations', 'entities', 'pages', 'acceptance', 'ui']);
+  fields(contract, ['version', 'pluginId', 'revision', 'operations', 'entities', 'state_machines', 'pages', 'acceptance', 'ui']);
+  for (const machine of contract.state_machines ?? []) fields(machine, ['field', 'version', 'states', 'initial', 'terminal']);
   for (const operation of contract.operations) {
     fields(operation, ['id', 'kind', 'description', 'input', 'output', 'errors', 'effects', 'examples']);
     if (operation.description !== undefined && typeof operation.description !== 'string') builderSyncInvalid();

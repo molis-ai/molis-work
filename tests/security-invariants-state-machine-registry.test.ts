@@ -1,9 +1,9 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  STATE_MACHINES_PROVIDER_ID, stateMachineActions,
+  SANDBOX_PACKAGE_FILES, STATE_MACHINES_PROVIDER_ID, stateMachineActions,
   type PluginContribution, type PluginDefinition, type PluginInstanceRecord, type PluginLifecycleState, type PluginManifest,
   type StateMachineDeclaration, type StateMachineGetResult, type StateMachineListResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -14,6 +14,9 @@ import {
   lifecycleGuarded, pluginManifestDigest, projectStateMachines, stateMachineActionProvider, type StateMachineRegistryPorts,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { PACKAGE_PLUGIN_ID, packageFiles, payloadOf } from "./fixtures/sandbox-package.js";
 
 /**
  * The three state machine boundaries of the Runtime (specs/state-machine-platform §4.3, §4.4, §5.2): a lifecycle step the platform
@@ -227,6 +230,38 @@ test("SMP-07 SMP-08 S-state-machine-registry-metadata stored declarations are da
     }
     await assert.rejects(f.invoke("state_machines.list", { project_id: "another-project" }), { code: "actions.scope_mismatch" });
     await assert.rejects(f.invoke("state_machines.list", {}, { ...agent, signal: AbortSignal.abort() }), { name: "AbortError" });
+  } finally { f.db.close(); }
+});
+
+test("SMP-06 SMP-11 a generated plugin's machines come from its contract: a Manifest that says otherwise is not installed, and the registry reads the ones the Host wrote", async () => {
+  // A generated plugin has no code that declares a machine. Its contract names the field its records carry a state in; the Host writes the Manifest's
+  // `state_machines` from that, and compares the package's Manifest with what it wrote.
+  const machines = [{ machine_id: PACKAGE_PLUGIN_ID + ".status", version: 1, states: { idle: "idle", done: "done" }, initial: "idle", terminal: ["done"] }];
+  const built = (change: { manifest?: unknown; values?: Record<string, string> } = {}) => packageFiles("example", (files, manifest) => {
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    const row = (contract.operations[0]!.output as { items: { properties: Record<string, unknown>; required: string[] } }).items;
+    row.properties.status = { type: "string", enum: ["草稿", "定稿"] }; row.required.push("status");
+    contract.state_machines = [{ field: "status", version: 1, states: change.values ?? { 草稿: "idle", 定稿: "done" }, initial: "草稿", terminal: ["定稿"] }];
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    (manifest as { state_machines?: unknown }).state_machines = "manifest" in change ? change.manifest : machines;
+  });
+  const read = (change?: Parameters<typeof built>[0]) => { const { files, manifest } = built(change); return readSandboxPackage(payloadOf(manifest, files)); };
+  const refused = (words: string) => (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes(words);
+
+  const sound = read();
+  assert.deepEqual(sound.manifest.state_machines, machines, "a state is named after its family; the person's own words stay in the contract");
+  for (const [what, manifest] of [["none", undefined], ["an empty list", []], ["another family", [{ ...machines[0]!, states: { idle: "idle", done: "archived" } }]],
+    ["one more machine", [...machines, { ...machines[0]!, machine_id: PACKAGE_PLUGIN_ID + ".other" }]]] as const)
+    assert.throws(() => read({ manifest }), refused("清单不是沙箱插件的形状"), `the Manifest declares ${what}`);
+  assert.throws(() => read({ values: { 草稿: "idle" } }), refused("取值要和字段的枚举完全一致"), "a contract whose declaration is not the field's values");
+  assert.throws(() => read({ values: { 草稿: "idle", 定稿: "finished" } }), refused("没有写可用的状态家族"));
+
+  const f = registryFixture();
+  try {
+    const id = f.install(sound.manifest);
+    const listed = await f.invoke<StateMachineListResult>("state_machines.list", {});
+    assert.deepEqual(listed.entries.find(entry => entry.install_id === id)?.machines, machines, "read from the stored release, like any other plugin's");
+    assert.deepEqual(f.starts, []);
   } finally { f.db.close(); }
 });
 

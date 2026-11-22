@@ -38,6 +38,8 @@ export interface ReplayResult {
   shape?: string;
   /** The entry's action list was rebuilt from a run record (`ReplayEntry.shownCatalogOnly`). */
   shownCatalogOnly?: true;
+  /** A model's answer changed by hand afterwards (`ReplayEntry.amended`). */
+  amended?: true;
   /** Refused for an action that is not in the list the entry knows, and that list is only what the designer was shown: the host, which checked the whole directory, may have accepted it. */
   catalogGap?: true;
   /** What the entry was when it was replayed (`entryDigest`); none for an entry read from the code itself (`live`). */
@@ -104,7 +106,7 @@ function designAnswer(entry: ReplayEntry, env: ReplayEnv): Pick<ReplayResult, 'o
 }
 
 export function replayEntry(entry: ReplayEntry, env: ReplayEnv = defaultEnv): ReplayResult {
-  const head = { id: entry.id, mode: entry.mode, origin: entry.origin, attempt: entry.attempt, ...(entry.live ? {} : { digest: entryDigest(entry) }), ...(entry.shownCatalogOnly ? { shownCatalogOnly: true as const } : {}) };
+  const head = { id: entry.id, mode: entry.mode, origin: entry.origin, attempt: entry.attempt, ...(entry.live ? {} : { digest: entryDigest(entry) }), ...(entry.shownCatalogOnly ? { shownCatalogOnly: true as const } : {}), ...(entry.amended ? { amended: true as const } : {}) };
   try { return { ...head, pass: true, ...(entry.mode === 'propose' ? proposeAnswer(entry) : designAnswer(entry, env)) }; }
   catch (error) {
     const stopped = error instanceof Stopped ? error : new Stopped('expand', error instanceof Error ? error.message : String(error));
@@ -136,6 +138,8 @@ export interface Summary {
   total: number; passed: number;
   /** Answers rebuilt from a run record, whose action list is what the designer was shown, not the directory the host checked. */
   fromRunRecords: number;
+  /** Recorded answers that were changed by hand afterwards. */
+  amended: number;
   /** First answers only (attempt 0): the share the host accepted without sending anything back. */
   groups: Group[];
   reasons: Array<{ kind: string; count: number; ids: string[]; stage: ReplayStage | undefined; example: string }>;
@@ -153,7 +157,7 @@ export function summarise(results: readonly ReplayResult[]): Summary {
     row.count++; row.ids.push(result.id); reasons.set(result.reason!, row);
   }
   const repairs = results.filter(result => result.attempt > 0);
-  return { total: results.length, passed: results.filter(result => result.pass).length, fromRunRecords: results.filter(result => result.shownCatalogOnly).length, groups: [...groups.values()].sort((a, b) => a.label.localeCompare(b.label)),
+  return { total: results.length, passed: results.filter(result => result.pass).length, fromRunRecords: results.filter(result => result.shownCatalogOnly).length, amended: results.filter(result => result.amended).length, groups: [...groups.values()].sort((a, b) => a.label.localeCompare(b.label)),
     reasons: [...reasons.values()].sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind)), repairRounds: { total: repairs.length, passed: repairs.filter(result => result.pass).length } };
 }
 

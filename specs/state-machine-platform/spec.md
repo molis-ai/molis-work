@@ -1,6 +1,6 @@
 # 状态与状态机平台能力（State Machine Platform）
 
-状态：第 26 批交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告的门禁与作者文档。用户 2026-11-08 已确认 §3 的十二个方向。Runtime 兑现、创作台合同和只读动作按 §13 由第 47 批接续，安装预演展示由第 48 批接续。
+状态：第 26 批交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告的门禁与作者文档。用户 2026-11-08 已确认 §3 的十二个方向。第 47 批交付 Runtime 兑现、平台生命周期样板、登记与只读动作（SMP-05～08、13、15、20）和生成插件必须申报（SMP-11，做法与冒烟结果见[第 47 批](../post-anticorruption-roadmap/reference/batches/47.md)）。安装预演展示由第 48 批接续。
 
 依据：[全仓隐式状态机盘点（2026-11-08）](../../docs/reviews/implicit-state-machines-2026-11-08.md)（对象 `main` 的 `5945c0271a`）、[AGENTS.md](../../AGENTS.md)、[CONTRACT-CHANGES.md](../../docs/system/CONTRACT-CHANGES.md)、[SSOT-MATRIX.md](../../docs/SSOT-MATRIX.md)、[插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md)、[第三方插件安装方案](../../docs/system/THIRD-PARTY-PLUGINS.md)。
 

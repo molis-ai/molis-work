@@ -1,8 +1,8 @@
-import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord as object, parseSandboxUi, sandboxStateMachineProblems } from "@molis-ai/molis-work-plugin-sdk";
 import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
 /** Expand the author's compact vocabulary for the strict validators. Map known variants and record dropped fields;
  * never invent behavior. */
-import type { SandboxDataOperation, SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxDataOperation, SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema, SandboxStateMachine } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';
@@ -318,7 +318,7 @@ function source(raw: unknown, field: string, where: string, partId?: string): Pl
   if (typeof raw === 'string') {
     if (raw === 'form' || raw === 'form?') return { source: 'form', field };
     // "editor.note" (or "selection:calendar.habitId") on the part itself: the person fills or picks that field.
-    const own = partId ? /^(?:selection:|prefill:)?(.+)$/.exec(raw)![1]! : '';
+    const own = partId ? /^(?:selection:|prefill:)?(.*)$/s.exec(raw)![1]! : '';
     if (partId && own.startsWith(partId + '.') && /^[a-zA-Z_]\w*$/.test(own.slice(partId.length + 1))) return { source: 'form', field: own.slice(partId.length + 1) };
     const dotted = /^form[.:]([a-zA-Z_]\w*)\??$/.exec(raw); if (dotted) return { source: 'form', field: dotted[1]! };
     const form = /^form:([a-zA-Z_][\w]*)$/.exec(raw); if (form) return { source: 'form', field: form[1]! };
@@ -484,8 +484,10 @@ export function parseStep(raw: unknown, parts: PluginComponentPlan[], where: str
   if (action === 'submit') return { action: 'submit', componentId };
   if (action === 'select') return raw.recordId ? { action: 'select', componentId, recordId: text(raw.recordId) } : { action: 'select', componentId, text: text(raw.text) };
   if (action === 'expect' && raw.field) return { action: 'expectValue', componentId, field: text(raw.field), value: typeof raw.value === 'boolean' ? raw.value : String(raw.value ?? '') };
-  if (action === 'expect' || action === 'expectAbsent') return { action: raw.absent === true || action === 'expectAbsent' ? 'expectAbsent' : 'expect', componentId, text: text(raw.text) };
-  return fail(where, `未知的验收步骤 ${action}`);
+  // The written form's own name for "must not show" is accepted here too: the refusals above tell the designer to use it.
+  const absent = action === 'expectAbsent' || action === 'expect-not';
+  if (action === 'expect' || absent) return { action: raw.absent === true || absent ? 'expectAbsent' : 'expect', componentId, text: text(raw.text) };
+  return fail(where, `未知的验收步骤 ${action}；只支持 fill/submit/select/expect/expect-not/page/reload，写成一行文字，例如 "expect-not notes 写错了"`);
 }
 function normalizeAcceptance(raw: unknown, parts: PluginComponentPlan[]): { browser: BrowserAcceptance[]; contract: SandboxPluginContract['acceptance'] } {
   if (!Array.isArray(raw) || !raw.length) return fail('验收', '至少写一条从空数据开始、能在界面上走通的验收（acceptance）');
@@ -568,6 +570,32 @@ function unifyChoices(operations: SandboxDataOperation[], dropped: string[]) {
     (spec as { enum?: string[] }).enum = JSON.parse([...choices][0]!) as string[]; changed.add(name);
   }
   for (const name of changed) dropped.push('字段 ' + name + ' 在各操作里统一为同一组取值（' + (JSON.parse([...known.get(name)!][0]!) as string[]).join('/') + '）');
+}
+/**
+ * The designer's `states` (SMP-11): which field carries a record's state, each value's family, where a record starts and where
+ * it ends. Always written; an empty list says the records have no state. A new design starts every machine at version 1: the
+ * studio raises it against the last release when it accepts the design (`versionedStateMachines`).
+ */
+function normalizeStates(raw: unknown, pluginId: string, operations: SandboxDataOperation[]): SandboxStateMachine[] {
+  if (!Array.isArray(raw)) return fail('细化方案', '缺少 states：写出记录会经历的状态，例如 [{"field": "status", "values": {"未读": "unread", "在读": "running", "已读": "read"}, "initial": "未读", "terminal": ["已读"]}]；记录没有状态就写 "states": []');
+  const machines = raw.map((item, index): SandboxStateMachine => {
+    const at = '细化方案 states 第 ' + (index + 1) + ' 项';
+    if (!object(item) || !object(item.values)) return fail(at, '写成 {"field": "字段名", "values": {"取值": "状态家族"}, "initial": "起始取值", "terminal": ["结束取值"]}');
+    const terminal = item.terminal === undefined ? [] : Array.isArray(item.terminal) ? item.terminal : [item.terminal];
+    return { field: text(item.field), version: 1, states: item.values as Record<string, string>, initial: text(item.initial), terminal: terminal.map(value => text(value)) };
+  });
+  const problems = sandboxStateMachineProblems({ pluginId, operations, state_machines: machines });
+  if (problems.length) fail('细化方案', problems.join('；'));
+  return machines;
+}
+/** A machine keeps its version while its values, families, start and ends are those of the last release, and moves one up when they change. */
+export function versionedStateMachines(machines: readonly SandboxStateMachine[], released: readonly SandboxStateMachine[] | undefined): SandboxStateMachine[] {
+  return machines.map(machine => {
+    const before = released?.find(item => item.field === machine.field);
+    if (!before) return machine;
+    const same = JSON.stringify([Object.entries(before.states).sort(), before.initial, [...before.terminal].sort()]) === JSON.stringify([Object.entries(machine.states).sort(), machine.initial, [...machine.terminal].sort()]);
+    return { ...machine, version: same ? before.version : before.version + 1 };
+  });
 }
 /**
  * Parts that name an operation that does not exist, and operations no part uses. Normalization stops at the first of
@@ -819,6 +847,6 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   const journey = steps(pick(design, 'journey', 'journal'));
   return { id: base.id, title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
-    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser,
+    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], state_machines: normalizeStates(design.states, pluginId, operations), pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser,
     ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}), ...(ui ? { ui } : {}) };
 }

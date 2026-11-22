@@ -8,7 +8,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
-import { CODING_BOX, CODING_OPEN, CODING_SEND, codingControl, codingType } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_OPEN, CODING_SEND, codingControl, codingType, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment facts in place, retry without sending and recover without losing the draft", { timeout: 150_000 }, async t => {
@@ -48,7 +48,9 @@ test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment
   assert.equal(await frame.evaluate("document.body.textContent.includes('private-fixture-value')"), false);
   await restoreEnvironment("[data-coding-env-action=run-baseline]");
   assert.equal(await draft(), "保留我的任务草稿"); assert.equal(model.requests.length, 0);
-  for (const [id, value] of [["model", JSON.stringify(["fixture", "fixture-model"])], ["intent", "discuss"]]) {
+  await frame.waitFor(CODING_MODELS_LISTED);
+  await frame.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["fixture", "fixture-model"])));
+  for (const [id, value] of [["intent", "discuss"]]) {
     await b.evaluate(`{ const node = document.querySelector(${JSON.stringify(codingControl(id!))}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('change', { bubbles: true })); }`);
   }
   await b.click(CODING_SEND);

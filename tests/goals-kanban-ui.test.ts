@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createWorkbenchUiHost, pluginOnDemandStylesheet } from "@molis-ai/molis-work-app-workbench";
 import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
-import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
+import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 import { currentLocale } from "@molis-ai/molis-work-app-local-host";
+
+const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = readFileSync(new URL("../plugins/native/goals/src/browser/momentum.ts", import.meta.url), "utf8");
 const GOAL_CANVAS_STYLES = pluginOnDemandStylesheet("goals") ?? "";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

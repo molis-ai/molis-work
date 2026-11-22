@@ -214,6 +214,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ...Object.fromEntries(Object.entries(parts?.body_attributes ?? {}).filter(([name]) => /^data-[a-z0-9-]+$/.test(name))),
       "data-route-prefix": view.route_prefix,
       "data-project-id": view.project?.project_id || "",
+      "data-project-title": view.project?.display_name || null,
       "data-project-plugin-revision": view.project_plugin_revision ?? null,
       "data-desktop-shell": "true",
       "data-desktop-surface": initialDesktopSurface,
@@ -232,7 +233,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
       })}
       ${renderWorkbenchBar(primitives, { sideTabs })}
-      <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
+      <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-directory-pane data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}
         </div>

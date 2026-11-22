@@ -153,8 +153,8 @@ const MORE_ROWS = [
   { check: FEED_UI, file: "packages/ui-host/src/index.ts", needle: "render<TModel>(request", kind: "code" },
   { check: checkMigratedGoalsCommandOwnership, file: "plugins/native/goals/src/http/types.ts", needle: "actions(request: PluginRouteRequest): BoundActionClient", kind: "code" },
   { check: checkMigratedGoalsCommandOwnership, file: "plugins/native/goals/src/http/types.ts", needle: "actions: BoundActionClient", kind: "code" },
-  // The client script is a browser script in a template string: its calls are template text.
-  { check: checkProposalUiOwnershipInTree, file: "apps/workbench/src/scripts/client/events-accessibility.ts", needle: "handleGoalProposalSubmit(submittedForm, event)", kind: "text" },
+  // The Goals page client (src/browser/page.ts, bundled by the Goals build) hands a submitted proposal form to its proposal part.
+  { check: checkProposalUiOwnershipInTree, file: "plugins/native/goals/src/browser/page.ts", needle: "handleGoalProposalSubmit(submittedForm, event)", kind: "code" },
   { check: INTEGRATION, file: "plugins/official-integrations/github/src/index.ts", needle: '"io.molis.work.integration.github"', kind: "text" },
   { check: INTEGRATION, file: "plugins/official-integrations/github/src/index.ts", needle: '"adeptify-official-signature-v1"', kind: "text" },
   { check: INTEGRATION, file: "apps/local-host/src/github-connector.ts", needle: 'from "@molis-ai/molis-work-integration-github"', kind: "import" },

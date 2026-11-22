@@ -9,7 +9,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
-import { CODING_BOX, CODING_OPEN, CODING_SEND, codingControl, codingType } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_OPEN, CODING_SEND, codingControl, codingType, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("QEA-47 QEA-166 · real Coding environment controls preserve the draft, open Files, and require the person to send", { timeout: 150_000 }, async t => {
@@ -44,7 +44,9 @@ test("QEA-47 QEA-166 · real Coding environment controls preserve the draft, ope
   await child.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
   const sid = await child.evaluate<string>("document.querySelector('[data-coding-session].is-selected').dataset.codingSession");
   const session = `[data-coding-session="${sid}"]`, sessions = "[data-coding-face=sessions]", files = "[data-coding-face=files]";
-  for (const [id, value] of [["model", JSON.stringify(["fixture", "fixture-model"])], ["intent", "discuss"]]) {
+  await child.waitFor(CODING_MODELS_LISTED);
+  await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["fixture", "fixture-model"])));
+  for (const [id, value] of [["intent", "discuss"]]) {
     await b.evaluate(`{ const node = document.querySelector(${JSON.stringify(codingControl(id!))}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('change', { bubbles: true })); }`);
   }
   await child.waitFor("document.querySelector('[data-coding-env-checklist]')?.textContent.includes('pnpm')");

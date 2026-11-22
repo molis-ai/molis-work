@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_SEND, CODING_TAKEN, codingType } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_SEND, CODING_TAKEN, codingType, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 import { holdSubtaskDraft } from "./fixtures/subtask-draft-barrier.js";
@@ -46,8 +46,10 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
   await b.click('[data-plugin-strip] [data-plugin-id="coding"]');
   await b.waitFor("document.querySelector('[data-work-surface=coding]')?.dataset.uiClientState==='ready'");
   await main.click("[data-coding-new]");
-  await b.waitFor(`${CODING_TAKEN}&&!document.querySelector(${JSON.stringify(CODING_BOX)}).disabled&&document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length>0`);
-  await b.evaluate(`(()=>{for(const [id,value] of [['model',${JSON.stringify(JSON.stringify(["local-only", "fixture-model"]))}],['intent','collaborate']]){const select=document.querySelector('${CODING_COMPOSER} [data-composer-control='+id+']');select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+  await b.waitFor(`${CODING_TAKEN}&&!document.querySelector(${JSON.stringify(CODING_BOX)}).disabled`);
+  await main.waitFor(CODING_MODELS_LISTED);
+  await main.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["local-only", "fixture-model"])));
+  await b.evaluate(`(()=>{for(const [id,value] of [['intent','collaborate']]){const select=document.querySelector('${CODING_COMPOSER} [data-composer-control='+id+']');select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
   await b.evaluate(codingType("SAI_CODING_PARENT")); await b.click(CODING_SEND);
   let completed = false;
   for (const until = Date.now() + 35_000; Date.now() < until;) {

@@ -29,7 +29,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS, records } = host;
+  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS, records, pageClient } = host;
   // \`home\`: the Home's project list (BL-041). No project is open there, so the person's own content is the one scope, every hit
   // opens in its own space (a Home-level record in the personal space), and there are no tools or quick actions to switch to.
   const home = Boolean(host.home);
@@ -85,8 +85,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const limit = q ? 12 : 8;
     const tools = takeSearchHits(items, q, limit);
     if (tools.length) groups.push({ label: globalThis.t.text("workbench.global-search.plugin"), items: tools });
+    const created = host.createCommand?.();
     const actions = [
-      ["create", globalThis.t.text("workbench.global-search.new-goal"), "新建目标 create goal", "[data-open-create]"],
+      ...(created ? [["create", created.title, created.keywords, created.selector]] : []),
       ["home", globalThis.t.text("workbench.global-search.project-home"), "项目主页 home", '[data-plugin-id="home"]'],
       ["settings", globalThis.t.text("workbench.global-search.settings"), "设置 settings", '[data-plugin-id="settings"]'],
       ["market", globalThis.t.text("workbench.global-search.plugin-market"), "插件市场 market", '[data-plugin-id="market"]'],
@@ -254,7 +255,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const documents = () => [document, ...[...document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]')].map((frame) => { try { return frame.contentDocument; } catch { return null; } }).filter(Boolean)];
     const attempt = () => {
       for (const doc of documents()) {
-        const roots = [...doc.querySelectorAll((surface === "goals" ? '[data-goal-frame-surface], ' : '') + '[data-work-surface="' + surface + '"]')].filter((el) => !el.closest("[hidden]") && el.getClientRects().length);
+        const stageRoot = pageClient?.(surface)?.searchRoot;
+        const roots = [...doc.querySelectorAll((stageRoot ? stageRoot + ', ' : '') + '[data-work-surface="' + surface + '"]')].filter((el) => !el.closest("[hidden]") && el.getClientRects().length);
         if (!roots.length && doc !== document && doc.body) roots.push(doc.body);
         for (const root of roots) {
           if (!seen) { seen = true; report("visible"); }
@@ -298,10 +300,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const openTarget = (target, kind, title) => {
     const surface = target.surface, id = target.id;
     expandDirectory?.(surface);
-    if (surface === "goals") {
-      openTabItem?.("goals", id, title, "commit");
-      requestAnimationFrame(() => document.querySelector('[data-tree-item][data-goal-id="' + CSS.escape(id) + '"]')?.scrollIntoView({ block: "nearest" }));
-    } else if (surface === "artifacts") openTabItem?.("artifacts", id.startsWith("/projects/") ? id : route(id), title);
+    const page = pageClient?.(surface);
+    if (page?.openSearchHit) page.openSearchHit(id, title);
+    else if (surface === "artifacts") openTabItem?.("artifacts", id.startsWith("/projects/") ? id : route(id), title);
     else if (ITEM_TABS.includes(surface) && !(Object.hasOwn(SEARCH_RECORD_KINDS, surface) && SEARCH_RECORD_KINDS[surface].includes(kind))) openTabItem?.(surface, id, title);
     else if (RECORD_ROWS.includes(surface)) openPluginRecord?.(surface, id);
     else openPlugin?.(surface);

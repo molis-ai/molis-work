@@ -491,7 +491,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           const next = await describe({ kind: targetKind, id: goalId, project_id: projectId }, false), open = next?.open;
           if (!open) return;
           if (open.surface === "goals") {
-            if (projectId === here()) { openItem(open.surface, open.id, goal ? goal.title : ""); host.openGoalWork?.(); return; }
+            if (projectId === here()) { openItem(open.surface, open.id, goal ? goal.title : ""); host.openItemView?.(open.surface, "work"); return; }
             const u = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin), q = u.searchParams;
             q.set("openPlugin", open.surface); q.set("openItem", open.id); q.set("openView", "work");
             if (goal) q.set("openTitle", goal.title);

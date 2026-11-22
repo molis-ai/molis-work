@@ -1,8 +1,7 @@
 import { TASK_FLOAT_STYLES } from "./task-float.js";
 /**
- * The work line's parts as the first slice settled them (docs/design/work-line-32, scheme E, user 2026-11-14; specs/work-line
- * §4, §10, §12), drawn on the component board first (`/__ui/catalog/navigation?sheet=work-line`) so the slices that move the
- * product onto them use these rules as they are (the way styles/workbench-navigation.ts went first for 07-1).
+ * The work line's parts (specs/screen-polish §4「底栏第十三版」, specs/work-line §16), drawn on the component board first
+ * (`/__ui/catalog/navigation?sheet=work-line`) so the product and board share one sheet.
  *
  * What is here: the foot (the account bar, the input with the three counts and the expand key, the card stack), where the
  * Assistant's conversation stands against it (the conversation column on the input, the information column over the stack),
@@ -451,7 +450,8 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-event-page-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 12px;margin:0;font-size:13px}
 .work-event-page-facts>dt{color:var(--muted);white-space:nowrap}
 .work-event-page-facts>dd{min-width:0;margin:0;${ELLIPSIS};color:var(--ink);font-weight:600}
-.work-event-page-facts>dd[data-wing="next"]{color:var(--amber)}
+.work-event-page-facts>dd[data-g="you"]{color:var(--amber)}
+.work-event-page-facts>dd[data-g="bad"]{color:var(--red)}
 @container (max-width:720px){
   .work-event-page-sheet{padding:16px}
   .work-event-page-cols{grid-template-columns:minmax(0,1fr);gap:20px}

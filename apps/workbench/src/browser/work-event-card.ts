@@ -95,11 +95,18 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
           facts.replaceChildren(owner, state);
         }
       }
+      const nowHead = now.querySelector<HTMLElement>(":scope > .work-card-part-head > h4");
+      const nowLabel = uiText.text("workbench.work-line.how-it-stands");
+      if (nowHead && nowHead.textContent !== nowLabel) nowHead.textContent = nowLabel;
+      if (nothing) {
+        const nothingLabel = uiText.text("workbench.work-line.event-page-nothing-more");
+        if (nothing.textContent !== nothingLabel) nothing.textContent = nothingLabel;
+      }
       if (factOwner && factState) {
-        const { owner, state } = event ? line.parts(event) : { owner: "", state: said };
+        const { owner, state } = stands ?? { owner: "", state: said };
         if (factOwner.textContent !== owner) factOwner.textContent = factOwner.title = owner;
         if (factState.textContent !== state) factState.textContent = factState.title = state;
-        if (event) factState.dataset.wing = event.wing; else delete factState.dataset.wing;
+        if (stands) factState.dataset.g = stands.glyph; else delete factState.dataset.g;
       }
       // A parked card names its event as the line does now (its owner's mark is the line's own drawing, never what was stored);
       // an event no longer on the person's line, or one they can no longer read, shows no name at all (WLN-28).
@@ -131,9 +138,10 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       ask.hidden = !asked && !owners && !finished;
       // What it asks is named by its kind: something failed, changes to agree to, a choice to make — or that it is done.
       const tone = finished ? "done" : stands?.glyph === "bad" ? "failed" : asked.includes("work-decision-changes") ? "approve" : "decide";
-      if (askTitle && ask.dataset.tone !== tone) {
-        ask.dataset.tone = tone;
-        askTitle.textContent = uiText.text(`workbench.work-line.asked-${tone}`);
+      if (askTitle) {
+        const askLabel = uiText.text(`workbench.work-line.asked-${tone}`);
+        if (ask.dataset.tone !== tone) ask.dataset.tone = tone;
+        if (askTitle.textContent !== askLabel) askTitle.textContent = askLabel;
       }
       // Where the owner declared no fuller display than its name (a chip), what it registered about the event stands in its own
       // words — what it says and its facts (POLISH-22) — once the display has been read; with nothing at all, one quiet line says so.
@@ -146,7 +154,9 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       // The name alone repeats the head: it stays only where it is what is asked (its 打开 is the way to answer).
       body.hidden = slim && !owners && body.childElementCount > 0 && Boolean(registered);
       if (nothing) nothing.hidden = Boolean(registered) || done || (body.childElementCount > 0 && !body.hidden) || !ask.hidden;
-      const next = line.rows(card.subject), drawn = (done ? "done:" : "") + next;
+      const next = line.rows(card.subject);
+      const tasksHead = done ? `done:${uiText.text("workbench.work-line.process")}:` : `${uiText.text("workbench.work-line.tasks-behind")}:`;
+      const drawn = tasksHead + next;
       if (drawn === rows) return;
       rows = drawn;
       tasks.hidden = !next;

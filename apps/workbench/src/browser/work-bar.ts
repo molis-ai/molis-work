@@ -115,12 +115,26 @@ export type LineEventPress = Parameters<WorkBarHost["openEvent"]>[0];
 function paintWaiting(waiting: number): void {
   const cell = document.querySelector<HTMLElement>("[data-top-corner-toggle]");
   if (!cell) return;
-  const name = cell.dataset.name ?? (cell.dataset.name = cell.getAttribute("aria-label") ?? "");
+  const project = cell.querySelector(".top-corner-project-name")?.textContent?.trim();
+  const page = cell.querySelector(".top-corner-page-name")?.textContent?.trim();
+  const tip = cell.getAttribute("title")?.trim();
+  const name = project && page
+    ? `${project} › ${page}${tip ? ` · ${tip}` : ""}`
+    : cell.dataset.name ?? (cell.dataset.name = cell.getAttribute("aria-label") ?? "");
   const label = waiting > 0 ? uiText.text("workbench.work-line.head-with-waiting", { name, n: waiting }) : name;
-  cell.setAttribute("aria-label", label); cell.dataset.waiting = String(waiting);
+  cell.setAttribute("aria-label", label);
+  cell.dataset.waiting = String(waiting);
   let count = cell.querySelector<HTMLElement>(".top-corner-count");
-  if (waiting > 0 && !count) { count = document.createElement("span"); count.className = "top-corner-count"; count.setAttribute("aria-hidden", "true"); cell.querySelector(".top-corner-page-name")?.after(count); }
-  if (count) { count.textContent = String(waiting); count.hidden = waiting === 0; }
+  if (waiting > 0 && !count) {
+    count = document.createElement("span");
+    count.className = "top-corner-count";
+    count.setAttribute("aria-hidden", "true");
+    cell.querySelector(".top-corner-page-name")?.after(count);
+  }
+  if (count) {
+    count.textContent = String(waiting);
+    count.hidden = waiting === 0;
+  }
 }
 
 interface FootParts { readonly line: HTMLElement; readonly counts: HTMLElement }
@@ -336,8 +350,17 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
       show("info");
     } else show(open);
   }).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
+  const retitle = () => {
+    if (open !== "info") foot.textContent = uiText.text(`workbench.work-line.list-${open}-hint`);
+    if (side) {
+      for (const slot of side.querySelectorAll<HTMLElement>(":scope > [data-parked-list-slot]")) {
+        slot.innerHTML = renderParkedList({ id: slot.dataset.parkedListSlot as WorkListId, rows: "" });
+      }
+    }
+    draw();
+  };
   line.toggleAttribute("data-dialog-open", !dialog.hidden);
-  return { draw, focus, show, shown: () => open };
+  return { draw, retitle, show, shown: () => open };
 }
 
 /** Semantic selector for restoring focus across a card stack redraw when button positions shift (e.g. `more` drops to 0). */
@@ -433,9 +456,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // The last line this tab knew, kept for this tab only: after a reload it stands at once, said to be checked, until the read confirms it (WLN-29).
   const kept = `molis.work-line.last:${document.body.dataset.projectId ?? ""}`;
   let knownAt: string | null = null;
+  let checkingSince: string | null = null;
   const checking = (since: string | null, repaintStack = true) => {
     const was = line.hasAttribute("data-checking");
     const next = since !== null;
+    checkingSince = since;
     for (const chip of counts.querySelectorAll("[data-work-line-checking]")) chip.remove();
     line.toggleAttribute("data-checking", next);
     if (next) counts.insertAdjacentHTML("afterbegin", renderLineChecking(since ? format.date(since, "time") : ""));
@@ -728,13 +753,13 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       followed = true;
       follow();
     }
+    const resumed = table ? tasks.offline(null) : false;
     const tasksChanged = table ? tasks.take(table, started ?? 0, sequence) : false;
     const lineDrawn = read ? draw(read, before) : false;
-    if (!lineDrawn && (tasksChanged || (read && wasChecking))) {
-      if (tasksChanged) list.draw();
+    if (!lineDrawn && (tasksChanged || resumed || (read && wasChecking))) {
+      if (tasksChanged || resumed) list.draw();
       cardStack.paint();
     }
-    tasks.offline(null);
     cards.paint();
     acceptance.refresh();
   });
@@ -745,6 +770,17 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     checking(since ?? "");
     tasks.offline(since ? format.date(since, "time") : "");
     list.draw();
+  });
+  document.addEventListener("molis-work:language-changed", () => {
+    if (checkingSince !== null) {
+      checking(checkingSince, false);
+      tasks.offline(checkingSince ? format.date(checkingSince, "time") : "");
+    }
+    list.retitle();
+    cardStack.paint();
+    paintExpand();
+    cards.paint();
+    tasks.retitle();
   });
   try {
     const last = JSON.parse(sessionStorage.getItem(kept) ?? "null") as { at: string; line: WorkLineReadResult } | null;
@@ -785,7 +821,6 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     focus(subject) {
       focused = subject ? keyOf(subject) : "";
       pressing = "";
-      list.focus();
       list.draw();
       cardStack.paint();
     },

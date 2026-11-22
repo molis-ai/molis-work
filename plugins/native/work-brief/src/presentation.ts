@@ -2,6 +2,7 @@ import { bindActionHandler, bindSearchEntriesHandler, defineSearchEntriesAction,
   type ActionHandlerBinding, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindPresentationValuesHandler, definePresentationOverviewAction, definePresentationValuesAction, PRESENTATION_LIMITS,
   type PresentationDeclaration, type PresentationLede, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { WORK_BRIEF_READ } from "./actions.js";
 import { workBriefErrors } from "./error.js";
 import { BRIEF_KIND, WORK_BRIEF_PROJECT_PLUGIN_ID } from "./identity.js";
@@ -32,7 +33,7 @@ export const workBriefPresentation = {
   overview: { capability_id: overview.capability_id, version: overview.version },
 } as const satisfies PresentationDeclaration;
 
-const count = (name: string, number: number) => [{ name, kind: "number" as const, number }], count_ = count;
+const count = (name: string, number: number) => [{ name, kind: "number" as const, number }];
 const waitingIn = (version: BriefVersion | null) => version?.attention.length ?? 0;
 /** A project's own brief has no title of its own: it shows under the plugin's words for it, in the reader's language. */
 const titleOf = (brief: BriefRecord) => brief.title || { key: "work-brief.presentation.home-title" };
@@ -56,15 +57,15 @@ function ledeOf(version: BriefVersion | null, before: BriefVersion | null): Pres
   const waiting = new Set(version.attention.map(item => briefSubjectKey(item.subject)));
   const was = before && new Map(before.claims.map(claim => [claim.claim_id, claim.text]));
   const changed = (id: string, text: string) => Boolean(was && was.get(id) !== text);
-  const count = version.claims.filter(claim => changed(claim.claim_id, claim.text)).length;
-  return { label: count ? { key: "work-brief.presentation.lede-label-changed", args: [...count_("version", version.version), ...count_("count", count)] }
-      : { key: "work-brief.presentation.lede-label", args: count_("version", version.version) },
+  const changedCount = version.claims.filter(claim => changed(claim.claim_id, claim.text)).length;
+  return { label: changedCount ? { key: "work-brief.presentation.lede-label-changed", args: [...count("version", version.version), ...count("count", changedCount)] }
+      : { key: "work-brief.presentation.lede-label", args: count("version", version.version) },
     as_of: version.as_of,
     sentences: version.claims.slice(0, PRESENTATION_LIMITS.lede_sentences).map(claim => {
       const sources = [...new Set(claim.cites.map(cite => cite.owner_plugin_id))].slice(0, PRESENTATION_LIMITS.lede_sources);
       const mark = claim.cites.some(cite => cite.gap === "gone" || cite.gap === "unreadable" || unread.has(cite.owner_plugin_id)) ? "gap" as const
         : claim.cites.some(cite => waiting.has(briefSubjectKey(cite.subject))) ? "yours" as const : changed(claim.claim_id, claim.text) ? "changed" as const : undefined;
-      return { text: claim.text.slice(0, PRESENTATION_LIMITS.lede_sentence), ...(sources.length ? { sources } : {}), ...(mark ? { mark } : {}) };
+      return { text: cutCharacters(claim.text, PRESENTATION_LIMITS.lede_sentence), ...(sources.length ? { sources } : {}), ...(mark ? { mark } : {}) };
     }) };
 }
 

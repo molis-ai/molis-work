@@ -24,7 +24,7 @@ import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/serv
 
 /** A plugin whose stage the project page draws: a catalog registration, or a Home dual-instance plugin outside the build. */
 export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest;
-  readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts" | "pageClients"> };
+  readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts" | "pageClient"> };
 
 /** A running contribution supplies its main surface. An installed package opens in the workbench frame. */
 export function projectHomeStageLocation(manifest: PluginManifest, contribution?: UiContribution) {
@@ -370,7 +370,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
           const reader = pluginViewText(owner.view);
           return reader ? runWithRegisteredText(reader, draw) : draw();
         },
-        ...(entry.workbench?.pageClients && !entry.workbench.clientFactory ? { textPacks: () => {
+        ...(entry.workbench?.pageClient && !entry.workbench.clientFactory ? { textPacks: () => {
           owner.assertCurrent();
           const reader = pluginViewText(owner.view), language = activeLocale() ?? DEFAULT_WEB_LOCALE;
           return reader ? projectTextPacks(reader, language, owner.entry.manifest.ui.locales?.available.includes(language) === true) : [];

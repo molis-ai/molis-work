@@ -1,22 +1,3 @@
-/** AP3 Workbench client segment: events-accessibility. */
+/** AP3 Workbench client segment: events-accessibility. Closes the shell's click handler; each page client listens to its own double clicks and form submits (specs/page-client-lifecycle). */
 export const CLIENT_EVENTS_ACCESSIBILITY_SCRIPT = `    });
-
-    document.addEventListener("dblclick", (event) => {
-      const target = event.target?.nodeType === 1 ? event.target : null;
-      const goalLink = target?.closest("[data-select-goal]");
-      if (!goalLink?.closest("[data-goal-stage-list]")) return;
-      event.preventDefault();
-      if (stageListGestureTimer) { clearTimeout(stageListGestureTimer); stageListGestureTimer = null; }
-      frameContainer?.openFrame(goalLink.dataset.selectGoal);
-    });
-
-    document.addEventListener("submit", async (event) => {
-      const submittedForm = event.target;
-      const trashSubmit = handleGoalTrashSubmit(submittedForm, event);
-      if (trashSubmit) { await trashSubmit; return; }
-      const proposalSubmit = handleGoalProposalSubmit(submittedForm, event);
-      if (proposalSubmit) { await proposalSubmit; return; }
-
-      const relationSubmit = handleGoalRelationSubmit(submittedForm, event);
-      if (relationSubmit) { await relationSubmit; return; }
 `;

@@ -27,13 +27,12 @@ import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
  * (`script[data-plugin-directory]`, written by the Host from the Manifests its Runtimes run) says has a view that accepts objects
  * (W5-06 余项 2). The script keeps no list by plugin.
  */
-export const CLIENT_INITIALIZATION_SCRIPT = `    });
-    const itemTabs = ["artifacts", "materials", ...JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id)];
+export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", "materials", ...JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id)];
     const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    boardLifetime = mountPluginClient(document.body);
+    pageLifetime = mountPluginClient(document.body);
 
     immersiveNavigation = (${IMMERSIVE_NAVIGATION_FACTORY_SCRIPT})({
-      workspace, treePane, documentPane, getSelected: () => selected, getState: () => state,
+      workspace, treePane, pagePresence: () => pages.forEach((page) => page.immersivePresence?.()), pageSurfaces: () => pages.map((page) => page.surface),
       getSurface: () => activeDesktopSurface, translate: readText,
       setDirectory: (...args) => setDesktopDirectory(...args),
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -44,7 +43,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     // Adding a plugin to the project or taking it away changes the page in place (the switcher's buttons and the market's both).
     const pluginMembership = (${PLUGIN_MEMBERSHIP_FACTORY_SCRIPT})({
-      route, translate: readText, projectId: state.project?.project_id, saveUiState, showToast,
+      route, translate: readText, projectId: project.project_id, saveUiState, showToast,
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       trackSurface: (node) => { if (!desktopWorkSurfaces.includes(node)) desktopWorkSurfaces.push(node); },
       untrackSurface: (node) => { const at = desktopWorkSurfaces.indexOf(node); if (at >= 0) desktopWorkSurfaces.splice(at, 1); },
@@ -58,14 +57,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
       mountPluginClient, membership: pluginMembership,
-      route, translate: readText, projectId: state.project?.project_id,
+      route, translate: readText, projectId: project.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       saveUiState, setMobileView,
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
     (${NAVIGATION_PRESENTATION_SCRIPT})(readText);
-    (${DOCK_SCRIPT})(readText, state.project?.project_id, {
+    (${DOCK_SCRIPT})(readText, project.project_id, {
       membership: pluginMembership,
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
@@ -88,16 +87,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (kind && id && !asked.searchParams.has("openPlugin")) { asked.searchParams.delete("openObject"); asked.searchParams.delete("openItem"); history.replaceState(history.state, "", asked); void openObject({ kind, id }); } }
     const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openObject, openEvent: (event, quiet) => assistantIsland?.openEvent(event, quiet), toNow: (quiet) => assistantIsland?.toNow(quiet), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
       subtasks: () => assistantIsland?.subtasks() || [], openSubtask: (key) => assistantIsland?.openSubtask(key), mainWaiting: () => assistantIsland?.mainWaiting() || null, openMain: () => assistantIsland?.openMain(), attention: () => assistantIsland?.attention() || [], openAttention: (from, only) => assistantIsland?.openAttention(from, only),
-      placeName: () => state.project?.display_name || "",
+      placeName: () => project.display_name || "",
       // What is in front in the focused pane: an object's tab, a surface's own page, or a system view; null under a cover.
       front: () => { const tabs = tabWorkspace?.state?.(), pane = tabs && !tabs.exclusive ? tabs.panes.find(entry => entry.id === tabs.focusedPaneId) || tabs.panes[0] : null;
         if (!pane) return null; const tab = pane.tabs.find(entry => entry.id === pane.activeTabId);
         return tab ? tab.kind === "system" ? { owner: tab.owner, id: tab.itemId } : { surface: tab.plugin, id: tab.itemId || "" } : { surface: pane.viewPlugin || "", id: "" }; },
       positions: () => projectPositions, positionRead: (path, body, signal) => molisWorkRequest(route(path), { body, signal }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
-    (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,
+    (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: project.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
-    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
+    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: project.project_id });
     // The main area's reader of the project's folders, where the side panel's 「在主区打开」 shows a file. Both places share one
     // copy of the design system's file preview and of the reader.
     const materialsKit = (() => { ${FILE_PREVIEW_CLIENT_SCRIPT}
@@ -120,7 +119,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (workRecords) globalThis.molisWorkHistoryStep = (delta) => { if (delta < 0) workRecords.returned(); };
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: readText, itemTabs, records: workRecords,
-      route, projectId: state.project?.project_id || document.body.dataset.projectId || "",
+      route, projectId: project.project_id,
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       askAssistant: (words) => assistantIsland?.ask(words),
@@ -128,11 +127,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       noteSearchActivity: (...args) => noteSearchActivity(...args),
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       expandDirectory: (id) => setPluginSectionExpanded(id),
+      pageClient: (surface) => pageFor(surface),
+      createCommand: () => pages.map((page) => page.createCommand?.()).find(Boolean),
     });
     const positionOffers = (${HOME_OFFERS_FACTORY_SCRIPT});
     // What each plugin lets a person begin, on its row of the start page (specs/screen-polish §八之二): the home's own read and click.
     const startPopover = document.querySelector("[data-plugin-picker-popover]"), startToggle = document.querySelector("[data-plugin-picker-toggle]");
-    projectStarts = state.project && startPopover && startToggle ? globalThis.molisWorkHomeView?.mountStartEntries({
+    projectStarts = project.project_id && startPopover && startToggle ? globalThis.molisWorkHomeView?.mountStartEntries({
       root: startPopover,
       read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
       navigationFrom: () => tabWorkspace?.positionNavigationFrom(startToggle) ?? (() => false),
@@ -152,7 +153,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       write: () => assistantIsland?.toNow(),
       settingsHref: (section) => route("/settings/" + section),
       offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
-      projectKey: state.project?.project_id || "",
+      projectKey: project.project_id,
       translate: readText,
       receipt: showToast, changed: () => positionChanged(),
       offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
@@ -172,7 +173,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         return result => Boolean(shown() && navigate?.(result));
       }, changed() { if (shown()) positionChanged(); } };
     };
-    if (state.project) {
+    {
       projectPositions = globalThis.molisWorkHomeView?.createPositionViews({
         navigationFrom: source => tabWorkspace?.positionNavigationFrom(source) ?? (() => false),
         changed: positionChanged, receipt: showToast,
@@ -192,8 +193,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       positionChanged,
       invalidateView: root => tabWorkspace?.invalidateView(root),
       openBehind: (...args) => tabWorkspace?.openBehind(...args),
-      mountPluginClient, interaction, receipts, scope: boardLifetime, translate: readText, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
-      projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
+      mountPluginClient, interaction, receipts, scope: pageLifetime, translate: readText, projectId: () => project.project_id,
+      projectTitle: () => project.display_name, api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), focusPane: (paneId) => tabWorkspace?.focusPane?.(paneId), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
@@ -204,15 +205,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       linePlaced: (task) => workLine?.placed(task) || '', lineWaiting: () => workLine?.waiting() || [], lineWaitingGo: (key) => workLine?.goWaiting(key), linePlace: (subject) => workLine?.place(subject), lineCard: workLine ? (slot, card) => workLine.card(slot, card) : undefined,
       lineConversation: (now) => workLine?.conversation(now), lineAttention: () => workLine?.conversation({ unread: false }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
-      project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
+      project: { id: project.project_id, title: project.display_name },
     });
     (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages, records: workRecords,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: readText, route, headers: () => molisWorkControlHeaders(), itemTabs,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
-      openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
+      openItemView: (plugin, view) => tabWorkspace?.setItemView(plugin, view), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: project.display_name });
     // The 「依据」 panel of a round's Skills (browser/skill-picks.ts): asked for by the Assistant's line and by Coding's through its frame.
-    globalThis.molisWorkHomeView?.mountSkillPicks({ project: state.project?.project_id || null, card: (...args) => globalThis.molisPlacement.card(...args) });
+    globalThis.molisWorkHomeView?.mountSkillPicks({ project: (project.project_id || null), card: (...args) => globalThis.molisPlacement.card(...args) });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     ${SYNC_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
@@ -225,41 +226,22 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
       showToast,
-      projectId: state.project?.project_id || "",
+      projectId: project.project_id,
       returns: settingsReturn,
       coverKind: () => tabWorkspace?.exclusive?.() || null,
     });
-    if (goalData) bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
-      if (localPathname() === "/" && !collectionView) {
+      if (pages.some((page) => page.popstate?.(event))) return;
+      if (localPathname() === "/") {
         setDesktopDirectory("root", false, false);
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
-      } else if (goalData) handleGoalPopState(event);
+      }
     });
-    if (goalData) addEventListener("hashchange", handleGoalHashChange);
     addEventListener("pagehide", saveUiState);
     addEventListener("keydown", (event) => {
       if (event.defaultPrevented || event.isComposing) return;
       if (globalSearchPalette?.handleKeyboard(event)) return;
-      const currentFocusSection = event.target?.closest?.("[data-focus-section-trigger]:not([data-goal-factor-tab])");
-      if (currentFocusSection && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
-        const triggers = [...currentFocusSection.closest("[data-focus-section-deck]").querySelectorAll("[data-focus-section-card-row] > [data-focus-section-card] > [data-focus-section-trigger]")];
-        const currentIndex = triggers.indexOf(currentFocusSection);
-        const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-        const nextIndex = event.key === "Home"
-          ? 0
-          : event.key === "End"
-            ? triggers.length - 1
-            : (currentIndex + direction + triggers.length) % triggers.length;
-        event.preventDefault();
-        const nextTrigger = triggers[nextIndex];
-        activateFocusSection(nextTrigger);
-        nextTrigger.focus();
-        return;
-      }
-      if (goalData && handleGoalFactorKeyboard(event)) return;
-      if (goalData && handleTreeKeyboard(event)) return;
-      if (goalData) handleGoalDialogEscape(event);
+      pages.some((page) => page.keydown?.(event));
     });
     addEventListener("resize", () => {
       const nextCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
@@ -267,12 +249,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         const mode = workspace.dataset.workspaceMode;
         if (mode === "runtime") setMobileView("tui");
         else if (mode === "graph") setMobileView("document");
-        else if (selected) setMobileView("document");
+        else if (pages.some((page) => page.selected?.())) setMobileView("document");
       }
       desktopCompanionActive = nextCompanionActive;
       applyMobilePanePresence();
       setTreeWidth(parseFloat(workspace.style.getPropertyValue("--tree-width")) || treePane.getBoundingClientRect().width, false);
-      scheduleGoalGraphLayout();
+      pages.forEach((page) => page.layout?.());
     });
 
     setTreeWidth(treePane.getBoundingClientRect().width, false);
@@ -280,10 +262,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     let restoredUi = false;
     let restoredMobileView = "";
     let resetTabLayout = false;
-    for (const key of [goalUiStorageKey, ...["current", "archive", "trash"].map(view => goalUiStorageKey + ":" + view)]) {
+    for (const key of [uiStorageKey, ...[...new Set(["current", ...pages.flatMap((page) => page.uiScopes || [])])].map(view => uiStorageKey + ":" + view)]) {
       try {
         const ui = JSON.parse(sessionStorage.getItem(key) || "null");
-        if (ui && (Object.hasOwn(ui, "feedTask") || Object.hasOwn(ui, "goalView")
+        if (ui && (Object.hasOwn(ui, "feedTask") || pages.some((page) => page.retiredUi?.(ui))
           || Object.values(ui.feedPresets || {}).some(preset => preset && Object.hasOwn(preset, "task")))) {
           sessionStorage.removeItem(key); resetTabLayout = true;
         }
@@ -292,7 +274,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     try {
       const stored = JSON.parse(
         sessionStorage.getItem(storageKey) ||
-        (!collectionView ? sessionStorage.getItem(goalUiStorageKey) : null) ||
+        (uiScope === "current" ? sessionStorage.getItem(uiStorageKey) : null) ||
         "null",
       );
       if (stored) {
@@ -306,23 +288,20 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     } catch { /* Fall back to default view when persisted UI state is unreadable. */ }
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
-      if (goalData) {
-        bindGoalEventDocument();
-        openEventReaderFromHash();
-        const initialFactor = goalFactorFromHash();
-        if (initialFactor) setGoalFactor(initialFactor, false);
-      }
+      pages.forEach((page) => page.fresh?.());
       if (desktopDirectoryPanels.length) {
         setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
       }
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(activeDesktopSurface, false, false);
     }
     immersiveNavigation?.sync();
-    const directGoalRequested = /^\\/(?:archive\\/|trash\\/)?goals\\/[^\\/]+\\/?$/.test(localPathname());
     const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
       performance.getEntriesByType("navigation")[0]?.type,
     );
-    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "", resetTabLayout);
+    const addressItem = pages.map((page) => page.addressItem?.()).find(Boolean) || null;
+    const pageAddressed = pages.some((page) => page.addressed?.());
+    const pageOwnsAddress = pages.some((page) => page.ownsAddress?.());
+    tabWorkspace?.restore(addressItem && !restoredNavigation ? addressItem : null, resetTabLayout);
     const restoredExclusive = tabWorkspace?.state?.()?.exclusive;
     const settingsKind = restoredExclusive === "settings" || restoredExclusive === "project-settings"
       ? restoredExclusive
@@ -338,93 +317,26 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(section || settingsDirectory?.getProjectActive?.() || "general", fetchPath);
       else void settingsDirectory?.loadSection?.(section || settingsDirectory?.getActive?.() || "appearance", fetchPath);
     }
-    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !collectionView) {
-      goalWorkspaceMode = "graph";
+    pages.forEach((page) => page.arrive?.({ tabsReady: Boolean(tabWorkspace), restoredNavigation }));
+    if (!tabWorkspace && !pageOwnsAddress && !restoredNavigation) {
       setDesktopDirectory("root", false, false);
       setDesktopWorkSurface("home", false, false);
       saveUiState();
     }
-    if (!tabWorkspace && directGoalRequested && selected && !restoredNavigation) {
-      goalWorkspaceMode = "focus";
-      setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goals", false, false);
-      setWorkspaceMode("focus", false);
-      if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
-      saveUiState();
-    }
-    if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
-      setDesktopDirectory("goals", false, false);
-      applySelection(selected, false);
-      setWorkspaceMode("focus", false);
-      if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
-      saveUiState();
-    }
     const initialHashTargetId = decodeURIComponent(location.hash.slice(1));
     if (!restoredUi && initialHashTargetId) void revealDeepLinkFromId(initialHashTargetId);
-    try {
-      const goalMoveReceipt = JSON.parse(sessionStorage.getItem(goalMoveReceiptKey) || "null");
-      sessionStorage.removeItem(goalMoveReceiptKey);
-      if (goalMoveReceipt?.message) showToast(goalMoveReceipt.message);
-    } catch {
-      sessionStorage.removeItem(goalMoveReceiptKey);
-    }
-    try {
-      const storedDecisionReceipt = JSON.parse(sessionStorage.getItem("molis-work-decision-receipt") || "null");
-      sessionStorage.removeItem("molis-work-decision-receipt");
-      if (storedDecisionReceipt?.message) {
-        showDecisionReceipt(storedDecisionReceipt.message, storedDecisionReceipt.context);
-      }
-    } catch {
-      sessionStorage.removeItem("molis-work-decision-receipt");
-    }
-    if (selected && tuiPane) {
-      try {
-        const goalsSurface = q('[data-work-surface="goals"]');
-        const terminalPluginId = tuiPane.dataset.tuiPluginId || pluginManifestIds.goals || "";
-        const terminalSubjectKind = tuiPane.dataset.tuiSubjectKind || "goal";
-        const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
-        if (terminalPluginId && terminalSubjectKind) {
-          tuiPane.setAttribute("data-tui-plugin-id", terminalPluginId);
-          tuiPane.setAttribute("data-tui-subject-kind", terminalSubjectKind);
-          tuiPane.setAttribute("data-tui-subject-id", selected);
-          document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
-            pluginId: terminalPluginId,
-            subjectKind: terminalSubjectKind,
-            subjectId: selected,
-            title: selectedItem?.goal.title || selected,
-            status: selectedItem?.status || "",
-            statusLabel: selectedItem?.status_label || "",
-            statusMeaning: selectedItem?.status_meaning || "",
-            statusIconMarkup: selectedItem?.status_icon || "",
-            readOnly: selectedItem?.terminal_read_only || null,
-          } }));
-        }
-        document.dispatchEvent(new CustomEvent("molis-work:record-selected", { detail: {
-          plugin: goalsSurface?.dataset.workSurface || "goals",
-          itemId: selected,
-          title: selectedItem?.goal.title || selected,
-        } }));
-      } catch { /* Ignore sessionStorage write failure for selected goal navigation. */ }
-    }
+    pages.forEach((page) => page.receipts?.());
     immersiveNavigation?.sync();
-    frameContainer?.restore();
+    pages.forEach((page) => page.settle?.());
     tabWorkspace?.apply();
-    if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
-      tabWorkspace.openItem("goals", selected);
-    } else if (tabWorkspace && !directGoalRequested && !collectionView) {
+    if (addressItem && !restoredNavigation && tabWorkspace) {
+      tabWorkspace.openItem(addressItem.plugin, addressItem.itemId);
+    } else if (tabWorkspace && !pageOwnsAddress) {
       const navigationType = performance.getEntriesByType("navigation")[0]?.type;
       if (navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace.isEmbedded?.()) tabWorkspace.landAtProjectRoot();
     }
-    if (restoredUi) {
-      try {
-        const restored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
-        if (Array.isArray(restored?.statuses) && restored.statuses.length) {
-          setSelectedStatuses(restored.statuses);
-          filterTree("");
-        }
-      } catch { /* Ignore unreadable persisted status filter state. */ }
-    }
-    if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
+    pages.forEach((page) => page.afterTabs?.(restoredUi));
+    if (!(pageAddressed && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
@@ -444,7 +356,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const referenceDialog = document.querySelector("[data-project-reference-dialog]");
     let referenceRequest = null;
     referenceDialog?.addEventListener("close", () => { if (!referenceDialog.open) { referenceRequest?.abort(); referenceRequest = null; } });
-    boardLifetime.own(() => referenceRequest?.abort());
+    pageLifetime.own(() => referenceRequest?.abort());
     referenceDialog?.addEventListener("click", (event) => { if (event.target?.closest?.("[data-dialog-close]")) referenceDialog.close(); });
     document.addEventListener("click", async (event) => {
       const link = event.target?.closest?.("a[data-project-reference]");
@@ -478,29 +390,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: globalThis.t.text("workbench.initialization.couldn-t-change-plugin-state") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
-    if (goalData) {
-      updateRelationPreviews();
-      updateAllRelationFormPreviews();
-    }
-    // Off the Goal stage, fold attention hints into the next board poll (W4-10).
-    // Goals' snapshot cursor belongs to another journal; neither projection has acknowledged a platform cursor yet.
-    boardLifetime.poll(async signal => {
-      boardVisibleSignal = signal;
-      if (!goalData) return;
-      if (goalStageVisible()) await refreshBoard(false, signal);
-      else if (observedBoardCursor !== undefined && observedBoardCursor !== goalData.boardCursor) await refreshBoard(false, signal, observedBoardCursor);
-    }, 4000);
-    boardLifetime.listen(document, "molis-work:attention", event => {
-      const cursor = event.detail?.board_cursor;
-      if (!goalData || typeof cursor !== "number") return;
-      observedBoardCursor = Math.max(observedBoardCursor ?? cursor, cursor);
-      if (goalStageVisible()) void refreshBoard(false, boardVisibleSignal, observedBoardCursor);
-    });
-    const refreshVisibleGoal = () => { if (goalData && goalStageVisible()) void refreshBoard(); };
-    boardLifetime.listen(document, "molis-work:place-changed", () => requestAnimationFrame(refreshVisibleGoal));
-    boardLifetime.listen(window, "resize", refreshVisibleGoal);
-    const tabWorkspaceRoot = document.querySelector("[data-tab-workspace]");
-    if (tabWorkspaceRoot) boardLifetime.observe(new MutationObserver(() => requestAnimationFrame(refreshVisibleGoal)), tabWorkspaceRoot, { attributes: true, attributeFilter: ["data-solo", "data-split-narrow", "data-exclusive"] });
-    boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
+    pages.forEach((page) => page.run?.());
   })();
 `;

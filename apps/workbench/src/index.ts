@@ -71,7 +71,7 @@ export {
 } from "./settings-models.js";
 
 export { deferredSurfaceClients, pluginFrameServedStylesheet, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
-export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
+export { pluginPageClientScript, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
 // The return trips' checks and their one writer (specs/draft-and-return §2), for the unit tests of S-return-trip-*.
 export {

@@ -21,10 +21,10 @@ import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 
 export { placeLayoutMenu } from "./tab-workspace-menus.js";
 
-/** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
+/** Cross-plugin tabs and split panes. A plugin whose page the shell draws answers for its own tabs through its page client (`pageClient`, specs/page-client-lifecycle). */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
-  const { showToast, showGoalFrame, translate: readText, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
-    applySelection, loadGoalDocument, getDocumentGoalId, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame } = host;
+  const { showToast, translate: readText, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView, getProjectId, pageClient,
+    pageClients, declareTab } = host;
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
@@ -106,7 +106,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       notifyParent("workbench-open-settings", { href: link.href });
     });
   }
-  const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (Goals included, RAC-400)
+  const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (RAC-400)
   // A plugin taken out of the project keeps its tabs where they were, greyed and marked, with nothing else moving; added back,
   // they work again (design README, shared part 7). A Host surface is never one: it has its own stage or settings page.
   const removedPlugin = (plugin) => Boolean(plugin) && plugin !== "home" && plugin !== "market" && !offeredPlugin(plugin)
@@ -168,7 +168,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   };
   let state = ops.create(), column = "main";
   let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
-  const restore = (requestedGoalId = "", resetLayout = false) => {
+  const restore = (requested = null, resetLayout = false) => {
     if (embedded) {
       state = ops.create();
       const pane = ops.focused(state);
@@ -230,19 +230,18 @@ ${TAB_WORKSPACE_DRAG_PART}
       dropParams("openPlugin", "openRecord");
       requestAnimationFrame(() => openPluginRecord(requestedPlugin, requestedRecord));
     }
-    // Resolve an explicit Goal link before applying saved tabs; applying the old
-    // active item first can enqueue a stale document read over the requested Goal.
-    if (requestedGoalId && offeredPlugin("goals")) {
+    // Resolve an item the address asks for before applying saved tabs; applying the old
+    // active item first can enqueue a stale document read over the requested one.
+    if (requested && offeredPlugin(requested.plugin)) {
       ops.setExclusive(state, null);
-      ops.openItem(state, "goals", requestedGoalId, titleForItem("goals", requestedGoalId));
-      setDirectory("goals", false, false);
+      ops.openItem(state, requested.plugin, requested.itemId, titleForItem(requested.plugin, requested.itemId));
+      setDirectory(requested.plugin, false, false);
     }
     removeSettingsPages();
     apply();
     persist();
   };
   const systemTabs = (${SYSTEM_TABS_FACTORY})({getState:()=>state,ops,apply:()=>apply(),persist,close:(pane,id)=>closeTabBack(pane,id),embedded});
-  let loadingGoalId = null;
   const collapsePluginStage = (plugin) => {
     const surface = topLevelSurface(plugin);
     if (!surface) return;
@@ -722,15 +721,6 @@ ${TAB_WORKSPACE_DRAG_PART}
       else openItem(plugin, itemId, title);
       return;
     }
-    if (event.target.closest("[data-goal-collapse]")) {
-      const paneId = event.target.closest("[data-tab-pane]")?.dataset.tabPane || ops.focused(state).id;
-      const pane = paneById(paneId);
-      const tab = pane?.tabs.find((item) => item.id === pane.activeTabId);
-      if (tab?.plugin === "goals" && tab.kind === "item") {
-        writeView(pane.id, undefined, tab.id);
-        if (embedded) notifyParent("workbench-pane-view", { view: undefined });
-      }
-    }
   });
   // Choosing another record inside an item tab (a directory or relation link) takes the tab with it, so its
   // label and restore target match what it shows; a record that already has its own tab is opened there instead.
@@ -743,12 +733,11 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (existing) { if (tab.view === "work") existing.view = "work"; activate(pane.id, existing.id); return; }
     tab.itemId = itemId;
     if (event.detail.title) tab.title = event.detail.title;
-    const loading = loadingGoalId;
-    if (plugin === "goals") loadingGoalId = itemId;
-    apply(); persist();
-    if (plugin === "goals" && loadingGoalId === itemId) loadingGoalId = loading;
+    const page = pageClient?.(plugin);
+    if (page?.withItem) page.withItem(itemId, () => { apply(); persist(); });
+    else { apply(); persist(); }
   });
-  return { apply, readView, writeView, openView, focusPane, syncHomeClones, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, focusPane, syncHomeClones, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, setItemView, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.

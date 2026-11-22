@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
@@ -598,7 +598,13 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
     const sources = new Map(filesOf(owner).map(file => [file, readFileSync(file, "utf8")]));
     const browserOnly = browserOnlyFiles(sources, browserEntriesFor(owner), [join(REPOSITORY, "plugins", "native", owner, "src", "index.ts")]);
     const manifest = join(REPOSITORY, "plugins", "native", owner, "package.json");
-    const programSources = new Map([...sources, [manifest, readFileSync(manifest, "utf8")]]);
+    const manifestText = readFileSync(manifest, "utf8");
+    const programSources = new Map([...sources, [manifest, manifestText]]);
+    const buildCommand = String((JSON.parse(manifestText) as { scripts?: { build?: string } }).scripts?.build ?? "");
+    for (const [, scriptRel] of buildCommand.matchAll(/(?:^|[\s&;|"'])(?:\.\/)?((?:[^\s"'&;|]*\/)?tooling\/build-[^"'\s&;|]+\.mjs)(?=[\s"'&;|]|$)/g)) {
+      const scriptPath = posix.normalize(posix.join(dirname(manifest), scriptRel));
+      if (!relative(REPOSITORY, scriptPath).startsWith("..") && existsSync(scriptPath)) programSources.set(scriptPath, readFileSync(scriptPath, "utf8"));
+    }
     const programs = browserPrograms({ files: [...programSources.keys()], read: file => programSources.get(file) ?? null }, file => /\.(ts|mts)$/u.test(file));
     assert.deepEqual(programs.problems, [], `${owner}: browser programs must be statically inspectable`);
     for (const program of programs.programs) assert.deepEqual(augmentedErrors(program.text, true), [], `${program.where}: Error augmentation outside browser HTTP status`);

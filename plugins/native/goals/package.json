@@ -42,8 +42,8 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../../node_modules/.bin/esbuild src/browser/page.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --global-name=goalsPage '--banner:js=(host) => {' '--footer:js=return goalsPage.create(host)}' --outfile=dist/goals-page-client.js && node scripts/build-test-pieces.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",

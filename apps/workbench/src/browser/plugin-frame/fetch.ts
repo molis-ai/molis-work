@@ -42,7 +42,7 @@ export function createFrameFetch(port: MessagePort, origin: string): typeof fetc
   };
 }
 
-const JSON_CONTENT_TYPE = /^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i;
+const DEFAULT_JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset\s*=\s*utf-8)?$/i;
 
 function rawRequestBlob(bytes: ArrayBuffer, contentType: string): Blob {
   const blob = new Blob([bytes], { type: contentType });
@@ -55,22 +55,29 @@ function rawRequestBlob(bytes: ArrayBuffer, contentType: string): Blob {
 
 /**
  * Decodes a bridged plugin-frame request body without crashing on non-JSON payloads (`FormData`, `Blob`,
- * `URLSearchParams`, `text/plain`, or raw binary buffers). Non-JSON payloads flow via `molisWorkRequest`'s `file`
- * slot while preserving the exact `Content-Type` header (including multipart boundary casing).
+ * `URLSearchParams`, `text/plain`, or raw binary buffers) and without silently rewriting explicit
+ * `+json` / parameterized JSON or non-JSON `Content-Type` headers (including empty-body writes).
+ * Only plain `application/json` (or omitted `Content-Type` with valid JSON) uses `molisWorkRequest`'s JSON `body` slot.
  */
 export function frameRequestPayload(
   rawBody: ArrayBuffer | null | undefined,
   contentType: string | undefined,
 ): { body?: unknown; file?: Blob } {
-  if (!rawBody || !rawBody.byteLength) return {};
-  if (!contentType || JSON_CONTENT_TYPE.test(contentType)) {
+  const trimmed = contentType?.trim();
+  if (!rawBody || !rawBody.byteLength) {
+    if (trimmed && !DEFAULT_JSON_CONTENT_TYPE.test(trimmed)) {
+      return { file: rawRequestBlob(new ArrayBuffer(0), trimmed) };
+    }
+    return {};
+  }
+  if (!trimmed || DEFAULT_JSON_CONTENT_TYPE.test(trimmed)) {
     try {
       return { body: JSON.parse(new TextDecoder().decode(rawBody)) };
     } catch {
-      return { file: rawRequestBlob(rawBody, contentType || "application/octet-stream") };
+      return { file: rawRequestBlob(rawBody, trimmed || "application/octet-stream") };
     }
   }
-  return { file: rawRequestBlob(rawBody, contentType) };
+  return { file: rawRequestBlob(rawBody, trimmed) };
 }
 
 interface Active { controller: AbortController; reader?: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>; reading: boolean }
@@ -117,7 +124,7 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
         else if (lower === "content-type" && value.length <= 256 && !/[\r\n]/.test(value)) contentType = value;
       }
       const entry: Active = { controller: new AbortController(), reading: false }; active.set(id, entry);
-      const payload = frameRequestPayload(message.body, contentType);
+      const payload = frameRequestPayload(message.body, method === "GET" ? undefined : contentType);
       const response = await molisWorkRequest<Response>(url.href, { method: method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE", headers,
         ...payload, key, as: "response", signal: AbortSignal.any([scope.signal, entry.controller.signal]) });
       scope.assertCurrent();

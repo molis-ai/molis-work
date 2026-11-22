@@ -667,33 +667,46 @@ ${TAB_WORKSPACE_DRAG_PART}
     // checked in one place ('paneMessages.recordGone', S-30), like every other pane message here.
     const gone = panes.recordGone(event);
     if (gone) { noteGone(gone.plugin, gone.itemId); return; }
-    if (frame && event.data.type === "workbench-home-navigation") {
-      const homePane = paneById(frame.dataset.paneOwner);
-      if (homePane && frame.dataset.paneKey === "plugin:home" && !frame.hidden) openHomeNavigation(event.data.result, homePane);
-      return;
-    }
-    if (frame && event.data.type === "workbench-position-navigation") {
-      const pane = paneById(frame.dataset.paneOwner);
-      if (pane && !frame.hidden) openHomeNavigation(event.data.result, pane, false);
-      return;
-    }
     if (frame && event.data.type === "workbench-open-settings") {
       // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
       const paneId = frame.dataset.paneOwner || "";
-      const surface = paneById(paneId)?.tabs.find(tab => tab.id === frame.dataset.paneTab)?.plugin || (frame.dataset.paneKey?.startsWith("plugin:") ? frame.dataset.paneKey.slice(7) : "");
+      const sideTab = paneId === "side" ? state.side.tabs.find((candidate) => candidate.kind === "pane" && frame.closest("[data-side-body]")?.dataset.sideBody === candidate.itemId) : null;
+      const surface = sideTab?.plugin || "";
       document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: molisWorkSettingsReturn.relay(event.data, paneId, surface) }));
       return;
     }
-    if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history", "workbench-pane-solo"].includes(event.data?.type)) return;
+    if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history", "workbench-pane-solo", "workbench-pane-reopen"].includes(event.data?.type)) return;
     // A main tab moved to the right side (07-S2): its page keeps the tab's view, and what it opens opens in the main area.
     if (frame?.dataset.paneOwner === "side") {
       const tab = state.side.tabs.find((candidate) => candidate.kind === "pane" && frame.closest("[data-side-body]")?.dataset.sideBody === candidate.itemId);
-      if (event.data.type === "workbench-pane-focus") column = "side";
-      else if (event.data.type === "workbench-pane-view" && tab) { if (event.data.view === undefined) delete tab.view; else tab.view = event.data.view; persist(); }
-      else if (event.data.type === "workbench-pane-open" && event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view, { from: event.data.from });
-      else if (event.data.type === "workbench-pane-open") openPlugin(event.data.plugin);
-      // ⌘⇧↵ in the side's pane page: the side is the focused column, so it goes alone (or comes back).
-      else if (event.data.type === "workbench-pane-solo") { column = "side"; toggleSolo(); apply(); persist(); }
+      if (event.data.type === "workbench-pane-focus") { column = "side"; syncHistoryButtons(); markFocus(); }
+      else if (event.data.type === "workbench-pane-invalidate") {
+        invalidateLocal();
+        document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]').forEach((other) => {
+          if (other !== frame) other.contentWindow?.postMessage({ type: "workbench-view-invalidate" }, location.origin);
+        });
+      } else if (event.data.type === "workbench-pane-view" && tab) {
+        if (event.data.view === undefined) delete tab.view; else tab.view = event.data.view;
+        persist();
+      } else if (event.data.type === "workbench-pane-open" && event.data.background && event.data.itemId) {
+        pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
+      } else if (event.data.type === "workbench-pane-open" && event.data.recordId) {
+        openPluginRecord(event.data.plugin, event.data.recordId);
+      } else if (event.data.type === "workbench-pane-open" && event.data.itemId) {
+        openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view, { from: event.data.from });
+      } else if (event.data.type === "workbench-pane-open") {
+        openPlugin(event.data.plugin, event.data.view, event.data.panel);
+      } else if (event.data.type === "workbench-pane-open-beside" && typeof event.data.plugin === "string") {
+        openBeside(event.data.plugin, event.data.itemId || undefined, event.data.title || undefined);
+      } else if (event.data.type === "workbench-pane-history" && (event.data.delta === -1 || event.data.delta === 1)) {
+        column = "side";
+        goHistory(event.data.delta);
+      } else if (event.data.type === "workbench-pane-reopen") {
+        pluginGroups.reopen();
+      } else if (event.data.type === "workbench-pane-solo") {
+        // ⌘⇧↵ in the side's pane page: the side is the focused column, so it goes alone (or comes back).
+        column = "side"; toggleSolo(); apply(); persist();
+      }
       return;
     }
   });
@@ -734,7 +747,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (plugin === "goals" && loadingGoalId === itemId) loadingGoalId = loading;
   });
-  return { apply, readView, writeView, openView, focusPane, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, focusPane, syncHomeClones, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.

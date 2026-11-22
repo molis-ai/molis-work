@@ -1,3 +1,4 @@
+import { motionCurve, motionDuration } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { renderCommandChip, renderCommandPrompt, renderComposer, type MwComposerOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderComposerNotice, renderComposerRestore, renderComposerStrip } from "../composer-parts.js";
 import { composerDeliveries } from "../composer-rules.js";
@@ -58,7 +59,6 @@ function atRest(c: Composer) {
 const SETTLE = "mw-composer-settle";
 // The bar's own pieces, not the start group around them: at rest the group lets them into the row's columns (`display: contents`).
 const PARTS = [".mw-compose__anchor", ".mw-composer__to", ".mw-composer__more", ".mw-composer__controls", ".mw-composer__input", ".mw-composer__end"];
-const token = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 /**
  * Rest ↔ rows (composer-styles.ts `composerRestRules`, only where the page sheet lays rest out as one row): the box eases to its
@@ -80,7 +80,7 @@ function settle(c: Composer, change: () => void) {
   for (const node of [box, ...parts()]) for (const motion of node?.getAnimations() ?? []) if (motion.id === SETTLE) motion.cancel();
   const to = box.getBoundingClientRect();
   if (Math.abs(from.height - to.height) < 1 && seen().every((rect, index) => rect?.left === was[index]?.left && rect?.top === was[index]?.top)) return;
-  const duration = parseFloat(token("--dur-move", "250ms")) || 250, easing = token("--ease-quint", "ease-out");
+  const duration = motionDuration(), easing = motionCurve();
   box.dataset.settling = "";
   const height = box.animate([{ height: `${from.height}px` }, { height: `${to.height}px` }], { duration, easing, id: SETTLE });
   const done = () => { if (!box.getAnimations().some((motion) => motion.id === SETTLE && motion.playState === "running")) delete box.dataset.settling; };

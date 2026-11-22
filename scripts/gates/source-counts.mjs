@@ -74,7 +74,7 @@ const CPK_08_DELETED_FILE = /\/skill-selection\.m?ts$/;
 const WMD_13_DELETED_ID = /\bio\.molis\.work\.files\b/g;
 const WMD_13_RESERVED_ID_FILES = new Set(["apps/local-host/src/host-plugin-ids.ts"]);
 // POLISH-33: a timing curve written out with its numbers.
-const CURVE_LITERAL = /cubic-bezier\(\s*[-.\d]/g;
+const CURVE_LITERAL = /cubic-bezier\(\s*[-+.\d]/gi;
 const NON_TS_OLD_NAME_FILE = /^(?!docs\/|specs\/)(?!.*(?:^|\/)(?:tests?|dist|node_modules)\/)(?:.+\.(?:rs|swift|sh|ya?ml)|(?:.+\/)?Makefile)$/;
 
 /** Controlled non-TS files and retired package paths scanned by `oldNames` (PG-097, GoalBoard, WMD-13). */

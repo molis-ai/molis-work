@@ -108,7 +108,7 @@ export function motionGrammarSpecimens(say: Say): string {
     [say("workbench.catalog.language.a-new-row"), say("workbench.catalog.language.one-mist-blue-wash"), say("workbench.catalog.language.clock-640ms-quint"), "molisCraft.land"],
     [say("workbench.catalog.language.it-becomes-your-turn"), say("workbench.catalog.language.one-amber-ring-once"), say("workbench.catalog.language.clock-640ms-quint"), "molisCraft.ask"],
     [say("workbench.catalog.language.completed"), say("workbench.catalog.language.mark-lands-one-celebration"), say("workbench.catalog.language.clock-640ms-spring"), "molisCraft.celebrate"],
-    [say("workbench.catalog.language.pressed"), say("workbench.catalog.language.gives-to-97-and-springs-back"), say("workbench.catalog.language.clock-130ms-spring"), "mw-btn"],
+    [say("workbench.catalog.language.pressed"), say("workbench.catalog.language.gives-to-97-and-comes-back"), say("workbench.catalog.language.clock-130ms-quint"), "mw-btn"],
     [say("workbench.catalog.language.menu-or-floating-layer"), say("workbench.catalog.language.grows-from-control-closes-back"), say("workbench.catalog.language.clock-in-250ms-out-130ms"), "craft-drop"],
   ].map(([change, motion, clock, name]) => `<tr><td><strong>${change}</strong></td><td>${motion}</td><td>${clock}</td><td><code>${name}</code></td></tr>`).join("");
   const demo = (id: string, label: string) => renderButton({ label, variant: "secondary", size: "sm", attrs: { "data-lang-demo": id } });

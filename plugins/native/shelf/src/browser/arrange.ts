@@ -1,5 +1,5 @@
 import { renderBar } from "./bar.js";
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { messageOf, motionCurve, motionDuration } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { closest } from "./dom.js";
 import { saveSettings } from "./composer.js";
 import { actionOrder } from "./model.js";
@@ -9,9 +9,7 @@ import type { ShelfPage } from "./types.js";
 function slide(nodes: HTMLElement[], before: Map<HTMLElement, number>): void {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   // The move clock and curve are the page's tokens (DESIGN.md Motion; POLISH-33).
-  const tokens = getComputedStyle(document.documentElement);
-  const easing = tokens.getPropertyValue("--ease-quint").trim() || "ease-out";
-  const duration = parseFloat(tokens.getPropertyValue("--dur-move")) || 250;
+  const easing = motionCurve(), duration = motionDuration();
   for (const node of nodes) {
     const dx = (before.get(node) ?? 0) - node.getBoundingClientRect().left;
     if (dx) node.animate([{ transform: "translateX(" + dx + "px)" }, { transform: "translateX(0)" }], { duration, easing });

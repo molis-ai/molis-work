@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
-import { CODING_COMPOSER, CODING_OPEN } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_OPEN, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 
 // specs/visual-ui-experience §composer-mentions (VUX-16): a composer's box and its main action stay where they are while a round
 // starts, runs and ends. The round's settings (way of working, model) give way first, shortened and read whole on hover,
@@ -60,8 +60,10 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   // Coding's composer is the bar's one input (unified-input-voice §10.3): what follows runs in the workbench, the turns in the frame.
   const bar = { evaluate: browser.evaluate, waitFor: browser.waitFor, click: browser.click };
   active = bar;
-  await waitFor(`${CODING_OPEN} && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
-  await fill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await waitFor(CODING_OPEN);
+  // The model is a row of 「本轮设置」 in the page (POLISH-28): the bar keeps the way of working, whose tip names the model.
+  await child.waitFor(CODING_MODELS_LISTED);
+  await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["local-only", "fixture-model"])));
   await fill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
   await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   // Empty, the bar's composer is at rest (one row, user 2026-11-10, one input §10.2); words open it.
@@ -95,10 +97,11 @@ test("VUX-16: the box and send stay put through a round; pause and stop join sen
   assert.equal(ready.rows, 1); assert.equal(running.rows, 1, `running, the bar is one row: ${running.controls.join(" | ")}`);
   assert.deepEqual(running.controls.slice(-4), ["暂停", "停止", "补充", "补充要求什么时候交给 AI"], "pause and stop sit with send (补充 and its ▾ while a round runs), on the right");
   assert.deepEqual([ready.outside, running.outside], [[], []], "nothing leaves the composer");
-  assert.ok(running.cut.some((text) => text.includes("fixture-model")), `the model's name gives way first: ${JSON.stringify(running.cut)}`);
+  // POLISH-28: the model left the bar's bottom row (it is in 「本轮设置」), so nothing there names it and nothing has to give way.
+  assert.ok(![...running.controls, ...running.cut].some((text) => text.includes("fixture-model")), `the model is not a control of the bar: ${JSON.stringify(running.controls)}`);
   assert.ok(!running.cut.some((text) => text === "讨论"), "the way of working stays whole");
-  // The shortened model reads whole under the pointer, through the page's one tip.
-  const at = await evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector('${CODING_COMPOSER} .mw-select-picker:has([data-composer-control=model]) .mw-select-picker__trigger').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
+  // POLISH-28: the model in use reads under the pointer on the way of working, through the page's one tip.
+  const at = await evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector('${CODING_COMPOSER} .mw-select-picker:has([data-composer-control=intent]) .mw-select-picker__trigger').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
   await command("Input.dispatchMouseEvent", {type:"mouseMoved", ...at}, sessionId);
   await waitFor("document.querySelector('.craft-tip[data-shown]')?.textContent.includes('fixture-model')", 5_000);
   // As in the Assistant's (K3 below): while the round runs the composer says so on its one status line under the words, and the bar

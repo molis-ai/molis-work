@@ -1,4 +1,4 @@
-import type { ComposerControl } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { escapeHtml, renderButton, renderSelect, renderSettingRow } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -46,22 +46,23 @@ export interface ComposerModels {
   apply(config: { readonly reasoning_effort?: string } | null | undefined): void;
   /** Busy, and the round on show: the live one may be switched, and its settings are what the note says. */
   controls(view: { readonly active: boolean; readonly sending: boolean; readonly run: ComposerRun | null | undefined }): void;
-  /** The bar's model controls now (unified-input-voice K4): the model, its effort while no round runs, and switching a live round. */
-  scene(): ComposerControl[];
+  /** The chosen model by name, as the bar's tooltip and ＋ say it: "" when none is chosen, and the unavailable one says so. */
+  summary(): string;
 }
 
 /**
  * The composer's model controls. Which configured model the next round uses (the Host's own catalog, `state.models`),
  * its reasoning effort where the person marked the model as taking one, and — while a round runs — switching that round
- * to the chosen model from its next model call. The page's composer draws them as scene controls (`scene`); a note beside
- * the composer says what the round on show is really using.
+ * to the chosen model from its next model call. They are rows of 「本轮设置」 (screen-polish §6.7: the bar's bottom row keeps
+ * ＋, who it goes to, the way of working and send), opened from ＋; the bar's tooltip names the model (`summary`), and a note
+ * beside the composer says what the round on show is really using.
  */
 export function composerModels(ports: ComposerModelPorts): ComposerModels {
   const { q, lifetime, switchModel, status, changed, redraw, translate: readText } = ports;
-  const note = q("[data-coding-model-note]");
+  const note = q("[data-coding-model-note]"), rows = q("[data-coding-round-model]");
   const effortKeys: Readonly<Record<string, string>> = { low: "coding.effort.low", medium: "coding.effort.medium", high: "coding.effort.high" };
   let list: readonly ModelChoice[] = [], live: ComposerRun | null = null, busy = false, switching = false, round: ComposerRun | null = null;
-  let value = "", effort = "";
+  let value = "", effort = "", drawn = "";
   const key = (item: Pick<ModelChoice, "provider_id" | "model_id">) => JSON.stringify([item.provider_id, item.model_id]);
   const chosen = () => list.find((item) => key(item) === value) || null;
   /** No model chosen yet (a session started before any was set up): the first the catalog lists, as the select shows it. */
@@ -80,7 +81,32 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     const using = round?.model_switch?.now || round?.frozen?.model_id;
     note.hidden = !parts.length || !(round?.model_switch?.now || round?.model_switch?.requested || (using && chosen() && chosen()!.model_id !== using));
     note.textContent = parts.join(" · ");
+    draw(parts);
     redraw();
+  };
+  const option = (item: { value: string; label: string }, now: string) => `<option value="${escapeHtml(item.value)}"${item.value === now ? " selected" : ""}>${escapeHtml(item.label)}</option>`;
+  /**
+   * The rows of 「本轮设置」: the model, its effort while no round runs (a running round's is fixed; the row above says which), and
+   * switching a live round. Drawn again only when they changed, and the control the person is on keeps the focus.
+   */
+  const draw = (parts: readonly string[]) => {
+    const options = list.map((item) => ({ value: key(item), label: item.label }));
+    // A session started on a model the catalog no longer lists keeps it, said to be unavailable, until another is chosen.
+    if (value && !options.some((one) => one.value === value)) options.push({ value, label: readText("coding.model.unavailable") });
+    if (!options.length) options.push({ value: "", label: readText("coding.model.none") });
+    const target = switchable();
+    const next = [
+      renderSettingRow({ name: readText("coding.model.label"), hint: parts.length ? parts.join(" · ") : readText("coding.palette.model-hint"),
+        control: renderSelect({ disabled: busy, optionsHtml: options.map((one) => option(one, value)).join(""), attrs: { "data-coding-model": "", "aria-label": readText("coding.model.label") } }) }),
+      chosen()?.reasoning_effort && !live ? renderSettingRow({ name: readText("coding.effort.label"), control: renderSelect({ disabled: busy, attrs: { "data-coding-effort": "", "aria-label": readText("coding.effort.label") },
+        optionsHtml: [{ value: "", label: readText("coding.effort.default") }, ...(["low", "medium", "high"] as const).map((level) => ({ value: level, label: readText(effortKeys[level]!) }))].map((one) => option(one, effort)).join("") }) }) : "",
+      target ? renderSettingRow({ name: readText("coding.model.switch-row", { model: target.label }), hint: readText("coding.model.switch-title", { model: target.label }),
+        control: renderButton({ label: readText("coding.model.switch"), variant: "secondary", size: "sm", disabled: busy || switching, attrs: { "data-coding-model-switch": "" } }) }) : "",
+    ].join("");
+    if (next === drawn) return;
+    const on = document.activeElement, held = on instanceof HTMLElement && rows.contains(on) ? ["data-coding-model", "data-coding-effort", "data-coding-model-switch"].find((name) => on.hasAttribute(name)) : undefined;
+    rows.innerHTML = drawn = next;
+    if (held) rows.querySelector<HTMLElement>("[" + held + "]")?.focus({ preventScroll: true });
   };
   /** A running round can be sent to another model from its next call; the one it already uses or asked for is no switch. */
   const switchable = () => {
@@ -102,6 +128,16 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
       paint();
     }
   }
+  rows.addEventListener("change", (event) => {
+    const select = event.target;
+    if (!(select instanceof HTMLSelectElement)) return;
+    if (select.hasAttribute("data-coding-model")) value = select.value;
+    else if (select.hasAttribute("data-coding-effort")) effort = select.value;
+    else return;
+    changed();
+    paint();
+  });
+  rows.addEventListener("click", (event) => { if (event.target instanceof Element && event.target.closest("[data-coding-model-switch]")) void switchTo(); });
   return {
     fill(next) {
       list = next;
@@ -121,21 +157,6 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
       busy = Boolean(sending);
       paint();
     },
-    scene() {
-      const options = list.map((item) => ({ value: key(item), label: item.label }));
-      // A session started on a model the catalog no longer lists keeps it, said to be unavailable, until another is chosen.
-      if (value && !options.some((option) => option.value === value)) options.push({ value, label: readText("coding.model.unavailable") });
-      if (!options.length) options.push({ value: "", label: readText("coding.model.none") });
-      const controls: ComposerControl[] = [{ kind: "select", id: "model", label: readText("coding.model.label"), options, value, disabled: busy,
-        change: (next) => { value = next; changed(); paint(); } }];
-      // The effort is fixed for a running round (the note says which); the choice is for the next one.
-      if (chosen()?.reasoning_effort && !live) controls.push({ kind: "select", id: "effort", label: readText("coding.effort.label"), value: effort, disabled: busy,
-        options: [{ value: "", label: readText("coding.effort.default") }, ...(["low", "medium", "high"] as const).map((level) => ({ value: level, label: readText(effortKeys[level]!) }))],
-        change: (next) => { effort = next; changed(); paint(); } });
-      const target = switchable();
-      if (target) controls.push({ kind: "button", id: "model-switch", label: readText("coding.model.switch"), title: readText("coding.model.switch-title", { model: target.label }),
-        disabled: busy || switching, run: () => void switchTo() });
-      return controls;
-    },
+    summary: () => chosen()?.label ?? (value ? readText("coding.model.unavailable") : ""),
   };
 }

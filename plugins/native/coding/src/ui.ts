@@ -206,11 +206,12 @@ function renderEmpty(p: CodingUiPrimitives): string {
   return `<div class="mw-empty" data-coding-empty><p>${p.escape(uiText.text("coding.directory.empty"))}</p></div>`;
 }
 
-/** 「规则 N」's menu (batch12-design §3.7); its way out when the output is the default location is the project's 输入与输出 settings. */
+/** 「本轮设置」 (screen-polish §6.7): the model's rows, then 「规则 N」 (batch12-design §3.7), whose way out when the output is the default location is the project's 输入与输出 settings. */
 function renderRulesDialog(p: CodingUiPrimitives, projectSettingsHref: string): string {
   return `<dialog class="mw-dialog mw-dialog--form coding-rules" data-coding-rules-dialog data-coding-rules-settings="${p.escape(projectSettingsHref)}" aria-labelledby="coding-rules-title"><div class="mw-form mw-dialog__shell">
-      <header class="mw-form__header"><h2 id="coding-rules-title">${p.escape(uiText.text("coding.rules.title"))}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-rules-close":""}})}</header>
-      <section class="mw-form__body coding-rules__body" data-coding-rules-body></section>
+      <header class="mw-form__header"><h2 id="coding-rules-title">${p.escape(uiText.text("coding.round-settings.title"))}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-rules-close":""}})}</header>
+      <section class="mw-form__body"><div class="coding-rules__body"><div class="mw-settings-section__rows" data-coding-round-model></div>
+        <h3 class="mw-settings-subhead" data-coding-rules-label>${p.escape(uiText.text("coding.rules.label"))}</h3><div class="coding-rules__body" data-coding-rules-body></div></div></section>
       <footer class="mw-form__footer coding-rules__foot"><p>${p.escape(uiText.text("coding.rules.foot"))}</p></footer>
     </div></dialog>`;
 }
@@ -365,10 +366,10 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           ${renderButton({label:uiText.text("coding.context.workspace"),icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:uiText.text("coding.goal.link"),icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
           ${renderButton({label:uiText.text("coding.worktrees.title"),icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:uiText.text("coding.context.open-beside"),icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:uiText.text("coding.context.open-beside-title")}})}<a class="mw-btn mw-btn--ghost" data-coding-memory-open data-memory-base="/projects/${project}/settings/memory?memory_session_kind=coding" hidden>${p.escape(uiText.text("coding.memory.session"))}</a>${renderButton({label:uiText.text("coding.context.rename"),icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:uiText.text("coding.context.rename-title")}})}${renderButton({label:uiText.text("coding.context.archive"),variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
+          <div class="coding-next-round mw-toolbar" data-coding-next-round hidden aria-label="${p.escape(uiText.text("coding.next-round.label"))}"></div>
           <div class="coding-input" data-coding-input>${renderComposer({ kind: "ai", labels: codingComposerLabels(uiText.text, true), placeholder: uiText.text("coding.composer.placeholder"), add: true,
             disabled: { caption: uiText.text("coding.composer.notice"), reason: uiText.text("coding.composer.reading-session") },
-            controls: [{ kind: "select", id: "intent", label: uiText.text("coding.intent.label"), value: "discuss", options: codingIntentOptions(uiText.text, (intent) => !["parallel", "edit", "execute"].includes(intent)) },
-              { kind: "select", id: "model", label: uiText.text("coding.model.label"), value: "", options: [] }] })}</div>
+            controls: [{ kind: "select", id: "intent", label: uiText.text("coding.intent.label"), value: "discuss", options: codingIntentOptions(uiText.text, (intent) => !["parallel", "edit", "execute"].includes(intent)) }] })}</div>
           <button type="button" class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup hidden>${p.escape(uiText.text("coding.model.open-settings"))}</button><div class="mw-field__hint" data-coding-input-status role="status" hidden></div>
           <div class="coding-composer-footnote"><div class="coding-meter" data-coding-meter hidden>
                   <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="${p.escape(uiText.text("coding.meter.title"))}"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>${p.escape(uiText.text("coding.meter.label"))}</span></button>

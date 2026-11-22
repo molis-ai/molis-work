@@ -7,7 +7,7 @@ import { codingCommands } from "./commands.js";
 import { chooseIntent, configurationChanged, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
 import { codingImages } from "./images.js";
 import { terminal, unread } from "./composer-state.js";
-import { controls, counts } from "./controls.js";
+import { controls } from "./controls.js";
 import { currentSelection, failedMaterialsOf, selectionMaterialKey } from "./composer.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
@@ -16,7 +16,6 @@ import { api, sessionPath, status } from "./request.js";
 import { select, surfaceChanged } from "./select.js";
 import { startFromComposer } from "./mount-submit.js";
 import type { RoundSelection } from "./shapes.js";
-import { rulesControl } from "./rules.js";
 
 /** How many other sessions 「发给」 lists: the latest; the rest are in the page's own list beside it. */
 const OTHERS = 5;
@@ -67,23 +66,16 @@ export async function stopRound(page: Page) {
   }
 }
 
-/** What the next round is given (materials, methods, a Character, actions, MCP), as small tags in the bar once chosen; each opens its choice again. */
-function nextRound(page: Page): ComposerControl[] {
-  const held = counts(page);
-  const chosen: Record<string, number> = { materials: held.materials, character: held.character ? 1 : 0, methods: held.methods, actions: held.actions, mcp: held.mcp };
-  return codingCommands(page).filter(command => (chosen[command.slash] ?? 0) > 0)
-    .map(command => ({ kind: "button" as const, id: "next-" + command.slash, label: command.label, ...(command.hint ? { title: command.hint } : {}), disabled: command.enabled === false, run: () => void command.run() }));
-}
-
-/** The bar's controls: the way of working (fixed while a round runs), then the model's, then what the next round is given. */
+/**
+ * The bar's own control: the way of working (fixed while a round runs). Its name carries the model chosen, so the tooltip says
+ * which model the next round uses; the model, its effort and the rules are 「本轮设置」 in ＋ (screen-polish §6.7, POLISH-28: the
+ * bottom row is ＋, who it goes to, this, and send). What the next round is given is said over the box (`drawNextRound`).
+ */
 function sceneControls(page: Page): ComposerControl[] {
-  const { readText, s } = page;
+  const { readText, s } = page, model = page.refs.composerModels.summary();
   return [
-    { kind: "select", id: "intent", label: readText("coding.intent.label"), value: s.intent, options: s.intents, disabled: roundActive(page) || s.sending || unread(page),
-      change: value => chooseIntent(page, value) },
-    ...page.refs.composerModels.scene(),
-    ...nextRound(page),
-    ...rulesControl(page),
+    { kind: "select", id: "intent", label: model ? readText("coding.intent.label-model", { model }) : readText("coding.intent.label"), value: s.intent, options: s.intents,
+      disabled: roundActive(page) || s.sending || unread(page), change: value => chooseIntent(page, value) },
   ];
 }
 

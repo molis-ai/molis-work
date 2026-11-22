@@ -8,7 +8,7 @@ import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
-import { CODING_OPEN, CODING_SEND, codingControl, codingType } from "./fixtures/coding-composer.js";
+import { CODING_OPEN, CODING_SEND, codingControl, codingType, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { codingToolResponse } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -55,7 +55,9 @@ test("QEA-35: Coding hands a delayed model draft to Git without overwriting typi
   const frame = await pluginFrameBrowser(t, browser, "coding");
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=coding` }, browser.sessionId));
   await frame.click("[data-coding-new]"); await browser.waitFor(CODING_OPEN);
-  for (const [id, value] of [["model", JSON.stringify(["fixture", "fixture-model"])], ["intent", "edit"]]) {
+  await frame.waitFor(CODING_MODELS_LISTED);
+  await frame.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["fixture", "fixture-model"])));
+  for (const [id, value] of [["intent", "edit"]]) {
     await browser.evaluate(`{ const control = document.querySelector(${JSON.stringify(codingControl(id!))}); control.value = ${JSON.stringify(value)}; control.dispatchEvent(new Event('change', { bubbles: true })); }`);
   }
   await browser.evaluate(codingType("Change note.txt to the reviewed text. Do not stage or commit."));

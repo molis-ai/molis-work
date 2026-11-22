@@ -1,8 +1,10 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
+import { codingCommands } from "./commands.js";
 import { shut, terminal, unread } from "./composer-state.js";
 import type { Page } from "./page.js";
 import { status } from "./request.js";
+import { drawRulesLabel } from "./rules.js";
 
 /** Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds the whole choice it hears back for the session that asked. */
 export async function openMaterials(page: Page) {
@@ -37,11 +39,13 @@ export function drawComposer(page: Page) {
   composer.hold(unread(page) ? readText("coding.composer.reading-session") : s.sending && !s.composerSending ? readText("coding.composer.busy") : null);
   composer.setRunning(active);
   const title = s.state.sessions.find(item => item.session_id === s.current)?.title ?? "";
-  const drawn = JSON.stringify([s.current, s.sessionOnShow, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.scene(), counts(page)]);
+  const drawn = JSON.stringify([s.current, s.sessionOnShow, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.summary(), s.lastRun?.frozen.instructions?.files.length, counts(page)]);
   if (drawn !== s.composerDrawn) {
     s.composerDrawn = drawn;
     composer.refresh();
+    drawNextRound(page);
   }
+  drawRulesLabel(page);
   q("[data-coding-rename]").hidden = !s.current;
   q("[data-coding-archive]").hidden = !s.current;
   const memory = q<HTMLAnchorElement>("[data-coding-memory-open]");
@@ -49,6 +53,24 @@ export function drawComposer(page: Page) {
   if (s.current) memory.href = memory.dataset.memoryBase + "&memory_session_id=" + encodeURIComponent(s.current);
   else memory.removeAttribute("href");
   for (const name of ["workspace", "goal", "writer-directories"]) q<HTMLButtonElement>("[data-coding-" + name + "-open]").disabled = shut(page);
+}
+
+/**
+ * What the next round is given (materials, methods, a Character, actions, MCP), as small tags over the box once chosen; each
+ * opens its choice again. They were controls in the bar's bottom row until that row was kept to four (POLISH-28).
+ */
+function drawNextRound(page: Page) {
+  const { q, s } = page, row = q("[data-coding-next-round]"), held = counts(page);
+  const chosen: Record<string, number> = { materials: held.materials, character: held.character ? 1 : 0, methods: held.methods, actions: held.actions, mcp: held.mcp };
+  const tags = s.current && s.sessionOnShow ? codingCommands(page).filter(command => (chosen[command.slash] ?? 0) > 0) : [];
+  row.hidden = !tags.length;
+  row.replaceChildren(...tags.map(command => {
+    const tag = document.createElement("button");
+    tag.type = "button"; tag.className = "mw-btn mw-btn--ghost mw-btn--sm"; tag.textContent = command.label; tag.disabled = command.enabled === false;
+    if (command.hint) tag.title = command.hint;
+    tag.addEventListener("click", () => void command.run());
+    return tag;
+  }));
 }
 
 /** What the next round is given, as ＋ counts it (materials, Character, actions, MCP, methods). */

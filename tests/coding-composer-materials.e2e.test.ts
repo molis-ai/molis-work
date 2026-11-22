@@ -11,7 +11,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl, codingType, codingDeliver, codingAdd } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl, codingType, codingDeliver, codingAdd, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 
 async function fixture(t: TestContext, answer?: (turn: number) => Promise<Response>, title = "共享来源待办") {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
@@ -40,7 +40,9 @@ async function fixture(t: TestContext, answer?: (turn: number) => Promise<Respon
   const child = await pluginFrameBrowser(t, b, "coding");
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=coding` }, b.sessionId));
   await child.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
-  for (const [id, value] of [["model", JSON.stringify(["fixture", "fixture-model"])], ["intent", "discuss"]]) {
+  await child.waitFor(CODING_MODELS_LISTED);
+  await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["fixture", "fixture-model"])));
+  for (const [id, value] of [["intent", "discuss"]]) {
     await b.evaluate(`{ const control = document.querySelector(${JSON.stringify(codingControl(id!))}); control.value = ${JSON.stringify(value)}; control.dispatchEvent(new Event('change', { bubbles: true })); }`);
   }
   // Capture only real requests after the production frame adapter has prepared them; no backend response is replaced.

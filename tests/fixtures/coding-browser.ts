@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { openGoalBrowser } from "./goal-browser.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl } from "./coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_MODEL, CODING_OPEN, CODING_SEND, codingControl } from "./coding-composer.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./plugin-frame-browser.js";
 
 export const coding = "[data-coding-workbench]";
@@ -71,8 +71,12 @@ export async function openCoding(t: TestContext, before = "", prepareHome?: (hom
   const type = (text: string) => browser.evaluate(`(()=>{const node=${box};node.value=${JSON.stringify(text)};node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'}));})()`);
   const current = () => evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession ?? ''`);
   /** Which of the box, 发送, the way of working and the model are closed. */
-  const closed = () => browser.evaluate<Record<string, boolean>>(`(()=>{const at=selector=>document.querySelector(selector);
-    return {task:at(${JSON.stringify(CODING_BOX)}).disabled,send:at(${JSON.stringify(CODING_SEND)}).disabled,intent:at(${JSON.stringify(codingControl("intent"))}).disabled,model:at(${JSON.stringify(codingControl("model"))}).disabled};})()`);
+  const closed = async (): Promise<Record<string, boolean>> => ({
+    ...await browser.evaluate<Record<string, boolean>>(`(()=>{const at=selector=>document.querySelector(selector);
+      return {task:at(${JSON.stringify(CODING_BOX)}).disabled,send:at(${JSON.stringify(CODING_SEND)}).disabled,intent:at(${JSON.stringify(codingControl("intent"))}).disabled};})()`),
+    // The model is a row of 「本轮设置」 in the Coding frame (POLISH-28); not drawn yet counts as closed.
+    model: await evaluate<boolean>(`document.querySelector(${JSON.stringify(CODING_MODEL)})?.disabled !== false`),
+  });
   /** Presses 发送, and ⌘↵ in the box past the button (the composer's own key); then gives the page a moment. */
   const trySend = async () => {
     await browser.evaluate(`(()=>{document.querySelector('${CODING_SEND}').click();

@@ -10,6 +10,7 @@ import type { Page } from "./page.js";
 import { promptCommands } from "./prompt-commands.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
+import { openRoundSettings, roundSettingsHint } from "./rules.js";
 
 /** One command for each way of working the composer offers. */
 function intentCommands(page: Page): CommandItem[] {
@@ -23,15 +24,6 @@ function intentCommands(page: Page): CommandItem[] {
       refs.composer.focus();
     },
   }));
-}
-
-/** Puts the focus on the composer's model choice (on a narrow screen it sits behind "more"). */
-function focusModel(page: Page) {
-  const select = page.root.querySelector<HTMLSelectElement>('[data-coding-input]:not([data-composer-remote]) [data-composer-control="model"]');
-  // In the bar (one input), the model is the bar's own control beside the box: the box takes the focus.
-  if (!select) { page.refs.composer.focus(); return; }
-  select.closest(".mw-composer__start")?.querySelector<HTMLElement>("[data-composer-more][aria-expanded=false]")?.click();
-  select.focus();
 }
 
 /** A count after a name, as ＋ lists what the next round is given. */
@@ -52,6 +44,9 @@ function choiceCommands(page: Page): CommandItem[] {
     // This session's memory: what it has learned and can clear, one press away rather than under 工作区与目标.
     { slash: "memory", label: readText("coding.memory.session"), hint: readText("coding.palette.memory-hint"), keywords: ["记忆", "memory", "清除"], adds: "sparkles", enabled: Boolean(s.current),
       run: () => q<HTMLAnchorElement>("[data-coding-memory-open]").click() },
+    // The model and the rules of the round (screen-polish §6.7): one row here, in place of two controls in the bar's bottom row.
+    { slash: "settings", label: readText("coding.round-settings.title"), hint: roundSettingsHint(page), keywords: ["模型", "规则", "model", "rules", "设置"], adds: "settings", enabled: Boolean(s.current && s.sessionOnShow),
+      run: () => openRoundSettings(page) },
     { slash: "context", label: readText("coding.attach.context"), hint: context.hidden ? readText("coding.context.show") : readText("coding.context.hide"), keywords: ["workspace", "goal", "目录", "目标"], adds: "tune",
       run: () => { context.hidden = !context.hidden; } },
   ];
@@ -80,7 +75,7 @@ function builtInCommands(page: Page, init: CommandItem): CommandItem[] {
         if (id === s.current) await readCurrent(page);
       } },
     { slash: "usage", label: readText("coding.meter.title"), hint: readText("coding.palette.usage-hint"), keywords: ["cost", "费用", "预算", "context"], enabled: q("[data-coding-meter]").dataset.available === "true", run: () => q("[data-coding-meter-toggle]").click() },
-    { slash: "model", label: readText("coding.palette.model"), hint: readText("coding.palette.model-hint"), keywords: ["model"], enabled: open, run: () => focusModel(page) },
+    { slash: "model", label: readText("coding.palette.model"), hint: readText("coding.palette.model-hint"), keywords: ["model"], enabled: open, run: () => openRoundSettings(page, "model") },
     { slash: "workspace", label: readText("coding.workspace.title"), hint: readText("coding.palette.workspace-hint"), keywords: ["目录", "folder"], enabled: open, run: () => q<HTMLDialogElement>("[data-coding-workspace-dialog]").showModal() },
     { slash: "new", label: readText("coding.palette.new"), keys: "Mod+Alt+N", keywords: ["new", "会话"], run: () => q("[data-coding-new]").click() },
     { slash: "stop", label: readText("coding.run.stop-title"), hint: readText("coding.palette.stop-hint"), keywords: ["stop", "停止"], enabled: roundActive(page) && !s.sending, run: () => stopRound(page) },

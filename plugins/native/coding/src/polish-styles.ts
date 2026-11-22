@@ -105,11 +105,15 @@ export const CODING_POLISH_STYLES = `
 .coding-board-empty.mw-empty { padding:32px 8px; }
 .coding-board:has(.coding-board-empty) :is(.coding-board-columns,.coding-board-note) { display:none; }
 @media not ((hover:hover) and (pointer:fine)) { .coding-changed-file { min-height:44px; } .coding-head-more > summary { width:44px; height:44px; } }
-/* UIV-19: align Coding's conversation column with the window-centred bar input when the dialogue clears the directory.
+/* 6.3 The reply reads across its column: prose to 76 characters (the frame's own panels stop at 52), code to the column's edge. */
+.mw-layout-primitives .mw-frame__panel .coding-turn p { max-width:76ch; }
+/* UIV-19: align Coding's conversation column with the window-centred bar input when the dialogue clears the directory. The left
+   edge is the bar's wherever the bar's own width fits (--coding-bar); from there the column runs to 720px (--coding-reading,
+   POLISH-25) or to 12px short of the dialogue's edge, whichever comes first.
    Percentages in padding resolve against .coding-dialogue's inline size without making it a container query root, keeping
    long-turn streaming style invalidation O(1) (VUX-36). */
 @container molis-coding (min-width:761px) {
-  .mw-layout-primitives .coding-dialogue > :is(.coding-turns,.coding-composer,[data-coding-report-reader]) { --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-reading))); padding-left:var(--coding-pad-start); padding-right:max(12px, 100% - var(--coding-reading) - var(--coding-pad-start)); }
-  .mw-layout-primitives .coding-dialogue > :is(.coding-delegation-banner,.coding-status,.coding-queued) { box-sizing:border-box; --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-reading))); width:min(100% - var(--coding-pad-start) - 12px, var(--coding-reading)); margin-left:var(--coding-pad-start); margin-right:auto; }
+  .mw-layout-primitives .coding-dialogue > :is(.coding-turns,.coding-composer,[data-coding-report-reader]) { --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-bar))); padding-left:var(--coding-pad-start); padding-right:max(12px, 100% - var(--coding-reading) - var(--coding-pad-start)); }
+  .mw-layout-primitives .coding-dialogue > :is(.coding-delegation-banner,.coding-status,.coding-queued) { box-sizing:border-box; --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-bar))); width:min(100% - var(--coding-pad-start) - 12px, var(--coding-reading)); margin-left:var(--coding-pad-start); margin-right:auto; }
 }
 `;

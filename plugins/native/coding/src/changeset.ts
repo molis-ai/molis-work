@@ -1,4 +1,5 @@
 import { codingFailure } from "./words.js";
+import { codingRoundTally } from "./round-tally.js";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentReviewRequest, AgentReviewReceipt, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -106,6 +107,19 @@ export function codingNetChange(change: CodingChangeSet, path: string):
     if (reviews[at]!.before_text !== reviews[at - 1]!.after_text) return { available: false, indices, reason: "两次写入之间文件被改过，只能逐次查看" };
   }
   return { available: true, indices, before_text: reviews[0]!.before_text, after_text: reviews.at(-1)!.after_text };
+}
+
+/**
+ * A round's change in lines alone (the stats-only read of `coding.changesets.read`, screen-polish 方案乙): what its writes left on
+ * disk in each file, by the one rule the round's line in the conversation follows (round-tally.ts) — a refused write is left out,
+ * a file written several times counts its net change — or `stats: null` when that cannot be said exactly. It carries no text of
+ * any file, so asking for it costs a few dozen bytes however large the files are.
+ */
+export function codingChangeStats(change: CodingChangeSet): { stats: { added_lines: number; removed_lines: number; files: { path: string; added_lines: number; removed_lines: number }[] } | null } {
+  const nets = [...new Set(change.files.map(file => file.path))].map(path => ({ path, net: codingNetChange(change, path) })).filter(group => group.net.indices.length > 1)
+    .map(({ path, net }) => ({ path, available: net.available, ...(net.available ? codingChangedLines(net.before_text, net.after_text) : {}) }));
+  const tally = codingRoundTally(change.files, nets);
+  return { stats: tally && { added_lines: tally.added, removed_lines: tally.removed, files: tally.files.map(file => ({ path: file.path, added_lines: file.added, removed_lines: file.removed })) } };
 }
 
 /** The server derives quoted text from the exact stored side/line, never browser text. */

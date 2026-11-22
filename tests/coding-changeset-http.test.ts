@@ -37,6 +37,8 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
   try {
     const preview = await request(); assert.equal(preview.status, 200, JSON.stringify(preview.body)); assert.equal(preview.body.reference, null);
     assert.equal(preview.body.change.files.length, 2); assert.equal(preview.body.change.files[0].review.execution, "unknown"); assert.equal(preview.body.change.files[1].review.execution, "applied");
+    // 只回统计 (screen-polish 方案乙, `stats`): a write whose outcome is unknown cannot be counted exactly, so the answer is no count; the answer is the count alone, and asking fixes no version.
+    assert.deepEqual((await request(prefix+'?stats=1')).body, { stats: null });
     const priorMissing = reads;
     assert.equal((await request(prefix+'?fixed=1')).status, 400);
     assert.equal(reads, priorMissing, "missing fixed artifacts must not read runtime to rebuild");
@@ -147,6 +149,11 @@ test("DEL-01～06 DEL-08: the fixed change set lists what a confirmed integratio
     const preview = await request(); assert.equal(preview.status, 200, JSON.stringify(preview.body));
     assert.deepEqual(listed(preview.body), expected, "DEL-01/02/03/04/08: what a confirmed subtask integration brought back, each once, after the round's writes");
     assert.equal(preview.body.change.applied, true);
+    // 只回统计 (screen-polish 方案乙, `coding.changesets.read` with `stats`): the same round in lines alone, per file as it stands on disk; no text of any file, no reader markup, no reference.
+    const counted = { stats: { added_lines: 3, removed_lines: 4, files: [{ path: "cart.mjs", added_lines: 1, removed_lines: 1 }, { path: "src/gone.ts", added_lines: 0, removed_lines: 2 },
+      { path: "src/kept.ts", added_lines: 1, removed_lines: 1 }, { path: "src/new.ts", added_lines: 1, removed_lines: 0 }] } };
+    assert.deepEqual((await request(prefix + "?stats=1")).body, counted, "the counts-only read of a round not fixed yet");
+    assert.equal((await request(prefix + "?fixed=1")).status, 400, "asking for the counts fixes no version");
     // DEL-05: the fixed version holds the deletions; reopened, it shows them without reading the runtime again.
     const saved = await request(prefix, "POST"); assert.equal(saved.status, 200); assert.deepEqual(listed(saved.body), expected);
     assert.deepEqual((await request(prefix, "POST")).body.reference, saved.body.reference, "DEL-04: saving again keeps the same fixed version");
@@ -156,6 +163,7 @@ test("DEL-01～06 DEL-08: the fixed change set lists what a confirmed integratio
     assert.deepEqual(listed(reopened.body), expected, "DEL-05: the fixed list stays as it was saved"); assert.deepEqual(reopened.body.reference, saved.body.reference);
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.deepEqual(listed((await request(prefix + "?fixed=1")).body), expected, "DEL-05: reopened after a restart"); assert.equal(reads, before);
+    assert.deepEqual((await request(prefix + "?stats=1")).body, counted, "the counts of a fixed round come from the fixed version"); assert.equal(reads, before, "and read the runtime no more than the full read does");
     // DEL-06: the reader, the copied patch, Diff and the shared text all say the file is gone.
     const gone = await request(prefix + "?fixed=1&change_index=1");
     assert.equal(gone.body.patch, "--- a/src/gone.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-was\n-here\n");

@@ -21,7 +21,7 @@ export const CODING_STYLES = `
 [data-coding-subagents] textarea { width:100%; resize:vertical; }
 .coding-plan-after { color:var(--muted); font-size:12px; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
-[data-coding-workbench] { container: molis-coding / inline-size; --coding-reading: var(--mw-bar-column, 680px); } /* the reading column, as wide as the bar's input over it (one input, specs/unified-input-voice §10.4): the bar says its width, 680px at most */
+[data-coding-workbench] { container: molis-coding / inline-size; --coding-bar: var(--mw-bar-column, 680px); --coding-reading: max(var(--coding-bar), 720px); } /* the reading column starts at the left edge of the bar's input (UIV-19; the bar says its width and where it stands) and is 720px wide where the dialogue has the room (POLISH-25), the bar's own width at least */
 .coding-layout { display:grid; grid-template-columns:240px minmax(0,1fr); height:100%; min-height:0; }
 .coding-layout .coding-stage { min-width:0; }
 .coding-directory-back { display:none; }
@@ -320,7 +320,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 [data-coding-question],.coding-cards { max-width:var(--coding-reading); margin:16px auto 24px; }.coding-cards { display:grid; gap:12px; }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
 .coding-composer > * { width:min(100%, var(--coding-reading)); }
-.coding-composer > .coding-context { justify-content:flex-start; }
+.coding-composer > :is(.coding-context,.coding-next-round) { justify-content:flex-start; }
 ${CODING_FOOTNOTE_STYLES}
 .coding-composer small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-composer-footnote { display:flex; align-items:center; justify-content:space-between; gap:12px; }

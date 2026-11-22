@@ -9,7 +9,6 @@ export const DIFF_VIEW_STYLES = `
    the content is held as a tag under them. */
 .mw-diff {
   .mw-diff-rows, .mw-diff-files, .mw-diff-notices { list-style:none; }
-  .mw-diff-rows, .mw-diff-file-n, .mw-diff-counts { font-variant-numeric:tabular-nums; }
   .mw-diff-sides, .mw-diff-source, .mw-diff-split code { overflow-wrap:anywhere; }
   .mw-diff-sign, .mw-diff-before, .mw-diff-after { user-select:none; }
   .mw-diff-files li, .mw-diff-files button, .mw-diff-fold button { display:flex; align-items:center; }
@@ -49,7 +48,7 @@ export const DIFF_VIEW_STYLES = `
       flex:1; gap:6px; min-width:0; min-height:34px; padding:0; border:0; background:none; color:var(--ink); font:inherit; font-size:13px; text-align:left; cursor:pointer;
       &:focus-visible { outline:var(--focus-stroke); outline-offset:2px; border-radius:6px; }
     }
-    .mw-diff-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left; font:12px var(--font-mono); }
+    .mw-diff-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left; font-family:var(--font-mono); font-size:12px; }
   }
   .mw-diff-file-n { flex:none; color:var(--faint); }
   .mw-diff-counts {
@@ -78,5 +77,6 @@ export const DIFF_VIEW_STYLES = `
     }
     svg { width:12px; height:12px; }
   }
+  .mw-diff-rows, .mw-diff-file-n, .mw-diff-counts { font-variant-numeric:tabular-nums; }
 }
 `;

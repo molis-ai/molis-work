@@ -255,4 +255,10 @@ test("91-0b layout measure/master tokens and plugin-frame dependencies stay avai
     "nested input reset must follow field aria-invalid rules in cascade");
   assert.ok(base.lastIndexOf(".mw-pagination__page, .mw-choice, .mw-calendar__day, .mw-dir-row):focus-visible") > base.indexOf(".mw-choice {"),
     ".mw-choice:focus-visible must follow .mw-choice selected rules in cascade");
+  assert.ok(base.includes("--mw-fs:0px") && base.includes("--mw-fe:0px"),
+    "overflow-fade length tokens must retain px unit so calc(100% - var(--mw-fe)) never becomes IACVT");
+  assert.ok(
+    base.lastIndexOf(".mw-diff-rows, .mw-diff-file-n, .mw-diff-counts { font-variant-numeric:tabular-nums; }") > base.indexOf("font:11px/18px var(--font-mono)"),
+    "diff tabular-nums must follow font shorthands in cascade so font: does not reset font-variant-numeric",
+  );
 });

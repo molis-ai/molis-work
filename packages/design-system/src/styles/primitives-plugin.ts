@@ -251,7 +251,7 @@ export const PRIMITIVE_PLUGIN_MENU = `
 
 export const PRIMITIVE_PLUGIN_CONTROLS = `
   .mw-tabs__list { display: flex; gap: 4px; }
-  .mw-tabs__tab, .mw-toggle, .mw-dir-row { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  .mw-tabs__tab, .mw-dir-row { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   .mw-tabs__tab, .mw-toggle { padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; }
   .mw-tabs__tab {
     position: relative; min-height: 30px;

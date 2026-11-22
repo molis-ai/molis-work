@@ -4504,6 +4504,7 @@
       color: var(--accent-strong);
       text-decoration: underline;
       text-underline-offset: 3px;
+      background: transparent;
     }
     &:active:not(:disabled) { color: var(--accent-strong); }
     &:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
@@ -4798,7 +4799,7 @@
   .mw-menu__group + .mw-menu__group::before { content: ""; display: block; margin: 4px 8px; border-top: 1px solid var(--line); }
 
   .mw-tabs__list { display: flex; gap: 4px; }
-  .mw-tabs__tab, .mw-toggle, .mw-dir-row { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  .mw-tabs__tab, .mw-dir-row { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   .mw-tabs__tab, .mw-toggle { padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; }
   .mw-tabs__tab {
     position: relative; min-height: 30px;

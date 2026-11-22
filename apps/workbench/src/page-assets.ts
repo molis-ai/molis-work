@@ -205,7 +205,6 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible { outline: non
     .replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3\b/g, "#$1$2$3")
     .replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([.\d]+)\)/g, "rgb($1 $2 $3/$4)")
     .replace(/\boutline:\s*none\b/g, "outline:0")
-    .replace(/\b0px\b/g, "0")
     .replace(/\b130ms\b/g, ".13s")
     .replace(/\b250ms\b/g, ".25s")
     .replace(/\b420ms\b/g, ".42s")
@@ -271,14 +270,6 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible { outline: non
     const merged = [...other, ...[...grouped.entries()].map(([decl, sels]) => `${sels.join(",")}{${decl}}`)];
     sheet += `\n@media (prefers-reduced-motion: reduce) { ${merged.join(" ")} }`;
   }
-  const forcedColors: string[] = [];
-  sheet = sheet.replace(/(^|\n|\})[ \t]*@media\s*\(forced-colors:\s*active\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
-    const trimmed = body.trim();
-    if (!trimmed || /^[&>]/.test(trimmed) || !trimmed.includes("{")) return whole;
-    forcedColors.push(trimmed);
-    return lead;
-  });
-  if (forcedColors.length > 0) sheet += `\n@media (forced-colors: active) { ${forcedColors.join(" ")} }`;
   return sheet;
 }
 

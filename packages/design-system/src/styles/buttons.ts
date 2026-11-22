@@ -123,6 +123,7 @@ export const BUTTON_STYLES = `
       color: var(--accent-strong);
       text-decoration: underline;
       text-underline-offset: 3px;
+      background: transparent;
     }
     &:active:not(:disabled) { color: var(--accent-strong); }
     &:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }

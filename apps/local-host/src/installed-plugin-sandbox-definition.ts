@@ -13,18 +13,15 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/mol
 import { createSandboxRunner, createBackgroundLane, readOnlySandboxStorage, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from './plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import { actionErrorFromResponse, sandboxUpgradeOperation, actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { actionErrorFromResponse, sandboxUpgradeOperation, actionErrorResponse, isRecord, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { installedStageFrame } from './installed-stage-section.js';
 import { releaseInstructions } from './installed-plugin-prompts.js';
-import { releaseVersion, type InstalledRelease } from './installed-release.js';
+import type { InstalledRelease } from './installed-release.js';
 import { activeLocale } from './web-locale.js';
-import { studioManifestWords, studioWordReader } from './plugin-builder/studio-words.js';
 import { sandboxTextPacks } from './ui-text-provider.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './installed-plugin-capabilities.js';
 import { assertOperationGranted, grantedEffects, projectInstalledPermissions } from './installed-permission-projection.js';
 
-/** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
-export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 /** A sandbox error after which the process is not used again: the next call starts a new one. */
 export const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -40,17 +37,6 @@ function installedOperation(release: InstalledRelease, context: PluginStartConte
     throw new ActionError('actions.forbidden', '这次操作不属于原已安装动作');
   assertCapturedPluginActionCurrent(scope, context);
   return operation;
-}
-
-/**
- * What a generated plugin declares to the Host: a release's Manifest, or for a trial of a build that has none yet, the one it
- * would install with at version 0.
- */
-export function generatedPluginManifest(release: Pick<InstalledRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
-  return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
-    textDeclarations: studioManifestWords(release.design),
-    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract),
-    contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
 }
 
 /** What the Host lends a sandboxed plugin's definition. */
@@ -120,16 +106,16 @@ function effectsForHalf(effects: SandboxEffects, projectId: string | null | unde
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: SandboxedPluginHost = {},
-  /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
-  declared?: PluginManifest): PluginDefinition {
+export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects,
+  /** What the installed package declared, already checked against `sandboxPluginManifest`. */
+  declared: PluginManifest, host: SandboxedPluginHost = {}): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
-  const manifest = declared ?? generatedPluginManifest(release, compatibleFrom);
+  const manifest = declared;
   const descriptor = sandboxUiDeclaration({ pluginId: release.pluginId, name: manifest.name, ui: release.design.ui });
   const manifestDigest = pluginManifestDigest(manifest);
-  const words = release.packaged ? release.packaged.localePacks ?? null : studioWordReader(release.design, manifest);
+  const words = release.packaged?.localePacks ?? null;
   const localePacks = sandboxTextPacks(words);
-  const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
+  const instructions = manifest.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>(); let background: SandboxBackgroundLane | undefined;
   const upgradeValidator = installedUpgradeValidator(release, manifest, localePacks);

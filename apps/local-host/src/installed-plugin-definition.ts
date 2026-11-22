@@ -41,7 +41,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       if (!covered(release.permissions, approved)) throw new Error('此版本的安装批准不足，请重新确认权限');
       const prior = definitions.get(keyOf(release));
       if (prior) return prior.value;
-      if (release.packaged?.manifest.kind === 'integration') {
+      if (release.packaged.manifest.kind === 'integration') {
         if (!ports.integration) throw new Error('集成包只装进 Home');
         const value = ports.integration(release, release.permissions, ports.assertInstalled);
         rememberInstalledActionSource(value, release);
@@ -52,12 +52,12 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       const guard = <Context extends { identity: Readonly<SandboxIdentity>; signal: AbortSignal; beforeEffect?(): Promise<void> | void }>(context: Context): Context & { beforeEffect(): Promise<void> } => ({ ...context, beforeEffect: async () => {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
-      const sandbox = sandboxedPluginDefinition(release, release.permissions, [], {
+      const sandbox = sandboxedPluginDefinition(release, release.permissions, release.packaged.manifest, {
         capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled, grantedCapabilities: ports.grantedCapabilities,
         backgroundLocale: () => lastUsedLocale(ports.home),
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
-      }, release.packaged.manifest);
+      });
       let withdraw: (() => void) | undefined;
       const value: PluginDefinition = ports.holdAgentDefinitions ? { ...sandbox,
         async start(context) {

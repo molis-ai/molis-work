@@ -9,17 +9,15 @@ import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/serv
 import { assertStageInstallation } from "./installed-stage-identity.js";
 import { directoryWordResolver } from "./ui-text-provider.js";
 import { inDesignOrder } from "./plugin-builder-surface.js";
-import { studioWordReader } from "./plugin-builder/studio-words.js";
-import { generatedPluginManifest } from "./installed-plugin-sandbox-definition.js";
-
-/** The signed or local release already selected by this instance, never a catalog lookup by name. */
-function installedWords(release: InstalledRelease) {
-  const { pluginId, design, packaged } = release;
-  return packaged ? packaged.localePacks ?? null : studioWordReader(design, { plugin_id: pluginId, kind: "app", ui: design.contract.ui ?? {} });
+/** The signed release already selected by this instance, never a catalog lookup by name. Only signed packages are installed (47-1 B). */
+function signed(release: InstalledRelease) {
+  if (!release.packaged) throw new ActionError("actions.provider_changed", "插件的已安装版本已更改，请重新打开");
+  return release.packaged;
 }
+const installedWords = (release: InstalledRelease) => signed(release).localePacks ?? null;
 
 export function installedPluginWords(release: InstalledRelease) {
-  return projectDirectoryWords(release.packaged?.manifest ?? generatedPluginManifest(release), directoryWordResolver(installedWords(release)));
+  return projectDirectoryWords(signed(release).manifest, directoryWordResolver(installedWords(release)));
 }
 
 /** Both the lazy workbench mount and the standalone carrier use the same proof, immutable view and call route. */

@@ -1,7 +1,7 @@
 import { studioProblem } from "../plugin-builder-surface.js";
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginManifest, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
@@ -12,13 +12,25 @@ import { buildManifest } from './build-project.js';
 import { FRAME_QUERY } from '../plugin-builder-surface.js';
 import type { runBuilderBrowserAcceptance } from './browser.js';
 import type { ensureInstalledPlugins, SandboxTrials } from '../installed-plugin-host.js';
-import { generatedPluginManifest } from '../installed-plugin-sandbox-definition.js';
+import { releaseVersion, type InstalledRelease } from '../installed-release.js';
+import { studioManifestWords } from './studio-words.js';
 import { buildSources, readPluginPrompts } from '../installed-plugin-prompts.js';
 import { capabilityLimits, latestCapability, slowOperations, type Lane } from '../installed-plugin-capabilities.js';
 import { catalogCapabilities, standIn, type CatalogCapability } from '../installed-plugin-catalog.js';
 import { STABLE_PREVIEW } from './storage.js';
 import type { AgentBuild, AgentStudioOptions, Studio } from './agent-surface.js';
 import type { AgentBuilderStore } from '@molis-ai/molis-work-plugin-studio';
+
+/** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
+export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
+
+/** What a studio trial of a build declares to the Host: the Manifest it would install with. */
+export function generatedPluginManifest(release: Pick<InstalledRelease, 'pluginId' | 'version' | 'buildId' | 'design'>): PluginManifest {
+  return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
+    textDeclarations: studioManifestWords(release.design),
+    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, effects: effectsFromContract(release.design.contract),
+    contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
+}
 
 export function studioDraftManifest(input: Omit<Parameters<typeof sandboxPluginManifest>[0], "version">) {
   return sandboxPluginManifest({ ...input, version: "0.0.0" });

@@ -16,6 +16,7 @@ import { createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-plugin-sandbox-definition.js';
+import { generatedPluginManifest } from '../apps/local-host/dist/plugin-builder/studio-preview.js';
 import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
@@ -53,7 +54,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
   const release = { buildId: 'control-fixture', pluginId: contract.pluginId, version: 1, bundlePath,
     design: { title: 'Control', contract, parts: [], acceptance: [] }, nodes: [] } as never;
   const catalog = () => capabilityCatalog(actions, 'owner');
-  const definition = sandboxedPluginDefinition(release, effects, [], { capability: catalogCapabilities({ actions, catalog, live: () => true,
+  const definition = sandboxedPluginDefinition(release, effects, generatedPluginManifest(release), { capability: catalogCapabilities({ actions, catalog, live: () => true,
     declaration: () => ({ manifest: definition.manifest }), granted: () => effects.capabilities }), capabilities: catalog });
   let withdraw = () => {};
   const firstRouteFinished = gate();
@@ -137,7 +138,7 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
           denied: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, code: { type: 'string' } }, required: ['id', 'code'] } } }, required: ['listed', 'denied', 'actor'] },
         effects, errors: [], examples: [{ input: { goal_id, cursor: initial.cursor }, output: { listed: true, actor: 'plugin:' + identity.pluginId, denied: ids.map(id => ({ id, code: 'plugin.capability_refused' })) } }] }] };
     // What the generated plugin declared to the Host, as the Host builds it from the release.
-    const declared = sandboxedPluginDefinition({ buildId: 'goal-scope', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal scope', contract, parts: [], acceptance: [] }, nodes: [] } as never, effects, []);
+    const declared = sandboxedPluginDefinition({ buildId: 'goal-scope', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal scope', contract, parts: [], acceptance: [] }, nodes: [] } as never, effects, generatedPluginManifest({ buildId: 'goal-scope', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal scope', contract, parts: [], acceptance: [] }, nodes: [] } as never));
     runner = await createSandboxRunner({ bundlePath, identity, grants: effects, contract,
       services: { capability: catalogCapabilities({ actions, catalog, live: item => item.installationId === identity.installationId,
         declaration: item => item.pluginId === identity.pluginId ? { manifest: declared.manifest } : undefined, granted: () => effects.capabilities }) } });
@@ -197,7 +198,7 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
     const declaredEffects = { capabilities: [progress.capability_id] };
     const contract: SandboxPluginContract = { version: 1, pluginId: identity.pluginId, revision: 'one', entities: [], pages: [], acceptance: [],
       operations: [operation('record', declaredEffects), operation('undeclared', {}), operation('hidden', { capabilities: [agentsOnly.capability_id] })] };
-    const declared = sandboxedPluginDefinition({ buildId: 'goal-grants', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal grants', contract, parts: [], acceptance: [] }, nodes: [] } as never, declaredEffects, []);
+    const declared = sandboxedPluginDefinition({ buildId: 'goal-grants', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal grants', contract, parts: [], acceptance: [] }, nodes: [] } as never, declaredEffects, generatedPluginManifest({ buildId: 'goal-grants', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal grants', contract, parts: [], acceptance: [] }, nodes: [] } as never));
     // What the person approved for this installation; the test withdraws and restores it.
     const approved = new Set([progress.capability_id, peek.capability_id, agentsOnly.capability_id]);
     const service = catalogCapabilities({ actions, catalog, live: item => item.installationId === identity.installationId,
@@ -280,7 +281,7 @@ for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an inst
   const tables: PluginDatabaseDeclaration = { store_name: 'sbxtables', version: 1, read_permission: 'sbxtables:read', write_permission: 'sbxtables:write',
     schema: 'CREATE TABLE sbxtables_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);' };
   const catalog = () => capabilityCatalog(actions, 'owner');
-  const generated = sandboxedPluginDefinition(release, effects, [], { capability: catalogCapabilities({ actions, catalog, live: () => true,
+  const generated = sandboxedPluginDefinition(release, effects, generatedPluginManifest(release), { capability: catalogCapabilities({ actions, catalog, live: () => true,
     declaration: () => ({ manifest: definition.manifest }), granted: () => effects.capabilities }), capabilities: catalog });
   // The installed definition as the Host builds it, with the tables a release's Manifest will declare once the creator writes them.
   const definition: PluginDefinition = { ...generated, manifest: { ...generated.manifest, databases: { project: tables },

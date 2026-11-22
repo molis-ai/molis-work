@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readingContract, readingNodes, readingPresentation } from './fixtures/plugin-composition.js';
-import { sandboxedPluginDefinition } from '../apps/local-host/src/installed-plugin-sandbox-definition.js';
+import { generatedPluginManifest } from '../apps/local-host/src/plugin-builder/studio-preview.js';
 import { resolvePluginActivation } from '@molis-ai/molis-work-plugin-runtime';
 
 import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-studio';
@@ -26,11 +26,11 @@ test('presentation references all parts exactly once and cannot acquire operatio
 test('installation requires the versioned renderer; legacy releases still activate without it', () => {
   const release = { pluginId: readingContract.pluginId, buildId: 'compatibility', version: 1,
     design: { title: '阅读摘记', contract: readingContract, parts: readingNodes, presentation: readingPresentation }, nodes: readingNodes } as unknown as AgentRelease;
-  const manifest = sandboxedPluginDefinition(release, {}, []).manifest;
+  const manifest = generatedPluginManifest(release);
   assert.deepEqual(resolvePluginActivation({ manifests: [manifest] }).blocked, [readingContract.pluginId]);
   assert.deepEqual(resolvePluginActivation({ manifests: [manifest], hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] }).order, [readingContract.pluginId]);
   const legacy = structuredClone(release); delete legacy.design.presentation;
-  assert.deepEqual(resolvePluginActivation({ manifests: [sandboxedPluginDefinition(legacy, {}, []).manifest] }).order, [readingContract.pluginId]);
+  assert.deepEqual(resolvePluginActivation({ manifests: [generatedPluginManifest(legacy)] }).order, [readingContract.pluginId]);
 });
 
 test('UI composition cannot hide a selected record action behind a second reading mode, wherever the layout is read', () => withPagePacks("zh", chinesePagePacks(), () => {

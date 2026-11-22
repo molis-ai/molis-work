@@ -138,7 +138,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
   storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
   // The person switched on what the operations use (BL-701): the platform capabilities.
-  const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, [], {}, release.packaged!.manifest), deployment: 'local',
+  const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local',
     grants: ['storage:private', 'capabilities:call', ...(secretRefs.length ? ['network:request', 'secret:use'] : [])] });
   if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
   store.close();
@@ -748,7 +748,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
         design: { id: 'one', catalog: 'actions/1', title: 'Fixture ' + buildId.slice(-3), description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
         nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() } satisfies AgentRelease, publisher);
       storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-      const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, [], {}, release.packaged!.manifest), deployment: 'local', grants });
+      const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local', grants });
       assert.equal(install.install_id, installIdOf(buildId), 'the order below is the order of the real installation ids');
       return pluginId;
     };
@@ -1234,7 +1234,7 @@ for (const [order, gonePluginId, keptPluginId] of [
       nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() } satisfies AgentRelease, newPublisher());
     storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
-    const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, [], {}, release.packaged!.manifest), deployment: 'local', grants: ['storage:private'] });
+    const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local', grants: ['storage:private'] });
     second = { pluginId, installId: install.install_id };
   } finally { store.close(); }
   assert.ok(second);

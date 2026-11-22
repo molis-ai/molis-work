@@ -14,7 +14,7 @@ import { readKeptSandboxPackage } from '../sandbox-package.js';
 import { releaseVersion } from '../installed-release.js';
 import { buildSources, readPluginPrompts } from '../installed-plugin-prompts.js';
 import { readBuildFile } from './build-project.js';
-import { studioPublisherIdentity } from '../local-publisher-identity.js';
+import { studioPublisherIdentity } from '../installed-plugin-publisher.js';
 import { studioManifestWords } from './studio-words.js';
 
 const SIGNED = 'signed-package.json';

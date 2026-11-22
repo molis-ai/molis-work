@@ -11,7 +11,7 @@ import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, studioTrials } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { STABLE_PREVIEW, studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
@@ -96,6 +96,8 @@ test('installed and authoring model calls bind their own release through the rea
   assert.equal(systems.length, calls, 'another installed version cannot authorize a prompt absent from this release');
   const registry = agentDefinitionsFor(home, builtinRegistrations), key = pluginId + '/summary';
   registry.save(key, 'PERSONAL_EDIT', null, 'person');
+  // A trial's prompts come from the studio that drafts it (47-1 D): the open studio answers the installed host for its own builds.
+  const stopTrials = one.useTrials(studioTrials(a.builder)); t.after(stopTrials);
   const preview = one.capabilityFor(() => true);
   const previewContext = { identity: { projectId: a.id, pluginId, installationId: STABLE_PREVIEW + draft.id, namespace: 'preview' as const }, signal: new AbortController().signal };
   assert.deepEqual(await preview.call(previewContext, 'model.generate', { prompt: 'summary', input: 'material' }), { text: 'GENERATED' });

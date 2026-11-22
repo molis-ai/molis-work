@@ -24,8 +24,8 @@ const RESERVED = new Set(['host', 'connection', 'content-length', 'transfer-enco
 /** Response headers a plugin may see. */
 const VISIBLE = ['content-type', 'content-language', 'etag', 'last-modified', 'location', 'retry-after', 'cache-control', 'date'];
 export const NETWORK_STAND_IN: SandboxNetworkResponse = { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8', 'x-molis-stand-in': '1' }, body: '' };
-const FAILURE_CODES: Record<PublicHttpsFailure, string> = { private_address: 'plugin_builder.not_authorized', timeout: 'plugin_builder.timeout',
-  too_large: 'plugin_builder.invalid_request', read: 'plugin_builder.invalid_request', connect: 'plugin_builder.invalid_request' };
+const FAILURE_CODES: Record<PublicHttpsFailure, string> = { private_address: 'plugin.not_authorized', timeout: 'plugin.timeout',
+  too_large: 'plugin.invalid_request', read: 'plugin.invalid_request', connect: 'plugin.invalid_request' };
 
 interface HostNetworkOptions {
   /** How names resolve; the default is the system resolver. Tests pass their own. */
@@ -45,30 +45,30 @@ export function hostNetwork(options: HostNetworkOptions): NonNullable<SandboxSer
       const reach = options.reach(context.identity), method = request.method ?? 'GET';
       if (reach === 'none' || reach === 'read' && method !== 'GET' && method !== 'HEAD') return NETWORK_STAND_IN;
       let url: URL;
-      try { url = new URL(request.url); } catch { throw new SandboxError('plugin_builder.invalid_request', '网址无效'); }
-      if (url.protocol !== 'https:') throw new SandboxError('plugin_builder.not_authorized', '插件只能访问 https 网址');
-      if (url.username || url.password) throw new SandboxError('plugin_builder.not_authorized', '网址里不能带用户名或密码');
-      if (url.port && url.port !== '443') throw new SandboxError('plugin_builder.not_authorized', '插件只能访问标准 https 端口');
-      if (!authorization.domains.includes(url.hostname)) throw new SandboxError('plugin_builder.not_authorized', '没有批准访问 ' + url.hostname);
-      if (isIP(url.hostname.replace(/^\[|\]$/g, ''))) throw new SandboxError('plugin_builder.not_authorized', '插件只能按域名访问网站，不能直接访问 IP 地址');
-      if (request.body !== undefined && (typeof request.body !== 'string' || Buffer.byteLength(request.body) > MAX_REQUEST_BODY)) throw new SandboxError('plugin_builder.invalid_request', '请求内容太大');
+      try { url = new URL(request.url); } catch { throw new SandboxError('plugin.invalid_request', '网址无效'); }
+      if (url.protocol !== 'https:') throw new SandboxError('plugin.not_authorized', '插件只能访问 https 网址');
+      if (url.username || url.password) throw new SandboxError('plugin.not_authorized', '网址里不能带用户名或密码');
+      if (url.port && url.port !== '443') throw new SandboxError('plugin.not_authorized', '插件只能访问标准 https 端口');
+      if (!authorization.domains.includes(url.hostname)) throw new SandboxError('plugin.not_authorized', '没有批准访问 ' + url.hostname);
+      if (isIP(url.hostname.replace(/^\[|\]$/g, ''))) throw new SandboxError('plugin.not_authorized', '插件只能按域名访问网站，不能直接访问 IP 地址');
+      if (request.body !== undefined && (typeof request.body !== 'string' || Buffer.byteLength(request.body) > MAX_REQUEST_BODY)) throw new SandboxError('plugin.invalid_request', '请求内容太大');
       const headers: Record<string, string> = {};
       for (const [name, value] of Object.entries(request.headers ?? {})) {
         const key = name.toLowerCase();
         if (RESERVED.has(key) || key === 'authorization' && authorization.secretRefs.length) continue;
-        if (typeof value !== 'string' || /[\r\n]/.test(value) || !/^[a-z0-9!#$%&'*+.^_`|~-]+$/.test(key)) throw new SandboxError('plugin_builder.invalid_request', '请求头无效：' + name);
+        if (typeof value !== 'string' || /[\r\n]/.test(value) || !/^[a-z0-9!#$%&'*+.^_`|~-]+$/.test(key)) throw new SandboxError('plugin.invalid_request', '请求头无效：' + name);
         headers[key] = value;
       }
       for (const reference of authorization.secretRefs) {
         const secret = await options.secret?.(context.identity.pluginId, reference);
-        if (!secret) throw new SandboxError('plugin_builder.not_authorized', '还没有为这个插件保存密钥「' + reference + '」');
+        if (!secret) throw new SandboxError('plugin.not_authorized', '还没有为这个插件保存密钥「' + reference + '」');
         headers[secret.header.toLowerCase()] = secret.value;
       }
       context.signal.throwIfAborted(); await context.beforeEffect?.(); context.signal.throwIfAborted();
       const current = () => {
         context.signal.throwIfAborted();
         const now = options.reach(context.identity);
-        if (now === 'none' || now === 'read' && method !== 'GET' && method !== 'HEAD') throw new SandboxError('plugin_builder.not_authorized', '插件的联网授权已改变');
+        if (now === 'none' || now === 'read' && method !== 'GET' && method !== 'HEAD') throw new SandboxError('plugin.not_authorized', '插件的联网授权已改变');
       };
       const response = await sendPublicHttps({ url, method, headers, ...(request.body === undefined ? {} : { body: request.body }), signal: context.signal, current,
         ...(context.beforeEffect ? { beforeEffect: context.beforeEffect } : {}), ...(options.lookup ? { lookup: options.lookup } : {}),

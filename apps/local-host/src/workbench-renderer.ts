@@ -1,6 +1,6 @@
 import { localEnvironmentName } from "./active-release-profile.js";
 import { installHostUiText, projectTextPacks, registeredBuiltinText } from "./ui-text-provider.js";
-import { createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage, renderWorkbenchRefreshDocument,
+import { INSTALLED_PLUGIN_BUNDLE, createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage, renderWorkbenchRefreshDocument,
   type OwnerUnavailableCard, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { installedPluginBody } from "./installed-stage-section.js";
@@ -27,7 +27,7 @@ export function createLocalHostWorkbenchRenderer(desktop: WorkbenchRendererPorts
  * package that picked none keeps the shell's default. `installation` binds the page to the exact installation this section shows.
  */
 export function installedStageSection(input: { pluginId: string; surface: string; label: string; prefix: string; installation: SurfaceInstallationRef; icon?: string }): string {
-  return renderPluginFrameSurface(installedPluginBody(input.pluginId), input.surface, input.label, true, false, "plugin-builder", undefined, undefined, undefined, false, {
+  return renderPluginFrameSurface(installedPluginBody(input.pluginId), input.surface, input.label, true, false, INSTALLED_PLUGIN_BUNDLE, undefined, undefined, undefined, false, {
     owner: input.pluginId, page: installedStagePath(input.prefix, input.pluginId, input.installation), icon: input.icon,
   });
 }

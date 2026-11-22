@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readingContract, readingNodes, readingPresentation } from './fixtures/plugin-composition.js';
-import { sandboxedPluginDefinition } from '../apps/local-host/src/installed-sandbox-definition.js';
+import { sandboxedPluginDefinition } from '../apps/local-host/src/installed-plugin-sandbox-definition.js';
 import { resolvePluginActivation } from '@molis-ai/molis-work-plugin-runtime';
 
 import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-builder';

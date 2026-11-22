@@ -301,6 +301,7 @@
     "common.generated.in-progress": "In progress",
     "common.generated.input-hint": "{label}: {hint}",
     "common.generated.input-preserved": "The operation failed. Your input was kept.",
+    "common.generated.record-or-form-unavailable": "This record or form is no longer available",
     "common.generated.inspect": "Inspect part",
     "common.generated.irreversible": "This cannot be undone.",
     "common.generated.model-working": "Generating. This may take a little while…",
@@ -10906,6 +10907,10 @@
     "workbench.assistant-island.say-to-event": "Say something about {name}",
     "workbench.assistant-island.reply-to-event": "Reply to {name}, or pick an answer above",
     "workbench.assistant-island.add-to-event": "Add a word for {name}; it is read after this step",
-    "workbench.work-line.asked-done": "Done"
+    "workbench.work-line.asked-done": "Done",
+    "workbench.installed-plugin.not-found": "The installed version of this plugin was not found",
+    "workbench.installed-plugin.not-running": "This plugin is not running now. Turn it on in Settings › Plugins.",
+    "workbench.installed-plugin.recovery-hint": "See this plugin in Settings › Plugins.",
+    "workbench.installed-plugin.recovery-title": "The plugin cannot run right now"
   }
 }

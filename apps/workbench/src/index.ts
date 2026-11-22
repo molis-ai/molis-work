@@ -99,6 +99,7 @@ export { renderCharacters } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 export { CHARACTERS_CLIENT_PATH } from "./characters/client-path.js";
 export { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
+export { INSTALLED_PLUGIN_BUNDLE, renderMolisWorkInstalledPluginClientScript } from "./installed-plugin/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 export { connectionNeedHtml, isConnectionLoginUrl, type ConnectionNeedView } from "./connection-need-card.js";

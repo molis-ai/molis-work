@@ -11,7 +11,7 @@ import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime'
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { createPluginPlatform } from '@molis-ai/molis-work-app-local-host';
-import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-sandbox-definition.js';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-plugin-sandbox-definition.js';
 import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
 import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 

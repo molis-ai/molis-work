@@ -6,7 +6,7 @@ import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/ass
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 import { ASSISTANT_AGENT, ASSISTANT_ROLE_ID } from "../assistant/assistant-agent.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
-import { localPublisherKeyId } from "../local-publisher-identity.js";
+import { localPublisherKeyId } from "../installed-plugin-publisher.js";
 import { PRODUCT_VERSION } from "../product-version.js";
 import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { kitPluginSource, kitPluginWords, scopeInstallations } from "../scope-installations.js";

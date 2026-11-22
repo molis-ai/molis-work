@@ -18,7 +18,7 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginInstallDefinitions, pluginInstallHandlers, pluginInstallPerson } from "./plugin-install-actions.js";
 import { PluginInstallService, assertInstallAuthority } from "./plugin-install-service.js";
-import { studioPublisherIdentity, localPublisherKeyId, readSealedLocalPublisherKeyId } from "./local-publisher-identity.js";
+import { studioPublisherIdentity, localPublisherKeyId, readSealedLocalPublisherKeyId } from "./installed-plugin-publisher.js";
 import { SkillImportService, localSkillScan, type SkillImportPorts } from "./skill-import.js";
 import { SkillAuthoringService, draftSkill } from "./skill-authoring.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";

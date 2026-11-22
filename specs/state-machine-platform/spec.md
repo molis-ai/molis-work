@@ -186,7 +186,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 | --- | --- | --- |
 | 内置/自研 | Manifest + registration + Runtime 兑现 | 声明与兑现核对；不变量 + 门禁强制；迁移到 SDK helper |
 | 签名第三方（方案，未实现） | 只有 `create/validate/pack/sign/verify` 与 `dev` | 安装预览显示状态/机器；签名摘要覆盖声明；升级规则；明确不做强制；沙箱形态限制写清 |
-| 创作台生成（沙箱） | 宿主用 `sandboxPluginManifest` 从设计合同生成 Manifest；[installed.ts](../../apps/local-host/src/installed-sandbox-definition.ts) 构造 contribution | 设计合同、`sandboxPluginManifest`、创作台校验、代理提示词、同步形状、回放语料一起支持 `state_machines`；宿主生成的部分由创作台校验负责一致 |
+| 创作台生成（沙箱） | 宿主用 `sandboxPluginManifest` 从设计合同生成 Manifest；[installed.ts](../../apps/local-host/src/installed-plugin-sandbox-definition.ts) 构造 contribution | 设计合同、`sandboxPluginManifest`、创作台校验、代理提示词、同步形状、回放语料一起支持 `state_machines`；宿主生成的部分由创作台校验负责一致 |
 | 本地开发 `plugin dev` | `--allow-unsigned-development` 试跑 | 同一 Manifest 校验；`validate` 输出机器清单；开发态错误可读 |
 
 ### 5.4 自定义插件的情况矩阵

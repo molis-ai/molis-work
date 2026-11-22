@@ -2,12 +2,13 @@ import { createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sig
 import { existsSync, linkSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
 import { pluginPublisherIdentity } from '@molis-ai/molis-work-plugin-runtime';
 import { HomeConsentLedger } from './home-plugin-store.js';
 
-const failures = defineErrorCodes('plugin_builder', { publisher_identity_invalid: 'invalid', publisher_revoked: 'forbidden' });
+/** The Home's one publisher identity is the platform's (47-1 D): its own refusal, and the platform's revoked publisher. */
+const failures = { ...defineErrorCodes('plugin', { publisher_identity_invalid: 'invalid' }), publisher_revoked: pluginErrors.publisher_revoked };
 const REF = 'plugin-builder-publisher:signing-key';
 interface Identity { secret_ref: string; key_id: string; public_key_spki_base64: string }
 interface PublisherControl { beforeEffect(): Promise<void>; assertCurrent(): void }

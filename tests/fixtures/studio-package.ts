@@ -13,7 +13,7 @@ import { newPublisher, payloadOf } from "./sandbox-package.js";
 // publisher in the Home, which is all an installation reads.
 
 export type StudioPublisher = ReturnType<typeof newPublisher>;
-type Published = Pick<AgentRelease, "pluginId" | "version" | "bundlePath" | "design" | "nodes" | "prompts">;
+type Published = Pick<AgentRelease, "pluginId" | "version" | "bundlePath" | "design" | "nodes" | "prompts"> & Partial<AgentRelease>;
 
 /** The person's pin of a publisher, as confirming its first package leaves it. */
 export function pinStudioPublisher(home: string, publisher: StudioPublisher, label = "这台电脑"): void {

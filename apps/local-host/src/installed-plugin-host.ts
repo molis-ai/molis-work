@@ -41,7 +41,7 @@ import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platf
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 
-interface InstalledPluginHostOptions {
+export interface InstalledPluginHostOptions {
   store: LocalProjectDatabase;
   projectId: string;
   homeDirectory: string;

@@ -155,7 +155,7 @@ test("SPC-15 S-84 S-87 a real Host signs for preview, ordinary confirmation inst
   assert.equal(store.load(localContentId, confirmed.publisher_key_id, "1.0.0").packaged?.manifest.publisher.signature, confirmed.publisher_key_id);
   await assert.rejects(h.client.invoke(h.person, pluginInstallActions.confirm, { preview_id, consent: true }), refused("plugin.preview_unknown"));
   h.ledger.revokePublisher(confirmed.publisher_key_id, AT);
-  await assert.rejects(h.client.invoke(h.person, signRef, localDraft("project", "2.0.0")), refused("plugin_builder.publisher_revoked"));
+  await assert.rejects(h.client.invoke(h.person, signRef, localDraft("project", "2.0.0")), refused("plugin.publisher_revoked"));
   assert.deepEqual(store.releases(localContentId, confirmed.publisher_key_id).map(pkg => pkg.manifest.version), ["1.0.0"]);
 });
 

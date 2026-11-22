@@ -10,7 +10,7 @@ import { assertStageInstallation } from "./installed-stage-identity.js";
 import { directoryWordResolver } from "./ui-text-provider.js";
 import { inDesignOrder } from "./plugin-builder-surface.js";
 import { studioWordReader } from "./plugin-builder/studio-words.js";
-import { generatedPluginManifest } from "./installed-sandbox-definition.js";
+import { generatedPluginManifest } from "./installed-plugin-sandbox-definition.js";
 
 /** The signed or local release already selected by this instance, never a catalog lookup by name. */
 function installedWords(release: InstalledRelease) {

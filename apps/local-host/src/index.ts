@@ -45,7 +45,7 @@ export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-mod
 export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
 export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedOperationPolicies, type ExposedOperationPolicy } from "./installed-plugin-exposed-actions.js";
 export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
-export { sandboxedPluginDefinition } from "./installed-sandbox-definition.js";
+export { sandboxedPluginDefinition } from "./installed-plugin-sandbox-definition.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -479,3 +479,6 @@ export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptio
 
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { offerProjectAutomation } from "./automation-proactive.js";
+// A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.
+export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
+export { studioTrials } from "./plugin-builder/studio-preview.js";

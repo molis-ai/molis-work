@@ -164,7 +164,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         const beforeEffect = async () => {
           await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity); assertOperationGranted(effects, liveGrants());
           if (effects.capabilities?.length && host.capabilities && capabilityPolicyBinding(effects, await host.capabilities(callContext)) !== binding) {
-            throw new SandboxError('plugin_builder.capability_changed', '后台依赖的提供方、版本或执行策略已变化；请核对已发生的结果');
+            throw new SandboxError('plugin.capability_changed', '后台依赖的提供方、版本或执行策略已变化；请核对已发生的结果');
           }
           await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity); assertOperationGranted(effects, liveGrants());
         };
@@ -245,9 +245,9 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
       const capabilities = dependencies.length ? await host.capabilities?.(callContext) ?? [] : [];
       if (host.capabilities) for (const id of dependencies) {
         const entry = latestCapability(capabilities, id);
-        if (!entry || entry.installed === false) throw new SandboxError('plugin_builder.capability_unavailable', '这项功能依赖的能力当前不可用：' + id);
+        if (!entry || entry.installed === false) throw new SandboxError('plugin.capability_unavailable', '这项功能依赖的能力当前不可用：' + id);
         if (operation.kind === 'query' && (entry.execution?.cost === 'metered' || entry.effect && entry.effect !== 'read')) {
-          throw new SandboxError('plugin_builder.capability_denied', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
+          throw new SandboxError('plugin.capability_denied', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
         }
       }
       const binding = capabilityPolicyBinding(effects, capabilities); let policyChanged = false;
@@ -257,7 +257,7 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
         if (!host.capabilities || !dependencies.length) return;
         if (capabilityPolicyBinding(effects, await host.capabilities(callContext)) !== binding) {
           policyChanged = true;
-          throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
+          throw new SandboxError('plugin.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
         }
         await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
         assertOperationGranted(effects, liveGrants());

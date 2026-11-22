@@ -296,8 +296,8 @@ test('PG110-09 S-15 a sandbox call runs under a caller the Host issues for that 
   const retained = seen[0]!;
   assert.deepEqual([retained.plugin_id, retained.install_id, retained.project_id, retained.actor_id],
     ['io.molis.work.generated.probe', 'sandbox-install', project.project_id, 'plugin:io.molis.work.generated.probe']);
-  await assert.rejects(service.call(context({ projectId: 'another-project' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'an identity of another project');
-  await assert.rejects(service.call(context({ pluginId: 'io.molis.work.generated.undeclared' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'a plugin that declared nothing');
+  await assert.rejects(service.call(context({ projectId: 'another-project' }), peek.capability_id, {}), { code: 'plugin.capability_denied' }, 'an identity of another project');
+  await assert.rejects(service.call(context({ pluginId: 'io.molis.work.generated.undeclared' }), peek.capability_id, {}), { code: 'plugin.capability_denied' }, 'a plugin that declared nothing');
   assert.equal(seen.length, 1, 'neither refused call reached the provider');
   const as = (caller: HostPluginCaller, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: caller.actor_id, actor_kind: 'runtime', project_id: caller.project_id,
     audience: 'plugin', permissions: ['callers:read'], plugin_install_id: caller.install_id, host_plugin: caller, ...change });
@@ -326,7 +326,7 @@ test('PG110-10 PG-006 Goals keeps no builtin list: the board offers its plugin a
   const listed = await service.call(context(), goalPluginActions.list.capability_id, {}) as { goals: unknown[] };
   assert.deepEqual(listed.goals, []);
   await assert.rejects(service.call(context(), goalPluginActions.state.capability_id, { goal_id: 'missing-goal' }),
-    (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && !/宿主发出|不一致|没有声明或没有获得/u.test(error.message),
+    (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && !/宿主发出|不一致|没有声明或没有获得/u.test(error.message),
     'a read of a goal that is not there is Goals\' own answer, not a refusal of the caller');
 });
 
@@ -343,7 +343,7 @@ test('PG006-02 PG006-04 S-15 behind the board, the gateway itself refuses a Goal
   });
   const cursor = () => host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
   const write = (key: string, based_on_cursor: number) => ({ goal_id, based_on_cursor, summary: 'progress ' + key, idempotency_key: key });
-  const missing = (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && /没有声明或没有获得/u.test(error.message);
+  const missing = (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && /没有声明或没有获得/u.test(error.message);
   /** The Goal write presented to the gateway with the caller the Host issued for a sandbox call held open, claiming the write's permissions. */
   const presented = async (key: string, based: number) => {
     const held = holdNext(), pending = service.call(context(), peek.capability_id, {});
@@ -380,7 +380,7 @@ test('PG110-14 S-15 the board passes a sandbox call only for the capability the 
     assert.deepEqual(definition.action.permissions, goalPluginActions.list.action.permissions, `${definition.capability_id} needs what goals.list needs`);
     // Goals' own answer for a goal that is not there says nothing of approval (PG110-10): this refusal is the board's.
     await assert.rejects(service.call(context(), definition.capability_id, { goal_id: 'missing-goal' }),
-      (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && /没有声明或没有获得这项能力的授权/u.test(error.message),
+      (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && /没有声明或没有获得这项能力的授权/u.test(error.message),
       `${definition.capability_id} was not approved itself, so the caller holding goals:read for goals.list does not carry it`);
   }
 });
@@ -399,6 +399,6 @@ test('PG110-15 D18 an action not offered to plugins is on the board as not offer
   assert.ok(designer.includes(goalPluginActions.list.capability_id), 'the design AI sees what the board offers');
   assert.equal(designer.includes(agentsOnly.capability_id), false, '2. and not what it does not offer');
   approved.add(agentsOnly.capability_id);
-  await assert.rejects(service.call(context(), agentsOnly.capability_id, {}), { code: 'plugin_builder.capability_denied' }, '3. a sandbox call to it is refused, even approved');
+  await assert.rejects(service.call(context(), agentsOnly.capability_id, {}), { code: 'plugin.capability_denied' }, '3. a sandbox call to it is refused, even approved');
   assert.equal(calls, 0, 'and never reaches its provider');
 });

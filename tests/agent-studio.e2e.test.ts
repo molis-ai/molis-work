@@ -23,7 +23,8 @@ import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs'
 import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 import { verifySyncPluginDistribution, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
-import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { handleInstalledPluginHttp, installedPluginStages } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
@@ -51,7 +52,7 @@ function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { h
       if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
       return pluginPagesFor(options.homeDirectory).bind(request, url).then(release => {
         if (release) response.once('close', release);
-        return runWithLocale(setup?.languageControls ? locale : setup?.locale ?? "zh", () => handleAgentStudioHttp(request, response, local, options, proof));
+        return runWithLocale(setup?.languageControls ? locale : setup?.locale ?? "zh", async () => (await handleInstalledPluginHttp(request, response, local, options, proof)) || await handleAgentStudioHttp(request, response, local, options, proof));
       }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
     });
   });

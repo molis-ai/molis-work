@@ -1,5 +1,5 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
-import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
+import { renderHomePackageDocument } from "./installed-plugin-http.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";

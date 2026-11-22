@@ -1,7 +1,7 @@
 import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServices, SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
-import { sandboxedPluginDefinition } from './installed-sandbox-definition.js';
+import { sandboxedPluginDefinition } from './installed-plugin-sandbox-definition.js';
 import type { CatalogCapability } from './installed-plugin-catalog.js';
 import type { InstalledRelease } from './installed-release.js';
 import { covered } from './installed-plugin-lifecycle.js';

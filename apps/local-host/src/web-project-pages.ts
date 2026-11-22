@@ -1,8 +1,7 @@
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
-import { installedPluginStages } from "./plugin-builder/agent-surface.js";
-import { configuredModelChoices } from "./configured-models.js";
+import { installedPluginStages } from "./installed-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
 import { matchPageRoute } from "./page-routes.js";
@@ -98,7 +97,7 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
     ...(builtin.page ? { page_stage: builtin.page } : {}),
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtin.unavailable] };
   const installed = await installedPluginStages({ store, projectId: input.projectId, homeDirectory, routePrefix: view.route_prefix,
-    models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
+    actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
   return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.flatMap(item => item.stage ? [item.stage] : [])],
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...installed.flatMap(item => item.unavailable ? [item.unavailable] : [])],

@@ -47,6 +47,12 @@
 //                       and `GOALS_BOARDS_SQL` are not counted. Tests are out of scope: they name old names to assert that
 //                       they are refused. Within a guarded file the count reads the plain text, so a comment or a string
 //                       counts like code. What the baseline keeps today (oldNames): nothing. The count is 0 and can only stay there.
+// curveLiterals         POLISH-33 (specs/screen-polish, roadmap decision 61): a `cubic-bezier(` followed by a number, anywhere
+//                       in the text of a SOURCE (code, a style in a template literal, a comment). The product's curves are
+//                       written once, in the design system's baseline (`packages/design-system/resources/`, JSON, not scanned
+//                       here) and reach a style as `var(--ease-…)` and a script as the computed value of that variable. The
+//                       resolver that writes the function from the baseline's numbers (`cubic-bezier(${…})`) is not a literal.
+//                       Tests are out of scope. Absolutely zero: a file with one fails whatever the merge-base holds.
 // directEllipsisCuts    N16: a direct .slice(...) or ["slice"](...) followed by a literal … or ..., with optional
 //                       whitespace before the marker. Count + and template substitutions. For +, unwrap parentheses
 //                       and read a template's text before its first substitution. General slices, chained calls after
@@ -67,6 +73,8 @@ const CPK_08_DELETED_FILE = /\/skill-selection\.m?ts$/;
 // WMD-13: retired Files plugin identity (S-75 intentionally reserves it only in apps/local-host/src/host-plugin-ids.ts).
 const WMD_13_DELETED_ID = /\bio\.molis\.work\.files\b/g;
 const WMD_13_RESERVED_ID_FILES = new Set(["apps/local-host/src/host-plugin-ids.ts"]);
+// POLISH-33: a timing curve written out with its numbers.
+const CURVE_LITERAL = /cubic-bezier\(\s*[-+.\d]/gi;
 const NON_TS_OLD_NAME_FILE = /^(?!docs\/|specs\/)(?!.*(?:^|\/)(?:tests?|dist|node_modules)\/)(?:.+\.(?:rs|swift|sh|ya?ml)|(?:.+\/)?Makefile)$/;
 
 /** Controlled non-TS files and retired package paths scanned by `oldNames` (PG-097, GoalBoard, WMD-13). */
@@ -119,10 +127,11 @@ function startsWithEllipsis(expression) {
 
 /** Counts one file. `text` is the whole file; `inSource` is false for tests. Exported for the tests of the definitions. */
 export const countFile = (file, text, { inSource = false } = {}) => {
-  const counts = { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0 };
+  const counts = { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0, curveLiterals: 0 };
   if (!inSource) {
     return counts;
   }
+  counts.curveLiterals = (text.match(CURVE_LITERAL) ?? []).length;
   counts.oldNames =
     (text.match(OLD_PRODUCT_NAME) ?? []).length
     + (text.match(OLD_ID_NAME) ?? []).length
@@ -160,7 +169,7 @@ const fileCountCache = new Map();
 const measureSnapshot = (snapshot, { isSource }) => {
   let result = passes.get(snapshot);
   if (result) return result;
-  result = { emptyCatchesInScripts: {}, oldNames: {}, scriptConstants: {}, directEllipsisCuts: {} };
+  result = { emptyCatchesInScripts: {}, oldNames: {}, scriptConstants: {}, directEllipsisCuts: {}, curveLiterals: {} };
   for (const file of snapshot.files) {
     if (isSource(file)) {
       const text = snapshot.read(file);
@@ -202,6 +211,9 @@ export const SOURCE_COUNT_RULES = [...[
     hint: "write the program as TypeScript and bundle it (plugins/native/form/src/browser/ is the sample); a new one starts at 0" },
   { id: "directEllipsisCuts", title: "Direct slice followed by an ellipsis in sources", summary: "direct ellipsis cuts",
     what: "direct ellipsis cuts", hint: "use cutWithEllipsis from @molis-ai/molis-work-plugin-sdk/whole-units" },
+  { id: "curveLiterals", title: "Timing curves written out with their numbers in sources", summary: "curve literals",
+    what: "cubic-bezier literals", hint: "use var(--ease-quint), var(--ease-spring) or var(--ease-reveal); a script reads the variable's computed value",
+    absolute: (counts) => Object.entries(counts).map(([file, count]) => `curveLiterals: ${file} writes ${count} cubic-bezier literal${count === 1 ? "" : "s"}; the curves are written only in packages/design-system/resources/ — use var(--ease-quint), var(--ease-spring) or var(--ease-reveal), and in a script read the variable's computed value`) },
 ].map((rule) => ({ ...rule, measure: (snapshot, scope) => measureSnapshot(snapshot, scope)[rule.id] })),
   { id: "rawFetchInScripts", title: "Raw fetch calls in executable browser programs", summary: "raw browser fetch calls",
     what: "raw fetch calls in a browser program", hint: "use the public UiRequest; Workbench is zero and plugin counts may only fall",

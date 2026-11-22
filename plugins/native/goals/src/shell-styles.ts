@@ -454,7 +454,7 @@ export const GOALS_OVERLAY_STYLES = `
   body.immersive-workbench :is(.goal-canvas-tools, .goal-frame-tools) > div { border-radius: 11px; background: var(--paper); box-shadow: var(--lift-2); }
   body.immersive-workbench :is(.goal-canvas-tools, .goal-frame-tools) button { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   body.immersive-workbench :is(.goal-canvas-tools, .goal-frame-tools) button:hover { background: var(--nav-hover); }
-  body.immersive-workbench .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
+  body.immersive-workbench .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint); }
   body.immersive-workbench .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   body.immersive-workbench .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
 `;

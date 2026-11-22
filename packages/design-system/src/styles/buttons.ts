@@ -23,7 +23,7 @@ export const BUTTON_STYLES = `
     text-decoration: none;
     white-space: nowrap;
     appearance: none;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-spring);
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint);
     &:active:not(:disabled) { transform: scale(.985); }
     svg { width: 14px; height: 14px; flex: none; }
     /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.

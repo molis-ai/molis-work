@@ -30,7 +30,7 @@ const gate = (...args: string[]) => {
 };
 
 // The definitions, one snippet each. Everything the header of source-counts.mjs says is counted, and what it says is not.
-type Counts = { emptyCatchesInScripts?: number; oldNames?: number; scriptConstants?: number; directEllipsisCuts?: number };
+type Counts = { emptyCatchesInScripts?: number; oldNames?: number; scriptConstants?: number; directEllipsisCuts?: number; curveLiterals?: number };
 // The fourth element says whether the snippet is a source file (default: a test file).
 const definitions: Array<[string, string, Counts, boolean?]> = [
   ["an empty catch inside a template-literal browser script", "export const SCRIPT = `try { f(); } catch (e) {}\\n`;", { emptyCatchesInScripts: 1 }, true],
@@ -63,11 +63,14 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ].join("\n"), {}, true],
   ["BSH-10 ordinary slices, other suffixes, chained calls and quoted source", 'const a = text.slice(0, 12); const b = a + "…"; const c = `${text.slice(0, 12)} words`; const d = text.slice(0, 12).trim() + "…"; const sample = \'text.slice(0, 2) + "…"\';', {}, true],
   ["BSH-10 direct ellipsis in a test fixture is outside the source gate", 'const a = text.slice(0, 12) + "…";', {}, false],
+  ["POLISH-33 a curve written out with its numbers, in code, in a style and in a comment", 'const ease = "cubic-bezier(.16, 1, .3, 1)"; const css = `a { transition: opacity 1s cubic-bezier( 0.2,1,.4,1); }`; // cubic-bezier(-.1, 0, 1, 1)', { curveLiterals: 3 }, true],
+  ["POLISH-33 the token, the resolver that writes the function from the baseline and a keyword are not literals", 'const css = `a { transition: opacity 1s var(--ease-quint); }`; const made = `cubic-bezier(${numbers.join(", ")})`; const word = "ease-out";', {}, true],
+  ["POLISH-33 a curve in a test is outside the source gate", 'const ease = "cubic-bezier(.16, 1, .3, 1)";', {}, false],
 ];
 for (const [name, text, expected, inSource] of definitions) {
   test(`definition: ${name}`, () => {
     const found = countFile("snippet.ts", text, { inSource: inSource ?? false });
-    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0, ...expected });
+    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0, curveLiterals: 0, ...expected });
   });
 }
 
@@ -165,6 +168,23 @@ for (const scenario of violations) {
     for (const pattern of scenario.expect) assert.match(still.out, pattern);
   });
 }
+
+test("POLISH-33 a timing curve written out in new code fails against the merge-base, with --update and alone: the count is absolutely zero", () => {
+  branch("curve", () => {
+    put("packages/alpha/src/move.ts", 'export const EASE = "cubic-bezier(.16, 1, .3, 1)";\n');
+    // The token, and a curve a test writes to check one, are not literals of the product's sources.
+    put("packages/alpha/src/token.ts", "export const css = `a { transition: opacity 1s var(--ease-quint); }`;\n");
+    put("tests/curve.test.ts", 'export const expected = "cubic-bezier(.22, 1, .36, 1)";\n');
+  });
+  const said = /curveLiterals: packages\/alpha\/src\/move\.ts writes 1 cubic-bezier literal; the curves are written only in packages\/design-system\/resources\//;
+  for (const args of [["--base", "main"], ["--update", "--base", "main"], ["--update"], []]) {
+    const run = gate(...args);
+    assert.equal(run.code, 1, `${args.join(" ")}: ${run.out}`);
+    assert.match(run.out, said, args.join(" "));
+    assert.doesNotMatch(run.out, /token\.ts|curve\.test\.ts/, args.join(" "));
+  }
+  assert.equal(git("status", "--porcelain"), "", "a refused --update leaves baseline.json alone");
+});
 
 test("what the definitions leave out passes against the merge-base", () => {
   branch("allowed", () => {

@@ -241,7 +241,8 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     try {
       // Open the containing menu and hover the actual row before checking the final hit target.
       const hover = await evaluate<{ x: number; y: number } | null>(`(async()=>{
-        let element=document.querySelector(${JSON.stringify(target)});if(!element)return null;
+        const shown=()=>[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
+        let element=shown()??document.querySelector(${JSON.stringify(target)});if(!element)return null;
         const menu=element.closest('details:not([open])');
         if(menu&&!menu.querySelector(':scope > summary')?.contains(element))menu.querySelector(':scope > summary')?.click();
         // An open record takes the whole plugin page and the list is the page behind it (36A-3): what is in the list is
@@ -251,8 +252,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
           [...stage.querySelectorAll('.plugin-stage-back')].find(key=>key.getClientRects().length)?.click();
           // Going back may first save what is open, and the list may be drawn anew: the target is looked up again once it is there.
           for(const until=Date.now()+3000;Date.now()<until;await new Promise(resolve=>setTimeout(resolve,50))){
-            const shown=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
-            if(shown){element=shown;break;}
+            const found=shown();if(found){element=found;break;}
           }
         }
         element.scrollIntoView({block:'center',behavior:'instant'});const box=element.getBoundingClientRect();

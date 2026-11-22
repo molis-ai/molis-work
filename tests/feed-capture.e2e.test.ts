@@ -301,18 +301,18 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   assert.equal(await revision(), beforeEmptyWake, "an empty wakeup does not invalidate the reader");
   await child.evaluate(`(() => {
     window.pagingSurface = pagingHost.root;
-    const search=document.querySelector('[data-feed-search]'); search.focus(); search.setSelectionRange(1, 5, 'backward');
-  })()`);
-  const searchState = `(() => {
     const search=document.querySelector('[data-feed-search]');
-    return [document.activeElement===search, search.value, search.selectionStart, search.selectionEnd, search.selectionDirection];
-  })()`;
-  assert.deepEqual(await child.evaluate(searchState), [true, "Page message", 1, 5, "backward"]);
+  })()`);
+  // The search is on the list, the page behind the open item (36A-3): it holds no focus there and keeps what was typed in it.
+  // Its focus and selection through a language change are checked below, once the list is in front.
+  const searchState = "document.querySelector('[data-feed-search]').value";
+  assert.equal(await child.evaluate(searchState), "Page message");
   const writes: string[] = [];
   const observe = ({ method, url }: import("node:http").IncomingMessage) => { if (method !== "GET" && url?.includes("/api/plugins/io.molis.work.feed/")) writes.push(`${method} ${url}`); };
   b.server.on("request", observe); t.after(() => { b.server.off("request", observe); });
   for (const [tag, previous, attachments] of [["en", "Previous page", "Attachments"], ["zh", "上一页", "附带资料"]]) {
-    const row = `[data-feed-entry-id="${target.item_id}"]`;
+    // Focus is held on a key of the open item: the list's rows are behind it.
+    const row = ".feed-materials > summary";
     if (tag === "zh") await child.evaluate(`(() => {
       document.querySelector('.feed-materials').open=false;
       document.querySelector(${JSON.stringify(row)}).focus();
@@ -349,7 +349,7 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
       document.querySelector('.feed-materials')?.open,
       document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')
     ]`), [true, 5, target.item_id, previous, attachments, true, true]);
-    if (tag === "en") assert.deepEqual(await child.evaluate(searchState), [true, "Page message", 1, 5, "backward"]);
+    if (tag === "en") assert.equal(await child.evaluate(searchState), "Page message");
     else assert.deepEqual(await child.evaluate(`[document.activeElement?.dataset.feedMaterialPage, document.activeElement?.closest('[data-feed-item-slot]')?.scrollTop]`), ["0", readerTop]);
   }
   assert.deepEqual(writes, []);
@@ -360,6 +360,15 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await b.setViewport(1440, 960);
   await child.click('[data-feed-page="0"]:not(:disabled)');
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===200");
+  // FSS-35: with the list in front, the search keeps its focus and selection through a language change.
+  await child.evaluate("(() => { const search=document.querySelector('[data-feed-search]'); search.focus(); search.setSelectionRange(1, 5, 'backward'); })()");
+  for (const tag of ["en", "zh"]) {
+    await b.evaluate(`(() => { const link=document.createElement('a'); link.dataset.uiLanguage=${JSON.stringify(tag)};
+      link.href='/locale?lang='+link.dataset.uiLanguage; document.body.append(link); link.click(); link.remove(); })()`);
+    await child.waitFor(`document.documentElement.dataset.uiLanguageTag===${JSON.stringify(tag)} && pagingPending===0`);
+    assert.deepEqual(await child.evaluate(`(() => { const search=document.querySelector('[data-feed-search]');
+      return [document.activeElement===search, search.value, search.selectionStart, search.selectionEnd, search.selectionDirection]; })()`), [true, "Page message", 1, 5, "backward"]);
+  }
   await child.evaluate(`(() => {const search=document.querySelector('[data-feed-search]'); search.value='Page message 000';search.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===1");
   await child.evaluate("pagingHost.invalidateView()");

@@ -233,7 +233,18 @@ test("91-0b layout measure/master tokens and plugin-frame dependencies stay avai
     "--celebrate-a:",
     "--celebrate-b:",
     "--celebrate-c:",
+    ".mw-badge--chip",
+    ".mw-glyph-status",
+    ".mw-signal-dot",
+    ".mw-signal",
+    ".mw-tabs__list--underline",
+    ".mw-section-well",
+    ".mw-inset-group",
+    ".mw-inset-row",
   ]) {
     assert.ok(base.includes(token), `molis-work-plugin-base.css must keep ${token}`);
   }
+  const hoistedReducedMotion = base.slice(base.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(!/>\s*summary::before/.test(hoistedReducedMotion),
+    "nested > summary::before rule must not be hoisted to top-level @media(prefers-reduced-motion)");
 });

@@ -450,13 +450,17 @@ test("91-0b feedback runtime covers molisBusy Esc/icon swap, molisToast alert/un
   assert.equal(toastNode.getAttribute("role"), "status");
   assert.equal(toastNode.querySelector("[data-toast-action]")?.textContent, "撤销");
   toastNode.dispatchEvent({ type: "pointerenter" });
-  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("保存失败", { tone: "error", duration: Number.NaN });
+  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("保存失败", { tone: "error", duration: Number.NaN, action: { label: "重试", onClick: () => {} } });
   assert.equal(toastNode.getAttribute("role"), "alert");
   assert.equal(toastNode.getAttribute("aria-live"), "assertive");
-  assert.equal(timers.size, 0, "replacement toast keeps paused state while pointer is inside");
+  assert.equal(timers.size, 0, "interactive replacement toast keeps paused state while pointer is inside");
   toastNode.dispatchEvent({ type: "pointerleave" });
-  assert.equal(timers.size, 1, "leaving hovered toast resumes countdown");
-  toastNode.dispatchEvent({ type: "pointerleave" });
+  assert.equal(timers.size, 1, "leaving hovered interactive toast resumes countdown");
+  // Replacing a hovered/focused interactive toast with a passive (pointer-events: none) toast must reset pause flags and schedule auto-dismiss.
+  toastNode.dispatchEvent({ type: "pointerenter" });
+  toastNode.dispatchEvent({ type: "focusin" });
+  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("已同步", { tone: "success" });
+  assert.equal(timers.size, 1, "passive replacement toast clears stale hover/focus pause flags and auto-dismisses");
   // Verify undo click triggers callback
   (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("可撤销", { undo: () => { undone = true; } });
   toastNode.querySelector("[data-toast-action]")!.dispatchEvent({ type: "click" });

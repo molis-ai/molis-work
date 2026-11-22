@@ -4366,7 +4366,7 @@
   .mw-note > svg { flex: none; width: 14px; height: 14px; margin-top: 3px; }
   .mw-note > span { min-width: 0; overflow-wrap: anywhere; }
   .mw-note.is-warning > svg { color: var(--tone-attention); }
-.mw-facts{margin:16px 0;padding:12px 14px;border-radius:var(--r-card,12px);border:1px solid var(--line);background:var(--surface-soft);display:flex;flex-direction:column;gap:8px}.mw-facts__heading{margin:0;font-size:12px;font-weight:600;color:var(--muted)}.mw-fact-row{display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.45;color:var(--ink)}.mw-fact-row__icon{width:22px;height:22px;border-radius:6px;display:inline-grid;place-items:center;flex:none;background:var(--rail);color:var(--ink-soft);svg{width:14px;height:14px}}.mw-fact-row--ok .mw-fact-row__icon{background:var(--green-soft);color:var(--green)}.mw-fact-row--warn{.mw-fact-row__icon{background:var(--amber-soft);color:var(--amber)}.mw-fact-row__detail{color:var(--amber)}}.mw-fact-row--out{.mw-fact-row__icon{background:color-mix(in srgb,var(--hue-pink,var(--red)) 14%,transparent);color:var(--hue-pink,var(--red))}.mw-fact-row__detail{color:var(--hue-pink,var(--red))}}.mw-fact-row__body{flex:1;min-width:0;overflow-wrap:anywhere}.mw-fact-row__detail{display:block;font-size:12px;color:var(--muted);margin-top:1px}.mw-help-content{display:flex;flex-direction:column;gap:14px;font-size:13px;line-height:1.65;color:var(--ink);max-width:60ch}.mw-help-section{display:flex;flex-direction:column;gap:5px;&.is-highlighted{background:var(--accent-soft);padding:10px 12px;border-radius:var(--r-row,10px);border:1px solid color-mix(in srgb,var(--accent) 26%,transparent)}}.mw-help-section__heading{margin:0;font-size:13px;font-weight:600;color:var(--ink)}.mw-help-section__body{margin:0;color:var(--ink)}.mw-help-section__list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}.mw-help-next{margin-top:4px;padding:12px 14px;border-radius:var(--r-row,10px);background:var(--surface-soft);border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}.mw-help-next__title{margin:0;font-size:13px;font-weight:600;color:var(--ink)}.mw-help-next__fact{margin:0;font-size:12px;color:var(--muted);line-height:1.5}.mw-help-next__actions{display:flex;flex-wrap:wrap;gap:8px}.mw-help-card{position:fixed;z-index:60;width:min(380px,calc(100vw - 24px));max-height:min(62dvh,520px);background:var(--popover,var(--paper));border:0;border-radius:var(--r-card,12px);box-shadow:var(--lift-3),inset 0 1px 0 var(--edge-highlight,transparent);display:flex;flex-direction:column;overflow:hidden;color:var(--ink);animation:craft-drop var(--dur-move) var(--ease-quint);&:focus{outline:none}@media(max-width:760px){left:8px!important;right:8px!important;top:auto!important;bottom:calc(var(--dock-h,var(--helm-h,52px)) + 8px)!important;width:auto!important;max-width:none;max-height:50dvh;border-radius:var(--r-sheet,14px);animation-name:craft-rise-from-bar;.mw-help-next__fact{display:none}}@media(prefers-reduced-motion:reduce){animation:none!important}}.mw-help-card__head{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 14px;border-bottom:1px solid var(--line);flex:none;svg{width:14px;height:14px;color:var(--muted);flex:none}}.mw-help-card__title{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mw-help-card__body{padding:14px;overflow:auto;flex:1;min-height:0}.mw-help-card__next{flex:none;padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-soft);.mw-help-next{margin-top:0;padding:0;border:0;background:transparent}}.mw-help-card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 8px 14px;border-top:1px solid var(--line);background:var(--surface-soft);flex:none}.mw-help-card__hint{font-size:12px;color:var(--muted)}.mw-help-tip{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-row,10px);background:var(--surface-soft);border:1px solid var(--line);margin-bottom:14px;font-size:13px;color:var(--ink);>span:first-child svg{width:15px;height:15px;color:var(--accent);display:block}@media(max-width:600px){flex-wrap:wrap}}.mw-help-tip__text{flex:1;min-width:0}.mw-help-tip__actions{display:flex;align-items:center;gap:8px;flex:none}.mw-btn.mw-help-auto-trigger{position:fixed;bottom:12px;right:14px;z-index:20;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(6px)}.mw-btn.mw-help-auto-trigger--top{bottom:auto;top:10px;right:14px}@media(max-width:760px){.mw-btn.mw-help-auto-trigger{top:auto;bottom:10px;right:10px}}
+.mw-facts{margin:16px 0;padding:12px 14px;border-radius:var(--r-card,12px);border:1px solid var(--line);background:var(--surface-soft);display:flex;flex-direction:column;gap:8px}.mw-facts__heading{margin:0;font-size:12px;font-weight:600;color:var(--muted)}.mw-fact-row{display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.45;color:var(--ink)}.mw-fact-row__icon{width:22px;height:22px;border-radius:6px;display:inline-grid;place-items:center;flex:none;background:var(--rail);color:var(--ink-soft);svg{width:14px;height:14px}}.mw-fact-row--ok .mw-fact-row__icon{background:var(--green-soft);color:var(--green)}.mw-fact-row--warn{.mw-fact-row__icon{background:var(--amber-soft);color:var(--amber)}.mw-fact-row__detail{color:var(--amber)}}.mw-fact-row--out{.mw-fact-row__icon{background:color-mix(in srgb,var(--hue-pink,var(--red)) 14%,transparent);color:var(--hue-pink,var(--red))}.mw-fact-row__detail{color:var(--hue-pink,var(--red))}}.mw-fact-row__body{flex:1;min-width:0;overflow-wrap:anywhere}.mw-fact-row__detail{display:block;font-size:12px;color:var(--muted);margin-top:1px}.mw-help-content{display:flex;flex-direction:column;gap:14px;font-size:13px;line-height:1.65;color:var(--ink);max-width:60ch}.mw-help-section{display:flex;flex-direction:column;gap:5px;&.is-highlighted{background:var(--accent-soft);padding:10px 12px;border-radius:var(--r-row,10px);border:1px solid color-mix(in srgb,var(--accent) 26%,transparent)}}.mw-help-section__heading{margin:0;font-size:13px;font-weight:600;color:var(--ink)}.mw-help-section__body{margin:0;color:var(--ink)}.mw-help-section__list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}.mw-help-next{margin-top:4px;padding:12px 14px;border-radius:var(--r-row,10px);background:var(--surface-soft);border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}.mw-help-next__title{margin:0;font-size:13px;font-weight:600;color:var(--ink)}.mw-help-next__fact{margin:0;font-size:12px;color:var(--muted);line-height:1.5}.mw-help-next__actions{display:flex;flex-wrap:wrap;gap:8px}.mw-help-card{position:fixed;z-index:60;width:min(380px,calc(100vw - 24px));max-height:min(62dvh,520px);background:var(--popover,var(--paper));border:0;border-radius:var(--r-card,12px);box-shadow:var(--lift-3),inset 0 1px 0 var(--edge-highlight,transparent);display:flex;flex-direction:column;overflow:hidden;color:var(--ink);animation:craft-drop var(--dur-move) var(--ease-quint);&:focus{outline:none}@media(max-width:760px){left:8px!important;right:8px!important;top:auto!important;bottom:calc(var(--dock-h,var(--helm-h,74px)) + 8px)!important;width:auto!important;max-width:none;max-height:50dvh;border-radius:var(--r-sheet,14px);animation-name:craft-rise-from-bar;.mw-help-next__fact{display:none}}@media(prefers-reduced-motion:reduce){animation:none!important}}.mw-help-card__head{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 14px;border-bottom:1px solid var(--line);flex:none;svg{width:14px;height:14px;color:var(--muted);flex:none}}.mw-help-card__title{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mw-help-card__body{padding:14px;overflow:auto;flex:1;min-height:0}.mw-help-card__next{flex:none;padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-soft);.mw-help-next{margin-top:0;padding:0;border:0;background:transparent}}.mw-help-card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 8px 14px;border-top:1px solid var(--line);background:var(--surface-soft);flex:none}.mw-help-card__hint{font-size:12px;color:var(--muted)}.mw-help-tip{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-row,10px);background:var(--surface-soft);border:1px solid var(--line);margin-bottom:14px;font-size:13px;color:var(--ink);>span:first-child svg{width:15px;height:15px;color:var(--accent);display:block}@media(max-width:600px){flex-wrap:wrap}}.mw-help-tip__text{flex:1;min-width:0}.mw-help-tip__actions{display:flex;align-items:center;gap:8px;flex:none}.mw-btn.mw-help-auto-trigger{position:fixed;bottom:12px;right:14px;z-index:20;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(6px)}.mw-btn.mw-help-auto-trigger--top{bottom:auto;top:10px;right:14px}@media(max-width:760px){.mw-btn.mw-help-auto-trigger{top:auto;bottom:10px;right:10px}}
   :where(a:not([class])) { color: var(--accent); text-underline-offset: 3px; }
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
   .mw-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -4545,8 +4545,8 @@
   }
   :is(.mw-input, .mw-textarea)::placeholder { color: var(--muted); }
   :is(.mw-input, .mw-textarea, .mw-select):hover:where(:not(:disabled, :focus-visible)) { border-color: var(--control-input); background-color: var(--paper); }
-  .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
-  .mw-input:focus, .mw-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background-color: var(--popover, var(--paper)); }
+  :is(.mw-input, .mw-textarea, .mw-select):focus-visible,
+  .mw-input:focus, .mw-textarea:focus, .mw-input-group:focus-within { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background-color: var(--popover, var(--paper)); }
   :is(.mw-input, .mw-textarea, .mw-select) {
     &[aria-invalid="true"] {
       border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
@@ -4605,7 +4605,6 @@
     box-shadow: inset 0 1px 1px color-mix(in srgb, var(--shadow-color) 3%, transparent);
     transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
     &:hover { border-color: var(--control-input); background: var(--paper); }
-    &:focus-within { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background-color: var(--popover, var(--paper)); }
     svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
   }
   .mw-input-group .mw-input, .mw-number .mw-input {
@@ -4624,7 +4623,6 @@
     display: inline-grid; place-items: center; color: var(--action-ink);
     &:hover:not(:disabled) { border-color: color-mix(in srgb, var(--control-input) 60%, var(--ink)); }
     &:checked { border-color: var(--action); background: var(--action); }
-    &:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none; }
     &:disabled { opacity: .42; }
   }
   .mw-check { border-radius: 4px; &:checked::after { content: ""; width: 8px; height: 4px; border: 1.6px solid currentColor; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); } }
@@ -4635,7 +4633,6 @@
       appearance: none; position: absolute; inset: 0; margin: 0; opacity: 0; z-index: 1; cursor: pointer; background: transparent; border: 0; box-shadow: none;
       &:hover:not(:disabled) + .mw-switch__track { border-color: var(--control-input); }
       &:checked + .mw-switch__track { background: var(--action); border-color: var(--action); &::after { transform: translateX(14px); background: var(--action-ink); } }
-      &:focus-visible + .mw-switch__track { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none; }
     }
   }
   .mw-switch__track {
@@ -4849,7 +4846,8 @@
     &:hover { color: var(--ink); background: var(--nav-hover); }
     &.is-active { background: var(--nav-active); color: var(--ink); }
   }
-  :is(.mw-tabs__tab, .mw-toggle, .mw-pagination__page):focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none; }
+  :is(.mw-check, .mw-radio, .mw-tabs__tab, .mw-toggle, .mw-choice, .mw-pagination__page):focus-visible,
+  .mw-switch input:focus-visible + .mw-switch__track { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none; }
   .mw-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .mw-toggle-group { display: inline-flex; gap: 3px; padding: 3px; border: 0; border-radius: 11px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-toggle {
@@ -4874,7 +4872,6 @@
     &:hover:not([aria-pressed="true"]):not([aria-current="true"]) { background: color-mix(in srgb, var(--ink) 3%, var(--choice-surface, var(--paper))); box-shadow: var(--lift-1); }
     &:active { transform: scale(.97); }
     &:is([aria-pressed="true"], [aria-current="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); .mw-choice__check { opacity: 1; transform: none; } }
-    &:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none; }
   }
   .mw-choice__label { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; svg { width: 16px; height: 16px; flex: none; } }
   .mw-choice__check { display: inline-grid; place-items: center; width: 12px; opacity: 0; transform: scale(.6); transition: opacity 250ms var(--ease-quint), transform 250ms var(--ease-spring); svg { width: 12px; height: 12px; stroke-width: 2; } }
@@ -5050,6 +5047,35 @@
     thead th { padding-bottom: 8px; }
     tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); &:hover { background: var(--nav-hover); } & + tr td { box-shadow: inset 0 1px 0 var(--line); } }
   }
+  .mw-badge--chip { border-radius: 6px; padding: 0 7px; min-height: 20px; }
+  .mw-glyph-status { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 6px; color: var(--status-tone, var(--ink-soft)); svg { width: 15px; height: 15px; display: block; } }
+  .mw-signal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--status-tone, var(--muted)); }
+  .mw-signal { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; svg { width: 12px; height: 12px; flex: none; color: var(--faint); } }
+  .mw-tabs__list--underline {
+    gap: 16px; border-bottom: 1px solid var(--line);
+    .mw-tabs__tab {
+      min-height: 36px; padding: 0 2px; border-radius: 0; background: transparent;
+      &:hover { background: transparent; color: var(--ink); }
+      &::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 1px; background: var(--accent); opacity: 0; transform: scaleX(.4); transition: opacity var(--dur-move, 250ms) var(--ease-quint), transform var(--dur-move, 250ms) var(--ease-quint); }
+      &.is-active { background: transparent; color: var(--ink); &::after { opacity: 1; transform: scaleX(1); } }
+    }
+  }
+  .mw-section-well { padding: 4px; border-radius: var(--radius-surface, 14px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-inset-group { display: flex; flex-direction: column; border-radius: var(--radius-item, 10px); background: var(--paper); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5.5%, transparent), var(--shadow-soft), inset 0 1px 0 var(--edge-highlight, transparent); overflow: hidden; }
+  .mw-inset-row {
+    position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 11px 14px;
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
+    &:hover { background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+    & + .mw-inset-row::before { content: ""; position: absolute; top: 0; left: var(--text-start, 44px); right: 14px; height: 1px; background: var(--line); pointer-events: none; }
+    &[data-open="true"] .mw-inset-row__drawer { display: block; animation: craft-rise var(--dur-move) var(--ease-quint); }
+  }
+  .mw-inset-row--plain { grid-template-columns: minmax(0, 1fr) auto; & + .mw-inset-row--plain::before { left: 14px; } }
+  .mw-inset-row__lead { display: inline-grid; place-items: center; width: 20px; height: 22px; flex: none; color: var(--ink-soft); svg { width: 16px; height: 16px; } }
+  .mw-inset-row__body { min-width: 0; display: grid; gap: 3px; }
+  .mw-inset-row__title { margin: 0; min-width: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-inset-row__signals { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+  .mw-inset-row__end { display: inline-flex; align-items: center; gap: 8px; min-height: 22px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-inset-row__drawer { grid-column: 2 / -1; display: none; margin-top: 8px; > div { overflow: hidden; min-height: 0; } }
 
   .mw-dir { display: flex; flex-direction: column; min-width: 0; }
   .mw-dir__tools {
@@ -5234,7 +5260,8 @@
     dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); > .mw-form { max-height: calc(100dvh - 32px); } }
   }
   @media (prefers-reduced-motion: reduce) {
-    .mw-spinner, .mw-switch__track, .mw-switch__track::after { animation: none; transition: none; }
+    .mw-spinner, .mw-switch__track, .mw-switch__track::after, .mw-tabs__list--underline .mw-tabs__tab::after, .mw-inset-row { animation: none; transition: none; }
+    .mw-inset-row[data-open="true"] .mw-inset-row__drawer { animation: none; }
     .mw-dir-row, .mw-dir-row-wrap, .mw-dir-row-wrap.is-yield .mw-dir-row, .mw-dir-row-wrap.is-yield .mw-dir-row__ops { transition: none; }
   }
 
@@ -5256,40 +5283,6 @@
   .mw-return-bar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
-  /* 91-0b shell & catalog primitives (stay in PRIMITIVE_STYLES; promote to PRIMITIVE_PLUGIN_STYLES in 91B when framed plugins adopt them). */
-  .mw-badge--chip { border-radius: 6px; padding: 0 7px; min-height: 20px; }
-  .mw-glyph-status { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 6px; color: var(--status-tone, var(--ink-soft)); svg { width: 15px; height: 15px; display: block; } }
-  .mw-signal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--status-tone, var(--muted)); }
-  .mw-signal { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; svg { width: 12px; height: 12px; flex: none; color: var(--faint); } }
-  .mw-tabs__list--underline {
-    gap: 16px; border-bottom: 1px solid var(--line);
-    .mw-tabs__tab {
-      min-height: 36px; padding: 0 2px; border-radius: 0; background: transparent;
-      &:hover { background: transparent; color: var(--ink); }
-      &::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 1px; background: var(--accent); opacity: 0; transform: scaleX(.4); transition: opacity var(--dur-move, 250ms) var(--ease-quint), transform var(--dur-move, 250ms) var(--ease-quint); }
-      &.is-active { background: transparent; color: var(--ink); &::after { opacity: 1; transform: scaleX(1); } }
-    }
-  }
-  .mw-section-well { padding: 4px; border-radius: var(--radius-surface, 14px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
-  .mw-inset-group { display: flex; flex-direction: column; border-radius: var(--radius-item, 10px); background: var(--paper); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5.5%, transparent), var(--shadow-soft), inset 0 1px 0 var(--edge-highlight, transparent); overflow: hidden; }
-  .mw-inset-row {
-    position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 11px 14px;
-    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
-    &:hover { background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
-    & + .mw-inset-row::before { content: ""; position: absolute; top: 0; left: var(--text-start, 44px); right: 14px; height: 1px; background: var(--line); pointer-events: none; }
-    &[data-open="true"] .mw-inset-row__drawer { display: block; animation: craft-rise var(--dur-move) var(--ease-quint); }
-  }
-  .mw-inset-row--plain { grid-template-columns: minmax(0, 1fr) auto; & + .mw-inset-row--plain::before { left: 14px; } }
-  .mw-inset-row__lead { display: inline-grid; place-items: center; width: 20px; height: 22px; flex: none; color: var(--ink-soft); svg { width: 16px; height: 16px; } }
-  .mw-inset-row__body { min-width: 0; display: grid; gap: 3px; }
-  .mw-inset-row__title { margin: 0; min-width: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mw-inset-row__signals { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
-  .mw-inset-row__end { display: inline-flex; align-items: center; gap: 8px; min-height: 22px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .mw-inset-row__drawer { grid-column: 2 / -1; display: none; margin-top: 8px; > div { overflow: hidden; min-height: 0; } }
-  @media (prefers-reduced-motion: reduce) {
-    .mw-tabs__list--underline .mw-tabs__tab::after, .mw-inset-row { transition: none; }
-    .mw-inset-row[data-open="true"] .mw-inset-row__drawer { animation: none; }
-  }
   .mw-return-bar__actions { padding-top: 4px; }
   .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
   /* The Skills one round used (specs/prologue-strategies/skill.md §10): a line above the reply, each Skill a bounded button; it wraps, never cuts a name. */
@@ -6178,38 +6171,13 @@
       :is(.plugin-stage-fact, .plugin-stage-meta) { display: none; }
     }
   }
-  @media (min-width: 761px) {
-    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] {
-      display: grid; grid-template-columns: var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr); overflow: hidden; padding: 0;
-      .plugin-stage-list {
-        display: block; position: relative; inset: auto; z-index: 4;
-        min-width: 0; min-height: 0; width: var(--tree-width, var(--immersive-sidebar-width)); height: auto; overflow: auto;
-        border-right: 1px solid var(--line); padding: 52px 8px 24px; box-sizing: border-box;
-        grid-column: 1; grid-row: 1;
-      }
-      .plugin-stage-workspace {
-        position: relative; inset: auto; z-index: 3;
-        min-width: 0; min-height: 0; width: auto; height: auto;
-        display: flex; flex-direction: column; overflow: hidden;
-        grid-column: 2; grid-row: 1;
-      }
-      .plugin-stage-chrome { visibility: inherit; }
-      .feed-stage-entry {
-        grid-template-columns: minmax(0, 1fr) auto;
-        > time { display: none; }
-        &:has(.plugin-stage-kind) { grid-template-columns: minmax(0, 1fr) max-content max-content; }
-      }
-      :is(.feed-entry-source, .plugin-stage-fact, .plugin-stage-meta) { display: none; }
-    }
-  }
-  /* The side panel takes its width from the stage, not from the window: a wide window with the panel open can leave the
-     stage too narrow for the list beside an open record. Then the record takes the whole stage, as on a phone. */
-  @container plugin-stage (max-width: 600px) {
-    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] {
-      display: block;
-      :is(.plugin-stage-chrome, .plugin-stage-list) { display: none !important; }
-      .plugin-stage-workspace { position: absolute; inset: 0; display: flex; flex-direction: column; grid-column: auto; grid-row: auto; }
+  /* An open record is its own page (specs/screen-polish §4「底栏第十三版」: 一件事一页): it takes the whole stage at every
+     width, and the plugin's list is the page behind it — the back key, or the list's own tab. Nothing stands at its left. */
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] {
+    display: block; overflow: hidden; padding: 0;
+    :is(.plugin-stage-chrome, .plugin-stage-list) { display: none !important; }
+    .plugin-stage-workspace {
+      position: absolute; inset: 0; z-index: 3; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
     }
   }
   .plugin-stage-more {
@@ -7055,49 +7023,57 @@
   html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-header .plugin-picker-search > span { flex: 1; text-align: left; }
   html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-header .plugin-picker-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; }
   @media (hover: none) { html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-header .plugin-picker-search kbd { display: none; } }
-  /* Its answers open above the bar and stay until closed: one tab per open work, the work's side pane on the left
-     (what it is, how it got here, what it used, what it made) and the conversation on the right, right above the input. */
+  /* The conversation opens upward from the input in two columns (DESIGN.md「The conversation」): the conversation column —
+     one line that names what is talked about, then only what was said — and the information column to its right: what is
+     known about the thing in front, or one of the three lists, chosen by the tabs at its top. There is no tab row. Its height
+     follows what it holds, between a floor and the work surface's top. Where it stands against the input and the card stack
+     is the work line's (apps/workbench styles/work-line.ts); here it is one sheet a little wider than the input. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-panel {
     --assistant-side-w: 272px;
-    /* --assistant-room: space left before the platform side panel, set only while it is open. */
-    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px) + var(--context-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
     /* No higher than the title bar, or than a settings return bar's foot while one shows (--return-bar-bottom, settings-return.ts), so 回去 stays in reach. */
-    height: min(620px, calc(100dvh - max(var(--desktop-titlebar-height, 0px), var(--return-bar-bottom, 0px)) - var(--dock-h, 76px) - 32px));
+    --assistant-room-y: calc(100dvh - max(var(--desktop-titlebar-height, 0px), var(--return-bar-bottom, 0px)) - var(--dock-h, 76px) - 32px);
+    position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px + var(--next-row, 0px) + var(--context-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
+    min-height: min(480px, var(--assistant-room-y)); max-height: min(620px, var(--assistant-room-y));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[hidden] { display: none; }
-  /* A wide window keeps the conversation over the input and opens the side pane to its left. */
-  @media (min-width: 1240px) {
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="split"][data-side="open"] { left: calc(-1 * var(--assistant-side-w) - 24px); right: calc(-1 * min(24px, var(--assistant-room, 24px))); }
-  }
-  /* The tab strip: the open works, a new one, then all works, the side pane and minimise. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tabbar { flex: none; display: flex; align-items: flex-end; gap: 4px; height: 42px; padding: 6px 6px 0 8px; background: var(--desk); box-shadow: inset 0 -1px 0 var(--line); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab { position: relative; flex: 0 1 184px; width: 184px; min-width: 96px; display: flex; align-items: center; height: 34px; border-radius: 9px 9px 0 0; color: var(--muted); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab:hover { background: var(--nav-hover); color: var(--ink-soft); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab[data-current] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); clip-path: inset(-1px -1px 0 -1px); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 4px 0 10px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-main:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab[data-current] .assistant-tab-main { font-weight: 500; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* The marks, shared by tabs and the list of works: waiting on you, running, news not yet seen, did not finish. */
+  /* Maximised: up to the tab strip (the height is measured, assistant-stage.ts); the work surface and the side give way and come back as they were. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-max] { height: var(--assistant-max-h, 620px); max-height: none; animation: none; }
+  body.immersive-workbench:not([data-pane-embedded])[data-assistant-max] :is([data-plugin-stage], [data-side-panel], .side-panel-divider) { visibility: hidden; }
+  /* The conversation column's one line (helm.html .lv-t): the state mark, whose words these are, then what it is and where it is
+     kept in a smaller hand; its three 28px keys stand at the top right, 8px in. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head { position: relative; flex: none; display: flex; align-items: center; gap: 7px; height: 44px; min-width: 0; padding: 0 8px 0 20px; box-shadow: inset 0 -1px 0 var(--line); white-space: nowrap; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head-mark { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head-mark:empty { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head-mark svg { width: 14px; height: 14px; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head-title { flex: 0 1 auto; min-width: 0; max-width: 62%; margin: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head-note { flex: 0 1000 auto; min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action { position: relative; flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action[hidden] { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action:hover, body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action[aria-expanded="true"] { background: var(--control-fill, var(--nav-hover)); color: var(--ink); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action svg { width: 14px; height: 14px; }
+  /* The marks of a work in a list of works: waiting on you, running, news not yet seen, did not finish. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-mark { flex: none; display: none; width: 20px; height: 20px; }
   body.immersive-workbench:not([data-pane-embedded]) [data-mark] .assistant-tab-mark { display: inline-block; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-close { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab:is(:hover, [data-current], :focus-within) .assistant-tab-close { opacity: 1; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-close:hover { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-new { margin-bottom: 3px; }
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-tab-new, .assistant-tabbar .dock-window-action):hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-tab-new, .assistant-tabbar .dock-window-action):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) svg { width: 14px; height: 14px; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tabbar-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tabbar .dock-window-action:is([aria-expanded="true"]) { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-toggle { position: relative; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-more { position: absolute; z-index: 6; top: 40px; right: 8px; min-width: 168px; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-more[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--tone-attention, var(--amber, #c27c0e)); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-dot[hidden], body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-side="open"] .assistant-side-dot { display: none; }
-  /* All works: a dropdown under the tabs, grouped by what waits on you, what runs, and the rest. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-works { position: absolute; z-index: 6; top: 44px; right: 8px; display: flex; flex-direction: column; gap: 1px; width: min(340px, calc(100% - 16px)); max-height: min(440px, 70%); overflow: auto; padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
+  /* The information column is always there on a window; a phone opens it over the conversation from this key, and has no maximise. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="split"] [data-assistant-side-toggle], body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] :is([data-assistant-expand], [data-assistant-retract]) { display: none; }
+  /* A page that takes the words itself is not repeated here (helm.html .dd-own): one card at the conversation's foot says so,
+     with the way to ask the Assistant instead. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-page-takes { flex: none; display: flex; align-items: flex-start; gap: 10px; min-width: 0; margin: auto 22px 18px; padding: 12px 14px; border-radius: 12px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-page-takes[hidden] { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-page-takes > svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-page-takes > p { flex: 1 1 auto; min-width: 0; margin: 0; line-height: 1.5; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-page-takes > p > b { display: block; color: var(--ink); font-weight: 600; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-page-takes > .mw-btn { flex: none; align-self: center; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-main[data-page-takes] :is(.assistant-thread, .assistant-strip, .assistant-jump) { display: none; }
+  /* All works: a dropdown under the head's 更多, grouped by what waits on you, what runs, and the rest. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-works { position: absolute; z-index: 6; top: 46px; right: 8px; display: flex; flex-direction: column; gap: 1px; width: min(340px, calc(100% - 16px)); max-height: min(440px, 70%); overflow: auto; padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works-group { margin: 8px 12px 2px; font-size: 11px; color: var(--faint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works-item {
@@ -7111,13 +7087,52 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works-meta { font-size: 11px; color: var(--muted); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
-  /* The body: side pane and conversation. A narrow panel lays the side pane over the conversation as a drawer. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-body { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: var(--assistant-side-w) minmax(0, 1fr); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel:is([data-side="closed"], [data-layout="drawer"]) .assistant-body { grid-template-columns: minmax(0, 1fr); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-side { min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px; padding: 14px 12px 16px 14px; background: var(--paper); box-shadow: inset -1px 0 0 var(--line); font-size: 12px; line-height: 1.5; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-side="closed"] .assistant-side { display: none; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; top: 0; bottom: 0; left: 0; width: min(var(--assistant-side-w), 100%); box-shadow: var(--lift-3); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* The body: the conversation, then the information column. On a phone the column lies over the conversation when asked for. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-body { position: relative; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--assistant-side-w); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-body { grid-template-columns: minmax(0, 1fr); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-main { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* The information column (helm.html .lz): a shade back from the conversation, its cards 8px apart. It never sets the
+     conversation's height (POLISH-17: the height follows what was said): its own content scrolls inside it. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-side { --sidebg: color-mix(in srgb, var(--ink) 3.5%, var(--popover)); container: info-col / size; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--sidebg); box-shadow: inset 1px 0 0 var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; inset: 44px 0 0; display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"]:is([data-side="open"]) .assistant-side, body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side:not([data-info="info"]) { display: flex; }
+  /* The column's tabs (.zt): 信息, then the three lists with their counts, words on the column's own ground; the chosen one is a
+     white pill. ← → move between them. */
+  body.immersive-workbench:not([data-pane-embedded]) .info-tabs { flex: none; display: flex; gap: 2px; margin: -2px 0 -2px; white-space: nowrap; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 28px; padding: 0 6px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab > em { font-style: normal; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--faint); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab[aria-selected="true"] { background: var(--popover); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), var(--lift-1); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab[aria-selected="true"] > em { color: var(--muted); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab[data-arrived] { animation: craft-done var(--dur-move) var(--ease-quint); }
+  /* Too narrow for four names: only the chosen tab keeps its name; the others are their mark and count. */
+  @container info-col (max-width: 300px) { body.immersive-workbench:not([data-pane-embedded]) .info-tab:not([aria-selected="true"]):not([data-info-tab="info"]) > span:not(.work-dg) { display: none; } }
+  /* 信息: what is asked of you, how it stands, then what the words carry — in that order, always. */
+  body.immersive-workbench:not([data-pane-embedded]) .info-pane { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; margin: 0 -12px -12px; padding: 1px 12px 12px; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-pane > * { flex: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-side:is(:not([data-info="info"]), [data-details]) .info-pane { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-event-card[hidden] { display: none; }
+  /* 上下文 (.zc.ctx): four quiet rows on the column's ground — the name, then its value at the right. */
+  body.immersive-workbench:not([data-pane-embedded]) .info-context { padding: 4px 12px 0; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-context > h4 { margin: 0 0 5px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 16px; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-context > dl { margin: 0; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-context-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 25px; font-size: 13px; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-context-row[hidden] { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-context-row > dt { flex: none; color: var(--muted); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-context-row > dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  /* 「⋯ › 详情」: the rest of what is known about the work, in the column's place, with the way back. */
+  body.immersive-workbench:not([data-pane-embedded]) .info-details { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; border-radius: 12px; background: var(--popover); box-shadow: 0 0 0 1px var(--line), var(--shadow-raised, var(--lift-1)); overflow: hidden; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details[hidden] { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details-head { flex: none; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px 0 6px; border-bottom: 1px solid var(--line); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details-head > strong { color: var(--ink); font-size: 13px; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details-body > * { flex: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details-body > .assistant-summary { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .info-details-body > .assistant-summary > .mw-btn { align-self: flex-start; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-side[data-details] > .work-lists { display: none; }
+  /* On a phone the column lies over the conversation with what is asked and how it stands only. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side[data-info="info"] > .info-tabs, body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .info-pane > .info-context { display: none; }
   /* The conversation's top line, shown only while the side pane is out of sight and something needs a hand. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip { flex: none; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px 6px 12px; background: var(--paper); box-shadow: inset 0 -1px 0 var(--line); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip[hidden] { display: none; }
@@ -7142,7 +7157,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 22px; margin-bottom: 2px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary-top:not(:has(.assistant-state:not(:empty), .assistant-control:not([hidden]))) { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary-controls { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-control { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-control { height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-control[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-control:hover { background: var(--nav-hover); color: var(--ink); }
@@ -7154,7 +7169,7 @@
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--wash); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-segment { min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-segment { min-width: 0; height: 28px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-segment:hover:not(:disabled) { color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-segment[aria-pressed="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-segment:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
@@ -7175,7 +7190,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { flex: none; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { flex: none; height: 28px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action:hover:not(:disabled) { background: var(--nav-active); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { transition: background-color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action[aria-busy="true"] { color: var(--muted); cursor: progress; }
@@ -7256,7 +7271,7 @@
   /* Buttons on cards: primary is graphite, secondary a quiet outline, both with the shared press. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action { display: inline-flex; align-items: center; gap: 4px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action .assistant-glyph-icon svg { width: 13px; height: 13px; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action:is(.is-primary, .is-secondary) { height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action:is(.is-primary, .is-secondary) { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action.is-primary { background: var(--ink); color: var(--paper); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-side-action.is-secondary { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
@@ -7348,7 +7363,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-head { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 12px; box-shadow: inset 0 -1px 0 var(--line); color: var(--muted); font-size: 11px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-lang { color: var(--ink-soft); font-weight: 500; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-lines { margin-right: auto; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy, body.immersive-workbench:not([data-pane-embedded]) .assistant-code-more { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy, body.immersive-workbench:not([data-pane-embedded]) .assistant-code-more { position: relative; height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy[data-copy=done] { color: var(--tone-done); }
@@ -7386,15 +7401,14 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-activity .assistant-state-ring { width: 20px; height: 20px; }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-activity, .assistant-recovery > li)[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab-main:active { transform: scale(.98); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-tab { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-side-action, .assistant-segment, .assistant-head .dock-window-action, .assistant-control, .assistant-start, .assistant-copy):active:not(:disabled) { transform: scale(.94); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  body.immersive-workbench:not([data-pane-embedded]) .info-tab:active { transform: scale(.98); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: craft-rise var(--dur-move) var(--ease-quint); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"][data-side="open"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
-  @keyframes assistant-drawer { from { opacity: .6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
+  @keyframes assistant-drawer { from { opacity: .6; transform: translateX(16px); } to { opacity: 1; transform: none; } }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop var(--dur-move) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-thread > .assistant-card, .assistant-thread > .assistant-problem, .assistant-round > .assistant-msg, .assistant-round > .assistant-card) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   /* “Go to it” marks what it took you to for a moment. */
@@ -7412,6 +7426,8 @@
   /* A new work starts from this page's starting points or goes back to a recent work. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list { display: flex; flex-direction: column; gap: 4px; max-width: 520px; margin-top: 14px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list:empty { display: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-event-hint { margin: 0; color: var(--ink-soft); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-event-hint[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-title { margin: 10px 0 2px; color: var(--faint); font-size: 11px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-title:first-child { margin-top: 0; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
@@ -7424,8 +7440,10 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(4) { animation-delay: 90ms; } body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(n + 5) { animation-delay: 120ms; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-hint { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-copy { align-self: flex-start; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-copy { align-self: flex-start; position: relative; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  /* BL-127: the small copy keys keep their size; what can be pressed is 28px tall. */
+  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-copy, .assistant-code-copy, .assistant-code-more)::after { content: ""; position: absolute; inset: -3px 0; }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-copy]) { opacity: 1; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-copy:hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-copy[data-copy=done] { color: var(--hue-green-fill); }
@@ -7434,15 +7452,15 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-round-time::before, body.immersive-workbench:not([data-pane-embedded]) .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   /* The conversation: the person's words on the right, the Host's in the middle, the answer as text, what it did as quiet lines. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty { color: var(--muted); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty p { margin: 0; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 24px 22px 16px; font-size: 13px; line-height: 1.7; overscroll-behavior: contain; }
+  /* What was said stands on the input (helm.html .pz .lv-b): a short conversation leaves its room above, not under. */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-thread::before { content: ""; flex: none; margin-top: auto; margin-bottom: -10px; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty { max-width: 94%; margin: 0; color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-round { display: flex; flex-direction: column; gap: 8px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-msg { max-width: 100%; overflow-wrap: anywhere; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-msg--assistant { color: var(--ink); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-msg--user { align-self: flex-end; max-width: 76%; padding: 7px 12px; border-radius: 12px; background: var(--control-fill, var(--nav-active)); color: var(--ink); white-space: pre-wrap; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-msg--assistant { max-width: 94%; color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-msg--note { font-size: 12px; color: var(--muted); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-msg--host { align-self: center; max-width: 85%; padding: 4px 12px; border: 1px dashed var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; text-align: center; white-space: pre-wrap; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-rich > :last-child { margin-bottom: 0; }
@@ -7525,6 +7543,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-attention svg { width: 14px; height: 14px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notices { left: auto; right: 0; gap: 8px; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-notices > [hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notice { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; background: var(--nav-hover); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notice-text { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
@@ -7674,12 +7693,6 @@
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start .plugin-picker-current, :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start .plugin-picker-trigger > svg:last-child { display: none; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start .plugin-picker-all { display: inline-grid; place-items: center; color: var(--ink-soft); }
-    /* On a phone the panel spans the screen: the side pane covers the whole conversation when opened; tabs scroll. */
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { width: 100%; box-shadow: none; }
-    /* Only the current tab shows by name; the others are one tap away in 全部工作, where their marks are too. */
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-tab:not([data-current]) { display: none; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-tabs { flex: 1 1 auto; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
@@ -8216,7 +8229,7 @@
     body:is(.immersive-workbench, .settings-page, .project-preferences-page) *, body:is(.immersive-workbench, .settings-page, .project-preferences-page) *::before, body:is(.immersive-workbench, .settings-page, .project-preferences-page) *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
     body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .home-day, [data-kanban-card], .mw-check, .mw-radio, .dock-pin, .bar-chat, .account-global-trigger, .plugin-picker-trigger):is(:active, :hover) { transform: none !important; }
     body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-btn, .tab-item, [data-kanban-card], .plugin-market-body .mw-card, .plugin-market-installed-row > *):hover { transform: none !important; }
-    body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close, .assistant-tab-main, .assistant-jump):active { transform: none !important; }
+    body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.assistant-side-action, .assistant-segment, .assistant-head .dock-window-action, .info-tab, .assistant-control, .assistant-start, .assistant-copy, .assistant-jump):active { transform: none !important; }
     .craft-burst, .craft-tip { transition: none; }
     .craft-burst { display: none; }
   }
@@ -8231,9 +8244,11 @@
     body.immersive-workbench:not([data-pane-embedded]) .bar-center:has(>.assistant-context-strip:not([hidden])) { --context-row: 50px; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --ops-btn: 44px; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-tabbar { height: 50px; gap: 0; }
-    body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-works { top: 52px; }
+    body.immersive-workbench:not([data-pane-embedded]) .assistant-head { height: 52px; }
+    body.immersive-workbench:not([data-pane-embedded]) .assistant-head .dock-window-action { width: 44px; height: 44px; }
+    body.immersive-workbench:not([data-pane-embedded]) .info-tab { height: 44px; }
+    body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-works, .assistant-more) { top: 50px; }
+    body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[data-layout="drawer"] .assistant-side { top: 52px; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-code-head { min-height: 44px; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-link { padding-block: 15px; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-inline-object { position: relative; min-width: 44px; justify-content: center; }
@@ -8245,27 +8260,7 @@
 
 .assistant-usage-part{display:grid;gap:2px;padding-top:8px}.assistant-usage-part>.assistant-progress{margin:2px 0 4px}.assistant-usage-row{display:flex;justify-content:space-between;gap:8px;margin:0;font-size:12px;line-height:1.5}.assistant-usage-row.is-muted{color:var(--muted)}
 
-.system-view-focus{display:block;margin:32px auto;padding:12px 20px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;cursor:pointer}.system-work-surface:has([data-assistant-island])>.system-view-focus{display:none}
 .system-work-surface{height:100%;min-height:0;min-width:0;overflow:hidden}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage]{position:relative;display:flex;flex-direction:column;width:100%;height:100%;max-width:none;min-width:0;gap:0;padding:0;align-self:stretch}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-panel[data-layout][data-side]{position:relative;inset:auto;flex:1;width:100%;height:auto;min-height:0;border-radius:0;background:var(--paper);box-shadow:none;animation:none}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar{justify-content:flex-end;flex:none;min-height:44px;padding:4px 12px;background:var(--paper);box-shadow:inset 0 -1px var(--line)}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-tabs,.assistant-tab-new,[data-assistant-panel-close]){display:none}
-html body.immersive-workbench [data-assistant-stage] .assistant-stage-footer{position:relative;flex:none;min-width:0}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{flex:none;width:calc(100% - 40px);max-width:800px;margin:12px auto 20px}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-context-strip,.assistant-next-row){flex:none;position:static;width:calc(100% - 40px);max-width:800px;margin:8px auto -4px}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{scrollbar-gutter:stable;padding:24px max(20px,calc((100% - 800px)/2));font-size:15px;line-height:1.7}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .mw-composer__input:not(#mw-composer){font-size:15px}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar-actions{gap:8px}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar [data-assistant-retract]{display:inline-flex;width:auto;gap:6px}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar [hidden]{display:none}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-side{gap:12px;padding:12px;background:var(--paper)}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-side>:is(.assistant-summary,.assistant-block){flex:none;padding:12px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper)}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-block-head,.assistant-usage>summary){padding-top:0;box-shadow:none}
-html body.immersive-workbench .assistant-stage-launcher{min-width:120px;margin:auto}
-html body.immersive-workbench .assistant-stage-launcher[hidden]{display:none}
-@media(max-width:760px){html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{width:calc(100% - 24px);margin:8px auto 12px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{padding:16px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .mw-composer__input:not(#mw-composer){font-size:16px}}
-@media(max-width:420px){html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabbar{height:auto;flex-wrap:wrap}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabs{flex:1 1 calc(100% - 44px)}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabbar-actions{flex:0 0 100%;justify-content:flex-end}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-works{top:94px}}
 
 body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)::details-content{display:grid;grid-template-rows:0fr;overflow:clip;transition:grid-template-rows var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)[open]::details-content{grid-template-rows:1fr}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps-body,.assistant-activity-detail){min-height:0;overflow:clip}@media (prefers-reduced-motion:reduce){body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)::details-content,body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>*{transition:none}}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps{font-size:12px;line-height:1.6;color:var(--muted)}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary{width:fit-content;max-width:100%;margin-left:-4px;border-radius:6px;list-style:none;cursor:pointer}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary::-webkit-details-marker{display:none}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary{padding:2px 4px}body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-fold>summary{padding:0 4px}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary::before,body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-fold>summary::after{content:"›";flex:none;transition:transform var(--dur-hover) var(--ease-quint)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary::before{display:inline-block;width:12px}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps[open]>summary::before,body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-fold[open]>summary::after{transform:rotate(90deg)}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary:hover{background:var(--nav-hover)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary:hover{color:var(--ink-soft)}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps[data-state="failed"]>summary{color:var(--danger)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps[data-state="unknown"]>summary{color:var(--tone-attention)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps-body>*{padding:2px 0 0 12px}
 body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-detail{display:grid;gap:2px;margin:2px 0 4px 19px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}

@@ -232,32 +232,83 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
       /\.mw-input-group \.mw-input, \.mw-number \.mw-input \{[\s\S]*?\.mw-number \.mw-input:is\(:hover, :focus, :focus-visible, \[aria-invalid="true"\]\) \{\s*border: 0; outline: 0; background: transparent; box-shadow: none;\s*\}/,
       `:is(.mw-input-group,.mw-number) .mw-input{border:0;outline:0;min-height:26px;padding:0;min-width:0;background:transparent;box-shadow:none;border-radius:0;&:is(:hover,:focus,:focus-visible,[aria-invalid="true"]){border:0;outline:0;background:transparent;box-shadow:none}}`,
     )
+    .replace(
+      /html\[data-resolved-theme="dark"\] \.mw-select \{\s*background-repeat:\s*no-repeat;\s*background-position:\s*right 8px center;\s*background-size:\s*14px 14px;\s*/,
+      `html[data-resolved-theme="dark"] .mw-select{`,
+    )
+    .replaceAll("width='16' height='16' viewBox='0 0 24 24'", "viewBox='0 0 24 24'")
+    .replace(/ui-monospace,\s*SFMono-Regular,\s*Menlo,\s*monospace/g, "var(--font-mono)")
     .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`)
     .replace(/var\((--[\w-]+),\s+/g, "var($1,")
     .replace(/color-mix\(in srgb,\s+/g, "color-mix(in srgb,")
     .replace(/,\s+transparent\)/g, ",transparent)")
     .replace(/,\s+var\(/g, ",var(")
     .replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3\b/g, "#$1$2$3")
+    .replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([.\d]+)\)/g, "rgb($1 $2 $3/$4)")
+    .replace(/\boutline:\s*none\b/g, "outline:0")
     .replace(/\b130ms\b/g, ".13s")
     .replace(/\b250ms\b/g, ".25s")
     .replace(/\b420ms\b/g, ".42s")
     .replace(/\b640ms\b/g, ".64s")
     .replace(/\b0\.(\d)/g, ".$1")
     .replace(/\s*-webkit-appearance:\s*none;/g, "");
-  for (let pass = 0; pass < 3; pass += 1) {
-    sheet = sheet.replace(/var\((--[\w-]+),[^()]+\)/g, (orig, name: string) => (rootVars.has(name) ? `var(${name})` : orig));
+  {
+    let stripped = "";
+    let index = 0;
+    while (index < sheet.length) {
+      if (sheet.startsWith("var(--", index)) {
+        const comma = sheet.indexOf(",", index + 4);
+        const close = sheet.indexOf(")", index + 4);
+        if (comma !== -1 && (close === -1 || comma < close)) {
+          const name = sheet.slice(index + 4, comma).trim();
+          if (/^--[\w-]+$/.test(name) && rootVars.has(name)) {
+            let depth = 1;
+            let end = comma + 1;
+            while (end < sheet.length && depth > 0) {
+              if (sheet[end] === "(") depth += 1;
+              else if (sheet[end] === ")") depth -= 1;
+              end += 1;
+            }
+            if (depth === 0) {
+              stripped += `var(${name})`;
+              index = end;
+              continue;
+            }
+          }
+        }
+      }
+      stripped += sheet[index];
+      index += 1;
+    }
+    sheet = stripped.replace(/\btransparent\b/g, "#0000");
   }
   const reducedMotionBodies: string[] = [];
   sheet = sheet.replace(/(^|\n)[ \t]*@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
     const trimmed = body.trim();
-    if (!trimmed || /^&/.test(trimmed) || !trimmed.includes("{")) {
+    if (!trimmed || /^[&>]/.test(trimmed) || !trimmed.includes("{")) {
       return whole;
     }
     reducedMotionBodies.push(trimmed);
     return lead;
   });
   if (reducedMotionBodies.length > 0) {
-    sheet += `\n@media (prefers-reduced-motion: reduce) { ${reducedMotionBodies.join(" ")} }`;
+    const grouped = new Map<string, string[]>();
+    const other: string[] = [];
+    for (const block of reducedMotionBodies) {
+      for (const rule of block.matchAll(/([^{};]+)\{([^{}]+)\}/g)) {
+        const sel = rule[1]!.trim();
+        const decl = rule[2]!.trim().replace(/\s*:\s*/g, ":").replace(/\s*;\s*/g, ";").replace(/;$/, "");
+        if (decl === "animation:none" || decl === "transition:none" || decl === "animation:none;transition:none") {
+          const list = grouped.get(decl) ?? [];
+          list.push(sel);
+          grouped.set(decl, list);
+        } else {
+          other.push(`${sel}{${decl}}`);
+        }
+      }
+    }
+    const merged = [...other, ...[...grouped.entries()].map(([decl, sels]) => `${sels.join(",")}{${decl}}`)];
+    sheet += `\n@media (prefers-reduced-motion: reduce) { ${merged.join(" ")} }`;
   }
   return sheet;
 }

@@ -82,7 +82,8 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 - `kind`：`primary-page` | `embedded` | `overlay` | `settings-page`。
 
 构建期 Native（只剩 Alchemist、插件创作台两个批过的例外）：Host 注入 HTML primitives。  
-经 Plugin Runtime 启动的插件（`app`，以及 Shelf 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。
+经 Plugin Runtime 启动的插件（`app`，以及 Shelf 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。  
+所有 framed 插件页面由宿主统一下发 `<80 KB` 基础样式表 `molis-work-plugin-base.css`（含 `@container plugin-stage` 容器查询、四档版心/主从左栏令牌、`mw-*` 纸面控件与 `.mw-section-well` / `.mw-inset-group` / `.mw-inset-row` / `.mw-tabs__list--underline` / `.mw-glyph-status` / `.mw-signal` 原语）与共享微交互脚本（`molisBusy`、`molisToast`、`molisAutosave`、`molisEnhanceDateInputs`、`molisCopy`、`molisReflow`、`molisStreamText`、`molisFollow`）；完整视觉、动效与布局规范见 [UI 与视觉设计 Skill](../../skills/molis-design-ui/SKILL.md)。
 
 ## HTTP
 

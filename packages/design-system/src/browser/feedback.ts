@@ -243,8 +243,19 @@ function molisToast(message: string, options: boolean | MolisToastOptions = {}):
   const opts: MolisToastOptions = typeof options === "boolean"
     ? { tone: options ? "error" : "default" }
     : options;
+  const actionSpec = opts.action ?? (opts.undo
+    ? {
+        label: opts.undoLabel ?? readLocaleText("common.control.undo", "Undo"),
+        onClick: opts.undo,
+      }
+    : undefined);
   const node = ensureHostToast();
-  const keepPaused = (hostToastPointerInside || hostToastFocusInside) && node.classList.contains("is-visible");
+  if (!actionSpec) {
+    // Passive toasts use pointer-events: none and never receive pointerleave/focusout after replacing an interactive toast.
+    hostToastPointerInside = false;
+    hostToastFocusInside = false;
+  }
+  const keepPaused = Boolean(actionSpec) && (hostToastPointerInside || hostToastFocusInside) && node.classList.contains("is-visible");
   window.clearTimeout(hostToastTimer);
   hostToastTimer = 0;
   hostToastPaused = keepPaused;
@@ -265,12 +276,6 @@ function molisToast(message: string, options: boolean | MolisToastOptions = {}):
   } else {
     delete node.dataset.mwState;
   }
-  const actionSpec = opts.action ?? (opts.undo
-    ? {
-        label: opts.undoLabel ?? readLocaleText("common.control.undo", "Undo"),
-        onClick: opts.undo,
-      }
-    : undefined);
   if (actionSpec) {
     const btn = document.createElement("button");
     btn.type = "button";

@@ -8,6 +8,7 @@ import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } f
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
+  isMemorySessionBindingAction,
   MEMORY_PROVIDER_ID,
   memoryActions,
   memoryLearningActions,
@@ -33,7 +34,7 @@ import { learnFromQueuedWork } from "./memory-learning.js";
 import { assistantMemorySources, assistantMemorySourceWork, type AssistantMemoryLearningRequest } from "../assistant/assistant-memory-sources.js";
 import { objectTitles, runUpkeep } from "./memory-upkeep.js";
 import { controlledMemoryService, memoryCallService, memoryCaller, memoryCommandBody } from "./memory-effect.js";
-import { bindMemorySession, type AssistantMemoryBindingReader } from "./memory-session-binding.js";
+import { bindMemorySession, type AssistantMemoryBindingReader, type MemorySessionOwnerView } from "./memory-session-binding.js";
 import { memorySources } from "./memory-sources.js";
 import { hostLog } from "../host-log.js";
 import { prologueMemoryBackend } from "./memory-backend.js";
@@ -54,7 +55,8 @@ const RUNTIME = "prologue";
 
 interface MemoryHost {
   readonly service: MemoryService;
-  bindSession(input: { caller: ActionCallContext; kind: string; id: string; mode: "read" | "write" | "delete";
+  bindSession(input: { caller: ActionCallContext; kind: string; id: string; pluginId?: string; providerId?: string;
+    mode: "read" | "write" | "delete";
     projectRef?: LocalHostProjectReference; assistantBinding?: AssistantMemoryBindingReader; preview_id?: string }): ReturnType<typeof bindMemorySession>;
   readonly policy: MemoryRuntimePolicyOwner;
   withExecution(control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>): MemoryService;
@@ -222,10 +224,10 @@ function memoryBackgroundWork(input: {
  * this Home's person and the run's project, under the Agent consumer's switch. Null when there is no memory host yet.
  */
 export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { project_id: string | null; task: string; used_for: string; plugin_id?: string;
-  character?: { character_id: string; title: string } }) {
+  memory_scene?: string; character?: { character_id: string; title: string } }) {
   const host = memoryHostFor(localHost);
   if (!host) return null;
-  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", current_scene: pluginMemoryScene(input.plugin_id, undefined, input.project_id), ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.character_id, title: input.character.title } } : {}) },
+  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", current_scene: pluginMemoryScene(input.plugin_id, input.memory_scene, input.project_id), ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.character_id, title: input.character.title } } : {}) },
     { query: input.task.slice(0, 2000), used_for: input.used_for.slice(0, 80), ...(input.plugin_id ? { situation: { plugin_id: input.plugin_id } } : {}), limit: 12 });
 }
 
@@ -345,6 +347,30 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   return host;
 }
 
+function parseMemorySessionRoute(parts: string[], url: URL): { kind: string; id: string; pluginId?: string; providerId?: string; rest: string[] } {
+  const providers = url.searchParams.getAll("memory_session_provider");
+  if (providers.length > 1) throw memoryErrors.invalid("会话记忆提供方参数重复");
+  const providerId = providers.length === 1 ? providers[0]! : undefined;
+  if (parts[1] === "assistant") {
+    if (parts.length < 3) throw memoryErrors.invalid("会话记忆需要明确的业务会话入口");
+    if (providerId !== undefined) throw memoryErrors.invalid("助理会话记忆不能指定插件提供方");
+    return { kind: "assistant", id: parts[2]!, rest: parts.slice(3) };
+  }
+  if (parts.length < 4) throw memoryErrors.invalid("插件会话记忆需要明确的场景、插件与会话标识");
+  return { kind: parts[1]!, pluginId: parts[2]!, ...(providerId !== undefined ? { providerId } : {}), id: parts[3]!, rest: parts.slice(4) };
+}
+
+function projectSessionPluginTitles(localHost: MolisWorkLocalHost, caller: ActionCallContext, projectRef?: LocalHostProjectReference): Record<string, string> | undefined {
+  if (!projectRef) return undefined;
+  const titles: Record<string, string> = {};
+  for (const view of localHost.inspectActionMetadata(caller, projectRef)) {
+    if (isMemorySessionBindingAction(view) && view.provider.plugin_id && view.provider.project_id === projectRef.project_id) {
+      titles[view.provider.plugin_id] = view.provider.title || view.provider.plugin_id;
+    }
+  }
+  return titles;
+}
+
 /**
  * `/api/memory/*` for the settings pages and the work panel: each call is the shared directory's `memory.*` action,
  * invoked with the local person's own context in this page's scope (the project page reaches that project's memories).
@@ -370,21 +396,29 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
         ...(method === "POST" && operation_id ? { memory_operation_id: operation_id } : {}),
         ...(explicitRecall ? { memory_read_mode: "explicit" as const } : {}) }));
       let session: ActionCallContext["memory_session"];
+      let sessionOwner: MemorySessionOwnerView | undefined;
       const context = async (): Promise<ActionCallContext> => {
         const caller = await baseContext();
         return session ? { ...caller, memory_session: session } : caller;
       };
       if (parts[0] === "sessions") {
-        if (parts.length < 3) throw memoryErrors.invalid("会话记忆需要明确的业务会话入口");
-        const kind = parts[1]!, id = parts[2]!;
-        parts = parts.slice(3);
+        const parsed = parseMemorySessionRoute(parts, url);
+        parts = parsed.rest;
         if (!parts.length && method === "GET") parts = ["overview"];
         const reading = method === "GET" || parts[0] === "recall" || parts[0] === "clear" && parts[1] === "preview";
         const deleting = parts[0] === "clear" && parts[1] === "apply" || parts[0] === "change" && body.action === "remove";
-        const held = await memoryHostFor(ports.localHost)!.bindSession({ caller: await baseContext(), kind, id, projectRef: ports.projectRef,
+        const held = await memoryHostFor(ports.localHost)!.bindSession({
+          caller: await baseContext(), kind: parsed.kind, id: parsed.id,
+          ...(parsed.pluginId !== undefined ? { pluginId: parsed.pluginId } : {}),
+          ...(parsed.providerId !== undefined ? { providerId: parsed.providerId } : {}),
+          projectRef: ports.projectRef,
           mode: reading ? "read" : deleting ? "delete" : "write",
-          ...(deleting && parts[0] === "clear" && typeof body.preview_id === "string" ? { preview_id: body.preview_id } : {}), ...(ports.assistantBinding ? { assistantBinding: ports.assistantBinding } : {}) });
-        session = held.context; releaseSession = held.dispose;
+          ...(deleting && parts[0] === "clear" && typeof body.preview_id === "string" ? { preview_id: body.preview_id } : {}),
+          ...(ports.assistantBinding ? { assistantBinding: ports.assistantBinding } : {}),
+        });
+        session = held.context;
+        sessionOwner = held.owner;
+        releaseSession = held.dispose;
       }
       const call = async (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(await context(), { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
@@ -423,7 +457,10 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
             return { candidates: null };
           }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
+        const pluginTitles = projectSessionPluginTitles(ports.localHost, await context(), ports.projectRef);
         return { status: 200, body: { scope: wanted, ...(page as object), project_id: wanted === "project" ? ports.projectRef?.project_id : null, ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
+          ...(sessionOwner ? { session_owner: sessionOwner } : {}),
+          ...(pluginTitles ? { plugin_titles: pluginTitles } : {}),
           labels: await pageLabels(page as MemoryPageResponse), scenes: memorySceneChoices(hosts.get(ports.localHost)!.home), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,

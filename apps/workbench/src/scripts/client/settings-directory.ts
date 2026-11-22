@@ -415,7 +415,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     projectSettings ||= bindProject();
     // A memory session, a linked catalog item or a Skill draft the address names is opened with the address; other pages open as they are.
     const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
-    const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
+    const memoryTarget = projectSection === "memory" && ["memory_session_kind", "memory_session_id", "memory_session_plugin", "memory_session_provider"].some(name => url.searchParams.has(name));
     const draftTarget = projectSection === "kit" && url.searchParams.has("draft");
     openProjectSettings(projectSection, linkedItem || memoryTarget || draftTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
     return true;

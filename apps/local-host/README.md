@@ -406,7 +406,7 @@ C1 的显式身份变更仍从原受控助理调用进入：只有可信 managem
 
 ### 本人 Session 记忆入口
 
-Session 记忆 HTTP 只接受业务 Coding/Assistant 的 kind/id。Coding 经同 owner 的只读绑定 Action，Assistant 经同一 Service 的自身 work 投影，随后核当前项目/本人/安装和原 SDK owner；Memory 不读业务表或 executor Session。Host-only `memory_session` 保留本次活控制，给 MemoryCaller 的只有可序列化已核身份，插件回调/依赖调用剥离此字段。缺映射不创建执行，归档仅允许管理读及明确遗忘。strict DTO 与版本见 contracts 现 services/memory 重导的 Session 合同；clear 只认原 preview，未知接受回执保留原请求，失去 owner 的缺失 Session 继续需对账。
+Session 记忆 HTTP 按精确主人区分：助理为 `/api/memory/sessions/assistant/:id`（项目内加 `/projects/:project_id` 前缀），插件为 `/projects/:project_id/api/memory/sessions/:kind/:plugin_id/:id`（可选 query `memory_session_provider`）。插件侧按精确 `plugin_id`（及可选 `provider_id`）与已声明 `memory_scene` 绑定唯一可用只读绑定 Action（同场景多插件并存不冲突），Assistant 经同一 Service 的自身 work 投影，随后核当前项目/本人/安装和原 SDK owner；Memory 不读业务表或 executor Session。Host-only `memory_session` 保留本次活控制，给 MemoryCaller 的只有可序列化已核身份，插件回调/依赖调用剥离此字段。缺映射不创建执行，归档仅允许管理读及明确遗忘。strict DTO 与版本见 contracts 现 services/memory 重导的 Session 合同；clear 只认原 preview，未知接受回执保留原请求，失去 owner 的缺失 Session 继续需对账。
 中央账号的 WORK-03 凭据入口由 `src/account-auth-http.ts` 固定分派，`horizontal/account` 负责邮箱/手机认证编排；不登记为动作，也不允许浏览器注入中央身份、Token 或客户端配置。验证命令及验收见 [账号规范](../../specs/unified-account/spec.md)。
 
 WORK-04 的 `/account/callback` 是受本机 Host 约束的导航入口，由 `src/account-callback-http.ts` 校验请求形态、`horizontal/account` 复核发起状态与中央结果。此入口只完成原 Host 的一次认证，返回不缓存的纯文本完成/取消提示，不生成独立 HTML 页面或返回会话、控制凭据；拒绝测试见 S-unified-account-provider-callback，响应与原弹窗恢复见 `scripts/account-provider.test.mjs` 的 T01-CALLBACK-01。

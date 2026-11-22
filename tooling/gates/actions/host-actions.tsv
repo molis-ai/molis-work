@@ -352,7 +352,7 @@ memory.import	1	system.memory	command	operation	home	write	-	user	memory:export	
 memory.learning.enqueue	1	system.memory	command	operation	project	write	concurrent	plugin	-	-	-	-	993e3b323156	fb6f8b4a776a	613063238287
 memory.learning.form	1	system.memory	command	operation	project	write	concurrent	plugin	-	-	-	-	7f1d88ee7193	01175159780c	613063238287
 memory.list	1	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	46a6463212e3	5e0374458cf9
-memory.operations.list	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	ab7933a618d3	2bfc32725e0c	-
+memory.operations.list	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	ab7933a618d3	554b43246e61	-
 memory.page	1	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	4fe5fa189c4e	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-

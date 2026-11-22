@@ -68,6 +68,8 @@
 
 第 61 批复核修复保留既有动作身份。阶段一动作快照记录 `connectors.setup.prepare@1` 新增 `created`，`connectors.authorization.cancel@1` 新增可选的 `expected_status`，供采用者仅补偿自己的准备请求。`connectors.records.read@1` 的可选 `connector_category` 用于助理当前工作的账号约束，输出加 `account_label`。`automation.adoption.adopt@1` 增加可选的能力包去处。`feed.sources.add_account@1` 声明 `sources:pull_connector` 和并行调度，公开调用方须持有该权限，来源与事件仍同事务写入。各原调用方沿现行合同，持久化 schema 和 vendored SDK 沿当前版本。
 
+2026-11-22 Memory 会话精确提供方消歧（BL-memory-shared-scene-session-binding，用户拍板方案 A）：`MemorySessionTarget` 及 `memorySessionTargetSchema`（`memory.operations.list@1` 输出）对非助理插件会话改为必带精确 `plugin_id` 与 `provider_id`（助理会话不含这两项），阶段一原位收严 `format.memory.session-clear-plan = 1` 校验（不升库或格式版本、无旧格式兜底）；受保护插件会话 HTTP 入口改为 `/projects/:project_id/api/memory/sessions/:kind/:plugin_id/:id/*`（可选 query `memory_session_provider`），设置页 S-47 白名单新增 `memory_session_plugin` 与 `memory_session_provider`。同项目多插件申报同名 `memory_scene` 并提供会话绑定时按精确提供方身份消歧与展示，不再互相冲突。仓库内消费方（Host、Memory、Workbench、Coding 插件与测试）、公开 API 及动作合同快照同片同步。
+
 ## 1. 哪些算合同
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：

@@ -387,7 +387,8 @@ async function startAuthority(
       characterVersion: (version, actorId) => readRoleVersion(homeDirectory, actorId, runtime.project_id, version) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
     // The platform memory under the Agent work switch: the person's and this project's, where they apply.
-    memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
+    memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId,
+      ...(manifest?.memory_scene ? { memory_scene: manifest.memory_scene } : {}), ...(context?.character ? { character: context.character } : {}),
       used_for: `${manifest?.name ?? pluginId} · ${task.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
   };
 }

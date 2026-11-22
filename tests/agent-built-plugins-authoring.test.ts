@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertContract, SANDBOX_SDK_CONTRACT_DECLARATIONS } from '@molis-ai/molis-work-plugin-sandbox';
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
-import { BUILDER_PROMPTS, expandDesign as expandAnswer, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign, versionedStateMachines } from '@molis-ai/molis-work-plugin-builder';
+import { BUILDER_PROMPTS, expandDesign as expandAnswer, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign, versionedStateMachines } from '@molis-ai/molis-work-plugin-studio';
 
 // Every design answers `states` (SMP-11). The cases below are each about another rule and their records have no state, which is
 // what an empty list says; the cases about `states` itself call `expandAnswer`.

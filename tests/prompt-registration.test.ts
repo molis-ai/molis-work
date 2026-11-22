@@ -185,7 +185,7 @@ test("Plugin Builder's designer and code Agents are registered as the prompts th
   assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");
   assert.deepEqual(roles.find(role => role.role_id === "designer")!.prompt_ids, ["builder-designer", "builder-experience", "builder-ui", "builder-review"]);
   for (const legacy of ["builder-base", "builder-design", "builder-behavior"]) assert.ok(!known.has(`io.molis.work.plugin-builder/${legacy}`), legacy);
-  const workflow = read("plugins/native/plugin-builder/src/agent-workflow.ts");
+  const workflow = read("horizontal/plugin-studio/src/agent-workflow.ts");
   assert.doesNotMatch(workflow, /BUILDER_PROMPTS\.(designer|experience|ui|review|implement|revise|repair|acceptance)/, "工作流要经 this.prompt() 取得登记后的文字");
 });
 
@@ -230,7 +230,7 @@ test("a registered judgment wording's version moves with its default text", () =
 test("Plugin Builder's two questions to the judgment service are registered where the person can edit them, and the workflow asks for them instead of carrying the words", () => {
   const known = registered();
   for (const id of ["choose.capability", "choose.component"]) assert.ok(known.has(`io.molis.work.plugin-builder/${id}`), id);
-  const workflow = read("plugins/native/plugin-builder/src/agent-workflow.ts");
+  const workflow = read("horizontal/plugin-studio/src/agent-workflow.ts");
   assert.doesNotMatch(workflow, /只从合法候选中选最适合这项功能的一个能力|结合整页布局与相邻部件，从合法候选中选择组件/, "工作流要经 instruction 端口取得登记后的文字，不再写死这两句");
   assert.match(workflow, /instructionText\(this\.ports, BUILDER_CHOOSE_CAPABILITY\)/);
   assert.match(workflow, /instructionText\(this\.ports, BUILDER_CHOOSE_COMPONENT\)/);

@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
-import type { AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 
 let delay = 1;
 const pause = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {

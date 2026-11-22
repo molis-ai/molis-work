@@ -13,7 +13,7 @@ import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
 import dns from 'node:dns';
 import { syncBuiltinESMExports } from 'node:module';
-import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,studioBuildDiagnostic,type AgentBuild,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
+import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,studioBuildDiagnostic,type AgentBuild,type AgentRelease} from '@molis-ai/molis-work-plugin-studio';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,7 +23,8 @@ import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs'
 import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 import { verifySyncPluginDistribution, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
-import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { handleInstalledPluginHttp, installedPluginStages } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
@@ -51,7 +52,7 @@ function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { h
       if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
       return pluginPagesFor(options.homeDirectory).bind(request, url).then(release => {
         if (release) response.once('close', release);
-        return runWithLocale(setup?.languageControls ? locale : setup?.locale ?? "zh", () => handleAgentStudioHttp(request, response, local, options, proof));
+        return runWithLocale(setup?.languageControls ? locale : setup?.locale ?? "zh", async () => (await handleInstalledPluginHttp(request, response, local, options, proof)) || await handleAgentStudioHttp(request, response, local, options, proof));
       }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
     });
   });
@@ -121,7 +122,7 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
     ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
     assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json();
   };
-  type Build = import('@molis-ai/molis-work-plugin-builder').AgentBuild;
+  type Build = import('@molis-ai/molis-work-plugin-studio').AgentBuild;
   const model = (await options.models())[0]!;
   await send('/settings', { provider_id: model.provider_id, model_id: model.model_id });
   const { build: created } = await send<{ build: Build }>('/builds', { brief: 'Build an excerpt notebook; save notes and find them later.' });
@@ -171,7 +172,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
   t.after(async()=>{await browser.close();await rm(root,{recursive:true,force:true});});
   const projectId='project-'+randomUUID();
   const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
-  const project=await withMolisWorkProjectCatalog({homeDirectory:home},async catalog=>{const p=await catalog.ensureSyncedProject({project_id:projectId,display_name:'Actual authoring journey',actor_id:'alice'},()=>{});catalog.addProjectPlugin({project_id:p.project_id,plugin_id:'plugin-builder',actor_id:'alice'});return p;});
+  const project=await withMolisWorkProjectCatalog({homeDirectory:home},async catalog=>{const p=await catalog.ensureSyncedProject({project_id:projectId,display_name:'Actual authoring journey',actor_id:'alice'},()=>{});return p;});
   const databasePath=project.database_path;seedDemoBoard(databasePath,projectId);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0,modelHold:Promise<void>|null=null,releaseModel=()=>{},modelStarted=()=>{};

@@ -1,6 +1,7 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
+import { hostSurfaceByManifestId } from "./host-surfaces.js";
 import { actionErrorResponse, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 import { registeredPageRoutes } from "./plugin-page-routes.js";
@@ -128,9 +129,11 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     if (!body || Object.keys(body).some(key => !["plugin_id", "mount", "producer"].includes(key)) || typeof body.plugin_id !== "string"
       || body.producer !== undefined && (typeof body.producer !== "string" || body.mount === undefined))
       throw new ActionError("actions.input_invalid", "请选择插件");
-    const entry = builtinPluginByManifestId(body.plugin_id);
+    // A platform surface (the studio) is in every project: its page has its declared requests and words but no shown-list key.
+    const surface = hostSurfaceByManifestId(body.plugin_id);
+    const entry = builtinPluginByManifestId(body.plugin_id) ?? surface;
     const selected = await stagePageSelection(context, project, body);
-    const key = selected?.project_key ?? entry?.project_plugin_id;
+    const key = selected?.project_key ?? (surface ? undefined : entry?.project_plugin_id);
     const assertScope = async (readShown = shown) => {
       if (readShown && key && !(await readShown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     };

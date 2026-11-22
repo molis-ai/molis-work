@@ -8830,6 +8830,8 @@ export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginMani
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly always_on: "invalid";
     readonly capability_denied: "invalid";
+    readonly capability_refused: "invalid";
+    readonly capability_unavailable: "invalid";
     readonly consent_required: "invalid";
     readonly consent_revoked: "invalid";
     readonly consent_unknown: "not_found";

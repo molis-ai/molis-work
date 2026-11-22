@@ -1,7 +1,7 @@
 import { ActionError, type ActionProviderRegistration, type ActionRegistryPort } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginContribution, PluginDefinition, PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { exposeInstalledPlugin, exposedActionId, exposedActionReference, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
-import type { ProjectActions } from './plugin-builder/catalog.js';
+import { exposeInstalledPlugin, exposedActionId, exposedActionReference, type InstalledPluginActions } from './installed-plugin-exposed-actions.js';
+import type { ProjectActions } from './installed-plugin-catalog.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { definitionOrigin, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';

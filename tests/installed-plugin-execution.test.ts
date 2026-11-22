@@ -15,9 +15,9 @@ import { createPluginPlatform, MolisWorkLocalHost, molisWorkHostProjectReference
 import { createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
-import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
-import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-plugin-sandbox-definition.js';
+import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
+import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
 
 const mac = { skip: process.platform !== 'darwin', timeout: 15_000 };
@@ -135,14 +135,14 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
       operations: [{ id: 'run', kind: 'command', input: { type: 'object', additionalProperties: false, properties: { goal_id: { type: 'string' }, cursor: { type: 'integer', minimum: 0 } }, required: ['goal_id', 'cursor'] },
         output: { type: 'object', additionalProperties: false, properties: { listed: { type: 'boolean' }, actor: { type: 'string' },
           denied: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, code: { type: 'string' } }, required: ['id', 'code'] } } }, required: ['listed', 'denied', 'actor'] },
-        effects, errors: [], examples: [{ input: { goal_id, cursor: initial.cursor }, output: { listed: true, actor: 'plugin:' + identity.pluginId, denied: ids.map(id => ({ id, code: 'plugin_builder.capability_refused' })) } }] }] };
+        effects, errors: [], examples: [{ input: { goal_id, cursor: initial.cursor }, output: { listed: true, actor: 'plugin:' + identity.pluginId, denied: ids.map(id => ({ id, code: 'plugin.capability_refused' })) } }] }] };
     // What the generated plugin declared to the Host, as the Host builds it from the release.
     const declared = sandboxedPluginDefinition({ buildId: 'goal-scope', pluginId: identity.pluginId, version: 1, bundlePath, design: { title: 'Goal scope', contract, parts: [], acceptance: [] }, nodes: [] } as never, effects, []);
     runner = await createSandboxRunner({ bundlePath, identity, grants: effects, contract,
       services: { capability: catalogCapabilities({ actions, catalog, live: item => item.installationId === identity.installationId,
         declaration: item => item.pluginId === identity.pluginId ? { manifest: declared.manifest } : undefined, granted: () => effects.capabilities }) } });
     const result = await runner.call('run', { goal_id, cursor: initial.cursor });
-    assert.deepEqual(result, { listed: true, actor: 'plugin:' + identity.pluginId, denied: ids.map(id => ({ id, code: 'plugin_builder.capability_refused' })) },
+    assert.deepEqual(result, { listed: true, actor: 'plugin:' + identity.pluginId, denied: ids.map(id => ({ id, code: 'plugin.capability_refused' })) },
       'a Host caller named in the input is refused by the contract, and what the plugin records is recorded as the plugin, never as the person or a builtin plugin');
     const after = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readState(DEMO_PROJECT_ID, goal_id));
     assert.equal(after.goal_event_cursor, initial.cursor + 1, 'only the plugin\'s own progress was recorded');
@@ -210,13 +210,13 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
     const missing = /没有声明或没有获得/u, sandboxCall = { identity, signal: new AbortController().signal } as never;
 
     assert.equal((await approvedRunner.call('undeclared', input('undeclared')) as { refused?: string }).refused, 'sandbox.not_authorized', 'PG006-01 an operation that did not declare it is refused by the broker');
-    assert.equal((await approvedRunner.call('hidden', { ...input('hidden'), id: agentsOnly.capability_id }) as { refused?: string }).refused, 'plugin_builder.capability_denied',
+    assert.equal((await approvedRunner.call('hidden', { ...input('hidden'), id: agentsOnly.capability_id }) as { refused?: string }).refused, 'plugin.capability_denied',
       'PG006-01 one not open to plugins is refused even when declared and approved');
     assert.equal(agentsOnlyCalls, 0, 'PG006-01 and never reaches its provider');
     assert.equal((await unapprovedRunner.call('record', input('unapproved')) as { refused?: string }).refused, 'sandbox.not_authorized', 'PG006-02 one the person did not approve is refused by the broker');
     approved.delete(progress.capability_id);
     await assert.rejects(service.call(sandboxCall, progress.capability_id, { goal_id, based_on_cursor: initial[0]!, summary: 'behind the broker', idempotency_key: 'behind' }),
-      (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && missing.test(error.message), 'PG006-02 and behind the broker the board refuses it again (plugin_builder.capability_refused), before any caller is issued: the person did not approve this capability');
+      (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && missing.test(error.message), 'PG006-02 and behind the broker the board refuses it again (plugin.capability_refused), before any caller is issued: the person did not approve this capability');
     approved.add(progress.capability_id);
     assert.deepEqual(await cursors(), initial, 'PG006-01 PG006-02 no refusal wrote');
 
@@ -226,7 +226,7 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
 
     approved.delete(progress.capability_id);
     const revoked = await approvedRunner.call('record', { ...input('after-revoke'), cursor: recorded[0]! }) as { refused?: string; message?: string };
-    assert.equal(revoked.refused, 'plugin_builder.capability_refused', 'PG006-04 after the approval is withdrawn the same running plugin is refused');
+    assert.equal(revoked.refused, 'plugin.capability_refused', 'PG006-04 after the approval is withdrawn the same running plugin is refused');
     assert.match(revoked.message ?? '', missing);
     assert.deepEqual(await cursors(), recorded, 'PG006-04 the refused call wrote nothing');
     approved.add(progress.capability_id);

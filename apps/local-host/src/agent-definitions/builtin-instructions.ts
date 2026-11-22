@@ -1,7 +1,7 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, SESSIONS_SUGGEST, SKILL_DRAFT, SKILL_REVISE, SKILL_TRIAL, SKILL_TRIAL_JUDGE } from "./system-prompts.js";
-import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
+import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-studio";
 import { ALCHEMIST_INSTRUCTIONS } from "../alchemist-prologue.js";
 
 /**

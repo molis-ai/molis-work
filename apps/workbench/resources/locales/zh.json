@@ -301,6 +301,7 @@
     "common.generated.in-progress": "进行中",
     "common.generated.input-hint": "{label}，{hint}",
     "common.generated.input-preserved": "操作失败，输入已保留",
+    "common.generated.record-or-form-unavailable": "原记录或表单已不可用",
     "common.generated.inspect": "检查零件",
     "common.generated.irreversible": "这一步不能撤销。",
     "common.generated.model-working": "模型正在生成，可能要几十秒…",
@@ -10078,6 +10079,10 @@
     "workbench.assistant-island.say-to-event": "对「{name}」说一句",
     "workbench.assistant-island.reply-to-event": "回「{name}」一句，或点上面的选项",
     "workbench.assistant-island.add-to-event": "给「{name}」补充一句，它会在这一步之后读到",
-    "workbench.work-line.asked-done": "办完了"
+    "workbench.work-line.asked-done": "办完了",
+    "workbench.installed-plugin.not-found": "找不到这个插件的已安装版本",
+    "workbench.installed-plugin.not-running": "这个插件当前没有运行，请到 设置 › 插件 里启用",
+    "workbench.installed-plugin.recovery-hint": "请到 设置 › 插件 里查看这个插件。",
+    "workbench.installed-plugin.recovery-title": "插件暂时无法运行"
   }
 }

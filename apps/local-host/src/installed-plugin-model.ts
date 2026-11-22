@@ -1,8 +1,8 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { hostTextGeneration, textModelRequired, type HostTextOptions } from '../host-complete-text.js';
-import type { TextModelSelection } from '../configured-models.js';
-import type { CapabilityImplementations, PluginModelCaller } from './capabilities.js';
-import { PROMPT_ID, resolvePluginPrompt, type PluginPromptSource } from './prompts.js';
+import { hostTextGeneration, textModelRequired, type HostTextOptions } from './host-complete-text.js';
+import type { TextModelSelection } from './configured-models.js';
+import type { CapabilityImplementations, PluginModelCaller } from './installed-plugin-capabilities.js';
+import { PROMPT_ID, resolvePluginPrompt, type PluginPromptSource } from './installed-plugin-prompts.js';
 
 /** The Studio selects a model; the shared Host binding owns execution, credentials and cancellation. */
 export function createPluginModelGeneration(options: Pick<HostTextOptions, 'resolveInference'> & {

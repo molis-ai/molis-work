@@ -1,5 +1,5 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
-import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
+import { renderHomePackageDocument } from "./installed-plugin-http.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
@@ -34,7 +34,7 @@ import { bindHomeRegistration } from "./home-registration.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
-import type { ProjectActions } from "./plugin-builder/catalog.js";
+import type { ProjectActions } from "./installed-plugin-catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallCatalog, type SurfaceInstallRegistry } from "./surface-installation.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";

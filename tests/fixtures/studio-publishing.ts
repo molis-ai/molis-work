@@ -4,7 +4,7 @@ import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/mol
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginComponentChoices } from '@molis-ai/molis-work-design-system';
 import { createStudioPublisher } from '@molis-ai/molis-work-app-local-host';
-import { AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild, type AgentRelease, type AgentDesign } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild, type AgentRelease, type AgentDesign } from '@molis-ai/molis-work-plugin-studio';
 import { packageFiles } from './sandbox-package.js';
 
 /** The fixture's durable storage uses the same compare-and-set contract as the production Builder store. */

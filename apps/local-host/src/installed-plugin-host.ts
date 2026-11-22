@@ -1,6 +1,5 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
-import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { forgetInstalledMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -13,9 +12,9 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginInstanceRecord, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
-import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-studio';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
-export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { LocalProjectDatabase } from './project-database.js';
@@ -23,18 +22,16 @@ import type { PluginPlatform, PluginPlatformOptions } from './plugin-platform.js
 import { ensureProjectPlugins, projectPlatformActions } from './project-plugins.js';
 import { closePlugin, supervisedInstall } from './plugin-platform-close.js';
 import { configuredModelChoices } from './configured-models.js';
-import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
-import { generatedPluginManifest } from './plugin-builder/installed.js';
+import { studioStorage } from './plugin-builder/storage.js';
 import { installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
 import { publisherStanding, publisherStops } from './installed-publisher-standing.js';
-import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './plugin-builder/catalog.js';
-import { hostNetwork } from './plugin-builder/network.js';
-import { pluginSecrets } from './plugin-builder/secrets.js';
-import { createPluginModelGeneration } from './plugin-builder/model.js';
-import { buildSources, readPluginPrompts } from './plugin-builder/prompts.js';
+import type { CapabilityImplementations } from './installed-plugin-capabilities.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './installed-plugin-catalog.js';
+import { hostNetwork } from './installed-plugin-network.js';
+import { pluginSecrets } from './installed-plugin-secrets.js';
+import { createPluginModelGeneration } from './installed-plugin-model.js';
 import { installedLifecycle, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { installedApprovals, installedCatalog, installedOffers, installedRecords, isInstalledPackage, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
@@ -44,7 +41,7 @@ import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platf
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 
-interface InstalledPluginHostOptions {
+export interface InstalledPluginHostOptions {
   store: LocalProjectDatabase;
   projectId: string;
   homeDirectory: string;
@@ -108,7 +105,8 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 }
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
-  const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
+  const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId);
+  let trials: SandboxTrials | undefined;
   const given = options.actions ?? standaloneActions(projectId);
   const opened = await projectPlatform(options, given), platform = opened.platform;
   // The platform's own action handle, so what the Runtime registered for a package is the registration this host follows (one per registry).
@@ -137,27 +135,24 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
   };
   const approvedFor = installedApprovals(storage);
-  const titleOf = (pluginId: string) => releaseFor(pluginId)?.design.title ?? releases.releases().find(item => item.pluginId === pluginId)?.design.title;
+  const titleOf = (pluginId: string) => releaseFor(pluginId)?.design.title ?? trials?.title(pluginId);
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record) || !platform.dualHomeRunning(record)) {
       throw staleInstallation();
     }
   };
-  const grantedCapabilities = (identity: Readonly<SandboxIdentity>) => sandboxGrants(identity, releases, { recordFor, releaseFor, approvedFor });
+  const grantedCapabilities = (identity: Readonly<SandboxIdentity>) => sandboxGrants(identity, trials, { recordFor, releaseFor, approvedFor });
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> => catalogCapabilities({ actions, catalog, live, author: titleOf,
-    declaration: identity => sandboxDeclaration(identity, releases, release => manifestOf(release), { recordFor, releaseFor }),
+    declaration: identity => sandboxDeclaration(identity, trials, release => manifestOf(release), { recordFor, releaseFor }),
     granted: grantedCapabilities });
   const secrets = pluginSecrets(homeDirectory, projectId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
     declaredPrompts: async (pluginId, caller) => {
       if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('plugin.capability_denied', '模型调用缺少当前项目的执行身份');
-      if (caller.plugin_install_id.startsWith(STABLE_PREVIEW)) {
-        const build = releases.get(caller.plugin_install_id.slice(STABLE_PREVIEW.length));
-        if (!build?.directory || build.design?.contract.pluginId !== pluginId) throw new SandboxError('plugin.capability_denied', '模型调用的试运行构建已失效');
-        return { kind: 'preview', prompts: readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts };
-      }
+      const trial = await trials?.prompts(caller.plugin_install_id, pluginId);
+      if (trial) return { kind: 'preview', prompts: trial };
       const record = recordFor(pluginId), installed = releaseFor(pluginId);
       if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed?.packaged) throw new SandboxError('plugin.capability_denied', '模型调用的安装执行身份已失效');
       return { kind: 'installed', registration: pluginAgentRegistration(definition(installed, approvedFor(pluginId) ?? installed.permissions))! };
@@ -214,7 +209,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
     const reconcileDualHalf = (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) =>
       reconcileInstalledDualHalf({ closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, standing, definition }, pluginId, action, permission);
-    return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
+    return { platform, storage, actions, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
         lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions }),
@@ -222,6 +217,11 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       /** Takes a signed package's installation off from its trusted row, its package not read; and the tombstones whose clean-up did not finish, listed until it has (BL-915). */
       uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
       pendingUninstalls,
+      /** The studio answers for its trials while it is open; the returned function takes the answer back. Without it a trial reaches nothing. */
+      useTrials(source: SandboxTrials) {
+        trials = source;
+        return () => { if (trials === source) trials = undefined; };
+      },
       refreshPublicActions, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ record: item, pluginId: item.plugin_id, publisher: item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
@@ -293,10 +293,25 @@ async function reconcileInstalledDualHalf(ctx: {
 }
 
 /**
+ * What a trial of an unpublished build may reach, answered by the studio for the builds it holds (47-1: this host reads no build). Each
+ * answer is nothing for an identity that is not one of its live trials.
+ */
+export interface SandboxTrials {
+  /** The Manifest the trial's build would install with, for the caller its capability calls run under (S-15). */
+  declaration(identity: Readonly<SandboxIdentity>): HostPluginCaller['declaration'] | undefined;
+  /** The capabilities its design declares (its writes stay stand-ins). */
+  grants(identity: Readonly<SandboxIdentity>): readonly string[];
+  /** The prompts a trial's model call may name, read from its build's sources; throws when the trial's build is gone. */
+  prompts(installId: string, pluginId: string): Promise<readonly PluginPrompt[] | undefined>;
+  /** A build's title, naming the author of a capability call. */
+  title(pluginId: string): string | undefined;
+}
+
+/**
  * What a sandboxed plugin declared to the Host, for the caller its capability calls run under (S-15): the Manifest its running
  * installation was started with, or for a trial, the one its build would install with. Anything else has declared nothing.
  */
-export function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, started: (release: AgentRelease) => PluginManifest | undefined,
+export function sandboxDeclaration(identity: Readonly<SandboxIdentity>, trials: SandboxTrials | undefined, started: (release: AgentRelease) => PluginManifest | undefined,
   installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined; releaseFor(pluginId: string): AgentRelease | undefined }): HostPluginCaller['declaration'] | undefined {
   if (identity.namespace === 'installed') {
     const record = installed.recordFor(identity.pluginId);
@@ -304,21 +319,19 @@ export function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases
     const manifest = release && started(release);
     return manifest ? { manifest } : undefined;
   }
-  const build = identity.installationId.startsWith(STABLE_PREVIEW) ? releases.get(identity.installationId.slice(STABLE_PREVIEW.length)) : null;
-  return build?.design?.contract.pluginId === identity.pluginId ? { manifest: generatedPluginManifest({ pluginId: identity.pluginId, version: 0, buildId: build.id, design: build.design }) } : undefined;
+  return trials?.declaration(identity);
 }
 
 /**
  * The capabilities a sandbox identity may reach: for an installed plugin, those its running release declares and the person
- * approved; for a trial, those its design declares (its writes stay stand-ins).
+ * approved; for a trial, what the studio answers for it.
  */
-export function sandboxGrants(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined;
+export function sandboxGrants(identity: Readonly<SandboxIdentity>, trials: SandboxTrials | undefined, installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined;
   releaseFor(pluginId: string): AgentRelease | undefined; approvedFor(pluginId: string): SandboxEffects | null }): readonly string[] {
   if (identity.namespace === 'installed') {
     const record = installed.recordFor(identity.pluginId), approved = installed.approvedFor(identity.pluginId)?.capabilities ?? [];
     const release = record?.install_id === identity.installationId && record.state === 'running' ? installed.releaseFor(identity.pluginId) : undefined;
     return (release?.permissions.capabilities ?? []).filter(id => approved.includes(id));
   }
-  const build = identity.installationId.startsWith(STABLE_PREVIEW) ? releases.get(identity.installationId.slice(STABLE_PREVIEW.length)) : null;
-  return build?.design?.contract.pluginId === identity.pluginId ? effectsFromContract(build.design.contract).capabilities ?? [] : [];
+  return trials?.grants(identity) ?? [];
 }

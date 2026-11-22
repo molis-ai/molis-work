@@ -233,7 +233,7 @@ test('with a settled directory, another operation being written at the same time
 });
 
 test('S-47 an installed raw operation refuses actor names, JSON and Host route control without its exposed action', mac, async () => {
-  const { sandboxedPluginDefinition } = await import('../apps/local-host/src/plugin-builder/installed.js');
+  const { sandboxedPluginDefinition } = await import('../apps/local-host/src/installed-plugin-sandbox-definition.js');
   const f = await fixture();
   try {
     const checked = await runPluginChecks(f.options); assert.equal(checked.passed, true, JSON.stringify(checked.gates));

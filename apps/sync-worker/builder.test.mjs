@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,BUILDER_CONTENT_REPLICA_ID} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,BUILDER_CONTENT_REPLICA_ID} from '@molis-ai/molis-work-plugin-studio';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {cloudFixture} from './testing.mjs';
 

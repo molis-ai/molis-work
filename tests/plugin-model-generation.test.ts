@@ -10,11 +10,11 @@ import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-ho
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
-import { createPluginModelGeneration } from '../apps/local-host/dist/plugin-builder/model.js';
+import { createPluginModelGeneration } from '../apps/local-host/dist/installed-plugin-model.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
-import type { ModelGenerateInput } from '../apps/local-host/dist/plugin-builder/capabilities.js';
-import { registerPlatformCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import type { ModelGenerateInput } from '../apps/local-host/dist/installed-plugin-capabilities.js';
+import { registerPlatformCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'plugin-model-'));

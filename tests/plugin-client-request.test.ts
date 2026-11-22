@@ -6,11 +6,12 @@ import ts from "typescript";
 
 // PG-056: a plugin's page code asks the Host only through the shared request helper (`molisWorkRequest`), which adds the
 // control token, the one-time key, no-store and the error shape. These two plugins are bypassed, not migrated (BL-376/377).
-// RAC-556/557 statically scan .ts/.mts/.tsx (not .d.ts) under plugins/native/*/src, including template/string literals.
+// RAC-556/557 statically scan .ts/.mts/.tsx (not .d.ts) under plugins/native/*/src (and the bypassed horizontal/plugin-studio/src), including template/string literals.
 // They recognize the named direct/property transport calls and literal text shapes below. This scan does not cover
 // .js/.mjs, plugins/official-integrations, fetch aliases (const f = fetch; f(url)), WebSocket or dynamic import().
 // It is a regression check for those shapes, not a security boundary for all network paths.
-const BYPASSED = ["alchemist", "plugin-builder"];
+// 47-1 C: the plugin studio is a platform package now (horizontal/plugin-studio) and keeps its own event stream there.
+const BYPASSED = ["plugins/native/alchemist", "horizontal/plugin-studio"];
 const TRANSPORT_IN_TEXT = /(?<![\w$.])fetch\(|\.fetch\(|XMLHttpRequest|EventSource|sendBeacon/u;
 
 const sources = (dir: string): string[] => readdirSync(dir).flatMap(name => {
@@ -39,12 +40,12 @@ function transports(file: string, text = readFileSync(file, "utf8")): string[] {
 }
 
 const plugins = readdirSync("plugins/native").filter(name => statSync(join("plugins/native", name, "src"), { throwIfNoEntry: false })?.isDirectory());
-const violations = (plugin: string) => sources(join("plugins/native", plugin, "src")).flatMap(file => transports(file));
+const violations = (dir: string) => sources(join(dir, "src")).flatMap(file => transports(file));
 
 test("RAC-556 no plugin's page code calls fetch, XMLHttpRequest, EventSource or sendBeacon itself, except the two bypassed plugins", () => {
   assert.ok(plugins.length > 20, "the scan sees the plugin packages");
-  for (const plugin of plugins.filter(name => !BYPASSED.includes(name))) {
-    assert.deepEqual(violations(plugin), [], `${plugin}: send requests through molisWorkRequest (scope: lifetime for what the page's lifetime must cancel)`);
+  for (const plugin of plugins.filter(name => !BYPASSED.includes(join("plugins/native", name)))) {
+    assert.deepEqual(violations(join("plugins/native", plugin)), [], `${plugin}: send requests through molisWorkRequest (scope: lifetime for what the page's lifetime must cancel)`);
   }
 });
 

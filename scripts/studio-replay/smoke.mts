@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, STUDIO_CAPABILITIES, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, STUDIO_CAPABILITIES, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type CatalogEntry } from '@molis-ai/molis-work-plugin-studio';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { mountedSkill } from './skill.mjs';
 import { studioDesignLanguages } from '../../apps/local-host/src/plugin-builder/studio-language.js';

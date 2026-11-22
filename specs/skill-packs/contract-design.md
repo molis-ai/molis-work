@@ -101,7 +101,7 @@
 | --- | --- | --- |
 | 随安装包带上（官方技能包如 BL-165，第 20 批的官方套组） | Molis Work 的官方发布者密钥；密钥和签包步骤并进第 26 批的签名问题 | 和第三方一样：首次照常预览、本人确认，安装包里不预先固定 Molis 发布者（统筹 2026-11-04 定） |
 | 第三方文件 | 第三方发布者 | 固定的发布者是 `pinned` |
-| 本机导入（第 6 节）；第 20 批的个人场景包与 AI 生成的方案同此 | 这个 Home 现有的发布身份（`apps/local-host/src/plugin-builder/publisher-identity.ts`，Plugin Builder 发布用的同一个），不另造钥匙 | 与 Plugin Builder 发布的插件同一档；首次照常预览、本人确认，不另开 `unsigned` 一档（统筹 2026-11-04 定） |
+| 本机导入（第 6 节）；第 20 批的个人场景包与 AI 生成的方案同此 | 这个 Home 现有的发布身份（`apps/local-host/src/installed-plugin-publisher.ts`，Plugin Builder 发布用的同一个），不另造钥匙 | 与 Plugin Builder 发布的插件同一档；首次照常预览、本人确认，不另开 `unsigned` 一档（统筹 2026-11-04 定） |
 
 不走内置插件的 `registration`：那条路给的是 `HOST_BUILD_TRUST`，安装记录自动跟着构建升级，不经确认，也不能拒绝升级（第 2 节），与 ONB-53、ONB-55 冲突。
 

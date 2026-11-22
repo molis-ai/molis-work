@@ -97,9 +97,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-builder':
-        specifier: workspace:*
-        version: link:plugins/native/plugin-builder
       '@molis-ai/molis-work-plugin-cli':
         specifier: workspace:*
         version: link:tooling/plugin-cli
@@ -166,6 +163,9 @@ importers:
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:plugins/native/shelf
+      '@molis-ai/molis-work-plugin-studio':
+        specifier: workspace:*
+        version: link:horizontal/plugin-studio
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:plugins/native/text-stats
@@ -402,9 +402,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-builder':
-        specifier: workspace:*
-        version: link:../../plugins/native/plugin-builder
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -468,6 +465,9 @@ importers:
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
+      '@molis-ai/molis-work-plugin-studio':
+        specifier: workspace:*
+        version: link:../../horizontal/plugin-studio
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:../../plugins/native/text-stats
@@ -614,9 +614,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-builder':
-        specifier: workspace:*
-        version: link:../../plugins/native/plugin-builder
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -674,6 +671,9 @@ importers:
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
+      '@molis-ai/molis-work-plugin-studio':
+        specifier: workspace:*
+        version: link:../../horizontal/plugin-studio
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:../../plugins/native/text-stats
@@ -839,6 +839,21 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
+  horizontal/plugin-studio:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
+      '@molis-ai/molis-work-plugin-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sandbox
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
@@ -1375,21 +1390,6 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
-
-  plugins/native/plugin-builder:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
-      '@molis-ai/molis-work-plugin-sandbox':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sandbox
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
 
   plugins/native/ppt:
     dependencies:

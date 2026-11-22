@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
+import type { AgentRelease } from "@molis-ai/molis-work-plugin-studio";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { HomeConsentLedger, readKeptPackage, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";
@@ -13,7 +13,7 @@ import { newPublisher, payloadOf } from "./sandbox-package.js";
 // publisher in the Home, which is all an installation reads.
 
 export type StudioPublisher = ReturnType<typeof newPublisher>;
-type Published = Pick<AgentRelease, "pluginId" | "version" | "bundlePath" | "design" | "nodes" | "prompts">;
+type Published = Pick<AgentRelease, "pluginId" | "version" | "bundlePath" | "design" | "nodes" | "prompts"> & Partial<AgentRelease>;
 
 /** The person's pin of a publisher, as confirming its first package leaves it. */
 export function pinStudioPublisher(home: string, publisher: StudioPublisher, label = "这台电脑"): void {

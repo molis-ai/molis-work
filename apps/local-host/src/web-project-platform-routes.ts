@@ -20,6 +20,7 @@ import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
+import { handleInstalledPluginHttp } from "./installed-plugin-http.js";
 import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { handleProjectWorkspaceHttp } from "./project-workspace-http.js";
@@ -175,6 +176,12 @@ export const projectWriteCheckersRoute: WebRoute<ProjectRuntimeContext> = { id: 
   } catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); }
   return true;
 } };
+
+/** The project's installed signed packages: their pages and calls, each to the package's own sandboxed process (47-1: the platform's). */
+export const installedPluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "installed-plugins", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken }) =>
+  handleInstalledPluginHttp(request, response, url, { store, projectId: options.projectId, homeDirectory: serverOptions.homeDirectory,
+    routePrefix: projectRoutePrefix(options), accountRegistration: composition.accountRegistration, actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
+    ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
 
 /** The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends. */
 export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken, localHost }) =>

@@ -746,8 +746,8 @@ test("rejects a Plugin importing a private UI package, and lets only Plugin Stud
   ]) {
     assert.ok(violationCodes(importing("plugins/native/diff", "@molis-ai/molis-work-plugin-diff", other)).has("plugin-private-ui-dependency"), other.name);
   }
-  assert.deepEqual(PRIVATE_UI_EXEMPT_PLUGINS, ["plugins/native/plugin-builder"]);
-  assert.ok(!violationCodes(importing("plugins/native/plugin-builder", "@molis-ai/molis-work-plugin-builder")).has("plugin-private-ui-dependency"));
+  assert.deepEqual(PRIVATE_UI_EXEMPT_PLUGINS, ["horizontal/plugin-studio"]);
+  assert.ok(!violationCodes(importing("horizontal/plugin-studio", "@molis-ai/molis-work-plugin-studio")).has("plugin-private-ui-dependency"));
   // An integration plugin is held to it too, and an App or the design system's own users are not.
   const integration = { ...importing("plugins/integrations/gmail", "@molis-ai/molis-work-integration-gmail"), importer: boundaryPackage("@molis-ai/molis-work-integration-gmail", "plugins/integrations/gmail", "integration-plugin", [designSystem.name]) };
   assert.ok(violationCodes(integration).has("plugin-private-ui-dependency"));

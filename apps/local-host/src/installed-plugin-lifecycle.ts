@@ -18,7 +18,7 @@ import type { PluginPlatform } from './plugin-platform.js';
 export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 /** `release` is one read from a signed package (`packaged`); the Runtime's row says what is installed. */
 export type InstalledLifecycle = (action: 'install' | 'upgrade' | 'disable' | 'enable' | 'uninstall', release: InstalledRelease, grants?: unknown) => Promise<void>;
-import type { PluginSecrets } from './plugin-builder/secrets.js';
+import type { PluginSecrets } from './installed-plugin-secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
 import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
 import type { RecoveryErrors } from './installed-recovery-errors.js';

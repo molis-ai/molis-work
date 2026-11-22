@@ -6,8 +6,8 @@ import { STUDIO_CLIENT_FEED } from './agent-studio-client-feed.js';
 import { STUDIO_CLIENT_BOARD } from './agent-studio-client-board.js';
 import { STUDIO_CLIENT_SESSION } from './agent-studio-client-session.js';
 
-/** The page's root and lifetime, its requests to the studio's routes, and the two embedded modes (a trial's preview and an installed plugin's page), which end here. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
-const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]';
+/** The page's root and lifetime, its requests to the studio's routes, and the embedded trial preview, which ends here. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
+const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'?'[data-studio-preview]':'[data-agent-studio]';
  const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
  if(!root)return;
  const page=host.page;const lifetime=host.mountPluginClient(root);if(!lifetime)return;
@@ -15,10 +15,13 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
 
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
- const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
+ // The page's requests go through the shared request helper (UiRequest) bound to this page's lifetime; a refusal keeps the
+ // studio's own text and detail from its answer.
  async function request(url,method='GET',body,signal,fallback=globalThis.t.text("plugin-builder.agent-studio.operation-failed-content-preserved")){
-  const r=await lifetime.fetch(url,{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v?.error||fallback),{status:r.status,code:v?.code,text:v?.text,detail:v?.detail});return v;
+  let v;
+  try{v=await globalThis.molisWorkRequest(url,{method,signal,scope:lifetime,fallback,...(body===undefined?{}:{body})});}
+  catch(e){const b=e&&typeof e==='object'&&e.body&&typeof e.body==='object'?e.body:{};throw Object.assign(e,{text:b.text,detail:b.detail});}
+  lifetime.assertCurrent(signal);return v??{};
  }
  const api=(path,...args)=>request(host.api(path),...args);
  let pending=0;globalThis.__molisPluginPending=0;
@@ -33,27 +36,6 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
   plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
- if(host.mode==='installed'){
-  if(parent!==window)root.dataset.framed='';
-  const call=(componentId,binding,payload)=>pendingCall(async()=>{
-    const submit=binding==='submit',url=submit?host.route('/api/host/plugin-page-actions'):host.call;
-    const body=submit?{mode:'component_submit',component_id:componentId,payload}:{componentId,binding,payload};
-    const value=await request(url,'POST',body,undefined,globalThis.t.text("common.generated.input-preserved"));
-    return submit?value:value.value;
-  });
-  const plugin=host.components({root,call,mountSurfaceSlot:host.mountSurfaceSlot});lifetime.own(()=>plugin.destroy());
-  const ready=plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
-  lifetime.listen(host.root||root,'molis-work:select-item',event=>{
-    const {panel,itemId,intent}=event.detail||{};if(intent!=='open')return;
-    if(typeof panel==='string'||typeof itemId==='string')event.preventDefault();
-    const unavailable=()=>{if(lifetime.alive){const note=document.createElement('p');note.dataset.pcOpenFailed='';note.setAttribute('role','alert');note.textContent=globalThis.t.text("plugin-builder.agent-studio.record-or-form-unavailable");root.prepend(note);}};
-    void ready.then(async()=>{if(!lifetime.alive)return;root.querySelector('[data-pc-open-failed]')?.remove();
-      const opened=typeof panel==='string'?plugin.openInput(panel):typeof itemId==='string'?await plugin.openRecord(itemId):true;
-      if(!opened)unavailable();
-    }).catch(unavailable);
-  });
-  return;
- }
 `;
 
 /**
@@ -62,9 +44,8 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
  * Notes on the script below. They are kept here rather than inside it because the script is served as it stands: a
  * comment inside it is bytes the browser downloads and never runs.
  *
- * - `selector`: In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
+ * - `selector`: In the workbench the studio is drawn in the plugin's stage (host.root); the trial preview runs in a frame. An installed package's page is the platform's (`installed-plugin`).
  * - `globalThis.__molisPluginRead`: Diagnoses the actual rendered query, including selection and filters, without issuing another request.
- * - `host.mode === 'installed'`: An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
  * - The frame reads Studio and shared UI words from its own projection; build messages, diagnostics and external capability text are kept as written.
  * - `queue`, `landing`, `picking`, `play`: The UI Agent's placements, paced so each one can be seen: a part waits in the queue, is taken from the spec board, carried to its
  *   place (the spot opens, framed, before the part shows), lands and the spec board ticks it off. A part being landed has left the queue but is not revealed yet; an update
@@ -113,7 +94,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
 export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const client=(` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `),components=` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `;
  const embedded=host.page?.(),mountSurfaceSlot=host.view?.surfaceSlot;
- if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,mountSurfaceSlot,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
+ if(embedded?.mode==='preview'){client({...host,...embedded,components,mountSurfaceSlot,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
  const valid=s=>typeof s==='string'&&/^[a-z][a-z0-9.-]{0,199}$/.test(s);
  const entry=s=>[...document.querySelectorAll('[data-work-surface-open]')].find(el=>el.dataset.workSurfaceOpen===s);
  const openPlugin=s=>{if(!valid(s))return;if(host.openPlugin){host.openPlugin(s);return;}const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};

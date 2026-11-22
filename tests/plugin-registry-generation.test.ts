@@ -6,8 +6,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { BUILTIN_PLUGIN_CATALOG, splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
-import { catalogProblems } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
+import { HOST_SURFACE_REGISTRATIONS, catalogProblems } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_FILE, PLATFORM_FILE, PLUGIN_DEPENDENCY_MANIFESTS, pluginDependencyManifests, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 import { assemblyMetrics } from "../scripts/gates/assembly.mjs";
@@ -192,9 +192,17 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   const otherNamespace = ".text-stats-extra-card{color:green}";
   assert.deepEqual(splitPluginStylesheet(otherNamespace, "feed", [], ["stats-"]), { scoped: "", shared: otherNamespace });
   assert.deepEqual(catalogProblems([...withPrefix("stats-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
-  const studio = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
+  // The studio is the platform's since 47-1 C; its prefixes are still held against every plugin's.
+  const studio = HOST_FRAMED_SURFACES.find(entry => entry.project_plugin_id === "plugin-builder")!;
   for (const prefix of ["as-", "pb-"]) assert.ok(studio.workbench.stylesheetPrefixes?.includes(prefix));
-  assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), [], "the existing studio prefixes stay valid");
+  assert.equal(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "plugin-builder"), false, "the studio is not a catalog plugin");
+  assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES]), [], "the existing studio prefixes stay valid");
+  assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, { ...studio, workbench: { ...studio.workbench, stylesheetPrefixes: ["text-"] } }]),
+    ["plugin-builder: stylesheet prefix text- repeats a plugin's id"], "a platform surface cannot claim a plugin's namespace");
+  // The Host's list and the shell's are the same declarations, so the shell never frames a surface the Host gives no requests or words.
+  assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]),
+    HOST_FRAMED_SURFACES.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]), "the two platform surface lists agree");
+  assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => entry.package_name), ["@molis-ai/molis-work-plugin-studio"]);
 });
 
 test("W5-02-REG-02: loading the Host rejects an invalid catalog before the module becomes available", () => {

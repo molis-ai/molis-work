@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from '@molis-ai/molis-work-app-local-host';

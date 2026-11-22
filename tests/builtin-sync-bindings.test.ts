@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Script } from 'node:vm';
 import {builtinSyncBindings, discoverRuntimeSyncCollections} from '@molis-ai/molis-work-app-local-host';
-import {BUILTIN_PLUGIN_CATALOG} from '@molis-ai/molis-work-app-workbench';
+import {BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES} from '@molis-ai/molis-work-app-workbench';
 import type {PluginRegistration as BuiltinPluginEntry} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import {syncOwnerPair} from './fixtures/runtime-personal-sync.js';
 
@@ -44,9 +44,10 @@ test('AC-M1-03 all 21 persistent built-ins resolve through static bindings or an
  const excluded = new Set(['diff', 'git', 'text-stats']);
  const expected = ['alchemist', 'coding', 'cognia', 'dataset', 'feed', 'form', 'goals', 'images', 'inbox', 'issues', 'jelly',
   'lingguang', 'pages', 'plugin-builder', 'ppt', 'risk', 'schedule', 'shelf', 'todo', 'work-brief', 'workflows'];
- const catalog = BUILTIN_PLUGIN_CATALOG.filter(entry => !excluded.has(entry.project_plugin_id));
+ // The studio's drafts are the platform's since 47-1 C, under the identity they always had (HOST_FRAMED_SURFACES).
+ const catalog = [...BUILTIN_PLUGIN_CATALOG.filter(entry => !excluded.has(entry.project_plugin_id)), ...HOST_FRAMED_SURFACES];
  assert.deepEqual(catalog.map(entry => entry.project_plugin_id).sort(), expected);
- const {source} = await syncOwnerPair(t, catalog.filter(entry => entry.project_runtime).map(entry => entry.project_plugin_id));
+ const {source} = await syncOwnerPair(t, catalog.filter(entry => 'project_runtime' in entry && entry.project_runtime).map(entry => entry.project_plugin_id));
  const {spaceId} = source.sync.policy();
  const runtime = await discoverRuntimeSyncCollections(source.home, spaceId, source.host, source.withCatalog, () => {});
  const key = (plugin: string, collection: string) => JSON.stringify([plugin, collection]);

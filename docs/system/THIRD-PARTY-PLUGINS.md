@@ -15,7 +15,7 @@
 - `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径与超过 64 MiB 的包，不执行 glob 或生命周期脚本（`package-files.ts`）。
 - 发布者身份是 Ed25519 公钥的指纹：`ed25519:sha256:<spki 的哈希>`（`pluginPublisherIdentity`，`packages/plugin-runtime/src/package-verification.ts`），Manifest 的 `publisher.signature` 必须等于它，`signPluginPackage` 不一致就拒绝；`verifyPluginPackage(bundle, 可信公钥)` 验签，没签名的包「不是已验证发行物」。
 - Runtime 的安装、授权、升级、回滚、停用、卸载，安装记录有 `execution: "host" | "sandbox"`（`packages/contracts/src/platform/plugin.ts`）。`execution: "sandbox"` 的插件必须带明确的授权清单才能安装（`packages/plugin-runtime/src/index.ts`、`supervisor.ts`）。
-- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `sandbox.unsupported_platform`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
+- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/installed-plugin-sandbox-definition.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `sandbox.unsupported_platform`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
 - 升级兼容声明：`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`（`docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」）。
 - 方针：`docs/platform/PLUGIN-PLATFORM.md` §2 写明「官方可安装生态由官方发布并审核；第三方源码由用户自行构建和安装」，签名变化视为新插件，旧授权、存储和提供方绑定不继承。
 
@@ -127,7 +127,7 @@ Manifest 里有三类声明会改变这个插件在别处的效果，安装预�
 | `install`、`list`、`trust` 命令 | `tooling/plugin-cli/src/cli.ts`、`apps/desktop/launchers/cli/main.ts` | 命令只转发 |
 | 安装服务 | `apps/local-host`（新文件，不按插件命名） | 解析、信任判定、授权、安装、发行物留存 |
 | 受信表 | `packages/plugin-runtime` 的端口加 Home 级存储实现 | 要登记到 Home 数据表 |
-| 已验签包到沙箱定义 | `apps/local-host/src/plugin-builder/installed.ts` 一类的翻译层，拆出与创作台无关的部分 | 复用 `sandboxedPluginDefinition` 的运行方式 |
+| 已验签包到沙箱定义 | `apps/local-host/src/installed-plugin-sandbox-definition.ts` 一类的翻译层，拆出与创作台无关的部分 | 复用 `sandboxedPluginDefinition` 的运行方式 |
 | 沙箱合同扩展 | `packages/plugin-sandbox`、`packages/contracts/src/platform/plugin-sandbox.ts` | 阶段二 |
 | 确认对话框、「从文件安装」 | `apps/workbench`（设置的插件页） | 同一确认对话框 |
 | 文档 | `docs/platform/PLUGIN-DEVELOPMENT.md`「打包与签名」之后接「安装」；`skills/molis-plugin-dev/authoring.md` | 随实现一起改 |

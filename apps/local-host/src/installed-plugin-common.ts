@@ -12,8 +12,8 @@ import type { installedDefinitions } from './installed-plugin-definition.js';
 import type { InstalledRelease } from './installed-release.js';
 import { PUBLISHER_REVOKED_MESSAGE, type publisherStanding, type publisherStops } from './installed-publisher-standing.js';
 import type { RecoveryErrors } from './installed-recovery-errors.js';
-import { installedCapabilityCatalog, type CatalogCapability } from './plugin-builder/catalog.js';
-import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { installedCapabilityCatalog, type CatalogCapability } from './installed-plugin-catalog.js';
+import { exposedOperationPolicies, type InstalledPluginActions } from './installed-plugin-exposed-actions.js';
 import type { SandboxPackageStore } from './sandbox-package-store.js';
 
 type Standing = ReturnType<typeof publisherStanding>;

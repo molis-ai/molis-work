@@ -20,7 +20,7 @@ import {
   type PrologueNodeAdapterOptions,
   type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
-import { builtinPluginByManifestId } from "./plugin-registry.js";
+import { shippedOwnerManifest } from "./host-surfaces.js";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { readRoleVersion, resolveRoleCharacter } from "./characters-host.js";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -301,7 +301,7 @@ async function startAuthority(
   // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
-  const manifest = caller?.declaration.manifest ?? builtinPluginByManifestId(pluginId)?.manifest;
+  const manifest = caller?.declaration.manifest ?? shippedOwnerManifest(pluginId);
   // A plugin whose Agent block takes a role (Manifest `agent.characters`) gets the Host's role resolver; the role is the person's own.
   const takesRoles = !!manifest?.agent?.characters;
   const original = currentOriginalInput(caller);

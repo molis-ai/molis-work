@@ -2,7 +2,7 @@
 
 状态：2026-10-08，防腐 §4.14（W1-12）。命令 `pnpm studio:replay`，代码在 `scripts/studio-replay.mts` 与 `scripts/studio-replay/`，守护在 `tests/studio-replay.test.ts`。**提交的语料含 380 份真实设计答卷（2026-10-08 按用户的决定，从他 Home 的拷贝里只读导出、审过再提交，见 2.2），所以「完整设计一次通过率」这个主数字现在有数：2026-10-08 实测首轮完整设计 42/80（53%）；以命令输出为准。这个数是「设计者当时的答卷，过现在的宿主检查」，不是答卷当时被怎样处理，也不是 Skill 文字对模型的影响（见 2.2 与第 6 节）。**
 
-插件创作台在运行时把 `skills/molis-plugin-dev` 的章节挂给每个 Agent（`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`），并用 `plugins/native/plugin-builder/src/agent-prompts.ts` 的提示词。改这些文字、或改宿主对设计答卷的整理与校验（`agent-authoring.ts` 的 `expandDesign`、`agent-validation.ts` 的 `validateAgentDesign`），就是在改生成插件的做法。本文规定这类改动怎样用同一种方式验证。
+插件创作台在运行时把 `skills/molis-plugin-dev` 的章节挂给每个 Agent（`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`），并用 `horizontal/plugin-studio/src/agent-prompts.ts` 的提示词。改这些文字、或改宿主对设计答卷的整理与校验（`agent-authoring.ts` 的 `expandDesign`、`agent-validation.ts` 的 `validateAgentDesign`），就是在改生成插件的做法。本文规定这类改动怎样用同一种方式验证。
 
 ## 1. 三件事，各证明什么
 
@@ -27,7 +27,7 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 
 ### 2.1 它跑的是什么
 
-每条语料是创作台设计者的一份原始答卷，加上宿主当时给它的上下文（它细化的方案、可用的动作）。回放对它做宿主在 `AgentBuilderWorkflow` 里做的同样几步（`plugins/native/plugin-builder/src/agent-workflow.ts` 的 `propose` 与 `acceptDesign`）：
+每条语料是创作台设计者的一份原始答卷，加上宿主当时给它的上下文（它细化的方案、可用的动作）。回放对它做宿主在 `AgentBuilderWorkflow` 里做的同样几步（`horizontal/plugin-studio/src/agent-workflow.ts` 的 `propose` 与 `acceptDesign`）：
 
 - `propose`：解析 JSON → 问题或 2–3 个方案 → `normalizeProposal` → 标识唯一、动作在动作目录内；
 - `detail`、`revise`：解析 JSON → `expandDesign` → `validateAgentDesign` → 检查 `rework`。

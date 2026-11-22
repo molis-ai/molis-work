@@ -5,7 +5,7 @@
 - **档位与分类**（[开发流程 §1.1、§1.2](../post-anticorruption-roadmap/reference/development-workflow.md#1-分档分类与决策)）：大需求；体验与效果（视觉工艺、文案状态、空间布局、行为反馈、轻动效）、横向能力（Design System 原语与控件板、Plugin Frame 客户端脚本、统一日期/等待/Toast/自动保存/确认桥、生成插件渲染器、开发指引与创作台 Skill）、产品线（全产品入口与 23 个内置插件、4 个官方集成、IM、侧栏、Artifacts、Sessions）。
 - **决策标记**：已定方向（用户 2026-11-18 确认[决定 55](../post-anticorruption-roadmap/reference/decisions.md#decision-55)）——采用 `91（91A） + 91B` 双段推进，剔除 `44-7` 待删的桌面胶囊，同步更新后续开发指引与创作台 Skill，并在 `91B-4` 收紧三层自动化门禁。仍要决策：① `91-1` 新增统一日期/时间渐进增强器、宿主 Toast、五态自动保存与 `molisBusy` 若引入组件板外新控件形态，按开发流程第 5 节先在 `/__ui/catalog` 出样过 D 轨合审；② `91B-4` 改动门禁脚本与阈值前按 `AGENTS.md` 门禁流程复核清单；③ `UXP-14` 本人实物走查。其余直接做。
 - **相邻的线**：承接 [36A](../post-anticorruption-roadmap/reference/batches/36a.md)（底栏第十三版壳层、首页「项目的第一页」、Coding 前后半、设置页二段、动效曲线收口）与 [conversation-execution-ui](../conversation-execution-ui/spec.md)（`91-1`～`91-4` 流式内核）；与 [44-7](../post-anticorruption-roadmap/reference/batches/44.md#batch-44-item-7)（删除桌面胶囊）和 [56-1／56-2](../post-anticorruption-roadmap/reference/batches/56.md)（通知恢复页与切换后新入口复核）严格不重叠；`91-5` 落定的开发指引与创作台规范直接服务后续 `38～89` 批及所有新插件／生成插件。
-- **预警触发条件**（开发流程 §6）：① 页面单资源体积一次增长超 `10 KB` 或新增页面资源（红线，先问用户）；② `skills/molis-plugin-dev/` 或 `plugins/native/plugin-builder/src/agent-prompts.ts` 变动必须跑通 `pnpm studio:replay` 与隔离 Home `smoke`；③ 任一门禁规则放宽或新增豁免。
+- **预警触发条件**（开发流程 §6）：① 页面单资源体积一次增长超 `10 KB` 或新增页面资源（红线，先问用户）；② `skills/molis-plugin-dev/` 或 `horizontal/plugin-studio/src/agent-prompts.ts` 变动必须跑通 `pnpm studio:replay` 与隔离 Home `smoke`；③ 任一门禁规则放宽或新增豁免。
 
 ---
 
@@ -122,7 +122,7 @@
 | `skills/molis-plugin-dev/SKILL.md`、`elements.md` | 增设「空间布局与容器查询」「行为反馈闭环」必读检查段，更新「禁止」清单（禁自造 Toast、禁整页 `inert` 冻屏、禁 `sparkles` 当插件身份标、禁私读 `data-resolved-theme`） |
 | `skills/molis-plugin-dev/text-and-appearance.md` | 补充动作按钮祈使动词 vs 完成态过去分词对照（防 `"Imported / Completed / Started / Resumed"` 误绑）、删除确认必用具体危险动词禁泛词「确定」、禁止 CSS `content` 硬编码中文 |
 | `skills/molis-plugin-dev/ui.md`、`ui.en.md` | 双语同步：主从舞台 `@container` 与四档版心用法、详情栏按钮上限、`host.showToast` / `host.confirm({ tone: "danger" })` / `window.molisBusy` / `molisCraft` 标准接入示例与「左取消、右主动作」铁律 |
-| `skills/molis-plugin-dev/generated-design.md`／`.en.md`、`generated-experience.md`／`.en.md`、`generated-ui.md`／`.en.md`、`plugins/native/plugin-builder/src/agent-prompts.ts` | 将四档版心、单阳色、常态退隐、无卡套卡、`250ms` 等待与行为反馈标准同步至插件创作台提示词与审美复查段，通过 `pnpm studio:replay` 与隔离 Home `smoke` 回归 |
+| `skills/molis-plugin-dev/generated-design.md`／`.en.md`、`generated-experience.md`／`.en.md`、`generated-ui.md`／`.en.md`、`horizontal/plugin-studio/src/agent-prompts.ts` | 将四档版心、单阳色、常态退隐、无卡套卡、`250ms` 等待与行为反馈标准同步至插件创作台提示词与审美复查段，通过 `pnpm studio:replay` 与隔离 Home `smoke` 回归 |
 
 ---
 
@@ -147,7 +147,7 @@
 8. **UXP-08** 修复全仓所有 P0 级文案与功能断层：租户订阅表单与 Goals 解除关系不再输出 `"这句话暂时显示不了"`；清除 Goals／浏览器／电脑面板的中文译文分支判断；修复 `"Imported / Completed / Started / Resumed"` 动词时态错误与灵光发言人 `"记下"`；`rss / youtube` 补双语 `locales`；清零 Plugin Builder 的 `Jev / G1–G6 / 合同`、Jelly 裸 JSON 及全仓裸 UTC 时间切片；Artifacts/Sessions/Shelf/Cognia/Alchemist/Images 加载失败均可原地恢复重试、零白屏吞错或永卡加载态。
 9. **UXP-09** 高频可逆操作（Inbox 标记已处理/忽略、Feed 忽略、Coding/Alchemist 归档、Goals 回收站恢复）取消多余阻塞确认，改为即时执行 + `6.5s` Undo Toast + `molisReflow`（Inbox 同步顺推下一条）；Goals 取消单击 `220ms` 延迟；Diff 与 Git 均支持 `[data-diff-unfold]` 展开；Text Stats 具备就地实时输入框；补齐缺模型/缺连接的 `host.returns.go` 往返与浮层 `Escape` 焦点归还。
 10. **UXP-10** `molisCraft` 五大轻动效（`land / carry / turn / ask / celebrate`）、`molisReflow` 与 `molisFollow` 按第 2.1、3 节清单在目标插件与外壳节点完成克制接线，全仓清除 6 处空转 `.is-arriving` 与全部违禁 `:hover` 上浮及私有非令牌 `.animate()`；所有轻动效尊重 `prefers-reduced-motion` 与 `data-craft-still`，首屏绝不误触发庆祝。
-11. **UXP-11** 第 4 节所列全部开发指引与插件创作台 Skill（`DESIGN.md`、`docs/design/taste.md`、`packages/design-system/README.md`、`docs/system/DEVELOPMENT-REQUIREMENTS.md`、`skills/molis-plugin-dev/*.md` 中英文与 `plugins/native/plugin-builder/src/agent-prompts.ts`）完成同步更新，`pnpm health:check` 文档引用门禁零报错，且 `pnpm studio:replay` 与隔离 Home `pnpm studio:replay smoke` 全部通过。
+11. **UXP-11** 第 4 节所列全部开发指引与插件创作台 Skill（`DESIGN.md`、`docs/design/taste.md`、`packages/design-system/README.md`、`docs/system/DEVELOPMENT-REQUIREMENTS.md`、`skills/molis-plugin-dev/*.md` 中英文与 `horizontal/plugin-studio/src/agent-prompts.ts`）完成同步更新，`pnpm health:check` 文档引用门禁零报错，且 `pnpm studio:replay` 与隔离 Home `pnpm studio:replay smoke` 全部通过。
 12. **UXP-12** 经用户确认门禁改动后，`tests/soft-workbench-refinement.test.ts` 覆盖全量内置插件 CSS 与 `IM_STYLES` 并拦住插件视口布局 `@media`；`tests/visual-order.e2e.test.ts` 与 `tests/fixtures/order-audit.ts` 覆盖全部新增 11 表面、`MODE_PAGES` 及 `600px` 分屏窄窗格零溢出断言。
 13. **UXP-13** `tests/busy-feedback.e2e.test.ts` 扩覆盖全部 12 个新增表面通过 `250ms` 零瞬闪采样；`tests/save-failure.e2e.test.ts` 扩覆盖 Todo、Jelly 与设置实时开关断网回滚；页面单资源守住预算红线，`pnpm build`、`pnpm boundary:check`、`pnpm health:check` 与共享核心全量回归通过。
 14. **UXP-14** `[人工]` 在一次性隔离 Home 中按浅/深色、中/英文、桌面全宽/二分屏/开侧栏/`390px` 窄屏逐板块走查入口、市场、侧栏、IM、创作与工作插件及生成插件，确认按钮触感、等待态、轻动效、Toast/Undo、分屏布局与视觉层次整体统一克制。

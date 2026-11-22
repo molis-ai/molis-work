@@ -80,7 +80,7 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, navigate, origin, projectId } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: WITHOUT_FIELD_SIZING }, sessionId);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 900);
 
   const issues = await pluginFrameBrowser(t, browser, "issues");
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
@@ -140,7 +140,7 @@ test("VUX-16 (fallback): the discussion side panel's IM composer is the same fie
 test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab stop each", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, navigate, origin } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 900);
   const todo = await pluginFrameBrowser(t, browser, "todo");
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/todo` }, sessionId));
   await todo.waitFor("document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]')?.hidden === true", 30_000);
@@ -174,7 +174,7 @@ test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab s
 test("VUX-28: the Issue type radio group in a Home Issue and in the Issue side view rove, one tab stop each", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, evaluate, navigate, origin, projectId } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 900);
   const child = await pluginFrameBrowser(t, browser, "issues");
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 30_000);

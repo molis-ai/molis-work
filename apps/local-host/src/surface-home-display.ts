@@ -2,7 +2,6 @@ import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-
 import { ActionError, findSubjectReader, isSubjectReader, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription, SurfaceGroup, SurfaceItem } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationValuesReader, presentationFormFields } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { readSurfaceValues } from "@molis-ai/molis-work-service-surfaces";
 import type { HomeDirectoryEntry } from "./surface-home-directory.js";

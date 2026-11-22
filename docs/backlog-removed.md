@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-home-lead-capability | 已完成并删除 | 2026-11-22：用户定删掉（路线书决定 62 ③）。`presentation.overview.lead`、`surfaces.compose@1` 的 `lead` 组、首页页面数据的 `lead` 与外壳收养、归还插件主区页面的代码一并删除；还写着它的 Manifest 与描述被拒（`tests/surface-home-contracts.test.ts`）。登记见 `docs/system/CONTRACT-CHANGES.md` 第 8 节。 |
 | BL-1062 | 已完成并删除 | 2026-11-22：第 36A 批动效项（36A-7）给连接页的折叠补了逐帧断言：高度与箭头同一时钟（同时长、同延迟、同曲线，时长等于 `--dur-move`），五个时刻上裁切层与折叠同高、高度进度与箭头进度一致且单调（`tests/connections-page.e2e.test.ts`）。 |
 | BL-b44-coding-scene-enum | 已完成并删除 | 2026-11-21，[#2209](https://github.com/molis-ai/molis-work/pull/2209)（用户经弹窗定）：合同不再写 `"coding"`，场景是插件在 Manifest `memory_scene` 申报的名字，平台只有 `assistant`、`common`、`agent`、`both`；Coding 申报 `coding`，已存取值不变、不升库版本；名单在 Host 启动时从内置插件与留存包读，运行中新装的新场景重启后生效、安装预览会说。合同改动记在 `docs/system/CONTRACT-CHANGES.md` 第 8 节 |
 | BL-b44-information-plan-to-feed | 已完成并删除 | 2026-11-21，[#2209](https://github.com/molis-ai/molis-work/pull/2209)：动作改为 Feed 的 `feed.information.plan@1`，提示词键改到 Feed 名下，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（`CONTRACT-CHANGES.md`「当前保留机制」） |

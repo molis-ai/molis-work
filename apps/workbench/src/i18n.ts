@@ -1,4 +1,4 @@
-import { preferredUiLanguage, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, preferredUiLanguage, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 
@@ -104,17 +104,9 @@ function localeSwitchHref(locale: WebLocalePreference, nextPath: string): string
 
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
-  return `<nav class="locale-switch" aria-label="${escapeAttr(uiText.text("workbench.i18n.language"))}">
-    ${WORKBENCH_LANGUAGES.languages.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${escapeAttr(language.name)}</a>`).join("")}
+  return `<nav class="locale-switch" aria-label="${escapeHtml(uiText.text("workbench.i18n.language"))}">
+    ${WORKBENCH_LANGUAGES.languages.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${escapeHtml(language.name)}</a>`).join("")}
   </nav>`;
-}
-
-function escapeAttr(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
   return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch };

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry, type SkillBodyReadResult, type SkillResourceContent } from "@molis-ai/molis-work-contracts/services/skills";
 import { HomeConsentLedger, homeAgentDefinitions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
@@ -148,4 +150,42 @@ test("SKC-09 N42–N44: a body read of many references reads the publisher ledge
       assert.equal(opens, 1, "one snapshot read the ledger once; a read path must not reopen it per reference");
     } finally { Object.defineProperty(HomeConsentLedger.prototype, "use", use); }
   } finally { await h.close(); }
+});
+
+test("SKC-09 N42–N44: /api/skills/body previews a manual Skill in one body.read action without listing first", { timeout: 90_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Skill preview single call");
+  const bundle = signedContentPackage(newPublisher(), {
+    skills: [
+      { id: "coding-only", applies_to: "coding", body: "# Coding body" },
+      { id: "assistant-only", applies_to: "assistant", body: "# Assistant body" },
+    ],
+  });
+  const preview = await (await f.request(`/projects/${project.project_id}/api/plugin-trust/install/preview`, { method: "POST", body: { bundle } })).json() as { preview_id: string };
+  assert.equal((await f.request(`/projects/${project.project_id}/api/plugin-trust/install/confirm`, { method: "POST", body: { preview_id: preview.preview_id, consent: true, pin_label: "Preview test" } })).status, 200);
+  const catalog = await (await f.request(`/projects/${project.project_id}/api/skills/list`, { method: "POST", body: {} })).json() as { skills: SkillCatalogEntry[] };
+  const installed = catalog.skills.filter(row => row.pack.plugin_id === CONTENT_PLUGIN_ID);
+  assert.equal(installed.length, 2);
+  for (const skill of installed) {
+    assert.equal((await f.request(`/projects/${project.project_id}/api/skills/set`, {
+      method: "POST", body: { scope: "project", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id, expected_revision: skill.settings_revision, state: "manual" },
+    })).status, 200);
+  }
+  const originalInvoke = ActionService.prototype.invoke;
+  const invoked: string[] = [];
+  const spy = t.mock.method(ActionService.prototype, "invoke", function (this: ActionService, ...args: Parameters<ActionService["invoke"]>) {
+    invoked.push(args[1].capability_id);
+    return originalInvoke.apply(this, args);
+  });
+  try {
+    for (const [skillId, expectedBody] of [["coding-only", "# Coding body"], ["assistant-only", "# Assistant body"]] as const) {
+      const skill = installed.find(row => row.ref.skill_id === skillId)!;
+      invoked.length = 0;
+      const response = await f.request(`/projects/${project.project_id}/api/skills/body`, { method: "POST", body: { refs: [skill.ref] } });
+      assert.equal(response.status, 200);
+      const body = await response.json() as { results: SkillBodyReadResult[] };
+      assert.deepEqual(body.results, [{ ref: skill.ref, ok: true, name: skillId, body: expectedBody }]);
+      assert.deepEqual(invoked, [skillCatalogActions.readBodies.capability_id], "previewing a Skill body must invoke skills.body.read once without a prior skills.catalog.list");
+      assert.equal(homeAgentDefinitions(f.home).skills.uses(skill.ref.install_id, skillId).length, 0, "previewing a Skill records no use");
+    }
+  } finally { spy.mock.restore(); }
 });

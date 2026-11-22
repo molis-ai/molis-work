@@ -15,8 +15,8 @@ import { agentErrors } from "./errors.js";
 export interface AgentRoundSkillCatalog {
   /** The round's frozen named list (`ActionCallContext.skill_round.named`): what `frozen.skills[].named` records. */
   readonly named: readonly SkillRef[];
-  list(consumer: ActionSkillRound["consumer"], refs: readonly SkillRef[]): Promise<SkillCatalogEntry[]>;
-  readBodies(consumer: ActionSkillRound["consumer"], refs: readonly SkillRef[]): Promise<SkillBodyReadResult[]>;
+  list(consumer: NonNullable<ActionSkillRound["consumer"]>, refs: readonly SkillRef[]): Promise<SkillCatalogEntry[]>;
+  readBodies(consumer: NonNullable<ActionSkillRound["consumer"]>, refs: readonly SkillRef[]): Promise<SkillBodyReadResult[]>;
 }
 
 /** The parts of a `SkillRef` that name an installation: the starting plugin's own one, as the Host read it from the installation record. */
@@ -34,7 +34,7 @@ export interface RoundSkillsInput {
   locale?: string;
   source: AgentSkillSource | undefined;
   catalog: AgentRoundSkillCatalog | undefined;
-  consumer: ActionSkillRound["consumer"];
+  consumer: NonNullable<ActionSkillRound["consumer"]>;
   hostTools: readonly string[];
   /** The Runtime reports Skills as unsupported: no Skill can be frozen. */
   unsupported: boolean;

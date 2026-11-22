@@ -1,4 +1,4 @@
-import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { motionCurve, requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowLinkKind } from "../model.js";
@@ -38,9 +38,8 @@ export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 export const calm = () => Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 /** Everything here moves on the product's one curve, as the page's tokens have it (DESIGN.md Motion; POLISH-33). A station
  *  or a link's pill is wider than 32px, so none of them springs (POLISH-35). */
-const ease = () => getComputedStyle(document.documentElement).getPropertyValue("--ease-quint").trim() || "ease-out";
 export const motion = (node: Element | null | undefined, frames: Keyframe[], options: KeyframeAnimationOptions) =>
-  (!node || !node.animate || calm()) ? null : node.animate(frames, { easing: ease(), ...options });
+  (!node || !node.animate || calm()) ? null : node.animate(frames, { easing: motionCurve(), ...options });
 export const arrive = (node: HTMLElement | null) => {
   if (!node || calm()) return;
   node.classList.remove("is-arriving"); void node.offsetWidth; node.classList.add("is-arriving");

@@ -272,7 +272,8 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   /* “Go to it” marks what it took you to for a moment. */
   ${ASSIST} [data-flash] { outline: 2px solid transparent; outline-offset: 3px; animation: assistant-flash var(--dur-moment) var(--ease-quint); }
   @keyframes assistant-flash { 0%, 45% { outline-color: var(--accent); } 100% { outline-color: transparent; } }
-  ${ASSIST} .assistant-attention[data-bump] { animation: assistant-bump 420ms var(--ease-spring); }
+  /* The key carries words, so it is wider than 32px: its bump is in the keyframes, on the curve that does not overshoot (POLISH-35). */
+  ${ASSIST} .assistant-attention[data-bump] { animation: assistant-bump 420ms var(--ease-quint); }
   @keyframes assistant-bump { 0% { transform: scale(.82); } 60% { transform: scale(1.08); } 100% { transform: none; } }
   /* The pill at the foot of the conversation: what waits below, or news that arrived while reading above. */
   ${ASSIST} .assistant-main { position: relative; }

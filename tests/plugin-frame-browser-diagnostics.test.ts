@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { durationMs } from "@molis-ai/molis-work-plugin-sdk/browser";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
@@ -361,6 +362,8 @@ function createMiniDom() {
 }
 
 test("91-0b molisReflow parses both .25s and 250ms duration tokens accurately for FLIP and height animations", () => {
+  // One reading for every script that animates (the SDK's `motionDuration`): a plugin frame's minified sheet spells 250ms as `.25s`.
+  assert.deepEqual([".25s", "250ms", " 0.42S ", "250", "", "0s", "soon"].map(raw => durationMs(raw, 7)), [250, 250, 420, 250, 7, 7, 7]);
   const bundled = buildSync({
     entryPoints: [fileURLToPath(new URL("../packages/design-system/src/browser/reflow.ts", import.meta.url))],
     bundle: true, format: "iife", platform: "browser", write: false,

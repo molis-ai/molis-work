@@ -1,4 +1,5 @@
 import type { Node } from "prosemirror-model";
+import { motionCurve } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { closeHistory } from "prosemirror-history";
 import { EditorState, type Plugin, type Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
@@ -52,9 +53,6 @@ export function dragLayoutSource(doc: Node): Node {
 
 type Box = { left: number; top: number; width: number; height: number };
 type Frame = Map<number, Box>;
-/** The product's one curve for things that move, as the page's tokens have it (DESIGN.md Motion; POLISH-33). */
-const ease = () => getComputedStyle(document.documentElement).getPropertyValue("--ease-quint").trim() || "ease-out";
-
 function elements(view: EditorView, source: Node): Map<number, HTMLElement> {
   return elementsAt(view, previewRowPairs(source, view.state.doc));
 }
@@ -149,13 +147,15 @@ export class DragPreview {
       const old = before.get(key), next = after.get(key);
       if (old && next) shifts.set(el, { x: old.left - next.left, y: old.top - next.top });
     }
+    // The product's one curve for things that move, as the page's tokens have it (DESIGN.md Motion; POLISH-33).
+    const easing = motionCurve();
     for (const [el, shift] of shifts) {
       let parent = el.parentElement;
       while (parent && !shifts.has(parent)) parent = parent.parentElement;
       const inherited = parent ? shifts.get(parent) : null;
       const x = shift.x - (inherited?.x ?? 0), y = shift.y - (inherited?.y ?? 0);
       if (Math.abs(x) < 0.5 && Math.abs(y) < 0.5) continue;
-      const animation = el.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: "translate(0, 0)" }], { duration, easing: ease() });
+      const animation = el.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: "translate(0, 0)" }], { duration, easing });
       this.animations.add(animation);
       void animation.finished.then(() => this.animations.delete(animation), () => this.animations.delete(animation));
     }

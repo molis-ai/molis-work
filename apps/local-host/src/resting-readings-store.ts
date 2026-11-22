@@ -1,15 +1,14 @@
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readlinkSync, readSync, realpathSync, rmSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { readPluginRuntimeRecords, SqlitePluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { readPluginConsents, readPluginRuntimeRecords, SqlitePluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
 import type { HomeAggregateIssue } from "./home-aggregate.js";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { repeatingFailure } from "./host-log.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import type { MolisWorkLocalHostOptions } from "./project-host.js";
 
@@ -156,6 +155,35 @@ export function sqliteFileFingerprint(databasePath: string): string | null {
   return sha256(JSON.stringify([main, wal, journal]));
 }
 
+/**
+ * Non-fingerprint stat identity for a project DB whose regular-file fingerprint cannot be computed (e.g. symlink or
+ * unreadable permissions). Never matches `HEX_64` so it is never persisted to disk, while letting in-memory failed-open
+ * caching avoid re-waking the same broken project on every poll until the file's stat or symlink target changes.
+ */
+export function unreadableFileIdentity(databasePath: string): string {
+  const describe = (file: string): string => {
+    let info: ReturnType<typeof lstatSync>;
+    try {
+      info = lstatSync(file, { bigint: true, throwIfNoEntry: false });
+    } catch {
+      return "stat-error";
+    }
+    if (!info) return "missing";
+    if (info.isSymbolicLink()) {
+      let target = "";
+      try {
+        target = readlinkSync(file);
+      } catch {
+        target = "readlink-error";
+      }
+      return `symlink:${info.dev}:${info.ino}:${info.mtimeNs}:${info.ctimeNs}:${target}`;
+    }
+    const kind = info.isFile() ? "file" : "other";
+    return `${kind}:${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}:${info.mode}`;
+  };
+  return `unreadable:${sha256(JSON.stringify([describe(databasePath), describe(`${databasePath}-wal`), describe(`${databasePath}-journal`)]))}`;
+}
+
 /** Stable digest of any configured plugin fixtures so test runs with different fixtures never share cached answers. */
 export function pluginFixturesStamp(fixtures: MolisWorkLocalHostOptions["pluginFixtures"]): string {
   if (!fixtures) return "none";
@@ -209,22 +237,16 @@ export function homePluginsSemanticStamp(homeDirectory: string, fixturesStamp: s
         [...record.grants].sort(),
       ];
     }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-    const consentPluginIds = [...new Set([
-      ...records.map(record => record.plugin_id),
-      ...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.always_on === true).map(entry => entry.manifest.plugin_id),
-    ])].sort();
-    const consents = consentPluginIds.map(pluginId => [
-      pluginId,
-      ledger.consents(pluginId).map(row => [
-        row.consent_id,
-        row.publisher_signature,
-        row.kind,
-        row.subject,
-        row.manifest_digest,
-        row.revoked_at !== null,
-        row.approved_capability_ids ? [...row.approved_capability_ids].sort() : null,
-      ]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
-    ]);
+    const consents = readPluginConsents(db).map(row => [
+      row.consent_id,
+      row.plugin_id,
+      row.publisher_signature,
+      row.kind,
+      row.subject,
+      row.manifest_digest,
+      row.revoked_at !== null,
+      row.approved_capability_ids ? [...row.approved_capability_ids].sort() : null,
+    ]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
     const publishers = ledger.publishers()
       .map(pin => [pin.key_id, pin.public_key_spki_base64, pin.revoked_at !== null] as const)
       .sort((a, b) => a[0].localeCompare(b[0]));

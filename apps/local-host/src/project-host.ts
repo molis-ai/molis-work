@@ -67,7 +67,7 @@ import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { admitProviderRules } from "./scene-rule-admission.js";
 import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
-import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingReadings, persistShutdownRestingReadings } from "./home-aggregate.js";
+import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingReadings, persistShutdownRestingReadings, trackRestingSleepPersist } from "./home-aggregate.js";
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
 import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { computeProjectRestingFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
@@ -634,19 +634,21 @@ export class MolisWorkLocalHost {
    * later opens it again. Persists valid resting readings right after close. Whether it was closed.
    */
   async sleepIfIdle(reference: LocalHostProjectReference, idleMs: number): Promise<boolean> {
-    const slept = await this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
-      if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
-      const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
-        || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
-      if (running !== false) return true;
-      // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
-      return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
+    return trackRestingSleepPersist(this, reference.storage_key, async () => {
+      const slept = await this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
+        if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
+        const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
+          || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
+        if (running !== false) return true;
+        // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
+        return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
+      });
+      if (slept) {
+        const rest = this.host.projectRest(reference.storage_key);
+        if (rest.state === "asleep") await persistProjectRestingReadings(this, reference, rest.usedAt);
+      }
+      return slept;
     });
-    if (slept) {
-      const rest = this.host.projectRest(reference.storage_key);
-      if (rest.state === "asleep") await persistProjectRestingReadings(this, reference, rest.usedAt);
-    }
-    return slept;
   }
 
   close(): Promise<void> {
@@ -654,10 +656,17 @@ export class MolisWorkLocalHost {
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", async () => {
           if (!this.host) return;
+          const runtimesByProject = new Map(this.host.openRuntimes().map(runtime => [runtime.project_id, runtime]));
           const openBeforeClose = this.host.projects()
             .filter(project => project.state !== "closing")
             .map(project => {
-              const persistable = project.state === "ready" && !this.host.isProjectBusy(project.storage_key);
+              const runtime = runtimesByProject.get(project.project_id);
+              const hasActiveWork = !runtime
+                || Boolean(this.homePlugins?.hasProjectWork(project.project_id))
+                || agentStudioOpen(runtime.store, runtime.project_id)
+                || projectPluginsHaveWork(runtime.store, runtime.project_id)
+                || installedPluginsHaveWork(runtime.store, runtime.project_id);
+              const persistable = project.state === "ready" && !this.host.isProjectBusy(project.storage_key) && !hasActiveWork;
               return {
                 reference: { project_id: project.project_id, storage_key: project.storage_key },
                 usedAt: persistable ? this.host.projectRest(project.storage_key).usedAt : undefined,

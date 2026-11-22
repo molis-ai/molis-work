@@ -215,6 +215,11 @@ function consentFromRow(row: ConsentRow): PluginConsentRecord {
 
 const REVOKE_CONSENT_SQL = "UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ? AND revoked_at IS NULL";
 
+/** Read every recorded consent across all plugins without mutating or creating tables. */
+export function readPluginConsents(db: Pick<PluginRuntimeDatabase, "prepare">): PluginConsentRecord[] {
+  return (db.prepare("SELECT * FROM plugin_consents ORDER BY rowid").all() as ConsentRow[]).map(consentFromRow);
+}
+
 /** The ledger in the Home Runtime store (`PLUGIN_TRUST_SCHEMA_SQL`). */
 export class SqlitePluginConsentLedger implements PluginConsentLedger {
   constructor(private readonly db: PluginRuntimeDatabase & { readonly isTransaction?: boolean }) {}

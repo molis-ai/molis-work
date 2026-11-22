@@ -10,6 +10,7 @@ import {
   prunePersistedRestingSnapshots,
   readProjectRestingSnapshots,
   type RestingReadingSnapshot,
+  unreadableFileIdentity,
   writeProjectRestingSnapshots,
 } from "./resting-readings-store.js";
 
@@ -52,8 +53,12 @@ export interface HomeAggregateOptions<Output> {
 export interface RestingReadingsPersistence {
   /** Whether persistence is currently active for this Host (requires Home directory and catalog). */
   active?(): boolean;
+  /** Waits for any in-flight sleep persistence on these projects to complete before checking their fingerprints. */
+  awaitPending?(closed: readonly LocalHostProjectReference[], signal?: AbortSignal): Promise<void>;
   /** Live validity fingerprints for a batch of closed projects, keyed by `storage_key`. Null means invalid / unreadable. */
   fingerprints(closed: readonly LocalHostProjectReference[]): Promise<ReadonlyMap<string, string | null>>;
+  /** Non-fingerprint stat identity when `fingerprints` returns null, so unopenable projects do not thrash every poll. */
+  observedToken?(reference: LocalHostProjectReference): string;
   /** Loads persisted resting snapshots for one project from the Home cache, or null on miss/corruption. */
   load(reference: LocalHostProjectReference): Map<string, RestingReadingSnapshot> | null;
   /** Removes one project's persisted resting cache file. */
@@ -143,13 +148,25 @@ export async function collectHomeAggregate<Output>(
   const keysOf = (projectId: string, result: HomeAggregateResult<unknown>) => each?.keyOf
     ? Object.fromEntries([...result.answers.map(answer => answer.source), ...result.issues.flatMap(issue => issue.source ? [issue.source] : [])]
       .map(source => [JSON.stringify(source), each.keyOf!(projectId, source)])) : {};
-  const remember = (reference: LocalHostProjectReference, usedAt: number | undefined, result: HomeAggregateResult<unknown>) => {
+  const remember = (
+    reference: LocalHostProjectReference,
+    usedAt: number | undefined,
+    result: HomeAggregateResult<unknown>,
+    fingerprint?: string,
+  ) => {
     let kept = resting.readings.projects.get(reference.storage_key);
     if (!kept) {
       kept = new Map();
       resting.readings.projects.set(reference.storage_key, kept);
     }
-    kept.set(kind, { usedAt, persistable: canPersist(result), result, keys: keysOf(reference.project_id, result) });
+    const persistable = (fingerprint === undefined || VALID_FINGERPRINT.test(fingerprint)) && canPersist(result);
+    kept.set(kind, {
+      usedAt,
+      ...(fingerprint !== undefined ? { fingerprint } : {}),
+      persistable,
+      result,
+      keys: keysOf(reference.project_id, result),
+    });
   };
   const readOpen = async (reference: LocalHostProjectReference) => {
     const usedAt = resting.rest(reference).usedAt;
@@ -175,6 +192,10 @@ export async function collectHomeAggregate<Output>(
       persistence.prune(known);
       resting.readings.prunedKey = knownSignature;
     }
+    if (persistence.awaitPending && closed.length) {
+      await persistence.awaitPending(closed, signal);
+      signal?.throwIfAborted();
+    }
   }
   const candidates = closed.filter(reference => {
     const { state } = resting.rest(reference);
@@ -188,45 +209,54 @@ export async function collectHomeAggregate<Output>(
     // Opened or purposefully closed since the list was read: never answer or open it from resting state.
     if (state === "closed" || state === "open") continue;
     const currentFp = liveFingerprints?.get(reference.storage_key);
+    const effectiveFp = typeof currentFp === "string"
+      ? currentFp
+      : persistence
+        ? (persistence.observedToken?.(reference) ?? "unreadable")
+        : undefined;
     let projectMap = resting.readings.projects.get(reference.storage_key);
-    if (projectMap && persistence && (typeof currentFp !== "string" || [...projectMap.values()].some(entry => entry.fingerprint !== currentFp))) {
+    if (projectMap && persistence && [...projectMap.values()].some(entry => entry.fingerprint !== effectiveFp)) {
       resting.readings.projects.delete(reference.storage_key);
       persistence.remove(reference.storage_key);
       projectMap = undefined;
     }
     let reading = projectMap?.get(kind);
-    if (!reading && state === "never" && persistence && typeof currentFp === "string") {
-      const persisted = persistence.load(reference);
-      if (persisted) {
-        let matchedAny = false;
-        for (const [entryKind, entry] of persisted) {
-          if (entry.fingerprint !== currentFp) continue;
-          matchedAny = true;
-          if (!projectMap) {
-            projectMap = new Map();
-            resting.readings.projects.set(reference.storage_key, projectMap);
+    if (!reading && state === "never" && persistence) {
+      if (typeof currentFp === "string") {
+        const persisted = persistence.load(reference);
+        if (persisted) {
+          let matchedAny = false;
+          for (const [entryKind, entry] of persisted) {
+            if (entry.fingerprint !== currentFp) continue;
+            matchedAny = true;
+            if (!projectMap) {
+              projectMap = new Map();
+              resting.readings.projects.set(reference.storage_key, projectMap);
+            }
+            if (!projectMap.has(entryKind)) {
+              projectMap.set(entryKind, {
+                usedAt: undefined,
+                fingerprint: entry.fingerprint,
+                persistable: true,
+                result: {
+                  answers: entry.result.answers.map(answer => ({ ...answer })),
+                  issues: entry.result.issues.map(issue => ({ ...issue })),
+                },
+                keys: { ...entry.keys },
+              });
+            }
           }
-          if (!projectMap.has(entryKind)) {
-            projectMap.set(entryKind, {
-              usedAt: undefined,
-              fingerprint: entry.fingerprint,
-              persistable: true,
-              result: {
-                answers: entry.result.answers.map(answer => ({ ...answer })),
-                issues: entry.result.issues.map(issue => ({ ...issue })),
-              },
-              keys: { ...entry.keys },
-            });
+          if (matchedAny) {
+            reading = projectMap?.get(kind);
+          } else {
+            persistence.remove(reference.storage_key);
           }
         }
-        if (matchedAny) {
-          reading = projectMap?.get(kind);
-        } else {
-          persistence.remove(reference.storage_key);
-        }
+      } else {
+        persistence.remove(reference.storage_key);
       }
     }
-    const sameFp = !persistence || (typeof currentFp === "string" && reading?.fingerprint === currentFp);
+    const sameFp = !persistence || reading?.fingerprint === effectiveFp;
     const sameKeys = reading !== undefined
       && (Object.keys(reading.keys).length === 0 || Boolean(each?.keyOf))
       && Object.entries(reading.keys).every(([source, key]) => each?.keyOf?.(reference.project_id, JSON.parse(source)) === key);
@@ -240,10 +270,14 @@ export async function collectHomeAggregate<Output>(
       unread.push(reference);
     }
   }
-  if (unread.length) readInBackground(resting, unread, kind, remember, reference => readProject<unknown>(ports, reference, resting.wake, outputType, input, undefined));
+  if (unread.length) {
+    readInBackground(resting, persistence, unread, kind, remember, reference => readProject<unknown>(ports, reference, resting.wake, outputType, input, undefined));
+  }
   const projects = [...open, ...kept];
   return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
 }
+
+const VALID_FINGERPRINT = /^[0-9a-f]{64}$/u;
 
 /** One cached resting reading of a project for one aggregate kind. */
 export interface RestingReading {
@@ -260,6 +294,7 @@ export interface RestingReadings {
   readonly waking: Set<string>;
   pass: Promise<void>;
   prunedKey?: string;
+  readonly pendingSleeps?: Map<string, Set<Promise<void>>>;
 }
 
 function restingKind(outputType: string, input: unknown): string {
@@ -300,9 +335,14 @@ export function rememberRestingReading(
  * not queued twice; one opened, closed on purpose or no longer there by its turn is passed over. A read that ran out of time on a project
  * just opened is tried once more, since the first read after opening is the slow one.
  */
-function readInBackground(resting: NonNullable<HomeAggregatePorts["resting"]>, references: LocalHostProjectReference[], kind: string,
-  remember: (reference: LocalHostProjectReference, usedAt: number | undefined, result: HomeAggregateResult<unknown>) => void,
-  read: (reference: LocalHostProjectReference) => Promise<HomeAggregateResult<unknown>>): void {
+function readInBackground(
+  resting: NonNullable<HomeAggregatePorts["resting"]>,
+  persistence: RestingReadingsPersistence | undefined,
+  references: LocalHostProjectReference[],
+  kind: string,
+  remember: (reference: LocalHostProjectReference, usedAt: number | undefined, result: HomeAggregateResult<unknown>, fingerprint?: string) => void,
+  read: (reference: LocalHostProjectReference) => Promise<HomeAggregateResult<unknown>>,
+): void {
   for (const reference of references) {
     const id = JSON.stringify([reference.storage_key, kind]);
     if (resting.readings.waking.has(id)) continue;
@@ -313,9 +353,18 @@ function readInBackground(resting: NonNullable<HomeAggregatePorts["resting"]>, r
         if (!resting.running() || before === "open" || before === "closed") return;
         let result = await resting.quietly(() => read(reference));
         if (result.issues.some(issue => issue.code === "actions.timeout")) result = await resting.quietly(() => read(reference));
-        const after = resting.rest(reference);
+        let after = resting.rest(reference);
         if (!resting.running() || after.state === "closed") return;
-        remember(reference, after.usedAt, result);
+        let fingerprint: string | undefined;
+        if (persistence && after.state !== "open") {
+          const live = (await persistence.fingerprints([reference])).get(reference.storage_key) ?? null;
+          after = resting.rest(reference);
+          if (!resting.running() || after.state === "closed") return;
+          if (after.state !== "open") {
+            fingerprint = typeof live === "string" ? live : (persistence.observedToken?.(reference) ?? "unreadable");
+          }
+        }
+        remember(reference, after.usedAt, result, fingerprint);
         resting.changed(reference.project_id);
       } catch { /* the next read tries again */ }
       finally { resting.readings.waking.delete(id); }
@@ -404,7 +453,19 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
       readings: readingsOf(host),
       persistence: {
         active: () => host.restingHomeDirectory() !== undefined,
+        awaitPending: async (closed, signal) => {
+          const pendingSleeps = readingsOf(host).pendingSleeps;
+          if (!pendingSleeps || pendingSleeps.size === 0) return;
+          const waits: Promise<void>[] = [];
+          for (const reference of closed) {
+            const group = pendingSleeps.get(reference.storage_key);
+            if (group) waits.push(...group);
+          }
+          if (waits.length === 0) return;
+          await waitWithSignal(Promise.all(waits).then(() => undefined), signal);
+        },
         fingerprints: closed => host.restingFingerprints(closed),
+        observedToken: reference => unreadableFileIdentity(reference.storage_key),
         load: reference => {
           const home = host.restingHomeDirectory();
           return home ? readProjectRestingSnapshots(home, reference) : null;
@@ -420,6 +481,51 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
       },
     },
   };
+}
+
+function waitWithSignal(promise: Promise<void>, signal: AbortSignal | undefined): Promise<void> {
+  if (!signal) return promise;
+  signal.throwIfAborted();
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason ?? new Error("Aborted"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      () => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      },
+      error => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+/** Serializes concurrent aggregate reads behind an in-flight sleep + fingerprint persistence for `storageKey`. */
+export async function trackRestingSleepPersist<T>(
+  host: MolisWorkLocalHost,
+  storageKey: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  const pendingSleeps = readingsOf(host).pendingSleeps!;
+  let release!: () => void;
+  const barrier = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  let group = pendingSleeps.get(storageKey);
+  if (!group) {
+    group = new Set();
+    pendingSleeps.set(storageKey, group);
+  }
+  group.add(barrier);
+  try {
+    return await work();
+  } finally {
+    group.delete(barrier);
+    if (group.size === 0) pendingSleeps.delete(storageKey);
+    release();
+  }
 }
 
 /** Clears both in-memory and on-disk resting readings for a project closed on purpose (deletion, recycle, restore, sync). */
@@ -528,7 +634,7 @@ const readings = new WeakMap<MolisWorkLocalHost, RestingReadings>();
 const readingsOf = (host: MolisWorkLocalHost) => {
   let kept = readings.get(host);
   if (!kept) {
-    kept = { projects: new Map(), waking: new Set(), pass: Promise.resolve() };
+    kept = { projects: new Map(), waking: new Set(), pass: Promise.resolve(), pendingSleeps: new Map() };
     readings.set(host, kept);
   }
   return kept;

@@ -595,3 +595,110 @@ test("homeBackgroundTasks marks under-way readings non-persistable and refuses t
   await readings.pass;
   assert.deepEqual(woken, [project.project_id], "wakes to reconcile post-restart state");
 });
+
+test("collectHomeAggregate awaits pending sleep persistence and caches unopenable projects without repeat wakes until DB changes", async () => {
+  const sleeping = reference("project-sleep-race");
+  const broken = reference("project-broken");
+  const source = { capability_id: "homeagg.running.read", version: 1, provider_id: "example.plugin" };
+  const homeView = (projectId: string): ActionView => ({
+    ...unavailableView(projectId),
+    availability: { available: true },
+  });
+  const fpSleep = "e".repeat(64);
+  const fpBroken = "f".repeat(64);
+  const kind = JSON.stringify([TYPE, {}]);
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const woken: string[] = [];
+  const removed: string[] = [];
+
+  // Pre-seed an in-memory reading from before sleep (fingerprint still unstamped while sleep persistence is in flight).
+  readings.projects.set(sleeping.storage_key, new Map([[kind, {
+    usedAt: 42,
+    persistable: true,
+    result: { answers: [{ project_id: sleeping.project_id, source, plugin_id: PLUGIN, subject_kinds: [], output: { project: sleeping.project_id } }], issues: [] },
+    keys: {},
+  }]]));
+
+  let releaseSleepPersist!: () => void;
+  const sleepPersistGate = new Promise<void>(resolve => { releaseSleepPersist = resolve; });
+  let pendingForSleep = true;
+  let brokenLiveFp: string | null = null;
+  let brokenStamp = "unreadable:stat-1";
+  let brokenCanOpen = false;
+  let brokenState: "never" | "open" = "never";
+
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [],
+    whileOpen: async (_ref, work) => work(),
+    client: ref => fakeActionClient({
+      discover: async () => [homeView(ref.project_id)],
+      invoke: async () => ({ project: ref.project_id }),
+    }),
+    context: async ref => context(ref.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => [sleeping, broken],
+      rest: ref => ref.project_id === sleeping.project_id
+        ? { state: "asleep", usedAt: 42 }
+        : { state: brokenState, usedAt: undefined },
+      wake: async (ref, work) => {
+        woken.push(ref.project_id);
+        if (ref.project_id === broken.project_id && !brokenCanOpen) {
+          throw new ActionError("actions.execution_failed", "corrupt sqlite db");
+        }
+        if (ref.project_id === broken.project_id) brokenState = "open";
+        return work();
+      },
+      quietly: async work => work(),
+      changed: () => undefined,
+      running: () => true,
+      readings,
+      persistence: {
+        awaitPending: async closed => {
+          if (pendingForSleep && closed.some(item => item.storage_key === sleeping.storage_key)) {
+            await sleepPersistGate;
+          }
+        },
+        fingerprints: async closed => new Map(closed.map(item => [
+          item.storage_key,
+          item.storage_key === sleeping.storage_key ? fpSleep : brokenLiveFp,
+        ])),
+        observedToken: () => brokenStamp,
+        load: () => null,
+        remove: key => { removed.push(key); },
+        prune: () => undefined,
+      },
+    },
+  };
+
+  // Start aggregate poll while sleep persistence is still running (fingerprint unstamped).
+  const concurrentPoll = collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  // Simulate persistProjectRestingReadings finishing and stamping the fingerprint before releasing the barrier.
+  readings.projects.get(sleeping.storage_key)!.get(kind)!.fingerprint = fpSleep;
+  pendingForSleep = false;
+  releaseSleepPersist();
+
+  const first = await concurrentPoll;
+  assert.deepEqual(first.answers.map(answer => [answer.project_id, answer.resting]), [[sleeping.project_id, true]],
+    "awaitPending preserves valid pre-sleep reading instead of wiping and re-waking");
+  await readings.pass;
+  assert.deepEqual(woken, [broken.project_id], "sleeping project is never re-woken; broken project is tried once");
+  assert.equal(readings.projects.get(broken.storage_key)?.get(kind)?.persistable, false, "failed-open reading is never persistable");
+
+  // Repeat polls with unchanged unreadable stamp do NOT re-wake the broken project.
+  woken.length = 0;
+  const second = await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  assert.equal(second.answers.length, 1);
+  assert.equal(second.issues.length, 1);
+  await readings.pass;
+  assert.deepEqual(woken, [], "broken project does not thrash background wakes on repeat polls");
+
+  // Once the broken DB file changes (stamp changes -> valid fingerprint), it retries once and succeeds.
+  brokenCanOpen = true;
+  brokenLiveFp = fpBroken;
+  brokenStamp = "unreadable:stat-2";
+  await collectHomeAggregate<{ project: string }>(ports, TYPE, {});
+  await readings.pass;
+  assert.deepEqual(woken, [broken.project_id], "repaired DB invalidates failed-open cache and wakes once");
+  assert.ok(removed.includes(broken.storage_key));
+});

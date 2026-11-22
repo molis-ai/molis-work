@@ -14,6 +14,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { FunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { jobProbe } from "./fixtures/plugin-jobs.js";
 
 /*
  * S-49 (PG-043): the Home gathers what plugins still run across projects by calling, in each open project, the queries they declare
@@ -387,8 +388,66 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   assert.deepEqual(afterRevoke.answers, [], "publisher revocation invalidates sleeping snapshots immediately");
   await ports2.resting!.readings.pass;
   assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.equal(await host2.sleepIfIdle(p1, 0), true);
+  assert.equal(await host2.sleepIfIdle(p2, 0), true);
+
+  // Non-always-on / project-scoped consent grant and revocation in Home's plugin_consents invalidate sleeping snapshots immediately.
+  const [projectConsent] = ledger.record({
+    plugin_id: "third-party.project.widget",
+    publisher_signature: "third-party-sig",
+    manifest_digest: "d".repeat(64),
+    granted_by: "user",
+    grants: [{ kind: "local_directory", subject: "/tmp/project-widget" }],
+    at: new Date().toISOString(),
+  });
+  assert.ok(projectConsent);
+  opened2.length = 0;
+  const afterProjectConsentGrant = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(afterProjectConsentGrant.answers, [], "project-scoped plugin consent grant invalidates sleeping snapshots immediately");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.equal(await host2.sleepIfIdle(p1, 0), true);
+  assert.equal(await host2.sleepIfIdle(p2, 0), true);
+
+  ledger.revoke(projectConsent.consent_id, new Date().toISOString());
+  opened2.length = 0;
+  const afterProjectConsentRevoke = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.deepEqual(afterProjectConsentRevoke.answers, [], "project-scoped plugin consent revocation invalidates sleeping snapshots immediately");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+
+  // Concurrent sleep-to-persist race: pausing persistence after ProjectLine marks p1 asleep must not wipe or immediately re-wake p1.
+  let enteredPersist!: () => void;
+  let releasePersist!: () => void;
+  const persistEntered = new Promise<void>(resolve => { enteredPersist = resolve; });
+  const persistGate = new Promise<void>(resolve => { releasePersist = resolve; });
+  const realFingerprints = host2.restingFingerprints.bind(host2);
+  let interceptFirst = true;
+  host2.restingFingerprints = async references => {
+    if (interceptFirst && references.length === 1 && references[0]?.storage_key === p1.storage_key) {
+      interceptFirst = false;
+      enteredPersist();
+      await persistGate;
+    }
+    return realFingerprints(references);
+  };
+  opened2.length = 0;
+  const sleepRace = host2.sleepIfIdle(p1, 0);
+  await persistEntered;
+  assert.equal(host2.projectRest(p1.storage_key).state, "asleep", "p1 is already asleep while persistence is in flight");
+  const concurrentDuringSleep = collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  releasePersist();
+  host2.restingFingerprints = realFingerprints;
+  assert.equal(await sleepRace, true);
+  const raceResult = await concurrentDuringSleep;
+  assert.ok(raceResult.answers.some(answer => answer.project_id === p1.project_id && answer.resting === true),
+    "concurrent aggregate poll waits for sleep persistence and receives resting answer for p1");
+  await ports2.resting!.readings.pass;
+  assert.ok(!opened2.includes(p1.project_id), "p1 is not immediately re-woken during sleep-to-persist window");
+
   // Re-record keyed query on both before closing host2 cleanly so host3 can test keyOf invalidation after restart.
   await collectHomeAggregate<{ project: string }>(ports2, TYPE, each);
+  await ports2.resting!.readings.pass;
   await host2.close();
 
   // Host 3: verify keyOf invalidation after restart and purposeful close clearing on-disk cache.
@@ -534,4 +593,124 @@ test("S-49 S-12 persisted resting cache rejects symlinks and tampered files and 
   await writeFile(outsideTarget, "UNCHANGED_OUTSIDE_SENTINEL", { mode: 0o600 });
   await symHost.close();
   assert.equal(await readFile(outsideTarget, "utf8"), "UNCHANGED_OUTSIDE_SENTINEL", "Host never writes through a symlink");
+});
+
+test("S-49 unopenable closed projects do not thrash background wakes until their database changes, and shutdown with active plugin work skips resting persistence", { timeout: 60_000 }, async t => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-broken-")));
+  const outside = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-broken-out-")));
+  const hosts: MolisWorkLocalHost[] = [];
+  t.after(async () => {
+    for (const host of hosts.reverse()) {
+      try { await host.close(); } catch { /* already closed */ }
+    }
+    await rm(home, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  });
+  const create = async (name: string) => {
+    const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: "user" }));
+    return molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  };
+  const corrupt = await create("CorruptProject");
+  const symlinked = await create("SymlinkedProject");
+  const active = await create("ActiveWorkProject");
+
+  // Snapshot valid SQLite bytes before constructing Host (ensureHomeUpgraded validates project DB files at startup).
+  const validCorrupt = await readFile(corrupt.storage_key);
+  const validSymlinked = await readFile(symlinked.storage_key);
+
+  const probe = jobProbe("shutdownwork", "project");
+  probe.behavior.work = async (_context, control) => {
+    await new Promise<void>(resolve => {
+      if (control.signal.aborted) resolve();
+      else control.signal.addEventListener("abort", () => resolve(), { once: true });
+    });
+  };
+  const plugin1 = aggregatePlugin();
+  const host1 = new MolisWorkLocalHost({
+    homeDirectory: home,
+    completeText: null,
+    pluginFixtures: { project: [plugin1.definition], home: [probe.definition] },
+  });
+  host1.configurePersonalPlanning(home, withCatalog);
+  hosts.push(host1);
+  // Open only `active` first so Home startup upgrades complete cleanly while `corrupt` and `symlinked` remain unopened ("never").
+  await host1.withProject(active, () => undefined);
+  // Break corrupt (bad regular file) and symlinked (symlink to non-DB file -> null fingerprint) while both are unopened.
+  const bogusTarget = join(outside, "not-a-db.txt");
+  await writeFile(bogusTarget, "not a sqlite db");
+  await writeFile(corrupt.storage_key, "not a sqlite db");
+  await rm(symlinked.storage_key, { force: true });
+  await symlink(bogusTarget, symlinked.storage_key);
+  const ports1 = homeAggregatePorts(host1);
+  const wakeCounts = new Map<string, number>();
+  const realWake = ports1.resting!.wake;
+  ports1.resting!.wake = (ref, work) => {
+    wakeCounts.set(ref.project_id, (wakeCounts.get(ref.project_id) ?? 0) + 1);
+    return realWake(ref, work);
+  };
+
+  // Poll 1: each broken project is tried once; active project opens cleanly.
+  await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+  await ports1.resting!.readings.pass;
+  assert.equal(wakeCounts.get(corrupt.project_id), 1, "corrupt project tried once on first poll");
+  assert.equal(wakeCounts.get(symlinked.project_id), 1, "symlinked project tried once on first poll");
+  assert.equal(existsSync(restingCacheFile(home, corrupt.storage_key)), false);
+  assert.equal(existsSync(restingCacheFile(home, symlinked.storage_key)), false);
+
+  // Repeat polls 2 & 3: neither broken project is re-woken while unchanged, and both still report issues.
+  for (let poll = 0; poll < 2; poll += 1) {
+    const repeated = await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+    await ports1.resting!.readings.pass;
+    assert.ok(repeated.issues.some(issue => issue.project_id === corrupt.project_id));
+    assert.ok(repeated.issues.some(issue => issue.project_id === symlinked.project_id));
+  }
+  assert.equal(wakeCounts.get(corrupt.project_id), 1, "corrupt project does not thrash on repeat polls");
+  assert.equal(wakeCounts.get(symlinked.project_id), 1, "symlinked project does not thrash on repeat polls");
+
+  // Repair both DBs on disk: next poll detects the change, wakes each once, and reads cleanly.
+  await writeFile(corrupt.storage_key, validCorrupt);
+  await rm(symlinked.storage_key, { force: true });
+  await writeFile(symlinked.storage_key, validSymlinked);
+  await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+  await ports1.resting!.readings.pass;
+  assert.equal(wakeCounts.get(corrupt.project_id), 2, "repaired corrupt project wakes once to recover");
+  assert.equal(wakeCounts.get(symlinked.project_id), 2, "repaired symlinked project wakes once to recover");
+  const recovered = await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+  assert.ok(recovered.answers.some(answer => answer.project_id === corrupt.project_id));
+  assert.ok(recovered.answers.some(answer => answer.project_id === symlinked.project_id));
+
+  // Persist a resting snapshot for `active` while idle, then start active Home plugin work in `active` before Host shutdown.
+  assert.equal(await host1.sleepIfIdle(active, 0), true);
+  assert.equal(existsSync(restingCacheFile(home, active.storage_key)), true);
+  const caller = await host1.localPersonContext(active);
+  assert.equal(await host1.actionClient(active).invoke(caller, probe.keep, { id: "active-shutdown" }), "kept");
+  assert.equal(host1.homePlugins?.hasProjectWork(active.project_id), true);
+  assert.equal(await host1.sleepIfIdle(active, 0), false, "active plugin job prevents sleep");
+  // Record an in-memory reading matching current usedAt right before shutting down while the job is still running.
+  await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
+  await host1.close();
+
+  // Shutdown with active plugin work must delete the older snapshot instead of stamping the pre-shutdown reading.
+  assert.equal(existsSync(restingCacheFile(home, active.storage_key)), false,
+    "shutdown with active plugin work does not persist a stale resting snapshot");
+  assert.equal(existsSync(restingCacheFile(home, corrupt.storage_key)), true,
+    "idle open projects without active work still persist on clean shutdown");
+
+  // Fresh Host opens `active` quietly instead of serving a stale snapshot, while idle projects serve with zero opens.
+  const opened2: string[] = [];
+  const host2 = new MolisWorkLocalHost({
+    homeDirectory: home,
+    completeText: null,
+    pluginFixtures: { project: [aggregatePlugin().definition], home: [jobProbe("shutdownwork", "project").definition] },
+    onRuntimeOpen: ref => { opened2.push(ref.project_id); },
+  });
+  host2.configurePersonalPlanning(home, withCatalog);
+  hosts.push(host2);
+  const ports2 = homeAggregatePorts(host2);
+  const afterRestart = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
+  assert.ok(!afterRestart.answers.some(answer => answer.project_id === active.project_id),
+    "project shut down with active work is not served as resting after restart");
+  assert.ok(afterRestart.answers.some(answer => answer.project_id === corrupt.project_id && answer.resting === true));
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [active.project_id], "only the project shut down with active work wakes quietly");
 });

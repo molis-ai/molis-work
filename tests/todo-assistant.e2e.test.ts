@@ -56,8 +56,10 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   // The Assistant's panel opens over the page; the person folds it away to come back to the todo.
   if (await browser.evaluate("Boolean(document.querySelector('[data-assistant-panel-close]')?.getClientRects().length)")) await browser.click("[data-assistant-panel-close]");
   // From the todo again: the same unfinished work goes on rather than a second one starting.
+  // With a work under way the header's 交给助理推进 gives way to the work's own row (no second button for the same thing).
+  assert.equal(await evaluate("document.querySelector('[data-todo-delegate]').hidden"), true);
   await browser.evaluate("window.__heard = []");
-  await click("[data-todo-delegate]");
+  await click("[data-todo-continue-work]");
   await browser.waitFor("window.__heard.some(message => message.purpose === 'delegate')");
   assert.equal((await heard()).find(message => message.purpose === "delegate")!.work_id, workId);
   // The todo waits in the strip for the person's words (once: this Home has no model, so the first Send kept what it carried);

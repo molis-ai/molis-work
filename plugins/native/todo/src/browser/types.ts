@@ -126,6 +126,8 @@ export interface TodoState {
   batches: TodoBatch[];
   focusBatch: string;
   choices: Map<string, CandidateChoice>;
+  /** The relation a newly picked link gets, as chosen in the link popover. */
+  linkRelation: string;
 }
 
 /**
@@ -149,7 +151,8 @@ export interface TodoPage {
   dayLabel(date: string): string;
   timeLabel(iso: string): string;
   showNote(text: string, options?: NoteOptions): void;
-  detailHint(text: string, error?: boolean): void;
+  /** A notice over the open todo; `reload` puts 重新读取 beside it (a conflict is answered where it is said). */
+  detailHint(text: string, error?: boolean, reload?: boolean): void;
   ask(message: string, okLabel: string, run?: () => Promise<unknown>): Promise<boolean>;
   paintPlaces(container: Element, current: string, attribute: string): void;
   tellAssistant(purpose: string, item: TodoItem, extra?: Record<string, unknown>): void;
@@ -175,5 +178,11 @@ export interface TodoPage {
   candidateOf(id: string): { batch: TodoBatch; candidate: TodoCandidate } | null;
   queueSave(name: string): void;
   material(item: TodoItem): { title: string; text: string };
+  /** Draws what follows from the editor's current values: status, key dates, the side block, and which buttons show. */
+  paintDraft(): void;
+  /** Closes the open popover, if any; `focusBack` returns focus to the control it grew from. */
+  closePop(focusBack?: boolean): void;
+  /** True when the click belonged to a popover (opening, closing, or a choice inside one that is not a command). */
+  popClick(target: Element): boolean;
   runBatch(change: Record<string, unknown>, doneText: (count: number) => string): Promise<void>;
 }

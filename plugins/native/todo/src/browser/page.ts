@@ -35,7 +35,7 @@ function initialState(): TodoState {
     view: "today", query: "", everything: false, items: [], counts: {}, today: "", listSeq: 0, selected: null, works: [], worksTimer: 0,
     watchWorksUntil: 0, history: [], backlinks: [], linkPool: [], picked: new Set(), undo: null, noteView: null, noteTimer: 0, saveTimer: 0,
     saving: null, dirtyKeys: new Set(), busy: false, quickAttempt: null, dropped: new Set(), placeChoice, detailTicket: 0, reminders: [],
-    reminderSeq: 0, batchSeq: 0, batches: [], focusBatch: "", choices: new Map(),
+    reminderSeq: 0, batchSeq: 0, batches: [], focusBatch: "", choices: new Map(), linkRelation: "blocked_by",
   };
 }
 
@@ -93,10 +93,11 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
       state.noteTimer = window.setTimeout(() => { el.note.hidden = true; state.undo = null; state.noteView = null; }, options.undo ? 12000 : 4000);
     }
   };
-  const detailHint = (text: string, error?: boolean) => {
+  const detailHint = (text: string, error?: boolean, reload?: boolean) => {
     el.detailNote.hidden = !text;
-    el.detailNote.textContent = text || "";
+    $("[data-todo-detail-note-text]").textContent = text || "";
     el.detailNote.classList.toggle("is-error", Boolean(error));
+    $("[data-todo-reload-here]").hidden = !reload;
   };
   // The shared box (host.confirmBox): with a run function the request goes out inside it and a refusal is said there.
   const ask = (message: string, okLabel: string, run?: () => Promise<unknown>) => {

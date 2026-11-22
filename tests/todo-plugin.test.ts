@@ -80,7 +80,7 @@ test("RAC-134 stable Todo words keep the formerly displayed English after the gl
     "todo.status.done": "Completed",
     "todo.field.status": "State",
     "todo.field.notes": "Description",
-    "todo.action.complete": "Completed",
+    "todo.action.complete": "Complete",
     "todo.review.kind-suggestion": "Recommendation",
     "todo.review.collapse": "Collapse all",
     "todo.save.unsaved": "Unsaved",

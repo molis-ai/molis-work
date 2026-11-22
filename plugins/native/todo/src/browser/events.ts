@@ -1,5 +1,5 @@
 import { runCommand } from "./commands.js";
-import { targetElement } from "./dom.js";
+import { fitArea, targetElement } from "./dom.js";
 import { choiceFor } from "./review-choices.js";
 import type { TodoPage } from "./types.js";
 
@@ -57,14 +57,39 @@ export function listen(page: TodoPage): void {
       return;
     }
     const field = target.closest<HTMLElement>("[data-todo-field]");
-    if (field && state.selected) page.queueSave(fieldAttribute(field.dataset.todoField ?? ""));
+    if (field && state.selected) {
+      page.queueSave(fieldAttribute(field.dataset.todoField ?? ""));
+      page.paintDraft();
+    }
   });
   el.bench.addEventListener("input", (event) => {
     const field = targetElement(event)?.closest<HTMLInputElement>("[data-todo-field]");
     if (!field || !state.selected || ["checkbox", "date", "time", "datetime-local"].includes(field.type)) return;
-    page.queueSave(fieldAttribute(field.dataset.todoField ?? ""));
+    const name = field.dataset.todoField ?? "";
+    // The title is one line however it arrives, and both writing areas are as tall as what they hold.
+    if (name === "title" && /[\r\n]/.test(field.value)) field.value = field.value.replace(/\s*[\r\n]+\s*/g, " ");
+    if (name === "title" || name === "notes") fitArea(field);
+    if (name === "title" && field.value.trim()) {
+      field.setAttribute("aria-invalid", "false");
+      page.$("[data-todo-title-error]").hidden = true;
+    }
+    page.queueSave(fieldAttribute(name));
+    if (field.type === "hidden") page.paintDraft();
+  });
+  // Enter leaves the title (it is one line); the notes take Enter as a new line.
+  page.field("title").addEventListener("keydown", (event) => {
+    if ((event as KeyboardEvent).key !== "Enter" || (event as KeyboardEvent).isComposing) return;
+    event.preventDefault();
+    page.field("title").blur();
+  });
+  window.addEventListener("resize", () => {
+    if (!state.selected) return;
+    fitArea(page.field("title"));
+    fitArea(page.field("notes"));
   });
   el.bench.addEventListener("click", (event) => {
+    const target = targetElement(event);
+    if (target && page.popClick(target)) return;
     const button = targetElement(event)?.closest("button");
     if (!button || button.closest("dialog") || button.disabled) return;
     void runCommand(page, button);

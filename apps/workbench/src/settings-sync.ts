@@ -40,7 +40,9 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       header.append(node('h2','',readText(title)));const main=node('div','mw-form__body');main.append(body);const footer=node('footer','mw-form__footer'),problem=node('p','settings-form-error');problem.setAttribute('role','alert');problem.hidden=true;main.append(problem);
       for(const [label,run] of actions)footer.append(button(label,async()=>{footer.querySelectorAll('button').forEach(el=>el.disabled=true);try{if(state?.policy?.spaceId!==spaceId)throw new Error(readText("workbench.settings-sync.account-has-changed-please-reopen-view"));if((await run())!==false)dialog.close();}catch(error){problem.textContent=error.message;problem.hidden=false;}finally{footer.querySelectorAll('button').forEach(el=>el.disabled=false);}}));
       const cancel=node('button','mw-btn mw-btn--secondary',readText("common.control.cancel"));cancel.type='button';cancel.addEventListener('click',()=>dialog.close());footer.append(cancel);shell.append(header,main,footer);dialog.append(shell);document.body.append(dialog);
-      const observer=new MutationObserver(()=>{if(!root.isConnected)dialog.close();});observer.observe(document.body,{childList:true,subtree:true});dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();},{once:true});dialog.showModal();cancel.focus();return dialog;
+      const observer=new MutationObserver(()=>{if(!root.isConnected)dialog.close();});
+      for(let ancestor=root.parentElement;ancestor&&ancestor!==document.body;ancestor=ancestor.parentElement){observer.observe(ancestor,{childList:true});if(ancestor.matches('[data-settings-stage-body],main'))break;}
+      dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();},{once:true});dialog.showModal();cancel.focus();return dialog;
     };
     const confirmPermanent=(run)=>new Promise(resolve=>{
       let confirmed=false;

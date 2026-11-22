@@ -35,7 +35,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const stateKey = 'molis-connectors-pending';
       const noticeKey = 'molis-connectors-notice';
       const draftKey = service => 'molis-connectors-draft:' + service;
-      const remember = (key, value) => { try { value ? sessionStorage.setItem(key, JSON.stringify(value)) : sessionStorage.removeItem(key); } catch {} };
+      const remember = (key, value) => { try { value ? sessionStorage.setItem(key, JSON.stringify(value)) : sessionStorage.removeItem(key); } catch { /* Ignore sessionStorage write failure for connector draft state. */ } };
       const recalled = key => { try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { return null; } };
       // Sentences the page puts side by side: Chinese runs them on, other languages leave a space; the dictionary's words carry none.
       const glue = (...parts) => parts.filter(Boolean).reduce((first, second) => first ? globalThis.t.text("workbench.connectors-settings.sentence-pair", { first, second }) : second, "");

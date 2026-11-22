@@ -131,7 +131,7 @@ test("VUX-23 a tab dragged off the strips previews its own place, and a tab redr
 
   // Redrawn mid-drag: the node that would take dragend is gone. The first pointer move after the drag cleans up.
   const guard = () => evaluate<{ workspace: boolean; body: boolean; slots: number; frames: string[] }>(`({ workspace: document.querySelector('[data-tab-workspace]').classList.contains('is-tab-dragging'), body: document.body.classList.contains('is-tab-dragging'),
-    slots: document.querySelectorAll('[data-tab-reorder-slot]:not([data-tab-slot-leaving])').length, frames: [...document.querySelectorAll('iframe.tab-content-frame')].map(frame => getComputedStyle(frame).pointerEvents) })`);
+    slots: document.querySelectorAll('[data-tab-reorder-slot]:not([data-tab-slot-leaving])').length, frames: [...document.querySelectorAll('iframe[data-plugin-frame]')].map(frame => getComputedStyle(frame).pointerEvents) })`);
   await evaluate(`(() => { const goal = document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]'), home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]'), transfer = new DataTransfer();
     goal.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
     const box = home.getBoundingClientRect(); home.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: box.left + 8, clientY: box.top + box.height / 2 }));

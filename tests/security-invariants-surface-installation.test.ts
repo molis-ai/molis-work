@@ -102,7 +102,7 @@ function storedHomeRecord(home: string, pluginId: string) {
 function assertAbsent(home: string, pluginId: string, publisher: string, record: () => unknown) {
   assert.equal(record(), null);
   assert.equal(new HomeConsentLedger(home).publishers().some(pin => pin.key_id === publisher), false);
-  assert.equal(new SandboxPackageStore(home).scopeOf(pluginId), undefined);
+  assert.equal(new SandboxPackageStore(home).scopeOf(pluginId, publisher), undefined);
 }
 
 test("S-surface-composition SCS-16 signed Home confirmations from different projects keep the complete declaration check ahead of durable writes", mac, async t => {
@@ -201,7 +201,7 @@ test("S-surface-composition SCS-16 system references are sampled once for a sign
   const kept = new SandboxPackageStore(h.home);
   let removed = false;
   await confirm(client, { ...base, assert_authority_current: () => {
-    if (!removed && kept.scopeOf(PACKAGE_PLUGIN_ID) === "home") { remove(); removed = true; }
+    if (!removed && kept.scopeOf(PACKAGE_PLUGIN_ID, first.identity) === "home") { remove(); removed = true; }
   } }, initial);
   assert.equal(removed, true);
   assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "running");

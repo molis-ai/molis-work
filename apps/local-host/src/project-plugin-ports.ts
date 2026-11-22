@@ -5,7 +5,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
-import { currentInstalledPluginHost, ensureInstalledPlugins, runningInstalledPluginPlatform } from "./installed-plugin-host.js";
+import { currentInstalledPluginHost, ensureInstalledPlugins, runningInstalledPlugins } from "./installed-plugin-host.js";
 import { installedPluginEntries, installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { assertPermissionSwitchTarget, type InstalledPluginEntry, type PermissionSwitchTarget } from "./plugin-installed-view.js";
@@ -47,7 +47,7 @@ export async function withPreparedProject<Result>(source: ProjectPluginHost, ref
   if (inLanguagePreview()) {
     const result = await source.host.withExistingRuntime(reference, async runtime => {
       if (!await runningProjectPlatform(runtime.store, runtime.project_id)
-        || source.options.homeDirectory && !await runningInstalledPluginPlatform(runtime.store, runtime.project_id)) throw languagePreviewUnavailable();
+        || source.options.homeDirectory && !await runningInstalledPlugins(runtime.store, runtime.project_id)) throw languagePreviewUnavailable();
       return { value: await operation(runtime) };
     });
     if (!result) throw languagePreviewUnavailable();
@@ -60,6 +60,8 @@ export async function withPreparedProject<Result>(source: ProjectPluginHost, ref
 /** The plugins installed in this project (generated, installed from the market): their actions join the project's directory. */
 export async function prepareInstalledPlugins(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
   if (!source.options.homeDirectory) return;
+  // The installed plugins run on the project's platform (47-1 B): one that did not start runs none of them, and its page says why.
+  if (!(await ensureProjectPlugins(projectPluginPorts(source, reference, runtime))).platform) return;
   await (await installedPluginsOf(source, reference, runtime)).refreshPublicActions();
 }
 
@@ -74,8 +76,10 @@ export async function prepareProjectActionDirectory(source: ProjectPluginHost, r
   signal?.throwIfAborted();
 }
 
-function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime) {
+async function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime) {
   const { host, options } = source;
+  // The installed plugins run on the project's one platform (47-1 B): open it with the Runtime's own stores first.
+  await ensureProjectPlugins(projectPluginPorts(source, reference, runtime));
   return ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: options.homeDirectory!, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
@@ -295,15 +299,20 @@ export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined,
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */
 export function ensureProjectPluginActions(source: ProjectPluginHost, reference: LocalHostProjectReference): Promise<unknown> {
+  return source.host.withRuntime(reference, runtime => ensureProjectPlugins(projectPluginPorts(source, reference, runtime)));
+}
+
+/** The ports the project's plugin platform opens with: the Runtime's stores, its action directory and the Agent observers. */
+function projectPluginPorts(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Parameters<typeof ensureProjectPlugins>[0] {
   const { host, options } = source;
   const agents = () => source.agents();
-  return host.withRuntime(reference, runtime => ensureProjectPlugins({
+  return {
     store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: reference.project_id },
     ...(agents() ? { observeReviewSettlements: listener => observeReviewSettlements(agents()!.agentHost.reviews, runtime.project_id, listener,
       agentWritePlaces(source, runtime.project_id)), observeContinuations: listener => agentContinuationStarts(agents()!.agentHost).observeProject(runtime.project_id, listener) } : {}),
-  }));
+  };
 }
 
 /** Where an Agent's approved write in this project landed (BL-366): its round's frozen directory, and the project's workspaces. */

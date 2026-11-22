@@ -260,6 +260,8 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   if (!platform) return undefined;
   const pluginId = entry.manifest.plugin_id, active = platform.supervisor.state(pluginId), manifest = platform.supervisor.manifest(pluginId);
   if (active?.status !== "running" || !active.install_id || !manifest) return undefined;
+  // Another publisher's plugin under the same id is another plugin (BL-586): a Home plugin's stage is not drawn by the project's namesake.
+  if (manifest.publisher.signature !== entry.manifest.publisher.signature) return undefined;
   const record = platform.runtime.get(active.install_id), contribution = platform.supervisor.contribution(pluginId);
   if (record.state !== "running" || contribution?.kind !== "app") return undefined;
   const id = stageContributionId(manifest), view = contribution.views?.find(item => item.descriptor.contribution_id === id);

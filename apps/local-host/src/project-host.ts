@@ -70,7 +70,7 @@ import { admitProviderRules } from "./scene-rule-admission.js";
 import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { homeAggregatePorts } from "./home-aggregate.js";
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
-import { installedPluginsActiveWorkCount, installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
+import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -594,7 +594,7 @@ export class MolisWorkLocalHost {
     return this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
       if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
       const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
-        || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
+        || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsStarting(runtime.store, runtime.project_id));
       if (running !== false) return true;
       // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
       return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
@@ -626,8 +626,8 @@ export class MolisWorkLocalHost {
   activeWorkCount(): number {
     let count = this.homePlugins?.activeWorkCount() ?? 0;
     for (const runtime of this.host.openRuntimes()) {
-      count += projectPluginsActiveWorkCount(runtime.store, runtime.project_id)
-        + installedPluginsActiveWorkCount(runtime.store, runtime.project_id);
+      // The installed plugins run on the project's platform, so their work is counted here once (47-1 B).
+      count += projectPluginsActiveWorkCount(runtime.store, runtime.project_id);
     }
     return count;
   }

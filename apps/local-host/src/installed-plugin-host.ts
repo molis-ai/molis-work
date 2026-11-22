@@ -6,7 +6,6 @@ import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefiniti
 import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { installedDefinitions } from './installed-plugin-definition.js';
-import { pluginProjectsPort } from './plugin-projects-service.js';
 import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
@@ -19,9 +18,9 @@ import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugi
 export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
-import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platform.js';
+import type { PluginPlatform, PluginPlatformOptions } from './plugin-platform.js';
+import { ensureProjectPlugins, projectPlatformActions } from './project-plugins.js';
 import { closePlugin, supervisedInstall } from './plugin-platform-close.js';
 import { configuredModelChoices } from './configured-models.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
@@ -37,7 +36,7 @@ import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, readPluginPrompts } from './plugin-builder/prompts.js';
 import { installedLifecycle, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
+import { installedApprovals, installedCatalog, installedOffers, installedRecords, isInstalledPackage, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { RecoveryErrors } from './installed-recovery-errors.js';
@@ -61,10 +60,10 @@ interface InstalledPluginHostOptions {
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost>; current?: InstalledPluginHost }>>();
 
-/** Passive projection of the unique installed execution owner; never installs or starts a second platform. */
-export async function runningInstalledPluginPlatform(store: LocalProjectDatabase, projectId: string) {
+/** Passive projection of the project's installed plugins once they are open; never opens them. They run on the project's own platform. */
+export async function runningInstalledPlugins(store: LocalProjectDatabase, projectId: string): Promise<InstalledPluginHost | null> {
   const entry = hosts.get(store)?.get(projectId);
-  return entry ? (await entry.ready).platform : null;
+  return entry ? entry.ready : null;
 }
 /** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
@@ -73,15 +72,13 @@ export const staleInstallation = (message = '插件的安装执行身份已失�
 export const currentInstalledPluginHost = (store: LocalProjectDatabase, projectId: string) =>
   hosts.get(store)?.get(projectId)?.current;
 
-/** Whether the project's installed plugins are still starting, or one of them has work running that closing the project would end. */
-export function installedPluginsHaveWork(store: LocalProjectDatabase, projectId: string): boolean {
+/**
+ * Whether the project's installed plugins are still starting. Their running work is the project platform's: it counts there
+ * (`projectPluginsHaveWork`), once, with the built-in plugins'.
+ */
+export function installedPluginsStarting(store: LocalProjectDatabase, projectId: string): boolean {
   const entry = hosts.get(store)?.get(projectId);
-  return !!entry && (!entry.current || entry.current.platform.hasProjectWork(projectId));
-}
-
-/** Synchronous count of active background executions and command-kept jobs in this project's installed plugins. */
-export function installedPluginsActiveWorkCount(store: LocalProjectDatabase, projectId: string): number {
-  return hosts.get(store)?.get(projectId)?.current?.platform.activeWorkCount() ?? 0;
+  return !!entry && !entry.current;
 }
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
@@ -112,24 +109,23 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
-  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
+  const given = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
+  const opened = await projectPlatform(options, given), platform = opened.platform;
+  // The platform's own action handle, so what the Runtime registered for a package is the registration this host follows (one per registry).
+  const actions: typeof given = { ...opened.actions, ...('inspect' in given && given.inspect ? { inspect: given.inspect } : {}) };
   const offers = installedOffers(), { exposed } = offers;
   let closed = false;
   const catalog = installedCatalog(homeDirectory, offers, () => capabilityCatalog(actions, options.actorId ?? 'web-user'), () => closed);
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
-  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: pluginHomeFor(homeDirectory), projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
-    consents: ledger,
-    ...openProjectVersionStores(store),
-    privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
-    deleteInstallationData: id => privateStorage.deleteInstallationData(id),
-    capturePrivateData: id => privateStorage.snapshotInstallationData(id),
-    restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
-    ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   // What is installed here came from a signed package a pinned publisher made, the studio's own included (PG-083). A row the studio's earlier unsigned
   // channel left is not one: it is not listed, started or read (user decision 2026-11-21, nothing is migrated).
-  const { records, pendingUninstalls, recordFor } = installedRecords(() => platform.runtime.list(),
-    item => item.publisher_trust === 'pinned' && item.execution === 'sandbox');
+  const listed = installedRecords(() => platform.runtime.list(), isInstalledPackage);
+  const { pendingUninstalls } = listed;
+  // The plugins this host has listed as its own: the close stops those even when a record went missing since, and never the built-in ones beside them.
+  const owned = new Set<string>();
+  const records = () => { const rows = listed.records(); for (const row of rows) owned.add(row.plugin_id); return rows; };
+  const recordFor: typeof listed.recordFor = (pluginId, retryUninstall) => { const row = listed.recordFor(pluginId, retryUninstall); if (row) owned.add(row.plugin_id); return row; };
   const packages = new SandboxPackageStore(homeDirectory), packagedFor = packagedReleases(packages, standing);
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
@@ -193,12 +189,14 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const close = async () => {
     if (closed) return;
     closed = true; disposePlatform(); declared.releaseAll();
-    await platform.stopProjectJobs(projectId);
-    await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
-    // Closing the Host is not switching a plugin off; closePlugin says what is stopped, and what is only revoked.
-    for (const pluginId of platform.supervisor.enabledPluginIds()) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
+    // The platform is the project's: closing the installed plugins stops and revokes theirs, never the built-in ones beside them, and
+    // the project's own release closes the rest (its jobs, its coordination). Closing is not switching a plugin off: see closePlugin.
+    try { records(); } catch (error) { failures.push(error); }
+    for (const pluginId of platform.supervisor.enabledPluginIds()) {
+      if (owned.has(pluginId)) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
+    }
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');
   };
   try {
@@ -222,13 +220,24 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   } catch (error) { await close(); throw error; }
 }
 
+/**
+ * The project's one plugin platform, which the installed plugins start on beside the built-in ones (47-1 B): the project supervisor's,
+ * opened here with the same identity when nothing has opened it yet. A project whose platform did not start runs no installed plugin either.
+ */
+async function projectPlatform(options: InstalledPluginHostOptions, actions: PluginPlatformOptions['actions']): Promise<{ platform: PluginPlatform; actions: PluginPlatformOptions['actions'] }> {
+  const state = await ensureProjectPlugins({ store: options.store, ...openProjectVersionStores(options.store), projectId: options.projectId, actorId: options.actorId ?? 'web-user',
+    homeDirectory: options.homeDirectory, actions, ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}), ...(options.routePrefix === undefined ? {} : { routePrefix: options.routePrefix }) });
+  if (!state.platform) throw new Error(state.error ?? '项目插件平台没有启动，安装的插件也无法运行');
+  return { platform: state.platform, actions: projectPlatformActions(options.store, options.projectId) ?? actions };
+}
+
 /** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */
 async function reconcileInstalledDualHalf(ctx: {
   closed(): boolean;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
-  platform: ReturnType<typeof createPluginPlatform>;
+  platform: PluginPlatform;
   withdraw(pluginId: string): void;
   expose(release: InstalledRelease): Promise<void>;
   standing: ReturnType<typeof publisherStanding>;

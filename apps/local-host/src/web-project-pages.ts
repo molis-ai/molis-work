@@ -18,10 +18,11 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { renderWorkbenchRefreshDocument, type createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ensureProjectPlugins } from "./project-plugins.js";
+import { ensureProjectPlugins, type ProjectPluginState } from "./project-plugins.js";
 import { renderProjectRuntimeStages, stageErrorsOf, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
+import { isInstalledPackage } from "./installed-plugin-common.js";
 import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 /** The project settings page each path opens; `/settings` alone opens 常规. */
@@ -59,11 +60,21 @@ async function projectSettingsRequirements(homeDirectory: string | undefined, st
     .map(plugin => ({ plugin_id: plugin.plugin_id, installed: plugin.installed || installed.has(plugin.plugin_id) })));
 }
 
+function installedPackageOn(platform: NonNullable<ProjectPluginState["platform"]>, pluginId: string): boolean {
+  const installId = platform.supervisor.state(pluginId)?.install_id;
+  if (!installId) return false;
+  try { return isInstalledPackage(platform.runtime.get(installId)); }
+  catch { return false; }
+}
+
 async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: MolisWorkWebView,
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
-  const directory = record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [];
+  // The installed packages run on this platform too (47-1 B), but their entries are the installed host's, keyed by their installation
+  // (`installedPluginStages`): listed here under the plugin id they would take the id of a Home plugin by another publisher (BL-586).
+  const platform = record.platform;
+  const directory = platform ? runningPluginDirectory(platform.supervisor, ports.homeDirectory).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)) : [];
   const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory(ports.homeDirectory)) };
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins),

@@ -38,10 +38,13 @@ export function createWebCatalogAccess(
     try {
       const catalog = await prepare();
       catalog.assertCurrentSchema();
+      const before = catalog.catalogDataStamp();
       try { return await operation(catalog); }
       finally {
-        try { projectCount = catalog.listProjects().length; }
-        catch { ready = false; }
+        if (!ready || before === null || catalog.catalogDataStamp() !== before) {
+          try { projectCount = catalog.listProjects().length; }
+          catch { ready = false; }
+        }
       }
     } finally {
       if (--active === 0) { for (const resolve of idle) resolve(); idle.clear(); }

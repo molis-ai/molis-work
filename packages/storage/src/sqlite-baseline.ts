@@ -1,7 +1,7 @@
 import { rollbackPreservingError } from "./transaction-errors.js";
 import { readDatabaseSpace, readStorageSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL } from "./space.js";
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -245,10 +245,10 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
     const inspection = new DatabaseSync(immutable ? uri.href : path, { readOnly: true });
     try {
       if (!checkSqliteBaselineVersion(inspection, path, baseline, home)) return false;
-      if (verifyOwnership) assertExistingHomeSpace(inspection, path, home);
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
       assertSqliteBaselineShape(inspection, path, baseline, { home });
+      if (verifyOwnership) assertExistingHomeSpace(inspection, path, home);
       return true;
     } finally {
       inspection.close();
@@ -319,16 +319,41 @@ export function openBaselineHomeSqlite(homeDirectory: string, storeName: string,
   }
 }
 
-/** Reads only an existing, complete current baseline. Missing/empty stores are absent; no file or schema is created. */
+const SQLITE_HEADER_MAGIC = Buffer.from("SQLite format 3\0", "ascii");
+
+/** A cleanly closed WAL store would gain a `-shm` sidecar if opened normally and refused; pre-check it with `immutable=1`. */
+function isClosedWalStore(path: string): boolean {
+  if (["-wal", "-shm", "-journal"].some(suffix => existsSync(path + suffix))) return false;
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, "r");
+    const header = Buffer.alloc(20);
+    const bytes = readSync(fd, header, 0, 20, 0);
+    return bytes === 20 && header.subarray(0, 16).equals(SQLITE_HEADER_MAGIC) && (header[18] === 2 || header[19] === 2);
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** Reads only an existing, complete current baseline on one read-only connection. Missing/empty stores are absent; no file or schema is created. */
 export function openExistingBaselineHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline): DatabaseSync | undefined {
   const path = homeSqlitePath(home, storeName);
-  if (!existsSync(path) || statSync(path).size === 0) return undefined;
-  if (!inspectSqliteBaseline(path, baseline, home, true)) throw structureMismatch(path, home);
+  const stat = statSync(path, { throwIfNoEntry: false });
+  if (!stat || stat.size === 0) return undefined;
+  if (isClosedWalStore(path) && !inspectSqliteBaseline(path, baseline, home, true)) throw structureMismatch(path, home);
   const db = new DatabaseSync(path, { readOnly: true });
   try {
+    if (!checkSqliteBaselineVersion(db, path, baseline, home)) throw structureMismatch(path, home);
+    assertSqliteBaselineShape(db, path, baseline, { home });
     assertExistingHomeSpace(db, path, home);
     return db;
-  } catch (error) { db.close(); throw error; }
+  } catch (error) {
+    db.close();
+    if ((error as { errcode?: unknown }).errcode === 776) throw structureMismatch(path, home);
+    throw error;
+  }
 }
 
 /** Pure ownership check: reject before the normal connection, then recheck the actual query connection. Never assign a space. */
@@ -434,13 +459,43 @@ export function clearInExistingHomeSqlite<T>(homeDirectory: string, storeName: s
   } finally { db.close(); }
 }
 
-// Held Home connections (batch 103-1). They live here, beside `openBaselineHomeSqlite`, because they only pass on the baseline their
+// Held Home connections. They live here, beside `openBaselineHomeSqlite`, because they only pass on the baseline their
 // caller names: the release check reads the named baseline at each caller (scripts/verify-release-versions.mjs).
 
-interface Held { db: DatabaseSync; dev: number; ino: number; data: number; schema: number }
+interface Held {
+  readonly db: DatabaseSync;
+  readonly dev: number;
+  readonly ino: number;
+  readonly data: number;
+  readonly schema: number;
+  readonly space: string;
+  readonly stamp: string;
+  readonly prepared: WeakSet<(db: DatabaseSync) => void>;
+}
 
-/** The connections this process holds, by library file. */
-const held = new Map<string, Held>();
+interface HeldSlots {
+  readonly homeRoot: string;
+  readonly rawRoot: string;
+  readonly file: string;
+  ro?: Held;
+  rw?: Held;
+}
+
+/** Held Home store connections keyed by canonical library file, with separate read-only and read-write slots. */
+const held = new Map<string, HeldSlots>();
+/** Monotonic generation stamped onto each opened slot so a reopened handle never reuses a prior connection's `data_version=1` stamp. */
+let nextSlotGeneration = 0;
+
+/** Canonicalize a path through any existing ancestor symlink so aliases and not-yet-created or deleted paths resolve identically. */
+function canonicalPath(target: string): string {
+  const resolved = resolve(target);
+  try { return realpathSync.native(resolved); }
+  catch {
+    const parent = dirname(resolved);
+    if (parent === resolved) return resolved;
+    return join(canonicalPath(parent), basename(resolved));
+  }
+}
 
 /** What another connection would change: its committed writes (`data_version`) and any structure change (`schema_version`). */
 const versions = (db: DatabaseSync) => ({
@@ -453,43 +508,104 @@ const identity = (file: string) => {
   return stat ? { dev: stat.dev, ino: stat.ino } : undefined;
 };
 
-/**
- * The held connection when it can be borrowed as it is: still open, still the same file, and nothing committed or restructured by another
- * connection since it was checked. Otherwise it is closed and forgotten, and the caller checks the store again before opening it.
- */
-function stillHeld(file: string): DatabaseSync | undefined {
-  const current = held.get(file);
-  if (!current) return undefined;
-  const now = current.db.isOpen ? identity(file) : undefined;
-  if (now && now.dev === current.dev && now.ino === current.ino) {
-    const seen = versions(current.db);
-    if (seen.data === current.data && seen.schema === current.schema) return current.db;
-  }
-  held.delete(file);
-  if (current.db.isOpen) current.db.close();
-  return undefined;
+/** Stat identity of `<home>/storage-space.json`, so deleting or swapping the Home space descriptor invalidates held handles. */
+function spaceFileIdentity(home: string): string {
+  const stat = statSync(join(home, "storage-space.json"), { throwIfNoEntry: false });
+  return stat ? `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}` : "absent";
+}
+
+function closeHeld(entry: Held | undefined): void {
+  if (entry?.db.isOpen) entry.db.close();
+}
+
+function dropSlot(slots: HeldSlots, kind: "ro" | "rw"): void {
+  const current = slots[kind];
+  if (!current) return;
+  slots[kind] = undefined;
+  closeHeld(current);
+  if (!slots.ro && !slots.rw) held.delete(slots.file);
+}
+
+function slotFresh(file: string, homeRoot: string, current: Held): boolean {
+  if (!current.db.isOpen) return false;
+  const now = identity(file);
+  if (!now || now.dev !== current.dev || now.ino !== current.ino) return false;
+  if (spaceFileIdentity(homeRoot) !== current.space) return false;
+  const seen = versions(current.db);
+  return seen.data === current.data && seen.schema === current.schema;
 }
 
 /**
- * The one connection this process keeps to a Home store (batch 103-1): the first call opens it the way `openBaselineHomeSqlite` does (version,
- * structure and space checked, the structure compared once), runs `prepare` on it once, and every later call borrows the same connection instead
- * of opening and closing the file again. A file that was removed or replaced since (its device and inode changed) is opened again, so a borrower
- * never writes into a file that is no longer the store; one another connection wrote to or changed since it was checked is checked again
- * (opened again), so a store changed under it is refused as it was when every call opened the file. Borrowers use it synchronously and never close it:
- * a connection kept across an await may already be closed, because the next borrow after another connection's commit opens a new one. The Host
- * releases a Home's connections when it gives the Home up (`releaseHeldHomeSqlite`).
+ * The held slot when it can be borrowed as it is: still open, still the same file and Home space descriptor, and nothing committed
+ * or restructured by another connection since it was checked. Otherwise it is closed and forgotten so the caller re-validates on open.
  */
-export function heldHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): DatabaseSync {
-  const file = homeSqlitePath(home, storeName);
-  const reused = stillHeld(file);
-  if (reused) return reused;
-  const db = openBaselineHomeSqlite(home, storeName, baseline);
+function stillHeldEntry(file: string, homeRoot: string, kind: "ro" | "rw"): Held | undefined {
+  const slots = held.get(file);
+  const current = slots?.[kind];
+  if (!current) return undefined;
+  if (slotFresh(file, homeRoot, current)) return current;
+  dropSlot(slots, kind);
+  return undefined;
+}
+
+/** If the sibling slot is idle and became stale (external write or replacement), close it rather than leaving a stale handle open. */
+function evictStaleSlot(file: string, homeRoot: string, kind: "ro" | "rw"): void {
+  const slots = held.get(file);
+  const sibling = slots?.[kind];
+  if (!sibling || (sibling.db.isOpen && sibling.db.isTransaction)) return;
+  if (!slotFresh(file, homeRoot, sibling)) dropSlot(slots, kind);
+}
+
+function ensurePrepared(slots: HeldSlots, kind: "ro" | "rw", entry: Held, prepare?: (db: DatabaseSync) => void): void {
+  if (!prepare || entry.prepared.has(prepare)) return;
+  try {
+    prepare(entry.db);
+    entry.prepared.add(prepare);
+  } catch (error) {
+    dropSlot(slots, kind);
+    throw error;
+  }
+}
+
+function rememberSlot(home: string, storeName: string, kind: "ro" | "rw", db: DatabaseSync, prepare?: (db: DatabaseSync) => void): Held {
+  const homeRoot = canonicalPath(home), rawRoot = resolve(home);
+  const file = resolve(homeSqlitePath(homeRoot, storeName));
+  const opened = identity(file);
+  if (!opened) throw new Error("SQLite store disappeared while it was opened; retry");
+  const currentVersions = versions(db), space = spaceFileIdentity(homeRoot);
+  const stamp = `${++nextSlotGeneration}:${opened.dev}:${opened.ino}:${currentVersions.data}:${currentVersions.schema}:${space}`;
+  const prepared = new WeakSet<(db: DatabaseSync) => void>();
+  if (prepare) prepared.add(prepare);
+  const entry: Held = { db, ...opened, ...currentVersions, space, stamp, prepared };
+  let slots = held.get(file);
+  if (!slots) held.set(file, slots = { homeRoot, rawRoot, file });
+  closeHeld(slots[kind]);
+  slots[kind] = entry;
+  return entry;
+}
+
+function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): Held | undefined {
+  const homeRoot = canonicalPath(home), file = resolve(homeSqlitePath(homeRoot, storeName));
+  const stat = statSync(file, { throwIfNoEntry: false });
+  if (!stat || stat.size === 0) {
+    const slots = held.get(file);
+    if (slots) {
+      dropSlot(slots, "ro");
+      if (slots.rw && (!slots.rw.db.isOpen || !slots.rw.db.isTransaction)) dropSlot(slots, "rw");
+    }
+    return undefined;
+  }
+  evictStaleSlot(file, homeRoot, "rw");
+  const reused = stillHeldEntry(file, homeRoot, "ro");
+  if (reused) {
+    ensurePrepared(held.get(file)!, "ro", reused, prepare);
+    return reused;
+  }
+  const db = openExistingBaselineHomeSqlite(home, storeName, baseline);
+  if (!db) return undefined;
   try {
     prepare?.(db);
-    const opened = identity(file);
-    if (!opened) throw new Error("SQLite store disappeared while it was opened; retry");
-    held.set(file, { db, ...opened, ...versions(db) });
-    return db;
+    return rememberSlot(home, storeName, "ro", db, prepare);
   } catch (error) {
     db.close();
     throw error;
@@ -497,44 +613,85 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
 }
 
 /**
- * Runs `work` on the held connection (`heldHomeSqlite`). `existingOnly`: a missing or empty store is `undefined` and stays missing, and before
- * any connection is opened (the first, or again after the file was replaced or another connection changed it) the file passes the read-only
- * checks `openExistingBaselineHomeSqlite` makes (current version and structure, owned by this Home's space), so a read never binds a store
- * that was not this Home's. A call made while the held connection is inside a
- * transaction (a listener that runs during another call's write) gets a connection of its own for `work`, closed after it, as every call had
- * before: it neither joins nor breaks the write around it.
+ * The read-write connection this process holds to a Home store: the first call opens it the way `openBaselineHomeSqlite` does (version,
+ * structure and space checked, the structure compared once), runs `prepare` on it once, and every later writable call borrows the same
+ * connection instead of opening and closing the file again. A file that was removed or replaced since (its device and inode changed),
+ * whose Home space descriptor changed, or that another connection wrote to or restructured is opened and checked again. Borrowers use it
+ * synchronously and never close it. The Host releases a Home's connections (both RO and RW) via `releaseHeldHomeSqlite`.
  */
-export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync) => T,
-  options: { prepare?: (db: DatabaseSync) => void; existingOnly?: false }): T;
-export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync) => T,
-  options: { prepare?: (db: DatabaseSync) => void; existingOnly: true }): T | undefined;
-export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync) => T,
-  { prepare, existingOnly = false }: { prepare?: (db: DatabaseSync) => void; existingOnly?: boolean }): T | undefined {
-  const file = homeSqlitePath(home, storeName);
-  if (existingOnly && (!existsSync(file) || statSync(file).size === 0)) return undefined;
-  const current = held.get(file);
-  if (current?.db.isOpen && current.db.isTransaction) {
-    const own = existingOnly ? openExistingBaselineHomeSqlite(home, storeName, baseline)! : openBaselineHomeSqlite(home, storeName, baseline);
-    try {
-      prepare?.(own);
-      return work(own);
-    } finally { own.close(); }
+export function heldHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): DatabaseSync {
+  const homeRoot = canonicalPath(home), file = resolve(homeSqlitePath(homeRoot, storeName));
+  const reused = stillHeldEntry(file, homeRoot, "rw");
+  if (reused) {
+    ensurePrepared(held.get(file)!, "rw", reused, prepare);
+    evictStaleSlot(file, homeRoot, "ro");
+    return reused.db;
   }
-  const reused = stillHeld(file);
-  if (reused) return work(reused);
-  // Whenever a connection is opened again (first borrow, replaced file, or another connection changed the store), a read checks it read-only first.
-  if (existingOnly) openExistingBaselineHomeSqlite(home, storeName, baseline)?.close();
-  return work(heldHomeSqlite(home, storeName, baseline, prepare));
+  evictStaleSlot(file, homeRoot, "ro");
+  const db = openBaselineHomeSqlite(home, storeName, baseline);
+  try {
+    prepare?.(db);
+    return rememberSlot(home, storeName, "rw", db, prepare).db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
-const rootOf = (home: string) => { try { return realpathSync.native(home); } catch { return resolve(home); } };
+/**
+ * Runs `work` on a held Home store connection.
+ * - `existingOnly: true`: borrows the separate read-only slot (`readOnly: true`, opened once via `openExistingBaselineHomeSqlite`, never
+ *   creating files, binding space, or upgrading to read-write). A missing or empty store returns `undefined` and stays absent.
+ * - `existingOnly: false` (default): borrows the read-write slot (`heldHomeSqlite`). A call made while the held writable connection is
+ *   inside a transaction gets a short-lived connection of its own, closed after `work`, so it neither joins nor breaks the outer write.
+ */
+export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
+  options: { prepare?: (db: DatabaseSync) => void; existingOnly?: false }): T;
+export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
+  options: { prepare?: (db: DatabaseSync) => void; existingOnly: true }): T | undefined;
+export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
+  { prepare, existingOnly = false }: { prepare?: (db: DatabaseSync) => void; existingOnly?: boolean }): T | undefined {
+  const homeRoot = canonicalPath(home), file = resolve(homeSqlitePath(homeRoot, storeName));
+  if (existingOnly) {
+    const entry = heldReadOnlyEntry(home, storeName, baseline, prepare);
+    if (!entry) return undefined;
+    if (entry.db.isTransaction) {
+      const own = openExistingBaselineHomeSqlite(home, storeName, baseline);
+      if (!own) return undefined;
+      try {
+        prepare?.(own);
+        const opened = identity(file), seen = versions(own);
+        const stamp = opened ? `${++nextSlotGeneration}:${opened.dev}:${opened.ino}:${seen.data}:${seen.schema}:${spaceFileIdentity(homeRoot)}` : `${++nextSlotGeneration}`;
+        return work(own, stamp);
+      } finally { own.close(); }
+    }
+    return work(entry.db, entry.stamp);
+  }
+  const slots = held.get(file);
+  if (slots?.rw?.db.isOpen && slots.rw.db.isTransaction) {
+    const own = openBaselineHomeSqlite(home, storeName, baseline);
+    try {
+      prepare?.(own);
+      const opened = identity(file), seen = versions(own);
+      const stamp = opened ? `${++nextSlotGeneration}:${opened.dev}:${opened.ino}:${seen.data}:${seen.schema}:${spaceFileIdentity(homeRoot)}` : `${++nextSlotGeneration}`;
+      return work(own, stamp);
+    } finally { own.close(); }
+  }
+  const db = heldHomeSqlite(home, storeName, baseline, prepare);
+  const entry = held.get(file)?.rw;
+  const changes = Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
+  return work(db, entry ? `${entry.stamp}:${changes}` : `${++nextSlotGeneration}:${changes}`);
+}
 
-/** Closes every connection this process holds to the Home's stores. A later borrower opens again. */
+/** Closes every read-only and read-write connection this process holds for the Home's stores. A later borrower opens again. */
 export function releaseHeldHomeSqlite(home: string): void {
-  const roots = new Set([resolve(home), rootOf(home)].map(root => root + sep));
-  for (const [file, entry] of held) {
-    if (![...roots].some(root => file.startsWith(root) || rootOf(file).startsWith(root))) continue;
+  const roots = new Set([resolve(home), canonicalPath(home)]);
+  const prefixes = [...roots].map(root => root + sep);
+  for (const [file, slots] of held) {
+    if (!roots.has(slots.homeRoot) && !roots.has(slots.rawRoot)
+      && !prefixes.some(prefix => file.startsWith(prefix) || slots.homeRoot.startsWith(prefix) || slots.rawRoot.startsWith(prefix))) continue;
     held.delete(file);
-    if (entry.db.isOpen) entry.db.close();
+    closeHeld(slots.ro);
+    closeHeld(slots.rw);
   }
 }

@@ -129,6 +129,71 @@ test("the Home line is held the same way: a concurrent Home action cannot overta
   } finally { gate.resolve(); await host.close(); }
 });
 
+test("HomeLine and project-catalog pure reads run beside a held Home command; write queries, commands, and forged references still wait", async () => {
+  const host = new LocalHost<{}>({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const reference = { project_id: "p1", storage_key: "memory:p1" };
+  const query = (id: string, scope: "home" | "project", effect?: "write"): ActionDefinition => ({ capability_id: id, version: 1, operation: "query",
+    action: { title: id, description: id, kind: "query", scope, ...(effect ? { effect } : {}), audiences: ["user"], permissions: [], subject_kinds: [], input_schema: { type: "object" } } });
+  const edit = definition("fixture.home.edit", "home"), read = query("fixture.home.read", "home"), marks = query("fixture.home.marks", "home", "write"), touch = definition("fixture.home.touch", "home");
+  const slowRead = query("fixture.home.slow_read", "home");
+  const catalogRead = query("fixture.catalog.read", "project"), catalogWrite = definition("fixture.catalog.write", "project");
+  const gate = Promise.withResolvers<void>(), editEntered = Promise.withResolvers<void>();
+  const slowGate = Promise.withResolvers<void>(), slowEntered = Promise.withResolvers<void>();
+  let slowFinished = false;
+  const log: string[] = [];
+  let value = 0;
+  const home = host.homeActionClient();
+  const catalog = host.actionClient(reference, false, "project-catalog");
+  const homeCaller: ActionCallContext = { actor_id: "u", project_id: null, audience: "user", permissions: [] };
+  const projectCaller: ActionCallContext = { actor_id: "u", project_id: "p1", audience: "user", permissions: [] };
+  host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.home", title: "Fixture", kind: "system" }, definitions: [edit, read, marks, touch, slowRead],
+    handlers: [
+      { capability_id: edit.capability_id, version: 1, handle: async () => {
+        log.push("edit entered"); editEntered.resolve(); await gate.promise;
+        value = 1;
+        const nested = await home.invoke(homeCaller, read, {});
+        log.push(`edit nested ${JSON.stringify(nested)}`);
+        return {};
+      } },
+      { capability_id: read.capability_id, version: 1, handle: () => { log.push(`read ${value}`); return { value }; } },
+      { capability_id: marks.capability_id, version: 1, handle: () => { log.push("marks"); return {}; } },
+      { capability_id: touch.capability_id, version: 1, handle: () => { log.push("touch"); return {}; } },
+      { capability_id: slowRead.capability_id, version: 1, handle: async () => { slowEntered.resolve(); await slowGate.promise; slowFinished = true; return { done: true }; } },
+    ] });
+  host.actionRegistry(undefined, "project-catalog").registerProvider({ provider: { provider_id: "fixture.catalog", title: "Catalog", kind: "system" }, definitions: [catalogRead, catalogWrite],
+    handlers: [
+      { capability_id: catalogRead.capability_id, version: 1, handle: () => { log.push(`catalog.read ${value}`); return { value }; } },
+      { capability_id: catalogWrite.capability_id, version: 1, handle: () => { log.push("catalog.write"); return {}; } },
+    ] });
+  try {
+    const editing = home.invoke(homeCaller, edit, {});
+    await editEntered.promise;
+    const marking = home.invoke(homeCaller, marks, {});
+    // Forging `operation: "query"` on a registered command reference must never bypass serial HomeLine ordering.
+    const forgedTouch = home.invoke(homeCaller, { capability_id: touch.capability_id, version: 1, operation: "query" } as never, {});
+    const catalogWriting = catalog.invoke(projectCaller, { capability_id: catalogWrite.capability_id, version: 1, provider_id: "fixture.catalog" }, {});
+    assert.deepEqual(await home.invoke(homeCaller, read, {}), { value: 0 }, "Home pure read answers beside the held Home command");
+    assert.deepEqual(await catalog.invoke(projectCaller, { capability_id: catalogRead.capability_id, version: 1, provider_id: "fixture.catalog" }, {}), { value: 0 }, "project-catalog pure read answers beside the held Home command");
+    await settle();
+    assert.deepEqual(log, ["edit entered", "read 0", "catalog.read 0"], "write-effect queries and commands still wait behind the held Home command");
+    gate.resolve();
+    await Promise.all([editing, marking, forgedTouch, catalogWriting]);
+    assert.deepEqual(log, ["edit entered", "read 0", "catalog.read 0", "read 1", 'edit nested {"value":1}', "marks", "touch", "catalog.write"]);
+    // In-flight concurrent Home pure reads must be awaited by host.close().
+    const pendingRead = home.invoke(homeCaller, slowRead, {});
+    await slowEntered.promise;
+    let closed = false;
+    const closing = host.close().then(() => { closed = true; });
+    await settle();
+    assert.equal(closed, false, "host.close waits for in-flight concurrent Home pure reads");
+    slowGate.resolve();
+    await assert.rejects(pendingRead, { code: "actions.host_closed" });
+    await closing;
+    assert.equal(slowFinished, true, "the concurrent Home pure read finished before host.close resolved");
+    assert.equal(closed, true);
+  } finally { gate.resolve(); slowGate.resolve(); await host.close(); }
+});
+
 /** A scene run is a step of the action that triggered it: it takes that action's place, so a model judgment that a
  * concurrent action asked for does not hold the project's (or the Home's) line while it waits. */
 for (const [place, judgeIsConcurrent] of [["project", true], ["home", true], ["project", false], ["home", false]] as const) {

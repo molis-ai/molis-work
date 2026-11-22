@@ -215,7 +215,7 @@ export class LocalHost<Runtime> {
         try { context = contextFor(caller); }
         catch (error) { return refuseCall(this.reports, caller, capability, error); }
         const descriptor = this.capabilities.descriptor(capability);
-        return this.homeLine.run(() => this.actionService.invoke(context, capability, input), descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
+        return this.homeLine.run(() => this.actionService.invoke(context, capability, input), runsBesideLine(descriptor) ? "concurrent" : step ? "step" : "serial");
       },
     };
   }
@@ -268,7 +268,7 @@ export class LocalHost<Runtime> {
               if (this.capabilities.descriptor(capability) !== catalog) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
               return this.state === "running" && !this.line.isClosing(project.storage_key);
             });
-            return this.homeLine.run(() => this.actionService.invoke(context, capability, input), catalog.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
+            return this.homeLine.run(() => this.actionService.invoke(context, capability, input), runsBesideLine(catalog) ? "concurrent" : step ? "step" : "serial");
           }
           await this.withRuntime(project, () => undefined);
           caller.signal?.throwIfAborted();

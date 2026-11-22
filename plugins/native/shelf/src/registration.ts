@@ -23,6 +23,7 @@ export const registration: PluginRegistration = {
     order: 8,
     contributions: [shelfUiContribution, shelfSettingsUiContribution],
     stylesheet: SHELF_STYLES,
+    frameStyleFeatures: ["settings-document"],
     clientFactory: SHELF_CLIENT_FACTORY_SCRIPT,
     settingsClient: SHELF_SETTINGS_CLIENT_SCRIPT,
     specimens: shelfBoardSpecimens,

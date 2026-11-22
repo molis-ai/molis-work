@@ -25,6 +25,8 @@ export { PRIMITIVE_PLUGIN_STYLES };
 
 const PRIMITIVE_SHELL_EXTRAS = `
   ${ON_DEMAND_HELP_SHELL_STYLES}
+  .mw-menu--context { min-width: 220px; }
+  .mw-card--tile { border: 0; background: transparent; box-shadow: none; overflow: visible; width: auto; display: block; }
   :is(.characters-location, .artifact-raw) {
     > summary:not(:has(svg)) {
       display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;

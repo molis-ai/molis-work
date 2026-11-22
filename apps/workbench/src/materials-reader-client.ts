@@ -171,5 +171,13 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
     // Pressing 引用选区 must not move focus off the text: where the text sits in a focused box (the picker), that clears the selection.
     tools.addEventListener('mousedown',event=>{if(event.target?.closest?.(sel('quote')))event.preventDefault();});
     for(const container of [tools,held,body])container.addEventListener('click',event=>{const button=event.target?.closest?.(sel());if(button)void act(button.getAttribute('data-'+name),button);});
-    return {open,close:()=>{menu?.hidePopover?.();close();},say};
+    const dispose=()=>{
+      if(menu){
+        try{menu.hidePopover();}catch{/* Popover may already be closed or detached. */}
+        menu.remove();
+        menu=null;
+      }
+      close();
+    };
+    return {open,close:()=>{menu?.hidePopover?.();close();},dispose,say};
   };`.replace(/^[ \t]*\/\/.*\n/gm, "").replace(/^[ \t]+/gm, "");

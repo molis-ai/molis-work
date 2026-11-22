@@ -110,6 +110,20 @@ test("102-1 plugin-frame fetch handles JSON, plain text, URLSearchParams, binary
   const untypedNonJson = frameRequestPayload(buf("not-json-plain-text"), undefined);
   assert.equal(untypedNonJson.body, undefined);
   assert.equal(untypedNonJson.file?.type, "application/octet-stream");
+
+  // Explicit +json, parameterized JSON, and empty-body non-JSON writes preserve exact Content-Type via raw Blob slot (102-1 P2-2).
+  const mergePatch = frameRequestPayload(buf('{"op":"replace"}'), "application/merge-patch+json");
+  assert.equal(mergePatch.body, undefined);
+  assert.equal(mergePatch.file?.type, "application/merge-patch+json");
+
+  const profiledJson = frameRequestPayload(buf('{"v":2}'), 'application/json; profile="v2"');
+  assert.equal(profiledJson.body, undefined);
+  assert.equal(profiledJson.file?.type, 'application/json; profile="v2"');
+
+  const emptyText = frameRequestPayload(new ArrayBuffer(0), "text/plain");
+  assert.equal(emptyText.body, undefined);
+  assert.equal(emptyText.file?.type, "text/plain");
+  assert.equal(emptyText.file?.size, 0);
 });
 
 test("102-1 plugin-frame navigation normalizes and dispatches platform-aware shortcuts (⌘[/⌘], ⌘⇧T, ⌘⇧↵, ⌘.)", () => {
@@ -162,6 +176,77 @@ test("102-1 plugin-frame navigation normalizes and dispatches platform-aware sho
     normalizeChildShortcut(key: Partial<KeyboardEvent>): string;
   };
   assert.equal(reducedNav.normalizeChildShortcut({ key: "[", code: "BracketLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }), "Mod+BracketLeft");
+
+  // P1-6: pageNavigation omits duplicate Mod+Period (handled exclusively by childContext) and childNavigation respects open dialogs/popovers and contenteditable="plaintext-only".
+  const listeners = new Map<string, Array<(e: unknown) => void>>();
+  let openOverlay = false;
+  const posted: unknown[] = [];
+  class FakeElement {
+    constructor(readonly editable = false) {}
+    closest(sel: string) { return this.editable && sel.includes("plaintext-only") ? this : null; }
+  }
+  class FakeHTMLElement extends FakeElement {
+    get isContentEditable() { return this.editable; }
+  }
+  const navCtx: Record<string, unknown> = {
+    navigator: { platform: "MacIntel" },
+    Element: FakeElement,
+    HTMLElement: FakeHTMLElement,
+    window: {
+      addEventListener: (type: string, fn: (e: unknown) => void) => {
+        (listeners.get(type) ?? listeners.set(type, []).get(type)!).push(fn);
+      },
+      removeEventListener: () => {},
+    },
+    parent: undefined as unknown,
+    document: {
+      querySelectorAll: () => [],
+      querySelector: (sel: string) => {
+        if (sel === "dialog[open],:popover-open") return openOverlay ? {} : null;
+        if (sel.includes("[data-tab-workspace]")) return {};
+        return null;
+      },
+      hasFocus: () => false,
+    },
+  };
+  navCtx.parent = navCtx.window;
+  runInNewContext(bundled, navCtx);
+  const navApi = navCtx.frameNavMod as {
+    pageNavigation(scope: unknown, port: unknown, side: boolean): { shortcuts: string[] };
+    childNavigation(port: unknown, scope: unknown, config: { shortcuts: string[]; side: boolean }, itemTab: () => undefined): void;
+  };
+  const scope = {
+    visible: true,
+    listen: (_target: unknown, type: string, fn: (e: unknown) => void) => {
+      (listeners.get(type) ?? listeners.set(type, []).get(type)!).push(fn);
+    },
+    own: () => {},
+  };
+  const port = { postMessage: (msg: unknown) => posted.push(msg) };
+  const pageNav = navApi.pageNavigation(scope, port, false);
+  assert.ok(!pageNav.shortcuts.includes("Mod+Period"), "Mod+Period must not be duplicated in pageNavigation shortcuts");
+  assert.ok(pageNav.shortcuts.includes("Mod+BracketLeft") && pageNav.shortcuts.includes("Mod+Shift+T"));
+
+  navApi.childNavigation(port, scope, { shortcuts: pageNav.shortcuts, side: true }, () => undefined);
+  const fireKey = (init: Record<string, unknown>) => {
+    let prevented = false;
+    const ev = { repeat: false, isComposing: false, defaultPrevented: false, preventDefault: () => { prevented = true; }, ...init };
+    for (const fn of listeners.get("keydown") ?? []) fn(ev);
+    return prevented;
+  };
+
+  // Open dialog/popover blocks both Escape and Mod+[.
+  openOverlay = true;
+  assert.equal(fireKey({ key: "Escape", code: "Escape", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }), false);
+  assert.equal(fireKey({ key: "[", code: "BracketLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }), false);
+  assert.equal(posted.length, 0);
+
+  // Closing overlay restores forwarding; plaintext-only contenteditable still suppresses Mod+Shift+T.
+  openOverlay = false;
+  assert.equal(fireKey({ key: "T", code: "KeyT", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, target: new FakeHTMLElement(true) }), false);
+  assert.equal(posted.length, 0);
+  assert.equal(fireKey({ key: "[", code: "BracketLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, target: new FakeElement(false) }), true);
+  assert.deepEqual(JSON.parse(JSON.stringify(posted)), [{ type: "shortcut", keys: "Mod+BracketLeft" }]);
 });
 
 test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <head> and rejects foreign/non-asset/embedded links", () => {
@@ -180,14 +265,20 @@ test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <
   };
   const origin = "http://127.0.0.1:4173";
   const input = '<link rel="stylesheet" href="/assets/molis-work-plugins/coding.css">'
+    + '<link title="a>b" rel="stylesheet" href="/assets/molis-work-plugins/quoted.css">'
+    + '<link title=\'rel="stylesheet" href="/assets/spoof.css"\' rel="icon" href="/favicon.ico">'
     + '<link rel="stylesheet" href="https://evil.invalid/assets/x.css">'
     + '<link rel="stylesheet" href="/api/other.css">'
     + '<link data-rel="stylesheet" data-href="/assets/fake.css" rel="stylesheet" href="https://evil.invalid/b.css">'
     + '<link rel="stylesheet" href="http://user:pass@127.0.0.1:4173/assets/cred.css">'
     + '<main><textarea><link rel="stylesheet" href="/assets/in-body.css"></textarea></main>';
   const result = extractHeadStyleLinks(input, origin);
-  assert.equal(result.headLinks, '<link rel="stylesheet" href="http://127.0.0.1:4173/assets/molis-work-plugins/coding.css">');
+  assert.equal(result.headLinks,
+    '<link rel="stylesheet" href="http://127.0.0.1:4173/assets/molis-work-plugins/coding.css">'
+    + '<link rel="stylesheet" href="http://127.0.0.1:4173/assets/molis-work-plugins/quoted.css">');
   assert.ok(!result.bodyContent.includes("coding.css"), "hoisted same-origin /assets/ link removed from body");
+  assert.ok(!result.bodyContent.includes("quoted.css"), "quote-aware > inside title attribute still hoists leading link");
+  assert.ok(!result.headLinks.includes("spoof.css"), "rel/href inside another attribute value is never hoisted");
   assert.ok(result.bodyContent.includes("https://evil.invalid/assets/x.css"), "foreign-origin link never hoisted");
   assert.ok(result.bodyContent.includes("/api/other.css"), "non-/assets/ link never hoisted");
   assert.ok(result.bodyContent.includes('data-href="/assets/fake.css"'), "data-rel/data-href attributes never falsely matched");

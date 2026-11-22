@@ -105,7 +105,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       return { renderFilePreview, materialsReader }; })();
     // The materials picker (its own bundle) previews a file with the same reader.
     globalThis.molisWorkMaterials = materialsKit;
-    (${MATERIALS_STAGE_FACTORY_SCRIPT})({ route, kit: materialsKit });
+    materialsStage = (${MATERIALS_STAGE_FACTORY_SCRIPT})({ route, kit: materialsKit });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
     (${SIDE_FILES_FACTORY_SCRIPT})({ readText, route, kit: materialsKit, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
@@ -159,7 +159,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
     });
     const positionChanged = () => {
-      projectHome?.sync(); projectPositions?.invalidate();
+      projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); projectPositions?.invalidate();
       document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
     };
     globalThis.molisWorkbenchPositionFrom = frame => {

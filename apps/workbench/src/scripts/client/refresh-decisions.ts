@@ -77,6 +77,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       },
     });
     const cloneGoalLoaders = new WeakMap();
+    const stripCloneIds = (node) => {
+      if (node.id) node.removeAttribute("id");
+      node.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+    };
     const loadGoalDocumentInto = (targetPane, goalId) => {
       if (!targetPane || targetPane === documentPane) return loadGoalDocument(goalId);
       let entry = cloneGoalLoaders.get(targetPane);
@@ -93,6 +97,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           documentPane: targetPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
           showError: (message) => showToast(message, true),
           afterReplace: () => {
+            stripCloneIds(targetPane);
             targetPane.dataset.boardCursor = goalData?.boardCursor == null ? "" : String(goalData.boardCursor);
             eventApi?.bindGoalEventDocument(clonePendingRestore);
             clonePendingRestore = null;
@@ -207,6 +212,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const currentSurface = pane.querySelector('[data-work-surface="goals"]');
         if (currentSurface && nextSurface) {
           currentSurface.replaceChildren(...nextSurface.cloneNode(true).childNodes);
+          stripCloneIds(currentSurface);
           cloneGoalLoaders.get(pane)?.eventApi?.bindGoalEventDocument();
           pane.dataset.boardCursor = String(cursor);
         }
@@ -301,6 +307,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         goalRefresh.apply(() => {});
         state = nextState;
         projectHome?.sync();
+        tabWorkspace?.syncHomeClones?.();
         projectPositions?.invalidate();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         if (!applyCollectionOnly) {
@@ -333,6 +340,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         if (primaryStageList) {
           document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => {
             list.innerHTML = primaryStageList.innerHTML;
+            stripCloneIds(list);
           });
         }
         await refreshCloneGoalPanes(staleClones, cursor, applyCollectionOnly ? "" : refreshGoalId, cloneSnapshot, signal);

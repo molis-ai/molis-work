@@ -7,6 +7,7 @@
  */
 export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
   const mountedHomeClones = new WeakMap();
+  const mountedMaterialsClones = new WeakMap();
   const artifactCloneRequests = new WeakMap();
   const RUNTIME_SURFACE_ATTRS = ["data-ui-client-state", "data-plugin-page", "data-expanded", "data-assistant-context", "data-preview-tab", "data-preview-view", "data-pane-tab", "data-pane-key", "data-pane-search", "data-pane-clone", "data-shown-at", "aria-busy"];
   const stripDuplicateIds = (rootNode) => {
@@ -20,41 +21,63 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     clone.hidden = true;
     clone.inert = false;
     clone.setAttribute("data-deferred-surface", "");
-    surface.querySelectorAll(":scope > script[data-plugin-document], :scope > template[data-deferred-content]").forEach((child) => {
+    surface.querySelectorAll(":scope > script[data-plugin-document], :scope > script[data-plugin-help], :scope > template[data-deferred-content]").forEach((child) => {
       clone.append(child.cloneNode(true));
     });
     return clone;
+  };
+  const makeStaticTemplate = (surface, id) => {
+    const copy = surface.cloneNode(true);
+    stripDuplicateIds(copy);
+    RUNTIME_SURFACE_ATTRS.forEach((attr) => copy.removeAttribute(attr));
+    if (id === "home") {
+      copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-margin], [data-home-version]").forEach((el) => el.replaceChildren());
+    } else if (id === "materials") {
+      copy.querySelectorAll("[data-materials-stage-body], [data-materials-stage-title], [data-materials-stage-meta], [data-stage-materials-held], [data-stage-materials-problem]").forEach((el) => el.replaceChildren());
+    } else if (id === "artifacts") {
+      copy.querySelectorAll("[data-artifact-directory], [data-artifact-detail]").forEach((el) => {
+        delete el.dataset.artifactFragmentPath;
+        el.replaceChildren();
+      });
+    }
+    copy.hidden = true;
+    return copy;
   };
   const disposeClone = (node) => {
     if (!node) return;
     mountedHomeClones.get(node)?.dispose?.();
     mountedHomeClones.delete(node);
+    mountedMaterialsClones.get(node)?.dispose?.();
+    mountedMaterialsClones.delete(node);
     artifactCloneRequests.get(node)?.abort();
     artifactCloneRequests.delete(node);
     node.remove();
   };
-  const captureSurfaceTemplates = () => {
+  const syncHomeClones = () => {
+    panesEl.querySelectorAll('[data-work-surface="home"][data-pane-clone]').forEach((node) => {
+      mountedHomeClones.get(node)?.sync?.();
+    });
+  };
+  const captureSurfaceTemplates = (refreshFramedOnly = false) => {
     document.querySelectorAll("[data-work-surface]:not([data-pane-clone])").forEach((surface) => {
       if (surface.closest("[data-goal-canvas-shell]")) return;
       const id = surface.dataset.workSurface;
-      if (!id || surfaceTemplates.has(id)) return;
-      if (surface.hasAttribute("data-deferred-surface") || surface.dataset.pluginClient || surface.dataset.installedPlugin || surface.querySelector("iframe[data-plugin-frame]")) {
+      if (!id) return;
+      const framed = surface.hasAttribute("data-deferred-surface") || surface.dataset.pluginClient || surface.dataset.installedPlugin || surface.querySelector("iframe[data-plugin-frame]");
+      if (framed) {
+        if (!refreshFramedOnly && surfaceTemplates.has(id)) return;
         surfaceTemplates.set(id, makeFramedTemplate(surface));
-      } else if (id === "home" || id === "artifacts" || id === "materials") {
-        const copy = surface.cloneNode(true);
-        stripDuplicateIds(copy);
-        if (id === "home") {
-          copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-margin], [data-home-version]").forEach((el) => el.replaceChildren());
-        }
-        copy.hidden = true;
-        surfaceTemplates.set(id, copy);
+      } else if (!refreshFramedOnly && !surfaceTemplates.has(id) && (id === "home" || id === "artifacts" || id === "materials")) {
+        surfaceTemplates.set(id, makeStaticTemplate(surface, id));
       }
     });
+    if (refreshFramedOnly) return;
     const goalFrame = document.querySelector("[data-goal-frame-surface]:not([data-pane-clone])");
     if (goalFrame && !surfaceTemplates.has("__goal-frame__")) {
       const copy = goalFrame.cloneNode(true);
       copy.querySelector("[data-frame-picker]")?.remove();
       stripDuplicateIds(copy);
+      RUNTIME_SURFACE_ATTRS.forEach((attr) => copy.removeAttribute(attr));
       copy.hidden = true;
       surfaceTemplates.set("__goal-frame__", copy);
     }
@@ -62,14 +85,14 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     if (goalShell && !surfaceTemplates.has("__goal-shell__")) {
       const copy = goalShell.cloneNode(true);
       stripDuplicateIds(copy);
+      RUNTIME_SURFACE_ATTRS.forEach((attr) => copy.removeAttribute(attr));
       copy.hidden = true;
       surfaceTemplates.set("__goal-shell__", copy);
     }
   };
   captureSurfaceTemplates();
   document.addEventListener("molis-work:language-changed", () => {
-    surfaceTemplates.clear();
-    captureSurfaceTemplates();
+    captureSurfaceTemplates(true);
   });
   const isFramedSurface = (plugin, canonical) => Boolean(
     plugin
@@ -184,8 +207,8 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       tpl.innerHTML = html;
       const nextDir = tpl.content.querySelector("[data-artifact-directory]");
       const nextDetail = tpl.content.querySelector("[data-artifact-detail]");
-      if (nextDir) directory.replaceChildren(...nextDir.childNodes);
-      if (nextDetail) detail.replaceChildren(...nextDetail.childNodes);
+      if (nextDir) { directory.replaceChildren(...nextDir.childNodes); stripDuplicateIds(directory); }
+      if (nextDetail) { detail.replaceChildren(...nextDetail.childNodes); stripDuplicateIds(detail); }
       detail.dataset.artifactFragmentPath = path;
       const selected = Boolean(detail.querySelector("[data-artifact-id]"));
       const shellNode = surface.querySelector("[data-artifact-stage-shell]") || surface;
@@ -238,6 +261,7 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     if (primaryList && cloneList) {
       cloneList.hidden = false;
       cloneList.innerHTML = primaryList.innerHTML;
+      stripDuplicateIds(cloneList);
     }
     shellNode.querySelectorAll(":scope > [data-goal-momentum], :scope > [data-goal-kanban], :scope > [data-goal-stage-chrome]").forEach((child) => {
       child.hidden = true;
@@ -250,13 +274,11 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     const isGoalFrame = plugin === "goals" && supportsGoalFrames() && tab?.kind === "item" && tab.view !== "work";
     const isGoalWork = plugin === "goals" && tab?.kind === "item" && (!supportsGoalFrames() || tab.view === "work");
     if (isGoalFrame) {
-      const existing = body && (
-        [...body.children].find((el) => el.matches("[data-goal-frame-surface]") && el.dataset.paneTab === frameKey && !claimed.has(el))
-        || (state.panes.length < 2 ? [...body.children].find((el) => el.matches("[data-goal-frame-surface]") && !claimed.has(el)) : null)
-      );
-      if (existing) return existing;
       const primary = document.querySelector("[data-goal-frame-surface]:not([data-pane-clone])");
-      if (primary && !claimed.has(primary) && (primary.parentElement === pool || primary.parentElement === body || !primary.closest("[data-tab-pane]") || state.panes.length < 2)) return primary;
+      if (primary && !claimed.has(primary) && (primary.parentElement === body || state.panes.length < 2)) return primary;
+      const existing = body && [...body.children].find((el) => el.matches("[data-goal-frame-surface]") && el.dataset.paneTab === frameKey && !claimed.has(el));
+      if (existing) return existing;
+      if (primary && !claimed.has(primary) && (primary.parentElement === pool || !primary.closest("[data-tab-pane]"))) return primary;
       const tpl = surfaceTemplates.get("__goal-frame__");
       if (!tpl) return primary;
       const clone = tpl.cloneNode(true);
@@ -266,12 +288,12 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       return clone;
     }
     if (plugin === "goals") {
+      const primary = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone])") || document.querySelector("[data-document-pane]:not([data-pane-clone])");
+      if (primary && !claimed.has(primary) && (primary.parentElement === body || state.panes.length < 2)) return primary;
       const existing = body && [...body.children].find((el) => el.matches("[data-goal-canvas-shell]") && el.dataset.paneTab === frameKey && !claimed.has(el));
       if (existing) return existing;
-      const primary = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone])") || document.querySelector("[data-document-pane]:not([data-pane-clone])");
       const primaryHeldElsewhere = primary && primary.parentElement !== pool && primary.parentElement !== body && Boolean(primary.closest("[data-tab-pane]"));
-      const primaryHeldByOtherTab = primary && primary.parentElement === body && primary.dataset.paneTab && primary.dataset.paneTab !== frameKey && pane.tabs.some((item) => item.id === primary.dataset.paneTab);
-      if (primary && !claimed.has(primary) && (!primaryHeldElsewhere || state.panes.length < 2) && !primaryHeldByOtherTab) return primary;
+      if (primary && !claimed.has(primary) && !primaryHeldElsewhere) return primary;
       const tpl = surfaceTemplates.get("__goal-shell__");
       if (!tpl) return primary;
       const clone = tpl.cloneNode(true);
@@ -303,9 +325,12 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       clone.dataset.paneKey = paneKey;
       return clone;
     }
+    if (canonical && !claimed.has(canonical) && (canonical.parentElement === body || state.panes.length < 2)) {
+      return canonical;
+    }
     const existing = body && [...body.children].find((el) => el.dataset.workSurface === plugin && !claimed.has(el));
     if (existing) return existing;
-    if (canonical && !claimed.has(canonical) && (canonical.parentElement === pool || canonical.parentElement === body || !canonical.closest("[data-tab-pane]") || state.panes.length < 2)) {
+    if (canonical && !claimed.has(canonical) && (canonical.parentElement === pool || !canonical.closest("[data-tab-pane]"))) {
       return canonical;
     }
     const tpl = surfaceTemplates.get(plugin);

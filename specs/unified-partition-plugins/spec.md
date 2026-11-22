@@ -112,7 +112,7 @@
 1. **一张安装表。** 内置与签名包的安装记录、升级、发布者固定、同意都在 Home 软件层（今天的 `plugin-runtime` Home 库）；项目库里的安装记录表删除。
 2. **一套装配。** 合并 `HomePluginHost` 与项目平台、`HomeInstalledPlugins` 与 `installed-plugin-host`：按（插件, 分区）启动实例，分区服务由 `partitionRoot` 给；Home 层只剩 Shelf（与系统能力）。
 3. **删掉的链路：** `outsideBuild()` → `projectReachablePlugins` → `reachEntry({personal:true})`；`plugin-scope-entries.ts` 的两半配对；`assertScopeKept` 三态；`home-package-admission.ts` 的 Home 包限制；`plugin-declared-services.ts` 的「项目实例不得声明 `owner_files`、`model_configuration`、`image_generation`、`local_tools`」（C8）。`local_tools` 仍只给宿主信任（安全边界，按信任级别，不按插件名）。
-4. **本人级服务（新增，补原文）。** 有的插件需要「跟人走、不跟分区走」的设置：Images 的生图连接（今天在 `images.db` 的 `connections` 表）、Jelly 的模型选择（`{home}/jelly/preferences.json`）、Cognia 的目录授权。加平台服务 `services.personSettings`：Home 层、按（安装, 键）存，只给本机本人的调用，不进项目同步、不给其他成员与 Agent；插件的业务数据仍在分区。
+4. **本人级服务（新增，补原文）。** 有的插件需要「跟人走、不跟分区走」的设置：Images 的生图连接（今天在 `images.db` 的 `connections` 表）、Jelly 的模型选择（`{home}/jelly/preferences.json`）、Cognia 的目录授权。加平台服务 `services.personSettings`：Home 层、按（安装, 键）存，只给本机本人的调用，不进项目同步、不给其他成员与 Agent；插件的业务数据仍在分区。每个键在 Manifest 声明 `portable`：只有可以跨设备的偏好随本人同步，密钥、本机路径与授权一律留在本机（5.1）。
 5. **连接槽。** `horizontal/connector-host/src/plugin-binding-scopes.ts` 加「本人默认」范围（`plugin-installation:<install>/person`），各分区不必重复绑账号；`per_record`（`…/project:<id>/record:<key>`）不变（S-71）。
 6. **密钥与提示词作用域。** 今天按 `HOME_INSTALL_SCOPE` 或项目 id 分；合并后插件密钥按安装（Home 层），提示词按安装登记一次；牵动 S-80、S-84、S-87、S-91，同步改表与拒绝测试。
 
@@ -125,6 +125,32 @@
 | 插件文件 | Images（`images/assets/`）、Shelf、沙箱 `owner_files` | 进分区根（Shelf 例外，留 Home） |
 | 证据正文池 | Feed（`{home}/security/evidence/blobs/`，按 SHA-256 内容寻址，引用记在 Feed 的 Home 库 `feed_content_holds`） | 正文池仍在 Home、跨分区共享；**引用账本从 Feed 的 Home 半搬进平台证据服务**（`packages/storage` 的 evidence-content 旁，键 `(content_ref, partition_id, owner_install, holder_key)`），这样 Feed 不再需要 Home 半；只有持有 `evidence:collect` 的平台路径能回收无人引用的正文（S-98 改写） |
 | 本人级设置 | 见 4.2 第 4 条 | `services.personSettings` |
+
+### 5.1 同步：各类数据跟到哪里
+
+三种数据流动互不替代：**同步**是同一个人的同一分区在自己几台设备间保持一致；**推送**是同一台设备上从个人空间往项目放副本（第 7 节）；**团队共享**是把项目给其他人（SRV-6，在演进，个人空间永不参与）。同步只在本人账号空间内进行（`StorageSpace`），附件按（账号空间, SHA-256）去重。
+
+| 数据 | 存在哪 | 跟到本人的其他设备 |
+| --- | --- | --- |
+| 分区业务数据（主库集合、独立库） | 各分区 | 同步，按分区分开 |
+| 分区插件文件、附件 | 分区根 | 同步，按 SHA-256 去重 |
+| 固定版本（成果库） | 分区成果库 | 同步 |
+| 分区启用了哪些插件 | `partition_plugins` | 同步，含个人空间（今天 `project-catalog-replication.ts:25` 排除了它，改掉） |
+| 推送账本 | 个人空间主库 | 随个人空间同步 |
+| 副本上游标记、被覆盖的版本 | 目标分区主库 | 随目标分区同步 |
+| Shelf | Home（`home-document`） | 同步 |
+| 本人偏好（`personSettings` 里声明 `portable: true` 的键：如 Jelly 的模型选择、Images 默认用哪种生图服务、外观类偏好） | Home 层，按（安装, 键） | 同步，走本人账号空间的 Home 流，只给本人设备，不进任何项目、不进团队共享 |
+| 模型供应商与生图的**非密钥**配置（选了哪家、哪个模型） | Home 层 | 同步，同上 |
+| 密钥与凭据（`SecretStore`、连接器令牌、API Key、`credential_ref` 指向的内容） | 本机 `secrets.json` + 系统钥匙串主密钥 | **不同步**。另一台设备上显示「这台电脑还没连接，点此连接」，由本人在那台设备重新授权 |
+| 连接与本人默认连接槽 | `connectors.db` | 连接**名称与用途**同步（让另一台设备知道该连哪个、显示待连接），令牌不同步；`per_record` 绑定随所在分区同步，但其凭据同样要在那台设备重新授权 |
+| 本机目录授权（Cognia 的 `grant:*`、项目输入目录）、本机工具探测、设备同步开关 | Home 层 | **不同步**：路径与授权只对这台机器有意义（`docs/system/HOME-DATA.md` 第 6 节「不得因同步上传授权」） |
+| 总览索引、搜索索引 | Home 层缓存 | 不同步，各设备本地重建 |
+| 已装插件包与签名 | `plugin-packages/` | 不同步包本身；分区启用清单同步后，另一台设备提示「需要安装 X」，由本人确认安装，不自动装 |
+
+规则：
+1. 默认不同步。`personSettings` 的键不写 `portable: true` 就只在本机；SDK 拒绝把声明为密钥、连接引用或本机路径类型的键标为 `portable`。
+2. 收到的数据不替本人开插件、不装包、不建连接（S-146）；未启用插件的数据挂起，本人启用后才出现。
+3. 跨设备同步的本人偏好与连接名称只进本人账号空间，团队共享项目（以后）只同步项目分区，不带任何本人级数据（S-145）。
 
 ## 6. 跨分区：总览、AI、MCP、搜索、界面
 
@@ -300,7 +326,7 @@ CREATE TABLE push_operations (
 | S-142 | 插件实例只拿到它所在分区的主库、独立库与文件；跨分区读取只经总览索引，只给本机本人的调用（取代 S-49、扩 S-74） | 分区 A 的实例读 B 的库被拒；Agent／MCP 读总览被拒 |
 | S-143 | 推送只由本机本人或本人按目标项目授权过的助理发起（授权可撤）；项目 Agent、外部 MCP、工作流一律拒；覆盖已被改过的副本与撤回删除只认本人逐次确认；`beforeEffect()` 复核；目标版本不符拒；快照带执行态、绑定或密钥引用被拒 | 未授权的助理推被拒、撤销授权后被拒；项目 Agent／MCP 推被拒；助理覆盖已改副本被拒；撤权后零写入；带 `credential_ref` 的快照被拒 |
 | S-144 | 个人空间不作为任何外部客户端的默认分区；外部 MCP 碰个人空间需单独确认绑定 | 未单独绑定的客户端调个人空间被拒 |
-| S-145 | 本人级配置与凭据（`personSettings`、连接器凭据、本人默认连接槽）不给其他成员、未获准 Agent、跨分区客户端；`per_record` 绑定按分区 | 项目 Agent 读本人设置被拒；分区 B 找不到分区 A 的记录绑定 |
+| S-145 | 本人级配置与凭据（`personSettings`、连接器凭据、本人默认连接槽）不给其他成员、未获准 Agent、跨分区客户端；`per_record` 绑定按分区 | 项目 Agent 读本人设置被拒；分区 B 找不到分区 A 的记录绑定；同步出站数据里没有密钥、令牌与本机路径；把密钥类键标 `portable` 被 SDK 拒绝 |
 | S-146 | 同步接收不启用插件、不建分区启用关系；未启用插件的数据挂起等本人启用 | 接收含未启用插件数据的变更后启用关系不变 |
 
 改写：S-31（Home 插件路由 → 分区路由）、S-48（双实例只剩 Shelf）、S-72（隐藏个人插件 → 删除，改「未启用的插件在该分区被拒」）、S-80、S-91（沙箱 Home 库 → 分区库）、S-98（证据回收归平台）。
@@ -350,6 +376,7 @@ CREATE TABLE push_operations (
 | UPP-17 | ⌘K「本项目与个人」的结果标明分区；副本与原件互相标注 |
 | UPP-18 | 金样 `0.1.0` 回放：个人空间与项目的数据、引用、设置都在 |
 | UPP-19 | 防回流门禁：重新引入个人分类、`hidden`、白名单外 `dual_instance` 均失败 |
+| UPP-20 | 两台设备同一账号：分区数据、启用清单、`portable` 偏好、连接名称一致；密钥、令牌、目录授权不出本机，另一台显示待连接；未装的包只提示不自动装（5.1） |
 
 ## 14. 要用户拍板（一次列全）
 

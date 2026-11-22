@@ -119,7 +119,7 @@
 | --- | --- | --- |
 | 构建期内置插件（只剩用户批过的两个例外 Alchemist、插件创作台，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
 | Runtime 内置插件（Coding、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
-| 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
+| 创作台生成与签名安装的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`）管安装记录与批准，插件跑在项目监督器（`project-plugins.ts`）那同一套平台上、在隔离沙箱进程里运行（第 47 批）；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
 

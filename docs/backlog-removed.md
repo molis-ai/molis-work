@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-586 | 已完成并删除 | 2026-11-22：第 47 批 47-1（子分支 `47/one-platform`）。用户定范围为「Home 一份＋项目一份」：另一位发布者用同一插件编号签的包是另一个插件，范围按「插件编号＋发布者」记（S-80），项目页的舞台、目录、语言文件与「隐藏」各按自己的安装；验收用例 `tests/home-installed-plugins.test.ts`「BL-586 …」。同一范围里两家并存另记 BL-same-id-same-range |
 | BL-127 | 已完成并删除 | 2026-11-21：第 36A 批壳层对话批（36A-3）把细指针窗口里对话栏的键、信息栏的标签与动作、分段选择和下一步按钮落到 28px，对话里的复制键保持 22px 的样子、可点范围补到 28px（`DESIGN.md`「控件高度」、`apps/workbench/src/styles/work-line.ts`、`tests/touch-targets.e2e.test.ts`「BL-127」断言）；合入号随下一批补。 |
 | BL-tests-umask | 已完成并删除 | 2026-11-19：离线恢复与运行时备份测试夹具显式设置权限，在 `umask 077` 与 `022` 下均通过原权限断言（`apps/local-host/src/installer/runtime-installation-files.ts`、`tests/fixtures/home-restore.ts`、`tests/fixtures/runtime-config-backups.ts`、`tests/home-snapshot-cli.test.ts`、`tests/security-invariants-home-restore-recovery.test.ts`、`tests/security-invariants-runtime-backups.test.ts`），由 [#2171](https://github.com/molis-ai/molis-work/pull/2171)（`9d25c9d1cd`）合入，正式交付项 [73-3](../specs/post-anticorruption-roadmap/reference/batches/73.md#batch-73-item-3) 离线恢复回归切片；条目 2026-11-20 删除 |
 | BL-981 | 已完成并删除 | 2026-11-19：知识检索不可读原因与模型所选理由按完整字符边界截断（`horizontal/knowledge/src/errors.ts`、`tests/knowledge-locate-budget.test.ts`），由 [#2177](https://github.com/molis-ai/molis-work/pull/2177)（`4f2bd4e5f5`）合入；条目 2026-11-20 删除 |

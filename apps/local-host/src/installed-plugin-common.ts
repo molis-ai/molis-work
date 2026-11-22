@@ -19,6 +19,9 @@ import type { SandboxPackageStore } from './sandbox-package-store.js';
 type Standing = ReturnType<typeof publisherStanding>;
 type Definition = ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
 
+/** A row a signed package's installation wrote: what a project's installed plugins (and the Home's) run, beside the built-in ones on the same platform. */
+export const isInstalledPackage = (record: Pick<PluginInstanceRecord, 'publisher_trust' | 'execution'>): boolean => record.publisher_trust === 'pinned' && record.execution === 'sandbox';
+
 /** The host's own rows of the Runtime (`ours`), never an uninstalled one; `retryUninstall` also finds the one tombstone of the plugin whose clean-up did not finish (BL-915). */
 export function installedRecords(list: () => PluginInstanceRecord[], ours: (record: PluginInstanceRecord) => boolean) {
   const records = () => list().filter(item => ours(item) && item.state !== 'uninstalled');

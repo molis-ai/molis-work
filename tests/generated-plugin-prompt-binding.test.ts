@@ -84,7 +84,8 @@ test('installed and authoring model calls bind their own release through the rea
   const two = await ensureInstalledPlugins({ store: b.store, projectId: b.id, homeDirectory: home, actions: b.actions });
   await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
   // `generate` calls the model through a platform capability, a switch that starts off (BL-701).
-  for (const host of [one, two]) for (const record of host.platform.runtime.list()) await host.platform.runtime.regrant(record.install_id, 'capabilities:call', true);
+  // The project's platform also runs its built-in plugins (47-1 B): only the installed packages' switches are turned on.
+  for (const host of [one, two]) for (const { record } of host.installations()) await host.platform.runtime.regrant(record.install_id, 'capabilities:call', true);
   // A package's actions keep one version across its versions; which release answers is the installation's, not the caller's choice.
   const invoke = (p: typeof a, prompt = 'summary') => p.service.invoke({ actor_id: 'person', audience: 'user', project_id: p.actions.project_id, permissions: [] },
     { capability_id: exposedActionId(v1, 'generate'), version: 1, provider_id: 'plugin:' + pluginId }, prompt);

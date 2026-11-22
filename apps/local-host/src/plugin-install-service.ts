@@ -367,7 +367,7 @@ export class PluginInstallService {
 
   /** A plugin id keeps the range its first kept package gave it: a package of another range is refused rather than run where its Manifest never asked (BL-628, PEQ-06). */
   private assertScopeKept(manifest: KeptSandboxPackage['manifest'], refuse: (message: string) => Error): void {
-    const kept = this.ports.packages.scopeOf(manifest.plugin_id), range = rangeOf(manifest);
+    const kept = this.ports.packages.scopeOf(manifest.plugin_id, manifest.publisher.signature), range = rangeOf(manifest);
     if (kept !== undefined && kept !== range) {
       const label = kept === 'dual' ? '双实例' : kept === 'home' ? 'Home' : '项目';
       throw refuse(`插件 ${manifest.plugin_id} 已经以「${label}」范围装过，它的范围不能更换：请给这个包换一个插件 ID`);

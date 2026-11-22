@@ -73,13 +73,14 @@ export class SandboxPackageStore {
    * Where the packages kept for a plugin id say they run, if any is kept: a plugin id has one range, whoever signed it and whatever the
    * version (BL-628). Read without the package's checks, as it only refuses the install of another range; a directory it cannot read is not a package of this id.
    */
-  scopeOf(pluginId: string): 'dual' | 'home' | 'project' | undefined {
+  scopeOf(pluginId: string, keyId: string): 'dual' | 'home' | 'project' | undefined {
     const root = join(this.home, 'plugin-packages');
     if (!existsSync(root)) return undefined;
     for (const name of readdirSync(root)) {
       try {
-        const manifest = (JSON.parse(readFileSync(join(root, name, BUNDLE_FILE), 'utf8')) as { payload?: { manifest?: { plugin_id?: unknown; runtime?: { scope?: unknown; dual_instance?: unknown } } } }).payload?.manifest;
-        if (manifest?.plugin_id === pluginId) {
+        const manifest = (JSON.parse(readFileSync(join(root, name, BUNDLE_FILE), 'utf8')) as { payload?: { manifest?: { plugin_id?: unknown; publisher?: { signature?: unknown }; runtime?: { scope?: unknown; dual_instance?: unknown } } } }).payload?.manifest;
+        // Another publisher's plugin under the same id is another plugin, with its own range (BL-586).
+        if (manifest?.plugin_id === pluginId && manifest.publisher?.signature === keyId) {
           if (manifest.runtime?.scope === 'home') return manifest.runtime.dual_instance === true ? 'dual' : 'home';
           return 'project';
         }

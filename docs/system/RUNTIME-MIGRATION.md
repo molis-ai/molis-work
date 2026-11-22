@@ -100,7 +100,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 | 插件 | 为什么现在不能是 Runtime 插件（代码事实） | 例外期间仍要守的 |
 | --- | --- | --- |
 | Goals | 已于第 44 批完成插件同等地位收口（PEQ-01～17）：不再声明 `always_on`，新项目不默认装，可移除且移除后数据保留；Goal 的表由 Goals 在 Manifest `databases.project` 声明；项目指导、可信决定、要求与认可、对象工作终端均已迁回平台能力；CLI、MCP、工作台与宿主已清空对 Goals 包的直接依赖（仅留项目库 5→6/6→7 两处已登记的历史数据迁移例外），由 PEQ-03 门禁守住；样式随包按需加载（`goals.css`） | 不新增平台对原生插件包的直接 import（`scripts/gates/platform-plugin-imports.mjs`）；历史迁移例外待删除条件满足后连段清除；动作仍在统一目录里 |
-| Artifacts | `project-plugins.ts` 和 `installed-plugin-host.ts` 先构造 `ArtifactsModule`、`ProcessItemsModule`，再交给 `createPluginPlatform`，Runtime 给所有插件的 `services.artifacts`、`services.processItems` 就建在它上面；它自己再当 Runtime 插件，就要靠自己提供的服务启动自己（推断）。`artifact-native-plugin-http.ts` 208 行 | 同上；成果库规则不变（`artifacts.produces` 声明，宿主拒绝未声明的写入） |
+| Artifacts | `project-plugins.ts`（已装插件也跑在它这套平台上，第 47 批）先构造 `ArtifactsModule`、`ProcessItemsModule`，再交给 `createPluginPlatform`，Runtime 给所有插件的 `services.artifacts`、`services.processItems` 就建在它上面；它自己再当 Runtime 插件，就要靠自己提供的服务启动自己（推断）。`artifact-native-plugin-http.ts` 208 行 | 同上；成果库规则不变（`artifacts.produces` 声明，宿主拒绝未声明的写入） |
 | Sessions | 宿主持有会话注册表（`project-host.ts` 的 `this.sessions`），传给 `workActionProvider` 和 `projectWorkspaceActionProvider` | 同上 |
 | 插件创作台 | 它创建并管理其他插件的安装：`installed-plugin-host.ts` 依赖 `AgentBuilderStore`；宿主侧 `apps/local-host/src/plugin-builder/` 有 16 个文件 2,181 行 | 同上；生成插件仍走统一目录与沙箱 |
 

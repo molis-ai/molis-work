@@ -53,7 +53,8 @@ test('BSH-03 S-59 a real installed project SQL child exits before the Host relea
   const project = await home.createProject('Close with a native child');
   const installed = await home.host.withProject(project.reference, ({ store }) =>
     ensureInstalledPlugins({ store, projectId: project.project_id, homeDirectory: home.home, actorId: LOCAL_PERSON_ACTOR_ID }));
-  assert.deepEqual((await installed.platform.start([{ definition, trust: { level: 'unsigned' }, grants: permissions }])).running, [pluginId]);
+  // The project's platform also runs its built-in plugins (47-1 B); the report names this fixture among them.
+  assert.ok((await installed.platform.start([{ definition, trust: { level: 'unsigned' }, grants: permissions }])).running.includes(pluginId));
   assert.ok(capture.statements);
 
   const spawned: { child?: ChildProcess } = {};
@@ -212,7 +213,8 @@ test('an in-flight catalog inspection cannot restore generated registrations aft
     const pending = installed.catalog(); await entered.promise;
     await installed.close(); release.resolve();
     assert.deepEqual(await pending, []);
-    assert.deepEqual(service.discover(caller), []);
+    // The project's built-in plugins keep their actions on the platform they share (47-1 B); no generated one comes back.
+    assert.deepEqual(service.discover(caller).filter(view => view.capability_id.startsWith('generated.')), []);
   } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -774,7 +776,9 @@ test('closing a project releases every owner and closes its database even when o
     assert.equal(installed.installations()[0]?.state, 'running');
     // The process really stops, then the stop reports a failure: the installed plugins are the first release to fail.
     const stop = installed.platform.runtime.stop.bind(installed.platform.runtime);
-    installed.platform.runtime.stop = async (...args: Parameters<typeof stop>) => { await stop(...args); throw new Error('stop failed'); };
+    // Only the installed plugin's stop fails: the built-in plugins on the same platform (47-1 B) stop as usual.
+    const failing = installed.installations()[0]!.record.install_id;
+    installed.platform.runtime.stop = async (...args: Parameters<typeof stop>) => { await stop(...args); if (args[0] === failing) throw new Error('stop failed'); };
 
     await assert.rejects(host.closeProject(fixture.ref), /安装插件停止失败/);
     assert.throws(() => store.db.prepare('SELECT 1').get(), 'the release steps after the failing one ran, so the project database is closed');
@@ -1161,7 +1165,8 @@ test('RAC-1198 closing the Host stops a running installation exactly once with p
   try {
     const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id, stop = runtime.stop.bind(runtime);
     const calls: Array<{ install_id: string; options: unknown }> = [];
-    runtime.stop = async (...args: Parameters<typeof stop>) => { calls.push({ install_id: args[0], options: args[1] }); return stop(...args); };
+    // The built-in plugins on the project's platform (47-1 B) stop too; this counts the installation's own stops.
+    runtime.stop = async (...args: Parameters<typeof stop>) => { if (args[0] === id) calls.push({ install_id: args[0], options: args[1] }); return stop(...args); };
     await rig.host.close();
     assert.deepEqual(calls, [{ install_id: id, options: { preserve_enabled: true } }]);
     await rig.host.close();
@@ -1188,8 +1193,10 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
     const get = runtime.get.bind(runtime), stop = runtime.stop.bind(runtime), revoke = platform.supervisor.revoke.bind(platform.supervisor);
     const revoked: string[] = [], stopped: string[] = [];
     runtime.get = (installId: string) => { if (installId === id) throw injected; return get(installId); };
-    runtime.stop = async (...args: Parameters<typeof stop>) => { stopped.push(args[0]); return stop(...args); };
-    platform.supervisor.revoke = (pluginId: string) => { revoked.push(pluginId); revoke(pluginId); };
+    // The built-in plugins on the project's platform (47-1 B) are stopped and revoked by the project's own release; these watch the installation.
+    const own = (installId: string) => installId === id, ownPlugin = (pluginId: string) => pluginId === fixture.release.pluginId;
+    runtime.stop = async (...args: Parameters<typeof stop>) => { if (own(args[0])) stopped.push(args[0]); return stop(...args); };
+    platform.supervisor.revoke = (pluginId: string) => { if (ownPlugin(pluginId)) revoked.push(pluginId); revoke(pluginId); };
     undo = () => { runtime.get = get; runtime.stop = stop; platform.supervisor.revoke = revoke; };
     await assert.rejects(rig.host.close(), (error: unknown) => error instanceof AggregateError && error.message === '安装插件停止失败' && error.errors.includes(injected));
     assert.deepEqual(stopped, [], 'nothing is stopped on a record the Host could not read');
@@ -1242,7 +1249,8 @@ for (const [order, gonePluginId, keptPluginId] of [
     // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, in the order this case built them.
     // The expected array is written per case rather than sorted, so swapping the two fixture ids for the two orders also breaks the
     // labels; comparing the whole array still fails when the close order is empty (an indexOf would see -1 === -1).
-    const closeOrder = platform.supervisor.enabledPluginIds();
+    // The project's platform also runs its built-in plugins (47-1 B); the installed host closes only its own, in the same order.
+    const closeOrder = platform.supervisor.enabledPluginIds().filter(pluginId => pluginId === gone.pluginId || pluginId === fixture.release.pluginId);
     const expectedOrder = order === 'first' ? [gone.pluginId, fixture.release.pluginId] : [fixture.release.pluginId, gone.pluginId];
     assert.deepEqual(closeOrder, expectedOrder, `the close order is exactly both plugin ids, ascending (the ${order} one goes)`);
     saved = await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('SELECT * FROM plugin_runtime_installs WHERE install_id = ?').get(gone.installId) as Record<string, unknown> | undefined);

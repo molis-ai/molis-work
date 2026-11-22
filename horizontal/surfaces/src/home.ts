@@ -1,7 +1,7 @@
 import { actionReachesAudience, requireSynchronous, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PresentationOverview, PresentationOverviewDeclaration } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { SurfaceGroup, SurfaceHomeEnable, SurfaceHomeStart, SurfaceInstallationRef, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceGroup, SurfaceHomeEnable, SurfaceHomeStart, SurfaceInstallationRef, SurfaceLede, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationOverviewReader, presentationOverviewProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -23,7 +23,18 @@ interface OverviewAnswer {
   job: OverviewJob;
   summary: OwnedTextRef;
   note?: OwnedTextRef;
+  lede?: SurfaceLede;
   answer: PresentationOverview;
+}
+
+/** The overview's lede with its words bound to their owner; a lede whose label is not the owner's word is not shown, and a time
+ *  that does not read as one is left out, so one plugin's odd answer never costs the whole surface. */
+function ledeOf(answer: PresentationOverview, owner: string): SurfaceLede | undefined {
+  const lede = answer.lede, label = lede && tryOwnedTextRef(lede.label, owner);
+  if (!lede || !label) return undefined;
+  const text = lede.invite && tryOwnedTextRef(lede.invite.text, owner), action = lede.invite && tryOwnedTextRef(lede.invite.action, owner);
+  return { label, ...(lede.as_of && !Number.isNaN(Date.parse(lede.as_of)) ? { as_of: lede.as_of } : {}), sentences: lede.sentences.map(({ text, sources, mark }) => ({ text, ...(sources?.length ? { sources: [...sources] } : {}), ...(mark ? { mark } : {}) })),
+    ...(text && action ? { invite: { text, action } } : {}) };
 }
 
 const installation = (plugin: HomePlugin): SurfaceInstallationRef => {
@@ -76,8 +87,8 @@ async function readOverviews(read: ComposeRead, home: SurfaceHomePorts, groups: 
       const answer = result.value;
       const summary = tryOwnedTextRef(answer.summary, owner);
       if (summary && !presentationOverviewProblems(job.declaration, answer).length) {
-        const note = job.declaration.note && tryOwnedTextRef(job.declaration.note, owner);
-        overviews.set(owner, { job, answer, summary, ...(note ? { note } : {}) });
+        const note = job.declaration.note && tryOwnedTextRef(job.declaration.note, owner), lede = ledeOf(answer, owner);
+        overviews.set(owner, { job, answer, summary, ...(note ? { note } : {}), ...(lede ? { lede } : {}) });
         return;
       }
     }
@@ -171,13 +182,37 @@ function cardPlans(read: ComposeRead, home: SurfaceHomePorts, groups: ReadonlyMa
     }
     if (overview) {
       const start = startsFor(overview, read, home, considered, used);
-      return { owner, order, state: "ok", card: { ...card, summary: overview.summary, ...(overview.note ? { note: overview.note } : {}), ...(start.length ? { start } : {}) } };
+      return { owner, order, state: "ok", card: { ...card, summary: overview.summary, ...(overview.note ? { note: overview.note } : {}), ...(start.length ? { start } : {}),
+        ...(overview.lede ? { lede: overview.lede } : {}) } };
     }
     const undeclared = entries.some(plugin => plugin.state === "running" && !plugin.home.unavailable) && entries.every(plugin => !plugin.presentation?.overview);
     return { owner, order, state: undeclared ? "undeclared" : "unreadable", card };
   });
   read.retain(used);
   return plans;
+}
+
+/**
+ * A plugin's outline as its own group: the nodes the caller can read, in the owner's order, and as items the ones no other group shows. A child whose parent is not shown rises to
+ * the top level, so nothing hangs under an object that is not there; an outline with nothing readable makes no group.
+ */
+function outlineGroup(owner: string, overview: OverviewAnswer | undefined, visible: Awaited<ReturnType<typeof composeObjects>>["visible"],
+  displayed: Array<Awaited<ReturnType<typeof composeObjects>>["visible"][number]>): SurfaceGroup[] {
+  const outline = overview?.answer.outline, title = outline && tryOwnedTextRef(outline.title, owner);
+  if (!outline || !title) return [];
+  const rows = new Map(visible.filter(row => row.inOutline && row.item.owner_plugin_id === owner).map(row => [subjectKey(row.item.subject), row]));
+  let parentShown = false;
+  const nodes = outline.nodes.flatMap(node => {
+    const row = rows.get(subjectKey(node.subject));
+    if (node.depth === 0) parentShown = Boolean(row);
+    return row ? [{ row, node: { subject: node.subject, depth: node.depth === 1 && parentShown ? 1 as const : 0 as const, ...(node.progress ? { progress: node.progress } : {}) } }] : [];
+  });
+  if (!nodes.length) return [];
+  // An object is on the surface once: a node already waiting above or among its plugin's objects stays there, and the outline names it.
+  const placed = new Set(displayed), own = nodes.map(entry => entry.row).filter(row => !placed.has(row));
+  displayed.push(...own);
+  return [{ kind: "outline", owner_plugin_id: owner, ...groupState(nodes.map(entry => entry.row), false), title,
+    items: own.map(row => row.item), outline: nodes.map(entry => entry.node) }];
 }
 
 export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
@@ -189,7 +224,8 @@ export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
   // The completion order of parallel overview reads must not order objects or revisions.
   const sources = [...groups.keys()].flatMap(owner => {
     const overview = overviews.get(owner);
-    return overview?.answer.subjects.map(subject => ({ subject, kind: "overview", plugin: overview.job.plugin } satisfies ObjectSource)) ?? [];
+    return overview ? [...overview.answer.subjects.map(subject => ({ subject, kind: "overview", plugin: overview.job.plugin } satisfies ObjectSource)),
+      ...(overview.answer.outline?.nodes ?? []).map(node => ({ subject: node.subject, kind: "outline", plugin: overview.job.plugin } satisfies ObjectSource))] : [];
   });
   const objectRead = home.formOnly ? { ...read, views: read.views.filter(view => !requireSynchronous(home.formOnly?.(view))) } : read;
   const objects = await composeObjects(objectRead, [...attention.sources, ...sources]);
@@ -213,7 +249,8 @@ export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
   const catalog = read.plugins.map(plugin => [plugin.plugin_id, plugin.scope, plugin.install_id, plugin.state, plugin.revision, plugin.home])
     .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const cardAuthority = [...considered].sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision);
+  const outlineGroups = cards.flatMap(({ owner }) => outlineGroup(owner, overviews.get(owner), objects.visible, displayed));
   const lead = leadGroup(groups, rank);
-  return { groups: [...(lead ? [lead] : []), attentionGroup, ...pluginGroups], simpler: displayed.some(row => row.simpler), adjusted: displayed.some(row => row.adjusted),
+  return { groups: [...(lead ? [lead] : []), attentionGroup, ...pluginGroups, ...outlineGroups], simpler: displayed.some(row => row.simpler), adjusted: displayed.some(row => row.adjusted),
     facts: { ...objects.facts, catalog, cardAuthority, operations: retainDisplayedOperations(objectRead, displayed) } };
 }

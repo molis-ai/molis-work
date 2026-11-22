@@ -19,8 +19,8 @@ export interface CheckedSurfaceDescription { readonly description: SurfaceDescri
 // The message names the part and never echoes a value: a description names other owners' objects.
 const malformed = (part: string) => new ActionError("actions.output_invalid", `操作面描述不合格：${part}`);
 
-const GROUP_KINDS = ["attention", "continue", "plugin", "slot", "lead"] as const;
-const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "plugin_card", "lead", "title", "items"] as const;
+const GROUP_KINDS = ["attention", "continue", "plugin", "slot", "lead", "outline"] as const;
+const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "plugin_card", "lead", "outline", "title", "items"] as const;
 const GROUP_STATES = ["ok", "unreadable", "stale", "disabled", "undeclared"] as const;
 
 function closed(value: unknown, part: string, keys: readonly string[]): Record<string, unknown> {
@@ -89,8 +89,8 @@ function candidateGroup(group: SurfaceGroup, at: string): CandidateGroup {
   const kind = oneOf(group.kind, GROUP_KINDS, `${at}.kind`);
   const state = oneOf(group.state, GROUP_STATES, `${at}.state`);
   if ((state === "disabled" || state === "undeclared") && kind !== "plugin") throw malformed(`${at}.state：${state} 只用在 plugin 组`);
-  const owned = kind === "plugin" || kind === "lead";
-  if (owned !== (group.owner_plugin_id !== undefined)) throw malformed(`${at}.owner_plugin_id：plugin 组与 lead 组必有，别的组不写`);
+  const owned = kind === "plugin" || kind === "lead" || kind === "outline";
+  if (owned !== (group.owner_plugin_id !== undefined)) throw malformed(`${at}.owner_plugin_id：plugin 组、lead 组与 outline 组必有，别的组不写`);
   const ownerId = owned ? text(group.owner_plugin_id, `${at}.owner_plugin_id`, 200) : undefined;
   const lead = checkedLead(group, kind, state, `${at}.lead`);
   const owner = ownerId === undefined ? {} : { owner_plugin_id: ownerId };
@@ -101,8 +101,9 @@ function candidateGroup(group: SurfaceGroup, at: string): CandidateGroup {
   const folded = group.overflow === undefined ? {} : { overflow: overflow(group.overflow, `${at}.overflow`) };
   const card = group.plugin_card === undefined ? {} : { plugin_card: checkedPluginCard(group.plugin_card, ownerId, state, `${at}.plugin_card`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);
-  if (kind === "plugin" && group.items.some(item => item.owner_plugin_id !== ownerId)) throw malformed(`${at}.items：plugin 组只放这个插件的东西`);
-  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded, ...card, ...lead }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
+  if ((kind === "plugin" || kind === "outline") && group.items.some(item => item.owner_plugin_id !== ownerId)) throw malformed(`${at}.items：plugin 组与 outline 组只放这个插件的东西`);
+  const outline = checkedOutline(group, kind, `${at}.outline`);
+  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded, ...card, ...lead, ...outline }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
 }
 
 /** A `lead` group is the Host's choice of one main-area view: `ok`, no items, and nothing a description could add to. Other groups carry none. */
@@ -115,6 +116,30 @@ function checkedLead(group: SurfaceGroup, kind: SurfaceGroup["kind"], state: Sur
   return { lead: { installation: lead.installation as SurfaceInstallationRef, view_id: text(lead.view_id, `${at}.view_id`, PRESENTATION_LIMITS.start_view_id) } };
 }
 
+/**
+ * An `outline` group is one plugin's own tree of its objects with how far each has come: the nodes are the owner's, in its order, each
+ * object once, a part only under a whole, and never more done than there is. Other groups carry none.
+ */
+function checkedOutline(group: SurfaceGroup, kind: SurfaceGroup["kind"], at: string): { outline?: NonNullable<SurfaceGroup["outline"]> } {
+  if ((kind === "outline") !== (group.outline !== undefined)) throw malformed(`${at}：outline 组必有，别的组不写`);
+  if (group.outline === undefined) return {};
+  if (group.title === undefined) throw malformed(`${at}：outline 组必有标题`);
+  if (!Array.isArray(group.outline) || group.outline.length < 1 || group.outline.length > PRESENTATION_LIMITS.outline_nodes) throw malformed(at);
+  const seen = new Set<string>();
+  const nodes = group.outline.map((value, index) => {
+    const path = `${at}[${index}]`, node = closed(value, path, ["subject", "depth", "progress"]);
+    if (!isSubject(node.subject) || seen.has(subjectKey(node.subject))) throw malformed(`${path}.subject`);
+    seen.add(subjectKey(node.subject));
+    if (node.depth !== 0 && node.depth !== 1 || index === 0 && node.depth !== 0) throw malformed(`${path}.depth`);
+    const depth: 0 | 1 = node.depth;
+    if (node.progress === undefined) return { subject: { kind: node.subject.kind, id: node.subject.id }, depth };
+    const progress = closed(node.progress, `${path}.progress`, ["done", "total"]);
+    if (!Number.isSafeInteger(progress.done) || !Number.isSafeInteger(progress.total) || (progress.done as number) < 0 || (progress.total as number) < (progress.done as number)) throw malformed(`${path}.progress`);
+    return { subject: { kind: node.subject.kind, id: node.subject.id }, depth, progress: { done: progress.done as number, total: progress.total as number } };
+  });
+  return { outline: nodes };
+}
+
 /** A group of the value: the candidates' group of the same kind and owner, once. The value gives its title and picks and orders its items. */
 function checkedGroup(value: unknown, at: string, pass: Pass): SurfaceGroup {
   const group = closed(value, at, GROUP_KEYS);
@@ -124,6 +149,7 @@ function checkedGroup(value: unknown, at: string, pass: Pass): SurfaceGroup {
   if (group.plugin_card !== undefined && (candidate.facts.plugin_card === undefined
     || canonicalJsonText(group.plugin_card) !== canonicalJsonText(candidate.facts.plugin_card))) throw malformed(`${at}.plugin_card`);
   if (group.lead !== undefined && canonicalJsonText(group.lead) !== canonicalJsonText(candidate.facts.lead ?? null)) throw malformed(`${at}.lead`);
+  if (group.outline !== undefined && canonicalJsonText(group.outline) !== canonicalJsonText(candidate.facts.outline ?? null)) throw malformed(`${at}.outline`);
   pass.placed.add(candidate);
   const title = group.title === undefined ? {} : { title: ownedText(group.title, `${at}.title`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);
@@ -213,9 +239,10 @@ function checkCardEnable(value: unknown, at: string): void {
 
 function checkedPluginCard(value: SurfacePluginCard, owner: string | undefined, state: SurfaceGroup["state"], at: string): SurfacePluginCard {
   if (!owner) throw malformed(at);
-  const card = closed(value, at, ["summary", "note", "start", "open", "enable"]);
-  if ((state === "disabled" || state === "undeclared") && (card.summary !== undefined || card.start !== undefined)) throw malformed(at);
-  if (card.start !== undefined && card.summary === undefined) throw malformed(at);
+  const card = closed(value, at, ["summary", "note", "start", "open", "enable", "lede"]);
+  if ((state === "disabled" || state === "undeclared") && (card.summary !== undefined || card.start !== undefined || card.lede !== undefined)) throw malformed(at);
+  if ((card.start !== undefined || card.lede !== undefined) && card.summary === undefined) throw malformed(at);
+  if (card.lede !== undefined) checkCardLede(card.lede, owner, `${at}.lede`);
   if (card.summary !== undefined) cardWord(card.summary, owner, `${at}.summary`, true);
   if (card.note !== undefined) cardWord(card.note, owner, `${at}.note`, false);
   if (card.start !== undefined) checkCardStarts(card.start, `${at}.start`);
@@ -230,6 +257,33 @@ function checkedPluginCard(value: SurfacePluginCard, owner: string | undefined, 
     checkCardEnable(card.enable, `${at}.enable`);
   }
   return value;
+}
+
+const codePoints = (value: string) => {
+  let count = 0;
+  for (const _ of value) count += 1;
+  return count;
+};
+
+/** A card's lede: the owner's own label (and invitation), and a few stored sentences, each standing on a few named sources. */
+function checkCardLede(value: unknown, owner: string, at: string): void {
+  const lede = closed(value, at, ["label", "as_of", "sentences", "invite"]);
+  cardWord(lede.label, owner, `${at}.label`, false);
+  if (lede.as_of !== undefined) timestamp(lede.as_of, `${at}.as_of`);
+  if (!Array.isArray(lede.sentences) || lede.sentences.length > PRESENTATION_LIMITS.lede_sentences) throw malformed(`${at}.sentences`);
+  lede.sentences.forEach((entry, index) => {
+    const path = `${at}.sentences[${index}]`, sentence = closed(entry, path, ["text", "sources", "mark"]);
+    // Lengths are counted as the overview's schema counts them (code points), so what the owner's answer passed is not refused here.
+    if (typeof sentence.text !== "string" || !sentence.text.trim() || codePoints(sentence.text) > PRESENTATION_LIMITS.lede_sentence) throw malformed(`${path}.text`);
+    if (sentence.sources !== undefined && (!Array.isArray(sentence.sources) || sentence.sources.length > PRESENTATION_LIMITS.lede_sources
+      || new Set(sentence.sources).size !== sentence.sources.length || sentence.sources.some(source => typeof source !== "string" || !source || codePoints(source) > 200))) throw malformed(`${path}.sources`);
+    if (sentence.mark !== undefined) oneOf(sentence.mark, ["yours", "changed", "gap"], `${path}.mark`);
+  });
+  if (lede.invite !== undefined) {
+    const invite = closed(lede.invite, `${at}.invite`, ["text", "action"]);
+    cardWord(invite.text, owner, `${at}.invite.text`, false);
+    cardWord(invite.action, owner, `${at}.invite.action`, false);
+  }
 }
 
 function actionIdentity(value: unknown, at: string): { ref: string; provider?: string; primary: boolean } {

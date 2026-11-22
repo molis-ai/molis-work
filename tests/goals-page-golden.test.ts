@@ -52,6 +52,12 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // (`[data-settings-nav-filter]` / `[data-settings-nav-empty]`) in standalone & drawer settings navigation (shifting all 8 `page-*.zh`
 // records uniformly by +1246, all 8 `page-*.en` by +1360, all 3 standalone `settings-*.zh` by +496, and all 3 standalone `settings-*.en`
 // by +553; all 24 `refresh-*`, `momentum-*`, and `document-*` records and all 6 `settings-*-embedded.*` records remain byte-for-byte identical).
+// Batch 36A-6 (the project's first page, PR #2232): the home's frame inside the project page changed, and only it: the heading bar
+// became the first page's column (its kind, the version slot, the read-again key and help on one line, then the name), the margin of
+// sources was added beside it and the old lead bar went. All 52 dumped pages were drawn on an independently built main 8959498c9a and
+// on this branch and compared token by token: the 16 whole pages differ by the same 65 tokens, all inside `data-work-surface="home"`
+// (besides the language resource's file hash, which the recorded markup leaves out), a uniform +383 (zh) / +395 (en) characters; the
+// other records are byte for byte the same. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

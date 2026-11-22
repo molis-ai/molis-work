@@ -70,6 +70,11 @@ export class GoalEventState implements GoalEventStateApi {
     return this.records.owner.isOwner(projectId, goalId);
   }
 
+  readWorkStatus(projectId: string, goalId: string): GoalEventWorkStateView["work_status"] {
+    this.context.requireGoal(projectId, goalId);
+    return this.records.owner.workStatus(projectId, goalId);
+  }
+
   readWorkState(projectId: string, goalId: string): GoalEventWorkStateView {
     const goal = this.context.requireGoal(projectId, goalId);
     const progress = this.records.outcomes.latestProgress(projectId, goalId);

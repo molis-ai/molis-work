@@ -100,6 +100,8 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     if (!pickerPopover || !pickerToggle) return;
     // One list at a time: the start page closes the first place's.
     if (open) { setCorner(false); dressStart(); }
+    // Each plugin's own "start" joins its row once the project's first page has been read for it; closing takes them off.
+    if (open) host.startEntries?.()?.open(); else host.startEntries?.()?.close();
     pickerPopover.hidden = !open;
     if (open) placeStart();
     toast?.toggleAttribute('data-plugin-picker-open', open);

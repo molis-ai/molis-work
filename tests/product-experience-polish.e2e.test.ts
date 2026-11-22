@@ -30,7 +30,7 @@ test('Product journeys: discover tools, create from empty states, save and recov
   const input = async (selector: string, value: string) => (views[selector.match(/data-(dataset|form|ppt|lingguang|cognia)-/)?.[1] ?? ""] ?? b).evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await size(1440);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-home-card]')", 20_000);
+  await waitFor("document.querySelector('[data-home-sources]')", 20_000);
   await shot('home-desktop');
   // Every plugin is one click from the switcher in front of the Assistant; the Dock keeps the chosen ones on screen.
   await click('[data-plugin-picker-toggle]');
@@ -104,10 +104,9 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await shot('cognia-desktop');
   await views.cognia.click('[data-cognia-action=model-settings]');
   await waitFor("document.querySelector('[data-work-surface=settings] [data-model-settings]') || document.querySelector('[data-directory-panel=settings] [data-settings-section=models][aria-current]')", 10_000);
+  // The first page lists no plugin for its own sake (specs/screen-polish §八之二); a plugin with nothing new opens from the strip.
   await open('home');
-  const openPages = '[data-home-card="io.molis.work.pages"] [data-home-control$=":open"]';
-  await waitFor(`!!document.querySelector(${JSON.stringify(openPages)})`);
-  await click(openPages);
+  await open('pages');
   await waitFor("document.body.dataset.desktopSurface === 'pages'");
   await size(390, 844);
   await shot('pages-mobile');
@@ -126,8 +125,8 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await shot('cognia-mobile-dark');
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
   await evaluate("document.querySelector('[data-plugin-id=home]').click()");
-  await waitFor("document.querySelector('[data-home-card] [data-home-control]')");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-home-card] [data-home-control]')).transitionDuration"), '0s');
+  await waitFor("document.querySelector('[data-home-sources] [data-home-control]')");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-home-sources] [data-home-control]')).transitionDuration"), '0s');
   } catch (error) { console.error(error); throw error; }
 });
 

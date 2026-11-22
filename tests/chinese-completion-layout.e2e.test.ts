@@ -63,10 +63,11 @@ test("IUI-21: a long Chinese goal keeps its title and status inside the Home row
     for (const font of ["", "Arial, sans-serif", "sans-serif"]) {
       const fits = await b.evaluate<boolean>(`(() => {
         const row = document.querySelector(${JSON.stringify(row)}); row.style.fontFamily = ${JSON.stringify(font)};
-        const outer = row.getBoundingClientRect(), title = row.querySelector('.mw-presentation__row-title'), status = row.querySelector('.mw-status');
+        // In the progress tree the state is its ring (the mark itself has no box; a running or done state's word is for screen readers).
+        const outer = row.getBoundingClientRect(), title = row.querySelector('.mw-presentation__row-title'), status = row.querySelector('.mw-status'), ring = status.querySelector('svg');
         const inside = element => { const box = element.getBoundingClientRect(); return box.width>0 && box.height>0
           && box.left>=outer.left-1 && box.right<=outer.right+1 && box.top>=outer.top-1 && box.bottom<=outer.bottom+1; };
-        return inside(title) && inside(status) && status.textContent.includes('进行中') && document.documentElement.scrollWidth<=innerWidth+1;
+        return inside(title) && inside(ring) && status.textContent.includes('进行中') && document.documentElement.scrollWidth<=innerWidth+1;
       })()`);
       assert.equal(fits, true, `${width}px ${font || "system"}: title and status remain in their row`);
     }

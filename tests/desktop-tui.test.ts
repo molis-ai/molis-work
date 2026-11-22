@@ -637,7 +637,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');
     assert.ok(homeStart >= 0);
-    assert.match(browser.slice(homeStart), /class="home-scroll"[\s\S]*class="home-heading"[\s\S]*data-home-status[\s\S]*data-home-groups[\s\S]*data-home-peek/);
+    assert.match(browser.slice(homeStart), /class="home-scroll mw-first-page"[\s\S]*class="mw-first-page__meta"[\s\S]*<h1>[\s\S]*data-home-status[\s\S]*data-home-groups[\s\S]*data-home-margin[\s\S]*data-home-peek/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-composer|home-calendar|data-home-agent-input|data-home-dates|data-home-shortcut-add/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-note|data-home-note/, "Home keeps no scratch note");
     assert.match(browser, /\*\{scrollbar-width:none\}/);

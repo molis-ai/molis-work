@@ -4545,13 +4545,6 @@
   }
   :is(.mw-input, .mw-textarea)::placeholder { color: var(--muted); }
   :is(.mw-input, .mw-textarea, .mw-select):hover:where(:not(:disabled, :focus-visible)) { border-color: var(--control-input); background-color: var(--paper); }
-  :is(.mw-input, .mw-textarea, .mw-select) {
-    &[aria-invalid="true"] {
-      border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
-      &:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; box-shadow: none; border-color: var(--red); }
-    }
-    &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
-  }
   
   .mw-select-picker {
     display: block; position: relative; width: 100%; min-width: 0;
@@ -4608,6 +4601,13 @@
   .mw-input-group:focus-within,
   .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
   .mw-input:focus, .mw-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background-color: var(--popover, var(--paper)); }
+  :is(.mw-input, .mw-textarea, .mw-select) {
+    &[aria-invalid="true"] {
+      border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
+      &:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; box-shadow: none; border-color: var(--red); }
+    }
+    &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
+  }
   .mw-input-group .mw-input, .mw-number .mw-input {
     border: 0; outline: 0; min-height: 26px; padding: 0; min-width: 0; background: transparent; box-shadow: none; border-radius: 0;
   }

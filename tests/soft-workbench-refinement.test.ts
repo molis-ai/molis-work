@@ -249,6 +249,10 @@ test("91-0b layout measure/master tokens and plugin-frame dependencies stay avai
     "nested > summary::before rule must not be hoisted to top-level @media(prefers-reduced-motion)");
   assert.ok(base.indexOf(".mw-input-group:focus-within") > base.indexOf(".mw-input-group {"),
     ".mw-input-group:focus-within must follow .mw-input-group hover rules in cascade");
+  assert.ok(base.indexOf('&[aria-invalid="true"]') > base.indexOf(".mw-input-group:focus-within"),
+    "field aria-invalid/disabled rules must follow FIELD_FOCUS in cascade");
+  assert.ok(base.indexOf(":is(.mw-input-group,.mw-number) .mw-input") > base.indexOf('&[aria-invalid="true"]'),
+    "nested input reset must follow field aria-invalid rules in cascade");
   assert.ok(base.lastIndexOf(".mw-choice, .mw-pagination__page):focus-visible") > base.indexOf(".mw-choice {"),
     ".mw-choice:focus-visible must follow .mw-choice selected rules in cascade");
 });

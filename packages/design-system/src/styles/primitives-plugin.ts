@@ -52,13 +52,6 @@ ${BUTTON_STYLES}
   }
   :is(.mw-input, .mw-textarea)::placeholder { color: var(--muted); }
   :is(.mw-input, .mw-textarea, .mw-select):hover:where(:not(:disabled, :focus-visible)) { border-color: var(--control-input); background-color: var(--paper); }
-  :is(.mw-input, .mw-textarea, .mw-select) {
-    &[aria-invalid="true"] {
-      border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
-      &:focus-visible { ${CONTAINED_FOCUS_DANGER}; border-color: var(--red); }
-    }
-    &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
-  }
   ${SELECT_MENU_STYLES}
   /* Search and other grouped fields wear the same paper-bordered surface as a single field. */
   .mw-input-group {
@@ -76,6 +69,13 @@ ${BUTTON_STYLES}
   .mw-input-group:focus-within,
   .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
   .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
+  :is(.mw-input, .mw-textarea, .mw-select) {
+    &[aria-invalid="true"] {
+      border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
+      &:focus-visible { ${CONTAINED_FOCUS_DANGER}; border-color: var(--red); }
+    }
+    &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
+  }
   .mw-input-group .mw-input, .mw-number .mw-input {
     border: 0; outline: 0; min-height: 26px; padding: 0; min-width: 0; background: transparent; box-shadow: none; border-radius: 0;
   }

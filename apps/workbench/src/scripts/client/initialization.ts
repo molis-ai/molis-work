@@ -184,7 +184,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       mountPluginClient, interaction, receipts, scope: boardLifetime, translate: readText, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
-      openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
+      openPlugin: (...args) => tabWorkspace?.openPlugin(...args), focusPane: (paneId) => tabWorkspace?.focusPane?.(paneId), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     document.addEventListener("click", (event) => { const btn = event.target?.closest?.("[data-sessions-open-scope]"); if (btn) void deferredClients.loadBundle("sessions").then(() => globalThis.molisOpenSessionsScope?.(btn.dataset.sessionsOpenScope === "project_ai_read" ? "project_ai_read" : "tools", { overlay: !btn.closest('[data-work-surface="sessions"]') })); });
@@ -292,7 +292,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           : "";
         sessionStorage.setItem(storageKey, JSON.stringify(stored));
       }
-    } catch {}
+    } catch { /* Fall back to default view when persisted UI state is unreadable. */ }
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
       if (goalData) {
@@ -393,7 +393,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           itemId: selected,
           title: selectedItem?.goal.title || selected,
         } }));
-      } catch {}
+      } catch { /* Ignore sessionStorage write failure for selected goal navigation. */ }
     }
     immersiveNavigation?.sync();
     frameContainer?.restore();
@@ -411,7 +411,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           setSelectedStatuses(restored.statuses);
           filterTree("");
         }
-      } catch {}
+      } catch { /* Ignore unreadable persisted status filter state. */ }
     }
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
@@ -488,6 +488,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const refreshVisibleGoal = () => { if (goalData && goalStageVisible()) void refreshBoard(); };
     boardLifetime.listen(document, "molis-work:place-changed", () => requestAnimationFrame(refreshVisibleGoal));
     boardLifetime.listen(window, "resize", refreshVisibleGoal);
+    const tabWorkspaceRoot = document.querySelector("[data-tab-workspace]");
+    if (tabWorkspaceRoot) boardLifetime.observe(new MutationObserver(() => requestAnimationFrame(refreshVisibleGoal)), tabWorkspaceRoot, { attributes: true, attributeFilter: ["data-solo", "data-split-narrow", "data-exclusive"] });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();
 `;

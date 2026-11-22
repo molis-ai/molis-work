@@ -25,7 +25,6 @@ export const CRAFT_BAR_STYLES = `
     ${SHELL} .tab-workspace-exclusive {
       border-radius: var(--r-sheet); overflow: clip; background: var(--paper); box-shadow: var(--sheet-shadow);
     }
-    ${SHELL} .tab-workspace-panes > .tab-content-frame { border-radius: var(--r-sheet); overflow: clip; }
     ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) 0 0; }
     ${SHELL} .tab-workspace-panes > .tab-pane.is-focused { box-shadow: var(--sheet-shadow); }
     /* Split panes: the focused one carries a copper hint so typing lands where you expect. */

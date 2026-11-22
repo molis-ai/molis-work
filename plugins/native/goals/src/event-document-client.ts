@@ -354,7 +354,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
             return;
           }
           let current = {};
-          try { current = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-state")) ?? {}; } catch {}
+          try { current = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-state")) ?? {}; } catch { /* Keep empty event-state fallback when endpoint is unavailable. */ }
           if (conflict) {
             conflict.hidden = false;
             conflict.innerHTML = "<p>" + escapeText(body.error || globalThis.t.text("goals.event-document-client.current-agreement-has-changed-input-kept")) + "</p>"

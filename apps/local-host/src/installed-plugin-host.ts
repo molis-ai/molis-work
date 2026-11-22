@@ -74,6 +74,12 @@ export const staleInstallation = (message = '插件的安装执行身份已失�
 export const currentInstalledPluginHost = (store: LocalProjectDatabase, projectId: string) =>
   hosts.get(store)?.get(projectId)?.current;
 
+/** Whether the project's installed plugins are still starting, or one of them has work running that closing the project would end. */
+export function installedPluginsHaveWork(store: LocalProjectDatabase, projectId: string): boolean {
+  const entry = hosts.get(store)?.get(projectId);
+  return !!entry && (!entry.current || entry.current.platform.hasProjectWork(projectId));
+}
+
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map();
   const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };

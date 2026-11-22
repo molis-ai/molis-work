@@ -74,10 +74,10 @@ function appearanceOwner(page: Document): AppearanceDocument | null {
   const frame = page.defaultView?.frameElement as HTMLIFrameElement | null | undefined;
   if (!frame?.isConnected || frame.contentDocument !== page) return null;
   const side = page.body?.dataset.sideView && frame.matches("#side-panel iframe[data-side-frame]");
-  const pane = frame.matches("[data-tab-panes] > iframe.tab-content-frame[data-pane-owner][data-pane-tab]");
+  const pane = frame.matches('#side-panel iframe.side-pane-frame[data-pane-owner="side"]');
   if (!side && !pane) return null;
   const owner = frame.ownerDocument, scope = viewScope(owner);
-  const source = side ? frame.closest<HTMLElement>("[data-side-src]")?.dataset.sideSrc : frame.src;
+  const source = side ? frame.closest<HTMLElement>("[data-side-src]")?.dataset.sideSrc : frame.dataset.sidePaneSrc || frame.src;
   if (!source || !scope || scope !== viewScope(page)) return null;
   try {
     const route = new URL(source, owner.URL), location = owner.location;

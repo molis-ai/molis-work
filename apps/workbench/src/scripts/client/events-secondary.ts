@@ -48,6 +48,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
       if (handleMomentumZoomClick(target)) return;
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
+        const clickedPaneId = goalLink.closest("[data-tab-pane]")?.dataset.tabPane;
+        if (clickedPaneId) tabWorkspace?.focusPane?.(clickedPaneId);
         if (goalLink.closest("[data-goal-stage-list]")) {
           const goalId = goalLink.dataset.selectGoal;
           if (stageListGestureTimer) { clearTimeout(stageListGestureTimer); stageListGestureTimer = null; }

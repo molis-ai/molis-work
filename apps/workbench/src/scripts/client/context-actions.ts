@@ -43,11 +43,12 @@ const PANE_PART = String.raw`  const readText = host.translate;
 
   // In the document that owns the surface: hand the choice to the page. Nobody taking it means no page here can run
   // it yet; the Assistant then gets what is in hand, and the person says what to do with it.
-  const deliver = async (focus, candidate) => {
+  const deliver = async (focus, candidate, targetSurface) => {
     const id = newRequestId();
     const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: {
       plugin_id: focus.plugin_id, context_id: focus.context_id, key: candidate.key, offer_id: candidate.offer_id,
       apply: candidate.apply, intent: candidate.intent, title: candidate.title, object: focus.object, ...(candidate.scope ? { scope: candidate.scope } : {}),
+      ...(targetSurface ? { _surface: targetSurface } : {}),
       prepare: (control) => post("/api/contextual/prepare", { pane_id: ownPane, focus, key: candidate.key, request_id: id }, control?.signal, control?.page_id),
     } });
     window.dispatchEvent(event);

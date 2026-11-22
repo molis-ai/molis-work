@@ -70,9 +70,12 @@ export function sqliteErrorName(error: unknown): string | undefined {
   return typeof errcode === "number" ? SQLITE_PRIMARY_RESULTS[errcode & 0xff] : undefined;
 }
 
-/** The busy timeout and page cache a project connection has always had; `node:sqlite`'s own defaults are 0 and 2 MB. */
+/**
+ * A project connection's busy timeout and page cache; `node:sqlite`'s own defaults are 0 and 2 MB. A Host keeps every open project's connection
+ * for as long as the project stays open, so each one's cache counts: 4 MB holds a project library's working set.
+ */
 const DEFAULT_BUSY_TIMEOUT_MS = 5000;
-const CACHE_SIZE_KIB = 16000;
+const CACHE_SIZE_KIB = 4000;
 const KNOWN_OPTIONS = new Set(["readonly", "fileMustExist", "timeout"]);
 
 /** A file is named by URL so `mode=rw` can refuse a missing file without a race, and so a path is never read as a URI of its own. */

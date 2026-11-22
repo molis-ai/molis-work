@@ -135,3 +135,4 @@ export {
 export { rollbackPreservingError } from "./transaction-errors.js";
 
 export { openExistingBaselineHomeSqlite } from "./sqlite-baseline.js";
+export { heldHomeSqlite, releaseHeldHomeSqlite, withHeldHomeSqlite } from "./sqlite-baseline.js";

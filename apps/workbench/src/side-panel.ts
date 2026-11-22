@@ -345,7 +345,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       select(options.tab??current(),options.target);
       if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
-      if(inner)ready(inner,()=>inner.focus());
+      if(inner)ready(inner,()=>{inner.focus();inner.contentWindow?.focus();});
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       dropHelpTab();
@@ -481,8 +481,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       if(keys==='Mod+Backslash')toggle();
       else if(keys==='Mod+K'||keys==='Mod+F'){
         const source=forwarded.from(event),body=source?.closest('[data-side-body]');
-        if(open&&source&&body?.dataset.sideBody===current()&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true}))
-          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:true,bubbles:true}));
+        if(open&&source&&body?.dataset.sideBody===current()&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true})){
+          const mac=navigator.userAgentData?.platform?navigator.userAgentData.platform==='macOS':/Mac|iPhone|iPad|iPod/.test(navigator.platform||'');
+          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:mac,ctrlKey:!mac,bubbles:true}));
+        }
       }else keyed(keys);
       return;
     }

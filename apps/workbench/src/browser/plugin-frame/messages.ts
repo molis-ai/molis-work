@@ -12,7 +12,7 @@ export function childMessages(port: MessagePort): UiPageMessages {
 }
 
 /** Only the outer shell's parent can deliver side context; a plugin cannot choose another frame's channel. */
-export function pageMessages(port: MessagePort, scope: FrameScope, pluginId: string, side: boolean) {
+export function pageMessages(port: MessagePort, scope: FrameScope, pluginId: string, side: boolean, root?: HTMLElement) {
   const send = (message: UiPageMessage) => port.postMessage({ type: "page-message", message } satisfies FrameDown);
   scope.listen(window, "message", event => {
     const received = event as MessageEvent<UiPageMessage>;
@@ -22,8 +22,10 @@ export function pageMessages(port: MessagePort, scope: FrameScope, pluginId: str
       && (received.data.context as { plugin_id?: string } | undefined)?.plugin_id === pluginId) send(received.data);
   });
   scope.listen(document, "molis:side-context-command", event => {
-    const detail = (event as CustomEvent<{ context?: { plugin_id?: string } }>).detail;
-    if (!side && detail?.context?.plugin_id === pluginId) send({ ...detail, type: "molis:side-context-command" });
+    const detail = (event as CustomEvent<{ context?: { plugin_id?: string; pane_id?: string } }>).detail;
+    const ownPane = root?.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+    if (!side && detail?.context?.plugin_id === pluginId && (!detail.context.pane_id || !ownPane || detail.context.pane_id === ownPane))
+      send({ ...detail, type: "molis:side-context-command" });
   });
   return (message: UiPageMessage): void => {
     if (!message || typeof message !== "object") return;

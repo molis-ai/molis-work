@@ -20,6 +20,8 @@
 
 `schedule.tasks.list` 返回定时操作的原功能、输入、排期、当前安装和执行历史；没有定义的历史等待项单列，不猜测执行内容。管理者经 `schedule.operations.recover` 决定 resume/retry/skip，普通启用不能绕过未知结果核对。Action 显式 `plugin: false`，Host 重读实际安装及版本，所见任务/历史 revision 防止过期决定；确认只恢复排期，不直接派出。未知结果重试可能重复外部作用，必须明确选择；跳过只处理最早的未知记录，其他未知仍需核对，一次性任务跳过后完成。决定及之前的未知说明随 occurrence 保留，HTTP、UI、授权 MCP 使用同一实现。
 
+常驻服务每 30 秒一轮（`apps/local-host/src/web-project-schedulers.ts`）：打开着的项目照常跑到期的 job；关着的项目只在它自己库里的 `schedule_jobs` 有已启用且到期的 job 时才打开（只读查看，不打开项目）；10 分钟没人用、没有在跑的活儿、两轮内也没有到期 job 的项目会被关闭休眠，下次有调用或到期再打开（第 103 批）。
+
 插件经 `services.scheduler`（`PluginScheduleClient`）管自己的 job：在自己项目库的事务里登记、取消、启停，主人由平台从这次安装取，输入没有 `plugin_id`；到点只叫醒 Manifest `background.wakeups` 声明过的命令。原来的宿主能力 `schedule.register/cancel/setEnabled/list` 没有插件调用方，已删（#1018）。
 
 **不拥有：** cron 表达式、Automation rule、Source schedule intent、Action parameters 或 Attention 内容。

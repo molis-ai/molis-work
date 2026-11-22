@@ -47,12 +47,12 @@ export function readEventRecoveries(ports: RecoveryPorts): PluginEventRecoveryVi
 export function resolveEventRecovery(ports: RecoveryPorts & { now(): Date; busy(pluginId: string, sourceId: string): boolean },
   actorId: string, input: PluginEventRecoveryInput): PluginEventResolutionRecord {
   if (!input || typeof input !== "object" || !["retry", "skip"].includes(input.decision)
-    || typeof input.reason !== "string" || !input.reason.trim() || input.reason.trim().length > 2000
+    || (input.reason !== undefined && (typeof input.reason !== "string" || !input.reason.trim() || input.reason.trim().length > 2000))
     || typeof input.expected_revision !== "string" || !actorId.trim()
     || !Number.isSafeInteger(input.type_version) || input.type_version < 1
     || [input.subscriber_plugin_id, input.source_plugin_id, input.event_type_id, input.event_id,
       input.expected_install_id, input.expected_generation, input.expected_version].some(value => typeof value !== "string" || !value)) {
-    throw new PluginEventError("plugin.event_recovery_invalid", "请重新读取待核对事件并填写处理依据");
+    throw new PluginEventError("plugin.event_recovery_invalid", "请重新读取待核对事件后再确认");
   }
   const previous = ports.repository.cursor(ports.projectId, input.subscriber_plugin_id, input,
     { install_id: input.expected_install_id, installation_generation: input.expected_generation });
@@ -70,7 +70,7 @@ export function resolveEventRecovery(ports: RecoveryPorts & { now(): Date; busy(
     subscriber_install_id: previous.subscriber_install_id, subscriber_generation: previous.subscriber_generation,
     source_plugin_id: previous.source_plugin_id, event_type_id: previous.event_type_id, type_version: previous.type_version,
     event_id: view.event!.event_id, cursor_revision: previous.revision, subscriber_version: view.subscriber_version!,
-    decision: input.decision, reason: input.reason.trim(), actor_id: actorId, resolved_at: at,
+    decision: input.decision, ...(input.reason !== undefined ? { reason: input.reason.trim() } : {}), actor_id: actorId, resolved_at: at,
   };
   const next: PluginEventCursorRecord = {
     ...previous, revision: randomUUID(), state: "idle", retry_at: null, last_error_code: null, updated_at: at,

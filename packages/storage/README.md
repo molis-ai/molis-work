@@ -1,6 +1,6 @@
 # 本地存储基础设施
 
-Memory ledger现行基线为2，表结构与业务行保持不变。版本2只由真正空的新Home创建；版本1及未来版本均拒绝，不转换、不降版。这个容器版本让旧715 App在SDK初始化前拒开新索引Home，索引库本身仍归SDK。回归：`tests/home-store-baselines.test.ts`、`tests/memory-initialization.test.ts`、`tests/home-restore-forgetting-old-cli.test.ts`。
+Memory ledger 现行基线为 1（2026-11-19 发布前 v1 复位），表结构与业务行保持不变；版本不符（含旧的 2 与未来版本）一律拒绝，不转换、不降版。索引库本身仍归 SDK。回归：`tests/memory-initialization.test.ts`。
 
 A4-M 本地初始合同：同一 format_version:1 的每项独立遗忘决定必填 selection_mode=related|exact-identities。旧非空缺字段、未知值、exact 带 sources 或没有正式/候选身份均拒绝，不猜测、不转换；空 decisions 合法。同 operation 比较 mode、scope/owner、完整正式/候选版本与来源。ledger.forget 由原写主人明确传 mode；related 保留原关联清理，exact 不擦未选候选自己的正文与历史关联。已忘正式身份的修订、使用、变动与迟到成功门保持。冷恢复仅由独立接受事实派生 mode，坏 ledger 不能降低模式；同身份的 related 不被 exact 削弱。复用原 owner、原文件和现有库，不新增 store/schema/迁移。完整短合同与22路径白名单见 Memory 包 A4-M 小节；本段不接 Session 管理、Action 或 UI。
 

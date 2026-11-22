@@ -1,7 +1,7 @@
-import { lstatSync, readdirSync, renameSync } from "node:fs";
+import { lstatSync, renameSync } from "node:fs";
 import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { listProjectRoots, projectDatabasePath, projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath } from "@molis-ai/molis-work-module-projects";
+import { listProjectRoots, projectDatabasePath, projectDirectoryPath, stagedProjectDirectoryPath } from "@molis-ai/molis-work-module-projects";
 import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { catalogErrors } from "./project-catalog-contract.js";
 
@@ -17,20 +17,11 @@ function requireProjectLibrary(projects: string, id: string, directory: string):
   } finally { db.close(); }
 }
 
-/** Called under the catalog writer before recording the deletion. A confirmed retry can also claim a single
- * stranded pre-receipt stage whose library belongs to this catalog project, if the id had no previous deletion. */
-export function planProjectStage(projects: string, id: string, hasPreviousDeletion: () => boolean): string {
-  const source = projectDirectoryPath(projects, id);
-  if (lstatSync(source, { throwIfNoEntry: false })) {
-    requireProjectLibrary(projects, id, source);
-    return stagedProjectDirectoryPath(projects, id, randomUUID());
-  }
-  const candidates = readdirSync(projects).filter(name => name.startsWith(`.deleting-${id}-`));
-  if (!candidates.length) lstatSync(source); // Preserve the original missing-path error.
-  if (candidates.length !== 1 || hasPreviousDeletion()) throw catalogErrors.project_storage_invalid("无法唯一确认待删除的原项目目录，已保留暂存内容");
-  const stage = recordedStagedProjectDirectoryPath(projects, id, candidates[0]!);
-  requireProjectLibrary(projects, id, stage);
-  return stage;
+/** Called under the catalog writer before recording the deletion. The receipt names the stage before anything moves, so a stage
+ * with no receipt is never this deletion's: it is left where it is. */
+export function planProjectStage(projects: string, id: string): string {
+  requireProjectLibrary(projects, id, projectDirectoryPath(projects, id));
+  return stagedProjectDirectoryPath(projects, id, randomUUID());
 }
 
 /** A process exit after rename leaves the verified stage in place for the next sweep. */

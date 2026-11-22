@@ -7,6 +7,7 @@ import { characterOwner, consumerAccess, formationAllowed, memoryErrors, theirWo
 import type { memorySources } from "../memory/memory-sources.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 interface AssistantMemoryToolsInput {
   memory: MemoryService;
@@ -122,7 +123,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
   const propose: AgentMemoryTools["propose"] = async (request, call) => {
     const invocation = await memoryInvocation(input, call, request.scope, sources => sources, true), { sources } = invocation;
     try {
-      const candidate = await invocation.memory.propose({ ...invocation.caller, source_use: "explicit" }, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
+      const candidate = await invocation.memory.propose({ ...invocation.caller, source_use: "explicit" }, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: cutHead(request.applies.trim(), 200) } : {},
         basis: "inferred", why: request.why, from: "work" }, sources.length ? { sources: sources.map(({ event_id, version }) => ({ event_id, version })) } : {});
       return { candidate_id: candidate.candidate_id, note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。" };
     } finally { invocation.dispose(); }

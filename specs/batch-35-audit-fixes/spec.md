@@ -1,6 +1,6 @@
 # 第 35 批合后复核修复
 
-状态：修复已实现，隔离 Home 的目标路径已复验。基于已合入的 #2123 及独立复核提交 `38219496f49c90518d0d799b94ef898108914e56`。真实外部工具、真实模型和本人验收待执行。
+状态：修复已经 [#2157](https://github.com/molis-ai/molis-work/pull/2157)（`820c13d498`）于 2026-11-19 合入 main；真实外部工具、真实模型和本人验收待执行（2026-11-21 三天复核补记）。此前：修复已实现，隔离 Home 的目标路径已复验。基于已合入的 #2123 及独立复核提交 `38219496f49c90518d0d799b94ef898108914e56`。真实外部工具、真实模型和本人验收待执行。
 
 范围依据：[第 35 批路线书](../post-anticorruption-roadmap/reference/batches/35.md)、[Onboarding](../onboarding-coverage/spec.md)、[Sessions](../sessions-rebuild/spec.md) SRB-09 及合同 §10.2、§12 第 16 项、Coding A1～A4、[决定 51](../post-anticorruption-roadmap/reference/decisions.md#decision-51)及已确认的方案 A。沿现有 Actions、Agent Host 和平台对话附件服务验证。CLS-02 联网下载留第 65 批第 2 项，K-4 留 Prologue 上游。A1 受审写入和第 31 批已有授权能力继续回归。
 

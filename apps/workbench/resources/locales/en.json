@@ -5622,8 +5622,6 @@
     "workbench.plugin-event-recovery.original-handler-may-already-have-produced-result-check": "The original handler may already have produced a result. Check the actual outcome first. Retrying runs it again; skipping closes only this notification.",
     "workbench.plugin-event-recovery.outcome-could-not-be-confirmed-refresh-review-before": "The outcome could not be confirmed. Refresh and review it before proceeding.",
     "workbench.plugin-event-recovery.plugin-notifications-review": "Plugin notifications to review",
-    "workbench.plugin-event-recovery.reason-retried": "Retried from the workbench review dialog",
-    "workbench.plugin-event-recovery.reason-skipped": "Skipped from the workbench review dialog",
     "workbench.plugin-event-recovery.reload": "Reload",
     "workbench.plugin-event-recovery.retry-action": "Retry",
     "workbench.plugin-event-recovery.retry-requested": "Retry requested",

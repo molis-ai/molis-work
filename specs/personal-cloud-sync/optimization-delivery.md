@@ -51,7 +51,7 @@
 | `PCSYNC-OPT-13` | 临时失败持久化重试 | 通过 | `sync.db` v1 → v2 升级保留延迟队列，重启后遵循退避截止时间，依赖恢复或手动单项重试即恢复（[sync-device.test.ts](../../tests/sync-device.test.ts)）。 |
 | `PCSYNC-OPT-14` | Host 去特判（插件同等待遇） | 通过 | 无 Goals/Todo 插件名分支；无 Goals 个人项目经真实 Host 与 Rust/D1 完整同步、回收站往返与恢复通过（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
 | `PCSYNC-OPT-15` | 本地到个人多选整项目复制 | 未完成 | 当前只交付项目结构复制，保留预览、暂存与幂等。文档、成果附件和其他插件内容的复制，以及真实内容端到端验收，见 [后续事项 #2184](https://github.com/molis-ai/molis-work/issues/2184)。 |
-| `PCSYNC-OPT-16` | 项目云端级联过期与本机最终清理 | 通过 | 云端项目过 30 天清理后级联释放全部子集合正文与无共享 R2 附件（计费归零）并保留防复活墓碑；本机 `finalizeExpiredPersonalProject` 强制核对 `server_purged_at`、子 owner 未结算队列与活动任务/终端（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
+| `PCSYNC-OPT-16` | 项目云端级联过期与本机最终清理 | 部分（云端级联通过；本机最终清理没有生产调用方，见 [BL-mr21-personal-purge-finalize](../backlog/BL-mr21-personal-purge-finalize.md)，2026-11-21 三天复核） | 云端项目过 30 天清理后级联释放全部子集合正文与无共享 R2 附件（计费归零）并保留防复活墓碑；本机 `finalizeExpiredPersonalProject` 强制核对 `server_purged_at`、子 owner 未结算队列与活动任务/终端（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
 | `PCSYNC-OPT-17` | 剩余 Owner 与嵌套 GC 收尾 | 通过 | Coding 真实 SDK 会话历史、Builder、Alchemist、Feed、Images、Cognia、Shelf、Sources、Attention、Runtime、Process Items 全部 20 份 Worker 集成测试 60/60 通过。 |
 | `PCSYNC-OPT-18` | 语义对比、分组进度与资源预算 | 通过 | 0 翻译问题；Chrome E2E 10/10 通过（含 Markdown/图片对比、分组、附件字节进度、项目结构复制预览/确认与 1440/1024/390 深浅色零溢出）；`page-assets:check` 67 项全通过且 `workbench.js` 净减 651 字节。 |
 | `PCSYNC-OPT-19` | 仓库工程门禁 | 通过（本机全绿） | 全量构建、Rust `fmt`/WASM `clippy`、`pnpm health:check`、`pnpm boundary:check`、`pnpm page-assets:check`、翻译、API/Schema/动作合同快照与 `pnpm secrets:check` 全部通过；待推送后由远端 CI 复验。 |

@@ -389,7 +389,6 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 
 公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/security-invariants-plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。
 
-旧入口拒绝的回归 `tests/home-restore-forgetting-old-cli.test.ts` 需要显式 `MOLIS_MEMORY_OLD_ROOT` 指向独立构建的变更前 checkout。未提供旧构建时该专项标为跳过，不作为通过证据；它覆盖旧 Host/Web/MCP、延迟绑定、旧归档恢复与新生产日志三个阶段，核对拒绝后的业务文件不变。新 Home 与旧归档都由各自版本的实际初始化入口生成，不拼造设置字段。
 
 
 Assistant 线程模型派发复核返回同次同步闭包：固定原 work/attempt 与 retained guard，在实际 transport 前复查；guard 被替换不采用新世代。该闭包不保留启动 Action 的生命周期，停止/撤权后的原派发仍拒绝；旧账遗漏提示沿 AgentHost Run 的 notice，不写入 Assistant 通知库。

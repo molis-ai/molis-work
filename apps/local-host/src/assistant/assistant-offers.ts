@@ -13,6 +13,7 @@ import type { AssistantJobs } from "./assistant-jobs.js";
 import { assertPersonDecisionProject, type AssistantPersonDecision, type PersonActions } from "./assistant-executor.js";
 import { AUTOMATION_ADOPTION_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 const RUNTIME = "prologue";
 /** The Assistant's codes for the shared card rules' refusals. */
@@ -85,7 +86,7 @@ function checkPreparedCard(card: AssistantPreparedCard | undefined, fail: (code:
     reference: { capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }, input: card.input,
     ...(card.editable ? { editable: [...card.editable] } : {}), ...(missing ? { missing } : {}), ...(materials ? { materials } : {}),
     ...(object ? { source_object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}),
-      ...(typeof object.title === "string" && object.title.trim() ? { title: object.title.trim().slice(0, 200) } : {}) } } : {}) };
+      ...(typeof object.title === "string" && object.title.trim() ? { title: cutHead(object.title.trim(), 200) } : {}) } } : {}) };
 }
 
 /**
@@ -116,7 +117,7 @@ export class AssistantOffers {
     if (!/^[A-Za-z0-9-]{8,80}$/.test(messageId)) throw this.ports.fail("assistant.invalid", "页面消息标识无效");
     const card = checkPreparedCard(input.card, this.ports.fail);
     const source = input.source && typeof input.source.surface === "string" && input.source.surface.trim()
-      ? { surface: input.source.surface.trim().slice(0, 120), ...(typeof input.source.title === "string" && input.source.title.trim() ? { title: input.source.title.trim().slice(0, 120) } : {}) }
+      ? { surface: cutHead(input.source.surface.trim(), 120), ...(typeof input.source.title === "string" && input.source.title.trim() ? { title: cutHead(input.source.title.trim(), 120) } : {}) }
       : null;
     if (!source) throw this.ports.fail("assistant.invalid", "需要说明来自哪个页面");
     if (isExternalSessionSurface(source) || isExternalSessionObject(card.source_object)) {

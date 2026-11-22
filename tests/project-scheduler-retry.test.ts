@@ -193,3 +193,48 @@ test("B103-01 after a round an open project is offered to sleep unless its clock
   await run!();
   assert.deepEqual(offered, [{ project_id: "quiet", idleMs: 10 * 60_000 }], "the project due within two rounds, and one still opening, are not offered");
 });
+
+// MR21-01: a round starts the ticks and returns; a long wakeup in one project does not hold the next round for the others, and the
+// sleep after a round never puts to sleep a project whose tick is still running.
+test("MR21-01: a long wakeup in one project does not hold the next round for the others, nor is that project put to sleep", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "schedulers-long-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const slow = join(home, "slow.db"), quick = join(home, "quick.db");
+  for (const file of [slow, quick]) {
+    const db = new DatabaseSync(file);
+    try { db.exec("CREATE TABLE schedule_jobs (job_id TEXT PRIMARY KEY, next_due_at TEXT, enabled INTEGER)"); db.prepare("INSERT INTO schedule_jobs VALUES ('j', ?, 1)").run(new Date(Date.now() + 3_600_000).toISOString()); }
+    finally { db.close(); }
+  }
+  let run: (() => Promise<void>) | undefined;
+  let releaseSlow!: () => void;
+  const slowGate = new Promise<void>(resolve => { releaseSlow = resolve; });
+  let quickTicks = 0;
+  const offered: string[] = [];
+  const schedulers = startWebProjectSchedulers({
+    localHost: {
+      projects: () => [{ project_id: "slow", storage_key: slow, state: "ready" }, { project_id: "quick", storage_key: quick, state: "ready" }],
+      inspectActions: async () => undefined,
+      async sleepIfIdle(reference: { project_id: string }) { offered.push(reference.project_id); return false; },
+    } as never,
+    homeDirectory: home,
+    withCatalog: async (_options, operation) => operation({ listProjects: async () => [
+      { database_path: slow, project_id: "slow" }, { database_path: quick, project_id: "quick" },
+    ] } as never),
+    fixture: null,
+    periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
+    changed() {},
+    onError(error) { throw error; },
+  });
+  schedulers.runtimes.set(slow, { schedule: { tick: async () => { await slowGate; return { invoked: false }; } } } as never);
+  schedulers.runtimes.set(quick, { schedule: { tick: async () => { quickTicks += 1; return { invoked: false }; } } } as never);
+  // The periodic runner skips a round while the previous one is unfinished, so each round must settle with the slow tick still open.
+  await run!();
+  await run!();
+  await run!();
+  assert.equal(quickTicks, 3, "the quick project ticks once per round while the slow one is still running");
+  assert.equal(offered.includes("slow"), false, "a project whose tick is still running is not offered to sleep");
+  assert.ok(offered.includes("quick"), "a project whose tick has finished is offered to sleep as before");
+  const stopped = schedulers.stop();
+  releaseSlow();
+  await stopped;
+});

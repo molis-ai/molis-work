@@ -861,7 +861,7 @@ export interface ActionSceneView {
 export type ActionSchema = Readonly<Record<string, unknown>>;
 
 export interface ActionSkillRound {
-    readonly consumer?: string;
+    readonly consumer?: "assistant" | "coding" | "agent";
     readonly named: readonly SkillRef[];
     readonly engine?: "builtin" | "local";
     readonly round?: string;
@@ -3619,8 +3619,6 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
-export declare const PLATFORM_SCENE_NAMES: readonly ["assistant", "common", "agent", "both"];
-
 export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";
 
 export declare const PLUGIN_ATTENTION_WRITE_PERMISSION = "attention:write";
@@ -4231,7 +4229,7 @@ export interface PluginEventRecoveryInput extends PluginEventSubscribeSource {
     expected_version: string;
     event_id: string;
     decision: "retry" | "skip";
-    reason: string;
+    reason?: string;
 }
 
 export interface PluginEventRecoveryView {
@@ -4267,7 +4265,7 @@ export interface PluginEventResolutionRecord {
     subscriber_version: string;
     decision: "retry" | "skip";
     actor_id: string;
-    reason: string;
+    reason?: string;
     resolved_at: string;
 }
 
@@ -4808,7 +4806,7 @@ export interface PluginManifest {
     task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
     presentation?: import("@molis-ai/molis-work-contracts/platform/presentation").PresentationDeclaration;
     work_terminals?: readonly import("platform/work-terminal").WorkTerminalObjectDeclaration[];
-    memory_scene?: string;
+    memory_scene?: "coding" | "common";
 }
 
 export interface PluginManifestDatabases {
@@ -6219,8 +6217,6 @@ export declare const SANDBOX_PACKAGE_FILES: {
     readonly prompts: "prompts.json";
 };
 
-export declare const SCENE_NAME_PATTERN = "^[a-z][a-z0-9-]{0,39}$";
-
 export declare const SCHEDULED_RUN_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -6463,29 +6459,7 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 
-export declare const SKILL_APPLIES_TO_SCHEMA: {
-    readonly anyOf: readonly [{
-        readonly enum: readonly ["assistant", "both"];
-    }, {
-        readonly type: "string";
-        readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
-        readonly not: {
-            readonly enum: readonly ["assistant", "common", "agent", "both"];
-        };
-    }];
-};
-
-export declare const SKILL_ENTRY_SCHEMA: {
-    readonly anyOf: readonly [{
-        readonly const: "assistant";
-    }, {
-        readonly type: "string";
-        readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
-        readonly not: {
-            readonly enum: readonly ["assistant", "common", "agent", "both"];
-        };
-    }];
-};
+export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
 
 export declare const SKILL_LIMITS: {
     readonly skillIdChars: 64;
@@ -7007,7 +6981,7 @@ export interface SearchSourceKind {
     surface: string;
 }
 
-export type SkillAppliesTo = string;
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
 
 export interface SkillResourceDeclaration {
     path: string;
@@ -8713,8 +8687,6 @@ export declare function isPlacementRelationPart(action: {
     output_type?: string;
 }, role: PlacementRelationRole): boolean;
 
-export declare const isPluginSceneName: (value: unknown) => value is string;
-
 export declare function isReservedEventType(eventTypeId: string): boolean;
 
 export declare const isResumeSummaryAction: (action: {
@@ -8726,8 +8698,6 @@ export declare function isSearchEntriesSource(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
-
-export declare const isSkillAppliesTo: (value: unknown) => value is SkillAppliesTo;
 
 export declare function isSubjectReader(action: Pick<ActionDefinition["action"], "input_type" | "output_type">): boolean;
 
@@ -8936,8 +8906,6 @@ export declare function searchEntriesPage(entries: readonly SearchEntry[], input
 export declare function searchRevisionOf(parts: readonly string[]): string;
 
 export declare function searchText(value: unknown, max?: number): string;
-
-export declare const skillEntriesOf: (appliesTo: SkillAppliesTo, pluginScenes: readonly string[]) => string[];
 
 export declare function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & {
     truncated?: boolean;

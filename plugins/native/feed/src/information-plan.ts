@@ -1,5 +1,6 @@
 import { objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError, bindActionHandler, defineErrorCodes, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -73,7 +74,7 @@ export function feedInformationPlanContext(state: FeedInformationPlanState, proj
   const recent = state.items.slice(0, ITEM_LIMIT);
   const open = state.inbox_entries.filter(entry => entry.subject_type === "feed_item" && ACTIVE.has(entry.status)).slice(0, INBOX_LIMIT);
   const titleOf = (itemId: string) => recent.find(item => item.item_id === itemId)?.title ?? state.titleOf(itemId) ?? "";
-  const items = recent.map(item => ({ id: item.item_id, source_id: item.source_id ?? "", title: wholeCharacters(item.title, 200), summary: (item.summary ?? "").slice(0, 1000) }));
+  const items = recent.map(item => ({ id: item.item_id, source_id: item.source_id ?? "", title: wholeCharacters(item.title, 200), summary: cutHead(item.summary ?? "", 1000) }));
   const inbox = open.map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(titleOf(entry.subject_id), 200) }));
   return { project_id: projectId, selected_item_id: items.some(item => item.id === input.selected_item_id) ? input.selected_item_id : null,
     sources: state.sources.filter(source => source.enabled).slice(0, SOURCE_LIMIT).map(source => ({ source_id: source.source_id, name: wholeCharacters(source.name, 200) })), items, inbox };
@@ -88,7 +89,7 @@ export function checkedFeedInformationPlan(reply: unknown, context: ReturnType<t
   const summary = { project_id: context.project_id, items: context.items.length, inbox: context.inbox.length };
   if (reply === null || typeof reply !== "object" || Array.isArray(reply)) throw replyInvalid("feed.information-plan.reply-invalid");
   const parsed = reply as { message?: unknown; action?: Record<string, unknown> | null };
-  const message = typeof parsed.message === "string" ? parsed.message.slice(0, 4000) : uiText.text("feed.information-plan.check-before-running");
+  const message = typeof parsed.message === "string" ? cutHead(parsed.message, 4000) : uiText.text("feed.information-plan.check-before-running");
   const action = parsed.action;
   if (action == null) return { message, action: null, context: summary };
   const field = (key: string, max: number) => {

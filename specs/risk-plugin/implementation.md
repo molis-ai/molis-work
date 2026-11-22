@@ -1,6 +1,6 @@
 # 风险插件：实施方案、开工前检查与合同设计稿（第 17 批）
 
-状态：设计稿第 2 版，公共合同台与 D 轨设计合审通过（2026-11-13，头 `0f622090ff`，见 §8）；已随第 17 批 [#2058](https://github.com/molis-ai/molis-work/pull/2058) 合入 main（`3b296a6337`），收尾与合后审计整改见批次文件与 §10。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/risk-plugin`](../../docs/design/archive/risk-plugin/README.md) 为准。
+状态：设计稿第 2 版，公共合同台与 D 轨设计合审通过（2026-11-13，头 `0f622090ff`，见 §8）；已随第 17 批 [#2058](https://github.com/molis-ai/molis-work/pull/2058) 合入 main（`3b296a6337`），收尾与合后审计整改见批次文件与 §10。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/archive/risk-plugin`](../../docs/design/archive/risk-plugin/README.md) 为准。
 
 ## 1. 这一片说什么（需求开发流程 §2.1）
 

@@ -29,6 +29,7 @@ export interface FrameHost {
   openItem?(...args: unknown[]): void;
   openBeside?(...args: unknown[]): void;
   openPlugin?(...args: unknown[]): void;
+  focusPane?(paneId: string): void;
   hideDirectory?(): void;
   showToast?(message: string, failure?: boolean | { tone?: "default" | "success" | "warning" | "error"; duration?: "short" | "normal" | "long" | number }): void;
   readRefusal?(status: number, code: unknown): string;

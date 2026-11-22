@@ -59,13 +59,14 @@ async function shelfBesidePages(t: TestContext) {
   await pages.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // The cursor on the left is where a thing in hand on the right would go.
+  await pages.click("[data-pages-editor] .ProseMirror p");
   await pages.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
   })()`);
-  await waitFor("window.lastLanding?.position === 'cursor'");
+  await waitFor("window.lastLanding?.position === 'cursor' && window.lastLanding?.targets?.[0]?.anchor === 4");
 
   // A text material on the shelf, opened in Shelf's side tab.
   const item = await evaluate<{ item_id: string }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/items`)}, { method: "POST", headers: molisWorkControlHeaders(),
@@ -124,6 +125,7 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
 
   // Back on the left: a selection there takes the bar to the left; the side tab's goes.
   await shelf.evaluate("getSelection().removeAllRanges(); document.dispatchEvent(new Event('selectionchange'));");
+  await evaluate("document.querySelector('iframe[data-plugin-frame=\"pages\"]').focus()");
   await pages.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '再安排发布。').firstChild;
     const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);

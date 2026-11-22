@@ -54,12 +54,12 @@ export const BUTTON_STYLES = `
     background: var(--action);
     color: var(--action-ink);
     box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
-  }
-  .mw-btn--primary:hover:not(:disabled) {
-    background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink)));
-    border-color: var(--action-hover, var(--action));
-    color: var(--action-ink);
-    box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
+    &:hover:not(:disabled) {
+      background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink)));
+      border-color: var(--action-hover, var(--action));
+      color: var(--action-ink);
+      box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
+    }
   }
   .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
     background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
@@ -73,37 +73,37 @@ export const BUTTON_STYLES = `
     background: var(--paper);
     color: var(--ink);
     box-shadow: 0 1px 1.5px color-mix(in srgb, var(--shadow-color) 4%, transparent), inset 0 1px 0 var(--edge-highlight, transparent);
+    &:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-soft); }
   }
-  .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
+  .mw-btn--ghost {
+    border-color: transparent; background: transparent; color: var(--ink-soft);
+    &:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
+    /* A ghost with words keeps an outline, so a button never reads as plain text; one that is only an icon stays bare. */
+    &:not(.mw-btn--icon, .mw-btn--icon-only) { border-color: var(--line-strong); }
+  }
   /* Pressed/expanded state on ghost & secondary uses low-specificity :where() after base rules so it wins over
      .mw-btn--ghost without overriding higher-specificity page option pills (Batch 03 / VUX-55). */
   :where(.mw-btn--secondary, .mw-btn--ghost):where([aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
     background: var(--nav-active);
     color: var(--ink);
   }
-  .mw-btn--secondary:hover:not(:disabled) {
-    border-color: var(--line-strong);
-    background: var(--surface-soft);
-  }
-  .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
-  .mw-btn--secondary:active:not(:disabled),
-  .mw-btn--ghost:active:not(:disabled) {
-    background: var(--nav-press);
-  }
-  /* A ghost with words keeps an outline, so a button never reads as plain text; one that is only an icon stays bare. */
-  .mw-btn--ghost:not(.mw-btn--icon, .mw-btn--icon-only) { border-color: var(--line-strong); }
+  :is(.mw-btn--secondary, .mw-btn--ghost):active:not(:disabled) { background: var(--nav-press); }
   /* Danger is a red wash with red words: it warns without shouting louder than the primary beside it. */
-  .mw-btn--danger { border-color: color-mix(in srgb, var(--red) 18%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); }
-  .mw-btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 16%, transparent); }
-  .mw-btn--danger:active:not(:disabled) { background: color-mix(in srgb, var(--red) 22%, transparent); }
+  .mw-btn--danger {
+    border-color: color-mix(in srgb, var(--red) 18%, transparent);
+    background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red);
+    &:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 16%, transparent); }
+    &:active:not(:disabled) { background: color-mix(in srgb, var(--red) 22%, transparent); }
+  }
   .mw-btn--danger-outline {
     border-color: color-mix(in srgb, var(--red) 30%, transparent);
     background: transparent;
     color: var(--red);
-  }
-  .mw-btn--danger-outline:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--red) 46%, var(--control-border));
-    background: color-mix(in srgb, var(--red) 8%, var(--paper));
+    &:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--red) 46%, var(--control-border));
+      background: color-mix(in srgb, var(--red) 8%, var(--paper));
+    }
+    &:disabled { border-color: var(--line); }
   }
   .mw-btn--link {
     min-height: auto;
@@ -113,22 +113,21 @@ export const BUTTON_STYLES = `
     color: var(--accent);
     font-weight: var(--weight-control, 500);
     box-shadow: none;
+    &:hover:not(:disabled) {
+      color: var(--accent-strong, var(--accent));
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      background: transparent;
+    }
+    &:active:not(:disabled) { color: var(--accent-strong, var(--accent)); }
+    &:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
   }
-  .mw-btn--link:hover:not(:disabled) {
-    color: var(--accent-strong, var(--accent));
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    background: transparent;
-  }
-  .mw-btn--link:active:not(:disabled) { color: var(--accent-strong, var(--accent)); }
-  .mw-btn--link:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
   /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.
      A loading button keeps its own look. */
   .mw-btn:disabled:not([data-loading]) { cursor: not-allowed; color: color-mix(in srgb, var(--ink) 35%, transparent); box-shadow: none; }
   .mw-btn:is(.mw-btn--primary, .mw-btn--secondary, .mw-btn--danger):disabled:not([data-loading]) {
     border-color: transparent; background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
-  .mw-btn--danger-outline:disabled { border-color: var(--line); }
   .mw-btn[data-loading] { pointer-events: none; }
   .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
   .mw-btn[data-loading] > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }

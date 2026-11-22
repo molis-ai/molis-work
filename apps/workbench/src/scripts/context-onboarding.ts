@@ -81,8 +81,8 @@ ${CONTEXT_ONBOARDING_SESSIONS_PART}
   const introKey = 'molis-work:onboarding-intro';
   const readIntro = () => { try { return localStorage.getItem(introKey); } catch { return null; } };
   let introStep = null;
-  if (firstRun && readIntro() !== 'done') { let saved = null; try { saved = sessionStorage.getItem(introKey); } catch {} introStep = saved === 'appearance' ? 'appearance' : saved === 'language' ? 'language' : 'opening'; }
-  const setIntro = next => { introStep = next; try { if (next) sessionStorage.setItem(introKey, next); else { sessionStorage.removeItem(introKey); localStorage.setItem(introKey, 'done'); } } catch {} };
+  if (firstRun && readIntro() !== 'done') { let saved = null; try { saved = sessionStorage.getItem(introKey); } catch { /* Ignore unavailable sessionStorage during onboarding intro. */ } introStep = saved === 'appearance' ? 'appearance' : saved === 'language' ? 'language' : 'opening'; }
+  const setIntro = next => { introStep = next; try { if (next) sessionStorage.setItem(introKey, next); else { sessionStorage.removeItem(introKey); localStorage.setItem(introKey, 'done'); } } catch { /* Ignore unavailable web storage while persisting onboarding step. */ } };
   const stepLabels = () => firstRun ? ['language','appearance','sources','scope','model','reading','start'] : ['sources','scope','model','reading','start'];
   const stepIndex = step => stepLabels().indexOf(step);
   const stepsBar = step => steps(stepLabels().length, stepIndex(step));
@@ -671,8 +671,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(b.dataset.mrFilter){mrFilter=b.dataset.mrFilter;render();return;}
     if(b.dataset.secretKey){busy=true;error='';render();try{journey=await api(endpoint('secret'),{key:b.dataset.secretKey,decision:b.dataset.secretDecision});if(journey.phase==='reading')timer=setTimeout(poll,800);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
     if(b.dataset.fold){if(folded.has(b.dataset.fold))folded.delete(b.dataset.fold);else folded.add(b.dataset.fold);render();return;}
-    if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
-    if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
+    if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{/* Ignore sessionStorage cleanup failure on exit. */}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
+    if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{/* Ignore localStorage failure while toggling onboarding theme. */}render();return;}
     if(b.dataset.open&&pickerOf(b.dataset.open)){document.getElementById('cx-upload-'+pickerOf(b.dataset.open))?.click();return;}
     if(b.dataset.open){expanded=expanded===b.dataset.open?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
     if(await sessionsAct(b))return;

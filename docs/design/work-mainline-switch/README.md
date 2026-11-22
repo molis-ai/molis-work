@@ -8,7 +8,7 @@
 
 ## 打开
 
-在仓库里起一个静态服务，根目录指向 `docs/design`（页面引用同级的 `workbench-shared-paths/` 的样式和图标）：
+在仓库里起一个静态服务，根目录指向 `docs/design`（页面引用 `archive/workbench-shared-paths/` 的样式和图标）：
 
 ```bash
 python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design

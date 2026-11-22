@@ -122,7 +122,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       panels.delete(panelId);
     },
   });
-  return { client, dispose() { for (const [id, host] of panels) host.kill(id); panels.clear(); } };
+  return { client, live: () => [...panels].some(([id, host]) => host.alive(id)), dispose() { for (const [id, host] of panels) host.kill(id); panels.clear(); } };
 }
 
 /** The panel id: derived from whose terminal it is and its key, so one plugin's key never names another's terminal. */

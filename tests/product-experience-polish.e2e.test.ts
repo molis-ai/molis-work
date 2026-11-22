@@ -165,7 +165,7 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
   await click(`[data-tab-id="${a}"]`); await waitFor(isA);
   await reloadPage(); await waitFor(isA, 10_000);
   await click('[data-layout-open]'); await click('[data-layout-split=right]');
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].some(frame => frame.contentDocument?.querySelector('[data-artifact-id=\"polish/a\"][data-artifact-version=\"1\"]'))", 20_000);
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0 && [...document.querySelectorAll('[data-tab-pane]')].every(pane => pane.querySelector('[data-artifact-id=\"polish/a\"][data-artifact-version=\"1\"]'))", 20_000);
   } catch (error) { console.error(error); throw error; }
 });
 
@@ -190,8 +190,8 @@ test('Search opens an owner record in the visible split pane without creating a 
   await click('[data-layout-open]'); await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const targetPane = await evaluate<string>("document.querySelector('.tab-pane.is-focused').dataset.tabPane");
-  const ownerFrame = `iframe.tab-content-frame[data-pane-owner="${targetPane}"]:not([hidden])`;
-  const pane = await pluginFrameBrowser(t, b, "dataset", ownerFrame);
+  const ownerFrame = `[data-tab-pane="${targetPane}"] [data-work-surface="dataset"]:not([hidden]) iframe[data-plugin-frame="dataset"]`;
+  const pane = await pluginFrameBrowser(t, b, "dataset", undefined, ownerFrame);
   const responses: Array<{ requestId: string; url: string }> = [];
   const contexts: unknown[] = [];
   t.after(b.on('Network.responseReceived', (params, sourceSession) => {

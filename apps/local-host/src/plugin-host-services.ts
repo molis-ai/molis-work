@@ -56,7 +56,7 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
-import { disposeWorkTerminalsForOwner, registerWorkTerminalOwner } from "./work-terminal-service.js";
+import { disposeWorkTerminalsForOwner, hasLiveWorkTerminals, registerWorkTerminalOwner } from "./work-terminal-service.js";
 import { pluginTextReader, registerPluginText } from "@molis-ai/molis-work-ui-host";
 import type { PluginContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runWithPluginText } from "./web-locale.js";
@@ -68,6 +68,8 @@ export interface HostSession {
   /** Runs the Plugin's `start()`: until it settles, the activation may keep its jobs outside every action (PG-038). */
   starting<T>(run: () => T): T;
   stopProjectJobs(projectId: string): Promise<void>;
+  /** Whether work this instance runs in the project would end if the project closed: a background execution or job, or a terminal. */
+  hasProjectWork(projectId: string): boolean;
   revoke(): void;
   dispose(): Promise<void>;
 }
@@ -168,6 +170,8 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     }
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
+      hasProjectWork: projectId => !!background?.hasProjectWork(projectId) || !!terminal?.live()
+        || (!!options.home && hasLiveWorkTerminals({ home: options.home.directory, install_id: context.install_id, project_id: projectId })),
       revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     await dispose();

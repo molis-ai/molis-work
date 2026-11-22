@@ -7,7 +7,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
 
     let reloadGoalEventDocument = async (_goalId, _restore) => false;
     let pendingEventRestore = null;
-    const goalEventDocumentApi = goalData ? (${GOALS_PAGE.goalsEventDocument})({
+    const createGoalEventDocument = ${GOALS_PAGE.goalsEventDocument};
+    const goalEventDocumentApi = goalData ? createGoalEventDocument({
       documentPane, route, translate: globalThis.t.text, isAbortError,
       showError: (message) => showToast(message, true),
       showStatus: (message) => showToast(message, false),

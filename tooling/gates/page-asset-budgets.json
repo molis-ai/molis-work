@@ -32,6 +32,7 @@
     "pluginFrame": {
       "maxBytes": 950000,
       "assets": [
+        "/assets/molis-work-plugin-base.css",
         "/assets/molis-work-plugin-frame.js",
         "/assets/molis-work-composer.js",
         "/desktop/pty-client.js"

@@ -205,7 +205,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
       route,
       openGoalTab: (id) => tabWorkspace?.openItem("goals", id, undefined, "frame"),
-      openGoalWork: () => tabWorkspace?.openGoalWork(),
+      openGoalWork: (paneId) => tabWorkspace?.openGoalWork(paneId),
       activateGoalsMother: () => {
         const current = tabWorkspace?.state?.();
         const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
@@ -218,9 +218,29 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
         refreshHome: () => projectHome?.sync(),
+        mountHomeClone: (surface) => globalThis.molisWorkHomeView?.mountHome({
+          root: surface,
+          read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
+          navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
+          market: () => tabWorkspace?.setExclusive("market"),
+          picker: () => {
+            const toggle = document.querySelector("[data-plugin-picker-toggle]");
+            const popover = document.querySelector("[data-plugin-picker-popover]");
+            if (toggle) { if (popover?.hidden !== false) toggle.click(); }
+            else tabWorkspace?.setExclusive("market");
+          },
+          lead: { adopt: () => null, release: () => {} },
+          offers: () => ({ refresh() {}, clear() {} }),
+          projectKey: state.project?.project_id || "",
+          translate: readText,
+          receipt: showToast,
+          changed: () => { projectHome?.sync(); projectPositions?.invalidate(); },
+          offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
+          words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
+        }),
         discussionObjects: frame => projectPositions?.discussion(frame, (path, body, signal) => molisWorkRequest(path, { body, signal })),
-        showToast, paneMessages,
-        showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
+        showToast, paneMessages, route,
+        showGoalFrame: (id, target) => frameContainer?.showGoalFrame(id, target),
         translate: readText,
         getSurface: () => activeDesktopSurface,
         setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -229,6 +249,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setMobileView: (...args) => setMobileView(...args),
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
+        loadGoalDocumentInto: (targetPane, goalId) => loadGoalDocumentInto(targetPane, goalId),
         getDocumentGoalId: () => goalData ? documentPane.querySelector("[data-goal-view]")?.dataset.goalView : undefined,
         getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
         visibleGoals: () => visibleGoals(),

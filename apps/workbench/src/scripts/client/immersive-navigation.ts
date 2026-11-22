@@ -22,9 +22,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const modesScope = getState().project?.project_id || getState().snapshot.board.project_id;
   const modesKey = "molis-work-goal-work-modes:" + modesScope;
   let modes = {};
-  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch {}
+  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch { /* Fall back to empty mode map on corrupt or unavailable storage. */ }
   const narrow = () => matchMedia("(max-width: 600px)").matches;
-  const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch {} };
+  const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch { /* Ignore localStorage write failure for plugin view mode. */ } };
   const currentPlugin = () => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
     if (treePane?.dataset.desktopDirectory === "project-settings") return "project-settings";
@@ -207,7 +207,19 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     }
     const viewTab = event.target.closest("[data-goal-view-tab]");
     if (viewTab && frame?.contains(viewTab)) { setView(viewTab.dataset.goalViewTab, true); return; }
-    if (event.target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
+    const detailsToggle = event.target.closest("[data-goal-details-toggle]");
+    if (detailsToggle) {
+      const targetFrame = detailsToggle.closest("[data-goal-node-workspace]");
+      if (targetFrame && targetFrame !== frame) {
+        const nextOpen = targetFrame.dataset.detailsOpen !== "true";
+        targetFrame.dataset.detailsOpen = String(nextOpen);
+        const cloneDoc = targetFrame.querySelector("[data-document-pane]");
+        if (cloneDoc) cloneDoc.hidden = !nextOpen;
+        detailsToggle.setAttribute("aria-expanded", String(nextOpen));
+      } else {
+        setDetails(frame.dataset.detailsOpen !== "true", true);
+      }
+    }
     if (event.target.closest("[data-select-goal], [data-inbox-row]")) {
       if (narrow()) setMobileView("document");
       sync();

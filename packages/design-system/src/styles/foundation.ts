@@ -1,8 +1,27 @@
 import { BASELINE_SKIN, baselineTerminal } from "../baseline.js";
 import { renderSkinScope } from "../appearance-tokens.js";
 
+/** Core tokens, body typography, focus ring and baseline field border shared by plugin frames. */
+export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
+
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font: var(--type-body-size, 13px)/var(--type-body-line-height, 1.5) var(--font);
+    text-rendering: optimizeLegibility;
+  }
+
+  svg { stroke-width: 2; }
+  button, input, textarea, select { font-family: var(--font); }
+  :is(button, input, textarea, select, a, summary):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  input:not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .global-search-query, [data-feed-search]),
+  textarea:not(.mw-textarea),
+  select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
+  .dialog-shell { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
+`;
+
 /** AP3 visual layer: foundation. */
-export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
+export const FOUNDATION_STYLES = `${PLUGIN_FOUNDATION_STYLES}
 
   :root {
     --measure-narrow: 600px;
@@ -22,25 +41,10 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
     ${baselineTerminal("dark")}
   }
 
-  body {
-    background: var(--page);
-    color: var(--ink);
-    font: var(--type-body-size, 13px)/var(--type-body-line-height, 1.5) var(--font);
-    text-rendering: optimizeLegibility;
-  }
-
   body[data-navigation-pending="true"] { cursor: progress; }
   .mw-navigation-loading { position: fixed; z-index: 1000; top: 8px; right: 12px; display: inline-flex; padding: 4px; border-radius: 50%; background: var(--paper); color: var(--muted); pointer-events: none; }
   body[data-navigation-pending="true"] a[aria-busy="true"] { color: var(--blue-dark); }
 
-
-  svg { stroke-width: 2; }
-  button, input, textarea, select { font-family: var(--font); }
-  button:focus-visible, input:focus-visible, textarea:focus-visible,
-  select:focus-visible, a:focus-visible, summary:focus-visible {
-    outline: var(--focus-stroke);
-    outline-offset: var(--focus-stroke-inset);
-  }
 
   .app { grid-template-rows: 48px minmax(0, 1fr); }
   .topbar {

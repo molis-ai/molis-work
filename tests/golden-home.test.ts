@@ -186,6 +186,21 @@ describe("what a dump holds in place of what cannot stay in it", () => {
     }
   });
 
+  test("a built-in plugin's row, which holds no code since batch 103-1, keeps its Manifest by digest and comes back byte for byte", () => {
+    const manifest = { plugin_id: "io.example.builtin", note: "a brace } and a quote '' inside" };
+    const row = `INSERT INTO "plugin_runtime_release_artifacts"("artifact_json") VALUES('${JSON.stringify({ plugin_id: "io.example.builtin", manifest }).replaceAll("'", "''")}');`;
+    const payloads = { sources: new Map<string, string>(), manifests: new Map<string, string>() };
+    const stripped = withoutReleasePayloads(row, payloads);
+    assert.equal(payloads.sources.size, 0);
+    assert.equal(payloads.manifests.size, 1);
+    assert.doesNotMatch(stripped, /a brace/u, "the Manifest is kept by digest");
+    const [[digest, text]] = [...payloads.manifests];
+    assert.equal(withReleasePayloads(stripped, (directory: string, wanted: string) => {
+      assert.deepEqual([directory, wanted], [RELEASE_MANIFESTS_DIRECTORY, digest]);
+      return text;
+    }), row);
+  });
+
   test("a row whose Manifest does not sit just before its code is refused, not half-stored", () => {
     const backwards = `INSERT INTO "plugin_runtime_release_artifacts"("artifact_json") VALUES('${JSON.stringify({ module_source: code, manifest: {} }).replaceAll("'", "''")}');`;
     assert.throws(() => withoutReleasePayloads(backwards, { sources: new Map(), manifests: new Map() }), (error: { code?: string }) => error.code === "golden.release_payload_shape");
@@ -447,20 +462,22 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.deepEqual((compareGoldens(golden, copy) as { path: string }[]).map(item => item.path), ["manifest.json"]);
   });
 
-  test("a restored library dumps to what was recorded, code and all, so holding the code once loses nothing", t => {
+  test("a restored library dumps to what was recorded, Manifests and all, so holding each once loses nothing", t => {
     const recorded = manifest(), restored = path.join(scratch(t), "home");
     mkdirSync(restored, { mode: 0o700 });
     restoreGolden(golden, recorded, restored);
     const withCode = recorded.stores.filter((entry: { expanded_sha256?: string }) => entry.expanded_sha256);
     assert.ok(withCode.length > 0);
-    assert.ok(recorded.module_sources.length > 0);
+    // Built-in plugins keep no code in the libraries since batch 103-1 (B103-03): a golden made now holds Manifests only. Rows with code
+    // are the 0.1.0 golden's, replayed on their own, and the round trip of a row with code is checked above.
+    assert.deepEqual(recorded.module_sources, []);
     for (const entry of recorded.stores) {
       const db = new DatabaseSync(path.join(restored, entry.path), { readOnly: true });
       try { assert.equal(sha256(dumpSqliteText(db, entry.path).sql), entry.expanded_sha256 ?? entry.sha256, entry.path); } finally { db.close(); }
     }
     // The dump itself keeps only the digest.
     const dumped = readFileSync(path.join(golden, withCode[0].payload), "utf8");
-    assert.equal(dumped.includes('"module_source":"sha256:'), true);
+    assert.equal(dumped.includes('"module_source"'), false);
     assert.equal(dumped.includes('"manifest":"sha256:'), true);
   });
 

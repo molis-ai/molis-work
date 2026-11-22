@@ -40,7 +40,7 @@ Goal 里原有的风险（风险表、Goal–风险关联、风险决定与安�
 
 ## 定样决定（2026-11-04 用户定）
 
-用户在可点的原型 [`docs/design/risk-plugin`](../../docs/design/archive/risk-plugin/README.md) 上逐块比过三个方案后定下（[第 17 批](../post-anticorruption-roadmap/reference/batches/17.md)）：
+用户在可点的原型 [`docs/design/archive/risk-plugin`](../../docs/design/archive/risk-plugin/README.md) 上逐块比过三个方案后定下（[第 17 批](../post-anticorruption-roadmap/reference/batches/17.md)）：
 
 | 块 | 定的方案 | 要点 |
 | --- | --- | --- |

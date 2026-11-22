@@ -48,6 +48,40 @@ test("a serial action a concurrent action calls waits behind the operation that 
   } finally { gate.resolve(); await host.close(); }
 });
 
+test("B103-04 a pure read does not wait behind a command that holds the project line; a query that writes, and every command, still do", async () => {
+  const host = new LocalHost<{}>({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const reference = { project_id: "p1", storage_key: "memory:p1" };
+  const query = (id: string, effect?: "write"): ActionDefinition => ({ capability_id: id, version: 1, operation: "query",
+    action: { title: id, description: id, kind: "query", scope: "project", ...(effect ? { effect } : {}), audiences: ["user"], permissions: [], subject_kinds: [], input_schema: { type: "object" } } });
+  const edit = definition("fixture.edit", "project"), read = query("fixture.read"), marks = query("fixture.marks", "write"), touch = definition("fixture.touch", "project");
+  const gate = Promise.withResolvers<void>(), editEntered = Promise.withResolvers<void>();
+  const log: string[] = [];
+  let value = 0;
+  const client = host.actionClient(reference);
+  const caller: ActionCallContext = { actor_id: "u", project_id: "p1", audience: "user", permissions: [] };
+  host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [edit, read, marks, touch],
+    handlers: [
+      { capability_id: edit.capability_id, version: 1, handle: async context => { log.push("edit entered"); editEntered.resolve(); await gate.promise; await context.beforeEffect();
+        value = 1; const nested = await client.invoke(caller, read, {}); log.push(`edit read ${JSON.stringify(nested)} on its line`); return {}; } },
+      { capability_id: read.capability_id, version: 1, handle: () => { log.push(`read ${value}`); return { value }; } },
+      { capability_id: marks.capability_id, version: 1, handle: () => { log.push("marks"); return {}; } },
+      { capability_id: touch.capability_id, version: 1, handle: () => { log.push("touch"); return {}; } },
+    ] });
+  try {
+    const editing = client.invoke(caller, edit, {});
+    await editEntered.promise;
+    const marking = client.invoke(caller, marks, {}), touching = client.invoke(caller, touch, {});
+    assert.deepEqual(await client.invoke(caller, read, {}), { value: 0 }, "the read answers while the command still holds the line");
+    assert.equal(host.isProjectBusy(reference.storage_key), true);
+    await settle();
+    assert.deepEqual(log, ["edit entered", "read 0"], "a query declared to write and a command wait their turn");
+    gate.resolve();
+    await Promise.all([editing, marking, touching]);
+    assert.deepEqual(log, ["edit entered", "read 0", "read 1", 'edit read {"value":1} on its line', "marks", "touch"]);
+    assert.equal(host.isProjectBusy(reference.storage_key), false);
+  } finally { gate.resolve(); await host.close(); }
+});
+
 test("nested calls under an operation that holds the line still run on it: serial in serial, and serial through a concurrent step", async () => {
   const host = new LocalHost<{}>({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const reference = { project_id: "p1", storage_key: "memory:p1" };

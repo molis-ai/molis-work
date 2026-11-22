@@ -79,16 +79,16 @@ export async function measureServed(root, probe = []) {
   const pageAssets = await distModule(root, "apps/workbench/dist/page-assets.js", "the workbench stylesheets and client script");
   const packsModule = await distModule(root, "apps/workbench/dist/plugin-workbench.js", "the registered plugin packs");
   if (typeof assetsModule.createLocalWebAssets !== "function") return fail("apps/local-host/dist/web-assets.js no longer exports createLocalWebAssets");
-  for (const name of ["renderMolisWorkWorkbenchStylesheet", "renderMolisWorkWorkbenchClientScript", "renderMolisWorkArrivalStylesheet", "renderMolisWorkSettingsStylesheet"]) {
+  for (const name of ["renderMolisWorkWorkbenchStylesheet", "renderMolisWorkPluginBaseStylesheet", "renderMolisWorkWorkbenchClientScript", "renderMolisWorkArrivalStylesheet", "renderMolisWorkSettingsStylesheet"]) {
     if (typeof pageAssets[name] !== "function") return fail(`apps/workbench/dist/page-assets.js no longer exports ${name}`);
   }
   if (!Array.isArray(packsModule.BUILTIN_PLUGIN_WORKBENCH)) return fail("apps/workbench/dist/plugin-workbench.js no longer exports BUILTIN_PLUGIN_WORKBENCH");
   if (typeof packsModule.pluginOnDemandStylesheet !== "function") return fail("apps/workbench/dist/plugin-workbench.js no longer exports pluginOnDemandStylesheet");
 
-  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
+  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkPluginBaseStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
   const served = assetsModule.createLocalWebAssets({
     ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js"),
-    renderer: { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet },
+    renderer: { renderMolisWorkWorkbenchStylesheet, renderMolisWorkPluginBaseStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet },
   });
   const packPaths = [
     ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`),

@@ -31,6 +31,12 @@ interface ActiveWorkTerminalOwner {
 const activeOwners = new Map<string, ActiveWorkTerminalOwner>();
 const ownerBucket = (home: string, installId: string, projectId: string | null) => JSON.stringify([resolve(home), installId, projectId]);
 
+/** Whether a work terminal of this installation in this project is still running: closing the project would end it. */
+export function hasLiveWorkTerminals(input: { home: string; install_id: string; project_id: string }): boolean {
+  const bucket = livePanels.get(ownerBucket(input.home, input.install_id, input.project_id));
+  return !!bucket && [...bucket].some(([panelId, host]) => host.alive(panelId));
+}
+
 /** Register a running plugin installation's synchronous active fence for platform work-terminal TOCTOU checks. */
 export function registerWorkTerminalOwner(input: {
   home: string;

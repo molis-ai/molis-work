@@ -25,7 +25,7 @@ export const THEME_BOOTSTRAP_SCRIPT = `
     if (storedTheme && validThemes.has(storedTheme)) theme = storedTheme;
     if (storedDensity && validDensities.has(storedDensity)) density = storedDensity;
     if (storedTerminalTheme && validTerminalThemes.has(storedTerminalTheme)) terminalTheme = storedTerminalTheme;
-  } catch {}
+  } catch { /* Fall back to default theme/density when localStorage is unavailable. */ }
   const dark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   const resolvedTheme = theme === "system" ? (dark ? "dark" : "light") : theme;
   document.documentElement.dataset.theme = theme;
@@ -71,7 +71,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   const applyTerminalTheme = (preference, persist = false) => {
     const next = terminalThemeOptions.includes(preference) ? preference : "auto";
     if (persist) {
-      try { localStorage.setItem(terminalThemeKey, next); } catch {}
+      try { localStorage.setItem(terminalThemeKey, next); } catch { /* Ignore localStorage write failure for terminal theme. */ }
     }
     const resolved = next === "auto"
       ? (document.documentElement.dataset.resolvedTheme || (media.matches ? "dark" : "light"))
@@ -90,7 +90,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   const applyTheme = (preference, persist = false) => {
     const next = themeOptions.includes(preference) ? preference : "system";
     if (persist) {
-      try { localStorage.setItem(themeKey, next); } catch {}
+      try { localStorage.setItem(themeKey, next); } catch { /* Ignore localStorage write failure for theme. */ }
     }
     document.documentElement.dataset.theme = next;
     document.documentElement.dataset.resolvedTheme = next === "system" ? (media.matches ? "dark" : "light") : next;
@@ -103,7 +103,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   const applyDensity = (preference, persist = false) => {
     const next = densityOptions.includes(preference) ? preference : "standard";
     if (persist) {
-      try { localStorage.setItem(densityKey, next); } catch {}
+      try { localStorage.setItem(densityKey, next); } catch { /* Ignore localStorage write failure for density. */ }
     }
     document.documentElement.dataset.density = next;
     document.querySelectorAll("[data-density-option]").forEach((button) => {

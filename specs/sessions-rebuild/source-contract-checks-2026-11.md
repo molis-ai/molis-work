@@ -1,6 +1,6 @@
 # Sessions 来源合同：第 22 批只读核查（2026-11-04）
 
-状态：只读核查，供第 22 批「Sessions 来源与历史合同」写合同用；不写代码，不碰真实会话与真实 Home。合同与实现等第 02 批交完、C 轨交接后由 C 轨写手落（[第 22 批](../post-anticorruption-roadmap/reference/batches/22.md)）。定样结论见[需求 §8](spec.md#8-决策记录)，原型在 [`docs/design/sessions-sources/`](../../docs/design/archive/sessions-sources/README.md)。
+状态：只读核查，供第 22 批「Sessions 来源与历史合同」写合同用；不写代码，不碰真实会话与真实 Home。合同与实现等第 02 批交完、C 轨交接后由 C 轨写手落（[第 22 批](../post-anticorruption-roadmap/reference/batches/22.md)）。定样结论见[需求 §8](spec.md#8-决策记录)，原型在 [`docs/design/archive/sessions-sources/`](../../docs/design/archive/sessions-sources/README.md)。
 
 ## 0. 给人讲清楚
 

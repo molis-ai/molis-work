@@ -17,7 +17,7 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 | 你正在做什么 | 必读章节 |
 | --- | --- |
 | 配色、4 套内置皮肤（阳光净透浅底 / 瓷青深底）、256 对 WCAG AA 对比度、F1 Sans+中文三字重、布局版心令牌 | [tokens-and-typography.md](tokens-and-typography.md) |
-| 工作台方案 C 顶栏、第十三版底栏、12 视图右侧栏、到达/IM/独立插件壳、桌面红绿灯安全区 | [shell-and-surfaces.md](shell-and-surfaces.md) |
+| 工作台方案 C 顶栏、第十三版底栏、11 视图右侧栏、到达/IM/独立插件壳、桌面红绿灯安全区 | [shell-and-surfaces.md](shell-and-surfaces.md) |
 | `mw-*` 组件选型、**对齐六律**、区块/内嵌分组容器（`.mw-section-well` / `.mw-inset-group`）、三层标签栏、**图示优先与列表副信息换行规则**、9 大共享机制与 `@container` | [components-and-mechanisms.md](components-and-mechanisms.md) |
 | 新增或修改全局设置（6 组）/ 项目设置（9 页）/ 插件设置页（228px 左轨 + 侧栏筛选 + 250ms 防闪） | [settings-pages.md](settings-pages.md) |
 | **无刷新连续动效**、动效语法「一变一动」、流式浸润 v2 与微阻尼追底、`molisBusy` / `molisToast` / `molisAutosave` / `molisOptimisticToggle` | [motion-and-feedback.md](motion-and-feedback.md) |

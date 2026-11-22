@@ -82,6 +82,7 @@ export function createLocalWebAssets(ports) {
   put("apps/workbench/dist/page-assets.js", `import { readFileSync } from "node:fs";
 const text = name => readFileSync(new URL("../../../" + name, import.meta.url), "utf8");
 export const renderMolisWorkWorkbenchStylesheet = () => text("workbench.css");
+export const renderMolisWorkPluginBaseStylesheet = () => text("workbench.css");
 export const renderMolisWorkWorkbenchClientScript = () => text("workbench.js");
 export const renderMolisWorkArrivalStylesheet = () => text("arrival.css");
 export const renderMolisWorkSettingsStylesheet = () => text("settings.css");
@@ -213,7 +214,8 @@ test("CCR-06 route discovery refuses unreadable spellings, missing routes and br
 test("CCR-06 actual repository build measures all served workbench, plugin and /desktop paths (RAC-44/55/60, PG-070)", () => {
   const result = run(repoRoot, "--report", "--json"); assert.equal(result.code, 0, result.out);
   const report = JSON.parse(result.out); assert.deepEqual(report.discoveryMisses, []);
-  for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js", "/desktop/pty-client.js"]) assert.ok(report.measured[asset] > 0, asset);
+  for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-plugin-base.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js", "/desktop/pty-client.js"]) assert.ok(report.measured[asset] > 0, asset);
+  assert.ok(report.measured["/assets/molis-work-plugin-base.css"] < 80_000, `102-1: plugin base stylesheet must stay <80 KB minified (got ${report.measured["/assets/molis-work-plugin-base.css"]} B)`);
   const bundles = [...new Set([CHARACTERS_CLIENT_PATH, ...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`), ...pluginWorkbenchPacks().filter(pack => pluginOnDemandStylesheet(pack.project_plugin_id)).map(pack => `/assets/molis-work-plugins/${pack.project_plugin_id}.css`)])].sort();
   assert.ok(bundles.length > 0); assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles);
 });

@@ -43,7 +43,7 @@ const text=JSON.stringify(c);if(text!==shown){shown=text;root.setAttribute('data
 if(mainEl)life.observe(new MutationObserver(setContext),mainEl,{childList:true});
 setContext();
 const stateKey='molis-work:alchemist:'+host.projectId()+':'+(new URLSearchParams(location.search).get('workbenchPane')||'main');
-const persist=()=>{try{localStorage.setItem(stateKey,JSON.stringify({collection:view,current:focus}));}catch{}};
+const persist=()=>{try{localStorage.setItem(stateKey,JSON.stringify({collection:view,current:focus}));}catch{/* Ignore localStorage write failure for Alchemist selection state. */}};
 const same=v=>JSON.stringify(v)===JSON.stringify(focus);
 function setTitle(title){$('title').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`

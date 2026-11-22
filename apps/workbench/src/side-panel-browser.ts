@@ -170,7 +170,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
         const bitmap=await createImageBitmap(new Blob([bytes],{type:'image/jpeg'}));
         if(canvas.width!==bitmap.width||canvas.height!==bitmap.height){canvas.width=bitmap.width;canvas.height=bitmap.height;}
         ctx.drawImage(bitmap,0,0);bitmap.close?.();
-      }catch{}
+      }catch{/* Skip undecodable browser stream frame and await next frame. */}
     }
     drawing=false;
   };
@@ -252,7 +252,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     try{
       const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending');
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
-    }catch{}
+    }catch{/* Failed approval read keeps previous card visible until next poll. */}
     // A failed read did not settle the visible review. Keep it available at the same polling cadence.
     if(rows)renderApproval(rows[0]||null);
     if(reviewing||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);
@@ -315,7 +315,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   const sitesUrl='/api/browser/sites';
   const renderSites=async()=>{
     const here=state?.origin||'',request=++sitesRender;
-    let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{}
+    let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{/* Keep default empty site list if browser policy read fails. */}
     if(request!==sitesRender||sitesBox.hidden)return;
     const mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"):globalThis.t.text("workbench.side-panel-browser.blocked-looking-acting");

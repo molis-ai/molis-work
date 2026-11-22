@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Script } from 'node:vm';
-import {builtinSyncBindings} from '@molis-ai/molis-work-app-local-host';
+import {builtinSyncBindings, discoverRuntimeSyncCollections} from '@molis-ai/molis-work-app-local-host';
 import {BUILTIN_PLUGIN_CATALOG} from '@molis-ai/molis-work-app-workbench';
 import type {PluginRegistration as BuiltinPluginEntry} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import {syncOwnerPair} from './fixtures/runtime-personal-sync.js';
 
 test('every registered browser factory parses after composing its shared helpers',()=>{
  for(const entry of BUILTIN_PLUGIN_CATALOG){
@@ -37,4 +38,37 @@ test('PCSYNC-22 current built-in bindings all name a declared collection exactly
  const identities=bindings.map(({entry,collection})=>JSON.stringify([entry.manifest.plugin_id,collection.id]));assert.equal(new Set(identities).size,identities.length);
  for(const entry of BUILTIN_PLUGIN_CATALOG)for(const collection of entry.manifest.sync?.collections??[])assert.ok(Object.hasOwn(entry.sync??{},collection.id)||collection.sections||collection.tracking||collection.aggregates,`${entry.manifest.plugin_id}.${collection.id} declares a Runtime binding`);
  for(const entry of BUILTIN_PLUGIN_CATALOG)for(const id of Object.keys(entry.sync??{}))assert.ok(entry.manifest.sync?.collections.some(c=>c.id===id),`${entry.project_plugin_id}.${id}`);
+});
+
+test('AC-M1-03 all 21 persistent built-ins resolve through static bindings or an active Runtime owner', {timeout: 120_000}, async t => {
+ const excluded = new Set(['diff', 'git', 'text-stats']);
+ const expected = ['alchemist', 'coding', 'cognia', 'dataset', 'feed', 'form', 'goals', 'images', 'inbox', 'issues', 'jelly',
+  'lingguang', 'pages', 'plugin-builder', 'ppt', 'risk', 'schedule', 'shelf', 'todo', 'work-brief', 'workflows'];
+ const catalog = BUILTIN_PLUGIN_CATALOG.filter(entry => !excluded.has(entry.project_plugin_id));
+ assert.deepEqual(catalog.map(entry => entry.project_plugin_id).sort(), expected);
+ const {source} = await syncOwnerPair(t, catalog.filter(entry => entry.project_runtime).map(entry => entry.project_plugin_id));
+ const {spaceId} = source.sync.policy();
+ const runtime = await discoverRuntimeSyncCollections(source.home, spaceId, source.host, source.withCatalog, () => {});
+ const key = (plugin: string, collection: string) => JSON.stringify([plugin, collection]);
+ const registered = new Set(builtinSyncBindings().map(({selection}) => key(selection.plugin_id, selection.collection_id)));
+ for (const row of runtime) {
+  assert.equal(row.available?.(), true, `running owner for ${row.selection.plugin_id}.${row.selection.collection_id}`);
+  registered.add(key(row.selection.plugin_id, row.selection.collection_id));
+ }
+
+ await source.sync.refreshCatalog();
+ const coordinator = new Set(source.sync.status().collections.map(({selection}) => key(selection.plugin_id, selection.collection_id)));
+ for (const entry of catalog) {
+  const collections = entry.manifest.sync?.collections;
+  assert.ok(collections?.length, `${entry.project_plugin_id} has a portable collection`);
+  for (const collection of collections) {
+   const identity = key(entry.manifest.plugin_id, collection.id);
+   assert.ok(registered.has(identity), `${identity} has a real binding`);
+   assert.ok(coordinator.has(identity), `${identity} is reachable through the coordinator`);
+  }
+ }
+ for (const entry of BUILTIN_PLUGIN_CATALOG.filter(entry => excluded.has(entry.project_plugin_id))) {
+  assert.equal(entry.manifest.sync, undefined);
+  assert.equal([...coordinator].some(value => JSON.parse(value)[0] === entry.manifest.plugin_id), false);
+ }
 });

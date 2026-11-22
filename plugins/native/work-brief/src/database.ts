@@ -1,5 +1,7 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
+const BRIEF_EDITOR_VERSIONS = "CREATE TABLE brief_editor_versions (id TEXT NOT NULL, project_id TEXT NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (id, project_id));";
+
 /**
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): the project's briefs with their
  * versions, edits, proposals, next-step marks and request receipts. A personal brief has no project (`project_id` is empty) and stays.
@@ -14,6 +16,7 @@ const WORK_BRIEF_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "w
     { table: "brief_proposals", column: "brief_id", parent: "briefs" },
     { table: "brief_next_marks", column: "brief_id", parent: "briefs" },
     { table: "brief_requests", column: "project_id" },
+    { table: "brief_editor_versions", column: "project_id" },
     { table: "briefs", column: "project_id" },
   ] };
 
@@ -23,7 +26,8 @@ const WORK_BRIEF_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "w
  * writes these tables. Versions are append-only; a brief's `version` is its row revision (the artifact join's compare-and-set).
  */
 export const WORK_BRIEF_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORK_BRIEF_PROJECT_ROWS, store_name: "work-brief",
-  version: /* @version database.work_brief_database */ 1, upgrades: [], read_permission: "work-brief:read", write_permission: "work-brief:write", schema: `
+  version: /* @version database.work_brief_database */ 2, upgrades: [{ from: 1, sql: BRIEF_EDITOR_VERSIONS }],
+  read_permission: "work-brief:read", write_permission: "work-brief:write", schema: `
   CREATE TABLE briefs (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',
@@ -89,4 +93,5 @@ export const WORK_BRIEF_DATABASE: HomePluginDatabaseDeclaration = { project_rows
     at TEXT NOT NULL,
     PRIMARY KEY (project_id, actor_id, request_id)
   );
+  ${BRIEF_EDITOR_VERSIONS}
 ` };

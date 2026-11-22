@@ -8,6 +8,8 @@ import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/mo
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
 import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
 // Work Brief in a project that has no Goals: its sources are whatever the directory offers (here Risk), read as the caller.
 
@@ -44,6 +46,85 @@ async function fixture(t: Parameters<typeof serveHomeRuntime>[0]) {
 }
 let request = 0;
 const once = () => "request-" + ++request;
+
+test("AC-M1-02 project and personal briefs restore content and retain concurrent edits without execution", { timeout: 90_000 }, async t => {
+  const { owner, source, target, requests } = await syncOwnerPair(t, ["risk", "work-brief"]);
+  const caller = { ...person([...RISK_WRITE, ...WORK_BRIEF_WRITE], source.project().project_id), actor_id: owner };
+  const call = <T>(device: typeof source, definition: Parameters<typeof ref>[0], input: unknown) => device.actions().invoke(caller, ref(definition), input) as Promise<T>;
+  const a = await source.bind(WORK_BRIEF_PLUGIN_ID), b = await target.bind(WORK_BRIEF_PLUGIN_ID);
+  const risk = await call<{ risk: RiskRecord }>(source, riskActions.create, { title: "Do not change on restore", statement: "Monitor", impact: "high", likelihood: "low" });
+  const action = (await source.actions().discover(caller)).find(view => view.capability_id === riskActions.addNote.capability_id)!;
+  const saved = await call<BriefSaved>(source, workBriefActions.save, { request_id: once(), draft: {
+    claims: [{ text: "Saved project topic", supplied_by: "owner" }],
+    next: [{ text: "Record a note", why: "Keep the decision", act: { kind: "action", reference: { ...ref(riskActions.addNote), provider_id: action.provider.provider_id },
+      input: { risk_id: risk.risk.risk_id, text: "local card input" } } }, { text: "Waiting for review", why: "Pending", act: { kind: "assistant" } }],
+  } });
+  const briefId = saved.brief.brief_id, options = saved.version!.next;
+  await call(source, workBriefActions.setNext, { brief_id: briefId, option_id: options[1]!.option_id, state: "later" });
+  const homeCall = (device: typeof source, definition: Parameters<typeof ref>[0]) => device.host.homeActionClient().invoke({ ...caller, project_id: null }, ref(definition), {});
+  await homeCall(source, workBriefPersonalActions.refresh);
+  const sql = <T>(device: typeof source, run: (db: ReturnType<typeof openSqliteConnection>) => T) => {
+    const db = openSqliteConnection(homeSqlitePath(device.home, "work-brief"));
+    try { return run(db); } finally { db.close(); }
+  };
+  const count = (query: string, ...parameters: string[]) => sql(target, db => (db.prepare(query).get(...parameters) as { n: number }).n);
+  sql(source, db => db.prepare("INSERT INTO brief_next_marks(brief_id, option_id, state, card_json, actor_id, at) VALUES (?, ?, 'running', ?, ?, ?)")
+    .run(briefId, options[0]!.option_id, '{"localOnly":"pending dispatch"}', owner, "2026-11-22T00:00:00Z"));
+
+  let revision = 0;
+  const syncOne = async () => {
+    const mutation = a.withReplica(replica => replica.next());
+    assert.ok(mutation);
+    const packed = a.content!.encode(mutation.key, mutation.value);
+    const value = await b.content!.decode(mutation.key, packed.value, async ref => packed.blobs.find(blob => blob.digest === ref.digest)!.bytes);
+    const event = { ...mutation, value, revision: ++revision };
+    const callsBefore = requests();
+    await b.prepare(event);
+    b.withReplica(replica => replica.receive(event));
+    assert.equal(requests(), callsBefore, "restoring a record makes no outbound requests");
+    a.withReplica(replica => replica.acknowledge(mutation.key, mutation.operationId, revision));
+    return mutation;
+  };
+  const first = await syncOne();
+  assert.doesNotMatch(JSON.stringify(first.value), /local card input|pending dispatch|card_json|"running"/);
+  await syncOne();
+  assert.equal(count("SELECT COUNT(*) AS n FROM briefs WHERE scope='personal' AND actor_id=?", owner), 1);
+  const view = () => call<BriefView>(target, workBriefActions.get, { brief_id: briefId });
+  const restored = await view();
+  assert.equal(restored.version!.claims[0]!.text, "Saved project topic");
+  assert.deepEqual(restored.version!.next[0]!.act, { kind: "assistant" });
+  assert.deepEqual(restored.marks.map(mark => mark.state), ["later"]);
+  assert.equal(await code(call(target, riskActions.get, { risk_id: risk.risk.risk_id })), "risk.not_found");
+  assert.equal(b.withReplica(replica => replica.next()), null);
+
+  const edit = (device: typeof source, current: BriefSaved, text: string) => call<BriefSaved>(device, workBriefActions.edit, { brief_id: briefId,
+    expected_revision: current.brief.revision, claim_id: saved.version!.claims[0]!.claim_id, text });
+  const next = await edit(source, saved, "Incremental edit");
+  await syncOne();
+  const both = await view();
+  assert.equal(both.version!.claims[0]!.text, "Incremental edit");
+  await edit(target, { ...both, brief: both.brief! }, "Local brief");
+  await edit(source, next, "Remote brief");
+  const update = await syncOne();
+  const conflict = b.withReplica(replica => replica.inspectConflict!(update.key));
+  assert.ok(conflict);
+  assert.match(JSON.stringify(conflict.local), /Local brief/);
+  assert.match(JSON.stringify(conflict.remote), /Remote brief/);
+  assert.equal((await view()).version!.claims[0]!.text, "Local brief");
+  b.withReplica(replica => replica.resolve(update.key, "remote", conflict.revision, conflict.state));
+  assert.equal((await view()).version!.claims[0]!.text, "Remote brief");
+
+  sql(source, db => {
+    db.prepare("DELETE FROM brief_versions WHERE brief_id=?").run(briefId);
+    db.prepare("DELETE FROM brief_edits WHERE brief_id=?").run(briefId);
+    db.prepare("DELETE FROM brief_next_marks WHERE brief_id=?").run(briefId);
+    db.prepare("DELETE FROM briefs WHERE id=?").run(briefId);
+  });
+  assert.equal((await syncOne()).value, null);
+  await assert.rejects(view, { code: "work_brief.not_found" });
+  assert.equal(count("SELECT COUNT(*) AS n FROM brief_versions WHERE brief_id=?", briefId), 0);
+  assert.equal(count("SELECT COUNT(*) AS n FROM briefs WHERE scope='personal'"), 1);
+});
 
 test("WBR-10 WBR-12 a refresh reads the sources without a model, saves a version only when something changed and reports only the change", { timeout: 90_000 }, async t => {
   const { call, risk, client, caller } = await fixture(t);

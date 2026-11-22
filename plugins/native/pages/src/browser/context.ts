@@ -85,8 +85,16 @@ export function paintPicked(page: PagesPage) {
   page.rowsEl.querySelectorAll<HTMLElement>(".pages-doc-row[data-page-id]").forEach((row) => {
     const id = row.dataset.pageId!;
     row.classList.toggle("is-picked", page.picked.has(id));
-    row.querySelector("button[data-page-id]")?.setAttribute("aria-selected", String(chosen(page, id)));
+    row.setAttribute("aria-selected", String(chosen(page, id)));
   });
+}
+
+export function togglePicked(page: PagesPage, id: string) {
+  // Picking, not opening: the open document joins the first pick, so one ⌘-click or Space already gives two.
+  if (!page.picked.size && page.sel && page.sel.id !== id) page.picked.add(page.sel.id);
+  if (page.picked.has(id)) page.picked.delete(id); else page.picked.add(id);
+  paintPicked(page);
+  reportFocus(page);
 }
 
 export function clearPicked(page: PagesPage) {

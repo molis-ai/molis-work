@@ -25,6 +25,80 @@ export function installList(page: LingguangPage): void {
     row.classList.toggle("is-selected", on);
     row.setAttribute("aria-selected", String(on));
   };
+  let focusedId: string | null = null;
+  const optionRows = () => [...el.rowsEl.querySelectorAll<HTMLElement>('[role="option"][data-lingguang-id]')];
+  const syncTabStops = () => {
+    const rows = optionRows();
+    if (!rows.length) {
+      focusedId = null;
+      return;
+    }
+    const active = rows.find((row) => row.dataset.lingguangId === focusedId)
+      || rows.find((row) => row.dataset.lingguangId === s.selected?.id)
+      || rows.find((row) => s.picks.has(row.dataset.lingguangId || ""))
+      || rows[0]!;
+    focusedId = active.dataset.lingguangId || null;
+    rows.forEach((row) => { row.tabIndex = row === active ? 0 : -1; });
+  };
+  const focusRow = (row: HTMLElement | undefined) => {
+    if (!row) return;
+    focusedId = row.dataset.lingguangId || null;
+    syncTabStops();
+    row.focus();
+  };
+  const toggleRowSelection = (row: HTMLElement) => {
+    const id = row.dataset.lingguangId || "";
+    if (!id) return;
+    if (s.picks.has(id)) s.picks.delete(id);
+    else s.picks.add(id);
+    paintRow(row, s.picks.has(id));
+    page.syncSelectionBar();
+  };
+  el.rowsEl.addEventListener("focusin", (event) => {
+    const row = (event.target as Element | null)?.closest<HTMLElement>('[role="option"][data-lingguang-id]');
+    if (!row || !el.rowsEl.contains(row)) return;
+    focusedId = row.dataset.lingguangId || null;
+    syncTabStops();
+  });
+  el.rowsEl.addEventListener("keydown", (event) => {
+    if (event.altKey) return;
+    const row = (event.target as Element | null)?.closest<HTMLElement>('[role="option"][data-lingguang-id]');
+    if (!row || !el.rowsEl.contains(row)) return;
+    const rows = optionRows();
+    const index = rows.indexOf(row);
+    if (index < 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusRow(rows[Math.min(index + 1, rows.length - 1)]);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusRow(rows[Math.max(index - 1, 0)]);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusRow(rows[0]);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusRow(rows[rows.length - 1]);
+      return;
+    }
+    if (event.key === " " || event.code === "Space") {
+      event.preventDefault();
+      toggleRowSelection(row);
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      s.records.forEach((record) => s.picks.add(record.id));
+      rows.forEach((item) => paintRow(item, true));
+      page.syncSelectionBar();
+    }
+  });
   const fateLabel = (description: PlacementDescription) => {
     const derived = (description.associations || []).filter((item) => item.type === "derived_into");
     if (!derived.length) return "";
@@ -52,6 +126,7 @@ export function installList(page: LingguangPage): void {
     const row = document.createElement("button");
     row.type = "button";
     row.setAttribute("role", "option");
+    row.tabIndex = -1;
     row.className = "mw-stage-entry directory-list-row";
     row.dataset.lingguangId = record.id;
     paintRow(row, s.picks.has(record.id) || s.selected?.id === record.id);
@@ -75,9 +150,12 @@ export function installList(page: LingguangPage): void {
     return item;
   };
   const paintList = () => {
+    const hadFocus = el.rowsEl.contains(document.activeElement);
     el.empty.hidden = s.records.length > 0;
     el.rowsEl.replaceChildren();
     s.records.forEach((record) => el.rowsEl.append(renderRow(record)));
+    syncTabStops();
+    if (hadFocus) el.rowsEl.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus();
     void annotateFates(s.records);
     page.syncSelectionBar();
   };
@@ -97,6 +175,7 @@ export function installList(page: LingguangPage): void {
   };
   page.markSelected = (id) => {
     el.rowsEl.querySelectorAll<HTMLElement>("[data-lingguang-id]").forEach((row) => paintRow(row, s.picks.has(row.dataset.lingguangId || "") || row.dataset.lingguangId === id));
+    syncTabStops();
   };
   page.selectedRecords = () => s.records.filter((item) => s.picks.has(item.id));
   page.syncSelectionBar = () => {

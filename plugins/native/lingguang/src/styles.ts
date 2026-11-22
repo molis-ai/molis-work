@@ -10,6 +10,9 @@ export const LINGGUANG_STYLES = `
   .lingguang-selection-bar .mw-btn { flex: none; width: auto; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   [data-lingguang="directory"] [data-lingguang-rows] { max-width: 40rem; }
+  [data-lingguang="directory"] [data-lingguang-rows] [role="option"]:focus-visible {
+    outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, 1px);
+  }
   body.immersive-workbench .plugin-stage-shell:not([data-expanded="true"]) [data-lingguang="directory"] .mw-stage-entry {
     width: 100%;
     grid-template-columns: minmax(0, 1.2fr) 4.75rem minmax(0, 1fr) max-content;

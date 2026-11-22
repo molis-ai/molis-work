@@ -331,21 +331,105 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "undo restores the Goals page as current");
 });
 
-test("D24 a list that picks several keeps ⌘-click for picking; a middle click there still opens the page behind", { timeout: 90_000 }, async (t) => {
+test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and supports pure keyboard multi-select, folder toggle, inline actions, and single Tab stop", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const store = openPagesStore(homeDirectory);
-  const pages = (() => { try { return ["A", "B", "C"].map((letter) => store.create({ project_id: projectId!, title: `Page ${letter}`, body: { type: "doc", content: [] } })); } finally { store.close(); } })();
-  const [a, b, c] = pages.map((page) => page.id) as [string, string, string];
+  const seeded = (() => {
+    try {
+      const folder = store.createFolder({ project_id: projectId!, title: "Work" });
+      const a = store.create({ project_id: projectId!, folder_id: folder.id, title: "Page A", body: { type: "doc", content: [] } });
+      const b = store.create({ project_id: projectId!, folder_id: folder.id, title: "Page B", body: { type: "doc", content: [] } });
+      const c = store.create({ project_id: projectId!, title: "Page C", body: { type: "doc", content: [] } });
+      return { folder, pages: [a, b, c] as const };
+    } finally { store.close(); }
+  })();
+  const [a, b, c] = seeded.pages.map((page) => page.id) as [string, string, string];
+  const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
+    for (const type of ["keyDown", "keyUp"] as const) {
+      await command("Input.dispatchKeyEvent", { type, key: name, code, windowsVirtualKeyCode, modifiers }, sessionId);
+    }
+  };
   await browser.setViewport(1440, 1000);
   // An open document takes the whole Pages page (36A-3), so several are picked in the list, with none open.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded !== 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
-  const selected = `[...document.querySelectorAll('[data-pages-rows] button[data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
-  assert.deepEqual(await child.evaluate(`(() => { const list = document.querySelector('[data-pages-rows]'); return [list.getAttribute('role'), list.getAttribute('aria-multiselectable'), list.querySelector('button[data-page-id]').getAttribute('role')]; })()`),
-    ["listbox", "true", "option"], "the list says it picks several");
+  const selected = `[...document.querySelectorAll('[data-pages-rows] [role=row][data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
+  assert.deepEqual(await child.evaluate(`(() => {
+    const grid = document.querySelector('[data-pages-rows]');
+    const folderRow = grid.querySelector('[data-pages-folder-row]');
+    const docRow = grid.querySelector('[role=row][data-page-id]');
+    return {
+      role: grid.getAttribute('role'),
+      multi: grid.getAttribute('aria-multiselectable'),
+      detailsCount: grid.querySelectorAll('details, summary').length,
+      rowgroups: grid.querySelectorAll('[role=rowgroup]').length,
+      folderLevel: folderRow?.getAttribute('aria-level'),
+      folderExpanded: folderRow?.getAttribute('aria-expanded'),
+      docRole: docRow?.getAttribute('role'),
+      docLevel: docRow?.getAttribute('aria-level'),
+      docSelected: docRow?.getAttribute('aria-selected'),
+      docCells: docRow?.querySelectorAll('[role=gridcell]').length,
+      tabStops: grid.querySelectorAll('button[tabindex="0"]').length,
+    };
+  })()`), {
+    role: "treegrid",
+    multi: "true",
+    detailsCount: 0,
+    rowgroups: 2,
+    folderLevel: "1",
+    folderExpanded: "true",
+    docRole: "row",
+    docLevel: "2",
+    docSelected: "false",
+    docCells: 3,
+    tabStops: 1,
+  }, "BL-340 Pages directory is a multi-selectable treegrid with folder rowgroups, gridcells, and one Tab stop");
+
+  // BL-340: pure keyboard flow starting from normal page focus ([data-pages-search] immediately before the treegrid).
+  await child.click("[data-pages-search]");
+  await child.waitFor("document.activeElement === document.querySelector('[data-pages-search]')");
+  await key("Tab", "Tab", 9);
+  await child.waitFor(`document.activeElement?.dataset.pagesFolderToggle === ${JSON.stringify(seeded.folder.id)}`);
+  // Collapse and re-expand the folder row with ArrowLeft / ArrowRight.
+  await key("ArrowLeft", "ArrowLeft", 37);
+  await child.waitFor(`document.querySelector('[data-pages-folder-row=${JSON.stringify(seeded.folder.id)}]')?.getAttribute('aria-expanded') === 'false' && document.querySelector('[role=row][data-page-id="${a}"]')?.hidden === true`);
+  await key("ArrowRight", "ArrowRight", 39);
+  await child.waitFor(`document.querySelector('[data-pages-folder-row=${JSON.stringify(seeded.folder.id)}]')?.getAttribute('aria-expanded') === 'true' && document.querySelector('[role=row][data-page-id="${a}"]')?.hidden === false`);
+  // Move down to Page A, traverse inline Move/Star cells with ArrowRight/ArrowLeft, then multi-select with Space.
+  await key("ArrowDown", "ArrowDown", 40);
+  await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(a)}`);
+  await key("ArrowRight", "ArrowRight", 39);
+  await child.waitFor(`document.activeElement?.dataset.pagesMove === ${JSON.stringify(a)}`);
+  await key("ArrowRight", "ArrowRight", 39);
+  await child.waitFor(`document.activeElement?.dataset.pagesStar === ${JSON.stringify(a)}`);
+  await key("ArrowLeft", "ArrowLeft", 37);
+  await key("ArrowLeft", "ArrowLeft", 37);
+  await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(a)}`);
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === ${JSON.stringify(a)}`);
+  await key("ArrowDown", "ArrowDown", 40);
+  await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(b)}`);
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
+  assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "Space multi-select does not open the editor");
+  assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item]')`), null, "Space multi-select opens no item tab");
+  // Deselect B and A purely with keyboard.
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === ${JSON.stringify(a)}`);
+  await key("ArrowUp", "ArrowUp", 38);
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === '' && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 0`);
+  // Tab enters and leaves the treegrid in a single stop.
+  await key("Tab", "Tab", 9, 8);
+  await child.waitFor("document.activeElement === document.querySelector('[data-pages-search]')");
+  await key("Tab", "Tab", 9);
+  await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(a)}`);
+  await key("Tab", "Tab", 9);
+  await child.waitFor("!document.querySelector('[data-pages-rows]').contains(document.activeElement)");
+
   const press = async (id: string, button: "left" | "middle", modifiers: number) => {
     const point = await child.point(`[data-pages-rows] button[data-page-id="${id}"]`);
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button, clickCount: 1, modifiers }, sessionId);

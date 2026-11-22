@@ -185,7 +185,8 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   assert.deepEqual(splitPluginStylesheet(owned + unrelated, "feed", [], ["work-"]), { scoped: owned, shared: unrelated },
     "the production splitter claims work-brief at the complete hyphen boundary");
   assert.deepEqual(catalogProblems(withPrefix("work-")), ["feed: stylesheet prefix work- repeats a plugin's id"]);
-  assert.deepEqual(catalogProblems(withPrefix("pb-")), ["plugin-builder and feed both claim stylesheet prefix pb-"],
+  // The studio is a platform surface since 47-1 C; its pb- is still held against every plugin's prefixes.
+  assert.deepEqual(catalogProblems([...withPrefix("pb-"), ...HOST_FRAMED_SURFACES]), ["feed and plugin-builder both claim stylesheet prefix pb-"],
     "plugin-builder already claims pb-, so another plugin cannot claim it");
   for (const prefix of ["wor-", "brief-", "workbrief-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
   const feedEntry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "feed")!;

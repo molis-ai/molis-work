@@ -127,6 +127,9 @@ const pages: Record<string, Draw> = {
 // card gone, its row moved to the end of the directory JSON and of the tab titles, and the workbench language file's hash (its words
 // changed). The six settings and planning pages differ only in that hash, which their records already leave out. No Goals markup or
 // JSON changed; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// On the merge of main f19f4100da (#2243 retires Text Stats) the batch's tab-title map, which reads one placement registry, lost its
+// `,"text-stats":"Text Stats"` row: a uniform -26 characters on the 16 pages in both languages, the only change between the drawn
+// pages of ee4a3c0a03 and the merge (token diff); they were recorded again with MOLIS_WORK_GOLDEN_RECORD=1.
 // RAC-2680 / RAC-2508 (T402): the Goals-only view no longer draws the hidden Sources stage of an unshown Feed owner.
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.

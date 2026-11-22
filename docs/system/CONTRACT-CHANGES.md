@@ -337,7 +337,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **判断规则的编辑动作必带 `expected_updated_at`；`functions.authoring.get` 对插件开放**（第 05 批 N14，AIC-01～16，#1961）：
   - `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 的输入改为必须带读取时的版本 `expected_updated_at`（非空字符串，取读到的记录的 `updated_at`），旧字段 `updated_at` 不再接受。其中 update、preview、publish 本来就对 `plugin` 受众开放，插件调用时同样要带。
   - 版本过期得到 `functions.draft_stale`，样例不在得到 `functions.sample_not_found`，已发布后读到的不是发布的那一版得到 `functions.published_immutable`。
-  - `functions.authoring.get` 的受众加了 `plugin`，权限和 `list` 一样是 `functions:manage`。插件收到 `draft_stale` 后用它读回最新记录，就地接住（Feed 的规则页就是这样做的，界面写法见 `docs/design/rule-stale-reload/README.md`）。
+  - `functions.authoring.get` 的受众加了 `plugin`，权限和 `list` 一样是 `functions:manage`。插件收到 `draft_stale` 后用它读回最新记录，就地接住（Feed 的规则页就是这样做的，界面写法见 `docs/design/archive/rule-stale-reload/README.md`）。
   - `updated_at` 只随定义内容变化，试跑、样例、发布不推它。
   - 都在原版本上改（§3 第 3 条），MCP 工具名不变。动作合同快照里 6 行的输入哈希、`get` 一行的「谁能调」随之变。
 - **`projects.directories.*` 取代 `projects.workspaces.*`、`projects.workspace.read` 和浏览目录设置；`is_default` 改 `roles`**（第 05 批 #1979，路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3、§8）：项目的文件夹分成输入（只读，可多个）和输出（唯一，可写），都在原版本 @1 上改，旧名不留（§3 第 3 条）。

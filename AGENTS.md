@@ -20,7 +20,7 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 | 写或改插件 | `skills/molis-plugin-dev/SKILL.md` |
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 接入工作记录与观测覆盖 | `docs/horizontal/observation.md` |
-| 界面、文字与外观 | `DESIGN.md`、`specs/craft-finish/spec.md`、`specs/ui-craft-floor/spec.md`、组件板 `/__ui/catalog`、`skills/molis-plugin-dev/text-and-appearance.md` |
+| 界面、设计、动效、字体、设置页与外观 | `skills/molis-design-ui/SKILL.md`（必读执行手册）、`DESIGN.md`（总规范）、组件板 `/__ui/catalog`、`skills/molis-plugin-dev/text-and-appearance.md`（文案） |
 | 本机登录看真实界面（dev 模式起 Auth 与 Molis Work、测试账号） | `docs/cli-and-development.md`「本机登录测试」 |
 | 仓库里放什么 | `docs/system/REPOSITORY-HYGIENE.md` |
 | 开一项需求、什么要用户拍板、该不该落成平台能力（第 4.1 节） | `specs/post-anticorruption-roadmap/reference/development-workflow.md` |

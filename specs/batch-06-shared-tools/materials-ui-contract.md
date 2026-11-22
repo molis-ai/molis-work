@@ -47,7 +47,7 @@
 
 ## 5. 原阅读命令与端口
 
-- A 原型 `docs/design/batch-06-materials/app.js:909–913` 的 `read/place=coding` 是原 Coding 内嵌 Files 阅读面的文件行打开手势。将此手势接平台 `materials.open` 显式命令，成功仍在 A 的侧区就地显示。原 `files.open` 成功读文本后保存阅读位置并在可列目录时发布当前根的 files collection，移交该语义给系统资料 owner。保留 collection 的 workspace/handle/display_name/entry_count/truncated/selection.path 合同和用户已有合法绑定。没有内置 collection 默认消费者的证据；保留手绑/外装消费，实测已知 Diff before/after、Text Stats before。
+- A 原型 `docs/design/archive/batch-06-materials/app.js:909–913` 的 `read/place=coding` 是原 Coding 内嵌 Files 阅读面的文件行打开手势。将此手势接平台 `materials.open` 显式命令，成功仍在 A 的侧区就地显示。原 `files.open` 成功读文本后保存阅读位置并在可列目录时发布当前根的 files collection，移交该语义给系统资料 owner。保留 collection 的 workspace/handle/display_name/entry_count/truncated/selection.path 合同和用户已有合法绑定。没有内置 collection 默认消费者的证据；保留手绑/外装消费，实测已知 Diff before/after、Text Stats before。
 - Side 行、Goal/picker 预览、续读、程序恢复阅读位置只走只读查询。上次阅读位置与 Recent 分开。旧值仅有 `{workspace_id,path}`，按已知项目与官方安装的偏好随 Files 同版本采用搬运，不能推断历史 actor；当前入口仍按实际调用上下文和根权限读写，不能把旧项目偏好当作某个人的授权或事实。读到位置也先验当前权限。根切换、失权或卸载通过现有范围事件失效旧端口；以当前 open 操作票据丢弃先发后回的旧响应。异步读和列目录完成后才进最终授权与同步事务，合法 open 更新位置，根可列时同时提交集合过程项、端口及事件；读成功但目录不可列维持原只保存位置的行为。固定 before/after/selection 继续独立的用户意图，沿原端口消费授权。拒绝场景保证零位置、过程项、端口和事件写入。
 - 现况 `plugins/native/files/src/{actions.ts:69,153,185,position.ts}`，退出时在 PR 清点原固定动作引用及绑定消费者。兼容数据与旧同意按 BSH-06/07/14 正式方案，恢复入口显式授权。
 

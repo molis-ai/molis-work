@@ -9944,7 +9944,7 @@
     "workbench.work-line-specimens.revise": "Revise",
     "workbench.work-line-specimens.run-tests": "Run the tests",
     "workbench.work-line-specimens.running-tests": "running tests",
-    "workbench.work-line-specimens.section-note": "What batch 32 adds to the shell (settled in docs/design/work-line-32, scheme E): the work line at the bottom, the background-task mark and floating panel at the dialog’s top right, where a reply’s work was placed and which task it came back from, and the event card. The composer’s “send to” and what goes with a message stay the product’s own composer.",
+    "workbench.work-line-specimens.section-note": "What batch 32 adds to the shell (settled in docs/design/archive/work-line-32, scheme E): the work line at the bottom, the background-task mark and floating panel at the dialog’s top right, where a reply’s work was placed and which task it came back from, and the event card. The composer’s “send to” and what goes with a message stay the product’s own composer.",
     "workbench.work-line-specimens.something-needs-you": "An event needs you",
     "workbench.work-line-specimens.source-unreadable": "A source can’t be read",
     "workbench.work-line-specimens.state-denied": "no access",

@@ -4,7 +4,7 @@
 
 ## 目标与范围
 
-在 #2133 的合入树 `a8d998935deb7f34db0f2fff1017e8d30e4df05c` 上复核发现，采用动作可能留部分效果，建议会漏报或误报，技能多账号选择没有约束读取，目录、Feed 和搜索设置会显示错误可用状态。本任务从 `27b46f17ab93dabdb75a4a80e665aa5d1b2ca05d` 实施，达到本批功能可用和隔离 Home 可实操。保留 [第 61 批](../post-anticorruption-roadmap/reference/batches/61.md)、[服务接入 §13.7](../assistant-service-connections/spec.md)、[自动化建议 §7](../automation-recommender/spec.md) 和[定样](../../docs/design/service-coverage-automation/README.md)已经确认的交互。
+在 #2133 的合入树 `a8d998935deb7f34db0f2fff1017e8d30e4df05c` 上复核发现，采用动作可能留部分效果，建议会漏报或误报，技能多账号选择没有约束读取，目录、Feed 和搜索设置会显示错误可用状态。本任务从 `27b46f17ab93dabdb75a4a80e665aa5d1b2ca05d` 实施，达到本批功能可用和隔离 Home 可实操。保留 [第 61 批](../post-anticorruption-roadmap/reference/batches/61.md)、[服务接入 §13.7](../assistant-service-connections/spec.md)、[自动化建议 §7](../automation-recommender/spec.md) 和[定样](../../docs/design/archive/service-coverage-automation/README.md)已经确认的交互。
 
 本任务覆盖 Host、工作台、自动化建议、Feed 及官方目录适配。沿用现有连接、项目和技能 owner。真实提供方资格、外部沙箱文档入口、上游 SDK/SEL 换包、Coding 统一搜索和本人实物验收沿现有批次分工。当前阶段交本地可评审改动。
 

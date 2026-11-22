@@ -1,0 +1,4 @@
+interface:
+  display_name: "Molis Work Design & UI"
+  short_description: "Molis Work 全表面设计与前端开发指南：4 套皮肤令牌、Sans+中文排版、mw-* 组件与共用机制、设置页、一变一动动效、反馈闭环与防回归门禁"
+  default_prompt: "Use $molis-design-ui to design, implement, or polish this UI surface in Molis Work."

@@ -119,7 +119,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 
 平台确认面怎样被插件打开（登记的 DOM 事件，还是插件调一个返回「需要本人确认」的平台动作，由工作台接住），在定样时和 D 轨一起定；无论哪种，写入都只走 `agent.task_grants.set` 的 `user` 受众。
 
-**定样结果（用户 2026-11-04）**：不弹窗，选 **F 开关即生效**（[原型](../../docs/design/schedule-task-grants/README.md)）。「平台确认面」落成**插件页面里的一块平台区域**：
+**定样结果（用户 2026-11-04）**：不弹窗，选 **F 开关即生效**（[原型](../../docs/design/archive/schedule-task-grants/README.md)）。「平台确认面」落成**插件页面里的一块平台区域**：
 
 - Schedule 只决定它放在任务详情的哪里，给出任务主体的 key；区域里的内容（类别、开关、说明、撤销）由平台画、平台写，插件读不到也改不了。
 - 一类一个开关，拨一下就是一次 `agent.task_grants.set`（`user` 受众），平台只认真实的点按（`isTrusted`）；下面一行写刚才的变化，可撤销；有新的读取能力时那一行给「允许」。

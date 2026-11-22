@@ -2,7 +2,7 @@
 
 项目的简报：各来源此刻怎么样、几句话的现状（每句后面是它的依据）、要你处理什么、和上次比变了什么、下一步。装了 Work Brief 的项目，简报就是项目首页的内容（`presentation.overview.lead`），移除后回到平台的基础首页。个人简报把各项目简报里要你处理的事和没处置的下一步汇到一处，带项目或个人的标签。
 
-包名：`@molis-ai/molis-work-plugin-work-brief`。工作区内部包，Home 与项目两个实例（`createHomeWorkBriefPlugin()`、`createWorkBriefPlugin()`，登记上的 `runtime` 与 `project_runtime`），不在宿主里手写装配。需求见 [specs/work-brief/spec.md](../../../specs/work-brief/spec.md)，合同设计见 [contract-design.md](../../../specs/work-brief/contract-design.md)，版式见 [docs/design/work-brief-core/](../../../docs/design/work-brief-core/README.md)。
+包名：`@molis-ai/molis-work-plugin-work-brief`。工作区内部包，Home 与项目两个实例（`createHomeWorkBriefPlugin()`、`createWorkBriefPlugin()`，登记上的 `runtime` 与 `project_runtime`），不在宿主里手写装配。需求见 [specs/work-brief/spec.md](../../../specs/work-brief/spec.md)，合同设计见 [contract-design.md](../../../specs/work-brief/contract-design.md)，版式见 [docs/design/archive/work-brief-core/](../../../docs/design/archive/work-brief-core/README.md)。
 
 ## 从哪里读代码
 

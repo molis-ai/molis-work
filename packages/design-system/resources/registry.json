@@ -71,7 +71,7 @@
       "path": "fonts/noto-sans-sc-500-common.woff2",
       "load": "startup",
       "route": "/assets/noto-sans-sc-500-common.woff2",
-      "sha256": "812801f7788005a7d50600240729d2a886152ef54e6b4c60e53dc3e0b8bf489d",
+      "sha256": "684453a4dc9915db5bdf485006c5a3a6b9b46253c0fb02fe4b20364b244ef092",
       "license": {"spdx": "OFL-1.1", "source": "https://www.npmjs.com/package/@fontsource/noto-sans-sc/v/5.3.1", "notice_path": "fonts/README.md"}
     },
     {
@@ -82,7 +82,7 @@
       "path": "fonts/noto-sans-sc-600-common.woff2",
       "load": "startup",
       "route": "/assets/noto-sans-sc-600-common.woff2",
-      "sha256": "90d4d5c77ecd4ed2eda784b08ae61a921049120378f77e7814061933baca6437",
+      "sha256": "7ce298398bb23aa161dc3c7bddcdd4e2409f02e472c02bf06ab77d4c0d47a28a",
       "license": {"spdx": "OFL-1.1", "source": "https://www.npmjs.com/package/@fontsource/noto-sans-sc/v/5.3.1", "notice_path": "fonts/README.md"}
     },
     {

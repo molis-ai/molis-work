@@ -30,7 +30,7 @@
 
 ## 2. 确定性行为反馈闭环（0ms → 250ms → 回执 / 回滚）
 
-1. **按下即回应（0ms）**：所有 `.mw-btn` 具备 `scale(.97)` 轻按压回弹；底栏与 Coding 发送在非 IME 组合态 `<16ms` 乐观上屏（失败无损恢复草稿与修订号）。
+1. **按下即回应（0ms）**：所有 `.mw-btn` 具备 `scale(.985)` 轻按压回弹；底栏与 Coding 发送在非 IME 组合态 `<16ms` 乐观上屏（失败无损恢复草稿与修订号）。
 2. **`250ms` 静默阈值与 `window.molisBusy(btn, work, opts?)`**：
    - 任何耗时 `< 250ms` 的请求**不闪骨架、不闪转圈**；超过 `250ms` 才淡入 `.mw-spinner` 并设 `data-loading` + `aria-busy="true"` + 防连点锁，有图标时原位等宽替换不抖动，弹窗内自动拦截 `Esc` 并在 `finally` 释放。
    - **禁止**手写 `button.disabled = true` 灰死僵住、**禁止**整页 `workspace.inert = true` 无声冻屏、**禁止**绕开 `250ms` 立刻渲染 `.mw-loading`。
@@ -40,7 +40,7 @@
 4. **统一五态自动保存（`window.molisAutosave(el, save, opts?)`）**：
    - `idle`（静默隐退，常态不刷绿也不占位）→ `dirty`（中性灰「未保存」）→ `saving`（超 `250ms` 显微环「保存中…」）→ `saved`（轻亮后 `2.2s` 淡隐）→ `error`（红字常驻 + 保留草稿 + `retry()`）。
 5. **乐观开关回滚（`window.molisOptimisticToggle(control, work, opts?)`）**：切换立即生效，请求失败自动弹回原值、恢复交互并经 `molisToast` 报错。
-6. **危险确认与日期增强**：不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式与 `Escape` 行为。
+6. **危险确认与日期增强**：不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式、可清除按钮与 `Escape` 行为。
 
 ---
 

@@ -60,6 +60,8 @@ export type ShowMoreOptions = {
 export type StreamTextOptions = {
   /** Whether text that arrived with this update is shown arriving. Only a reply still being written; never a restore, a redraw or history. */
   reveal?: boolean;
+  /** Coalesce burst mid-stream updates to at most one DOM patch per animation frame; final (`reveal: false`) flushes immediately. */
+  pace?: boolean;
   /**
    * A block with the same tag that changed and would otherwise be put in again whole (a code block the page has coloured and
    * given a copy button, a figure whose attributes carry its text) is offered to its owner first: `kept` is the node on the

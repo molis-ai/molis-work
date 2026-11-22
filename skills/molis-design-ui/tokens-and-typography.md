@@ -60,7 +60,7 @@
 按决定 60，默认字体方案升级为 **F1（Inter Variable + 思源黑体 / Noto Sans SC 真 400 / 500 / 600 分片）**，解决中文负字距挤压与非 macOS 字重塌陷：
 
 - **字体栈**：
-  - UI Sans：`"Inter Variable", "Inter", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif`（`Inter Variable` 置顶管拉丁字母与数字，`Noto Sans SC` 随包提供真 `400 / 500 / 600` 常用字 + 长尾分片，配合 `font-synthesis-weight: none` 杜绝伪粗体与字重塌陷）。
+  - UI Sans：`"Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`（`Inter Variable` 置顶管拉丁字母与数字，`Noto Sans SC` 随包提供真 `400` 简体全集及覆盖全仓 100% 界面中文词表的 `500 / 600` 常用子集，罕见字由系统 CJK 字体承接，配合 `font-synthesis-weight: none` 杜绝伪粗体与字重塌陷）。
   - 等宽代码：`--font-mono`（`SF Mono`, `JetBrains Mono`, `Cascadia Code`, `ui-monospace`, monospace），统一经 `--type-code-weight` / `--type-code-size` / `--type-code-line-height` 消费。
 - **分语种字距与中英自动微隙**：
   - 默认（中文及混排）：正文 `letter-spacing: 0`、标题 `-0.012em`～`-0.014em`（**严禁把 `-0.011em` / `-0.03em` 套在中文上**）。

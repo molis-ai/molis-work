@@ -57,6 +57,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tree-pane .tree-guide { height: var(--dir-row-h); min-height: var(--dir-row-h); }
   body.immersive-workbench .tree-pane .tree-title-line strong { line-height: 18px; }
   body.immersive-workbench .tree-pane .mw-dir-row--compact { height: var(--dir-row-h); min-height: var(--dir-row-h); }
+  body.immersive-workbench .tree-pane .settings-scope-switch--drawer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: calc(100% - 16px); margin: 4px 8px 4px; }
   body.immersive-workbench .tree-pane .settings-nav-filter--drawer { padding: 4px 8px 6px; }
   body.immersive-workbench .tree-pane .settings-nav-filter--drawer > input.mw-input { width: 100%; height: 28px; min-height: 28px; padding: 0 8px; font-size: 12px; border-radius: var(--r-control, 8px); }
   body.immersive-workbench .tree-pane .settings-directory-nav { display: grid; gap: 1px; padding: 4px 8px 16px; }

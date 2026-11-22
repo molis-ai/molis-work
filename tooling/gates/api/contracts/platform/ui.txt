@@ -1150,7 +1150,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     openBeside(surface: string, itemId: string, title?: string): void;
     openPlugin(surface: string, view?: string, panel?: string): void;
     hideDirectory(): void;
-    showToast(message: string, failure?: boolean): void;
+    showToast(message: string, failureOrOptions?: boolean | UiShowToastOptions): void;
     readonly pluginId: string;
     projectId(): string;
     projectTitle(): string;
@@ -1290,6 +1290,11 @@ export interface UiShadowLayer {
     } | {
         readonly role: string;
     };
+}
+
+export interface UiShowToastOptions {
+    readonly tone?: "default" | "success" | "warning" | "error";
+    readonly duration?: "short" | "normal" | "long" | number;
 }
 
 export interface UiSideContext {

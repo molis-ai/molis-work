@@ -61,7 +61,7 @@ colors:
   tone-quiet: "{colors.faint}"
 typography:
   body:
-    fontFamily: "Inter Variable, Inter, Source Han Sans SC, Noto Sans SC, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: "Inter Variable, Inter, Noto Sans SC, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Source Han Sans SC, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.58

@@ -114,7 +114,10 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
       frame = requestAnimationFrame(land);
     },
     toLatest() {
-      const animate = state === DETACHED && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const still = matchMedia("(prefers-reduced-motion: reduce)").matches
+        || document.documentElement.hasAttribute("data-craft-still")
+        || Boolean(navigator.webdriver);
+      const animate = state === DETACHED && !still;
       follower.resume();
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: animate ? "smooth" : "instant" });
     },

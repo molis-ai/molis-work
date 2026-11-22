@@ -79,6 +79,7 @@ export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrim
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.settings")}</span></div>
     <div class="plugin-section-body">
+      <div class="mw-toggle-group settings-scope-switch settings-scope-switch--drawer" role="group" aria-label="${uiText("workbench.settings-navigation.scope-switch")}"><button class="mw-toggle is-current" type="button" data-directory-open="settings" aria-pressed="true">${uiText("workbench.settings-navigation.scope-global")}</button><button class="mw-toggle" type="button" data-directory-open="project-settings" aria-pressed="false">${uiText("workbench.settings-navigation.scope-project")}</button></div>
       <div class="settings-nav-filter settings-nav-filter--drawer"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
       ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown, desktop), "appearance", "workbench.settings-directory.system-settings", "settings")}
       <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
@@ -92,7 +93,10 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
   return `<section class="plugin-section is-expanded" data-plugin-section="project-settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.project-settings")}</span></div>
     <div class="plugin-section-body">
+      <div class="mw-toggle-group settings-scope-switch settings-scope-switch--drawer" role="group" aria-label="${uiText("workbench.settings-navigation.scope-switch")}"><button class="mw-toggle" type="button" data-directory-open="settings" aria-pressed="false">${uiText("workbench.settings-navigation.scope-global")}</button><button class="mw-toggle is-current" type="button" data-directory-open="project-settings" aria-pressed="true">${uiText("workbench.settings-navigation.scope-project")}</button></div>
+      <div class="settings-nav-filter settings-nav-filter--drawer"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
       ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.map(section => ({ ...section, label: uiText.text(section.label) })) }], "general", "workbench.settings-directory.project-settings", "project-settings")}
+      <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
     </div>
   </section>`;
 }

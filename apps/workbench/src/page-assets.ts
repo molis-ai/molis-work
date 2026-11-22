@@ -156,10 +156,10 @@ export function renderMolisWorkSettingsStylesheet(): string {
 const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLLOW_STYLES}${OVERFLOW_FADE_STYLES}${FIELD_FIT_STYLES}${COPY_FEEDBACK_STYLES}${NUMBER_STYLES}${STREAM_TEXT_STYLES}${HIDDEN_SCROLLBAR_STYLES}`;
 
 const PLUGIN_BASE_OMITTED_TOKENS = new Set([
-  "--terminal", "--terminal-ink", "--terminal-muted", "--terminal-faint", "--terminal-border", "--terminal-selection",
-  "--brand-tile-light", "--brand-tile-dark", "--celebrate-a", "--celebrate-b", "--celebrate-c",
-  "--content-tty", "--content-tty-ink", "--desk", "--press-shade", "--r-composer", "--sheet-inset", "--sheet-shadow",
-  "--motion-instant", "--motion-fast", "--motion-normal", "--motion-arrive", "--ease-standard", "--ease-out", "--ease-swift",
+  "--terminal-muted", "--terminal-faint", "--terminal-border", "--terminal-selection",
+  "--brand-tile-light", "--brand-tile-dark",
+  "--desk", "--press-shade", "--r-composer", "--sheet-inset", "--sheet-shadow",
+  "--motion-instant", "--motion-fast", "--motion-normal", "--motion-arrive", "--ease-standard",
   "--dur-press", "--nav-raised", "--panel", "--on-accent", "--control-fill-hover", "--control-ring",
   "--hue-gray-fill", "--hue-gray-soft", "--hue-brown-fill", "--hue-brown-soft", "--hue-orange-fill", "--hue-orange-soft",
   "--hue-yellow-fill", "--hue-green-fill", "--hue-green-soft", "--hue-mint", "--hue-mint-fill", "--hue-mint-soft",
@@ -245,6 +245,18 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
     .replace(/\s*-webkit-appearance:\s*none;/g, "");
   for (let pass = 0; pass < 3; pass += 1) {
     sheet = sheet.replace(/var\((--[\w-]+),[^()]+\)/g, (orig, name: string) => (rootVars.has(name) ? `var(${name})` : orig));
+  }
+  const reducedMotionBodies: string[] = [];
+  sheet = sheet.replace(/(^|\n)[ \t]*@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
+    const trimmed = body.trim();
+    if (!trimmed || /^&/.test(trimmed) || !trimmed.includes("{")) {
+      return whole;
+    }
+    reducedMotionBodies.push(trimmed);
+    return lead;
+  });
+  if (reducedMotionBodies.length > 0) {
+    sheet += `\n@media (prefers-reduced-motion: reduce) { ${reducedMotionBodies.join(" ")} }`;
   }
   return sheet;
 }

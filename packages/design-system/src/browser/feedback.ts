@@ -23,6 +23,7 @@ const TOAST_MS = {
 } as const;
 
 const busyButtons = new WeakSet<HTMLElement>();
+const busyToggles = new WeakSet<HTMLElement>();
 
 function readLocaleText(key: string, fallback: string): string {
   const reader = (globalThis as { t?: { text?: (k: string) => string } }).t?.text;
@@ -49,17 +50,31 @@ async function molisBusy<T>(
     return Promise.reject(new Error("Action already in progress"));
   }
   busyButtons.add(button);
-  const delayMs = options.delayMs ?? 250;
+  const delayMs = typeof options.delayMs === "number" && Number.isFinite(options.delayMs) && options.delayMs >= 0
+    ? options.delayMs
+    : 250;
   const wasDisabled = "disabled" in button ? Boolean((button as HTMLButtonElement).disabled) : false;
   if ("disabled" in button) {
     (button as HTMLButtonElement).disabled = true;
   }
   button.setAttribute("aria-busy", "true");
-  const holder: { spinner: HTMLSpanElement | null; shown: boolean } = {
+  const dialog = button.closest("dialog");
+  const blockDialogCancel = (event: Event) => {
+    event.preventDefault();
+  };
+  dialog?.addEventListener("cancel", blockDialogCancel);
+  const holder: {
+    spinner: HTMLSpanElement | null;
+    hiddenIcon: SVGElement | null;
+    previousIconDisplay: string;
+    shown: boolean;
+  } = {
     spinner: null,
+    hiddenIcon: null,
+    previousIconDisplay: "",
     shown: false,
   };
-  const timer = window.setTimeout(() => {
+  const showSpinner = () => {
     if (!button.isConnected) {
       return;
     }
@@ -70,14 +85,26 @@ async function molisBusy<T>(
       node.className = "mw-spinner";
       node.setAttribute("aria-hidden", "true");
       node.dataset.slot = "button-loading-indicator";
-      button.prepend(node);
+      const leadingIcon = button.querySelector<SVGElement>(":scope > svg:first-of-type");
+      if (leadingIcon) {
+        holder.hiddenIcon = leadingIcon;
+        holder.previousIconDisplay = leadingIcon.style.display;
+        leadingIcon.style.display = "none";
+        leadingIcon.before(node);
+      } else {
+        button.prepend(node);
+      }
       holder.spinner = node;
     }
-  }, delayMs);
+  };
+  const timer = delayMs === 0 ? (showSpinner(), 0) : window.setTimeout(showSpinner, delayMs);
   try {
     return await work();
   } finally {
-    window.clearTimeout(timer);
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+    dialog?.removeEventListener("cancel", blockDialogCancel);
     busyButtons.delete(button);
     button.removeAttribute("aria-busy");
     if (holder.shown) {
@@ -86,6 +113,9 @@ async function molisBusy<T>(
     if (holder.spinner && holder.spinner.isConnected) {
       holder.spinner.remove();
     }
+    if (holder.hiddenIcon) {
+      holder.hiddenIcon.style.display = holder.previousIconDisplay;
+    }
     if ("disabled" in button) {
       (button as HTMLButtonElement).disabled = wasDisabled;
     }
@@ -93,18 +123,54 @@ async function molisBusy<T>(
 }
 
 let hostToastNode: HTMLDivElement | null = null;
+let hostToastOwned = false;
 let hostToastTimer = 0;
 let hostToastRemaining = 0;
 let hostToastStartedAt = 0;
 let hostToastPaused = false;
+let hostToastPointerInside = false;
+let hostToastFocusInside = false;
+
+function bindHostToastListeners(node: HTMLDivElement): void {
+  if (node.dataset.molisToastBound === "true") {
+    return;
+  }
+  node.dataset.molisToastBound = "true";
+  node.addEventListener("pointerenter", () => {
+    hostToastPointerInside = true;
+    pauseHostToast();
+  });
+  node.addEventListener("pointerleave", () => {
+    hostToastPointerInside = false;
+    if (!hostToastFocusInside) {
+      resumeHostToast();
+    }
+  });
+  node.addEventListener("focusin", () => {
+    hostToastFocusInside = true;
+    pauseHostToast();
+  });
+  node.addEventListener("focusout", (event) => {
+    const next = (event as FocusEvent).relatedTarget;
+    if (next instanceof Node && node.contains(next)) {
+      return;
+    }
+    hostToastFocusInside = false;
+    if (!hostToastPointerInside) {
+      resumeHostToast();
+    }
+  });
+}
 
 function ensureHostToast(): HTMLDivElement {
   if (hostToastNode && hostToastNode.isConnected) {
     return hostToastNode;
   }
-  const existing = document.querySelector<HTMLDivElement>("[data-molis-host-toast]");
+  const existing = document.querySelector<HTMLDivElement>("[data-toast], [data-settings-toast], [data-molis-host-toast]");
   if (existing) {
     hostToastNode = existing;
+    hostToastOwned = existing.hasAttribute("data-molis-host-toast");
+    bindHostToastListeners(existing);
     return existing;
   }
   const node = document.createElement("div");
@@ -113,12 +179,10 @@ function ensureHostToast(): HTMLDivElement {
   node.setAttribute("role", "status");
   node.setAttribute("aria-live", "polite");
   node.hidden = true;
-  node.addEventListener("pointerenter", pauseHostToast);
-  node.addEventListener("focusin", pauseHostToast);
-  node.addEventListener("pointerleave", resumeHostToast);
-  node.addEventListener("focusout", resumeHostToast);
+  bindHostToastListeners(node);
   document.body.append(node);
   hostToastNode = node;
+  hostToastOwned = true;
   return node;
 }
 
@@ -127,10 +191,15 @@ function hideHostToast(): void {
   hostToastTimer = 0;
   hostToastRemaining = 0;
   hostToastPaused = false;
+  hostToastPointerInside = false;
+  hostToastFocusInside = false;
   if (!hostToastNode) {
     return;
   }
-  hostToastNode.hidden = true;
+  if (hostToastOwned) {
+    hostToastNode.hidden = true;
+  }
+  hostToastNode.style.pointerEvents = "";
   hostToastNode.classList.remove("is-visible", "is-error");
 }
 
@@ -146,7 +215,7 @@ function pauseHostToast(): void {
 }
 
 function resumeHostToast(): void {
-  if (!hostToastPaused || !hostToastNode || hostToastNode.hidden) {
+  if (!hostToastPaused || !hostToastNode || !hostToastNode.classList.contains("is-visible")) {
     return;
   }
   hostToastPaused = false;
@@ -156,7 +225,7 @@ function resumeHostToast(): void {
 
 function resolveToastDuration(opts: MolisToastOptions): number {
   if (typeof opts.duration === "number" && Number.isFinite(opts.duration)) {
-    return Math.max(1200, opts.duration);
+    return Math.min(30_000, Math.max(1200, opts.duration));
   }
   if (typeof opts.duration === "string" && opts.duration in TOAST_MS) {
     return TOAST_MS[opts.duration];
@@ -175,14 +244,17 @@ function molisToast(message: string, options: boolean | MolisToastOptions = {}):
     ? { tone: options ? "error" : "default" }
     : options;
   const node = ensureHostToast();
+  const keepPaused = (hostToastPointerInside || hostToastFocusInside) && node.classList.contains("is-visible");
   window.clearTimeout(hostToastTimer);
   hostToastTimer = 0;
-  hostToastPaused = false;
+  hostToastPaused = keepPaused;
   node.replaceChildren();
   const label = document.createElement("span");
   label.textContent = message;
   node.append(label);
   const isError = opts.tone === "error";
+  node.setAttribute("role", isError ? "alert" : "status");
+  node.setAttribute("aria-live", isError ? "assertive" : "polite");
   node.classList.toggle("is-error", isError);
   if (opts.tone === "success") {
     node.dataset.mwState = "done";
@@ -212,10 +284,13 @@ function molisToast(message: string, options: boolean | MolisToastOptions = {}):
     node.append(btn);
   }
   node.hidden = false;
+  node.style.pointerEvents = "auto";
   node.classList.add("is-visible");
   hostToastRemaining = resolveToastDuration(opts);
   hostToastStartedAt = Date.now();
-  hostToastTimer = window.setTimeout(hideHostToast, hostToastRemaining);
+  if (!keepPaused) {
+    hostToastTimer = window.setTimeout(hideHostToast, hostToastRemaining);
+  }
 }
 
 function molisAutosave(
@@ -327,9 +402,14 @@ async function molisOptimisticToggle(
   options: OptimisticToggleOptions = {},
 ): Promise<boolean> {
   const isCheckbox = control instanceof HTMLInputElement;
-  const previous = isCheckbox
+  const current = isCheckbox
     ? control.checked
     : control.getAttribute("aria-pressed") === "true";
+  if (busyToggles.has(control)) {
+    return current;
+  }
+  busyToggles.add(control);
+  const previous = current;
   const next = !previous;
   const apply = (value: boolean) => {
     if (isCheckbox) {
@@ -351,12 +431,13 @@ async function molisOptimisticToggle(
     molisToast(msg, { tone: "error" });
     return previous;
   } finally {
+    busyToggles.delete(control);
     control.removeAttribute("aria-busy");
   }
 }
 
 function molisEnhanceDateInputs(root: ParentNode = document): void {
-  const selector = 'input[type="date"][data-mw-date], input[type="time"][data-mw-time], input[type="datetime-local"][data-mw-date]';
+  const selector = 'input[type="date"][data-mw-date], input[type="time"][data-mw-time], input[type="datetime-local"][data-mw-date], input[type="month"][data-mw-date]';
   const inputs = root.querySelectorAll<HTMLInputElement>(selector);
   for (const input of inputs) {
     if (input.dataset.mwDateBound === "true") {
@@ -369,6 +450,37 @@ function molisEnhanceDateInputs(root: ParentNode = document): void {
         input.blur();
       }
     });
+    if (!input.required && input.dataset.mwDateClear !== "false" && input.parentNode) {
+      const wrap = document.createElement("span");
+      wrap.className = "mw-date-wrap";
+      input.parentNode.insertBefore(wrap, input);
+      wrap.append(input);
+      const clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "mw-date-clear";
+      clearBtn.dataset.mwDateClearButton = "";
+      const clearLabel = readLocaleText("common.control.clear", "Clear");
+      clearBtn.setAttribute("aria-label", clearLabel);
+      clearBtn.title = clearLabel;
+      clearBtn.textContent = "×";
+      const syncClear = () => {
+        clearBtn.hidden = input.disabled || input.readOnly || input.value === "";
+      };
+      syncClear();
+      input.addEventListener("input", syncClear);
+      input.addEventListener("change", syncClear);
+      clearBtn.addEventListener("click", () => {
+        if (input.disabled || input.readOnly) {
+          return;
+        }
+        input.value = "";
+        syncClear();
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.focus();
+      });
+      wrap.append(clearBtn);
+    }
   }
 }
 

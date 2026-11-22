@@ -36,11 +36,18 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const showToast = (message, errorOrOpts = false, action = null) => {
       const opts = typeof errorOrOpts === "object" && errorOrOpts !== null ? errorOrOpts : { tone: errorOrOpts ? "error" : "default" };
+      const resolvedAction = action || opts.action || null;
+      if (typeof message === "string" && typeof window.molisToast === "function") {
+        window.molisToast(message, {
+          ...opts,
+          ...(resolvedAction && resolvedAction.label && typeof resolvedAction.onClick === "function" ? { action: resolvedAction } : {}),
+        });
+        return;
+      }
       const error = opts.tone === "error";
       const tiers = { short: 2600, normal: 4200, long: 7000 };
-      const resolvedAction = action || opts.action || null;
-      const ms = typeof opts.duration === "number"
-        ? Math.max(1200, opts.duration)
+      const ms = typeof opts.duration === "number" && Number.isFinite(opts.duration)
+        ? Math.min(30_000, Math.max(1200, opts.duration))
         : (opts.duration && tiers[opts.duration]) || (resolvedAction || error ? tiers.long : opts.tone === "warning" ? tiers.normal : tiers.short);
       molisWorkRequest.toast(toast, typeof message === "string" ? undefined : message, typeof message === "string" ? message : undefined, { ms });
       toast.dataset.mwState = error ? "failed" : opts.tone === "warning" ? "waiting" : "done";

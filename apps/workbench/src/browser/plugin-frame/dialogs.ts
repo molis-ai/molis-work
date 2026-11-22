@@ -2,11 +2,32 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiConfirmOptions, UiPageDialogs } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameScope, Translate } from "./types.js";
 
+function normalizeConfirmInput(input: unknown): UiConfirmOptions | null {
+  if (typeof input === "string") {
+    return { title: input };
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+  const record = input as Record<string, unknown>;
+  if (typeof record.title !== "string") {
+    return null;
+  }
+  const body = typeof record.body === "string" && record.body.trim() ? record.body : undefined;
+  const confirmLabel = typeof record.confirmLabel === "string" && record.confirmLabel.trim() ? record.confirmLabel.trim() : undefined;
+  const cancelLabel = typeof record.cancelLabel === "string" && record.cancelLabel.trim() ? record.cancelLabel.trim() : undefined;
+  const tone = record.tone === "danger" ? "danger" : "default";
+  return { title: record.title, body, confirmLabel, cancelLabel, tone };
+}
+
 /** Ordinary dialogs stay inside the page. Host confirmations additionally require a real submission while visible. */
 export function pageDialogs(scope: FrameScope, _L: Translate, trusted = false): UiPageDialogs {
   let pending: Promise<unknown> = Promise.resolve();
   const show = (input: string | UiConfirmOptions, initial?: string): Promise<string | boolean | null> => {
-    const options: UiConfirmOptions = typeof input === "string" ? { title: input } : input;
+    const options = normalizeConfirmInput(input);
+    if (!options) {
+      return Promise.resolve(null);
+    }
     const result = pending.then(() => new Promise<string | boolean | null>(resolve => {
       if (!scope.alive || trusted && !scope.visible) {
         resolve(null);
@@ -51,10 +72,10 @@ export function pageDialogs(scope: FrameScope, _L: Translate, trusted = false): 
       const accept = document.createElement("button");
       cancel.type = "button";
       cancel.className = "mw-btn mw-btn--ghost";
-      cancel.textContent = options.cancelLabel ?? uiText.text("common.control.cancel");
+      cancel.textContent = options.cancelLabel || uiText.text("common.control.cancel");
       accept.type = "submit";
       accept.className = options.tone === "danger" ? "mw-btn mw-btn--danger" : "mw-btn mw-btn--primary";
-      accept.textContent = options.confirmLabel ?? uiText.text("common.control.confirm");
+      accept.textContent = options.confirmLabel || uiText.text("common.control.confirm");
       let finished = false;
       const finish = (value: string | boolean | null) => {
         if (finished) {
@@ -101,7 +122,7 @@ export function pageDialogs(scope: FrameScope, _L: Translate, trusted = false): 
         cancel.focus();
       }
     }));
-    pending = result;
+    pending = result.catch(() => undefined);
     return result;
   };
   return {

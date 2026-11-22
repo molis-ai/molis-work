@@ -35,7 +35,7 @@
 
 ## 3. 切页、保存反馈与插件接入契约
 
-- **切页防闪与方向感**：设置左侧切页接入 **`250ms` 延迟 `molisBusy`**（本地读库快于 `250ms` 绝不闪 `.mw-loading`）并轻触 `molisCraft.turn` 交代页面切换。
+- **切页防闪与方向感**：设置左侧切页使用 **`250ms` 延迟显现的 `.mw-loading`**（本地读库快于 `250ms` 绝不闪动，按钮保存操作走 `molisBusy`）并轻触 `molisCraft.turn` 交代页面切换方向。
 - **即时保存与失败回滚**：开关与选择型设置采用 `optimisticToggle`，保存失败当场弹回原值、恢复可点并在区块内原地标红报错（`role="alert"`），绝不静默吞错。
 - **配置往返**：从缺模型/缺连接的工作面跳来设置页时，顶部展示 `mw-return-bar`；保存成功后派发 `molis-work:model-ready`（或对应 `dom-events.ts` 事件）并带用户原路返回、保留草稿。
 - **插件设置页声明**：挂 `slot: "settings"` + `workbench.settings`，读自身数据用 `settings_data`、读路由参数用 `settings_address`、需运行时清单写 `settings_runtimes: true`（合同细则见 `skills/molis-plugin-dev/ui.md`）；数据源账号与业务列表留插件舞台，不塞进全局设置。

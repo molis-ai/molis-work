@@ -73,7 +73,7 @@
 - **单栏推入档（`< 680px`）**：双栏舞台切「列表占满 → 详情占满 + 左上返回」；二分屏 `600px` 窄窗格零横向滚动溢出、正文有效列宽 ≥ `280px`。
 
 ### 两档主从左栏与四档标准居中版心
-- **主从左栏**：标准 `--stage-list-w: 240px`（紧凑 `220px`）、富摘要 `--stage-list-wide-w: 280px`（封顶 `300px`，禁用百分比）；左栏统一 `--surface-soft` + `1px solid var(--line)`，右栏独占 `--paper`，**不画纸中套卡或卡套卡**。
+- **主从左栏**：标准 `--master-w: 240px`（紧凑 `220px`）、富摘要 `--master-w-wide: 280px`（封顶 `300px`，禁用百分比）；左栏统一 `--surface-soft` + `1px solid var(--line)`，右栏独占 `--paper`，**不画纸中套卡或卡套卡**。
 - **四档居中版心（同页所有区块共享同一中心轴，不跳轴）**：
   - `--measure-reading: 680px ~ 720px`（长阅读、对话、笔记、Feed/Inbox 正文）
   - `--measure-form: 760px ~ 880px`（全部设置页 `760px`、表单编辑、Goals 文档 `880px`、首页与 Work Brief）

@@ -601,7 +601,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   openBeside(surface: string, itemId: string, title?: string): void;
   openPlugin(surface: string, view?: string, panel?: string): void;
   hideDirectory(): void;
-  showToast(message: string, failure?: boolean): void;
+  showToast(message: string, failureOrOptions?: boolean | UiShowToastOptions): void;
   /** From the owning Manifest; presentation only, never accepted as authority by the parent. */
   readonly pluginId: string;
   projectId(): string;
@@ -701,6 +701,12 @@ export interface UiToastTarget extends UiFailureTarget {
   readonly classList: { add(name: string): void; remove(name: string): void };
   readonly style: { pointerEvents: string };
   addEventListener(type: string, listener: () => void): void;
+}
+
+/** Structured options for `UiPluginClientHost.showToast` (Decision 60 / UXP-02). */
+export interface UiShowToastOptions {
+  readonly tone?: "default" | "success" | "warning" | "error";
+  readonly duration?: "short" | "normal" | "long" | number;
 }
 
 export interface UiToastOptions {

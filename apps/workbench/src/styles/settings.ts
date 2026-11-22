@@ -542,6 +542,8 @@ export const SETTINGS_IA_NAV_STYLES = `
   }
   body.settings-page .settings-navigation--codex .settings-nav-back:hover { color: var(--ink); background: transparent; box-shadow: none; }
   body.settings-page .settings-navigation--codex .settings-nav-back svg { width: 14px; height: 14px; flex: none; transform: rotate(180deg); }
+  .settings-scope-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; margin: 0 0 8px; flex: none; }
+  body.settings-page .settings-navigation--codex .settings-scope-switch > a.mw-toggle { display: inline-flex; justify-content: center; align-items: center; grid-template-columns: none; min-height: 26px; padding: 0 8px; gap: 0; font-size: 12px; }
   .settings-nav-filter { flex: none; padding: 0 2px 10px; }
   .settings-nav-filter > input.mw-input { width: 100%; min-height: 30px; height: 30px; padding: 0 10px; font-size: 12px; border-radius: var(--r-control, 8px); }
   .settings-nav-empty { margin: 10px 8px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }

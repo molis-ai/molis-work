@@ -11,6 +11,12 @@ import "../reflow.js";
 const ID = "mw-reflow";
 const still = () => document.documentElement.hasAttribute("data-craft-still") || matchMedia("(prefers-reduced-motion: reduce)").matches;
 const token = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const parseDurationMs = (raw: string, fallback = 250): number => {
+  const trimmed = raw.trim().toLowerCase();
+  const value = parseFloat(trimmed);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return trimmed.endsWith("ms") ? value : trimmed.endsWith("s") ? value * 1000 : value;
+};
 
 const reflow = (list: Element, change: () => void) => {
   if (still() || !list.isConnected) {
@@ -31,7 +37,7 @@ const reflow = (list: Element, change: () => void) => {
       }
     }
   }
-  const duration = parseFloat(token("--dur-move", "250ms")) || 250;
+  const duration = parseDurationMs(token("--dur-move", "250ms"), 250);
   const easing = token("--ease-quint", "cubic-bezier(.22, 1, .36, 1)");
   if (Math.abs(afterHeight - beforeHeight) > 2 && beforeHeight > 0 && afterHeight > 0) {
     for (const motion of el.getAnimations()) {

@@ -1,10 +1,11 @@
 Role
 The default product face (F1 in `../resources/fonts/system-sans.json`) pairs bundled `Inter Variable`
-for Latin and numerals with bundled `Noto Sans SC` (full 400 Regular plus 500 Medium and 600 SemiBold
-UI common-character subsets covering all Workbench and IM-UI Chinese text), falling back cleanly to
-platform CJK faces (`PingFang SC`, `Hiragino Sans GB`, `Microsoft YaHei UI`, `Source Han Sans SC`) for
-rare glyphs outside the 500/600 common range. With `font-synthesis-weight: none`, every UI weight uses
-real outlines with zero faux-bold smearing.
+for Latin and numerals with bundled `Noto Sans SC` (full 400 Regular 6,085-glyph simplified set plus
+1,471-glyph 500 Medium and 600 SemiBold UI subsets covering 100% of all shipped Workbench, IM-UI, and
+native plugin Chinese locales including built-in skin names), falling back cleanly to platform CJK faces
+(`PingFang SC`, `Hiragino Sans GB`, `Microsoft YaHei UI`, `Microsoft YaHei`, `Noto Sans CJK SC`,
+`Source Han Sans SC`) for rare user-typed glyphs outside the 500/600 UI subset. With
+`font-synthesis-weight: none`, every UI weight uses real outlines with zero faux-bold smearing.
 
 Inter Variable (latin wght)
 Source: https://fontsource.org/fonts/inter (variable, latin)

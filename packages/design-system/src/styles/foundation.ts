@@ -4,6 +4,16 @@ import { renderSkinScope } from "../appearance-tokens.js";
 /** Core tokens, body typography, focus ring and baseline field border shared by plugin frames. */
 export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
 
+  :root {
+    --measure-reading: 700px;
+    --measure-form: 760px;
+    --measure-stage: 960px;
+    --measure-wide: 1152px;
+    --master-w: 240px;
+    --master-w-wide: 280px;
+    --text-start: 44px;
+  }
+
   body {
     background: var(--page);
     color: var(--ink);
@@ -22,16 +32,6 @@ export const PLUGIN_FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
 
 /** AP3 visual layer: foundation. */
 export const FOUNDATION_STYLES = `${PLUGIN_FOUNDATION_STYLES}
-
-  :root {
-    --measure-narrow: 600px;
-    --measure-reading: 680px;
-    --measure-form: 760px;
-    --measure-wide: 960px;
-    --master-w: 280px;
-    --master-w-compact: 240px;
-    --text-start: 44px;
-  }
 
   html[data-resolved-terminal-theme="light"] {
     ${baselineTerminal("light")}

@@ -74,11 +74,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   :is(.project-preferences-page, .settings-stage) .project-manager-danger h3 { margin: 0 0 8px; font-size: 13px; font-weight: var(--weight-title, 600); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger p { max-width: 62ch; margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0; border: 1px solid var(--control-border, var(--line-strong)); border-radius: 999px; background: var(--control-fill, var(--line-strong)); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint); }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: var(--lift-1); transition: transform var(--dur-move) var(--ease-spring); }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch:checked { background: var(--action, var(--ink)); border-color: var(--action, var(--ink)); }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch:checked::after { transform: translateX(14px); }
-  :is(.project-preferences-page, .settings-stage) input.settings-switch:disabled { opacity: .5; cursor: not-allowed; }
   :is(.project-preferences-page, .settings-stage) .settings-last-change { display: grid; gap: 4px; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
   :is(.project-preferences-page, .settings-stage) .settings-last-change strong { color: var(--ink); font-size: 15px; font-weight: var(--weight-control, 500); }
   :is(.project-preferences-page, .settings-stage) .settings-rules-form { margin: 0; }

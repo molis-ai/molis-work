@@ -5,7 +5,7 @@ export const TOAST_STYLES = `
      auto margins, never by transform, so the arrival below and a failure's nudge move it without fighting the placement. */
   :where(.mw-toast) { position: relative; }
   .mw-toast {
-    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; box-sizing: border-box;
     width: max-content; max-width: calc(100vw - 32px); padding: 15px 18px; border: 0; border-radius: 14px;
     background: var(--tip-bg, var(--action)); color: var(--tip-ink); box-shadow: var(--shadow);
     font-size: 13px; line-height: 18px; animation: mw-toast-in var(--dur-move) var(--ease-quint) both;

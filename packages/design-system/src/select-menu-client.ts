@@ -15,7 +15,7 @@ export const SELECT_MENU_STYLES = `
     }
   }
   .mw-select-picker__menu {
-    position: fixed; margin: 0; inset: unset;
+    position: fixed; margin: 0; inset: unset; box-sizing: border-box;
     min-width: 160px; max-height: min(280px, 45dvh); overflow: auto;
     padding: 6px; border: 0;
     border-radius: var(--radius-surface); background: var(--popover);

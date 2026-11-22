@@ -751,9 +751,9 @@ test("a connection that drops fails what is waiting at once, and closing on purp
 });
 
 /** Runs the script `ChromePage.wait` sends with `document` as the test describes it, like the page would. */
-function pageRuntime(document) {
+function pageRuntime(document, globals = {}) {
   return async (expression) => {
-    const context = vm.createContext({ document, Date, setTimeout, Promise, Error, String });
+    const context = vm.createContext({ document, Date, setTimeout, Promise, Error, String, ...globals });
     try { return { result: { result: { value: await vm.runInContext(expression, context) } } }; }
     catch (error) {
       return { result: { result: { type: "object" }, exceptionDetails: { text: "Uncaught (in promise)", exception: { description: String(error.stack || error) } } } };
@@ -810,6 +810,40 @@ test("a wait longer than the command limit still gets the time it asked for", as
     const page = await harness.page("t");
     // The evaluation takes 250 ms; the 100 ms command limit would reject it, the wait's own limit (plus margin) must not.
     await page.wait("true", { timeoutMs: 1_000 });
+  });
+});
+
+test("click and fill wait like a person for the element to be there, enabled and on top, then name what still blocks it", async () => {
+  // A field that is first missing, then disabled while the page is busy, then usable (the Auth phone editor's 更换号码 does this).
+  const field = { disabled: true, scrollIntoView() {}, getBoundingClientRect: () => ({ x: 10, y: 20, width: 100, height: 30 }), contains: (node) => node === field };
+  let shown = null, onTop = field;
+  const document = { querySelector: () => shown, elementFromPoint: () => onTop };
+  const run = pageRuntime(document, { requestAnimationFrame: (callback) => setTimeout(callback, 1) });
+  const mouse = [], typed = [];
+  await withHarness((message, reply) => {
+    if (message.method === "Target.attachToTarget") reply({ result: { sessionId: "s" } });
+    else if (message.method === "Runtime.evaluate") void run(message.params.expression).then(reply);
+    else {
+      if (message.method === "Input.dispatchMouseEvent") mouse.push([message.params.type, message.params.x, message.params.y]);
+      if (message.method === "Input.insertText") typed.push(message.params.text);
+      reply({ result: {} });
+    }
+  }, {}, async (harness) => {
+    const page = await harness.page("t");
+    setTimeout(() => { shown = field; }, 40);
+    setTimeout(() => { field.disabled = false; }, 140);
+    await page.fill("#field", "13800000888", { timeoutMs: 2_000 });
+    assert.deepEqual(mouse, [["mousePressed", 60, 35], ["mouseReleased", 60, 35]]);
+    assert.deepEqual(typed, ["13800000888"]);
+    // Still blocked when the time is up: the error says why, as before.
+    field.disabled = true;
+    await assert.rejects(page.click("#field", { timeoutMs: 80 }), /Unavailable #field/);
+    field.disabled = false;
+    onTop = {};
+    await assert.rejects(page.click("#field", { timeoutMs: 80 }), /Covered #field/);
+    shown = null;
+    await assert.rejects(page.click("#field", { timeoutMs: 80 }), /Missing #field/);
+    assert.equal(mouse.length, 2, "a blocked click sends no mouse events");
   });
 });
 

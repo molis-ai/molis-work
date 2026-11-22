@@ -109,7 +109,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   const returns = host.returns;
   const modelReady = () => {
-    const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
+    const frames = [...document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]')].map((frame) => frame.contentDocument);
     [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
   };
   // A save whose answer already says this provider can run is not read again (specs/draft-and-return §3.4).
@@ -170,9 +170,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       });
     };
     const pool = document.querySelector("[data-surface-pool]");
-    const showNode = (node) => {
+    const showNode = (node, turnDirection) => {
       if (!body || !node) return;
       if (node.ownerDocument !== document) document.adoptNode(node);
+      const hadPanel = [...body.children].some((child) => child !== node && child.matches("[data-settings-panel]"));
       [...body.children].forEach((child) => {
         if (child === node || child.matches("[data-settings-return-bar]")) return;
         if (child.matches("[data-work-surface]") && pool) { child.hidden = true; pool.append(child); }
@@ -180,12 +181,22 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       });
       if (node.parentElement !== body) body.append(node);
       node.hidden = false;
+      if (hadPanel && node.matches("[data-settings-panel]")) {
+        globalThis.molisCraft?.turn?.(node, turnDirection === "back");
+      }
       const resetScroll = () => {
         body.scrollTop = 0;
         body.scrollLeft = 0;
       };
       resetScroll();
       requestAnimationFrame(resetScroll);
+    };
+    const sectionOrder = () => [...(nav?.querySelectorAll("[data-settings-section]") || [])].map((item) => item.dataset.settingsSection);
+    const directionTo = (nextSection) => {
+      const order = sectionOrder();
+      const fromIndex = order.indexOf(active);
+      const toIndex = order.indexOf(nextSection);
+      return fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex ? "back" : "forward";
     };
     const loadFromHtml = (section, html, fetchPath) => {
       const page = new DOMParser().parseFromString(html, "text/html");
@@ -202,18 +213,20 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (before) disposePage(before);
       caches.set(section, wrap);
       globalThis.molisWorkInstallSettingsText?.(wrap, page);
-      showNode(wrap);
+      const dir = directionTo(section);
+      showNode(wrap, dir);
       active = section;
       markNav(section);
       bindEmbed(wrap, options);
     };
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
+      const dir = directionTo(section);
       const local = options.local?.(section);
       if (local) {
         loading = null;
         host.noteCover?.(options.kind, section);
-        showNode(local);
+        showNode(local, dir);
         active = section;
         markNav(section);
         return;
@@ -221,14 +234,15 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!fetchPath && caches.has(section) && !caches.get(section).dataset.settingsAddress) {
         loading = null;
         host.noteCover?.(options.kind, section);
-        showNode(caches.get(section));
+        showNode(caches.get(section), dir);
         bindEmbed(caches.get(section), options);
         active = section;
         markNav(section);
         return;
       }
       const requestKey = fetchPath || section;
-      if (loading?.key === requestKey) return;
+      // The same page is still loading (the cover was closed and opened again meanwhile): it is the place shown, so the cover says so.
+      if (loading?.key === requestKey) { host.noteCover?.(options.kind, section + (fetchPath ? " " + fetchPath : "")); return; }
       const request = { key: requestKey };
       loading = request;
       const previous = caches.get(section), lifetime = previous && retained.get(previous);

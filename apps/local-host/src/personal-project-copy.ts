@@ -214,25 +214,14 @@ export async function executeLocalProjectsCopy(
         const sourceProject = byId.get(project.sourceId);
         await context.targetWithCatalog({ homeDirectory: context.targetHome }, async catalog => {
           check();
-          // Stage hidden via catalog recycle state so incomplete copies never appear in listProjects().
-          const alreadyExists = catalog.listProjects().some(item => item.project_id === project.targetId);
-          if (!alreadyExists && !catalog.recycle.isRecycled(project.targetId)) {
-            await catalog.ensureSyncedProject({ project_id: project.targetId, display_name: project.title, actor_id: context.actorId }, check);
-            for (const pluginId of sourceProject?.plugins ?? []) {
-              if (!catalog.listProjectPlugins(project.targetId).includes(pluginId)) {
-                try { catalog.addProjectPlugin({ project_id: project.targetId, plugin_id: pluginId, actor_id: context.actorId }); } catch { /* Missing plugin stays portable without auto-installing. */ }
-              }
-            }
-            const observed = catalog.recycle.inspect(project.targetId);
-            await catalog.commit(() => catalog.recycle.change({
-              project_id: project.targetId,
-              recycled: true,
-              confirmed: true,
-              actor_id: context.actorId,
-              operation_id: `copy-stage:${input.operationId}:${project.targetId}`,
-              expected_state: observed.state,
-            }, check));
-          }
+          // Atomically create in hidden (recycled) state and reconcile exact plugin membership
+          // in one catalog transaction so partial copies never surface (S-122) and retries stay complete.
+          await catalog.stageHiddenProject({
+            project_id: project.targetId,
+            display_name: project.title,
+            actor_id: context.actorId,
+            plugins: sourceProject?.plugins ?? [],
+          }, check);
         });
         check();
       },

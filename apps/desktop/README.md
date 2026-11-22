@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。页面通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问；菜单栏的工作胶囊已在第 44 批删除。Goal 的工作终端由 Goals 经平台的启动终端服务开（S-103），本包不再有面板服务与启动配方（T-148）。
+createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。页面通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问；菜单栏的工作胶囊已在第 44 批删除。对象工作终端由平台对象工作终端服务按插件 `work_terminals` 声明统一管理并经平台启动终端服务打开（S-103，第 44 批 PEQ-17），本包不再有面板服务与启动配方（T-148）。
 
 ## 从哪里读代码
 

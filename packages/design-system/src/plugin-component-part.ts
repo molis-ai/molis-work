@@ -5,6 +5,7 @@ import type { Ctl, Det, Kit, Out, Part, Qry, Rec, Rel, State, Sub } from './plug
 import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginFieldWords, pluginMessageNames } from './plugin-surface-text.js';
 import type { PluginComponentNode } from './plugin-components.js';
+import { buildPreActionFacts } from './plugin-component-help.js';
 
 export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
   const { options, make, word, typedValue, operation, live, ready, select, syncChoices, output, report, refresh } = c;
@@ -69,7 +70,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       // The plugin's own header, as the catalog's frame header: a mark that says what it is about, its name, one line on
       // what it is for, and on the right, where the page's "new" buttons go.
       const header = make('header', undefined, 'mw-frame__header pc-app-head'), copy = make('div', undefined, 'mw-frame__heading'), mark = make('span', undefined, 'pc-mark'), actions = make('div', undefined, 'mw-frame__action pc-app-actions');
-      mark.append(glyph(MARKS.find(([pattern]) => pattern.test(node.purpose))?.[1] ?? 'sparkles'));
+      mark.append(glyph(MARKS.find(([pattern]) => pattern.test(node.purpose))?.[1] ?? 'layers'));
       header.dataset.slot = 'frame'; description.className = 'pc-app-description'; copy.append(title, description); header.append(mark, copy, actions); element.append(header);
     } else if (node.intent === 'heading') {
       const card = make('article', undefined, 'mw-card pc-app-card'), header = make('header', undefined, 'mw-card__header'), copy = make('div'); card.dataset.slot = 'card';
@@ -134,6 +135,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         fields.append(wrap);
       }
       const submit = wordElement('button', () => word(part.node.props.submitLabel) || t.text("common.generated.submit"), 'mw-btn mw-btn--primary mw-btn--md pc-submit'); submit.type = 'submit'; submit.dataset.slot = 'button';
+      const facts = buildPreActionFacts(c, operation(node.submit.operationId), kind);
       const visible = [...fields.children];
       let form: HTMLFormElement;
       if (kind === 'sheet' || kind === 'dialog') {
@@ -144,7 +146,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         bindWord(shell.dialog.querySelector<HTMLElement>('[data-pc-overlay-description]')!, '', () => word(part.node.props.description));
         const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'); cancel.addEventListener('click', () => shell.dialog.close());
         const error = make('p', '', 'pc-dialog-error mw-field__error'); error.hidden = true;
-        shell.body.append(fields); shell.footer.append(error, cancel, submit); form = shell.form; part.dialog = shell.dialog;
+        shell.body.append(fields); if (facts) shell.body.append(facts); shell.footer.append(error, cancel, submit); form = shell.form; part.dialog = shell.dialog;
         const opener = button(word(node.props.title) || word(node.props.submitLabel) || t.text("common.generated.new"), 'primary', 'md', 'plus'); opener.dataset.pcOpen = node.id; opener.classList.add('pc-open');
         bindWord(opener.querySelector<HTMLElement>('[data-slot=button-label]')!, '', overlayTitle);
         opener.addEventListener('click', () => { shell.dialog.showModal(); shell.form.querySelector<HTMLElement>('input:not([type=hidden]),textarea,select')?.focus(); });
@@ -153,6 +155,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         // A step that cannot be undone asks first, in the catalog's alert dialog.
         const shell = overlay('confirm', t.text("common.generated.confirm", { action: rowLabel(node) }), t.text("common.generated.irreversible"), node.id);
         bindWord(shell.dialog.querySelector('h2')!, '', () => t.text("common.generated.confirm", { action: rowLabel(part.node) }));
+        if (facts) shell.body.append(facts);
         const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'), yes = button(rowLabel(node), 'danger', 'md'); yes.dataset.pcConfirmYes = '';
         bindWord(yes.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => rowLabel(part.node));
         cancel.addEventListener('click', () => shell.dialog.close()); shell.footer.append(cancel, yes); shell.dialog.dataset.pcConfirm = node.id; part.confirm = shell.dialog;
@@ -176,9 +179,11 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
             return label && hint ? t.text("common.generated.input-hint", { label, hint }) : label || hint || t.text("common.generated.write-something");
           });
           const group = make('div', undefined, 'mw-input-group pc-inline-group'); group.dataset.slot = 'input-group'; group.append(visible[0]!, submit); panel.append(group);
+          if (facts) panel.append(facts);
         } else {
           if (visible.length && visible.length <= 4 && !fields.querySelector('.pc-field-wide')) form.classList.add('pc-compact');
-          const foot = make('div', undefined, 'pc-form-actions'); foot.append(submit); panel.append(fields, foot);
+          const foot = make('div', undefined, 'pc-form-actions'); foot.append(submit);
+          if (facts) panel.append(fields, facts, foot); else panel.append(fields, foot);
         }
         form.append(panel);
         if (composer(node)) form.classList.add('pc-composer');

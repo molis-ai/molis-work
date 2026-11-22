@@ -45,9 +45,11 @@ export const TOUCH_TARGET_STYLES = `
     ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])) { --context-row: 50px; }
     ${SHELL} :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --ops-btn: 44px; }
-    ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
-    ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }
-    ${ASSIST} .assistant-works { top: 52px; }
+    ${ASSIST} .assistant-head { height: 52px; }
+    ${ASSIST} .assistant-head .dock-window-action { width: 44px; height: 44px; }
+    ${ASSIST} .info-tab { height: 44px; }
+    ${ASSIST} :is(.assistant-works, .assistant-more) { top: 50px; }
+    ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { top: 52px; }
     ${ASSIST} .assistant-code-head { min-height: 44px; }
     ${ASSIST} .assistant-link { padding-block: 15px; }
     ${ASSIST} .assistant-inline-object { position: relative; min-width: 44px; justify-content: center; }

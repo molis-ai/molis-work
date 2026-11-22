@@ -10,6 +10,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 // clean Home has no retired sessions directory, offline reader or registry exemption.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const text = (path: string) => readFileSync(join(root, path), "utf8");
+const retiredStorage = /(?<![a-z-])sessions\.db|(?<![\w.-])content\.key(?![\w.-])|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
 
 /** Every product source file (no tests, no builds, no dependencies) under the code roots. */
 function productSources(): string[] {
@@ -50,15 +51,13 @@ test("RAC-211 the private work context module keeps only Runtime context binding
 });
 
 test("RAC-212 RAC-2378 product code never opens or registers the retired store", () => {
-  const opener = /(?<![a-z-])sessions\.db|content\.key|["']sessions["']\s*,\s*["'](?:sessions\.db|content)["']/u;
-  const source = (path: string) => text(path);
-  const offenders = productSources().map(path => relative(root, path)).filter(path => opener.test(source(path)));
+  const offenders = productSources().map(path => relative(root, path)).filter(path => retiredStorage.test(text(path)));
   assert.deepEqual(offenders, []);
   const metaOffenders = productSources().map(path => relative(root, path))
-    .filter(path => /session_meta/u.test(source(path)) && !path.startsWith("horizontal/sessions/src/"));
+    .filter(path => /session_meta/u.test(text(path)) && !path.startsWith("horizontal/sessions/src/"));
   assert.deepEqual(metaOffenders, [], "only external-sessions/external-sessions.db (BL-177 §9.2) defines session_meta");
   const mentions = productSources().map(path => relative(root, path))
-    .filter(path => /join\([^)]*["']sessions["']/u.test(source(path)) && !path.startsWith("plugins/native/coding/"));
+    .filter(path => /join\([^)]*["']sessions["']/u.test(text(path)) && !path.startsWith("plugins/native/coding/"));
   assert.deepEqual(mentions, [], "the only place that names the directory is the store registry");
 });
 
@@ -71,9 +70,15 @@ test("RAC-213 RAC-2378 a clean Home has no retired Sessions store or project del
 test("RAC-212 RAC-2378 the source refusal has no literal offline-registration exemption", () => {
   const opener = /sessions\.db|session_meta|content\.key/u;
   assert.doesNotMatch(text("apps/local-host/src/home-stores.ts"), opener);
-  for (const candidate of ['new Database(join(home, "sessions", "sessions.db"));', '{ file: "sessions.db", metadata: { table: "session_meta" } }']) {
-    assert.match(candidate, opener, "runtime openers and static registrations are both forbidden");
+  for (const candidate of [
+    'new Database(join(home, "sessions", "sessions.db"));',
+    '{ file: "sessions.db", metadata: { table: "session_meta" } }',
+    'readFileSync(join(home, "sessions", "content.key"));',
+    'readFileSync(join(home, "sessions/content.key"));',
+  ]) {
+    assert.match(candidate, retiredStorage, "runtime openers and static registrations are both forbidden");
   }
+  assert.doesNotMatch('error.code === "storage.evidence_content.key_unavailable"', retiredStorage);
 });
 
 test("RAC-214 the home has no 说一句 (home talk)", () => {
@@ -110,6 +115,8 @@ const EXTERNAL_SESSIONS_WORKBENCH_FILES = new Set([
   "apps/workbench/src/search-rows.ts",
   "apps/workbench/src/sessions/navigation.ts",
   "apps/workbench/src/sessions/ui.ts",
+  // The Sessions surface's on-demand help words, rendered only by sessions/ui.ts above (batch 40, VUX-55).
+  "apps/workbench/src/settings-help-topics.ts",
 ]);
 
 test("RAC-217 SRB-08 design-system and builtin plugin lists carry no retired sessions entry while workbench hosts only the BL-177 surface", () => {

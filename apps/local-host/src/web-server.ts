@@ -1,4 +1,5 @@
 import { WebSessions, webPageToken, webRequestAuthenticated, withWebSessionRequest } from "./web-sessions.js";
+import { localEnvironmentName } from "./active-release-profile.js";
 import { renderPersonalAccountEntry, renderAccountSameOriginEntry } from "@molis-ai/molis-work-app-workbench";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -155,18 +156,18 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const appearanceHttp = createAppearanceHttp(appearance, localHost, controlToken, serverOptions.assertAccountCurrent);
     const sessions = serverOptions.webSessions ?? new WebSessions(storageHome);
     const mutationKeys = new Map<string, LocalMutationState>();
-    const activeWorkCount = (): number => {
-      let inFlight = 0;
-      for (const state of mutationKeys.values()) if (state === "in_flight") inFlight += 1;
-      return activePtyCount(pty.host) + inFlight;
-    };
     const webViewCache: MolisWorkWebViewCache = new Map();
     const demoSeeding = startDemoSeed(fixture);
     const { periodicTasks: periodic } = composition;
     resources.push(["periodic", () => periodic.stop()], ["host-wake", onHostWake(() => periodic.wake())]);
-    const { im, browserHost, sites, computer, projectExists, projectSchedules } = createWebStorageResources({
+    const { im, browserHost, sites, computer, projectExists, projectSchedules, activeScheduleCount } = createWebStorageResources({
       home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });
+    const activeWorkCount = (): number => {
+      let inFlight = 0;
+      for (const state of mutationKeys.values()) if (state === "in_flight") inFlight += 1;
+      return activePtyCount(pty.host) + inFlight + agents.activeRunCount() + activeScheduleCount() + localHost.activeWorkCount();
+    };
     const server = trackHostListener(http.createServer((request, response) => withWebSessionRequest(request, () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try { await demoSeeding;
@@ -263,7 +264,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     };
     return createSpaceWebServer(installation, createMolisWorkWebServer, platform.withCatalog,{
     renderSameOriginEntry:renderAccountSameOriginEntry,
-    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{htmlLang},platform.nativeDesktopBootstrapScript,url.searchParams.has('accountLogin'))),
+    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{htmlLang},platform.nativeDesktopBootstrapScript,url.searchParams.has('accountLogin'),localEnvironmentName())),
     asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
     });
   };

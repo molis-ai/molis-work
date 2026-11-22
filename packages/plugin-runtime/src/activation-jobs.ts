@@ -41,9 +41,11 @@ export interface ActivationJobGate extends PluginInstance {
 export function createActivationJobs(gate: ActivationJobGate) {
   let closed = false, timer: ReturnType<typeof setInterval> | undefined;
   const window = new AsyncLocalStorage<{ open: boolean }>();
-  const jobs = new Map<AbortController, { readonly project: string | null; readonly check: () => void }>();
+  const jobs = new Map<AbortController, { readonly project: string | null; readonly called: boolean; readonly check: () => void }>();
   // A cancelled handle settles immediately; its work may still be unwinding. Keep that work until it really exits.
-  const settling = new Map<Promise<void>, string | null>();
+  const settling = new Map<Promise<void>, { readonly project: string | null; readonly called: boolean }>();
+  /** By a job's own checks record: whether a command kept it (or a job such a command kept), rather than the activation's `start()`. */
+  const keptByCall = new WeakMap<object, boolean>();
   /** Per project stopped, the last call begun then: a call still under way from before keeps nothing there. */
   const stoppedUpTo = new Map<string, { readonly begun: number; readonly reason: string }>();
   const sweep = () => {
@@ -51,17 +53,17 @@ export function createActivationJobs(gate: ActivationJobGate) {
       try { job.check(); } catch (error) { controller.abort(error); }
     }
   };
-  const origin = (): { project: string | null; begun?: number } => {
+  const origin = (): { project: string | null; begun?: number; called: boolean } => {
     const scope = currentPluginInvocation();
     if (!scope) {
       if (!window.getStore()?.open) throw backgroundErrors.background_job_origin("后台作业只能在本插件的命令、激活的 start() 或另一个后台作业里登记");
-      return { project: gate.project_id ?? null };
+      return { project: gate.project_id ?? null, called: false };
     }
     if (!inPluginInstance(scope, gate)) throw backgroundErrors.background_job_origin("这次调用属于另一个插件实例，不能为本插件登记后台作业");
     if ("job" in scope) {
       // A job stopped since (cancelled, its project closed or deleted) keeps no successor: its own checks answer first.
       assertCapturedPluginActionCurrent(scope, gate);
-      return { project: scope.caller.project_id, begun: scope.begun };
+      return { project: scope.caller.project_id, begun: scope.begun, called: !!scope.permission_checks && keptByCall.get(scope.permission_checks) === true };
     }
     if (!("definition" in scope) || scope.definition.operation !== "command" || pluginInvocationReadOnly(scope)) {
       throw backgroundErrors.background_job_origin("后台作业只能由本插件的命令登记");
@@ -69,18 +71,19 @@ export function createActivationJobs(gate: ActivationJobGate) {
     if (!pluginActionChecked(scope)) throw backgroundErrors.background_job_unchecked("这次调用还没有通过最后一次授权检查，不能登记后台作业");
     // Having passed once is not enough: a call cancelled or revoked since its check keeps nothing.
     assertCapturedPluginActionCurrent(scope, gate);
-    return { project: scope.caller.project_id, begun: scope.begun };
+    return { project: scope.caller.project_id, begun: scope.begun, called: true };
   };
   const keep = (job: string, work: (control: PluginJobControl) => Promise<void>): PluginKeptJob => {
     if (closed) throw new ActionError("actions.plugin_unavailable", "插件后台执行已关闭");
     gate.assertActive();
     const declaration = gate.declarations.find(item => item.job_id === job);
     if (!declaration) throw backgroundErrors.background_undeclared(`后台作业 ${job} 没有在 Manifest 的 background.jobs 里声明`);
-    const { project, begun } = origin();
+    const { project, begun, called } = origin();
     const stop = project === null ? undefined : stoppedUpTo.get(project);
     if (stop && begun !== undefined && begun <= stop.begun) throw new ActionError("actions.cancelled", stop.reason);
     const controller = new AbortController();
     const permission_checks = {};
+    keptByCall.set(permission_checks, called);
     let running = true;
     const check = (): void => outsidePluginAction(() => runInPluginJob(scope, () => {
       if (!running || closed) throw new ActionError("actions.expired", "这个后台作业已经结束");
@@ -97,12 +100,12 @@ export function createActivationJobs(gate: ActivationJobGate) {
     const scope = { install_id: gate.install_id, installation_generation: gate.installation_generation, activation: gate.activation,
       job, caller, permission_checks, begun: begun ?? reservePluginInvocationPlace() };
     check();
-    jobs.set(controller, { project, check });
+    jobs.set(controller, { project, called, check });
     if (!timer) { timer = outsidePluginAction(() => setInterval(sweep, SWEEP_MS)); timer.unref?.(); }
     const run = (locale?: ActionLocale) => outsidePluginAction(() => runInPluginJob({ ...scope, caller: { ...caller, locale } }, () => work(control)));
     const stopped = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
     const pending = Promise.resolve().then(() => outsidePluginAction(() => { check(); return gate.operation ? gate.operation(run) : run(); }));
-    settling.set(pending, project);
+    settling.set(pending, { project, called });
     void pending.finally(() => settling.delete(pending)).catch(() => undefined);
     const done = Promise.race([pending, stopped]).finally(() => {
       running = false; jobs.delete(controller);
@@ -130,8 +133,22 @@ export function createActivationJobs(gate: ActivationJobGate) {
         if (job.project === projectId) controller.abort(new ActionError("actions.cancelled", reason));
       }
     },
+    /**
+     * Whether a job a command kept in the project (or one such a job kept in turn) is still running or settling: work the project's
+     * close would cut short. A job the activation's `start()` keeps is not: every opening of the project keeps it again.
+     */
+    hasProjectWork(projectId: string): boolean {
+      for (const job of [...jobs.values(), ...settling.values()]) if (job.called && job.project === projectId) return true;
+      return false;
+    },
+    /** Number of command-kept jobs currently running or unwinding (excludes activation `start()` daemon jobs). */
+    activeWorkCount(): number {
+      let count = 0;
+      for (const job of settling.values()) if (job.called) count += 1;
+      return count;
+    },
     drainProject(projectId: string): Promise<void> | undefined {
-      const pending = [...settling].filter(([, project]) => project === projectId).map(([pending]) => pending);
+      const pending = [...settling].filter(([, job]) => job.project === projectId).map(([pending]) => pending);
       return pending.length ? Promise.allSettled(pending).then(() => undefined) : undefined;
     },
     close() {

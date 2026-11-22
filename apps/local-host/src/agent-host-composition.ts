@@ -45,6 +45,7 @@ import { workAuthorityCheck } from "./agent-work-authority.js";
 import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-round-skills.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
+import { exactActionView } from "./exact-action-view.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -105,6 +106,8 @@ export interface AgentHostComposition {
    * once; a runtime not started yet reads the saved decisions when it starts.
    */
   decideSurfaceSite(decision: { scope: string; decision: "allow" | "block" | "forget" }): void;
+  /** Synchronous count of currently live Prologue AI runs (never starts the runtime). */
+  activeRunCount(): number;
   /** Unregisters the Capabilities this composition added. */
   dispose(): Promise<void>;
 }
@@ -192,7 +195,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: (caller, subject) => preparePluginAgent(options, caller, subject), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}},  createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: (caller, subject) => preparePluginAgent(options, caller, subject), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}},  createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, activeRunCount: () => prologue?.activeRunCount() ?? 0, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -390,7 +393,7 @@ async function startAuthority(
 
 /** An input checked as dispatch will check it, against the action as this grant discovers it now; runs nothing. */
 async function checkActionInput(authorized: { context: ActionCallContext; service: { discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]> } }, reference: ExactActionReference, input: unknown): Promise<void> {
-  const view = (await authorized.service.discover(authorized.context)).find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+  const view = await exactActionView(authorized.service, authorized.context, reference);
   if (!view) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
   assertActionInput(view.action.input_schema, input);
 }

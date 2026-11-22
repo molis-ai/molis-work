@@ -433,7 +433,7 @@ flowchart LR
 
 | 批或项 | 变化 | 见 |
 | --- | --- | --- |
-| 40-2 → 45-1 | 40-2 不再把 45-1 列作前置（40 排在 45 前，原写法成环）：40-2 只交帮助入口；45-1 做「从帮助进入准备再返回」的机制并接上 40-2 的入口，45 前置加 40-2 | [40](batches/40.md)、[45](batches/45.md) |
+| 40-2 → 45-1 | 40-2 不再把 45-1 列作前置（40 排在 45 前，原写法成环）：40-2 只交帮助入口（已随 [#2204](https://github.com/molis-ai/molis-work/pull/2204) 就位并预留固定 `nextStep` 槽位）；45-1 做「从帮助进入准备再返回」的机制并接上 40-2 的入口，45 前置加 40-2 | [40](batches/40.md)、[45](batches/45.md) |
 | 43 | 批次前置补上 43-2 用的 44-1（44 已由 #2155 合入，不再等） | [43](batches/43.md) |
 | 75、REL-3 | BL-812 日志端口只归 REL-3；上表「75 与 REL-3 谁先用到谁定」作废 | [REL-3](batches/rel-3.md) |
 | 55、64、70 | 可按子域拆成几个 PR；依赖不变，先行的合同或平台能力那组先合 | [55](batches/55.md)、[64](batches/64.md)、[70](batches/70.md) |
@@ -514,8 +514,21 @@ flowchart LR
 | 100（新） | 无业务前置，立即可在独立工作树 `batch/100` 开工（**不等 38～89**）：`100-1` 纯文档 PR 先落决定 57 红队终校纠偏、决定 58、`100`～`105` 及全路线书矛盾清零；`100-2` 经用户确认改动清单后松绑反效果门禁与合并 4 个碎 CI Job | [100](batches/100.md) |
 | 101（新） | 等 `100-2`（**不等 38～89**）：修英文中文正则路由、记忆跳设置 `window→document`（`dom-events.ts:303-306`）、提前从 `91B` 抢修 5 个真 P0 + 4 个文档壳微交互、`browser/sites.json` fail-closed、插件恢复去 JSON、零误报死文件清理与热路径/生命周期泄漏止血 | [101](batches/101.md) |
 | 102（新） | 等 `100-2`；`102-1` 另等 `36A` 壳层（`screen-polish-unified`），`102-2` 不等 `36A`（`#2155` 已删 `capsule`）；两者文件正交可并行，且与 `103` 并行（**不等 38～89**） | [102](batches/102.md) |
-| 103（新） | 等 `101`（同碰 `web-project-schedulers.ts`）；`#2155`（44 批 `discoverOne`）已合入不再阻塞；与 `102`、`91`、`Prologue 窗口 A/B` 并行（**不等 38～89**） | [103](batches/103.md) |
+| 103（新） | 已合入（[#2205](https://github.com/molis-ai/molis-work/pull/2205)，`1faf24dbf0`；[#2211](https://github.com/molis-ai/molis-work/pull/2211)，`7acf6bea7a`；2026-11-21）。没新建 `catalog.db` 唤醒索引表、没改库结构（只有 `external-sessions.db` 1→2），不改变别的批次的前置；[90](batches/90.md) 对账照旧 | [103](batches/103.md) |
 | 104（新） | 等 `91`（多厂商修复与 `PROVIDER_SAYS_RETRY`）、`101-1`（动作键雏形）；与 `62`、`103`、`105` 并行（**不等 38～89**） | [104](batches/104.md) |
 | 105（新） | 等 `39`（已合）、`100-2`；仅 `105-1` 中「并行工具波原子审批」等 `62`（`invokeAll`），其余防链式 RCE 审批/分类跨重启/子代理缓存/Mainline/约定编辑均不等 `62`（**不等 38～89**） | [105](batches/105.md) |
 | 91 / 91B / 62 / 63 / 63A / 65 / 66 / 68 / 75 / 83 | 固化 6 处精确 DAG：`61 → 62`、`Prologue 窗口 A → 窗口 B → 62`（窗口 B 含 `ModelRequestObserved` 与 `AuthenticatedEnvelopes` LRU/Scope 供 `63`/`63A` 消费）、`56-3 → 57 → 75`、`64 → 68-4`、`LSP`/`environment-prep` 归位 `66`、`76 & 82 → 83`；`91` 另等 `101`；`91B` 标明 5 个真 P0 已由 `101` 前置收口且 `91B-4` 撤脆性正则与 20 分钟 `sleep` | [91](batches/91.md)、[91B](batches/91b.md)、[62](batches/62.md)、[63](batches/63.md)、[63A](batches/63a.md)、[65](batches/65.md)、[66](batches/66.md)、[68](batches/68.md)、[75](batches/75.md)、[83](batches/83.md) |
 | 90 | 最终交付对账覆盖全部非服务端批次 `01`～`105`（含 `36A`、`63A`、`91B`） | [90](batches/90.md) |
+
+<a id="deps-2026-11-21-design"></a>
+
+### 11-21 设计系统整理、视觉升级与全站 UI/UX 方案并入 91 批（[决定 60](decisions.md#decision-60)）
+
+用户 2026-11-21 拍板将设计系统重塑（四套内置皮肤默认 A 净透云光、F1 Sans＋思源黑体 400/500/600、设置 30 页 P5 统一、组件板 93 节重构、`docs/design/` 59→9 归档、`skills/molis-design-ui/` 仓内 Skill 与五层防漂移门禁）与 91 批按四段拆解，解耦「不依赖 `36A-3`/`37-2`/Prologue 窗口 A 的设计底座」与「纯流式内核 91A」：
+
+| 批次／项 | 真实前置与精确范围 | 文件 |
+| --- | --- | --- |
+| `91-0a`（新） | 无前置，立即可做（纯文档 / Skill / 设计稿归档与统一样板 `docs/design/kit/`）：新增仓内 Skill `skills/molis-design-ui/` 与多代理接线；对齐 `DESIGN.md`／`taste.md`／`shell-page-exceptions` 等规范文档；`docs/design/` 59→9 归档与 `screen-polish` 定稿六屏刷新 | [91](batches/91.md#batch-91-item-0a) |
+| `91-0b`（新） | 等 `91-0a`（不依赖 `36A-3`、`37-2` 或 Prologue 窗口 A；与 `102-1` 的 `<80 KB` 插件基础样式表正交协同）：落 4 套内置皮肤＋暗色 `on-accent` 修复、F1 Sans＋思源黑体三字重、纸感边框／6px 状态标签与 CSS 漂移清扫（含 40 批 `on-demand-help.ts` 与 `im-ui` 补齐）、交付原 `91-1` 全站体验共用底座、重构 `/__ui/catalog` 93 节、统一全部 30 个设置页到 P5，并同步校准 `skills/molis-design-ui/` 与 `skills/molis-plugin-dev/`（`studio:replay`＋隔离 `smoke`） | [91](batches/91.md#batch-91-item-0b) |
+| `91A`（`91-2`～`91-4`） | 保持等 `91-0b`（含 `91-1` 底座）、`101`、`36A-3`/`4b`/`7`、`37-2` 与 Prologue 窗口 A，专注纯流式内核、Agent Host 热路径止血、Assistant 与 Coding SSE 接入 | [91](batches/91.md) |
+| `91B` | 紧接 `91-0b` 可并行推进 `91B-1`～`3`（补齐决定 60 漏接的 6 处平台入口／壳层／静默吞错断缝，不重复 `101` 已修的 5 个 P0）；`91B-4` 收口五层防回退门禁（含无未定义 `--*`、无遗留 `--dock-h`、无裸 `style=`、`on-accent` 暗色对比度 AA、目录与样板门禁） | [91B](batches/91b.md) |

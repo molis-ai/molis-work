@@ -12,6 +12,8 @@ export {syncNamespace} from './namespace.js';
 import {syncNamespace} from './namespace.js';
 export interface SyncRegistration {
   selection:SyncSelection; title:string;
+  /** Host-declared collection group used by settings UI without prefix guessing. */
+  group?:'platform'|'plugin';
   /** Passive current owner reference check; separate from cloud selection. */
   hasReference?(projectId:string,assetId:string,version?:number):boolean;
   /** Synchronous lifecycle projection only; false is unavailable, never a successful empty replica. */
@@ -65,9 +67,12 @@ export class PersonalSync {
   private transferBytes:{done:number;total:number}|null=null;
   private closed=false;
   private changingDevice=false;
+  private cycleAbort:AbortController|null=null;
   private backoff=syncTransportBackoff();
   private transport=syncTransport({
     endpoint:()=>this.options.endpoint,fetch:()=>this.options.fetch??fetch,abort:()=>this.controller.signal,
+    cycleAbort:()=>this.cycleAbort?.signal,
+    onBackoff:()=>{this.cycleAbort?.abort();},
     authority:()=>this.options.authority,assert:()=>this.assert(),
     backoff:this.backoff,onWrite:()=>{this.writes++;},
   });
@@ -254,9 +259,18 @@ export class PersonalSync {
         errors.push(registration.title+': '+(error instanceof Error?error.message:'同步失败'));
       }
     };
-    try{
-      for(const layer of layers)await runBounded(layer,3,syncOne);
-    }finally{this.transferBytes=null;}
+    const cycleAbort = new AbortController();
+    this.cycleAbort = cycleAbort;
+    try {
+      for (const layer of layers) {
+        await runBounded(layer, 3, syncOne, () => cycleAbort.abort());
+      }
+    } finally {
+      if (this.cycleAbort === cycleAbort) {
+        this.cycleAbort = null;
+      }
+      this.transferBytes = null;
+    }
     if(this.writes!==startedWrites)this.quota=parseSyncQuota(await this.request('/v1/quota'));
     if(errors.length)throw new Error(errors.join('\n'));
     return pulled||this.writes!==startedWrites;
@@ -264,9 +278,13 @@ export class PersonalSync {
   status(){
     const policy=this.policy();
     const selected = new Set(policy.selections.map(syncNamespace));
-    const collections=this.registry.current().map(r=>{const namespace=syncNamespace(r.selection);return selected.has(namespace)
-      ? {selection:r.selection,title:r.title,...r.withReplica(a=>a.counts()),conflicts:r.withReplica(a=>a.conflicts()),failures:syncItemFailures(this.options.home,()=>this.assert()).list(namespace)}
-      : {selection:r.selection,title:r.title,pending:0,conflicts:[],failures:[]};});
+    const collections = this.registry.current().map(r => {
+      const namespace = syncNamespace(r.selection);
+      const group = r.group ?? 'plugin';
+      return selected.has(namespace)
+        ? { selection: r.selection, title: r.title, group, ...r.withReplica(a => a.counts()), conflicts: r.withReplica(a => a.conflicts()), failures: syncItemFailures(this.options.home, () => this.assert()).list(namespace) }
+        : { selection: r.selection, title: r.title, group, pending: 0, conflicts: [], failures: [] };
+    });
     const running=!!this.running,progress=syncProgress({policy,collections,running,error:this.error,lastSuccess:this.lastSuccess});
     this.lastProgress=progress;
     this.indicatorDirty=false;
@@ -329,39 +347,65 @@ async function replayDeferred(namespace:string,failures:ReturnType<typeof syncIt
   }
 }
 
+const isProjectCatalogSelection = (selection: SyncSelection) =>
+  selection.collection_id === 'projects' && selection.plugin_id.startsWith('io.molis.work.module.projects.');
+
 /** Group selected registrations into topological layers so independent collections sync in parallel. */
 function partitionSyncLayers(registrations:readonly SyncRegistration[]):SyncRegistration[][]{
   if(registrations.length<=1)return registrations.length?[[...registrations]]:[];
   const byNs=new Map(registrations.map(r=>[syncNamespace(r.selection),r]));
-  const catalog=registrations.filter(r=>r.selection.collection_id==='projects').map(r=>syncNamespace(r.selection));
+  const catalog=registrations.filter(r=>isProjectCatalogSelection(r.selection)).map(r=>syncNamespace(r.selection));
   const artifacts=registrations.filter(r=>r.selection.plugin_id==='io.molis.work.artifacts').map(r=>syncNamespace(r.selection));
-  const refOwners=registrations.filter(r=>r.selection.collection_id!=='projects'&&r.selection.plugin_id!=='io.molis.work.artifacts'&&typeof r.hasReference==='function').map(r=>syncNamespace(r.selection));
+  const refOwners=registrations.filter(r=>!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='io.molis.work.artifacts'&&typeof r.hasReference==='function').map(r=>syncNamespace(r.selection));
   const deps=new Map<string,Set<string>>();
   for(const r of registrations){
-    const ns=syncNamespace(r.selection),set=new Set<string>();
+    const ns=syncNamespace(r.selection);
+    const set=new Set<string>();
     for(const dep of r.dependencies??[]){const d=syncNamespace(dep);if(d!==ns&&byNs.has(d))set.add(d);}
-    if(r.selection.collection_id!=='projects')for(const c of catalog)if(c!==ns)set.add(c);
-    if(r.selection.collection_id!=='projects'&&r.selection.plugin_id!=='io.molis.work.artifacts')for(const a of artifacts)if(a!==ns)set.add(a);
-    if(r.selection.collection_id!=='projects'&&r.selection.plugin_id!=='io.molis.work.artifacts'&&typeof r.hasReference!=='function')for(const o of refOwners)if(o!==ns)set.add(o);
+    if(!isProjectCatalogSelection(r.selection))for(const c of catalog)if(c!==ns)set.add(c);
+    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='io.molis.work.artifacts')for(const a of artifacts)if(a!==ns)set.add(a);
+    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='io.molis.work.artifacts'&&typeof r.hasReference!=='function')for(const o of refOwners)if(o!==ns)set.add(o);
     deps.set(ns,set);
   }
-  const layers:SyncRegistration[][]=[],done=new Set<string>(),remaining=new Set(byNs.keys());
+  const layers:SyncRegistration[][]=[];
+  const done=new Set<string>();
+  const remaining=new Set(byNs.keys());
   while(remaining.size){
     const ready=[...remaining].filter(ns=>[...deps.get(ns)!].every(d=>done.has(d)));
-    if(!ready.length){layers.push([...remaining].map(ns=>byNs.get(ns)!));break;}
+    if(!ready.length){
+      layers.push([...remaining].map(ns=>byNs.get(ns)!));
+      break;
+    }
     layers.push(ready.map(ns=>byNs.get(ns)!));
-    for(const ns of ready){done.add(ns);remaining.delete(ns);}
+    for(const ns of ready){
+      done.add(ns);
+      remaining.delete(ns);
+    }
   }
   return layers;
 }
 
-async function runBounded<T>(items:readonly T[],concurrency:number,work:(item:T)=>Promise<void>){
-  if(items.length<=1){if(items[0])await work(items[0]);return;}
-  let index=0,failure:unknown=null,failed=false;
+async function runBounded<T>(items:readonly T[],concurrency:number,work:(item:T)=>Promise<void>,onBackoff?:()=>void){
+  if(items.length<=1){
+    if(items[0])await work(items[0]);
+    return;
+  }
+  let index=0;
+  let failure:unknown=null;
+  let failed=false;
   const worker=async()=>{
     while(!failed&&index<items.length){
       const item=items[index++]!;
-      try{await work(item);}catch(error){if(!failed){failed=true;failure=error;}return;}
+      try{
+        await work(item);
+      }catch(error){
+        if(!failed){
+          failed=true;
+          failure=error;
+          if(isTransportBackoff(error))onBackoff?.();
+        }
+        return;
+      }
     }
   };
   await Promise.all(Array.from({length:Math.min(concurrency,items.length)},worker));

@@ -49,8 +49,8 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
       if (${JSON.stringify(operation)} === 'search' || ${JSON.stringify(operation)} === 'batch') {
         document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(operation === "batch" ? "batch:unrelated" : second!.id)} } })); return;
       }
-      if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-link-target]').value = ${JSON.stringify(second!.id)};
-      const selector = ${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : operation === "link" ? "[data-todo-link-add]" : '[data-todo-status="done"]')};
+      if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-pop-open="link"]').click();
+      const selector = ${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : operation === "link" ? `[data-todo-link-pick="${second!.id}"]` : '[data-todo-status="done"]')};
       const button = document.querySelector(selector); if (!button) throw new Error('Missing Todo target: ' + selector); button.click();
     })()`);
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
@@ -75,11 +75,12 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
     const before = await evaluate<number>("window.todoWrites.length");
     await evaluate(`(() => {
       if (${JSON.stringify(operation)} === 'search') { document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(second!.id)} } })); return; }
-      if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-link-target]').value = ${JSON.stringify(second!.id)};
-      document.querySelector(${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : "[data-todo-link-add]")}).click();
+      if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-pop-open="link"]').click();
+      document.querySelector(${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : `[data-todo-link-pick="${second!.id}"]`)}).click();
     })()`);
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
     assert.deepEqual(await fields(), ["保留输入", "冲突时保留的输入", "2026-10-30", "11:00"]);
+    if (operation === "link") assert.equal(await evaluate("document.querySelector('[data-todo-pop=link]').hidden"), true, "a refused pick closes the popover, so it does not sit on the recovery message");
   }
   const protectedOwner = openTodoStore(homeDirectory);
   try { const item = protectedOwner.get(first!.id, access); assert.equal(item.notes, "另一入口保存的说明"); assert.deepEqual(item.links, []); assert.equal(item.placement, "project"); } finally { protectedOwner.close(); }
@@ -88,7 +89,8 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await click("[data-todo-confirm] [data-confirm-ok]");
   await waitFor("document.querySelector('[data-todo-field=notes]').value === '另一入口保存的说明'");
   await evaluate("const title = document.querySelector('[data-todo-field=title]'); title.value = ''; title.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-todo-back]').click()");
-  await waitFor("document.querySelector('[data-todo-detail-note]').textContent.includes('标题不能是空的')");
+  // Said where it is: under the title, whose frame turns red; nothing else on the page is taken away.
+  await waitFor("!document.querySelector('[data-todo-title-error]').hidden && document.querySelector('[data-todo-title-error]').textContent.includes('标题不能是空的') && document.querySelector('[data-todo-field=title]').getAttribute('aria-invalid') === 'true'");
   assert.equal(await evaluate("document.querySelector('[data-todo-field=title]').value"), "");
   assert.equal(await evaluate("document.querySelector('[data-todo-stage-workspace]').hidden"), false);
   await evaluate("document.querySelector('[data-todo-reload]').closest('details').open = true");
@@ -185,7 +187,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
   const detailOpen = (value: string) => `!document.querySelector('${detail}')?.hidden && ${valueIs(title, value)}`;
   const rowShows = (value: string) => `document.querySelector(${JSON.stringify(row)})?.querySelector('.todo-title')?.textContent === ${JSON.stringify(value)}`;
   const noError = (selector: string) => `(() => { const note = document.querySelector('${selector}');
-    const message = note.querySelector('[data-todo-note-text]') ?? note;
+    const message = note.querySelector('[data-todo-note-text], [data-todo-detail-note-text]') ?? note;
     return note.hidden && !note.classList.contains('is-error') && !message.textContent.trim();
   })()`;
   // The workbench remembers the record last open on the Todo page and reopens it after a reload, quietly
@@ -293,10 +295,10 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
           const draftNotes = "Copy this unsaved draft before reloading.";
           await waitForSaveRefusal(409, () => editFields(primary, { title: draftTitle, notes: draftNotes }));
           const conflict = await primary.evaluate<string>(`document.querySelector('${detailNote}').textContent`);
-          assert.match(conflict, locale === "en" ? /changed elsewhere.*Your input is kept/ : /已在别处更新.*你的输入仍保留/);
+          assert.match(conflict, locale === "en" ? /changed elsewhere.*What you typed is still here/ : /在别处改过.*你刚输入的还在这里/);
           assert.deepEqual(read(), winning);
-          // At phone width the open detail takes the list's place, so Back is the available attempt to leave.
-          const abandon = width === 390 ? "[data-todo-back]" : `[data-todo-id="${neighbourId}"]`;
+          // An open item takes the whole Todo page at every width (36A-3), so Back is the available attempt to leave.
+          const abandon = "[data-todo-back]";
           const navigation = calls.length;
           await waitForSaveRefusal(409, () => primary.click(abandon));
           assert.deepEqual(postsAfter(navigation), [ownerRoute]);
@@ -359,7 +361,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
           await capture(`${variant}-reloaded`);
           const corrected = `Corrected title ${winning.revision + 1}`;
           await editFields(primary, { title: corrected });
-          await primary.waitFor(`document.querySelector('[data-todo-editor-heading]')?.textContent === ${JSON.stringify(corrected)} && document.querySelector('[data-todo-save-status]').dataset.mwState === 'idle'`);
+          await primary.waitFor(`document.querySelector('[data-todo-editor-heading]')?.textContent === ${JSON.stringify(corrected)} && document.querySelector('[data-todo-save-status]').dataset.mwState === 'saved'`);
           await primary.click("[data-todo-back]");
           await primary.waitFor(`document.querySelector('${detail}').hidden && ${rowShows(corrected)}`);
           const afterSave = await primary.evaluate(`({list: ${noError(listNote)}, detail: ${noError(detailNote)}})`);

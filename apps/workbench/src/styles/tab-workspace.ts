@@ -10,7 +10,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .immersive-plugin-stage > .tab-workspace { position: absolute; inset: 0; min-width: 0; min-height: 0; display: flex; overflow: hidden; background: var(--canvas); }
   body.immersive-workbench .tab-workspace-panes { flex: 1; min-width: 0; min-height: 0; display: grid; gap: 1px; background: var(--line); }
   body.immersive-workbench .tab-workspace-pool { display: none; }
-  body.immersive-workbench .tab-workspace-exclusive { display: none; }
+  body.immersive-workbench .tab-workspace-exclusive { display: none; container: plugin-stage / inline-size; }
   body.immersive-workbench .tab-workspace[data-exclusive] .tab-workspace-panes { visibility: hidden; }
   body.immersive-workbench .tab-workspace[data-exclusive] .tab-workspace-exclusive { display: block; position: absolute; inset: 0; }
   body.immersive-workbench .tab-workspace-exclusive > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; }
@@ -53,7 +53,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-close[hidden] { display: none; }
   body.immersive-workbench .tab-pane-close svg { width: 12px; height: 12px; }
   body.immersive-workbench .tab-pane-close:hover { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench .tab-pane-body { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; background: var(--paper); }
+  body.immersive-workbench .tab-pane-body { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; container: plugin-stage / inline-size; background: var(--paper); }
   body.immersive-workbench .tab-pane-body > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 32px; }
@@ -122,27 +122,20 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
   body.immersive-workbench .tab-add-button:is(:hover, [aria-expanded=true]) { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench .tab-add-button svg { width: 16px; height: 16px; }
-  body.immersive-workbench .tab-workspace-panes { display: flex; gap: 0; background: var(--canvas); }
   body.immersive-workbench .tab-split { display: grid; min-width: 0; min-height: 0; }
   body.immersive-workbench .tab-sash { position: relative; background: transparent; cursor: col-resize; touch-action: none; z-index: 5; }
   body.immersive-workbench .tab-split[data-direction="column"] > .tab-sash { cursor: row-resize; }
   body.immersive-workbench .tab-sash:focus-visible { outline: none; }
-  body.immersive-workbench .tab-content-frame { display: block; width: 100%; height: 100%; border: 0; }
   body.immersive-workbench .tab-workspace:is(.is-tab-dragging, .is-resizing) iframe { pointer-events: none; }
+  body.immersive-workbench .tab-workspace.is-resizing .tab-pane-body { pointer-events: none; }
   body.immersive-workbench .tab-workspace-panes[data-split-drop-preview]::after { content: ""; position: fixed; left: var(--split-preview-left); top: var(--split-preview-top); width: var(--split-preview-width); height: var(--split-preview-height); box-sizing: border-box; pointer-events: none; z-index: 2147483646; border: 2px solid var(--blue); border-radius: 8px; background: color-mix(in srgb, var(--blue) 14%, transparent); animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   body.immersive-workbench[data-pane-embedded] .immersive-workspace { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; height: 100%; }
   body.immersive-workbench[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim),
   body.immersive-workbench[data-pane-embedded] .tab-pane > .tab-strip { display: none !important; }
   body.immersive-workbench[data-pane-embedded] .immersive-plugin-stage { grid-column: 1 !important; grid-row: 1 / -1 !important; position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; display: block !important; }
   @media (max-width: 760px) {
-    body.immersive-workbench .tab-split { display: contents; }
-    body.immersive-workbench .tab-sash, body.immersive-workbench .tab-pane:not(.is-focused) { display: none; }
-    body.immersive-workbench .tab-pane.is-focused { flex: 1; }
     html body.immersive-workbench .plugin-rail-tile > .plugin-rail-ops > .rail-beside { display: none; }
   }
-  body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > :is(.tab-split, .tab-pane:not(.is-focused), .tab-content-frame:not(.is-focused)) { display: none; }
-  body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > .tab-pane.is-focused { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }
-  body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > .tab-content-frame.is-focused { left: 0 !important; top: var(--pane-strip-height) !important; width: 100% !important; height: calc(100% - var(--pane-strip-height)) !important; }
   body.immersive-workbench .tab-workspace.is-resizing { user-select: none; }
   body.immersive-workbench .tab-workspace.is-resizing[data-resizing=row] * { cursor: col-resize !important; }
   body.immersive-workbench .tab-workspace.is-resizing[data-resizing=column] * { cursor: row-resize !important; }
@@ -153,10 +146,10 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-group .tab-group-label { min-width: 44px; min-height: 44px; margin-block: 0; }
   }
 
-
-  body.immersive-workbench .tab-workspace-panes { display: block; position: relative; background: var(--canvas); }
-  body.immersive-workbench .tab-workspace-panes > .tab-pane { position: absolute; }
-  body.immersive-workbench .tab-workspace-panes > .tab-split { display: block; position: absolute; pointer-events: none; }
+  /* Single-document CSS Grid split: each pane is a Grid item; split dividers overlay the exact 8px gutter without reparenting iframes. */
+  body.immersive-workbench .tab-workspace-panes { display: grid; position: relative; gap: 0; background: var(--canvas); }
+  body.immersive-workbench .tab-workspace-panes > .tab-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+  body.immersive-workbench .tab-workspace-panes > .tab-split { display: block; position: absolute; pointer-events: none; z-index: 4; }
   body.immersive-workbench .tab-sash { position: absolute; pointer-events: auto; background: transparent; }
   body.immersive-workbench .tab-split[data-direction="row"] > .tab-sash { width: var(--tab-sash-hit); height: 100%; cursor: col-resize; }
   body.immersive-workbench .tab-split[data-direction="column"] > .tab-sash { height: var(--tab-sash-hit); width: 100%; cursor: row-resize; }
@@ -192,17 +185,15 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-sash:focus-visible .tab-sash-handle { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .tab-window-select { align-self: center; flex: none; max-width: 200px; min-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 12px; color: var(--muted); border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; }
   body.immersive-workbench .tab-window-select[aria-pressed="true"] { color: var(--ink); background: var(--nav-active); }
-  @media (max-width: 760px) {
-    body.immersive-workbench .tab-workspace-panes > .tab-pane.is-focused { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }
-    body.immersive-workbench .tab-workspace-panes > .tab-split { display: none; }
-  }
-
-  /* Content windows stay mounted when their tab changes groups. */
-  body.immersive-workbench .tab-workspace-panes > .tab-content-frame { position: absolute; inset: auto; z-index: 1; }
   body.immersive-workbench .tab-pane > .tab-strip { position: relative; z-index: 2; }
-  body.immersive-workbench .tab-workspace[data-exclusive] .tab-content-frame { visibility: hidden; }
-  /* 独看 (07-S2, 口径 2): the focused pane takes the stage; the others, their dividers and their frames step aside, kept. */
-  body.immersive-workbench .tab-workspace[data-solo] .tab-workspace-panes > :is(.tab-pane:not(.is-focused), .tab-split, .tab-content-frame:not(.is-focused)) { display: none; }
+  /* 独看 (07-S2, 口径 2) & narrow stage (VUX-24): the focused pane takes the sole Grid cell; siblings stay attached, hidden. */
+  body.immersive-workbench .tab-workspace:is([data-split-narrow], [data-solo]) .tab-workspace-panes {
+    grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important;
+  }
+  body.immersive-workbench .tab-workspace:is([data-split-narrow], [data-solo]) .tab-workspace-panes > :is(.tab-pane:not(.is-focused), .tab-split) { display: none; }
+  body.immersive-workbench .tab-workspace:is([data-split-narrow], [data-solo]) .tab-workspace-panes > .tab-pane.is-focused {
+    grid-column: 1 / -1 !important; grid-row: 1 / -1 !important; margin: 0 !important;
+  }
   /* 独看 on the right side: the side takes the stage, the main area and the divider step aside, kept. */
   body[data-side-solo] #side-panel { inset: var(--desktop-titlebar-height, 32px) var(--sheet-inset, 14px) var(--dock-h, 48px); width: auto; height: auto; }
   body[data-side-solo] :is([data-plugin-stage], .side-panel-divider) { visibility: hidden; }
@@ -212,8 +203,9 @@ export const TAB_WORKSPACE_STYLES = `
     body[data-side-solo] #side-panel { inset: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + 20px) 8px calc(var(--dock-h, 48px) + 8px); }
   }
   @media (max-width: 760px) {
-    body.immersive-workbench .tab-workspace-panes > .tab-content-frame:not(.is-focused) { display: none; }
-    body.immersive-workbench .tab-workspace-panes > .tab-content-frame.is-focused { left: 0 !important; top: var(--pane-strip-height) !important; width: 100% !important; height: calc(100% - var(--pane-strip-height)) !important; }
+    body.immersive-workbench .tab-workspace-panes { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; }
+    body.immersive-workbench .tab-workspace-panes > :is(.tab-pane:not(.is-focused), .tab-split) { display: none; }
+    body.immersive-workbench .tab-workspace-panes > .tab-pane.is-focused { grid-column: 1 / -1 !important; grid-row: 1 / -1 !important; margin: 0 !important; }
   }
 
   .workspace-layout-menu { position:fixed; inset:auto; margin:0; width:260px; max-height:calc(100vh - 60px); overflow:auto; padding:8px; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:10px; box-shadow:var(--control-shadow); }

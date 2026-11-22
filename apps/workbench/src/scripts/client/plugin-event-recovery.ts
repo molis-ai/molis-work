@@ -67,7 +67,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
       const row = node('p', '');
       row.append(time(record.resolved_at), ' · ' + record.actor_id + ' · ',
         globalThis.t.text(record.decision === 'skip' ? "workbench.plugin-event-recovery.skipped" : "workbench.plugin-event-recovery.retry-requested"),
-        ' · ' + record.event_id + ' · ' + record.reason);
+        ' · ' + record.event_id + (record.reason ? ' · ' + record.reason : ''));
       return row;
     }));
   };
@@ -115,7 +115,6 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   const recover = async (decision) => {
     if (busy || !fresh || !selected?.can_recover || (decision !== 'skip' && decision !== 'retry')) return;
     const cursor = selected.cursor, signal = viewSignal;
-    const reason = globalThis.t.text(decision === 'skip' ? "workbench.plugin-event-recovery.reason-skipped" : "workbench.plugin-event-recovery.reason-retried");
     const input = {
       subscriber_plugin_id: cursor.subscriber_plugin_id,
       source_plugin_id: cursor.source_plugin_id,
@@ -126,7 +125,6 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
       expected_generation: cursor.subscriber_generation,
       expected_version: selected.subscriber_version,
       event_id: selected.event.event_id,
-      reason,
       decision,
     };
     busy = true;

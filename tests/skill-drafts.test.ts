@@ -480,9 +480,17 @@ test("PWA-104 SkillWorkshop.list aggregates verdicts across all known answers on
     const firstCaseId = opened.cases[0]!.case_id;
     const secondCaseId = second.case_id;
 
-    // Case 1 differs, then Case 2 matches later: aggregate verdict MUST remain differs.
+    // 2 active cases, only Case 1 replayed as match (Case 2 untried): aggregate verdict MUST be undefined (matching adoptDraft).
+    nextVerdict = "match";
+    await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: firstCaseId });
+    assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, undefined, "partial match with untried active case must not report match");
+
+    // 2 active cases, Case 1 differs while Case 2 is still untried: aggregate verdict MUST report differs.
     nextVerdict = "differs";
     await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: firstCaseId });
+    assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, "differs", "differs surfaces even while another active case is untried");
+
+    // Case 2 matches later while Case 1 still differs: aggregate verdict MUST remain differs.
     nextVerdict = "match";
     await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: secondCaseId });
     assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, "differs");
@@ -496,6 +504,11 @@ test("PWA-104 SkillWorkshop.list aggregates verdicts across all known answers on
     nextVerdict = "match";
     await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: opened.revision, case_id: firstCaseId });
     assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, "match");
+
+    // 0 active cases with leftover trials on the same revision: aggregate verdict MUST be undefined.
+    await h.call(h.person, skillDraftActions.removeCase, { draft_id: opened.draft_id, case_id: firstCaseId });
+    await h.call(h.person, skillDraftActions.removeCase, { draft_id: opened.draft_id, case_id: secondCaseId });
+    assert.equal((await h.drafts()).find(item => item.draft_id === opened.draft_id)?.verdict, undefined, "orphan trials produce undefined verdict when no active cases remain");
   } finally {
     await h.close();
   }

@@ -209,7 +209,7 @@ test("Todo declares its codes with defineErrorCodes: every one is todo.<reason> 
 });
 
 // The dispatcher: the body is read inside the try, a body that cannot be read is an ordinary coded error, and a mapper is optional.
-const never: BoundActionClient = { discover: async () => [], invoke: async () => { throw new Error("the route must not run"); } };
+const never: BoundActionClient = { discoverOne: async () => undefined, discover: async () => [], invoke: async () => { throw new Error("the route must not run"); } };
 
 test("Functions answers through the SDK: invalid JSON is 400 and an oversized body is 413, with exact codes and messages", async () => {
   // W3-02-G2-BODY-01: Functions has no mapper; platform kinds keep the exact body and never execute the action.

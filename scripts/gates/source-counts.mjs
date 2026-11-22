@@ -36,18 +36,17 @@
 //                       GOALBOARD_HOME), and the old id name for the project id: board_id, boardId, BoardId, BOARD_ID,
 //                       plural too, as a whole name or the tail of a longer one (conflicting_board_id, existingBoardId,
 //                       CONFLICTING_BOARD_ID) but not inside another word (dashboard_id, dashboardId, DASHBOARD_ID,
-//                       KEYBOARD_IDS). Only these two spellings are counted. `goal-board` (the kanban view's
-//                       `.goal-board-switch` class and CSS container name) is not the old name and is not counted.
-//                       GOALS_BOARDS_SQL (the DDL of the per-project `boards` table) is not counted either, but not
-//                       because it is the view: it is one of the other "Board as the project" names (getBoard,
-//                       initializeBoard, ...) that docs/system/GLOSSARY.md R-A1 lists for renaming (roadmap W5-14 carries
-//                       the renames); this rule neither sees nor guards them. Tests are out of scope: they name old names to assert that
-//                       they are refused. Within a TypeScript source the count reads the plain text, so a comment or a string
-//                       counts like code. Not seen, so a return would not be caught (a known limit, not a decision): the kebab
-//                       spelling `board-id` (the CLI flag before #287) and every file that is not one of the sources above
-//                       (JSON examples, shell and Rust files). Closing it needs a rule per file type, not a regex.
-//                       What the baseline keeps today (the checkout-local health baseline, oldNames): nothing. The count is 0 and can
-//                       only stay there.
+//                       KEYBOARD_IDS). Also retired PG-097 platform names (`MOLIS_JELLY_`, `resolveFeedSecurityDirectory`),
+//                       CPK-08 deleted capability-pack symbols and `/skill-selection.(m)ts`, and WMD-13 retired Files plugin
+//                       references (`io.molis.work.files` outside the S-75 reservation in `apps/local-host/src/host-plugin-ids.ts`,
+//                       and any tracked file under `plugins/native/files/`). Beyond TypeScript sources, controlled non-TS
+//                       files (`.rs`, `.swift`, `.sh`, `.yml`/`.yaml` except `pnpm-lock.yaml`, and `Makefile`, outside
+//                       top-level `docs/`/`specs/` and any nested `tests?/`/`dist/`/`node_modules/`) are also scanned for
+//                       `goalboard` and PG-097 retired names. `goal-board` (the kanban view's `.goal-board-switch` class and
+//                       CSS container name)
+//                       and `GOALS_BOARDS_SQL` are not counted. Tests are out of scope: they name old names to assert that
+//                       they are refused. Within a guarded file the count reads the plain text, so a comment or a string
+//                       counts like code. What the baseline keeps today (oldNames): nothing. The count is 0 and can only stay there.
 // directEllipsisCuts    N16: a direct .slice(...) or ["slice"](...) followed by a literal … or ..., with optional
 //                       whitespace before the marker. Count + and template substitutions. For +, unwrap parentheses
 //                       and read a template's text before its first substitution. General slices, chained calls after
@@ -62,6 +61,30 @@ const OLD_PRODUCT_NAME = /goalboard/gi;
 const OLD_ID_NAME = /(?<![A-Za-z])(?:board_ids?|boardIds?)(?![a-z])|(?<![A-Z])BoardIds?(?![a-z])|(?<![A-Z])BOARD_IDS?(?![A-Z])/g;
 // PG-097: retired platform env/storage names that carried plugin names (formerly guarded by tests/platform-naming-pg097.test.ts).
 const OLD_PLATFORM_NAME = /MOLIS_JELLY_|resolveFeedSecurityDirectory/g;
+// CPK-08: deleted capability-pack symbols from specs/capability-pack/spec.md §8.
+const CPK_08_DELETED = /\b(?:molis-coding-method|AgentSkillLibrary|UNREGISTERED_MODEL_CALLS|AgentRoleSkillsDeclaration|AgentSkillsCapability|agent\.skills\.(?:discover|install))\b/g;
+const CPK_08_DELETED_FILE = /\/skill-selection\.m?ts$/;
+// WMD-13: retired Files plugin identity (S-75 intentionally reserves it only in apps/local-host/src/host-plugin-ids.ts).
+const WMD_13_DELETED_ID = /\bio\.molis\.work\.files\b/g;
+const WMD_13_RESERVED_ID_FILES = new Set(["apps/local-host/src/host-plugin-ids.ts"]);
+const NON_TS_OLD_NAME_FILE = /^(?!docs\/|specs\/)(?!.*(?:^|\/)(?:tests?|dist|node_modules)\/)(?:.+\.(?:rs|swift|sh|ya?ml)|(?:.+\/)?Makefile)$/;
+
+/** Controlled non-TS files and retired package paths scanned by `oldNames` (PG-097, GoalBoard, WMD-13). */
+export const oldNamesWantsText = (file) =>
+  file !== "pnpm-lock.yaml" && (NON_TS_OLD_NAME_FILE.test(file) || file.startsWith("plugins/native/files/"));
+
+/** Counts retired names in a controlled non-TS file or retired package path. Exported for tests. */
+export const countNonTsOldNames = (file, text) => {
+  let count = 0;
+  if (file.startsWith("plugins/native/files/")) {
+    count += 1;
+  }
+  if (file !== "pnpm-lock.yaml" && NON_TS_OLD_NAME_FILE.test(file) && typeof text === "string") {
+    count += (text.match(OLD_PRODUCT_NAME) ?? []).length;
+    count += (text.match(OLD_PLATFORM_NAME) ?? []).length;
+  }
+  return count;
+};
 
 const SCRIPT_NAME = /_SCRIPT$/;
 const ELLIPSIS_START = /^\s*(?:…|\.{3})/u;
@@ -97,8 +120,17 @@ function startsWithEllipsis(expression) {
 /** Counts one file. `text` is the whole file; `inSource` is false for tests. Exported for the tests of the definitions. */
 export const countFile = (file, text, { inSource = false } = {}) => {
   const counts = { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0 };
-  if (!inSource) return counts;
-  counts.oldNames = (text.match(OLD_PRODUCT_NAME) ?? []).length + (text.match(OLD_ID_NAME) ?? []).length + (text.match(OLD_PLATFORM_NAME) ?? []).length;
+  if (!inSource) {
+    return counts;
+  }
+  counts.oldNames =
+    (text.match(OLD_PRODUCT_NAME) ?? []).length
+    + (text.match(OLD_ID_NAME) ?? []).length
+    + (text.match(OLD_PLATFORM_NAME) ?? []).length
+    + (text.match(CPK_08_DELETED) ?? []).length
+    + (WMD_13_RESERVED_ID_FILES.has(file) ? 0 : (text.match(WMD_13_DELETED_ID) ?? []).length)
+    + (CPK_08_DELETED_FILE.test(file) ? 1 : 0)
+    + (file.startsWith("plugins/native/files/") ? 1 : 0);
   // Parse only the files whose text can hold one of the shapes.
   const catches = /\bcatch\b/.test(text), scripts = text.includes("_SCRIPT"), slices = text.includes("slice");
   if (!catches && !scripts && !slices) return counts;
@@ -130,13 +162,28 @@ const measureSnapshot = (snapshot, { isSource }) => {
   if (result) return result;
   result = { emptyCatchesInScripts: {}, oldNames: {}, scriptConstants: {}, directEllipsisCuts: {} };
   for (const file of snapshot.files) {
-    if (!isSource(file)) continue;
-    const text = snapshot.read(file);
-    if (text === null) continue;
-    const cached = fileCountCache.get(file);
-    const counts = cached && cached.text === text ? cached.counts : countFile(file, text, { inSource: true });
-    if (!cached || cached.text !== text) fileCountCache.set(file, { text, counts });
-    for (const [rule, count] of Object.entries(counts)) if (count) result[rule][file] = count;
+    if (isSource(file)) {
+      const text = snapshot.read(file);
+      if (text === null) {
+        continue;
+      }
+      const cached = fileCountCache.get(file);
+      const counts = cached && cached.text === text ? cached.counts : countFile(file, text, { inSource: true });
+      if (!cached || cached.text !== text) {
+        fileCountCache.set(file, { text, counts });
+      }
+      for (const [rule, count] of Object.entries(counts)) {
+        if (count) {
+          result[rule][file] = count;
+        }
+      }
+    } else if (oldNamesWantsText(file)) {
+      const text = snapshot.read(file);
+      const count = countNonTsOldNames(file, text);
+      if (count) {
+        result.oldNames[file] = count;
+      }
+    }
   }
   passes.set(snapshot, result);
   return result;

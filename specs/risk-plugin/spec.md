@@ -40,7 +40,7 @@ Goal 里原有的风险（风险表、Goal–风险关联、风险决定与安�
 
 ## 定样决定（2026-11-04 用户定）
 
-用户在可点的原型 [`docs/design/risk-plugin`](../../docs/design/risk-plugin/README.md) 上逐块比过三个方案后定下（[第 17 批](../post-anticorruption-roadmap/reference/batches/17.md)）：
+用户在可点的原型 [`docs/design/archive/risk-plugin`](../../docs/design/archive/risk-plugin/README.md) 上逐块比过三个方案后定下（[第 17 批](../post-anticorruption-roadmap/reference/batches/17.md)）：
 
 | 块 | 定的方案 | 要点 |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ Goal 里原有的风险（风险表、Goal–风险关联、风险决定与安�
 
 原型里正常与异常状态都要照着做：没关联对象（含项目没装 Goals，原型不重画，只补这一种状态到清单）、关联对象已删除或无权查看、保存冲突（两边对照、不覆盖）、已关闭只读、无修改授权、单条或总览读取失败（写明不代表没有风险）、筛选无结果、部分关联读不到、还没有风险；复查的未安排、无变化（安静）、复查没完成、已暂停、关闭后停止；简报旧版本与风险来源读不到。
 
-2026-11-04 按组件板实件重做，用户确认：版式与取舍不变，原型里的控件、卡片、状态标、菜单、弹出层都换成组件板的 `mw-*` 实件（[组件板实件](../../docs/design/component-board/README.md)）；组件板上没有的影响 × 可能性小格和提示里的按钮标「组件板新增」，由 D 轨补标本。
+2026-11-04 按组件板实件重做，用户确认：版式与取舍不变，原型里的控件、卡片、状态标、菜单、弹出层都换成组件板的 `mw-*` 实件（[组件板实件](../../docs/design/archive/component-board/README.md)）；组件板上没有的影响 × 可能性小格和提示里的按钮标「组件板新增」，由 D 轨补标本。
 
 ## 不做
 

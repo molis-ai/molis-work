@@ -1,7 +1,8 @@
 import { isCurrentTabWorkspace } from "../../tab-workspace-ops.js";
 import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, snapSplitRatio, splitDropEdge, splitRatioRange, splitTreeFits } from "../../tab-split-drop.js";
+import { TAB_WORKSPACE_CLONES_PART } from "./pane-clones.js";
 
-/** Panes of the work area: reconciling the panes with the state, mounting a tab's content, the split tree and its geometry, and saving the state and telling the parent page. A part of TAB_WORKSPACE_FACTORY_SCRIPT, joined in place. */
+/** Panes of the work area: reconciling the panes with the state, mounting a tab's content, single-document CSS Grid split geometry, and saving the state. A part of TAB_WORKSPACE_FACTORY_SCRIPT, joined in place. */
 export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWorkspace.toString()});
   const clampSplitRatio = ${clampSplitRatio.toString()};
   const splitDropEdge = ${splitDropEdge.toString()};
@@ -15,18 +16,34 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
   const readView = (paneId, tabId) => ops.readView(state, paneId, tabId);
   const writeView = (paneId, view, tabId) => {
     if (!ops.writeView(state, paneId, view, tabId)) return false;
-    apply(); persist(); return true;
+    apply();
+    persist();
+    return true;
   };
   const rootForTab = (tab) => tab?.kind === "system" ? systemTabs.root(tab) : supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.view !== "work"
-    ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
-  const applyTabContent = (tab, keepFrame) => {
-    if (!tab || tab.kind === "system") return;
-    declareGoal(tab.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab.title);
-    selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null, tab.view);
+    ? document.querySelector("[data-goal-frame-surface]:not([data-pane-clone])") : tab ? topLevelSurface(tab.plugin) : null;
+${TAB_WORKSPACE_CLONES_PART}
+  const applyTabContent = (pane, tab, node, keepFrame) => {
+    if (!tab || tab.kind === "system" || !node) return;
+    const isClone = node.hasAttribute("data-pane-clone");
+    const isSplit = state.panes.length > 1;
+    const isFocused = pane.id === state.focusedPaneId;
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
-      if (supportsGoalFrames() && tab.view !== "work") { applySelection?.(tab.itemId); if (showGoalFrame?.(tab.itemId) !== false) return; }
+      if (supportsGoalFrames() && tab.view !== "work") {
+        declareGoal(tab.itemId, tab.title, node);
+        if (isFocused) applySelection?.(tab.itemId);
+        if (showGoalFrame?.(tab.itemId, isClone || isSplit ? node : undefined) !== false) return;
+      }
+      if (isClone) {
+        prepareGoalWorkClone(node, tab.itemId);
+        declareGoal(tab.itemId, tab.title, node.querySelector("[data-document-pane]"));
+        return;
+      }
       releaseFrame?.();
+      declareGoal(tab.itemId, tab.title, node.querySelector("[data-document-pane]"));
       applySelection?.(tab.itemId);
+      const work = node.querySelector("[data-goal-node-workspace]");
+      if (work) work.hidden = false;
       if ((getDocumentGoalId() !== tab.itemId || loadingGoalId) && loadingGoalId !== tab.itemId) {
         const goalId = tab.itemId;
         loadingGoalId = goalId;
@@ -41,21 +58,44 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         }).finally(() => { if (loadingGoalId === goalId) loadingGoalId = null; });
       }
       setWorkspaceMode("focus", false, true);
-      const collapse = document.querySelector("[data-goal-collapse]");
+      node.hidden = false;
+      if (work) work.hidden = false;
+      const collapse = node.querySelector("[data-goal-collapse]");
       collapse?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.back-goal-canvas"));
       collapse?.setAttribute("title", globalThis.t.text("workbench.tab-workspace-panes.back-goal-canvas"));
       return;
     }
     if (tab.plugin === "goals") {
-      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.collapse-goal-return-canvas"));
-      if (keepFrame) {
-        setWorkSurface("goals");
-        setWorkspaceMode("graph", false, true);
+      if (isClone) {
+        prepareGoalCanvasClone(node);
+        return;
+      }
+      releaseFrame?.();
+      const work = node.querySelector("[data-goal-node-workspace]");
+      if (work) work.hidden = true;
+      node.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.collapse-goal-return-canvas"));
+      if (keepFrame || isSplit) {
+        node.dataset.expanded = "false";
+        if (isFocused) {
+          setWorkSurface("goals", false, false, "restore");
+          setWorkspaceMode("graph", false, true);
+        }
+        node.hidden = false;
         return;
       }
       (restoreBoard || showCanvas)?.();
       return;
     }
+    if (isFocused) declareGoal(null);
+    if (isClone && tab.plugin === "artifacts") {
+      void loadArtifactClone(node, tab.kind === "item" ? tab.itemId : null);
+      return;
+    }
+    if (isFramedSurface(tab.plugin, node)) {
+      node.dataset.paneSearch = buildPaneSearch(pane, tab, null, isClone);
+      host.prepareSurface?.(node, "restore");
+    }
+    selectItem(node, tab.kind === "item" ? tab.itemId : null, readView(pane.id, tab.id));
   };
   const mount = (pane, node) => {
     const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
@@ -70,49 +110,81 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     ...(exclusiveEl ? [...exclusiveEl.children] : []),
   ];
   const findSplit = (node, id) => !node || node.paneId ? null : node.id === id ? node : findSplit(node.children[0], id) || findSplit(node.children[1], id);
-  // Position leaves without reparenting their iframes: dragging a divider or adding a
-  // neighbour must preserve unsaved editor state and active Runtime connections.
-  const syncSplitSizes = (node, box = { x: 0, y: 0, w: 100, h: 100 }) => {
+  const gridStops = (values) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const unique = [];
+    for (const value of sorted) {
+      if (!unique.length || Math.abs(value - unique[unique.length - 1]) > 0.001) unique.push(value);
+    }
+    return unique;
+  };
+  const gridStopIndex = (stops, value) => {
+    let best = 0;
+    let delta = Infinity;
+    for (let i = 0; i < stops.length; i += 1) {
+      const diff = Math.abs(stops[i] - value);
+      if (diff < delta) {
+        delta = diff;
+        best = i;
+      }
+    }
+    return best;
+  };
+  // Single-document CSS Grid projection: map the binary split tree onto flat grid tracks without reparenting panes or Layer 2 iframes.
+  const collectSplitLeaves = (node, box, leaves, stage) => {
     if (!node) return;
     if (node.paneId) {
-      const pane = panesEl.querySelector('[data-tab-pane="' + node.paneId + '"]');
-      if (pane) {
-        pane.style.left = "calc(" + box.x + "% + " + (box.x ? TAB_SASH_INSET : 0) + "px)";
-        pane.style.top = "calc(" + box.y + "% + " + (box.y ? TAB_SASH_INSET : 0) + "px)";
-        pane.style.width = "calc(" + box.w + "% - " + ((box.x ? TAB_SASH_INSET : 0) + (box.x + box.w < 99.99 ? TAB_SASH_INSET : 0)) + "px)";
-        pane.style.height = "calc(" + box.h + "% - " + ((box.y ? TAB_SASH_INSET : 0) + (box.y + box.h < 99.99 ? TAB_SASH_INSET : 0)) + "px)";
-        const stripHeight = pane.querySelector("[data-tab-strip]")?.hidden ? 0 : (matchMedia("(max-width: 760px), (pointer: coarse)").matches ? 44 : 32);
-        panesEl.querySelectorAll('iframe[data-pane-owner="' + node.paneId + '"]').forEach((frame) => {
-          const topInset = (box.y ? TAB_SASH_INSET : 0) + stripHeight;
-          frame.style.left = pane.style.left; frame.style.width = pane.style.width;
-          frame.style.top = "calc(" + box.y + "% + " + topInset + "px)";
-          frame.style.height = "calc(" + box.h + "% - " + (topInset + (box.y + box.h < 99.99 ? TAB_SASH_INSET : 0)) + "px)";
-          frame.classList.toggle("is-focused", node.paneId === state.focusedPaneId);
-          frame.style.setProperty("--pane-strip-height", stripHeight + "px");
-        });
-      }
+      leaves.push({ paneId: node.paneId, x0: box.x, x1: box.x + box.w, y0: box.y, y1: box.y + box.h });
       return;
     }
-    const stage = panesEl.getBoundingClientRect(), length = (node.direction === "row" ? stage.width * box.w : stage.height * box.h) / 100, bounds = splitRatioRange(node, length) || [0.15, 0.85];
-    const ratio = Math.min(bounds[1], Math.max(bounds[0], clampSplitRatio(node.ratio))), split = panesEl.querySelector('[data-split-id="' + node.id + '"]');
+    const length = (node.direction === "row" ? stage.width * box.w : stage.height * box.h) / 100;
+    const bounds = splitRatioRange(node, length) || [0.15, 0.85];
+    const ratio = Math.min(bounds[1], Math.max(bounds[0], clampSplitRatio(node.ratio)));
+    const split = panesEl.querySelector('[data-split-id="' + node.id + '"]');
     if (split) {
       Object.assign(split.style, { left: box.x + "%", top: box.y + "%", width: box.w + "%", height: box.h + "%" });
       const sash = split.firstElementChild;
       sash.style.left = node.direction === "row" ? "calc(" + ratio * 100 + "% - " + TAB_SASH_HALF + "px)" : "0";
       sash.style.top = node.direction === "column" ? "calc(" + ratio * 100 + "% - " + TAB_SASH_HALF + "px)" : "0";
-      sash.setAttribute("aria-valuenow", String(Math.round(ratio * 100))); sash.setAttribute("aria-valuemin", String(Math.round(bounds[0] * 100))); sash.setAttribute("aria-valuemax", String(Math.round(bounds[1] * 100)));
+      sash.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      sash.setAttribute("aria-valuemin", String(Math.round(bounds[0] * 100)));
+      sash.setAttribute("aria-valuemax", String(Math.round(bounds[1] * 100)));
     }
     if (node.direction === "row") {
-      syncSplitSizes(node.children[0], { ...box, w: box.w * ratio });
-      syncSplitSizes(node.children[1], { ...box, x: box.x + box.w * ratio, w: box.w * (1 - ratio) });
+      collectSplitLeaves(node.children[0], { ...box, w: box.w * ratio }, leaves, stage);
+      collectSplitLeaves(node.children[1], { ...box, x: box.x + box.w * ratio, w: box.w * (1 - ratio) }, leaves, stage);
     } else {
-      syncSplitSizes(node.children[0], { ...box, h: box.h * ratio });
-      syncSplitSizes(node.children[1], { ...box, y: box.y + box.h * ratio, h: box.h * (1 - ratio) });
+      collectSplitLeaves(node.children[0], { ...box, h: box.h * ratio }, leaves, stage);
+      collectSplitLeaves(node.children[1], { ...box, y: box.y + box.h * ratio, h: box.h * (1 - ratio) }, leaves, stage);
+    }
+  };
+  const syncSplitSizes = (node) => {
+    const stage = panesEl.getBoundingClientRect();
+    const leaves = [];
+    collectSplitLeaves(node, { x: 0, y: 0, w: 100, h: 100 }, leaves, stage);
+    if (!leaves.length) return;
+    const xs = gridStops([0, 100, ...leaves.flatMap((leaf) => [leaf.x0, leaf.x1])]);
+    const ys = gridStops([0, 100, ...leaves.flatMap((leaf) => [leaf.y0, leaf.y1])]);
+    panesEl.style.gridTemplateColumns = xs.slice(1).map((v, i) => "minmax(0, " + Math.max(0.01, v - xs[i]).toFixed(4) + "fr)").join(" ");
+    panesEl.style.gridTemplateRows = ys.slice(1).map((v, i) => "minmax(0, " + Math.max(0.01, v - ys[i]).toFixed(4) + "fr)").join(" ");
+    for (const leaf of leaves) {
+      const pane = panesEl.querySelector('[data-tab-pane="' + leaf.paneId + '"]');
+      if (!pane) continue;
+      pane.style.gridColumn = (gridStopIndex(xs, leaf.x0) + 1) + " / " + (gridStopIndex(xs, leaf.x1) + 1);
+      pane.style.gridRow = (gridStopIndex(ys, leaf.y0) + 1) + " / " + (gridStopIndex(ys, leaf.y1) + 1);
+      pane.style.marginLeft = leaf.x0 > 0.01 ? TAB_SASH_INSET + "px" : "0";
+      pane.style.marginRight = leaf.x1 < 99.99 ? TAB_SASH_INSET + "px" : "0";
+      pane.style.marginTop = leaf.y0 > 0.01 ? TAB_SASH_INSET + "px" : "0";
+      pane.style.marginBottom = leaf.y1 < 99.99 ? TAB_SASH_INSET + "px" : "0";
     }
   };
   // Splits that cannot all keep their panes' minimum size at this stage size take the narrow layout (VUX-24), not a squeeze.
   // 独看 (口径 2) lays the focused pane over the whole stage; the others keep their places, hidden (data-solo).
-  const layoutSplits = () => { syncSplitSizes(state.solo && !ops.soloSide(state) ? { paneId: state.solo.paneId } : state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !state.solo && !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
+  const layoutSplits = () => {
+    syncSplitSizes(state.solo && !ops.soloSide(state) ? { paneId: state.solo.paneId } : state.layout.tree);
+    const stage = panesEl.getBoundingClientRect();
+    if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !state.solo && !splitTreeFits(state.layout.tree, stage.width, stage.height));
+  };
   const paneFrameKey = (pane) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
     if (tab) return tab.kind === "system" ? null : tab.id;
@@ -156,6 +228,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       setWorkSurface(state.exclusive, false, false);
       return;
     }
+    const wasExclusive = root.hasAttribute("data-exclusive");
     root.removeAttribute("data-exclusive");
     if (exclusiveEl) {
       exclusiveEl.hidden = true;
@@ -193,7 +266,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedTab.plugin), false, false);
       }
-      if (focusedTab.plugin === "goals" && focusedTab.kind === "item" && !embedded && (state.panes.length > 1 || panesEl.querySelector('iframe[data-pane-tab="' + focusedTab.id + '"]'))) applySelection?.(focusedTab.itemId);
+      if (focusedTab.plugin === "goals" && focusedTab.kind === "item" && !embedded && state.panes.length > 1) applySelection?.(focusedTab.itemId);
       document.title = tabLabel(focusedTab) + " · Molis Work";
     } else if (focusedView) {
       const surface = focusedView;
@@ -207,30 +280,63 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.
     const mountedNow = new Set();
 
-    panesEl.querySelectorAll("[data-tab-pane]").forEach((node) => {
-      if (!state.panes.some((pane) => pane.id === node.dataset.tabPane)) node.remove();
+    const removedCanonicalIds = new Set();
+    panesEl.querySelectorAll("[data-tab-pane]").forEach((section) => {
+      if (state.panes.some((pane) => pane.id === section.dataset.tabPane)) return;
+      section.querySelectorAll(":scope > [data-tab-pane-body] > [data-pane-clone]").forEach((child) => disposeClone(child));
+      section.querySelectorAll(":scope > [data-tab-pane-body] > :not([data-pane-clone])").forEach((child) => {
+        if (child.matches('[data-work-surface="home"]')) {
+          child.querySelectorAll("[data-home-lead] > [data-work-surface]").forEach((lead) => {
+            lead.hidden = true;
+            if (!lead.querySelector(":scope > iframe[data-plugin-frame]")) pool.append(lead);
+            else {
+              if (lead.dataset.workSurface) removedCanonicalIds.add(lead.dataset.workSurface);
+              lead.remove();
+            }
+          });
+          child.hidden = true;
+          delete child.dataset.paneTab;
+          delete child.dataset.paneKey;
+          pool.append(child);
+          return;
+        }
+        if (!child.querySelector(":scope > iframe[data-plugin-frame]")) {
+          child.hidden = true;
+          delete child.dataset.paneTab;
+          delete child.dataset.paneKey;
+          pool.append(child);
+        } else if (child.dataset.workSurface) {
+          removedCanonicalIds.add(child.dataset.workSurface);
+        }
+      });
+      section.remove();
     });
-    // A tab switched away from keeps its frame hidden, like a single pane keeps its DOM, so returning to it does not
-    // reload the page and lose what was open in it. Only the most recently shown hidden frames are kept.
-    const hiddenFrames = [];
-    panesEl.querySelectorAll("iframe[data-pane-tab]").forEach((frame) => {
-      const key = frame.dataset.paneTab;
-      const owner = state.panes.find((pane) => paneFrameKey(pane) === key || pane.tabs.some((tab) => tab.id === key));
-      if (!owner) { frame.remove(); return; }
-      frame.hidden = true; frame.dataset.paneOwner = owner.id;
-      if (paneFrameKey(owner) !== key) hiddenFrames.push(frame);
+    promoteSurvivingClones(removedCanonicalIds);
+    prunePaneClones();
+    // Create missing pane sections in state.panes order so DOM/Tab order stays stable across reloads,
+    // then mount surfaces for already-populated panes first so splitting never steals a live surface.
+    const populatedPanes = new Set(
+      [...panesEl.querySelectorAll("[data-tab-pane]")]
+        .filter((el) => el.querySelector("[data-tab-pane-body] > *"))
+        .map((el) => el.dataset.tabPane),
+    );
+    state.panes.forEach((pane) => {
+      if (panesEl.querySelector('[data-tab-pane="' + pane.id + '"]')) return;
+      const section = document.createElement("section");
+      section.className = "tab-pane";
+      section.dataset.tabPane = pane.id;
+      section.innerHTML = paneMarkup();
+      panesEl.append(section);
     });
-    hiddenFrames.sort((a, b) => Number(b.dataset.shownAt || 0) - Number(a.dataset.shownAt || 0)).slice(KEPT_PANE_FRAMES).forEach((frame) => frame.remove());
-    const orderedPanes = [...state.panes].sort((a, b) => (a.id === state.focusedPaneId ? -1 : b.id === state.focusedPaneId ? 1 : 0));
+    const orderedPanes = [...state.panes].sort((a, b) => {
+      const aExists = populatedPanes.has(a.id);
+      const bExists = populatedPanes.has(b.id);
+      if (aExists !== bExists) return aExists ? -1 : 1;
+      return a.id === state.focusedPaneId ? -1 : b.id === state.focusedPaneId ? 1 : 0;
+    });
     orderedPanes.forEach((pane) => {
-      let section = panesEl.querySelector('[data-tab-pane="' + pane.id + '"]');
-      if (!section) {
-        section = document.createElement("section");
-        section.className = "tab-pane";
-        section.dataset.tabPane = pane.id;
-        section.innerHTML = paneMarkup();
-        panesEl.append(section);
-      }
+      const section = panesEl.querySelector('[data-tab-pane="' + pane.id + '"]');
+      if (!section) return;
       section.classList.toggle("is-focused", pane.id === state.focusedPaneId);
 
       const closePane = section.querySelector("[data-tab-pane-close]");
@@ -252,62 +358,62 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       const viewPlugin = tab ? null : pane.viewPlugin || "home";
       const frameKey = paneFrameKey(pane);
       const paneKey = tab ? ops.tabKey(tab) : "plugin:" + viewPlugin;
-      const cachedFrame = frameKey && panesEl.querySelector('iframe[data-pane-tab="' + frameKey + '"]');
-      if (cachedFrame && cachedFrame.dataset.paneKey !== paneKey) { cachedFrame.remove(); }
-      const liveFrame = frameKey && panesEl.querySelector('iframe[data-pane-tab="' + frameKey + '"]');
-      if (!embedded && frameKey && (state.panes.length > 1 || liveFrame)) {
-        let frame = liveFrame;
-        if (!frame) {
-          frame = document.createElement("iframe"); frame.className = "tab-content-frame"; frame.dataset.paneTab = frameKey;
-          frame.title = tab?.title || ops.pluginTitle(tab?.plugin || viewPlugin);
-          const url = new URL(location.href); url.hash = "";
-          url.pathname = location.pathname.startsWith("/projects/") ? "/projects/" + encodeURIComponent(getProjectId()) + "/" : "/";
-          url.searchParams.set("workbenchPane", pane.id); url.searchParams.set("panePlugin", tab?.plugin || viewPlugin);
-          url.searchParams.set("paneTitle", tab?.title || "");
-          if (tab?.kind === "item") url.searchParams.set("paneItem", tab.itemId); else url.searchParams.delete("paneItem");
-          const view = readView(pane.id);
-          if (view !== undefined) url.searchParams.set("paneView", view); else url.searchParams.delete("paneView");
-          frame.addEventListener("load", () => {
-            const owner = paneById(frame.dataset.paneOwner);
-            if (owner && paneFrameKey(owner) === frame.dataset.paneTab) frame.contentWindow?.postMessage({ type: "workbench-view", view: readView(owner.id) }, location.origin);
-          });
-          frame.src = url.href; panesEl.append(frame);
+      const body = section.querySelector("[data-tab-pane-body]");
+      // A tab whose record is gone shows why and the way out instead of its plugin's page (design README, shared part 7).
+      const gone = Boolean(tab) && goneRecord(tab);
+      const node = gone ? null : resolvePaneNode(pane, body, tab, viewPlugin, frameKey, paneKey, mountedNow);
+      const shownPlugin = tab ? (tab.kind === "system" ? "" : tab.plugin) : viewPlugin;
+      showRemoved(pane, !node && !gone && shownPlugin && removedPlugin(shownPlugin) ? shownPlugin : null);
+      showGone(pane, gone ? tab : null);
+      if (node) {
+        const returning = node.parentElement === pool;
+        const wasMountedHere = node.parentElement === body && !node.hidden;
+        const prevPaneKey = node.dataset.paneKey || "";
+        const prevView = node.dataset.paneView || "";
+        const nextView = readView(pane.id, tab?.id) || "";
+        const unchanged = !wasExclusive && wasMountedHere && prevPaneKey === paneKey && prevView === nextView && !(tab?.kind === "item" && node.dataset.expanded === "false");
+        mount(pane, node);
+        if (frameKey) node.dataset.paneTab = frameKey;
+        node.dataset.paneKey = paneKey;
+        node.dataset.paneView = nextView;
+        node.dataset.shownAt = String(Date.now());
+        mountedNow.add(node);
+        if (node.matches('[data-work-surface="home"][data-pane-clone]') && !mountedHomeClones.has(node)) {
+          mountedHomeClones.set(node, host.mountHomeClone?.(node) || null);
         }
-        frame.dataset.paneKey = paneKey; frame.dataset.shownAt = String(Date.now());
-        frame.dataset.paneOwner = pane.id; frame.hidden = false;
-        if (liveFrame) frame.contentWindow?.postMessage({ type: "workbench-view", view: readView(pane.id) }, location.origin);
-      } else {
-        // A tab whose record is gone shows why and the way out instead of its plugin's page (design README, shared part 7).
-        const gone = Boolean(tab) && goneRecord(tab);
-        const node = gone ? null : tab ? rootForTab(tab) : (viewPlugin ? topLevelSurface(viewPlugin) : null);
-        const shownPlugin = tab ? (tab.kind === "system" ? "" : tab.plugin) : viewPlugin;
-        showRemoved(pane, !node && !gone && shownPlugin && removedPlugin(shownPlugin) ? shownPlugin : null);
-        showGone(pane, gone ? tab : null);
-        if (node) {
-          const returning = node.parentElement === pool;
-          mount(pane, node);
-          mountedNow.add(node);
-          if (tab) {
-            applyTabContent(tab, keepFrame);
-            if (returning && surfaceShows.get(tab.plugin) === "tab:" + tab.id) restoreScroll(node);
-            surfaceShows.set(tab.plugin, "tab:" + tab.id);
-          } else if (viewPlugin === "home") {
-            declareGoal(null);
-            if (returning) restoreScroll(node);
-            selectItem(node, null, readView(pane.id));
+        if (tab) {
+          if (!unchanged || tab.plugin === "goals") applyTabContent(pane, tab, node, keepFrame);
+          else if (pane.id === state.focusedPaneId) declareGoal(null);
+          if (returning && surfaceShows.get(tab.plugin) === "tab:" + tab.id) restoreScroll(node);
+          if (pane.id === state.focusedPaneId) surfaceShows.set(tab.plugin, "tab:" + tab.id);
+        } else if (viewPlugin === "home") {
+          if (pane.id === state.focusedPaneId) declareGoal(null);
+          if (returning) restoreScroll(node);
+          mountedHomeClones.get(node)?.sync?.();
+          if (!unchanged) selectItem(node, null, readView(pane.id));
+        } else {
+          const isClone = node.hasAttribute("data-pane-clone");
+          if (isFramedSurface(viewPlugin, node)) {
+            node.dataset.paneSearch = buildPaneSearch(pane, null, viewPlugin, isClone);
+            host.prepareSurface?.(node, "restore");
+          }
+          if (isClone && viewPlugin === "goals") {
+            prepareGoalCanvasClone(node);
+          } else if (isClone && viewPlugin === "artifacts") {
+            void loadArtifactClone(node, null);
           } else {
             // A plugin page keeps what was open in it. It goes back to its list only after showing one of its tabs,
             // whose item is not the page's, or when asked to (the plugin tab, the plugin's own back).
             const shown = surfaceShows.get(viewPlugin);
-            surfaceShows.set(viewPlugin, "page");
+            if (pane.id === state.focusedPaneId) surfaceShows.set(viewPlugin, "page");
             if (shown === "page") { if (returning) restoreScroll(node); }
-            else {
-              applyPluginDefault(viewPlugin);
+            else if (!isClone && !unchanged) {
+              applyPluginDefault(viewPlugin, node);
               // First showing since the page loaded: reopen what was open before the reload.
               // A walk through history decides the record itself; otherwise returning from a tab shows the list.
               if (shown === undefined) reopenRecord(viewPlugin); else if (!historyLock) forgetRecord(viewPlugin);
             }
-            selectItem(node, null, readView(pane.id));
+            if (!unchanged) selectItem(node, null, readView(pane.id));
           }
         }
       }
@@ -315,29 +421,48 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     collectMounted().forEach((node) => {
       if (mountedNow.has(node) || node.parentElement === pool) return;
       rememberScroll(node);
-      if (node.querySelector("iframe[data-plugin-frame]")) node.hidden = true; else pool.append(node);
+      if (node.querySelector("iframe[data-plugin-frame]") || node.hasAttribute("data-pane-clone") || node.hasAttribute("data-pane-tab")) {
+        node.hidden = true;
+      } else {
+        pool.append(node);
+      }
     });
     const treeSignature = JSON.stringify(state.layout.tree, (key, value) => key === "ratio" ? undefined : value);
     if (panesEl.dataset.treeSignature !== treeSignature) {
       panesEl.querySelectorAll("[data-split-id]").forEach((node) => node.remove());
       const renderSashes = (tree) => {
         if (tree.paneId) return;
-        const split = document.createElement("div"); split.className = "tab-split"; split.dataset.splitId = tree.id; split.dataset.direction = tree.direction;
-        const sash = document.createElement("div"); sash.className = "tab-sash"; sash.dataset.tabSash = tree.id; sash.role = "separator"; sash.tabIndex = 0;
-        sash.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.resize-split-panes")); sash.setAttribute("aria-orientation", tree.direction === "row" ? "vertical" : "horizontal");
-        const handle = document.createElement("span"); handle.className = "tab-sash-handle"; handle.setAttribute("aria-hidden", "true");
+        const split = document.createElement("div");
+        split.className = "tab-split";
+        split.dataset.splitId = tree.id;
+        split.dataset.direction = tree.direction;
+        const sash = document.createElement("div");
+        sash.className = "tab-sash";
+        sash.dataset.tabSash = tree.id;
+        sash.role = "separator";
+        sash.tabIndex = 0;
+        sash.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.resize-split-panes"));
+        sash.setAttribute("aria-orientation", tree.direction === "row" ? "vertical" : "horizontal");
+        const handle = document.createElement("span");
+        handle.className = "tab-sash-handle";
+        handle.setAttribute("aria-hidden", "true");
         handle.innerHTML = '<svg aria-hidden="true"><use href="#icon-grip"></use></svg>';
         sash.append(handle);
-        split.append(sash); panesEl.append(split); tree.children.forEach(renderSashes);
+        split.append(sash);
+        panesEl.append(split);
+        tree.children.forEach(renderSashes);
       };
-      renderSashes(state.layout.tree); panesEl.dataset.treeSignature = treeSignature;
+      renderSashes(state.layout.tree);
+      panesEl.dataset.treeSignature = treeSignature;
     }
     layoutSplits();
     if (embedded) setMobileView("document");
     } finally {
       applying = false;
       rememberTab(ops.focused(state));
-      announcePlace(); systemTabs.sync(); if (!embedded) markFocus();
+      announcePlace();
+      systemTabs.sync();
+      if (!embedded) markFocus();
       persistHistory();
       syncHistoryButtons();
       markCoverOpeners();

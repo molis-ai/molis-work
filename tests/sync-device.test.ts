@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
@@ -146,7 +147,7 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
   t.after(()=>rmSync(root,{recursive:true,force:true}));
   const space=personalStorageSpace('https://auth.example.test','work','alice');
   ensureStorageSpace(root,space);
-  const selections=Array.from({length:7},(_,i)=>({plugin_id:`io.example.col${i}`,publisher_id:'example',publisher_signature:'example-key',collection_id:i===0?'projects':`items-${i}`,schema_version:1}));
+  const selections=Array.from({length:7},(_,i)=>({plugin_id:i===0?'io.molis.work.module.projects.v1':`io.example.col${i}`,publisher_id:i===0?'molis':'example',publisher_signature:i===0?'official-project-catalog-binding':'example-key',collection_id:i===0?'projects':`items-${i}`,schema_version:1}));
   const order:string[]=[];
   let active=0,peak=0,baseDone=false;
   const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
@@ -208,4 +209,168 @@ test('PCSYNC-OPT-09 indicatorStatus reflects local edits when automatic sync is 
   assert.equal(updated.progress.pending,2);
   assert.equal(updated.progress.complete,false);
   assert.equal(refreshes,afterRun,'local change refresh still avoids full catalog discovery');
+});
+
+test('PCSYNC-OPT-07 transport_backoff aborts concurrent sibling requests in the same layer instead of hammering the server', async t => {
+  t.mock.timers.reset();
+  const root = mkdtempSync(join(tmpdir(), 'molis-sync-backoff-abort-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
+  ensureStorageSpace(root, space);
+  const selections = Array.from({ length: 5 }, (_, i) => ({
+    plugin_id: `io.example.backoff${i}`,
+    publisher_id: 'example',
+    publisher_signature: 'example-key',
+    collection_id: i === 0 ? 'projects' : `items-${i}`,
+    schema_version: 1,
+  }));
+  const registrations = selections.map((selection, i) => ({
+    selection,
+    title: `Backoff ${i}`,
+    async refresh() {},
+    async prepare() {},
+    withReplica: <T>(run: (replica: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => run({
+      cursor: () => 0,
+      next: () => null,
+      receive() {},
+      acknowledge() {},
+      counts: () => ({ pending: 0, conflicts: 0 }),
+      conflicts: () => [],
+      resolve() {},
+    }),
+  }));
+  let changeCalls = 0;
+  let abortedSiblings = 0;
+  const sync = new PersonalSync({
+    home: root,
+    spaceId: space.spaceId,
+    endpoint: 'http://127.0.0.1:8788',
+    authority: { signal: new AbortController().signal, assertCurrent() {}, async accessToken() { return 'synthetic'; } },
+    registrations,
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/v1/round') {
+        return Response.json({
+          format: 1,
+          policy: { spaceId: space.spaceId, revision: 1, selections },
+          quota: { limitBytes: 100000000, usedBytes: 0 },
+          heads: selections.map(s => ({ namespace: syncNamespace(s), revision: 1 })),
+        });
+      }
+      changeCalls++;
+      if (changeCalls === 1) {
+        return Response.json({ error: 'SYNC_RATE_LIMITED' }, { status: 429, headers: { 'Retry-After': '60' } });
+      }
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+          abortedSiblings++;
+          reject(new Error('aborted'));
+          return;
+        }
+        signal?.addEventListener('abort', () => {
+          abortedSiblings++;
+          reject(new Error('aborted'));
+        }, { once: true });
+      });
+    },
+  });
+  t.after(() => sync.close());
+  await sync.run();
+  assert.ok(sync.status().error !== null);
+  // Non-platform collection_id='projects' must run in parallel with siblings (not isolated as platform catalog),
+  // and when one sibling hits 429, remaining in-flight siblings abort without starting collections 4 & 5.
+  assert.ok(changeCalls <= 3, `expected <= 3 requests before backoff abort, got ${changeCalls}`);
+  assert.ok(abortedSiblings >= 1, 'in-flight sibling requests must be aborted on transport_backoff');
+});
+
+test('P2-9 transport_backoff immediately aborts concurrent blob chunks within a single collection', async t => {
+  t.mock.timers.reset();
+  const root = mkdtempSync(join(tmpdir(), 'molis-sync-blob-backoff-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
+  ensureStorageSpace(root, space);
+  const selection = {
+    plugin_id: 'io.example.blobbackoff',
+    publisher_id: 'example',
+    publisher_signature: 'example-key',
+    collection_id: 'files',
+    schema_version: 1,
+  };
+  // > 4 MiB so blob-transfer splits into 2 concurrent chunks uploaded together in transferParts().
+  const payload = Buffer.alloc(4 * 1024 * 1024 + 1024, 0x42);
+  const digest = createHash('sha256').update(payload).digest('hex');
+  let chunkCalls = 0;
+  let siblingChunkAborted = false;
+  let resolveSiblingStarted!: () => void;
+  const siblingStarted = new Promise<void>(resolve => { resolveSiblingStarted = resolve; });
+  const sync = new PersonalSync({
+    home: root,
+    spaceId: space.spaceId,
+    endpoint: 'http://127.0.0.1:8788',
+    authority: { signal: new AbortController().signal, assertCurrent() {}, async accessToken() { return 'synthetic'; } },
+    registrations: [{
+      selection,
+      title: 'Blob Backoff',
+      async refresh() {},
+      async prepare() {},
+      content: {
+        encode: (_key, value) => ({ value, blobs: [{ digest, size: payload.byteLength, bytes: payload }] }),
+        decode: async (_key, value) => value,
+      },
+      withReplica: <T>(run: (replica: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => run({
+        cursor: () => 0,
+        next: () => ({ key: 'big-file', operationId: 'op-big-1', base: 0, value: { name: 'big.bin' } }),
+        receive() {},
+        acknowledge() {},
+        counts: () => ({ pending: 1, conflicts: 0 }),
+        conflicts: () => [],
+        resolve() {},
+      }),
+    }],
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/v1/round') {
+        return Response.json({
+          format: 1,
+          policy: { spaceId: space.spaceId, revision: 1, selections: [selection] },
+          quota: { limitBytes: 100000000, usedBytes: 0 },
+          heads: [{ namespace: syncNamespace(selection), revision: 0 }],
+        });
+      }
+      if (url.pathname === '/v1/blobs/reserve') {
+        return Response.json({ digest, size: payload.byteLength, ready: false, parts: [] });
+      }
+      if (url.pathname === '/v1/blobs/chunk') {
+        const part = url.searchParams.get('part');
+        chunkCalls++;
+        if (part === '0') {
+          await siblingStarted;
+          return Response.json({ error: 'SYNC_RATE_LIMITED' }, { status: 429, headers: { 'Retry-After': '60' } });
+        }
+        return new Promise<Response>((_, reject) => {
+          resolveSiblingStarted();
+          const signal = init?.signal;
+          if (signal?.aborted) {
+            siblingChunkAborted = true;
+            reject(new Error('aborted'));
+            return;
+          }
+          signal?.addEventListener('abort', () => {
+            siblingChunkAborted = true;
+            reject(new Error('aborted'));
+          }, { once: true });
+        });
+      }
+      return Response.json({ events: [], more: false });
+    },
+  });
+  t.after(() => sync.close());
+  const startedAt = Date.now();
+  await sync.run();
+  const elapsed = Date.now() - startedAt;
+  assert.equal(chunkCalls, 2);
+  assert.equal(siblingChunkAborted, true, 'sibling blob chunk must be aborted immediately on transport_backoff');
+  assert.ok(elapsed < 5_000, `expected immediate abort instead of waiting for 45s chunk timeout, took ${elapsed}ms`);
+  assert.ok(sync.status().error !== null);
 });

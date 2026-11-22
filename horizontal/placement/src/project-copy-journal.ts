@@ -15,6 +15,7 @@ export interface ProjectCopyReceipt {
 interface Journal {format:/* @version format.placement.copy-journal */ 1;spaceId:string;operations:Record<string,ProjectCopyReceipt>}
 export interface ProjectCopyJournal {
  get(operationId:string):ProjectCopyReceipt|null;
+ list():readonly ProjectCopyReceipt[];
  reserve(plan:ProjectCopyPlan):ProjectCopyReceipt;
  start(operationId:string,planHash:string):{readonly attempt:string;check():void};
  applied(operationId:string,attempt:string,assetId:string):void;
@@ -52,9 +53,10 @@ export function createProjectCopyJournal(storage:{read():string|null;compareAndS
  if(!text(targetSpaceId))throw errors.copy_journal_scope('目标空间无效');
  const load=()=>{authorize();const raw=storage.read();authorize();return {raw,journal:readJournal(raw,targetSpaceId)};};
  const get=(id:string)=>{const {journal}=load();return Object.hasOwn(journal.operations,id)?structuredClone(journal.operations[id]!):null;};
+ const list=()=>Object.values(load().journal.operations).map(entry=>structuredClone(entry));
  const change=<T>(mutate:(journal:Journal)=>T):T=>{const {raw,journal}=load(),result=mutate(journal),next=JSON.stringify(journal);readJournal(next,targetSpaceId);if(Buffer.byteLength(next)>16*1024*1024)throw errors.copy_journal_invalid('复制回执空间已满，原记录已保留');authorize();if(next!==raw&&!storage.compareAndSet(raw,next))throw errors.copy_journal_conflict('复制回执已由另一请求推进，请重试');authorize();return structuredClone(result);};
  const requireAttempt=(journal:Journal,id:string,attempt:string)=>{const receipt=Object.hasOwn(journal.operations,id)?journal.operations[id]:null;if(!receipt||receipt.attempt!==attempt||receipt.state!=='copying')throw errors.copy_journal_conflict('复制已由新的请求接管，旧提交已停止');return receipt;};
- return {get,reserve(input){const plan=planValue(structuredClone(input),targetSpaceId),digest=planHash(plan);return change(journal=>{
+ return {get,list,reserve(input){const plan=planValue(structuredClone(input),targetSpaceId),digest=planHash(plan);return change(journal=>{
   const old=Object.hasOwn(journal.operations,plan.operationId)?journal.operations[plan.operationId]:null;
   if(old){if(old.planHash!==digest)throw errors.copy_journal_conflict('同一复制请求不能更换原件或目标，请使用原回执重试');return old;}
   if(Object.keys(journal.operations).length>=1000)throw errors.copy_journal_invalid('复制回执数量已满，原记录已保留');

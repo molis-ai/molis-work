@@ -3,6 +3,7 @@ import { readNativePluginJsonBody, writeNativePluginJsonResponse } from "../nati
 import type { ComputerDesk } from "./computer-desk.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { ComputerSettings } from "./computer-settings.js";
+import { listVerifiableComputerApps, type DiscoveredComputerApp } from "./computer-apps.js";
 import type { HelperConnection, HelperPermission } from "./helper-connection.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -19,6 +20,8 @@ interface ComputerHttpPorts {
   readonly records: ComputerRecords;
   /** Shelf's public actions as the person at this computer, one bound client per request (PG-057). */
   readonly shelf: () => ComputerShelf;
+  /** Optional app discovery override for tests; defaults to read-only local `.app` bundle inspection. */
+  readonly listApps?: (userForbidden: ReadonlyArray<{ readonly bundle_id: string; readonly name: string }>) => Promise<readonly DiscoveredComputerApp[]>;
 }
 
 /** What putting a record on the Shelf needs: `shelf.items.admit@1` and `shelf.items.delete@1`, found in the action directory. */
@@ -44,6 +47,12 @@ export async function handleComputerHttp(request: IncomingMessage, response: Ser
       json(200, { enabled: ports.settings.enabled });
       return true;
     }
+  }
+
+  if (url.pathname === "/api/computer/apps" && request.method === "GET") {
+    const apps = await (ports.listApps ?? listVerifiableComputerApps)(ports.settings.forbidden());
+    json(200, { apps });
+    return true;
   }
 
   if (url.pathname === "/api/computer/forbidden" && request.method === "POST") {

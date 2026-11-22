@@ -67,9 +67,12 @@ import type { HostCompleteText } from "./host-complete-text.js";
 import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { admitProviderRules } from "./scene-rule-admission.js";
-import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
-import { releaseInstalledPlugins } from "./installed-plugin-host.js";
+import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
+import { homeAggregatePorts } from "./home-aggregate.js";
+import { backgroundWorkUnderWay } from "./home-background-tasks.js";
+import { installedPluginsActiveWorkCount, installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
+import fs from "node:fs";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -85,7 +88,7 @@ import { workTerminalActionProvider } from "./work-terminal-service.js";
 import { pluginDataActionProvider } from "./plugin-data-export.js";
 import { stateMachineRegistryProvider } from "./state-machine-registry.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
-import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
+import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -104,7 +107,7 @@ import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { homePluginActions, withPreparedActions } from "./plugin-actions-client.js";
 import { homePluginEntries } from "./plugin-registry.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { hostLog, logSearchIndexFailure } from "./host-log.js";
+import { hostLog, logSearchIndexFailure, repeatingFailure } from "./host-log.js";
 import { withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { projectApprovalsProvider } from "./project-review-entry.js";
 import { closeHomeStorageLifetime, ensureHomeStorageOwner, releaseHomeStorageOwner, retainInitializationCleanup } from "./home-storage-lifetime.js";
@@ -184,6 +187,8 @@ export function molisWorkHostProjectReference(input: {
  * The project composition owner: one database and application per Host runtime.
  */
 export class MolisWorkLocalHost {
+  /** The Home plugins' start, as each action call sees it: written when it starts failing and again once it has worked since. */
+  private readonly homeStart = repeatingFailure("home-plugins", "start_failed");
   readonly assistantStore?: SharedAssistantStore;
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private readonly draftReferences = new DraftReferences();
@@ -528,7 +533,9 @@ export class MolisWorkLocalHost {
   private async prepareHomeActions(): Promise<void> {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     if (inLanguagePreview()) return;
-    await this.homePlugins?.ready().catch(() => undefined);
+    // An action of another owner still runs when the Home plugins failed to start; the failure is written once (and again after a
+    // start that worked), so a call refused as 「能力未注册」 has its cause in the Host log, not only on the stage page.
+    await this.homePlugins?.ready().then(() => this.homeStart.worked("home"), error => this.homeStart.failed("home", error));
     await this.homePlugins?.refreshPublicActions();
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     this.systemFunctions?.refresh();
@@ -562,6 +569,38 @@ export class MolisWorkLocalHost {
     return this.host.closeProject(referenceOrStorageKey);
   }
 
+  /** The catalog's projects that are not open now, the ones whose library is there; none without a catalog. */
+  async closedProjects(): Promise<LocalHostProjectReference[]> {
+    const home = this.options.homeDirectory;
+    if (!home || !this.catalogRunner) return [];
+    const open = new Set(this.host.projects().map(project => project.storage_key));
+    const rows = await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects());
+    return rows.map(row => molisWorkHostProjectReference({ databasePath: row.database_path, projectId: row.project_id }))
+      .filter(reference => !open.has(reference.storage_key) && fs.existsSync(reference.storage_key));
+  }
+
+  /** Runs `work` without it counting as use of the projects it reads (`ProjectLine.quietly`). */
+  quietly<T>(work: () => T): T { return this.host.quietly(work); }
+
+  /** Whether the project is open, asleep, closed on purpose or not opened yet, and when it was last used (`ProjectLine.rest`). */
+  projectRest(storageKey: string) { return this.host.projectRest(storageKey); }
+
+  /**
+   * Puts an open project to sleep when nobody has used it for `idleMs` and nothing of it is running (batch 103-1): no call in its
+   * line, and no plugin execution, job or terminal of the project or of a Home plugin in it that closing would end. A call that comes
+   * later opens it again. Whether it was closed.
+   */
+  sleepIfIdle(reference: LocalHostProjectReference, idleMs: number): Promise<boolean> {
+    return this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
+      if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
+      const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
+        || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
+      if (running !== false) return true;
+      // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
+      return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
+    });
+  }
+
   close(): Promise<void> {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
@@ -581,6 +620,16 @@ export class MolisWorkLocalHost {
 
   projects(): LocalHostStatus["projects"] {
     return this.host.projects();
+  }
+
+  /** Synchronous count of active plugin background executions and command-kept jobs across Home and open projects. */
+  activeWorkCount(): number {
+    let count = this.homePlugins?.activeWorkCount() ?? 0;
+    for (const runtime of this.host.openRuntimes()) {
+      count += projectPluginsActiveWorkCount(runtime.store, runtime.project_id)
+        + installedPluginsActiveWorkCount(runtime.store, runtime.project_id);
+    }
+    return count;
   }
 
   /** Does this project reach the plugin behind a provider? The one judgement actions use (`projectPluginJudge`), by the injected catalog. */
@@ -634,7 +683,7 @@ function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>,
     client: (reference: LocalHostProjectReference): ActionClient => {
       const client = passiveClient(reference);
       const { invoke } = withPreparedActions(client, prepareHome, (caller, action, error) => refuseCall(reports, caller, action, error));
-      return { discover: client.discover, invoke };
+      return { discover: client.discover, discoverOne: client.discoverOne, invoke };
     },
   };
 }

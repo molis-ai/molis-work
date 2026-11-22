@@ -11,13 +11,13 @@ import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginInstanceRecord, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
-import { holdsFailedDatabaseUpgrade, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
@@ -29,15 +29,15 @@ import { generatedPluginManifest } from './plugin-builder/installed.js';
 import { installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
-import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
-import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
-import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, readPluginPrompts } from './plugin-builder/prompts.js';
-import { APPROVED_KEY, installedLifecycle, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
+import { installedLifecycle, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
+import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { RecoveryErrors } from './installed-recovery-errors.js';
@@ -73,6 +73,17 @@ export const staleInstallation = (message = '插件的安装执行身份已失�
 export const currentInstalledPluginHost = (store: LocalProjectDatabase, projectId: string) =>
   hosts.get(store)?.get(projectId)?.current;
 
+/** Whether the project's installed plugins are still starting, or one of them has work running that closing the project would end. */
+export function installedPluginsHaveWork(store: LocalProjectDatabase, projectId: string): boolean {
+  const entry = hosts.get(store)?.get(projectId);
+  return !!entry && (!entry.current || entry.current.platform.hasProjectWork(projectId));
+}
+
+/** Synchronous count of active background executions and command-kept jobs in this project's installed plugins. */
+export function installedPluginsActiveWorkCount(store: LocalProjectDatabase, projectId: string): number {
+  return hosts.get(store)?.get(projectId)?.current?.platform.activeWorkCount() ?? 0;
+}
+
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map();
   const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };
@@ -102,21 +113,9 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
   const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
-  const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
-  let exposureRevision = 0;
-  const catalog = installedCapabilityCatalog(homeDirectory, async () => {
-    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-    let snapshot: CatalogCapability[], revision: number;
-    for (;;) {
-      revision = exposureRevision; snapshot = await readCatalog();
-      if (closed) return [];
-      if (revision !== exposureRevision) continue;
-      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-      let changed = false;
-      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-      if (!changed) return snapshot;
-    }
-  });
+  const offers = installedOffers(), { exposed } = offers;
+  let closed = false;
+  const catalog = installedCatalog(homeDirectory, offers, () => capabilityCatalog(actions, options.actorId ?? 'web-user'), () => closed);
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
   const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: pluginHomeFor(homeDirectory), projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
@@ -129,27 +128,16 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   // What is installed here came from a signed package a pinned publisher made, the studio's own included (PG-083). A row the studio's earlier unsigned
   // channel left is not one: it is not listed, started or read (user decision 2026-11-21, nothing is migrated).
-  const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
-  /** `retryUninstall`: also the one signed tombstone of this plugin whose uninstall has not finished its clean-up (BL-915), never another. */
-  const recordFor = (pluginId: string, retryUninstall = false) => records().find(item => item.plugin_id === pluginId)
-    ?? (retryUninstall ? onlyOne(platform.runtime.list().filter(item => item.plugin_id === pluginId && isPendingUninstall(item))) : undefined);
-  const packages = new SandboxPackageStore(homeDirectory), packaged = new Map<string, InstalledRelease>();
-  /** A packaged release is read back (and checked again) from the Home's package store the first time an installation asks for it; a signature that checks is not enough, the publisher must still be trusted (BL-559). */
-  const packagedFor = (record: PluginInstanceRecord): InstalledRelease => {
-    if (!standing.trusted(record)) throw pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE);
-    const key = JSON.stringify([record.plugin_id, record.publisher_signature, record.version]);
-    let release = packaged.get(key);
-    if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
-    return release;
-  };
+  const { records, pendingUninstalls, recordFor } = installedRecords(() => platform.runtime.list(),
+    item => item.publisher_trust === 'pinned' && item.execution === 'sandbox');
+  const packages = new SandboxPackageStore(homeDirectory), packagedFor = packagedReleases(packages, standing);
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
     if (!record) return undefined;
     try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
   };
-  const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
+  const approvedFor = installedApprovals(storage);
   const titleOf = (pluginId: string) => releaseFor(pluginId)?.design.title ?? releases.releases().find(item => item.pluginId === pluginId)?.design.title;
-  let closed = false;
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record) || !platform.dualHomeRunning(record)) {
@@ -176,10 +164,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
-  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new RecoveryErrors();
-  const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
-  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
-    changed: () => { exposureRevision++; }, catalog });
+  const recoveryErrors = new RecoveryErrors(), { withdraw } = offers;
+  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw, changed: offers.changed, catalog });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)) });
   const declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
@@ -216,7 +202,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');
   };
   try {
-    await recoverInstalledRecords({ records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose });
+    await recoverInstalledRecords({ records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose,
+      unapproved: '找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装',
+      heldBack: (record, release) => release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record) });
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
     const reconcileDualHalf = (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) =>
       reconcileInstalledDualHalf({ closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, standing, definition }, pluginId, action, permission);
@@ -227,41 +215,11 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       packageOf: (pluginId: string) => packages.packageForControl(recordFor(pluginId)),
       /** Takes a signed package's installation off from its trusted row, its package not read; and the tombstones whose clean-up did not finish, listed until it has (BL-915). */
       uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
-      pendingUninstalls: () => platform.runtime.list().filter(isPendingUninstall),
+      pendingUninstalls,
       refreshPublicActions, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ record: item, pluginId: item.plugin_id, publisher: item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }
-}
-
-async function recoverInstalledRecords(ctx: {
-  records(): PluginInstanceRecord[];
-  standing: ReturnType<typeof publisherStanding>;
-  stops: ReturnType<typeof publisherStops>;
-  releaseFor(pluginId: string): InstalledRelease | undefined;
-  approvedFor(pluginId: string): SandboxEffects | null;
-  recoveryErrors: RecoveryErrors;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
-  platform: ReturnType<typeof createPluginPlatform>;
-  definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
-  expose(release: InstalledRelease): Promise<void>;
-}) {
-  for (const record of ctx.records()) {
-    try {
-      if (!ctx.standing.trusted(record)) { await ctx.stops.suspend(record); continue; }
-      const release = ctx.releaseFor(record.plugin_id), approved = ctx.approvedFor(record.plugin_id);
-      if (!release) { if (!ctx.recoveryErrors.has(record.plugin_id)) ctx.recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
-      if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
-      ctx.registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
-      if (record.state === 'disabled' || record.state === 'quarantined' || (release.packaged?.manifest.runtime?.dual_instance === true && !ctx.platform.dualHomeRunning(record))) {
-        const restored = ctx.definition(release, approved); ctx.platform.runtime.register(restored);
-        await ctx.platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
-      }
-      const report = await ctx.platform.start([{ definition: ctx.definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
-      if (report.running.includes(record.plugin_id)) await ctx.expose(release);
-      else throw new Error(ctx.platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-    } catch (error) { ctx.recoveryErrors.set(record.plugin_id, error); }
-  }
 }
 
 /** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */

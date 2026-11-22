@@ -243,6 +243,14 @@ export class HomePluginHost {
   async stopProjectJobs(projectId: string): Promise<void> {
     await this.executor?.stopProjectJobs(projectId);
   }
+  /** Whether a Home instance has work running in the project (`HomePluginExecutor.hasProjectWork`). */
+  hasProjectWork(projectId: string): boolean {
+    return !!this.executor?.hasProjectWork(projectId);
+  }
+  /** Synchronous count of active background executions and command-kept jobs across Home plugin instances. */
+  activeWorkCount(): number {
+    return this.executor?.activeWorkCount() ?? 0;
+  }
   close(): Promise<void> {
     this.closed = true; this.views.close();
     this.releaseRegistration();

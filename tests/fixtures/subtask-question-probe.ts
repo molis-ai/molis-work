@@ -32,7 +32,7 @@ export function mountQuestionProbe(forms: Record<string, AgentPendingQuestion & 
   };
   const handle = createSubtaskConversation(root, { source, mountDetail: questions.mount,
     labels: { back: "Back", close: "Close", loading: "Loading", readFailed: "Cannot read", retry: "Read again", latest: "Latest", messages: "Messages", children: "Children", unread: "Unread", working: "Working", actionFailed: "Action failed", unknown: "Unknown", check: "Check" }, onBack() {}, onClose() {} });
-  return { root, owner, handle, answers, flush: () => questions.flush(), blockSave() { gate = deferred<void>(); return gate; },
+  return { root, owner, handle, forms, answers, flush: () => questions.flush(), blockSave() { gate = deferred<void>(); return gate; },
     fill(value: string) { const field = root.querySelector<HTMLInputElement>("[data-ix-field=n0] input")!; field.value = value; field.dispatchEvent(new Event("input", { bubbles: true })); },
     submit() { root.querySelector<HTMLButtonElement>("[data-ix-action=answer]")!.click(); },
   };

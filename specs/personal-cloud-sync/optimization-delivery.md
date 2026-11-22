@@ -20,7 +20,7 @@
 - **Auth 与签名读取（`OPT-01`）**：桌面端保持现有会话令牌；启用签名读取后由 Auth 签发最多 30 秒的 Ed25519 短期凭证，Work 的 `/v1/round` 与 `/v1/changes` 本地验签（核对签发方、应用、主体、作用域、有效期与令牌哈希），写入、历史与附件仍实时向 Auth 核验。[Work 验签实现](../../server/src/sync/signed_identity.rs)
 - **云端同步核心（`OPT-02`、`03`、`04`、`05`、`10`、`11`、`12`、`16`）**：
   - 边缘限流绑定替代空闲轮询 D1 限流写入；实例内只读 Schema 校验缓存（写操作与损坏检测严格校验并失效缓存）；变更拉取支持 20 条上限与约 2 MiB UTF-8 动态分页。
-  - `/v1/blobs/complete` 与过程项割接 `seed-blobs/complete` 改为 R2 `HEAD` 零字节重读校验 + 有序分块 SHA-256 清单锚点（`partsDigest`），50 MB 完成耗时远低于 2 秒。[分块存储](../../server/src/sync/blob_store.rs) · [附件路由](../../server/src/sync/blobs.rs)
+  - `/v1/blobs/complete` 单分块使用 R2 `HEAD` + 分块即整对象 SHA-256 直比；多分块先验 `partsDigest` 快速拒绝缺失/错配，再按单块（最多驻留 4 MiB）流式增量 SHA-256 核验整对象 `digest`（守住 S-126，杜绝 `(space, digest)` 投毒）。[分块存储](../../server/src/sync/blob_store.rs) · [附件路由](../../server/src/sync/blobs.rs)
   - `createSyncJsonContent` 增加确定性 `deflate-raw` 内联压缩与按分块 `deflate-raw-chunks` 压缩（含 `maxOutputLength` 解压炸弹防护与旧未压缩信封兼容）；服务端 `changes.rs` 对 5 分钟连续编辑突发做中间草稿折叠并将非基线连续编辑保留期缩短为 24 小时，冲突分支（`sync_history_pins`）与回收站严格保留 30 天。[内容编解码](../../packages/plugin-sdk/src/sync-content.ts) · [变更提交](../../server/src/sync/changes.rs)
   - 维护清理每次有界处理 20 项，并在项目目录头到期清理时按通用平台项目归属级联清理全部子集合 head 与无共享引用的 R2 附件，保留子集合 `purged_at` 墓碑防离线复活；支持受控二次确认的回收站永久清理与 5 项配额明细。[维护与级联清理](../../server/src/sync/maintenance.rs)
 - **本机协调器与 Host（`OPT-06`、`07`、`08`、`09`、`13`、`14`、`15`、`16`）**：
@@ -39,7 +39,7 @@
 | `PCSYNC-OPT-01` | Auth 外网降载 | 通过 | 20 次连续轮询仅 1 次签发 + 1 次 JWKS、`/users/me` 0 次；伪造/过期/错误签发方/哈希不匹配/重定向均拒绝；写操作实时核验 Auth（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
 | `PCSYNC-OPT-02` | 空闲轮询零 D1 限流写入 | 通过 | 26 集合连续轮询 10 次 `sync_rate_windows` 为空表；超限返回 `429` + `Retry-After: 60`（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
 | `PCSYNC-OPT-03` | Schema 校验缓存 | 通过 | 20 次读命中实例缓存；移除触发器后读命中缓存、写立即拒绝并失效缓存；旧库或缺结构拒绝（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
-| `PCSYNC-OPT-04` | 大附件完成零重读（`partsDigest`） | 通过 | R2 `HEAD` 零字节重读 + 有序 `partsDigest` 清单校验；50 MB `complete` 实测 `< 2s`，缺/错 `partsDigest` 拒返 `409`，2×50 MB 100 MB 满额通过（[attachments.test.mjs](../../apps/sync-worker/attachments.test.mjs)）。 |
+| `PCSYNC-OPT-04` | 大附件完成完整性与流式校验（S-126） | 通过 | 单分块 R2 `HEAD` + 直接核验；多分块先校验 `partsDigest` 再逐块（<= 4 MiB 驻留）流式核验整对象 SHA-256，伪造整对象 `digest` 即使 `partsDigest` 匹配亦拒返 `409` 且 `ready` 保持 `0`；2×50 MB 100 MB 满额通过（[attachments.test.mjs](../../apps/sync-worker/attachments.test.mjs)）。 |
 | `PCSYNC-OPT-05` | 动态分页 | 通过 | 50 条 2 KiB 首批返 20 条；400 KiB 多字节记录按约 2 MiB 截页且无游标遗漏（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
 | `PCSYNC-OPT-06` | 本机秒级触发与空闲退避 | 通过 | 1.5s 防抖合并、空闲阶梯退避至 120s、`Retry-After` 统一节流；Web/MCP/动作非 `/api/sync` 写入口均触发 `notifyLocalChange`；指示器监听 `online` 与 `visibilitychange`（[sync-device.test.ts](../../tests/sync-device.test.ts)、[space-web-server.ts](../../apps/local-host/src/space-web-server.ts)、[sync-indicator.ts](../../apps/workbench/src/sync-indicator.ts)）。 |
 | `PCSYNC-OPT-07` | 读写预算解耦与分层并行 | 通过 | 下载积压不耗尽上传预算；拓扑分层并发实测 3 路峰值并发并保持依赖顺序与提速；附件双路分块并发（[security-invariants-personal-sync.test.ts](../../tests/security-invariants-personal-sync.test.ts)、[sync-device.test.ts](../../tests/sync-device.test.ts)）。 |
@@ -51,11 +51,11 @@
 | `PCSYNC-OPT-13` | 临时失败持久化重试 | 通过 | `sync.db` v1 → v2 升级保留延迟队列，重启后遵循退避截止时间，依赖恢复或手动单项重试即恢复（[sync-device.test.ts](../../tests/sync-device.test.ts)）。 |
 | `PCSYNC-OPT-14` | Host 去特判（插件同等待遇） | 通过 | 无 Goals/Todo 插件名分支；无 Goals 个人项目经真实 Host 与 Rust/D1 完整同步、回收站往返与恢复通过（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
 | `PCSYNC-OPT-15` | 本地到个人多选整项目复制 | 未完成 | 当前只交付项目结构复制，保留预览、暂存与幂等。文档、成果附件和其他插件内容的复制，以及真实内容端到端验收，见 [后续事项 #2184](https://github.com/molis-ai/molis-work/issues/2184)。 |
-| `PCSYNC-OPT-16` | 项目云端级联过期与本机最终清理 | 通过 | 云端项目过 30 天清理后级联释放全部子集合正文与无共享 R2 附件（计费归零）并保留防复活墓碑；本机 `finalizeExpiredPersonalProject` 强制核对 `server_purged_at`、子 owner 未结算队列与活动任务/终端（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
+| `PCSYNC-OPT-16` | 项目云端级联过期与本机最终清理 | 部分（云端级联通过；本机最终清理没有生产调用方，见 [BL-mr21-personal-purge-finalize](../backlog/BL-mr21-personal-purge-finalize.md)，2026-11-21 三天复核） | 云端项目过 30 天清理后级联释放全部子集合正文与无共享 R2 附件（计费归零）并保留防复活墓碑；本机 `finalizeExpiredPersonalProject` 强制核对 `server_purged_at`、子 owner 未结算队列与活动任务/终端（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
 | `PCSYNC-OPT-17` | 剩余 Owner 与嵌套 GC 收尾 | 通过 | Coding 真实 SDK 会话历史、Builder、Alchemist、Feed、Images、Cognia、Shelf、Sources、Attention、Runtime、Process Items 全部 20 份 Worker 集成测试 60/60 通过。 |
 | `PCSYNC-OPT-18` | 语义对比、分组进度与资源预算 | 通过 | 0 翻译问题；Chrome E2E 10/10 通过（含 Markdown/图片对比、分组、附件字节进度、项目结构复制预览/确认与 1440/1024/390 深浅色零溢出）；`page-assets:check` 67 项全通过且 `workbench.js` 净减 651 字节。 |
 | `PCSYNC-OPT-19` | 仓库工程门禁 | 通过（本机全绿） | 全量构建、Rust `fmt`/WASM `clippy`、`pnpm health:check`、`pnpm boundary:check`、`pnpm page-assets:check`、翻译、API/Schema/动作合同快照与 `pnpm secrets:check` 全部通过；待推送后由远端 CI 复验。 |
-| `PCSYNC-OPT-20` | `[人工]` 真实云端 24 小时压测 | 已完成 `test` 部署与连通性探针（待完整压测） | 已部署 `molis-auth-test`（Version `2c749c9a-f715-4ea7-b173-acbebe2c0c85`）与 `molis-work-test`（`https://work.test.molis.ai`，Version `56bd3b07-b2fa-4da8-a0ed-2f906ab486a8`，启用 `SYNC_READ_AUTH=signed`）；实测 `/.well-known/molis-sync-jwks.json` 200（`kid=molis-sync-test-2026-11`）、`/api/v2/auth/sync-read-proof` 200（TTL 30s）、5 次连续签名 `/v1/round` 延迟 `1667ms → 336–410ms`、`/v1/quota/breakdown` 5 项明细正常、注销后读凭证即刻 `401`，且远程 `molis-work-server-db-test` 的 `sync_rate_windows` 写入 **0 行**。24 小时双端长稳、50 MB 附件往返与 100 MB 满额压测待按计划执行。 |
+| `PCSYNC-OPT-20` | `[人工]` 真实云端 24 小时压测 | 已完成 `test` 部署与连通性探针（待完整压测） | 已部署 `molis-auth-test`（Version `2c749c9a-f715-4ea7-b173-acbebe2c0c85`）与 `molis-work-test`（`https://work.test.molis.ai`，Version `56bd3b07-b2fa-4da8-a0ed-2f906ab486a8`，启用 `SYNC_READ_AUTH=signed`）；实测 `/.well-known/molis-sync-jwks.json` 200（`kid=molis-sync-test-2026-11`）、`/api/v2/auth/sync-read-proof` 200（TTL 30s）、5 次连续签名 `/v1/round` 延迟 `1667ms → 336–410ms`、`/v1/quota/breakdown` 5 项明细正常、注销后 Auth 读凭证签发接口立即 `401`（Worker 已缓存的短期签名读凭证在最长 30 秒 TTL 窗口内自动失效，所有写入/历史/附件路由均实时核验 Auth 并立即拒绝），且远程 `molis-work-server-db-test` 的 `sync_rate_windows` 写入 **0 行**。24 小时双端长稳、50 MB 附件往返与 100 MB 满额压测待按计划执行。 |
 | `PCSYNC-OPT-21` | `[人工]` 生产迁移与配对备份演练 | 未执行 | 本地已验只读维护模式拒绝写入/清理；真实 D1/R2 配对备份、隔离恢复与回退拒绝演练待窗口执行。 |
 | `PCSYNC-OPT-22` | `[人工]` 两台实体 Mac 验收 | 未执行 | 待在两台实体 Mac 覆盖完整登录、新设备确认、大附件续传、离线冲突、30 天回收、多选整项目复制及退出/切号。 |
 

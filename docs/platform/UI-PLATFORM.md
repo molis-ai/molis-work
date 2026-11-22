@@ -90,7 +90,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 另有一处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它是现状，不是设计：
 
-- `molis-work:place-changed`：`scripts/contextual-slice/client.ts`（情境交互的评估用脚本，不进产品页面）在 `window` 上听它，而它发在 `document` 且不冒泡，那个监听器永远不会触发。
+- `molis-work:system-view-close`（主人 `tab-workspace`）：页签工作区（`apps/workbench/src/scripts/client/system-tabs.ts`）还听着它，供平台页的主人请它关掉自己的那一页；第 36A 批壳层对话批去掉「把助理的一件工作放到工作区当一页」之后，树里暂时没有主人发它（事件页由人在页签上关）。下一个需要自己收页的平台页主人直接发它；到那时仍没有，就连登记一起删。
 
 ## 4. 迁移
 
@@ -170,6 +170,6 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 **切换留在原处。** [`locale-switch.ts`](../../apps/workbench/src/browser/locale-switch.ts) 先准备旧、新两份表示和词包。只合并确认是界面文字的文本或属性，保留节点、草稿、焦点、选区、滚动和运行中的终端；用户文字和形状已经变动的业务部分不覆写。失败可在原位重试，晚到的旧语言结果不能盖回新语言。
 
-**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；产品代码照这样做（[定样记录](../design/appearance-selection/README.md)）。
+**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；产品代码照这样做（[定样记录](../design/archive/appearance-selection/README.md)）。
 
 改了这几处加跑：`node scripts/run-tests.mjs tests/host-ui-text.test.ts tests/ui-resources.test.ts tests/ui-baseline.test.ts`；浏览器的（要本机 Chrome）`tests/board-locale-switch.e2e.test.ts`、`tests/board-appearance.e2e.test.ts`。

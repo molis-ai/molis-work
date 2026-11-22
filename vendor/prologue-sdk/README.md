@@ -1,6 +1,22 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main cfb842e4（2026-11-19，0.1.0-rc.1 安全与 Harness 深化 + 消费方一等端口）
+## 当前包：official main 65c1722b（2026-11-21，0.1.0-rc.3 策略单调性与破坏性命令/存储代理加固）
+
+运行包为 `prologue-sdk-0.1.0-rc.3.tgz`，**1,497,231 字节**，SHA-256 `211d8b032acafa52b8a05f8a227d5283680c3117842d1afcce5b4e42fab5d651`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `65c1722b14f9c0b18599d2614ddf48e654ae3af0`（[Prologue #141](https://github.com/molis-ai/molis-prologue/pull/141)，基于 [Prologue #140](https://github.com/molis-ai/molis-prologue/pull/140) `ae1639977e73f51114e2dd673ddaf1086142629c`），无 vendor 补丁。
+
+本包落地三项安全与 Harness 加固：`EffectChain.prepare` 策略单调性（`restrict` 严格单调合并并遵守 `posture.approval === "never"`，仅允许外层显式工具级 `ask` 规则经不可伪造的内部 `WeakSet` 接力在无规则 `default-deny` 的 `path`/`command` 层询问，任何显式 `hard-deny`/`floor-deny`/`rule-deny`/`posture-never-denies` 均不可降级）；破坏性命令守卫覆盖 Windows 盘符根路径删除及大小写/后缀归一化后的 `dd`/`shutdown`；`NodeHost.storage` 公开代理以白名单收窄 `has`/`get` 至 `PUBLIC_STORAGE_METHODS`，阻断内部字段与非公开方法泄露，并升至 `0.1.0-rc.3`。
+
+两份独立官方 `git archive` 使用 Node 24.14.0 与 pnpm 11.9.0 离线构建打包，经 `cmp -s` 核验产物逐字节一致。现核查 74 个 Prologue 提交，上一份官方 `0.1.0-rc.2`（`ae163997`）包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main ae163997（2026-11-21，0.1.0-rc.2 安全与 Harness 审计加固）
+
+运行包为 `prologue-sdk-0.1.0-rc.2.tgz`，**1,496,047 字节**，SHA-256 `4dda9ec9700cdb90a59fb43e62d642f46db17637319d479a3abfb6328ee13b3e`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `ae1639977e73f51114e2dd673ddaf1086142629c`（[Prologue #140](https://github.com/molis-ai/molis-prologue/pull/140)，基于 [Prologue #139](https://github.com/molis-ai/molis-prologue/pull/139) `ba7e49426a641ea532cc0d7f91ca38719ccf621d` 与 #138 `cfb842e4`），无 vendor 补丁。
+
+本包落地安全与 Harness 审计加固：P0-1 `ui-control` 导航目标收紧（`deny` 与 `ask` 结果连同来源传播一并收紧，已批准来源不得未经批准跳往未批准/`ask` 目标）；P1-A1 `composition` 关机入口同步锁住准入（`cells.stopping`）并将预排空失败置为 `failed`（保持存储打开、可重试 `shutdown()`）；P1-A3 Tauri `prepareModelNetwork` 补齐 `x-goog-api-key` 请求头以对齐 Rust `prologue-host-tauri`；P1-A4 `ScopedStorage.commit` / `commitBatch` 在 `StorageGuard` 返回同步围栏且存在 `commitGuarded` 时改经 `commitGuarded` 仅在提交临界点触发一次围栏；P2-1/P2-2 破坏性命令解析（根路径规范化与 `.exe/.cmd/.bat` 后缀剥离）及 Tauri 进程后缀不区分大小写检查；P2-3 `NodeHost.storage` 拒绝公开访问保留的裸 `dispatch` 存储种类；P2-4 测试标题对齐，并升至 `0.1.0-rc.2`。
+
+两份独立官方 `git archive` 使用 Node 24.14.0 与 pnpm 11.9.0 离线构建打包，经 `cmp -s` 核验产物逐字节一致。现核查 73 个 Prologue 提交，上一份官方 `0.1.0-rc.1`（`cfb842e4`）包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main cfb842e4（2026-11-19，0.1.0-rc.1 安全与 Harness 深化 + 消费方一等端口）
 
 运行包为 `prologue-sdk-0.1.0-rc.1.tgz`，**1,494,922 字节**，SHA-256 `ddf44202aca998473acf0d1757f6cd5e6831cc33cf99acab13b426849bbe2580`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `cfb842e411ff446d06ca00d0c3875c6b4bbace85`（[Prologue #138](https://github.com/molis-ai/molis-prologue/pull/138)，基于 [Prologue #137](https://github.com/molis-ai/molis-prologue/pull/137) `d7fb690c82a97658839f3f31a5f5ecd13a8fed57` 与 #136 `66c404c7`），无 vendor 补丁。
 

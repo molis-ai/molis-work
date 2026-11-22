@@ -156,7 +156,7 @@ export const SIDE_FILES_STYLES = String.raw`
 .side-materials-add{margin-left:auto}
 .side-materials-problem{flex-basis:100%;margin:2px 0 0;color:var(--tone-blocked,var(--red));font-size:12px}
 .side-materials-problem[hidden]{display:none}
-.side-materials-passages{position:absolute;z-index:2;top:100%;left:8px;right:8px;max-height:260px;margin:4px 0 0;padding:4px;overflow:auto;list-style:none;border:1px solid var(--line);border-radius:8px;background:var(--paper);box-shadow:var(--shadow-pop,0 8px 24px rgb(0 0 0/.12));font-size:12px}
+.side-materials-passages{position:absolute;z-index:2;top:100%;left:8px;right:8px;max-height:260px;margin:4px 0 0;padding:4px;overflow:auto;list-style:none;border:1px solid var(--line);border-radius:8px;background:var(--paper);box-shadow:var(--lift-3);font-size:12px}
 .side-materials-passages:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:-2px}
 .side-materials-passages li{padding:6px 8px;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .side-materials-passages li:is([aria-selected="true"],:hover){background:var(--nav-hover)}

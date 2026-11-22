@@ -39,7 +39,10 @@ export function projectSurfaceContext(host: LocalHost<MolisWorkProjectRuntime>, 
     const transport = pluginRouteControl(signal, () => {
       if (owner.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭");
     }, assertSource);
-    return host.withExistingRuntime(reference, async runtime => {
+    // A project that went to sleep while its page stayed open is woken for the person looking at it (batch 103-1); a project closed on
+    // purpose or never opened stays as it is, so a display position still never prepares plugins of its own accord.
+    const wake = host.projectRest(reference.storage_key).state === "asleep" ? owner.withProject(reference, () => undefined) : undefined;
+    return Promise.resolve(wake).then(() => host.withExistingRuntime(reference, async runtime => {
       requireSynchronous(transport.assert_authority_current?.());
       if (!homeDirectory) throw new ActionError("actions.unavailable", "呈现需要 Home 目录");
       const original = surfaceHomeDirectory({ store: runtime.store, reference, homeDirectory, home: owner.homePlugins, readCatalog });
@@ -49,7 +52,7 @@ export function projectSurfaceContext(host: LocalHost<MolisWorkProjectRuntime>, 
         retained.assertCurrent(); requireSynchronous(authority.caller.assert_authority_current?.(...args));
       } } : authority.caller;
       return use({ ...authority, caller, runtime, catalog, transport, client: host.actionClient(reference), ...(retained ? { retained: true } : {}) });
-    });
+    }));
   };
 }
 
@@ -120,8 +123,9 @@ function positionAccess(sample: HomeReadSample, context: SurfaceProjectContext, 
     },
     count() {
       current();
-      return { count: groups.flatMap(group => group.items).filter(item => item.state === "ok" || item.state === "stale" && item.read_at).length,
-        can_restore: sample.description.corrections_revision !== "0" };
+      // The objects counted, as the display read gives them to this same caller: the foot leaves out the ones its card stack already shows.
+      const counted = groups.flatMap(group => group.items).filter(item => item.state === "ok" || item.state === "stale" && item.read_at);
+      return { count: counted.length, subjects: counted.map(item => ({ kind: item.subject.kind, id: item.subject.id })), can_restore: sample.description.corrections_revision !== "0" };
     },
     async display(recovery?: ActionSubject) {
       const display = await projectPositionDisplay(sample, groups, signal, values);

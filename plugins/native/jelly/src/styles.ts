@@ -1,7 +1,10 @@
 export const JELLY_STYLES = `
   [data-jelly="workbench"] { --plugin-tint: var(--ink-soft); position: relative; }
   body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"][data-expanded="true"] { grid-template-columns: minmax(220px, 27%) minmax(0, 1fr); }
+  /* An open note takes the page under the header; the list is the page behind it. */
+  body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"][data-expanded="true"] { display: grid; }
+  body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"][data-expanded="true"] > .jelly-main { display: none; }
+  body.immersive-workbench .plugin-stage-shell[data-jelly="workbench"][data-expanded="true"] > .jelly-detail.plugin-stage-workspace { position: relative; inset: auto; grid-column: 1; grid-row: 2; border-left: 0; }
   .jelly-header { grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between; min-height:48px; padding:8px 16px; gap:12px; border-bottom:1px solid var(--line); }
   .jelly-tabs,.jelly-header-actions,.jelly-toolbar,.jelly-toolbar-end,.jelly-period,.jelly-filters,.jelly-category-filters,.jelly-choice-row { display:flex; align-items:center; gap:8px; }
   .jelly-tabs { flex-wrap:wrap; }

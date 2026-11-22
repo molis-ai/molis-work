@@ -64,7 +64,7 @@ test("FSS-59 in a clean release the baseline files are readable and both offline
       },
     });
     const { answers, page, stackFromFile } = JSON.parse(stdout) as { answers: Record<string, { status: number; type: string; sha256: string }>; page: string; stackFromFile: boolean };
-    assert.equal(page, "#eef3f7");
+    assert.equal(page, "#f5f7fa");
     assert.equal(stackFromFile, true);
     for (const [route, answer] of Object.entries(answers)) {
       assert.equal(answer.status, 200, route);
@@ -83,7 +83,7 @@ test("FSS-59 in a clean release the baseline files are readable and both offline
         SDK_UI: `file://${path.join(release, "node_modules/@molis-ai/molis-work-plugin-sdk/dist/ui.js")}`,
       },
     });
-    assert.deepEqual(JSON.parse(words.stdout), { zh: "柔和工作台", en: "Soft Workbench", problems: [] });
+    assert.deepEqual(JSON.parse(words.stdout), { zh: "净透云光", en: "Soft Workbench", problems: [] });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

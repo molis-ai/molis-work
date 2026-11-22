@@ -54,7 +54,7 @@
 
 2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。
 
-2026-11-05索引Home增量：Memory ledger现行索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
+2026-11-05索引Home增量（2026-11-19 发布前 v1 复位后 Memory ledger 现行基线为 1，`tooling/versions.json` 的 `database.memory_ledger_baseline`；下文的 2 是当时的编号）：Memory ledger当时索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
 
@@ -128,10 +128,13 @@
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
+| Dataset 库 1 → 2（2026-11-20 用户确认，AC-T2） | 仅由 Home 升级链新增空的问卷来源绑定表，原数据表、快照与回执均保留。Dataset 的普通打开只认 v2；历史无绑定的表不按标题猜测归属 | Dataset owner；不再支持从 v1 升级时移除本段升级。 |
+| Risk 项目表和 Work Brief Home 库 1 → 2（用户批准，M1-B1） | 版本化升级事务创建同步日志和编辑版本表，按归属播种已有个人空间记录。已存在的日志保留，普通打开只认 v2，并由设备和集合授权控制上传。 | 两个插件负责业务数据和版本段，Local Host 负责平台日志。停止支持 v1 金样时移除各自升级段。 |
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 导入文档固定成果 `artifact.io.molis.work.document` 写 2、历史读 1（用户 2026-11-17 批准，QF-15） | 新导入把警告写成翻译键和参数，导入回执由可信 owner 绑定工作台词包。已固定的 schema 1 按原文字展示，原 payload、digest、版本、时间、原件与同步引用原样保存。本人的显式重导可以追加现行版本。预览、下载和继续认 1、2，未知结构拒绝。仅此固定格式准由起点 1 进到 2，无数据原地迁移。项目库和同步 envelope 维持当前版本 | Artifacts 拥有固定数据，导入源提供警告语义，Workbench 按界面语言展示。历史读取保留到没有该格式的固定版本与精确引用为止。复验见[QEA-79/80](../../specs/quality-experience-audit/spec.md#第三十四批导入警告按显示语言呈现固定版本保留原文qf-15) |
 | 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点（2026-11-19 发布前清理复位至全量 v1）；段的跑法和范围检查对所有插件同一份。已装签名包由明确确认的版本切换驱动，读取旧库只供校验，SQL 由独立有界进程执行，库版本、归属账本、安装行和批准记录一起提交（第 26 批 U4） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
+| Work Brief 固定版本里的来源名存成文字（用户 2026-11-21 批准，三天复核 D-1） | `plugins/native/work-brief/src/fix.ts` 的 `payloadOf` 在固定时按那次调用的语言把来源名 `TextRef` 译成文字写进成果库：固定版本是一份当时那样读的文档，预览与导出都是文字，换语言也不改写。只此一处；Work Brief 自己的库、简报的当前版本与别的插件仍只存键和参数，不得据此在别处存译文或拿译文做判断 | Work Brief 与成果库；固定版本的格式升版、改为存引用时移除 |
 | 第 15 批 Builder 两种格式的限定同版扩展（用户 2026-11-09 批准） | 仅 `format.builder.saved-state`、`format.builder.portable` 保持 1，允许本次可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind。旧无挂载位数据仍是当前合法子集；原数据、历史发行物和签名包不改写，不迁移、不读时转换。未知字段、非法引用／组件、签名不符及错误版本严格拒绝且原内容不变。例外不涉及真实 Home，不扩大到其他格式或后续结构变化，也不放宽门禁 | Builder 持久化 owner 与 SDK 共用声明校验；具体接线和正反例见[公共来源与呈现 §7](../../specs/shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。这是本次字段加法的准确授权记录，后续变更重新按第 3 节第 4 条处理 |
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
@@ -150,11 +153,15 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `projects/<project_id>/molis-work.db#risk` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留风险、引用和历史 | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE#1→2` |
+| `work-brief/work-brief.db` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留简报与操作记录 | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
+| `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | `plugins/native/dataset/src/database.ts#DATASET_DATABASE#1→2` |
 | `spaces/<spaceId>/sync/sync.db` | 1 → 2 | 个人同步优化 PCSYNC-OPT-13，新增重放次数和下次重试时间，保留原始失败事件、游标、设备同意及附件暂存 | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE#1→2` |
 | `shelf/catalog.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留本机目录或原个人同步状态，补入设备设置修订与回执 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
+| `external-sessions/external-sessions.db` | 1 → 2 | 第 103 批 103-2（用户 2026-11-21 弹窗同意）：`external_sessions` 加 `subagent INTEGER NOT NULL DEFAULT 0`，Claude Code 子代理轨迹记在所属会话下（`forked_from`），列表与搜索不显示；已有行都是普通会话，升级段只有这一句 SQL，无读取兼容，0.1.0 v1 金样经它回放 | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE#1→2` |
 
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
@@ -250,7 +257,7 @@
 | `projects/<project_id>/molis-work.db` | 4 → 5 | 同上（Coding 卡片结果转 `OwnedTextRef`） | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `projects/<project_id>/molis-work.db` | 5 → 6 | 第 38 批（保留项目运行时选择，补设置版本与采用回执） | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `work-brief/work-brief.db` | 1 → 2 | 存键和参数、不存译文（BL-work-brief-source-name-text） | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
-| `projects/<project_id>/molis-work.db` | 6 → 1 | 2026-11-19 发布前迁移清理（用户批准拍平回 v1） | 保留现行完整基线（含 `project_runtime_settings` 与回执表，移除 Files 退役旧日志与历史升级段），删旧开发金样并重新生成干净 0.1.0 v1 金样；见 `tooling/gates/schemas/v1-reset-exceptions.json`。 |
+| `projects/<project_id>/molis-work.db` | 6 → 1 | 2026-11-19 发布前迁移清理（用户批准拍平回 v1） | 保留现行完整基线（含 `project_runtime_settings` 与回执表，移除 Files 退役旧日志与历史升级段），删旧开发金样并重新生成干净 0.1.0 v1 金样（一次性复位白名单已于全量落定 v1 后清退）。 |
 | `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
 | `projects/<project_id>/molis-work.db#goals` | 5 → 1 | 同上 | 保留现行完整基线，清空历史升级段与旧审批移交源，`project_goals` 同步集合回归 v1，重新生成干净 0.1.0 v1 金样。 |
 | `projects/<project_id>/molis-work.db#schedule` | 3 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
@@ -337,7 +344,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **判断规则的编辑动作必带 `expected_updated_at`；`functions.authoring.get` 对插件开放**（第 05 批 N14，AIC-01～16，#1961）：
   - `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 的输入改为必须带读取时的版本 `expected_updated_at`（非空字符串，取读到的记录的 `updated_at`），旧字段 `updated_at` 不再接受。其中 update、preview、publish 本来就对 `plugin` 受众开放，插件调用时同样要带。
   - 版本过期得到 `functions.draft_stale`，样例不在得到 `functions.sample_not_found`，已发布后读到的不是发布的那一版得到 `functions.published_immutable`。
-  - `functions.authoring.get` 的受众加了 `plugin`，权限和 `list` 一样是 `functions:manage`。插件收到 `draft_stale` 后用它读回最新记录，就地接住（Feed 的规则页就是这样做的，界面写法见 `docs/design/rule-stale-reload/README.md`）。
+  - `functions.authoring.get` 的受众加了 `plugin`，权限和 `list` 一样是 `functions:manage`。插件收到 `draft_stale` 后用它读回最新记录，就地接住（Feed 的规则页就是这样做的，界面写法见 `docs/design/archive/rule-stale-reload/README.md`）。
   - `updated_at` 只随定义内容变化，试跑、样例、发布不推它。
   - 都在原版本上改（§3 第 3 条），MCP 工具名不变。动作合同快照里 6 行的输入哈希、`get` 一行的「谁能调」随之变。
 - **`projects.directories.*` 取代 `projects.workspaces.*`、`projects.workspace.read` 和浏览目录设置；`is_default` 改 `roles`**（第 05 批 #1979，路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3、§8）：项目的文件夹分成输入（只读，可多个）和输出（唯一，可写），都在原版本 @1 上改，旧名不留（§3 第 3 条）。
@@ -462,7 +469,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **存下的文字改成文字引用：动作卡片结果与 Work Brief 来源名**（2026-11-17；阶段一在原版本改，库升级走升级链，无读时兼容）：
   - **卡片结果**：合同 `AssistantCard.outcome` 与 SDK `ActionCard.outcome` 从 `string` 改为 `OwnedTextRef`。SDK 的 `settleActionCardRun` 等写平台键 `{ owner: "workbench", key: "common.action-card.*" }`，原始值作参数（错误信息是文字参数，日期是 `date`／`datetime` 样式的日期参数，不预先排版）；提供方自己的错误信息与声明的 `presentation.summary` 写 `{ literal }`。读卡片的地方在画的时候用 `say.text` 解析。插件交给 Host 的卡片，`outcome` 只收 `{ literal }` 或平台 `common.*` 键，别的被拒。自己读 `card.outcome` 当字符串的插件要改成 `say.text(card.outcome)`。
   - **提供方名字**：`ActionProvider` 新增可选 `title_text?: OwnedTextRef`，只由 Plugin Runtime 从 Manifest 的 `name_text` 填，`fallback` 是 `manifest.name`；`title` 不变。Work Brief 的 `SourceRow.name`、来源变化行的 `name` 与个人事项的 `owner_name` 改为 `OwnedTextRef`。没写 `name_text` 的插件仍是 `{ literal: title }`。
-  - **内置插件随项目库升级换私有值**：`PluginRegistration` 新增可信的 `private_value_upgrades?: { project_from, prefixes, convert }[]`，与 `private_value_adoption` 同样由 Plugin Runtime 只对确切官方安装、按整值写；项目库 4→5 用它让 Coding 在自己包里声明 `cards:` 的转换，平台不写插件名、不碰 Coding 的形状。只给内置登记读，已装插件不能声明。
+  - **内置插件随项目库升级换私有值**（已随 2026-11-19 发布前 v1 复位删除，现行合同没有这个字段）：`PluginRegistration` 曾新增可信的 `private_value_upgrades?: { project_from, prefixes, convert }[]`，与 `private_value_adoption` 同样由 Plugin Runtime 只对确切官方安装、按整值写；项目库 4→5 用它让 Coding 在自己包里声明 `cards:` 的转换，平台不写插件名、不碰 Coding 的形状。只给内置登记读，已装插件不能声明。
   - **库**：助理库 1→2、项目库 4→5、Work Brief 库 1→2（见上文「当前保留机制」与「存储版本变更登记」）。API 快照 `tooling/gates/api/contracts/platform/{actions,plugin}.txt`、`services/assistant.txt`、`plugin-sdk/index.txt` 同批刷新。
 
 - **审查引用的 owner 类型删 `goal-acceptance`**（2026-11-17 合后复查，插件同等地位收口 C9）：`platform/reviews.ts` 的 `ReviewOwner` 非可信决定一支只剩 `kind: "agent-review"`，`REVIEW_OWNER_SCHEMA` 同步收窄；`horizontal/agent-host`、`horizontal/mainline`、`horizontal/project-approvals` 读引用时不再接受 `goal-acceptance`。带审查引用 schema 的动作在原版本上收窄（只少一个从未产生的取值，动作合同快照的 schema 哈希随之变）：`acceptance.decide/deliveries.record/read/reports.submit/requirements.set@1`、`background.tasks.read@1`、`mainline.line.read@1`，以及插件声明的 `coding.background.tasks@1`、`images.background.tasks@1`。全仓没有产生这个值的代码，库里也没有存量，不写升级段、不留读取兼容。用到 `ReviewOwner` 的插件作者：不要再构造 `goal-acceptance`，Goal 的验收按通用的 `agent-review` 或可信决定引用走。
@@ -483,3 +490,4 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **第 44 批插件同等地位收口与合后独立复核整改**（PR [#2155](https://github.com/molis-ai/molis-work/pull/2155) 与 `fix/batch-44-audit-fixes`，2026-11-19／11-20；阶段一在原版本改，无读时兼容）：
   - **去插件化合同与通用事件**：`ActionSubjectContext.goal_ids` 改为 `attached_to?: ActionSubject[]`；放置关联改为通用 `placement_relation`（`placement.attach.*`）；删外壳 `goal-*` DOM 事件、`goal-acceptance`、`work-mode-changed`、`molis.goal.promote.*` 及旧 CLI Goals 命令；`packages/contracts/src/modules/workspace-artifacts.ts` 的 `CODING_RUN_COMPLETED_EVENT`／`GIT_CHANGE_SET_PUBLISHED_EVENT` 泛化为 `WORKSPACE_EXECUTION_COMPLETED_EVENT`（`molis.workspace.execution.completed`）与 `WORKSPACE_VCS_CHANGE_SET_PUBLISHED_EVENT`（`molis.workspace.vcs.change-set.published`）；`open.surface` 允许签名第三方反域名标识（`^[a-zA-Z0-9_.-]+$`）。
   - **平台能力与第三方沙箱同等地位**：项目指导归 `modules/projects`（`projects.guidance.*@1`），要求与认可归 `modules/acceptance`（项目库五张表含 SQLite `CHECK` 与 `peer_reviewed` 成果核验），对象工作终端归平台 `work_terminals` 声明与 `/api/work-terminals/:pluginId/:kind/:id`；签名固定沙箱第三方包同步支持 `dual_instance`（受 S-48 Home 权限上限与停用联动约束）、`work_terminals`、`resume_summary`、`placement_relation`、`settings_entries` 与 `plugins.data.*` 按项目隔离导出（含 `owner_files` 与显式截断）。公开 API、动作与库结构快照及 `0.1.0` 金样已同步刷新。
+- **`agent.run.reviews@1` 的结果多一类行：以这一轮为来源的整合审批**（第 99 批 99-1，DEL-07）：在原版本上改，输入输出形状不变。读一轮审批时，除了这一轮自己的审批，也带上同一插件发起、`document.source` 指向这一轮的 `git-integration` 审批；这类行的 `request.run` 是 `null`（整合由人在轮次结束后发起，没有自己的轮次）。按 `request.run` 筛行的消费者要先判空；只认 `text-edit`、`command` 的消费者不受影响。Coding 用它把子任务整合确认带回的文件（新增、修改、删除）列进本轮固定变更；会话自己独立工作树的整合不归给任何一轮，Coding 不收。

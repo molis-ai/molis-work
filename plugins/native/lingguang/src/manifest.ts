@@ -44,6 +44,19 @@ export const lingguangManifest: PluginManifest = {
   ],
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "lingguang.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "lingguang.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "lingguang.help.example-1" }, { key: "lingguang.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "lingguang.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "lingguang.help.advanced-summary" }, body: { key: "lingguang.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "workbench", slot: "stage", title: "灵光", title_text: { key: "lingguang.directory.view-workbench" }, contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, accepts_objects: true },

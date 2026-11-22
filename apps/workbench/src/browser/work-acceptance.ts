@@ -77,9 +77,9 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
       draw(); column.querySelector("[data-lead]")?.scrollIntoView({ block: "nearest" });
       column.querySelector<HTMLElement>("[data-lead] [data-acceptance-accept], [data-acceptance-close]")?.focus();
     } else { draw(); if (back) dialog(true); back = false;
-      // Back where it was opened from: the same button, the one drawn in its place since, or (its panel gone) what opens the task panel.
+      // Back where it was opened from: the same button, the one drawn in its place since, or (its card gone) what opens the conversation.
       const again = opener?.isConnected ? opener : [...document.querySelectorAll<HTMLElement>("[data-acceptance-open]")].find(one => one.dataset.acceptanceOpen === was && one.getClientRects().length > 0);
-      (again ?? document.querySelector<HTMLElement>("[data-task-mark]"))?.focus(); opener = null;
+      (again ?? document.querySelector<HTMLElement>("[data-work-line] [data-dialog-open]"))?.focus(); opener = null;
     }
   };
   /** One write as the person; whatever happens the column shows what stands afterwards, with the refusal's own words when there is one. */

@@ -6,7 +6,7 @@ import { goalsWorkPromptAction } from "./work-prompt.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
-import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
+import { GOALS_STAGE_CONTRIBUTION_ID, GOALS_UI_HELP } from "./page/workbench-stage.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
 import { ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
@@ -104,6 +104,7 @@ export const goalsManifest: PluginManifest = {
   routes: GOALS_ROUTES,
   sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: GOALS_UI_HELP,
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,
     views: [

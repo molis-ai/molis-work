@@ -68,8 +68,12 @@ export const PAGE_STATE_OWNERS = {
     state: "The displayed words and language of one document.",
   },
   "side-panel": {
-    files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
-    state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
+    files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts", "apps/workbench/src/side-panel-help.ts"],
+    state: "The right side's views, their documents and what each was asked to show (a file, a web page, help text, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
+  },
+  "on-demand-help": {
+    files: ["packages/design-system/src/browser/on-demand-help.ts"],
+    state: "The active Scheme A on-demand help card, its trigger focus return, and skippable first-visit tips.",
   },
   assistant: {
     files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
@@ -80,7 +84,7 @@ export const PAGE_STATE_OWNERS = {
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "task-float": {
-    files: ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"],
+    files: ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-tasks.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"],
     state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.",
   },
   "context-toolbar": {
@@ -236,8 +240,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:attention-refresh", kind: "request", owner: "attention", on: "document",
-    detail: "none",
-    summary: "Read what waits on the person again now: the person acted on a notice or on the work line, or a work of the Assistant's changed state.",
+    detail: "none, or { reconnected: true } from the desktop shell once the Host answers again: the page then replaces its event stream before reading",
+    summary: "Read what waits on the person again now: the person acted on a notice or on the work line, a work of the Assistant's changed state, or the desktop reconnected to the Host.",
   },
   {
     name: "molis-work:attention-unreachable", kind: "announcement", owner: "attention", on: "document",
@@ -501,6 +505,11 @@ export const DOM_EVENTS = [
     name: "molis:context-tools", kind: "request", owner: "context-toolbar", on: "element", bubbles: true,
     detail: "ContextTools (services/contextual)",
     summary: "A plugin offers its tools for the context it names, as data (limits in CONTEXT_TOOL_LIMITS). The toolbar draws them at the left of the bar and ignores ones for another context.",
+  },
+  {
+    name: "molis:help-retry", kind: "announcement", owner: "on-demand-help", on: "document",
+    detail: "{ topic: string }",
+    summary: "The person clicked Try again inside a failed on-demand help card; topic providers may clear cached failures before the card re-reads the topic.",
   },
   {
     name: "molis:placement-changed", kind: "announcement", owner: "placement", on: "window",

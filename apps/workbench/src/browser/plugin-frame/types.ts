@@ -2,7 +2,7 @@ import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/projec
 import type { SkillPickConsumer } from "@molis-ai/molis-work-contracts/services/skills";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { HostReviewFactory } from "./review-slots.js";
-import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiPageInstructionSettings } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiPageInstructionSettings, UiShowToastOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -29,8 +29,9 @@ export interface FrameHost {
   openItem?(...args: unknown[]): void;
   openBeside?(...args: unknown[]): void;
   openPlugin?(...args: unknown[]): void;
+  focusPane?(paneId: string): void;
   hideDirectory?(): void;
-  showToast?(message: string, failure?: boolean): void;
+  showToast?(message: string, failureOrOptions?: boolean | UiShowToastOptions): void;
   readRefusal?(status: number, code: unknown): string;
   status?(...args: unknown[]): void;
   openView?(root: HTMLElement, selection: UiViewSelection): void;
@@ -61,6 +62,8 @@ export interface FrameConfig {
   search?: string;
   /** The page is in a workbench pane under the bar: its AI composer is a receiver of the bar's one input (composer-bridge.ts). */
   bar: boolean;
+  /** True when the enclosing shell offers the right-side help tab ("在右栏继续看"). */
+  sideHelp?: boolean;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }

@@ -236,6 +236,18 @@ export class PluginHostExecutor implements PluginExecutor {
     await Promise.all([...this.sessions.values()].map(held => held.session.stopProjectJobs(projectId)));
   }
 
+  /** Whether a running instance has work in the project that closing it would end (`HostSession.hasProjectWork`). */
+  hasProjectWork(projectId: string): boolean {
+    return [...this.sessions.values()].some(held => held.session.hasProjectWork(projectId));
+  }
+
+  /** Synchronous count of active background executions and command-kept jobs across running instances. */
+  activeWorkCount(): number {
+    let count = 0;
+    for (const held of this.sessions.values()) count += held.session.activeWorkCount();
+    return count;
+  }
+
   async commitDatabaseUpgrade(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void> {
     const { home, projectLibrary, project_id: projectId } = this.options;
     if (!home || !projectLibrary?.path) throw new ActionError("actions.service_unavailable", "项目库升级缺少当前 Home 或项目");

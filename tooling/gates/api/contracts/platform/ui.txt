@@ -588,6 +588,13 @@ export declare const UI_FORMAT_VERSIONS: {
     readonly registry: 1;
 };
 
+export declare const UI_HELP_LIMITS: {
+    readonly maxTopics: 16;
+    readonly maxSectionsPerTopic: 12;
+    readonly maxItemsPerSection: 12;
+    readonly maxIdLength: 64;
+};
+
 export declare const UI_HOST_CLIENT_CODES: {
     readonly crossOrigin: "ui_host.cross_origin";
     readonly unreachable: "ui_host.unreachable";
@@ -716,6 +723,14 @@ export interface UiComponentSpec {
     readonly intents: readonly UiComponentIntent[];
     readonly data: (typeof UI_COMPONENT_VALUES.data)[number];
     readonly icon: string;
+}
+
+export interface UiConfirmOptions {
+    readonly title: string;
+    readonly body?: string;
+    readonly confirmLabel?: string;
+    readonly cancelLabel?: string;
+    readonly tone?: "default" | "danger";
 }
 
 export type UiConnectionNeedOutcome = {
@@ -896,6 +911,27 @@ export interface UiFrameAssetReference {
 
 export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "intl" | "direction">;
 
+export interface UiHelpDeclaration {
+    readonly default_topic?: string;
+    readonly topics: readonly UiHelpTopicDeclaration[];
+}
+
+export interface UiHelpSectionDeclaration {
+    readonly id: string;
+    readonly heading: TextRef;
+    readonly body?: TextRef;
+    readonly items?: readonly TextRef[];
+    readonly collapsible?: boolean;
+    readonly summary?: TextRef;
+}
+
+export interface UiHelpTopicDeclaration {
+    readonly id: string;
+    readonly title: TextRef;
+    readonly first_visit_tip?: TextRef;
+    readonly sections: readonly UiHelpSectionDeclaration[];
+}
+
 export interface UiHostApi {
     register<TModel>(contribution: OwnedUiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -975,7 +1011,7 @@ export interface UiPageActions {
 }
 
 export interface UiPageDialogs {
-    confirm(message: string): Promise<boolean>;
+    confirm(message: string | UiConfirmOptions): Promise<boolean>;
     prompt(message: string, initial?: string): Promise<string | null>;
 }
 
@@ -1132,7 +1168,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     openBeside(surface: string, itemId: string, title?: string): void;
     openPlugin(surface: string, view?: string, panel?: string): void;
     hideDirectory(): void;
-    showToast(message: string, failure?: boolean): void;
+    showToast(message: string, failureOrOptions?: boolean | UiShowToastOptions): void;
     readonly pluginId: string;
     projectId(): string;
     projectTitle(): string;
@@ -1272,6 +1308,11 @@ export interface UiShadowLayer {
     } | {
         readonly role: string;
     };
+}
+
+export interface UiShowToastOptions {
+    readonly tone?: "default" | "success" | "warning" | "error";
+    readonly duration?: "short" | "normal" | "long" | number;
 }
 
 export interface UiSideContext {

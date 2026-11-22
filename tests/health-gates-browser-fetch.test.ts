@@ -299,3 +299,20 @@ test("W4-04: reading a bundle that no build step makes cannot be expanded", () =
   const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
   assert.match(result.out, /plugins\/native\/beta\/src\/client\.ts:1:\d+: cannot statically expand browser program \(unsupported call readFileSync/);
 });
+test("102-1: a raw fetch in a bundle built by tooling/build-*.mjs still counts in its source file", () => {
+  reset();
+  bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
+  put("plugins/native/beta/tooling/build-client.mjs", 'export const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/beta-client.js" }];\n');
+  commit("script-built bundle");
+  const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/beta\/src\/browser\/send\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+test("102-1: reading a bundle omitted from tooling/build-*.mjs cannot be expanded", () => {
+  reset();
+  bundled("tsc -p tsconfig.json && node tooling/build-client.mjs");
+  put("plugins/native/beta/tooling/build-client.mjs", 'export const BUNDLES = [{ entryPoints: ["src/browser/entry.ts"], outfile: "dist/other-client.js" }];\n');
+  commit("script-unbuilt bundle");
+  const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /plugins\/native\/beta\/src\/client\.ts:1:\d+: cannot statically expand browser program \(unsupported call readFileSync/);
+});

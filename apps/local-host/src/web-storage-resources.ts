@@ -69,5 +69,5 @@ export function createWebStorageResources(options: {
     },
   });
   resources.push(["browser-surfaces", unregister]);
-  return { im, browserHost, sites, computer, projectExists, projectSchedules: projectSchedulers.runtimes };
+  return { im, browserHost, sites, computer, projectExists, projectSchedules: projectSchedulers.runtimes, activeScheduleCount: projectSchedulers.activeCount };
 }

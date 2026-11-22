@@ -251,7 +251,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const needle = String(text || "").trim().toLowerCase();
     const started = Date.now();
     let seen = false;
-    const documents = () => [document, ...[...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => { try { return frame.contentDocument; } catch { return null; } }).filter(Boolean)];
+    const documents = () => [document, ...[...document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]')].map((frame) => { try { return frame.contentDocument; } catch { return null; } }).filter(Boolean)];
     const attempt = () => {
       for (const doc of documents()) {
         const roots = [...doc.querySelectorAll((surface === "goals" ? '[data-goal-frame-surface], ' : '') + '[data-work-surface="' + surface + '"]')].filter((el) => !el.closest("[hidden]") && el.getClientRects().length);
@@ -386,7 +386,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const button = event.target.closest("[data-global-search-scope-option]");
     if (!button || !scopes.includes(button.dataset.globalSearchScopeOption)) return;
     scope = button.dataset.globalSearchScopeOption;
-    try { sessionStorage.setItem("molis-work:search-scope", scope); } catch {}
+    try { sessionStorage.setItem("molis-work:search-scope", scope); } catch { /* Ignore sessionStorage write failure for search scope. */ }
     resetQuery();
     input.focus();
   });

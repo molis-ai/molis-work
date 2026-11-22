@@ -92,8 +92,8 @@ test("primary and danger buttons keep semantic foregrounds across Light and Dark
   const arrivalStyles = renderMolisWorkArrivalStylesheet();
   const settingsStyles = renderMolisWorkSettingsStylesheet();
   const workbenchStyles = renderMolisWorkWorkbenchStylesheet();
-  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #2d4f6c;[\s\S]*--action-ink: #ffffff;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #dbe6ef;[\s\S]*--action-ink: #17212b;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #1f3c56;[\s\S]*--action-ink: #ffffff;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #e4edf6;[\s\S]*--action-ink: #101924;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--danger-action: var\(--red\);[\s\S]*--danger-action-ink: var\(--page\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\);[\s\S]*color: var\(--action-ink\);/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[^{}]*\{[^}]*background: var\(--action\) !important/);
@@ -107,13 +107,13 @@ test("primary and danger buttons keep semantic foregrounds across Light and Dark
 
 // Soft Workbench (DESIGN.md → Colors, Shapes): pearl desk, white surface, 14px surface corner.
 test("visual foundation ships one Soft Workbench world across workbench and settings", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /--page: #eef3f7;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--shadow-soft: 0 1px 2px/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--paper: #fcfdfe;/);
-  // spec → 第三轮 · 视觉精修: muted and faint darkened a step so captions reach 4.5:1 on paper.
-  assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #586574;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #616d7a;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #2d4f6c;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--page: #f5f7fa;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--shadow-soft: 0 0 0 1px/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--paper: #ffffff;/);
+  // spec → 第三轮 · 视觉精修 + 决定 60: muted and faint keep >= 4.5:1 on sunlit paper.
+  assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #5a6877;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #63707f;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #1f3c56;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
   assert.match(renderMolisWorkWorkbenchStylesheet(), /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
   assert.match(renderMolisWorkWorkbenchStylesheet(), /\.tree-node\.is-selected \{[^}]*background: var\(--nav-active\);[^}]*box-shadow: none;/);
@@ -418,10 +418,10 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   const baseline = renderSkinScope(BASELINE_SKIN, true);
   const light = baseline.match(/color-scheme: light;([^}]+)/u)?.[1] ?? "";
   const dark = baseline.match(/color-scheme: dark;([^}]+)/u)?.[1] ?? "";
-  for (const word of ["--page: #eef3f7;", "--paper: #fcfdfe;", "--ink: #1f2b37;", "--muted: #586574;", "--faint: #616d7a;"]) {
+  for (const word of ["--page: #f5f7fa;", "--paper: #ffffff;", "--ink: #15202b;", "--muted: #5a6877;", "--faint: #63707f;"]) {
     assert.ok(light.includes(word), word);
   }
-  for (const word of ["--page: #141a20;", "--paper: #1b2229;", "--ink: #e8eef3;", "--muted: #9aa8b5;", "--faint: #8e9ba8;"]) {
+  for (const word of ["--page: #0f1318;", "--paper: #192029;", "--ink: #ecf1f6;", "--muted: #95a5b5;", "--faint: #8797a6;"]) {
     assert.ok(dark.includes(word), word);
   }
   assert.match(light, /--hue-indigo: #5e6ad2;/);

@@ -20,6 +20,7 @@ import { renderAgentReviewRecovery, renderAgentReviewSurface } from "@molis-ai/m
 import type { AgentReviewRecoveryView, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { NOTICES_WAIT, PRESS_NOTICES } from "./fixtures/attention-ways.js";
 
 test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
@@ -183,8 +184,8 @@ test("FSS-36 an open missed follow-up notice keeps its original label and time t
   assert.ok(notice);
   const path = `/projects/${b.projectId}/`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=en&next=" + encodeURIComponent(path) }, b.sessionId));
-  await b.waitFor("document.querySelector('[data-assistant-attention]')?.hidden === false");
-  await b.click("[data-assistant-attention]");
+  await b.waitFor(NOTICES_WAIT);
+  await b.evaluate(PRESS_NOTICES);
   const dismiss = `[data-notice-id=${JSON.stringify(notice.notice_id)}][data-notice-action=dismiss]`;
   await b.waitFor(`document.querySelector(${JSON.stringify(dismiss)})?.getClientRects().length`);
   await b.evaluate(`(() => {
@@ -726,11 +727,11 @@ test("FSS-20 FSS-35 FSS-36 the mounted AI kit retitles the same prompt, tools an
   const select = await chooseEnglishInSettings(t, b);
   await b.waitFor(`document.documentElement.lang==='en' && ${detail}.querySelector('h3')?.textContent==='Base constraints'`);
   assert.deepEqual(await b.evaluate(`[kitHeading===${detail}.querySelector('h3'),kitManage===${detail}.querySelector('a[href="/settings/prompts"]'),
-    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "Edit in Prompts"]);
+    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "Open full prompt list"]);
   await select("zh");
   await b.waitFor(`document.documentElement.lang==='zh-CN' && ${detail}.querySelector('h3')?.textContent==='基础约束'`);
   assert.deepEqual(await b.evaluate(`[kitHeading===${detail}.querySelector('h3'),kitManage===${detail}.querySelector('a[href="/settings/prompts"]'),
-    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "在提示词里改"]);
+    kitSearch===${search},kitSearch===document.activeElement,kitManage.textContent.trim()]`), [true, true, true, true, "打开完整提示词列表"]);
   await b.click(".kit-detail [data-kit-act=up]");
   const wire = await b.evaluate<Array<[string, number, string | null, number]>>("kitWire");
   assert.deepEqual(wire.map(([tag, status]) => [tag, status]), [["zh", 200], ["en", 200], ["zh", 200]]);

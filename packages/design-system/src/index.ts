@@ -12,7 +12,14 @@ export {
   VISUAL_FOUNDATION_STYLES,
   VISUAL_FOUNDATION_PAGE_STYLES,
   COSS_CONTROL_STYLES,
+  PLUGIN_COSS_CONTROL_STYLES,
+  PLUGIN_FOUNDATION_STYLES,
   PRIMITIVE_STYLES,
+  PRIMITIVE_PLUGIN_STYLES,
+  PRIMITIVE_PLUGIN_CALENDAR,
+  PRIMITIVE_PLUGIN_SEVERITY,
+  PRIMITIVE_PLUGIN_LAYOUT_SHELL,
+  MOTION_STYLES,
   ARRIVAL_COMPONENT_STYLES,
   INTERACTION_TEXTURE_STYLES,
   MICRO_INTERACTION_CLIENT_SCRIPT,
@@ -28,7 +35,7 @@ export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./ove
 export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
 export { HIDDEN_SCROLLBAR_STYLES } from "./styles/scrollbars.js";
 export { DIFF_VIEW_STYLES } from "./styles/diff-view.js";
-export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, COMPOSER_CLIENT_SCRIPT, COMPOSER_LOADER_CLIENT_SCRIPT, COMPOSER_SWEEP_CLIENT_SCRIPT, ANCHORED_MENU_CLIENT_SCRIPT } from "./page-clients.js";
+export { COPY_FEEDBACK_CLIENT_SCRIPT, FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, COMPOSER_CLIENT_SCRIPT, COMPOSER_LOADER_CLIENT_SCRIPT, COMPOSER_SWEEP_CLIENT_SCRIPT, ANCHORED_MENU_CLIENT_SCRIPT } from "./page-clients.js";
 export { FIELD_FIT_MAX, FIELD_FIT_ROOM, FIELD_FIT_STYLES, fieldHeight } from "./field-fit.js";
 export { COMPOSER_SWEEP_LIMIT, COMPOSER_DRAFT_PREFIX, composerDeliveries, composerDraft, composerDraftInner, composerDraftKey, composerGenerations, composerKey, composing, parseComposerDraftKey, pickComposerDelivery, staleComposerDrafts, type ComposerChoice, type ComposerDraftPlace, type ComposerStorage } from "./composer-rules.js";
 export { composerShortcuts, renderComposerAddMenu, renderComposerCommands, renderComposerDeliveryMenu, renderComposerMention, renderComposerPick, renderComposerRestore, renderComposerStrip, type ComposerMenuCommand, type ComposerMenuGroups, type ComposerMenuSource, type ComposerStripItem, type Fill as ComposerFill } from "./composer-parts.js";
@@ -52,10 +59,14 @@ export {
   TYPEFACE_STYLES,
   INTER_VARIABLE_ASSET_PATH,
   NOTO_SANS_SC_ASSET_PATH,
+  NOTO_SANS_SC_500_ASSET_PATH,
+  NOTO_SANS_SC_600_ASSET_PATH,
   FONT_STACK,
   MONO_FONT_STACK,
   interVariableFontFilePath,
   notoSansScFontFilePath,
+  notoSansSc500FontFilePath,
+  notoSansSc600FontFilePath,
 } from "./typeface.js";
 
 export { projectMonogram, renderProjectMonogram, type ProjectMonogramHue } from "./monogram.js";
@@ -98,5 +109,7 @@ export { PRESENTATION_FORM_STYLES, presentationOwnerHue } from "./styles/present
 export type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay, SurfaceHomeText } from "./surface-home-display.js";
 export { BUTTON_STYLES } from "./styles/buttons.js";
 export { TOAST_STYLES } from "./styles/toast.js";
+export { ON_DEMAND_HELP_STYLES } from "./styles/on-demand-help.js";
+export { ON_DEMAND_HELP_CLIENT_SCRIPT } from "./page-clients.js";
 
 export { SUBTASK_CONVERSATION_STYLES } from "./styles/subtask-conversation.js";

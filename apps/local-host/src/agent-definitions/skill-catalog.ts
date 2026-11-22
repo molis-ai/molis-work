@@ -120,7 +120,7 @@ export class SkillCatalog {
     }
     held.add(key);
     this.ports.definitions.skills.recordUse({ ref: skill.ref, name: (skill.display ?? skill.declaration).name, scope_ref: scopeOf(caller),
-      caller: caller.skill_round!.consumer, at: new Date().toISOString() });
+      caller: caller.skill_round?.consumer ?? "agent", at: new Date().toISOString() });
     return undefined;
   }
 
@@ -236,8 +236,8 @@ export class SkillCatalog {
   async recordAcceptedUses(caller: ActionExecutionContext, receipt: { accepted: boolean; refs: readonly SkillRef[]; run_ref?: string }): Promise<void> {
     if (!receipt.accepted) return;
     const round = caller.skill_round;
-    // A round owner records its round's uses; a call that is no round of the Host's records none.
-    if (!round) return;
+    // A round owner records its round's uses; a call without a round consumer (such as a settings preview) records none.
+    if (!round?.consumer) return;
     const skills = await this.ports.withSkills(caller, skills => skills);
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();

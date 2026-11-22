@@ -5,6 +5,7 @@ import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 import { renderSideBrowser } from "./side-panel-browser.js";
 import { renderSideComputer } from "./side-panel-computer.js";
 import { renderSideFiles } from "./side-panel-files.js";
+import { renderSideHelp } from "./side-panel-help.js";
 import { withSidePane } from "./tab-workspace-ops.js";
 import { BACKGROUND_TASKS_STYLES } from "./styles/background-tasks.js";
 
@@ -50,6 +51,8 @@ export interface SideViews {
 const OWN_TABS = [["files", "workbench.side-panel-tab.materials", "file", 20], ["browser", "workbench.side-panel-tab.browser", "globe", 30], ["computer", "workbench.side-panel-tab.computer", "system", 40], ["discussion", "workbench.side-panel-tab.discussion", "message", 50]] as const;
 /** 「对话」: the event cards parked beside the work (specs/work-line §4.4, WLN-14). Offered only while one is parked there. */
 const PARKED_TAB = ["conversation", "workbench.side-panel-tab.conversation", "panel", 55] as const;
+/** 「帮助」: on-demand help moved to the side pane ("在右栏继续看", Batch 03/40 VUX-55). Hidden until requested. */
+const HELP_TAB = ["help", "workbench.side-panel-tab.help", "question", 58] as const;
 /** The background tasks, after them: what was the title bar's button (workbench-navigation「三个方案共用的部分」3). */
 const TASKS_TAB = ["tasks", "workbench.side-panel-tab.background-tasks", "activity", 60] as const;
 
@@ -60,8 +63,8 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
   // A plugin's side view names itself in its Manifest; the side shows that name in the interface language.
   const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, order: entry.order ?? 100, label: entry.title, glyph: entry.icon, plugin: entry,
     attrs: ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}` }));
-  const own = [...views.projectTools === false ? [] : [...OWN_TABS, PARKED_TAB], ...views.tasks ? [TASKS_TAB] : []]
-    .map(([id, label, glyph, order]) => ({ id, order, label: uiText.text(label), glyph, attrs: id === "tasks" ? " data-side-tasks" : id === "conversation" ? " hidden" : "" }));
+  const own = [...views.projectTools === false ? [] : [...OWN_TABS, PARKED_TAB, HELP_TAB], ...views.tasks ? [TASKS_TAB] : []]
+    .map(([id, label, glyph, order]) => ({ id, order, label: uiText.text(label), glyph, attrs: id === "tasks" ? " data-side-tasks" : id === "conversation" || id === "help" ? " hidden" : "" }));
   return [...own, ...plugins].sort((a, b) => a.order - b.order);
 }
 
@@ -88,6 +91,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   const inner: Record<string, () => string> = {
     conversation: () => body("conversation", uiText.text("workbench.side-panel-tab.conversation"), `<div class="side-parked" data-side-parked data-empty="true"><p class="side-parked-empty mw-empty">${uiText("workbench.work-line.nothing-parked")}</p></div>`),
+    help: () => body("help", uiText.text("workbench.side-panel-tab.help"), renderSideHelp(primitives)),
     discussion: () => body("discussion", uiText.text("workbench.side-panel.project-discussion"), `<iframe title="${uiText("workbench.side-panel.group-chat-threads")}"></iframe>`),
     browser: () => body("browser", uiText.text("workbench.side-panel.browser"), renderSideBrowser(primitives), " data-side-browser"),
     computer: () => body("computer", uiText.text("workbench.side-panel.computer"), renderSideComputer(primitives), " data-side-computer"),
@@ -218,7 +222,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const MAC=/Mac|iP/.test(navigator.platform);
   const side=()=>getState().side;
   const buttons=()=>[...strip.querySelectorAll('[data-side-tab]')];
-  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')&&!button.hasAttribute('data-side-removed')).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
+  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')&&!button.hasAttribute('data-side-removed')&&!(button.dataset.sideTab==='help'&&button.hidden)).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
   const tabOf=key=>side().tabs.find(tab=>tab.itemId===key);
   const offered=id=>!!id&&buttons().some(button=>button.dataset.sideTab===id&&!button.hidden);
   const tabs=()=>buttons().filter(button=>!button.hidden&&tabOf(button.dataset.sideTab));
@@ -325,9 +329,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
     expanded();imVisible();drawUndo();reveal();
   };
+  const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
   const select=(id,target)=>{
-    choose(id);draw(target);
+    choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -340,9 +345,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       select(options.tab??current(),options.target);
       if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
-      if(inner)ready(inner,()=>inner.focus());
+      if(inner)ready(inner,()=>{inner.focus();inner.contentWindow?.focus();});
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
+      dropHelpTab();
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
       if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:switchButton??strip.querySelector('[data-side-tab][aria-selected="true"]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       // The side's name and its list go with it: a focus there goes to the switch that opens it again.
@@ -353,6 +359,11 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
+    if(tab==='help'){
+      const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');
+      if(detail.close===true){dropHelpTab();setOpen(false);save();return true;}
+      if(helpBtn)helpBtn.hidden=false;
+    }
     if(tab!==undefined&&!offered(tab))return false;
     setOpen(true,{tab,target:detail.target,focus:detail.focus===true});save();
     return true;
@@ -463,15 +474,17 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
     if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}
-    if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){request(event.data);return;}
+    if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){document.dispatchEvent(new CustomEvent('molis:side-open',{detail:event.data,cancelable:true}));return;}
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);save();return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){
       const keys=event.data.keys;
       if(keys==='Mod+Backslash')toggle();
       else if(keys==='Mod+K'||keys==='Mod+F'){
         const source=forwarded.from(event),body=source?.closest('[data-side-body]');
-        if(open&&source&&body?.dataset.sideBody===current()&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true}))
-          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:true,bubbles:true}));
+        if(open&&source&&body?.dataset.sideBody===current()&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true})){
+          const mac=navigator.userAgentData?.platform?navigator.userAgentData.platform==='macOS':/Mac|iPhone|iPad|iPod/.test(navigator.platform||'');
+          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:mac,ctrlKey:!mac,bubbles:true}));
+        }
       }else keyed(keys);
       return;
     }

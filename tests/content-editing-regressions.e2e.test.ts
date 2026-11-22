@@ -116,6 +116,8 @@ test("W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the e
   await b.frame.click("[data-pages-import]"); await b.frame.waitFor("document.querySelector('[data-pages-import-dialog]').open");
   assert.deepEqual(readPage(b, page.id), page);
   await b.frame.evaluate("document.querySelector('[data-pages-import-dialog]').close()");
+  // Import is on the list, the page behind an open document (36A-3): reaching it went back, so the document is opened again.
+  await open(b, "pages", page.id);
   for (const operation of ["extract", "promote"]) {
     await b.frame.click("[data-pages-more]"); await b.frame.click(`[data-pages-${operation}]`);
     await b.frame.waitFor("document.querySelector('[data-pages-note]').textContent.includes('暂不支持此操作')");
@@ -133,7 +135,9 @@ for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE
   const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Source A", body: { type: "doc", content: [paragraph("Original words"), { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [paragraph("Actual extracted task")] }] }] } }); } finally { store.close(); } })();
   await open(b, "pages", page.id); await b.frame.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')");
   await holdTimers(b); await holdReply(b, operation === "create" ? "/api/plugins/io.molis.work.pages/pages" : `/api/plugins/io.molis.work.pages/pages/${page.id}/extract`);
-  if (operation === "create") await b.frame.click("[data-pages-new]");
+  // New is on the list, the page behind an open document (36A-3): a create begun there can still answer after a document
+  // was opened and typed in. The key is pressed by script to hold that order with the document already open.
+  if (operation === "create") await b.frame.evaluate("document.querySelector('[data-pages-new]').click()");
   else { await b.frame.click("[data-pages-more]"); await b.frame.click("[data-pages-extract]"); }
   await b.frame.waitFor("typeof window.releaseContentReply === 'function'");
   await typeEnd(b, " NEW LOCAL WORDS");

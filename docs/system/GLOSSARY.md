@@ -287,7 +287,7 @@
 
 - 定义：项目关联的本机文件夹，每个带角色 `roles`：**输入**（只读，可多个）与**输出**（唯一，可写；同一个文件夹可以两者都是）。读写经动作：读是 `projects.directories.get@1`（受众含 user、plugin、agent、workflow、mcp），改是本人的 `projects.directories.{add_input,remove_input,set_output,repair,map_source,unmap_source}@1`（权限 `projects:settings`），都带读到的 `expected_revision`，过期以 `actions.conflict` 拒绝。只作输入的目录谁都只能读：Git、终端、Character、Agent 的会话与轮次不在那里写或跑（`projects.directory_input_only`）。
 - 默认输出目录：没选过输出的项目，输出是 Home 的 `outputs/<project_id>/`，目录库里是真实的一行（`canonical_path` 是 `project-output:<project_id>`，不存路径）；文件夹第一次写或运行时才建。
-- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）、`workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）和 `project_instruction_settings`（关读取的开关与本人确认过的输出；目录库第 4 版）；项目库的 `material_recent_uses` 是「最近用过」。1→2 的段在 `modules/projects/src/catalog-upgrade.ts` 与 `apps/local-host/src/project-database-schema.ts`。
+- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）、`workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）和 `project_instruction_settings`（关读取的开关与本人确认过的输出；2026-11-19 发布前 v1 复位拍平后的目录库第 1 版基线，后续结构演进经 `apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_UPGRADES`）；项目库的 `material_recent_uses` 是「最近用过」（同属 `apps/local-host/src/project-database-schema.ts` 第 1 版基线）。
 - 旧称：「工作区」「工作目录」在指项目文件夹时退役；「浏览目录 / 首选工作区」是已删除的旧设置，不再有。
 
 **目标资料库（Goals 根记录）**
@@ -563,7 +563,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 **U8　助理里的工作、任务、子任务与输入框用词（H4，已批准）**
 
 - 现状：助理说「工作」，Coding 与看板说「任务」，同一件被委托出去的事在助理里叫「子任务」、在 Coding 看板叫「子代理」；同一个「轮」在助理英文里是 round、在 Coding 英文里是 turn；排到下一轮的那一项有「下一轮再做」「这一轮结束后再做」「排队」三种写法；输入框的接收者有「发到」「发给」「目标」几种写法。「工作简报」「受托工作」「子工作」只在文档里。盘点见 `specs/post-anticorruption-roadmap/reference/batches/10.md`「H4 对外用词方案」。
-- 决定（用户 2026-11-04，看第 10 批定样 `docs/design/unified-input/` 时定）：方案一。工作＝助理里一项持续的事；任务＝交给执行者的具体一件；子任务＝再委托出去的一件；「受托工作」「子工作」不对外，界面写「受托于 X」和「子任务」；简报的产物名仍叫「工作简报」。三条小决定：送达方式叫补充、打断并改向、下一轮再做（键位说明里叫排队）；接收者那一行写「发给」，界面上「目标」只指 Goal；一轮的英文统一 turn。英文 work、task、sub-task。
+- 决定（用户 2026-11-04，看第 10 批定样 `docs/design/archive/unified-input/` 时定）：方案一。工作＝助理里一项持续的事；任务＝交给执行者的具体一件；子任务＝再委托出去的一件；「受托工作」「子工作」不对外，界面写「受托于 X」和「子任务」；简报的产物名仍叫「工作简报」。三条小决定：送达方式叫补充、打断并改向、下一轮再做（键位说明里叫排队）；接收者那一行写「发给」，界面上「目标」只指 Goal；一轮的英文统一 turn。英文 work、task、sub-task。
 - 落地：第 1 节的六行；界面文案替换在第 10 批做完——H4 用词替换 #1851（助理 round 改 turn、subtask 改 sub-task、Coding 看板「子代理」标签），它留给 #1846 之后的工作台英文四处 sub-task 随本批补上，并与本批统一输入（接收者行「发给」、送达方式三名用稳定键 `workbench.composer.next-boundary` 等）。接收者行英文保持 `Send to`（用户 2026-11-09 确认改回，本批把组件板英文词典与测试里的写法一并改回）。
 
 ## 5. 代码改名后续清单

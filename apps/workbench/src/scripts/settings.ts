@@ -290,7 +290,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         receipt.textContent = saved;
         receipt.hidden = false;
       }
-    } catch {}
+    } catch { /* Ignore unavailable sessionStorage when reading settings receipt. */ }
     // D0225: only an opaque, actor/project/purpose-bound one-time reference crosses the URL.
     const reference = new URLSearchParams(location.search).get("draft_ref");
     if (reference) {

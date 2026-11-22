@@ -41,7 +41,7 @@ struct TrayWords {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QuitPromptKind {
     OwnedIdle,
-    OwnedActive(u32),
+    OwnedActive,
     Upgrading,
 }
 
@@ -125,7 +125,7 @@ impl NativeLanguage {
     pub(crate) fn quit_confirmation(&self, kind: QuitPromptKind) -> (&str, &str, &str, &str) {
         let body = match kind {
             QuitPromptKind::OwnedIdle => &self.words.quit_confirm_body,
-            QuitPromptKind::OwnedActive(_) => &self.words.quit_confirm_active_body,
+            QuitPromptKind::OwnedActive => &self.words.quit_confirm_active_body,
             QuitPromptKind::Upgrading => &self.words.quit_confirm_upgrading_body,
         };
         (
@@ -245,6 +245,34 @@ impl NativeLanguageState {
 #[cfg(test)]
 mod tests {
     use super::{builtin_language, NativeLanguage, NativeLanguageState};
+
+    #[test]
+    fn pwa137_a_stopped_host_is_never_labelled_as_running_or_recovering() {
+        // PWA-137 / MR21-09: once the desktop cannot bring the Host back, the tray's words are its own, in every built-in language.
+        let locales = &super::bootstrap().locales;
+        assert!(
+            locales.len() >= 2,
+            "both interface languages are compiled in"
+        );
+        for language in locales {
+            let tag = &language.language.tag;
+            let stopped = language.stopped_status();
+            assert!(
+                !stopped.0.is_empty() && !stopped.1.is_empty(),
+                "{tag}: stopped has words"
+            );
+            assert_ne!(
+                stopped,
+                language.synced_status(),
+                "{tag}: stopped is not running"
+            );
+            assert_ne!(
+                stopped.0,
+                language.recovering_status().0,
+                "{tag}: stopped is not reconnecting"
+            );
+        }
+    }
 
     #[test]
     fn s14_native_language_rejects_bad_projections_and_ended_documents() {

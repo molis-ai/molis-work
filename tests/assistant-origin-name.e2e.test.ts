@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 /** One streamed model turn of plain text. */
 function turn(text: string): string {
@@ -53,8 +54,9 @@ test("a work's starting point names the page it started on, never its id", { tim
   await command("Input.insertText", { text: "看看今天的待办" }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
-  await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)", 30_000);
-  if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 30_000);
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await evaluate(OPEN_DETAILS);
   const startedAt = "[...document.querySelectorAll('[data-assistant-side] .assistant-step-label')].find(label => label.textContent === '起点')?.parentElement";
   await waitFor(`Boolean(${startedAt})`, 15_000);
   const shown = await evaluate<string>(`${startedAt}.textContent`);

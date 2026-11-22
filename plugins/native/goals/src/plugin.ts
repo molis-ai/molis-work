@@ -1,11 +1,12 @@
 import { syncBindings } from "./sync-binding.js";
-import { materialsActions, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { MATERIALS_PROVIDER_ID, materialsActions, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutionControl, PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalEntryActions } from "./contract/goal-actions.js";
 import { createGoalItemHandlers, createGoalsPresentationHandlers } from "./presentation.js";
 import { createGoalsActionHandlers } from "./actions.js";
+import { createGoalSourceReviewHandlers, type GoalsInputPorts } from "./input-actions.js";
 import { createGoalsAttachActionHandlers } from "./attach-actions.js";
 import { confirmedGoalDeliverables } from "./deliverable-actions.js";
 import { createGoalsWorkPromptHandler } from "./work-prompt.js";
@@ -22,15 +23,16 @@ import { PluginSqlite } from "./plugin-sqlite.js";
 import { eventDecisionVersion, goalsDecisionOfferHandlers, treeDecisionVersion } from "./decision-offers.js";
 import { goalForDecisionRequest } from "./module/event-state-decision-records.js";
 import { attentionOver, journalOver, ledgerOver } from "./runtime-ports.js";
+import { acceptanceReading } from "./acceptance-summary.js";
 import { goalsAcceptanceWiring, type GoalsProjectWindow } from "./plugin-acceptance.js";
 
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
 /** The platform's materials service: a reference read back (head), and what fixed versions stand for. */
-const READ_MATERIAL = { capability_id: materialsActions.read.capability_id, version: materialsActions.read.version } as const;
+const READ_MATERIAL = { capability_id: materialsActions.read.capability_id, version: materialsActions.read.version, provider_id: MATERIALS_PROVIDER_ID } as const;
 const READ_PINNED = { capability_id: materialsActions.pinned.capability_id, version: materialsActions.pinned.version } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
-  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin", "goals.inputs.bind", "goals.inputs.list"]);
+  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin", "goals.inputs.bind", "goals.inputs.list", goalEntryActions.inputsReviewSource.capability_id, goalEntryActions.inputsReviewChange.capability_id]);
 
 /** What of the call's authority another plugin's action is run under (the directory runs it as this caller, never as Goals). */
 function controlOf(caller: ActionExecutionContext): PluginExecutionControl {
@@ -129,7 +131,11 @@ export function createGoalsPlugin(): PluginDefinition {
     const snapshot = () => readMolisWorkSnapshot({ goals: goals.query, governance: governanceModule.query }, projectId);
     const events = () => sqlite.journalReader().readEventsDescending();
 
-    const clientFor = (caller: ActionExecutionContext): ActionClient => ({ discover: () => directory.discover(), invoke: (_context, reference, input) => directory.invoke(reference, input, controlOf(caller)) });
+    const clientFor = (caller: ActionExecutionContext): ActionClient => ({ discover: () => directory.discover(), discoverOne: (_context, reference) => directory.discoverOne(reference), invoke: (_context, reference, input) => directory.invoke(reference, input, controlOf(caller)) });
+    const materials: Pick<GoalsInputPorts, "readMaterial" | "pinned"> = {
+      readMaterial: (caller, ref) => directory.invoke<MaterialsReadResult>(READ_MATERIAL, { ref, mode: "head" }, controlOf(caller)),
+      pinned: (caller, versions) => directory.invoke<MaterialsPinnedResult>(READ_PINNED, { versions }, controlOf(caller)),
+    };
     const handlers = createGoalsActionHandlers({ events: application.goalEvents, acknowledgements: goals.acknowledgements, projectId,
       board: { initializeBoard },
       collection: { snapshot, events, goals: application.goalQueries, inputs, eventWork: application.goalEvents },
@@ -139,9 +145,7 @@ export function createGoalsPlugin(): PluginDefinition {
         readArtifact: async (caller, reference) => (await directory.invoke<{ selected: { title: string; artifact_type_id: string; availability: string; lifecycle_state: string } | null }>(READ_ARTIFACT, { reference }, controlOf(caller))).selected,
         pin: async (caller, subject) => (await pinActionSubject(clientFor(caller), caller, subject)).artifact,
         pinnableKinds: caller => pinnableSubjectKinds(clientFor(caller), caller) },
-      materials: {
-        readMaterial: (caller, ref) => directory.invoke<MaterialsReadResult>(READ_MATERIAL, { ref, mode: "head" }, controlOf(caller)),
-        pinned: (caller, versions) => directory.invoke<MaterialsPinnedResult>(READ_PINNED, { versions }, controlOf(caller)) },
+      materials,
       history: { snapshot, journalEvents: events },
       planning: { planning: goals.planning },
       lifecycle: { lifecycle: goals.lifecycle, setActiveGoal: (...args) => goals.commands.setActiveGoal(...args), eventCursor: () => journal.eventCursor(projectId) },
@@ -154,6 +158,15 @@ export function createGoalsPlugin(): PluginDefinition {
           return application.goalTreeDecision.decideGoalTreeProposal({ ...input, authority: { ...input.authority,
             whole_confirmation_prompted: entry?.whole_confirmation_prompted, prompted_proposal_id: entry?.prompted_subject_id } });
         } } });
+    handlers.push(...createGoalSourceReviewHandlers(projectId, inputs, goalId => Boolean(application.goalEvents.readDirectoryItem(projectId, goalId)),
+      { ...window, readMaterial: materials.readMaterial }, () => sqlite.currentDecision(), {
+        async readAcceptance(caller, goalId) {
+          const view = (await acceptance.read(caller, [goalId]))?.get(goalId);
+          return view && acceptanceReading(view);
+        },
+        recordNote: input => application.goalEvents.recordNote(input),
+        recordTrustedDecision: input => application.goalEvents.recordTrustedDecision(input),
+      }));
     handlers.push(...goalsDecisionOfferHandlers(id => application.goalEvents.readState(projectId, id),
       id => application.goalTree.readNative(projectId, id), id => goalForDecisionRequest(sqlite, projectId, id),
       { kind: "plugin", scope: "project", project_id: projectId, plugin_id: context.plugin_id,
@@ -208,6 +221,6 @@ export function createGoalsPlugin(): PluginDefinition {
         // 「建成目标」 is Goals' own create, in its own write window; the next step is a read like the presentation values.
         ...createGoalItemHandlers(projectId, windowed(handlers.find(binding => binding.capability_id === goalEntryActions.create.capability_id)!), goals.query, application.goalEvents,
           window.read, ready)],
-      routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
+      routes: goalsRoutes({ actions: request => ({ discover: async () => [], discoverOne: async () => undefined, invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };
 }

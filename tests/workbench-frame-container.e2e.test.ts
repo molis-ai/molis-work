@@ -27,7 +27,7 @@ async function syncFrameStorage(browser: NonNullable<Awaited<ReturnType<typeof o
       view.removeEventListener('storage',done);
       queueMicrotask(()=>{
         writer.remove();
-        const matrix=new view.DOMMatrix(view.getComputedStyle(view.document.querySelector('[data-frame-world]')).transform);
+        const matrix=new view.DOMMatrix(view.getComputedStyle(view.document.querySelector('[data-t403-goal-pane] [data-frame-world]') || view.document.querySelector('[data-frame-world]')).transform);
         resolve({trusted:event.isTrusted,oldValue:event.oldValue,newValue:event.newValue,camera:{x:matrix.e,y:matrix.f,z:matrix.a}});
       });
     };
@@ -81,8 +81,8 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
         finally{trace.duration=Math.round(performance.now()-started);trace.aborted=Boolean(query?.signal?.aborted);t403Reads.pending--;t403Reads.pendingIds.delete(id);}
       };return value(host);
     }:value;return true}});`);
-  const child = await pluginFrameBrowser(t, b, "feed", "iframe[data-t403-feed-pane]");
-  const inboxChild = await pluginFrameBrowser(t, b, "inbox", "iframe[data-t403-feed-pane]");
+  const child = await pluginFrameBrowser(t, b, "feed", undefined, '[data-tab-pane][data-t403-feed-pane] iframe[data-plugin-frame="feed"]');
+  const inboxChild = await pluginFrameBrowser(t, b, "inbox", undefined, '[data-tab-pane][data-t403-feed-pane] iframe[data-plugin-frame="inbox"]');
   const { targetInfo } = await command<{ targetInfo: { targetId: string } }>("Target.getTargetInfo", {}, sessionId);
   const { windowId } = await command<{ windowId: number }>("Browser.getWindowForTarget", { targetId: targetInfo.targetId });
   await command("Browser.setWindowBounds", { windowId, bounds: { width: 1440, height: 1100 } });
@@ -95,55 +95,55 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await b.evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
   await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && !!window.molisPluginFrames");
   await b.click('[data-layout-open]'); await b.click('[data-layout-split=right]');
-  await b.waitFor("document.querySelectorAll('iframe.tab-content-frame').length===2");
+  await b.waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe.tab-content-frame').length===0");
   try { await b.click('[data-plugin-strip] [data-plugin-id=feed]'); }
   catch (error) {
     // T405-FULL-03: observation cannot replace the original click error or its 15 s deadline.
-    const snapshot = await b.command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,surface:f.contentDocument?.body?.dataset.desktopSurface,roots:[...f.contentDocument?.querySelectorAll('[data-ui-client-state]')||[]].map(r=>({state:r.dataset.uiClientState,plugin:r.dataset.pluginOwner,page:r.dataset.pluginPage,hidden:r.hidden})),children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({surface:c.dataset.pluginFrame,src:c.src,connected:c.isConnected}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    const snapshot = await b.command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic('T405 Feed click failed ' + JSON.stringify(snapshot));
     throw error;
   }
-  await b.waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].some(frame=>frame.contentDocument?.body?.dataset.desktopSurface==='feed')");
-  await b.evaluate("for(const frame of document.querySelectorAll('iframe.tab-content-frame')){frame.removeAttribute('data-t403-feed-pane');frame.removeAttribute('data-t403-goal-pane');if(!frame.hidden)frame.toggleAttribute(frame.contentDocument.body.dataset.desktopSurface==='feed'?'data-t403-feed-pane':'data-t403-goal-pane',true)}");
-  const sourcePane = await b.evaluate<string>("document.querySelector('iframe[data-t403-feed-pane]').dataset.paneOwner");
-  const goalPane = await b.evaluate<string>("document.querySelector('iframe[data-t403-goal-pane]').dataset.paneOwner");
+  await b.waitFor("[...document.querySelectorAll('[data-tab-pane]')].some(pane=>pane.querySelector('[data-work-surface=feed]:not([hidden]) iframe[data-plugin-frame=feed]'))");
+  await b.evaluate("for(const pane of document.querySelectorAll('[data-tab-pane]')){pane.removeAttribute('data-t403-feed-pane');pane.removeAttribute('data-t403-goal-pane');if(pane.querySelector('[data-work-surface=feed]:not([hidden])'))pane.setAttribute('data-t403-feed-pane','');else if(pane.querySelector('[data-goal-frame-surface]:not([hidden])'))pane.setAttribute('data-t403-goal-pane','');}");
+  const sourcePane = await b.evaluate<string>("document.querySelector('[data-tab-pane][data-t403-feed-pane]').dataset.tabPane");
+  const goalPane = await b.evaluate<string>("document.querySelector('[data-tab-pane][data-t403-goal-pane]').dataset.tabPane");
   const focusSource = () => b.click(`[data-tab-pane="${sourcePane}"] .tab-item[aria-current] .tab-item-trigger`);
   await child.waitFor(`window.t403Port && t403Reads.total>0 && t403Reads.pending===0 && document.querySelector('[data-feed-item-id="${item.item_id}"]')`);
-  const count = () => b.evaluate<number>("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelectorAll('[data-frame-block]').length");
+  const count = () => b.evaluate<number>("document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden])').querySelectorAll('[data-frame-block]').length");
   // The rest of the row still receives an actual owner click; only its new small slot belongs to the Host.
   await child.click(`[data-frame-asset-id="${item.item_id}"] strong`);
   try { await child.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action]') && t403Reads.pending===0`); }
   catch (error) {
     const snapshot = await Promise.allSettled([
       child.evaluate(`(()=>{const detail=document.querySelector('[data-feed-detail="${item.item_id}"]'),row=document.querySelector('[data-feed-entry-id="${item.item_id}"]');return {reads:{total:t403Reads.total,pending:t403Reads.pending,ids:[...t403Reads.pendingIds],trace:t403Reads.trace},detail:{connected:Boolean(detail?.isConnected),hasAction:Boolean(detail?.querySelector('[data-feed-action]'))},row:row?{...row.dataset}:null,placeholder:document.querySelector('[data-feed-detail-empty]')?.textContent.slice(-200),retry:document.querySelector('[data-retry-feed-detail]')?.checkVisibility(),scope:{alive:t403Host.scope.alive,visible:t403Host.scope.visible},bodyHidden:document.body.hidden}})()`),
-      b.evaluate("(()=>{const owner=document.querySelector('iframe[data-t403-feed-pane]'),doc=owner.contentDocument,root=doc.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]'),frame=root?.querySelector('iframe[data-plugin-frame=feed]');return {owner:{...owner.dataset},page:doc.location.href,root:root?{...root.dataset}:null,frame:frame?{...frame.dataset}:null}})()"),
+      b.evaluate("(()=>{const pane=document.querySelector('[data-tab-pane][data-t403-feed-pane]'),root=pane.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]'),frame=root?.querySelector('iframe[data-plugin-frame=feed]');return {pane:pane.dataset.tabPane,page:location.href,root:root?{...root.dataset}:null,frame:frame?{...frame.dataset}:null}})()"),
     ]);
     t.diagnostic(JSON.stringify(snapshot.map(value=>value.status==='fulfilled'?value.value:{unavailable:String(value.reason)})));
     throw error;
   }
   await child.click('[data-feed-collapse]');
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`);
-  const sourceHandle = (id = item.item_id) => b.waitFor(`document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${id}"]')`);
+  const sourceHandle = (id = item.item_id) => b.waitFor(`document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-host-frame-drag="${id}"]')`);
   await sourceHandle();
   // A fresh owner document can gain B while this still-current handle's original projection contains only A.
   const originalHandle = await child.evaluate<string>("t403Handle");
-  const originalProjection = await b.evaluate<string>("document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench] script[data-plugin-document]').textContent");
+  const originalProjection = await b.evaluate<string>("document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench] script[data-plugin-document]').textContent");
   const revisionHold = await sendBarrier(b,[{urlPattern:"*/api/plugins/io.molis.work.feed/view-revision",requestStage:"Request"}]);
   try {
     const added = feed.ingestItem({source,externalId:"fresh-outside-drag-projection",title:"Fresh owner material outside the old handle",summary:"A later real record outside the original drag projection",occurredAt:new Date(Date.parse(now)-20000).toISOString(),attention:false}).item;
     assert.equal(originalProjection.includes(added.item_id),false);
-    assert.equal(await b.evaluate(`fetch(document.querySelector('iframe[data-t403-feed-pane]').src).then(response=>response.text()).then(html=>html.includes(${JSON.stringify(added.item_id)}))`),true,"the real fresh owner HTML contains the later reference");
+    assert.equal(await b.evaluate(`fetch(location.href).then(response=>response.text()).then(html=>html.includes(${JSON.stringify(added.item_id)}))`),true,"the real fresh owner HTML contains the later reference");
     assert.equal(await child.evaluate("t403Handle"),originalHandle,"the source handle has not rotated while revision delivery is held");
-    assert.equal(await b.evaluate(`document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner="io.molis.work.feed"][data-plugin-surface=workbench] script[data-plugin-document]').textContent`),originalProjection);
-    assert.equal(await b.evaluate(`document.querySelector('iframe[data-t403-feed-pane]').contentWindow.molisPluginFrames.assets.localDrag({handle:${JSON.stringify(originalHandle)},reference:{kind:'feed_item',id:${JSON.stringify(added.item_id)}}}).then(asset=>asset?.reference??null)`),null,"production localDrag refuses a fresh-only ref absent from this handle's original projection");
+    assert.equal(await b.evaluate(`document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-plugin-owner="io.molis.work.feed"][data-plugin-surface=workbench] script[data-plugin-document]').textContent`),originalProjection);
+    assert.equal(await b.evaluate(`window.molisPluginFrames.assets.localDrag({handle:${JSON.stringify(originalHandle)},reference:{kind:'feed_item',id:${JSON.stringify(added.item_id)}}}).then(asset=>asset?.reference??null)`),null,"production localDrag refuses a fresh-only ref absent from this handle's original projection");
   } finally { await revisionHold.close(); }
   await child.evaluate(`document.querySelector('[data-feed-search]').value='no matching drag source';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))`);
-  await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
+  await b.waitFor(`!document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-host-frame-drag="${item.item_id}"]')`);
   await child.evaluate("document.querySelector('[data-feed-search]').value='';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))");
   await child.waitFor(`document.querySelector('[data-frame-asset-id="${item.item_id}"]')`);
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`); await sourceHandle();
   await child.evaluate(`(() => {const row=document.querySelector('[data-frame-asset-id="${item.item_id}"]'),list=row.closest('.feed-stage-tree');list.scrollTop=row.getBoundingClientRect().top-list.getBoundingClientRect().top<list.clientHeight/2?list.scrollHeight:0;})()`);
-  await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
+  await b.waitFor(`!document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-host-frame-drag="${item.item_id}"]')`);
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`); await sourceHandle();
   const restoreSlots = async () => {
     await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"] [data-frame-drag-slot]').hidden=true;new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
@@ -152,18 +152,18 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   };
   for (const slot of [{ reference: { kind: "foreign", id: "not-in-the-owner-view" }, box: {x:0,y:0,width:24,height:24} }, { reference: {kind:"feed_item",id:item.item_id}, box: {x:0,y:0,width:999,height:999} }]) {
     await child.evaluate(`t403Port.postMessage({type:'frame-asset-layout',handle:t403Handle,slots:[${JSON.stringify(slot)}],title:'forged title',goalId:'OTHER'})`);
-    await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
+    await b.waitFor(`!document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-host-frame-drag="${item.item_id}"]')`);
     assert.equal(await count(),0,"layout proposals and forged fields grant no Frame write"); await restoreSlots();
   }
   await child.evaluate(`t403Port.postMessage({type:'frame-add',reference:{kind:'feed_item',id:${JSON.stringify(item.item_id)}},goalId:'CORE',isTrusted:true});t403Port.postMessage({type:'frame-assets',rows:[],isTrusted:true})`);
   await child.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   assert.equal(await count(), 0, "an ordinary child message has no Frame write authority");
   const destination = () => b.evaluate<{ x: number; y: number }>(`(() => {
-    const frame=document.querySelector('iframe[data-t403-goal-pane]'),doc=frame.contentDocument,canvas=doc.querySelector('[data-frame-canvas]'),outer=frame.getBoundingClientRect(),inner=canvas.getBoundingClientRect();
-    const local={x:inner.left+inner.width/2,y:inner.top+Math.min(180,inner.height/2)},point={x:outer.left+local.x,y:outer.top+local.y};
-    const top=document.elementFromPoint(point.x,point.y),inside=doc.elementFromPoint(local.x,local.y);
-    window.t403Destination={outer:outer.toJSON(),inner:inner.toJSON(),point,local,visible:frame.checkVisibility({visibilityProperty:true}),top:top?.outerHTML.slice(0,300),inside:inside?.outerHTML.slice(0,200),pointer:getComputedStyle(frame).pointerEvents,workspace:document.querySelector('[data-tab-workspace]')?.className,narrow:document.querySelector('[data-tab-workspace]')?.hasAttribute('data-split-narrow')};
-    if(!t403Destination.visible||top!==frame||!inside||!canvas.contains(inside))throw Error('Native Frame destination is not hit: '+JSON.stringify(t403Destination));
+    const pane=document.querySelector('[data-tab-pane][data-t403-goal-pane]'),canvas=pane.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-canvas]'),inner=canvas.getBoundingClientRect();
+    const point={x:inner.left+inner.width/2,y:inner.top+Math.min(180,inner.height/2)};
+    const hit=document.elementFromPoint(point.x,point.y);
+    window.t403Destination={inner:inner.toJSON(),point,visible:pane.checkVisibility({visibilityProperty:true}),hit:hit?.outerHTML.slice(0,200),workspace:document.querySelector('[data-tab-workspace]')?.className,narrow:document.querySelector('[data-tab-workspace]')?.hasAttribute('data-split-narrow')};
+    if(!t403Destination.visible||!hit||!canvas.contains(hit))throw Error('Native Frame destination is not hit: '+JSON.stringify(t403Destination));
     return point;
   })()`);
   type DragData = { items: Array<{ mimeType: string; data: string }>; dragOperationsMask: number };
@@ -174,12 +174,10 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
     await (reference.kind === "feed_item" ? child : inboxChild).evaluate(`document.querySelector('[data-frame-asset-id="${reference.id}"]').scrollIntoView({block:'center'})`);
     await sourceHandle(reference.id);
     const point = await b.evaluate<{x:number;y:number}>(`(() => {
-      const frame=document.querySelector('iframe[data-t403-feed-pane]'),doc=frame.contentDocument,node=doc.querySelector('[data-host-frame-drag="${reference.id}"]'),box=node.getBoundingClientRect(),outer=frame.getBoundingClientRect(),local={x:box.x+box.width/2,y:box.y+box.height/2};
-      const point={x:outer.x+local.x,y:outer.y+local.y};
-      if(!frame.checkVisibility()||box.width>24||box.height>24||doc.elementFromPoint(local.x,local.y)!==node||document.elementFromPoint(point.x,point.y)!==frame)throw Error('Trusted drag handle is not hit');
-      const view=frame.contentWindow;
-      if(!view.t403SourceObserved){view.t403SourceObserved=true;view.t403FrameTrace||=[];for(const type of ['dragstart','dragend'])doc.addEventListener(type,event=>{view.t403FrameTrace.push({type,trusted:event.isTrusted});if(type==='dragstart')view.t403NativeDrag={trusted:event.isTrusted,raw:event.dataTransfer.getData('application/x-molis-work-asset')};});}
-      view.t403NativeDrag=null;return point;
+      const pane=document.querySelector('[data-tab-pane][data-t403-feed-pane]'),node=pane.querySelector('[data-host-frame-drag="${reference.id}"]'),box=node.getBoundingClientRect(),point={x:box.x+box.width/2,y:box.y+box.height/2};
+      if(!pane.checkVisibility()||box.width>24||box.height>24||document.elementFromPoint(point.x,point.y)!==node)throw Error('Trusted drag handle is not hit');
+      if(!window.t403SourceObserved){window.t403SourceObserved=true;window.t403FrameTrace||=[];for(const type of ['dragstart','dragend'])document.addEventListener(type,event=>{window.t403FrameTrace.push({type,trusted:event.isTrusted});if(type==='dragstart')window.t403NativeDrag={trusted:event.isTrusted,raw:event.dataTransfer.getData('application/x-molis-work-asset')};});}
+      window.t403NativeDrag=null;return point;
     })()`);
     let deliver!: (data: DragData) => void;
     const intercepted = new Promise<DragData>(resolve => { deliver = resolve; });
@@ -191,8 +189,8 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
       await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", buttons: 1, clickCount: 1 }, sessionId);
       for (const delta of [8, 18, 32]) await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x + delta, y: point.y + 3, button: "left", buttons: 1 }, sessionId);
       const data = await Promise.race([intercepted, new Promise<never>((_, reject) => { timeout=setTimeout(()=>reject(Error('Native drag was not intercepted')),5000); })]);
-      await b.waitFor("document.querySelector('iframe[data-t403-feed-pane]').contentWindow.t403NativeDrag?.trusted");
-      const receipt = await b.evaluate<{ trusted: boolean; raw: string }>("document.querySelector('iframe[data-t403-feed-pane]').contentWindow.t403NativeDrag"), payload = JSON.parse(receipt.raw);
+      await b.waitFor("window.t403NativeDrag?.trusted");
+      const receipt = await b.evaluate<{ trusted: boolean; raw: string }>("window.t403NativeDrag"), payload = JSON.parse(receipt.raw);
       assert.deepEqual(payload.reference, reference);
       assert.deepEqual(Object.keys(payload).sort(), ["handle", "reference"]);
       assert.equal(data.items.find(value=>value.mimeType==='application/x-molis-work-asset')?.data,receipt.raw,"the browser's original DragData carries the actual native payload");
@@ -207,48 +205,49 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
     await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", buttons: 0, clickCount: 1 }, sessionId);
     await command("Input.setInterceptDrags", { enabled: false }, sessionId);
   };
-  await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-goal-frame-surface]')?.hidden===false && !!document.querySelector('iframe[data-t403-goal-pane]').contentWindow.molisPluginFrames");
+  await b.waitFor("document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]')?.hidden===false && !!window.molisPluginFrames");
   await b.evaluate(`(() => {
-    window.t403FrameTopTrace=[];for(const type of ['dragenter','dragover','drop','dragend'])document.addEventListener(type,event=>t403FrameTopTrace.push({type,x:event.clientX,y:event.clientY,trusted:event.isTrusted,target:event.target.outerHTML?.slice(0,200),types:[...event.dataTransfer.types],dropEffect:event.dataTransfer.dropEffect,defaultPrevented:event.defaultPrevented}),true);
-    for(const name of ['goal','feed']) {
-      const frame=document.querySelector('iframe[data-t403-'+name+'-pane]'),view=frame.contentWindow,doc=frame.contentDocument;
-      view.t403FrameTrace=[];
-      if(name==='feed')view.t403SourceObserved=true;
-      for(const type of ['dragstart','dragenter','dragover','drop','dragend','pointerdown','pointerup','click'])doc.addEventListener(type,event=>{
-        view.t403FrameTrace.push({type,trusted:event.isTrusted,target:event.target.outerHTML.slice(0,200),raw:event.dataTransfer?.getData('application/x-molis-work-asset')});
-        if(type==='dragstart')view.t403NativeDrag={trusted:event.isTrusted,raw:event.dataTransfer.getData('application/x-molis-work-asset')};
-      },type!=='dragstart');
-      const assets=view.molisPluginFrames.assets,method=name==='goal'?'drag':'localDrag',original=assets[method];
-      assets[method]=async(...args)=>{view.t403FrameTrace.push({method,input:args[0]});try{const result=await original(...args);view.t403FrameTrace.push({method,result:result?.id});return result}catch(error){view.t403FrameTrace.push({method,error:String(error)});throw error}};
+    window.t403FrameTopTrace=[];
+    window.t403FrameTrace=[];
+    window.t403SourceObserved=true;
+    for(const type of ['dragstart','dragenter','dragover','drop','dragend','pointerdown','pointerup','click'])document.addEventListener(type,event=>{
+      const raw=event.dataTransfer?.getData('application/x-molis-work-asset');
+      window.t403FrameTrace.push({type,trusted:event.isTrusted,target:event.target.outerHTML?.slice(0,200),raw});
+      if(type==='dragstart')window.t403NativeDrag={trusted:event.isTrusted,raw};
+    },type!=='dragstart');
+    const assets=window.molisPluginFrames.assets;
+    for(const method of ['drag','localDrag']) {
+      const original=assets[method];
+      assets[method]=async(...args)=>{window.t403FrameTrace.push({method,input:args[0]});try{const result=await original.apply(assets,args);window.t403FrameTrace.push({method,result:result?.id});return result}catch(error){window.t403FrameTrace.push({method,error:String(error)});throw error}};
     }
   })()`);
   const firstDrag = await drag();
   // A forged DOM drop is a negative control; the same browser drag still has to complete through a trusted drop.
-  await b.evaluate(`(() => {const doc=document.querySelector('iframe[data-t403-goal-pane]').contentDocument,data=new doc.defaultView.DataTransfer();data.setData('application/x-molis-work-asset',${JSON.stringify(firstDrag.items.find(value=>value.mimeType==='application/x-molis-work-asset')!.data)});doc.querySelector('[data-frame-canvas]').dispatchEvent(new doc.defaultView.DragEvent('drop',{bubbles:true,dataTransfer:data}));})()`);
+  await b.evaluate(`(() => {const data=new DataTransfer();data.setData('application/x-molis-work-asset',${JSON.stringify(firstDrag.items.find(value=>value.mimeType==='application/x-molis-work-asset')!.data)});document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden]) [data-frame-canvas]').dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}));})()`);
   assert.equal(await count(),0,"a synthetic Host drop is refused even with the current real native payload");
-  const firstBarrier = await sendBarrier(b, [{ urlPattern: `*/projects/${projectId}/?*`, requestStage: "Request" }]);
+  const firstBarrier = await sendBarrier(b, [{ urlPattern: `*/projects/${projectId}/`, requestStage: "Request" }]);
   try {
     await drop(firstDrag); await firstBarrier.next();
-    await b.waitFor("document.querySelector('iframe[data-t403-feed-pane]').contentWindow.t403FrameTrace.some(event=>event.type==='dragend'&&event.trusted)");
+    await b.waitFor("window.t403FrameTrace.some(event=>event.type==='dragend'&&event.trusted)");
     assert.equal(await count(),0,"normal native dragend does not grant a block before its fresh owner read");
   } finally { await firstBarrier.close(); }
-  try { await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelectorAll('[data-frame-block]').length===1"); }
+  try { await b.waitFor("document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden])').querySelectorAll('[data-frame-block]').length===1"); }
   catch (error) {
-    t.diagnostic(JSON.stringify({ interceptedSession, targetSession: sessionId, drag: lastDrag, opaque: await child.evaluate("t403OpaqueTrace"), host: await b.evaluate("({destination:t403Destination,top:t403FrameTopTrace,panes:[...document.querySelectorAll('iframe[data-t403-goal-pane],iframe[data-t403-feed-pane]')].map(frame=>({pane:frame.dataset.paneOwner,trace:frame.contentWindow.t403FrameTrace,body:frame.contentDocument.body.dataset.desktopSurface,frame:frame.contentDocument.querySelector('[data-goal-frame-surface]')?.hidden,rect:frame.contentDocument.querySelector('[data-frame-canvas]')?.getBoundingClientRect().toJSON()}))})") }));
+    t.diagnostic(JSON.stringify({ interceptedSession, targetSession: sessionId, drag: lastDrag, opaque: await child.evaluate("t403OpaqueTrace"), host: await b.evaluate("({destination:t403Destination,trace:t403FrameTrace,goalFrameHidden:document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]')?.hidden})") }));
     throw error;
   }
-  const dropped = await b.evaluate<{trusted:boolean;raw:string}>("document.querySelector('iframe[data-t403-goal-pane]').contentWindow.t403FrameTrace.find(event=>event.type==='drop'&&event.trusted)");
+  const dropped = await b.evaluate<{trusted:boolean;raw:string}>("window.t403FrameTrace.find(event=>event.type==='drop'&&event.trusted)");
   assert.equal(dropped.trusted,true,"the target Host receives the real trusted drop");
   assert.equal(JSON.parse(dropped.raw).reference.id,item.item_id);
   const stored = () => b.evaluate<{ camera: { x: number; y: number; z: number }; expanded: string; blocks: Array<{ id: string; kind: string; itemId: string; title: string; x: number; y: number }> }>(`JSON.parse(localStorage.getItem('molis-work-frame-container:${projectId}:goal:CORE'))`);
   const firstStored = await stored(); assert.equal(firstStored.blocks[0]!.kind, "feed"); assert.equal(firstStored.blocks[0]!.itemId, item.item_id); assert.equal(firstStored.blocks[0]!.title, item.title);
   assert.ok(firstStored.blocks[0]!.x >= 16 && firstStored.blocks[0]!.y >= 16, "the actual target canvas chooses the stored position");
   await b.click(`[data-tab-pane="${goalPane}"] .tab-item[aria-current] .tab-item-trigger`);
-  const goalWindow = "document.querySelector('iframe[data-t403-goal-pane]').contentWindow";
+  const goalWindow = "window";
   await awaitFrameCursor(b, owner, goalWindow);
-  const gesture = <T>(expression: string) => b.evaluate<T>(`(() => {const view=${goalWindow},doc=view.document,p=view.t403Gesture;return (${expression});})()`);
+  const gesture = <T>(expression: string) => b.evaluate<T>(`(() => {const view=${goalWindow},doc=document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden])'),p=view.t403Gesture;return (${expression});})()`);
   await b.evaluate(`(() => {
-    const view=${goalWindow},doc=view.document,p=view.t403Gesture={events:[],reads:[],target:null,article:null};
+    const view=${goalWindow},doc=document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden])'),p=view.t403Gesture={events:[],reads:[],target:null,article:null};
     for(const type of ['pointerdown','pointerup','click'])doc.addEventListener(type,event=>{
       if(type==='pointerdown'){p.target=event.target;p.article=event.target.closest('[data-frame-block]');}
       if(!p.article)return;
@@ -261,7 +260,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   })()`);
   const pressBlock = async () => {
     await gesture("(p.events=[],p.reads=[],p.target=null,p.article=null)");
-    const point = await b.evaluate<{x:number;y:number}>(`(() => {const frame=document.querySelector('iframe[data-t403-goal-pane]'),doc=frame.contentDocument,node=doc.querySelector('[data-frame-block-kind=feed]'),rect=node.getBoundingClientRect(),outer=frame.getBoundingClientRect(),local={x:rect.left+80,y:rect.top+20};if(!frame.checkVisibility({visibilityProperty:true})||document.elementFromPoint(outer.x+local.x,outer.y+local.y)!==frame||!node.contains(doc.elementFromPoint(local.x,local.y)))throw Error('Frame block is not hit');return{x:outer.x+local.x,y:outer.y+local.y};})()`);
+    const point = await b.evaluate<{x:number;y:number}>(`(() => {const pane=document.querySelector('[data-tab-pane][data-t403-goal-pane]'),node=pane.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-block-kind=feed]'),rect=node.getBoundingClientRect(),point={x:rect.left+80,y:rect.top+20};if(!pane.checkVisibility({visibilityProperty:true})||!node.contains(document.elementFromPoint(point.x,point.y)))throw Error('Frame block is not hit');return point;})()`);
     await command("Input.dispatchMouseEvent",{type:"mousePressed",...point,button:"left",buttons:1,clickCount:1},sessionId);
     assert.equal(await gesture("p.events.some(event=>event.type==='pointerdown'&&event.trusted)"),true);
     return point;
@@ -288,8 +287,8 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   assert.equal(JSON.parse(cameraSync.newValue).expanded,firstStored.expanded);
   assert.equal(await gesture("p.target.isConnected&&p.article.isConnected&&doc.querySelector('[data-frame-block]')===p.article"),true,"camera-only storage keeps the pressed target and the exact block node");
   await command("Input.dispatchMouseEvent",{type:"mouseReleased",...blockPoint,button:"left",buttons:0,clickCount:1},sessionId);
-  try { await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-frame-block-body]')?.textContent.includes('Original material')"); }
-  catch(error){t.diagnostic(JSON.stringify({stored:await stored(),goal:await b.evaluate("(()=>{const frame=document.querySelector('iframe[data-t403-goal-pane]');return{trace:frame.contentWindow.t403FrameTrace,html:frame.contentDocument.querySelector('[data-frame-block]')?.outerHTML}})()")}));throw error;}
+  try { await b.waitFor("document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden]) [data-frame-block-body]')?.textContent.includes('Original material')"); }
+  catch(error){t.diagnostic(JSON.stringify({stored:await stored(),goal:await b.evaluate("({trace:window.t403FrameTrace,html:document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden]) [data-frame-block]')?.outerHTML})")}));throw error;}
   assert.equal(await gesture("p.events.some(event=>event.type==='pointerup'&&event.trusted&&event.sameArticle)"),true,"the original block receives the trusted release");
   assert.equal(await gesture("p.events.filter(event=>event.type==='click'&&event.trusted&&event.sameArticle).length"),1,"one real release produces one click on the original block");
   assert.equal((await stored()).expanded,firstStored.blocks[0]!.id);
@@ -300,43 +299,43 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   assert.equal(await gesture("p.body.isConnected&&doc.querySelector('[data-frame-block-body]')===p.body&&p.body.dataset.loaded==='feed:'+"+JSON.stringify(item.item_id)),true);
   assert.equal(await gesture("p.reads.length"),1,"camera-only storage does not reread the completed Feed body");
   const markSource = async (plugin: string) => {
-    await b.waitFor(`[...document.querySelectorAll('iframe.tab-content-frame')].some(frame=>!frame.hidden&&frame.contentDocument?.body?.dataset.desktopSurface===${JSON.stringify(plugin)})`);
-    await b.evaluate(`for(const frame of document.querySelectorAll('iframe.tab-content-frame')){frame.removeAttribute('data-t403-feed-pane');if(!frame.hidden&&frame.contentDocument?.body?.dataset.desktopSurface===${JSON.stringify(plugin)})frame.setAttribute('data-t403-feed-pane','')}`);
+    await b.waitFor(`[...document.querySelectorAll('[data-tab-pane]')].some(pane=>pane.querySelector('[data-work-surface=${JSON.stringify(plugin)}]:not([hidden]) iframe[data-plugin-frame=${JSON.stringify(plugin)}]'))`);
+    await b.evaluate(`for(const pane of document.querySelectorAll('[data-tab-pane]')){pane.removeAttribute('data-t403-feed-pane');if(pane.querySelector('[data-work-surface=${JSON.stringify(plugin)}]:not([hidden])'))pane.setAttribute('data-t403-feed-pane','')}`);
   };
   await focusSource(); await sourceHandle(); await capture("feed-goal-pane");
   await b.click('[data-plugin-strip] [data-plugin-id=inbox]'); await markSource("inbox");
   await inboxChild.waitFor("t403Reads.total>0 && t403Reads.pending===0"); await sourceHandle(inboxEntry.entry_id);
   await drop(await drag({kind:"inbox_entry",id:inboxEntry.entry_id}));
-  await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelectorAll('[data-frame-block]').length===2");
+  await b.waitFor("document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden])').querySelectorAll('[data-frame-block]').length===2");
   const before = await stored(); assert.equal(before.blocks[1]!.kind,"inbox"); assert.equal(before.blocks[1]!.itemId,inboxEntry.entry_id); assert.equal(before.blocks[1]!.title,item.title);
   await capture("inbox-goal-pane");
   await b.click('[data-plugin-strip] [data-plugin-id=feed]'); await markSource("feed");
   // Back on Feed the child context can be a fresh document: wait until it has been handed its source handle before reading it.
   await child.waitFor("t403Reads.pending===0 && typeof window.t403Handle==='string'");
-  const settled = () => b.evaluate<number>("document.querySelector('iframe[data-t403-goal-pane]').contentWindow.t403FrameTrace.filter(event=>event.method==='drag'&&('result' in event||'error' in event)).length");
+  const settled = () => b.evaluate<number>("window.t403FrameTrace.filter(event=>event.method==='drag'&&('result' in event||'error' in event)).length");
   for (const reason of ["hidden", "producer"] as const) {
     const previous = await settled(), originalHandle = await child.evaluate<string>("t403Handle"), pending = await drag();
-    const held = await sendBarrier(b, [{urlPattern:`*/projects/${projectId}/?*`,requestStage:"Request"}]);
+    const held = await sendBarrier(b, [{urlPattern:`*/projects/${projectId}/`,requestStage:"Request"}]);
     try {
       await drop(pending); await held.next();
-      await b.evaluate(reason === "hidden" ? "document.querySelector('iframe[data-t403-feed-pane]').hidden=true" : "(()=>{const root=document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]');window.t403OriginalProducer=root.dataset.pluginProducer;root.dataset.pluginProducer='replaced-producer';})()");
+      await b.evaluate(reason === "hidden" ? "document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').hidden=true" : "(()=>{const root=document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]');window.t403OriginalProducer=root.dataset.pluginProducer;root.dataset.pluginProducer='replaced-producer';})()");
       await b.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-      await b.evaluate(reason === "hidden" ? "document.querySelector('iframe[data-t403-feed-pane]').hidden=false" : "document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').dataset.pluginProducer=t403OriginalProducer");
+      await b.evaluate(reason === "hidden" ? "document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').hidden=false" : "document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').dataset.pluginProducer=t403OriginalProducer");
     } finally { await held.close(); }
-    await b.waitFor(`document.querySelector('iframe[data-t403-goal-pane]').contentWindow.t403FrameTrace.filter(event=>event.method==='drag'&&('result' in event||'error' in event)).length>${previous}`);
+    await b.waitFor(`window.t403FrameTrace.filter(event=>event.method==='drag'&&('result' in event||'error' in event)).length>${previous}`);
     assert.deepEqual(await stored(),before,reason+" during the fresh read rejects the late add even after the surface returns");
     await sourceHandle(); await child.waitFor(`t403Handle && t403Handle!==${JSON.stringify(originalHandle)}`);
     await child.evaluate(`t403Port.postMessage({type:'frame-asset-layout',handle:${JSON.stringify(originalHandle)},slots:[]});new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
-    assert.equal(await b.evaluate(`!!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`),true,"old-handle layout cannot remove the current control");
+    assert.equal(await b.evaluate(`!!document.querySelector('[data-tab-pane][data-t403-feed-pane] [data-host-frame-drag="${item.item_id}"]')`),true,"old-handle layout cannot remove the current control");
   }
   const data = await drag();
-  const barrier = await sendBarrier(b, [{ urlPattern: `*/projects/${projectId}/?*`, requestStage: "Request" }]);
+  const barrier = await sendBarrier(b, [{ urlPattern: `*/projects/${projectId}/`, requestStage: "Request" }]);
   try {
     await drop(data); await barrier.next();
     await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(owner, projectId) });
-    await b.evaluate("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-board-view-tab=list]').click()");
+    await b.evaluate(`document.querySelector('[data-tab-pane="${goalPane}"] .tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger').click()`);
   } finally { await barrier.close(); }
-  await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-goal-frame-surface]').hidden");
+  await b.waitFor("!document.querySelector('[data-tab-pane][data-t403-goal-pane] [data-goal-frame-surface]:not([hidden])')");
   await b.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   assert.deepEqual(await stored(), before, "source withdrawal and a target switch discard the late add without changing the original Goal");
   await b.reloadPage();

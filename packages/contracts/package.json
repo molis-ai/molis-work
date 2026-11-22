@@ -90,6 +90,10 @@
       "types": "./dist/platform/loopback.d.ts",
       "import": "./dist/platform/loopback.js"
     },
+    "./platform/public-address": {
+      "types": "./dist/platform/public-address.d.ts",
+      "import": "./dist/platform/public-address.js"
+    },
     "./platform/package": {
       "types": "./dist/platform/package.d.ts",
       "import": "./dist/platform/package.js"

@@ -51,6 +51,7 @@ import { AssistantBudget } from "./assistant-budget.js";
 import { AssistantNotices } from "./assistant-notices.js";
 import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type { AssistantServicePorts, AssistantCaller } from "./assistant-service-shared.js";
 export { holdingRule } from "./assistant-notices.js";
@@ -63,9 +64,9 @@ function checkContext(value: unknown): AssistantContextSnapshot | null {
   if (value === undefined || value === null) return null;
   const context = value as AssistantContextSnapshot;
   if (!context || typeof context !== "object" || !context.source || typeof context.source.surface !== "string") throw assistantErrors.invalid("当前页面信息格式无效");
-  const selection = context.selection && typeof context.selection.text === "string" ? { text: context.selection.text.slice(0, 8000), ...(context.selection.truncated || context.selection.text.length > 8000 ? { truncated: true } : {}) } : undefined;
-  return { source: { surface: context.source.surface.slice(0, 80), ...(context.source.plugin_id ? { plugin_id: String(context.source.plugin_id).slice(0, 120) } : {}), ...(context.source.title ? { title: String(context.source.title).slice(0, 200) } : {}) },
-    ...(context.object ? { object: { kind: String(context.object.kind).slice(0, 80), id: String(context.object.id).slice(0, 200), ...(context.object.version !== undefined ? { version: context.object.version } : {}), ...(context.object.title ? { title: String(context.object.title).slice(0, 200) } : {}) } } : {}),
+  const selection = context.selection && typeof context.selection.text === "string" ? { text: cutHead(context.selection.text, 8000), ...(context.selection.truncated || context.selection.text.length > 8000 ? { truncated: true } : {}) } : undefined;
+  return { source: { surface: cutHead(context.source.surface, 80), ...(context.source.plugin_id ? { plugin_id: cutHead(String(context.source.plugin_id), 120) } : {}), ...(context.source.title ? { title: cutHead(String(context.source.title), 200) } : {}) },
+    ...(context.object ? { object: { kind: String(context.object.kind).slice(0, 80), id: cutHead(String(context.object.id), 200), ...(context.object.version !== undefined ? { version: context.object.version } : {}), ...(context.object.title ? { title: cutHead(String(context.object.title), 200) } : {}) } } : {}),
     ...(selection ? { selection } : {}), ...(context.unsaved ? { unsaved: true } : {}), ...checkLanding(context), captured_at: typeof context.captured_at === "string" ? context.captured_at : new Date().toISOString() };
 }
 
@@ -128,7 +129,7 @@ export class AssistantService {
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
       ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
-      host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work), schedule: () => this.notices.schedule(),
+      host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work), executorGone: work => this.reads.executorGone(work), schedule: () => this.notices.schedule(),
       send: (work, words, request_id, stillCurrent) => this.hostStarted(() => this.send({ work_id: work.work_id, text: say.text(words), request_id }, {}, "host", stillCurrent)) });
     this.delegations = new AssistantDelegations({ store, actorId, subtaskReports: { kick: id => this.subtaskReports.kick(id), attach: () => this.subtaskReports.attach() }, stepGate: this.continuations.stepGate, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.reads.stateFor(host, work), latestRun: (host, work) => this.reads.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
@@ -151,7 +152,7 @@ export class AssistantService {
       } });
     this.materialAccess = new AssistantMaterialAccess(store, actorId, ports.attachments);
     this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materialAccess.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
-    this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), continuations: this.continuations, delegations: this.delegations });
+    this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), executorGone: (...a) => this.reads.executorGone(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), continuations: this.continuations, delegations: this.delegations });
     this.outcomes = new AssistantOutcomes(store, ports, actorId, now, this.titles, { executorOf: (...a) => this.dispatcher.executorOf(...a), dispatch: (...a) => this.dispatcher.dispatch(...a), latestRun: (...a) => this.reads.latestRun(...a), read: (...a) => this.read(...a), jobs: this.jobs, stepGate: this.continuations.stepGate });
     this.workSubtasks = new AssistantWorkSubtasks(store, ports, actorId, { outcomes: this.outcomes, dispatch: (...args) => this.dispatcher.dispatch(...args), executorOf: (...args) => this.dispatcher.executorOf(...args), parentOf: work => this.delegations.parentOf(work), read: workId => this.read(workId),
       applyControl: (work, control, caller) => controlAssistantWork(work, control, { store, actorId, continuations: this.continuations, delegations: this.delegations,
@@ -169,8 +170,8 @@ export class AssistantService {
       followed: async projectId => new Set((await Promise.all(
         store.list(actorId, { limit: Number.MAX_SAFE_INTEGER })
           .filter(work => work.project_ref?.project_id === projectId)
-          .map(work => this.jobs.views(work)),
-      )).flat().map(job => job.job_id)),
+          .map(work => this.jobs.followedJobIds(work)),
+      )).flat()),
     });
   }
 

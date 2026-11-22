@@ -8,7 +8,7 @@ import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapabi
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow,
   runHasExpired, runExpiredUntold, runsExpiryBounds, withinRunsWindow, type ActionView,
   type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { assistantRoundOpen, assistantStateUnknown, type AssistantFollowUp, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantSavedText, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
@@ -105,6 +105,8 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   homeActions?(): Promise<FollowUpHomeActions>;
   host(): Promise<AgentHost>;
   state(host: AgentHost, work: W): Promise<AssistantWorkState>;
+  /** The state could not be read because the work's executor plugin is no longer there: the round goes ahead and is refused as such (S-51). */
+  executorGone(work: W): Promise<boolean>;
   /** Start one round of the work with these words; the service writes them where the round starts, in the language last used; `stillCurrent` is checked again right before it starts. */
   send(work: W, words: FollowUpMessageWords, requestId: string, stillCurrent: () => boolean): Promise<unknown>;
   schedule(): Promise<AgentScheduleCapability>;
@@ -137,8 +139,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   async save(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }, control?: AgentActionReviewControl): Promise<AssistantFollowUp> {
     const { ports } = this, work = ports.work(String(input?.work_id ?? ""));
     if (work.reply_target || work.archived) throw assistantErrors.state("评论回复或已归档工作不能添加定时");
-    const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
-    const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
+    const text = typeof input.text === "string" ? cutHead(input.text.trim(), 4000) : "";
+    const label = typeof input.label === "string" ? cutHead(input.label.trim(), 120) : "";
     if (!text || !label) throw assistantErrors.invalid("定时要写明到时让助理做什么，以及一句说法");
     const at = new Date(String(input.at));
     if (Number.isNaN(at.getTime()) || at.getTime() <= ports.now().getTime()) throw assistantErrors.invalid("时间要在现在之后，并写明日期和时间");
@@ -277,9 +279,16 @@ export class AssistantFollowUps<W extends FollowUpWork> {
         const host = await ports.host();
         if (!current()) return;
         const state = await ports.state(host, work);
+        const unreadable = assistantStateUnknown(state) && !await ports.executorGone(work);
         if (!current()) return;
-        if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.busy"); }
-        else {
+        // A round under way, an interrupted round the person has not checked, or a state that could not be read: a new round would bury what they owe.
+        const skipped = assistantRoundOpen(state) ? "workbench.assistant-followup.busy"
+          : state === "needs-check" ? "workbench.assistant-followup.needs-check"
+            : unreadable ? "workbench.assistant-followup.unreadable" : null;
+        if (skipped) {
+          outcome = "skipped";
+          detail = assistantWords(skipped);
+        } else {
           try { await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
           catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
         }
@@ -321,7 +330,9 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (decision.decision === "run_now") {
       if (!work || work.archived) { this.#forgetMissed(followUp.followup_id, due); return { state: "gone" }; }
       const host = await ports.host(), state = await ports.state(host, work);
-      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
+      if (assistantRoundOpen(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
+      if (state === "needs-check") throw assistantErrors.state("请先核对上一轮的中断结果再做");
+      if (assistantStateUnknown(state) && !await ports.executorGone(work)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再试");
       await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${parsed.due}`, () => find() !== null);
     }
     return this.#forgetMissed(followUp.followup_id, due) ? { state: decision.decision === "run_now" ? "started" : "skipped" } : { state: "gone" };
@@ -407,7 +418,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (!input || !["quiet", "pause"].includes(input.kind)) throw assistantErrors.invalid("规则只能是“在某处不提醒”或“暂停提醒”");
     const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
     const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];
-    const label = typeof input.label === "string" ? input.label.trim().slice(0, 200) : "";
+    const label = typeof input.label === "string" ? cutHead(input.label.trim(), 200) : "";
     if (!label) throw assistantErrors.invalid("写一句这条规则的说法，方便以后认出它");
     const until = input.until === undefined || input.until === null || input.until === "" ? undefined : new Date(String(input.until));
     if (until && (Number.isNaN(until.getTime()) || until.getTime() <= this.ports.now().getTime())) throw assistantErrors.invalid("结束时间要在现在之后");

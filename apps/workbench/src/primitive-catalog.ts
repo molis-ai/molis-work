@@ -10,7 +10,6 @@ import {
   registeredIconNames,
   renderIconSprite,
   renderPrimitiveCatalog,
-  catalogIndexGroup,
   type CatalogPluginIcon,
   renderProjectMonogram,
   renderToggleGroup,
@@ -30,6 +29,7 @@ import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation
 import { renderWorkLineIndexLink, renderWorkLineSection } from "./work-line-specimens.js";
 import { renderSessionSourceSection, SESSION_SOURCE_SECTION_STYLES } from "./session-source-specimens.js";
 import { renderSubtaskConversationSection, SUBTASK_SPECIMEN_STYLES } from "./subtask-conversation-specimen.js";
+import { ON_DEMAND_HELP_SPECIMEN_STYLES, renderOnDemandHelpSection } from "./on-demand-help-specimens.js";
 import { SUBTASK_CONVERSATION_STYLES } from "@molis-ai/molis-work-design-system";
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
@@ -87,7 +87,7 @@ function renderBarSpecimen(): string {
 }
 
 /** The board shows the bar in its own workbench context: the page the iframe below loads. */
-export function renderMolisWorkBarSpecimen(): string {
+export function renderMolisWorkBarSpecimen(appearance?: WorkbenchAppearance): string {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -96,6 +96,7 @@ export function renderMolisWorkBarSpecimen(): string {
   <title>底栏样例 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
+  ${appearanceHead(appearance)}
 </head>
 <body class="immersive-workbench mw-bar-specimen-page">
   ${renderIconSprite()}
@@ -227,8 +228,48 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     ],
   });
   const directory = builtinPluginDirectory();
+  const extraLinks = `<a href="#foundation" title="${t("workbench.primitive-catalog.foundation")}">${t("workbench.primitive-catalog.foundation")}</a>`
+    + `<a href="#conditions" title="${say("workbench.primitive-catalog.conditions-states")}">${say("workbench.primitive-catalog.conditions-states")}</a>`
+    + `<a href="#assistant" title="${say("workbench.primitive-catalog.assistant-information-works")}">${say("workbench.primitive-catalog.assistant-information-works")}</a>`
+    + `<a href="#plugin-rows" title="${say("workbench.primitive-catalog.plugin-rows")}">${say("workbench.primitive-catalog.plugin-rows")}</a>`
+    + `<a href="#service-connections" title="${say("workbench.primitive-catalog.service-connections")}">${say("workbench.primitive-catalog.service-connections")}</a>`
+    + `<a href="#return-trips" title="${say("workbench.primitive-catalog.back-where-were")}">${say("workbench.primitive-catalog.back-where-were")}</a>`
+    + `<a href="#settings-rows" title="${say("workbench.settings-row-specimens.title")}">${say("workbench.settings-row-specimens.title")}</a>`
+    + `<a href="#platform-area" title="${say("workbench.primitive-catalog.platform-area")}">${say("workbench.primitive-catalog.platform-area")}</a>`
+    + `<a href="#connection-need" title="${say("workbench.primitive-catalog.connection-card-place-platform-area")}">${say("workbench.primitive-catalog.connection-card-place-platform-area")}</a>`
+    + `<a href="#install-sheet" title="${say("workbench.package-install-specimens.install-sheet-in-place-platform-area")}">${say("workbench.package-install-specimens.install-sheet-in-place-platform-area")}</a>`
+    + `<a href="#bar" title="${t("workbench.primitive-catalog.bar-and-overlays")}">${t("workbench.primitive-catalog.bar-and-overlays")}</a>`
+    + `<a href="#collab" title="${say("workbench.primitive-catalog.collaboration-parts")}">${say("workbench.primitive-catalog.collaboration-parts")}</a>`
+    + `<a href="#session-sources" title="${t("workbench.session-source-specimens.title")}">${t("workbench.session-source-specimens.title")}</a>`
+    + `<a href="#navigation" title="${say("workbench.primitive-catalog.workbench-navigation")}">${say("workbench.primitive-catalog.workbench-navigation")}</a>`
+    + renderWorkLineIndexLink()
+    + `<a href="#subtask-conversation">${t("workbench.subtask-conversation.title")}</a>`
+    + `<a href="#on-demand-help" title="${t("workbench.on-demand-help-specimens.title")}">${t("workbench.on-demand-help-specimens.title")}</a>`
+    + (environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : "");
+  const extraSections = [
+    renderFoundationSection(),
+    renderConditionsSection(say, lang),
+    renderAssistantBoardSection(say, lang),
+    renderPluginRowsSection(say, lang),
+    renderServiceConnectionSection(say),
+    renderReturnTripSection(say),
+    renderSettingsRowsSection(),
+    renderPlatformAreaSection(say, lang),
+    renderConnectionNeedSection(say),
+    renderPackageInstallSection(say),
+    renderBarSection(),
+    renderCollabSection(say),
+    renderSessionSourceSection(),
+    renderNavigationSection(say, lang),
+    renderWorkLineSection(lang),
+    renderSubtaskConversationSection(),
+    renderOnDemandHelpSection(say),
+    environment,
+  ].filter(Boolean).join("\n    ");
   const catalog = renderPrimitiveCatalog({
-    plugins: iconInventoryPlugins(), say, delivery,
+    plugins: iconInventoryPlugins(),
+    say,
+    delivery,
     ...(environment ? {
       presentationLocale: lang,
       presentationPlugins: BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
@@ -237,11 +278,13 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
         declared: (manifest.presentation?.objects.length ?? 0) > 0,
       })),
     } : {}),
-  })
-    .replace(/(<p class="mw-catalog__index-none"[^>]*>[^<]*<\/p>)?<\/nav>/u, (_, none = "") => `${catalogIndexGroup(say("workbench.primitive-catalog.platform-area"))}<a href="#foundation" title="${t("workbench.primitive-catalog.foundation")}">${t("workbench.primitive-catalog.foundation")}</a><a href="#conditions" title="${say("workbench.primitive-catalog.conditions-states")}">${say("workbench.primitive-catalog.conditions-states")}</a><a href="#assistant" title="${say("workbench.primitive-catalog.assistant-information-works")}">${say("workbench.primitive-catalog.assistant-information-works")}</a><a href="#plugin-rows" title="${say("workbench.primitive-catalog.plugin-rows")}">${say("workbench.primitive-catalog.plugin-rows")}</a><a href="#service-connections" title="${say("workbench.primitive-catalog.service-connections")}">${say("workbench.primitive-catalog.service-connections")}</a><a href="#return-trips" title="${say("workbench.primitive-catalog.back-where-were")}">${say("workbench.primitive-catalog.back-where-were")}</a><a href="#settings-rows" title="${say("workbench.settings-row-specimens.title")}">${say("workbench.settings-row-specimens.title")}</a><a href="#platform-area" title="${say("workbench.primitive-catalog.platform-area")}">${say("workbench.primitive-catalog.platform-area")}</a><a href="#connection-need" title="${say("workbench.primitive-catalog.connection-card-place-platform-area")}">${say("workbench.primitive-catalog.connection-card-place-platform-area")}</a><a href="#install-sheet" title="${say("workbench.package-install-specimens.install-sheet-in-place-platform-area")}">${say("workbench.package-install-specimens.install-sheet-in-place-platform-area")}</a><a href="#bar" title="${t("workbench.primitive-catalog.bar-and-overlays")}">${t("workbench.primitive-catalog.bar-and-overlays")}</a><a href="#collab" title="${say("workbench.primitive-catalog.collaboration-parts")}">${say("workbench.primitive-catalog.collaboration-parts")}</a><a href="#session-sources" title="${t("workbench.session-source-specimens.title")}">${t("workbench.session-source-specimens.title")}</a><a href="#navigation" title="${say("workbench.primitive-catalog.workbench-navigation")}">${say("workbench.primitive-catalog.workbench-navigation")}</a>${renderWorkLineIndexLink()}<a href="#subtask-conversation">${t("workbench.subtask-conversation.title")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}${none}</nav>`)
-    // The board's own sections go at the end of the catalog: the last closing before its script, not the first (an interaction example
-    // closes the same way, and its sections used to land inside it).
-    .replace(/\n {2}<\/div>\n {2}<script>(?![\s\S]*\n {2}<\/div>\n {2}<script>)/u, () => `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderSettingsRowsSection()}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderPackageInstallSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection(say)}\n    ${renderSessionSourceSection()}\n    ${renderNavigationSection(say, lang)}\n    ${renderWorkLineSection(lang)}\n    ${renderSubtaskConversationSection()}\n    ${environment}\n  </div>\n  <script>`);
+    extraChapters: [{
+      title: say("workbench.primitive-catalog.platform-area"),
+      linksHtml: extraLinks,
+      sectionsHtml: extraSections,
+      count: environment ? 18 : 17,
+    }],
+  });
   return `<!doctype html>
 <html lang="${WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang)?.html_lang ?? DEFAULT_WEB_LOCALE}">
 <head>
@@ -251,7 +294,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   ${renderLanguageHead(lang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}
-  <style>${SUBTASK_CONVERSATION_STYLES}${SUBTASK_SPECIMEN_STYLES}${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${SESSION_SOURCE_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${RETURN_TRIP_SECTION_STYLES}${SETTINGS_ROWS_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}${CONNECTION_NEED_SECTION_STYLES}${PACKAGE_INSTALL_SECTION_STYLES}${environment ? ENVIRONMENT_SECTION_STYLES : ""}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
+  <style>${SUBTASK_CONVERSATION_STYLES}${SUBTASK_SPECIMEN_STYLES}${ON_DEMAND_HELP_SPECIMEN_STYLES}${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${SESSION_SOURCE_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${RETURN_TRIP_SECTION_STYLES}${SETTINGS_ROWS_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}${CONNECTION_NEED_SECTION_STYLES}${PACKAGE_INSTALL_SECTION_STYLES}${environment ? ENVIRONMENT_SECTION_STYLES : ""}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}

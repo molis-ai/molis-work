@@ -665,7 +665,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     part("reload").addEventListener("click", () => { void (sessionMode ? load() : readPage(undefined, [])); });
     window.addEventListener("pagehide", invalidateRead);
     window.addEventListener("pageshow", event => { if (event.persisted && root.isConnected) void load().catch(fail); });
-    new MutationObserver((_, observer) => { if (!root.isConnected) { invalidateRead(); observer.disconnect(); } }).observe(document.body, { childList: true, subtree: true });
+    const memoryObserver = new MutationObserver((_, observer) => { if (!root.isConnected) { invalidateRead(); observer.disconnect(); } });
+    for (let ancestor = root.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+      memoryObserver.observe(ancestor, { childList: true });
+      if (ancestor.matches("[data-settings-stage-body], main")) break;
+    }
     $("[data-memory-add]").addEventListener("click", () => {
       const slot = $("[data-memory-new]"), write = mutation();
       const editor = itemEditor(null, (value) => write("/items", { scope, text: value.text, kind: value.kind, applies: value.applies, ...(value.classification ? { classification: value.classification, expires_at: value.expires_at } : {}) }));
@@ -705,8 +709,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         toast(clearStatus.textContent);
       } else {
         const count = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
-        showClear(readText("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + readText("workbench.settings-memory.deleted") + " " + done.removed
-          + " · " + readText("workbench.settings-memory.version-conflicts") + " " + count("conflict") + " · " + readText("workbench.settings-memory.outcome-unknown") + " " + count("unknown") + " · " + readText("workbench.settings-memory.not-run-yet") + " " + count("not-executed"));
+        showClear(readText("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + readText("workbench.settings-memory.deleted-n", { n: done.removed })
+          + " · " + readText("workbench.settings-memory.version-conflicts-n", { n: count("conflict") }) + " · " + readText("workbench.settings-memory.outcome-unknown-n", { n: count("unknown") }) + " · " + readText("workbench.settings-memory.not-run-yet-n", { n: count("not-executed") }));
       }
     };
     clearButton.addEventListener("click", () => run(async () => {

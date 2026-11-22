@@ -5,6 +5,7 @@ import test from "node:test";
 import { AGENT_STUDIO_STYLES } from "@molis-ai/molis-work-plugin-builder";
 import {
   renderMolisWorkArrivalStylesheet,
+  renderMolisWorkPluginBaseStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
@@ -32,7 +33,7 @@ function bareReads(text: string): string[] {
 }
 
 test("VUX-38 VUX-02 every custom property a style reads without a fallback is declared somewhere", () => {
-  const sheets = { workbench: renderMolisWorkWorkbenchStylesheet(), arrival: renderMolisWorkArrivalStylesheet(), settings: renderMolisWorkSettingsStylesheet(), studio: AGENT_STUDIO_STYLES };
+  const sheets = { workbench: renderMolisWorkWorkbenchStylesheet(), pluginBase: renderMolisWorkPluginBaseStylesheet(), arrival: renderMolisWorkArrivalStylesheet(), settings: renderMolisWorkSettingsStylesheet(), studio: AGENT_STUDIO_STYLES };
   const files = sources();
   assert.ok(files.some((file) => file.endsWith("plugins/native/coding/src/styles.ts")) && files.some((file) => file.endsWith("packages/design-system/src/palette.ts")), "the plugins' sheets and the palette are read");
   const texts: Array<[string, string]> = [...Object.entries(sheets), ...files.map((file) => [file, readFileSync(file, "utf8")] as [string, string])];

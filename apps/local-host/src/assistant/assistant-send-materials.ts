@@ -5,6 +5,7 @@ import type { SignedAgentReference } from "@molis-ai/molis-work-contracts/servic
 import { KNOWLEDGE_PROVIDER_ID, KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { CONVERSATION_ATTACHMENT_LIMITS, CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
 import { assistantErrors } from "./assistant-errors.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** What one Send may carry beside its words: how many materials, how much text in all, and how many images. */
 const MAX_MATERIALS = 20;
@@ -17,7 +18,7 @@ const MAX_IMAGES = CONVERSATION_ATTACHMENT_LIMITS.round_images;
 function pickedReference(value: unknown): AssistantMaterial["reference"] | null {
   if (value && typeof value === "object" && "material" in value) { assertMaterialRef(value.material); return { material: value.material }; }
   const given = (value && typeof value === "object" ? value : {}) as { hit_id?: unknown; subject?: { kind?: unknown; id?: unknown } };
-  if (typeof given.hit_id === "string" && given.hit_id) return { hit_id: given.hit_id.slice(0, 2000) };
+  if (typeof given.hit_id === "string" && given.hit_id) return { hit_id: cutHead(given.hit_id, 2000) };
   const { kind, id } = given.subject ?? {};
   return typeof kind === "string" && /^[a-zA-Z0-9_.:-]{1,64}$/u.test(kind) && typeof id === "string" && id && id.length <= 2000 ? { subject: { kind, id } } : null;
 }
@@ -64,15 +65,15 @@ export function checkMaterials(value: unknown): AssistantMaterial[] {
     // A capability picked with “/”: its exact identity; the words the model reads are the Host's, not the page's.
     // A method chosen with “/”: only its identity; the Host adds the registered body before the round.
     if (item.kind === "method") {
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "method" as const, title: item.title.slice(0, 200), explicit: true, method: checkedMethodSelection(item.method) };
+      return { material_id: cutHead(String(item.material_id || `m${index + 1}`), 80), kind: "method" as const, title: cutHead(item.title, 200), explicit: true, method: checkedMethodSelection(item.method) };
     }
     if (item.kind === "capability") {
       const cap = item.capability;
       if (!cap || typeof cap.capability_id !== "string" || !Number.isSafeInteger(cap.version) || typeof cap.provider_id !== "string" || typeof cap.title !== "string") {
         throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       }
-      const capability = { capability_id: cap.capability_id.slice(0, 200), version: cap.version, provider_id: cap.provider_id.slice(0, 200), title: cap.title.slice(0, 200) };
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "capability" as const, title: `用：${capability.title}`, explicit: true, capability,
+      const capability = { capability_id: cutHead(cap.capability_id, 200), version: cap.version, provider_id: cutHead(cap.provider_id, 200), title: cutHead(cap.title, 200) };
+      return { material_id: cutHead(String(item.material_id || `m${index + 1}`), 80), kind: "capability" as const, title: `用：${capability.title}`, explicit: true, capability,
         text: `用户指定这一轮用这个能力：「${capability.title}」（capability_id ${capability.capability_id}，version ${capability.version}，provider_id ${capability.provider_id}）。先用 find-capabilities 核对它的参数再用；会改变数据的照常请用户确认；它现在不可用就如实说明，不要换别的能力。` };
     }
     // An image the person added: only the reference the platform gave when it kept the picture as a conversation attachment.
@@ -81,8 +82,8 @@ export function checkMaterials(value: unknown): AssistantMaterial[] {
       if (!image || typeof image.media_type !== "string" || !Number.isSafeInteger(image.byte_length)) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       try { assertMaterialRef(image.attachment); } catch { throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`); }
       if (image.attachment.subject.kind !== CONVERSATION_ATTACHMENT_SUBJECT_KIND) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "image" as const, title: item.title.slice(0, 200), explicit: true,
-        image: { attachment: structuredClone(image.attachment), media_type: image.media_type.slice(0, 40), byte_length: image.byte_length },
+      return { material_id: cutHead(String(item.material_id || `m${index + 1}`), 80), kind: "image" as const, title: cutHead(item.title, 200), explicit: true,
+        image: { attachment: structuredClone(image.attachment), media_type: cutHead(image.media_type, 40), byte_length: image.byte_length },
         text: "这张图片随本轮一起发给你，只在这一轮能看到（之后的轮次看不到原图）。看不到图片内容就直接说看不到，不要猜测图里有什么。" };
     }
     if (item.file_attachment !== undefined) {
@@ -91,22 +92,22 @@ export function checkMaterials(value: unknown): AssistantMaterial[] {
       if (item.kind !== "file" || ref.subject.kind !== CONVERSATION_ATTACHMENT_SUBJECT_KIND || ref.pin.mode !== "current" || ref.range) {
         throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       }
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "file" as const, title: item.title.slice(0, 200), explicit: true, file_attachment: structuredClone(ref) };
+      return { material_id: cutHead(String(item.material_id || `m${index + 1}`), 80), kind: "file" as const, title: cutHead(item.title, 200), explicit: true, file_attachment: structuredClone(ref) };
     }
     // Picked with “@” or from project knowledge: the page's words about it are only a snippet; the Host reads the object before the round.
     if (item.reference !== undefined) {
       const reference = pickedReference(item.reference);
       if (item.kind !== "object" || !item.object || !reference) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "object" as const, title: item.title.slice(0, 200), explicit: true, reference,
-        object: { kind: String(item.object.kind).slice(0, 80), id: String(item.object.id).slice(0, 200), ...(item.object.title ? { title: String(item.object.title).slice(0, 200) } : {}) },
-        ...(item.source ? { source: { surface: String(item.source.surface).slice(0, 80), ...(item.source.plugin_id ? { plugin_id: String(item.source.plugin_id).slice(0, 120) } : {}), ...(item.source.title ? { title: String(item.source.title).slice(0, 200) } : {}) } } : {}),
-        ...(typeof item.text === "string" ? { text: item.text.slice(0, 600) } : {}) };
+      return { material_id: cutHead(String(item.material_id || `m${index + 1}`), 80), kind: "object" as const, title: cutHead(item.title, 200), explicit: true, reference,
+        object: { kind: String(item.object.kind).slice(0, 80), id: cutHead(String(item.object.id), 200), ...(item.object.title ? { title: cutHead(String(item.object.title), 200) } : {}) },
+        ...(item.source ? { source: { surface: cutHead(String(item.source.surface), 80), ...(item.source.plugin_id ? { plugin_id: cutHead(String(item.source.plugin_id), 120) } : {}), ...(item.source.title ? { title: cutHead(String(item.source.title), 200) } : {}) } } : {}),
+        ...(typeof item.text === "string" ? { text: cutHead(item.text, 600) } : {}) };
     }
     total += item.text?.length ?? 0;
     if (total > MAX_MATERIAL_TEXT) throw assistantErrors.invalid("材料正文合计过长，请只带需要的片段");
-    return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: item.kind, title: item.title.slice(0, 200), explicit: item.explicit,
-      ...(item.source ? { source: { surface: String(item.source.surface).slice(0, 80), ...(item.source.plugin_id ? { plugin_id: String(item.source.plugin_id).slice(0, 120) } : {}), ...(item.source.title ? { title: String(item.source.title).slice(0, 200) } : {}) } } : {}),
-      ...(item.object ? { object: { kind: String(item.object.kind).slice(0, 80), id: String(item.object.id).slice(0, 200), ...(item.object.version !== undefined ? { version: item.object.version } : {}), ...(item.object.title ? { title: String(item.object.title).slice(0, 200) } : {}) } } : {}),
+    return { material_id: cutHead(String(item.material_id || `m${index + 1}`), 80), kind: item.kind, title: cutHead(item.title, 200), explicit: item.explicit,
+      ...(item.source ? { source: { surface: cutHead(String(item.source.surface), 80), ...(item.source.plugin_id ? { plugin_id: cutHead(String(item.source.plugin_id), 120) } : {}), ...(item.source.title ? { title: cutHead(String(item.source.title), 200) } : {}) } } : {}),
+      ...(item.object ? { object: { kind: String(item.object.kind).slice(0, 80), id: cutHead(String(item.object.id), 200), ...(item.object.version !== undefined ? { version: item.object.version } : {}), ...(item.object.title ? { title: cutHead(String(item.object.title), 200) } : {}) } } : {}),
       ...(item.text !== undefined ? { text: item.text } : {}), ...(item.draft ? { draft: true } : {}) };
   });
 }

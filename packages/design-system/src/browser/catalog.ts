@@ -197,3 +197,222 @@ wireCatalogAppearance();
 wireCatalogSplit();
 wireCatalogCapabilityPacks();
 wireCatalogLanguage();
+wireCatalogOnDemandHelp();
+wireCatalogPlatformFeedback();
+
+function wireCatalogPlatformFeedback(): void {
+  document.addEventListener("click", (event) => {
+    const target = event.target as Element;
+    const insetToggle = target.closest<HTMLButtonElement>("[data-catalog-inset-toggle]");
+    if (insetToggle) {
+      const row = insetToggle.closest<HTMLElement>("[data-catalog-inset-row]");
+      if (row) {
+        const nextOpen = row.dataset.open !== "true";
+        row.dataset.open = String(nextOpen);
+        insetToggle.textContent = nextOpen ? "收起" : "展开";
+      }
+      return;
+    }
+    const busyBtn = target.closest<HTMLButtonElement>("[data-fb-busy]");
+    if (busyBtn) {
+      const fast = busyBtn.dataset.fbBusy === "fast";
+      const status = one<HTMLElement>("[data-fb-busy-status]");
+      const run = () => new Promise<void>((resolve) => {
+        window.setTimeout(resolve, fast ? 120 : 950);
+      });
+      void (window.molisBusy ? window.molisBusy(busyBtn, run) : run()).then(() => {
+        if (status) {
+          status.textContent = fast ? "120ms 完成（零转圈闪烁）" : "950ms 完成（250ms 后仅锁定本按钮）";
+        }
+      });
+      return;
+    }
+    const toastBtn = target.closest<HTMLButtonElement>("[data-fb-toast]");
+    if (toastBtn) {
+      const kind = toastBtn.dataset.fbToast;
+      if (kind === "short") {
+        window.molisToast?.("已保存更改", { tone: "success", duration: "short" });
+      } else if (kind === "warning") {
+        window.molisToast?.("连接较慢，正在后台重试", { tone: "warning", duration: "normal" });
+      } else if (kind === "error") {
+        window.molisToast?.("未能写入本地文件，请检查权限", { tone: "error", duration: "long" });
+      } else if (kind === "undo") {
+        window.molisToast?.("已归档 1 条记录", {
+          tone: "default",
+          undoLabel: "撤销",
+          undo: () => window.molisToast?.("已恢复该记录", { tone: "success", duration: "short" }),
+        });
+      }
+      return;
+    }
+    const ringNext = target.closest<HTMLButtonElement>("[data-fb-ring-next]");
+    if (ringNext) {
+      const ring = one<SVGElement>("[data-fb-ring-demo]");
+      const label = one<HTMLElement>("[data-fb-ring-label]");
+      const states = ["running", "waiting", "done", "failed"] as const;
+      if (ring) {
+        const cur = ring.dataset.mwState ?? "running";
+        const idx = (states.indexOf(cur as (typeof states)[number]) + 1) % states.length;
+        const next = states[idx]!;
+        ring.dataset.mwState = next;
+        if (label) {
+          label.textContent = next;
+        }
+      }
+      return;
+    }
+    const dangerBtn = target.closest<HTMLButtonElement>("[data-fb-confirm-danger]");
+    if (dangerBtn) {
+      one<HTMLDialogElement>("[data-fb-danger-dialog]")?.showModal();
+    }
+  });
+  const autosaveBox = one<HTMLElement>("[data-fb-autosave-box]");
+  const autosaveInput = one<HTMLInputElement>("[data-fb-autosave-input]");
+  const autosaveFail = one<HTMLInputElement>("[data-fb-autosave-fail]");
+  const autosaveStatus = one<HTMLElement>("[data-fb-autosave-status]");
+  const autosaveRetry = one<HTMLButtonElement>("[data-fb-autosave-retry]");
+  if (autosaveBox && autosaveInput && window.molisAutosave) {
+    const controller = window.molisAutosave(
+      autosaveBox,
+      () => new Promise<void>((resolve, reject) => {
+        window.setTimeout(() => {
+          if (autosaveFail?.checked) {
+            reject(new Error("保存失败"));
+          } else {
+            resolve();
+          }
+        }, 420);
+      }),
+      {
+        statusEl: autosaveStatus,
+        labels: { idle: "已同步", dirty: "有未保存修改", saving: "正在保存…", saved: "已保存", error: "保存失败" },
+        onStateChange: (state) => {
+          if (autosaveRetry) {
+            autosaveRetry.hidden = state !== "error";
+          }
+        },
+      },
+    );
+    autosaveInput.addEventListener("input", () => controller.markDirty());
+    autosaveRetry?.addEventListener("click", () => {
+      void controller.retry();
+    });
+  }
+  const optOk = one<HTMLInputElement>("[data-fb-opt-ok]");
+  optOk?.addEventListener("click", (event) => {
+    event.preventDefault();
+    void window.molisOptimisticToggle?.(optOk, () => new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 200);
+    }));
+  });
+  const optFail = one<HTMLInputElement>("[data-fb-opt-fail]");
+  optFail?.addEventListener("click", (event) => {
+    event.preventDefault();
+    void window.molisOptimisticToggle?.(
+      optFail,
+      () => new Promise<void>((_, reject) => {
+        window.setTimeout(() => reject(new Error("网络断开，开关已自动回滚")), 220);
+      }),
+    );
+  });
+  window.molisEnhanceDateInputs?.(document);
+}
+
+function wireCatalogOnDemandHelp(): void {
+  const host = document.querySelector<HTMLElement>("[data-help-specimen]");
+  if (!host) return;
+  let failMode = false;
+  const sidePreview = host.querySelector<HTMLElement>("[data-help-specimen-side]");
+  const failToggle = host.querySelector<HTMLButtonElement>("[data-help-specimen-fail]");
+  const resetTip = host.querySelector<HTMLButtonElement>("[data-help-specimen-reset-tip]");
+  failToggle?.addEventListener("click", () => {
+    failMode = !failMode;
+    failToggle.setAttribute("aria-pressed", String(failMode));
+    if (failMode) {
+      globalThis.molisOnDemandHelp?.register("specimen-page", () => {
+        throw new Error("simulated");
+      });
+    } else {
+      globalThis.molisOnDemandHelp?.unregister("specimen-page");
+    }
+  });
+  document.addEventListener("molis:help-retry", (event) => {
+    const detail = (event as CustomEvent<{ topic?: string }>).detail;
+    if (detail?.topic !== "specimen-page") return;
+    failMode = false;
+    failToggle?.setAttribute("aria-pressed", "false");
+    globalThis.molisOnDemandHelp?.unregister("specimen-page");
+  });
+  resetTip?.addEventListener("click", () => {
+    try {
+      localStorage.removeItem("molis-work:help-tip-skipped:catalog-help-demo");
+    } catch {
+      // Ignore storage restriction.
+    }
+    const tip = host.querySelector<HTMLElement>('[data-mw-help-tip="catalog-help-demo"]');
+    if (tip) tip.hidden = false;
+  });
+  document.addEventListener("molis:side-open", (event) => {
+    const detail = (event as CustomEvent<{
+      tab?: string;
+      target?: {
+        context?: string;
+        focusId?: string | null;
+        sections?: Array<{ id: string; heading: string; body?: string; items?: string[]; collapsible?: boolean; summary?: string }>;
+      };
+    }>).detail;
+    if (detail?.tab !== "help" || !sidePreview || !detail.target) return;
+    const payload = detail.target;
+    const body = sidePreview.querySelector<HTMLElement>("[data-help-specimen-side-body]");
+    const ctx = sidePreview.querySelector<HTMLElement>("[data-help-specimen-side-ctx]");
+    if (ctx) ctx.textContent = payload.context || "";
+    if (body) {
+      body.replaceChildren();
+      const wrap = document.createElement("div");
+      wrap.className = "mw-help-content";
+      for (const section of payload.sections || []) {
+        const sec = document.createElement("section");
+        sec.className = `mw-help-section${payload.focusId && section.id === payload.focusId ? " is-highlighted" : ""}`;
+        const h4 = document.createElement("h4");
+        h4.className = "mw-help-section__heading";
+        h4.textContent = section.heading;
+        sec.append(h4);
+        const fill = (parent: HTMLElement) => {
+          if (section.body) {
+            const p = document.createElement("p");
+            p.className = "mw-help-section__body";
+            p.textContent = section.body;
+            parent.append(p);
+          }
+          if (Array.isArray(section.items) && section.items.length) {
+            const ul = document.createElement("ul");
+            ul.className = "mw-help-section__list";
+            for (const item of section.items) {
+              const li = document.createElement("li");
+              li.textContent = item;
+              ul.append(li);
+            }
+            parent.append(ul);
+          }
+        };
+        if (section.collapsible) {
+          const det = document.createElement("details");
+          det.className = "mw-collapsible";
+          det.dataset.slot = "collapsible";
+          const sum = document.createElement("summary");
+          sum.textContent = section.summary || section.heading;
+          const inner = document.createElement("div");
+          inner.className = "mw-collapsible__body";
+          fill(inner);
+          det.append(sum, inner);
+          sec.append(det);
+        } else {
+          fill(sec);
+        }
+        wrap.append(sec);
+      }
+      body.append(wrap);
+    }
+    sidePreview.hidden = false;
+  });
+}

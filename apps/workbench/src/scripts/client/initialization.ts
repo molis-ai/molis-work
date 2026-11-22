@@ -85,7 +85,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }).catch((error) => { showToast(error, true); return false; });
     { const asked = new URL(location.href), kind = asked.searchParams.get("openObject"), id = asked.searchParams.get("openItem");
       if (kind && id && !asked.searchParams.has("openPlugin")) { asked.searchParams.delete("openObject"); asked.searchParams.delete("openItem"); history.replaceState(history.state, "", asked); void openObject({ kind, id }); } }
-    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openObject, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
+    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openObject, openEvent: (event, quiet) => assistantIsland?.openEvent(event, quiet), toNow: (quiet) => assistantIsland?.toNow(quiet), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
+      subtasks: () => assistantIsland?.subtasks() || [], openSubtask: (key) => assistantIsland?.openSubtask(key), mainWaiting: () => assistantIsland?.mainWaiting() || null, openMain: () => assistantIsland?.openMain(), attention: () => assistantIsland?.attention() || [], openAttention: (from, only) => assistantIsland?.openAttention(from, only),
+      placeName: () => state.project?.display_name || "",
+      // What is in front in the focused pane: an object's tab, a surface's own page, or a system view; null under a cover.
+      front: () => { const tabs = tabWorkspace?.state?.(), pane = tabs && !tabs.exclusive ? tabs.panes.find(entry => entry.id === tabs.focusedPaneId) || tabs.panes[0] : null;
+        if (!pane) return null; const tab = pane.tabs.find(entry => entry.id === pane.activeTabId);
+        return tab ? tab.kind === "system" ? { owner: tab.owner, id: tab.itemId } : { surface: tab.plugin, id: tab.itemId || "" } : { surface: pane.viewPlugin || "", id: "" }; },
       positions: () => projectPositions, positionRead: (path, body, signal) => molisWorkRequest(route(path), { body, signal }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,
@@ -178,13 +184,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       mountPluginClient, interaction, receipts, scope: boardLifetime, translate: readText, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
-      openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
+      openPlugin: (...args) => tabWorkspace?.openPlugin(...args), focusPane: (paneId) => tabWorkspace?.focusPane?.(paneId), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     document.addEventListener("click", (event) => { const btn = event.target?.closest?.("[data-sessions-open-scope]"); if (btn) void deferredClients.loadBundle("sessions").then(() => globalThis.molisOpenSessionsScope?.(btn.dataset.sessionsOpenScope === "project_ai_read" ? "project_ai_read" : "tools", { overlay: !btn.closest('[data-work-surface="sessions"]') })); });
     assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       positions: projectPositions, positionRead, lineFocus: (subject) => workLine?.focus(subject), lineEvent: (subject) => workLine?.event(subject) || null, lineEvents: workLine ? () => workLine.events() : undefined,
       linePlaced: (task) => workLine?.placed(task) || '', lineWaiting: () => workLine?.waiting() || [], lineWaitingGo: (key) => workLine?.goWaiting(key), linePlace: (subject) => workLine?.place(subject), lineCard: workLine ? (slot, card) => workLine.card(slot, card) : undefined,
+      lineConversation: (now) => workLine?.conversation(now), lineAttention: () => workLine?.conversation({ unread: false }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
@@ -285,7 +292,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           : "";
         sessionStorage.setItem(storageKey, JSON.stringify(stored));
       }
-    } catch {}
+    } catch { /* Fall back to default view when persisted UI state is unreadable. */ }
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
       if (goalData) {
@@ -386,7 +393,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           itemId: selected,
           title: selectedItem?.goal.title || selected,
         } }));
-      } catch {}
+      } catch { /* Ignore sessionStorage write failure for selected goal navigation. */ }
     }
     immersiveNavigation?.sync();
     frameContainer?.restore();
@@ -404,7 +411,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
           setSelectedStatuses(restored.statuses);
           filterTree("");
         }
-      } catch {}
+      } catch { /* Ignore unreadable persisted status filter state. */ }
     }
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
@@ -481,6 +488,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const refreshVisibleGoal = () => { if (goalData && goalStageVisible()) void refreshBoard(); };
     boardLifetime.listen(document, "molis-work:place-changed", () => requestAnimationFrame(refreshVisibleGoal));
     boardLifetime.listen(window, "resize", refreshVisibleGoal);
+    const tabWorkspaceRoot = document.querySelector("[data-tab-workspace]");
+    if (tabWorkspaceRoot) boardLifetime.observe(new MutationObserver(() => requestAnimationFrame(refreshVisibleGoal)), tabWorkspaceRoot, { attributes: true, attributeFilter: ["data-solo", "data-split-narrow", "data-exclusive"] });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();
 `;

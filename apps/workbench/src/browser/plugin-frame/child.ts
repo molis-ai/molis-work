@@ -34,7 +34,7 @@ import { childSkillPicks } from "./skill-picks.js";
 import { frameAppearance } from "./appearance.js";
 import { frameLanguage } from "./language-child.js";
 import type { FrameStageWords } from "./language.js";
-import type { FrameConfig, FrameDown, FrameUp } from "./types.js";
+import type { FrameConfig, FrameDown, FrameScope, FrameUp } from "./types.js";
 import { childComposer } from "./composer-child.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -72,7 +72,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
   const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
   showStageWords(config.stage);
-  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.pluginId = config.pluginId; document.body.dataset.routePrefix = config.routePrefix;
+  root.hidden = false;
+  document.body.dataset.projectId = config.projectId;
+  document.body.dataset.pluginId = config.pluginId;
+  document.body.dataset.routePrefix = config.routePrefix;
+  document.body.dataset.sideHelpAvailable = config.sideHelp ? "1" : "0";
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
@@ -149,12 +153,120 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     event.preventDefault(); send({ type: "link", url: new URL(href, config.origin).href, download: link.hasAttribute("download") });
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script"); script.src = new URL(url, config.origin).href;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched"))); document.head.append(script);
+    const script = document.createElement("script");
+    script.async = false;
+    script.src = new URL(url, config.origin).href;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched")));
+    document.head.append(script);
   });
-  for (const asset of config.assets) await load(asset);
-  await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
+  const scripts = [...config.assets, "/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js"];
+  await Promise.all(scripts.map(load));
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(uiText.text("common.child.view-entry-missing"));
-  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
+  childPresentation(port, scope);
+  childModal(port, scope);
+  factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>);
+  childPlacement(port, scope);
+  childFrameAssets(port, scope, root);
+  childNavigation(port, scope, config, () => itemTab);
+  mountDeclaredHelp(config.side, root, scope);
+  context();
+  send({ type: "ready" });
+}
+
+/**
+ * Every framed plugin that declares `ui.help` gets a uniform Scheme A 「帮助」 trigger even if its own
+ * view does not place a custom `[data-mw-help-trigger]` button. Plugins that draw their own button keep it.
+ */
+function mountDeclaredHelp(side: boolean, root: HTMLElement, scope: FrameScope): void {
+  if (side || !document.querySelector("script[data-mw-help-declaration]")) return;
+  let floatingBtn: HTMLButtonElement | null = null;
+  let mutating = false;
+  let scheduled = false;
+  const avoidOverlap = () => {
+    if (!floatingBtn || !floatingBtn.isConnected) return;
+    floatingBtn.classList.remove("mw-help-auto-trigger--top");
+    const rect = floatingBtn.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const points: Array<[number, number]> = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + 4, rect.top + rect.height / 2],
+      [rect.right - 4, rect.top + rect.height / 2],
+    ];
+    const blocked = points.some(([x, y]) => document.elementsFromPoint(x, y).some((el) => {
+      if (el === floatingBtn || floatingBtn?.contains(el)) return false;
+      return Boolean(el.closest('button, a, input, select, summary, [role="button"]'));
+    }));
+    if (blocked) floatingBtn.classList.add("mw-help-auto-trigger--top");
+  };
+  const makeButton = (): HTMLButtonElement => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mw-btn mw-btn--ghost";
+    btn.dataset.slot = "button";
+    btn.dataset.mwHelpTrigger = "true";
+    btn.dataset.mwHelpAuto = "true";
+    btn.dataset.helpTopic = "page";
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-controls", "mw-help-region");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#icon-question");
+    svg.append(use);
+    const label = document.createElement("span");
+    label.dataset.slot = "button-label";
+    label.textContent = uiText.text("common.help.title");
+    btn.append(svg, label);
+    return btn;
+  };
+  const ensure = () => {
+    if (mutating) return;
+    mutating = true;
+    try {
+      if (document.querySelector('[data-mw-help-trigger]:not([data-mw-help-auto="true"])')) {
+        document.querySelectorAll('.mw-help-auto-host, [data-mw-help-auto="true"]').forEach(node => node.remove());
+        floatingBtn = null;
+        return;
+      }
+      const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome");
+      const existing = document.querySelector<HTMLButtonElement>('[data-mw-help-auto="true"]');
+      if (slot) {
+        if (existing && existing.parentElement === slot) return;
+        document.querySelectorAll(".mw-help-auto-host").forEach(node => node.remove());
+        floatingBtn = null;
+        const btn = existing ?? makeButton();
+        btn.classList.remove("mw-help-auto-trigger", "mw-help-auto-trigger--top");
+        slot.append(btn);
+        return;
+      }
+      if (existing?.isConnected) return;
+      const btn = makeButton();
+      btn.classList.add("mw-help-auto-trigger");
+      const host = document.createElement("div");
+      host.className = "mw-help-auto-host";
+      host.append(btn);
+      document.body.append(host);
+      floatingBtn = btn;
+      requestAnimationFrame(avoidOverlap);
+    } finally {
+      mutating = false;
+    }
+  };
+  const scheduleEnsure = () => {
+    if (mutating || scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      ensure();
+    });
+  };
+  ensure();
+  scope.observe(new MutationObserver(scheduleEnsure), root, { childList: true, subtree: true });
+  scope.listen(window, "resize", avoidOverlap);
+  scope.listen(document, "molis-work:language-changed", () => {
+    const auto = document.querySelector<HTMLElement>('[data-mw-help-auto="true"] [data-slot="button-label"]');
+    if (auto) auto.textContent = uiText.text("common.help.title");
+  });
 }

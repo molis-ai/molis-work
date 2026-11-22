@@ -79,16 +79,16 @@ export async function measureServed(root, probe = []) {
   const pageAssets = await distModule(root, "apps/workbench/dist/page-assets.js", "the workbench stylesheets and client script");
   const packsModule = await distModule(root, "apps/workbench/dist/plugin-workbench.js", "the registered plugin packs");
   if (typeof assetsModule.createLocalWebAssets !== "function") return fail("apps/local-host/dist/web-assets.js no longer exports createLocalWebAssets");
-  for (const name of ["renderMolisWorkWorkbenchStylesheet", "renderMolisWorkWorkbenchClientScript", "renderMolisWorkArrivalStylesheet", "renderMolisWorkSettingsStylesheet"]) {
+  for (const name of ["renderMolisWorkWorkbenchStylesheet", "renderMolisWorkPluginBaseStylesheet", "renderMolisWorkWorkbenchClientScript", "renderMolisWorkArrivalStylesheet", "renderMolisWorkSettingsStylesheet"]) {
     if (typeof pageAssets[name] !== "function") return fail(`apps/workbench/dist/page-assets.js no longer exports ${name}`);
   }
   if (!Array.isArray(packsModule.BUILTIN_PLUGIN_WORKBENCH)) return fail("apps/workbench/dist/plugin-workbench.js no longer exports BUILTIN_PLUGIN_WORKBENCH");
   if (typeof packsModule.pluginOnDemandStylesheet !== "function") return fail("apps/workbench/dist/plugin-workbench.js no longer exports pluginOnDemandStylesheet");
 
-  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
+  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkPluginBaseStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
   const served = assetsModule.createLocalWebAssets({
     ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js"),
-    renderer: { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet },
+    renderer: { renderMolisWorkWorkbenchStylesheet, renderMolisWorkPluginBaseStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet },
   });
   const packPaths = [
     ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`),
@@ -100,11 +100,12 @@ export async function measureServed(root, probe = []) {
   const measured = {};
   const gzip = {};
   const ptyClientPath = path.join(root, "dist/web/pty-client.js");
-  const ask = (asset) => {
+  // The host compacts a script or a sheet the first time it serves it, and answers once that is done (batch 103-2): wait for it.
+  const ask = async (asset) => {
     const response = fakeResponse();
-    const handled = asset === "/desktop/pty-client.js" && typeof served.servePtyClient === "function"
+    const handled = await (asset === "/desktop/pty-client.js" && typeof served.servePtyClient === "function"
       ? served.servePtyClient(fakeRequest(), response)
-      : served.serveWorkbenchAsset(fakeRequest(), response, asset);
+      : served.serveWorkbenchAsset(fakeRequest(), response, asset));
     return { handled, status: response.sent.status, bytes: handled && response.sent.status === 200 && response.sent.body !== undefined ? bodyBytes(response.sent.body) : null };
   };
   const record = (asset, bytes) => { measured[asset] = bytes.length; gzip[asset] = gzipSync(bytes, { level: 9 }).length; };
@@ -113,7 +114,7 @@ export async function measureServed(root, probe = []) {
     found.add("/desktop/pty-client.js");
   }
   for (const asset of found) {
-    const answer = ask(asset);
+    const answer = await ask(asset);
     if (!answer.bytes) {
       return fail(`the host does not serve ${asset} from this build (handled ${answer.handled}, status ${answer.status}); is the workspace fully built? pnpm workspace:build`);
     }
@@ -122,7 +123,7 @@ export async function measureServed(root, probe = []) {
   const misses = [];
   for (const asset of [...new Set(probe)].sort()) {
     if (found.has(asset)) continue;
-    const answer = ask(asset);
+    const answer = await ask(asset);
     if (!answer.bytes) continue; // the host sends nothing for it: it is gone, and its entry may go with it
     record(asset, answer.bytes);
     misses.push(asset);

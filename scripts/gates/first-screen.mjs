@@ -15,16 +15,19 @@ import { GATED_PAGES, MANIFEST, MEASURED_PAGES, comparisonRows, currentRows, par
 import { git, readBaseBudgets, readBudgets, trustedRun } from "./page-assets-baseline.mjs";
 import { VISITS, firstScreenBudgetProblems } from "./page-assets-policy.mjs";
 
-const CHECKER_SOURCES = [
+export const CHECKER_SOURCES = [
   import.meta.filename,
   new URL("../first-screen/host.mjs", import.meta.url),
   new URL("../first-screen/http.mjs", import.meta.url),
   new URL("../first-screen/manifest.mjs", import.meta.url),
+  new URL("../first-screen/seed.mjs", import.meta.url),
 ];
 
-export function firstScreenMeasurementKey(rows) {
+export function firstScreenMeasurementKey(rows, { read = readFileSync } = {}) {
   const hash = createHash("sha256");
-  for (const file of CHECKER_SOURCES) hash.update(readFileSync(file));
+  for (const file of CHECKER_SOURCES) {
+    hash.update(read(file));
+  }
   hash.update(JSON.stringify({ rows, node: process.version, platform: process.platform, arch: process.arch }));
   return hash.digest("hex").slice(0, 24);
 }

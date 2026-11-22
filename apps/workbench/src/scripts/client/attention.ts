@@ -62,7 +62,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
       detail.append(node("span", [task.step, ...task.details].filter(Boolean).map(phrase => phrase.text).join(" · ")));
-      if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
+      if (task.project_id !== projectId) detail.append(node("span", task.resting ? globalThis.t.text("workbench.attention.project-resting", { project: task.project_name }) : task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {
         if (task.project_id !== projectId || event.metaKey || event.ctrlKey || event.shiftKey) return;
@@ -194,10 +194,11 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       }
     }
   };
-  const listen = () => {
+  const listen = (preserveHeard = false) => {
     if (document.hidden || gone.has(route("/api/attention"))) { discardRead(); close(); return; }
     if (listening) { void read(true); return; }
-    heard = null; listening = true;
+    if (!preserveHeard) heard = null;
+    listening = true;
     if (!shared) { void connect(); return; }
     const name = "molis-work-attention:" + eventsPath, held = new AbortController(), channel = new BroadcastChannel(name);
     lease = held; ear = channel;
@@ -222,16 +223,17 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       delay = 1000;
       lost = false;
       if (!document.hidden && !gone.has(route("/api/attention"))) {
-        // Re-enter via close()+listen() so navigator.locks single-leader ownership is preserved and any wedged stream is replaced.
+        // Re-enter via close()+listen(true) so navigator.locks single-leader ownership is preserved,
+        // any wedged stream is replaced, and prior heard state survives a transient first read failure.
         close();
-        listen();
+        listen(true);
       }
     }
     void read(true);
   });
   // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads. A page told it is shown
   // while its stream is still open reads once: what changed outside the Host's word (a store a crash left) shows when it is looked at.
-  document.addEventListener("visibilitychange", listen);
+  document.addEventListener("visibilitychange", () => listen());
   document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
   // The chooser reads the new project at once, independent of the shared stream.
   const chooser = document.querySelector(".chooser");

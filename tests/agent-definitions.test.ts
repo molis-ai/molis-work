@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
-import { installHostUiText, AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { readFileSync } from "node:fs";
+import { installHostUiText, runWithLocale, AssistantService, AssistantStore, LocalHost, assistantAuthority, composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody } from "@molis-ai/molis-work-app-local-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 
@@ -354,4 +355,41 @@ test("SKC-12: Skill use history retains the accepted reference after uninstall",
     store.forget("project-a", "install");
     assert.deepEqual(store.uses("install", "review"), [{ ref, name: "Review", scope_ref: "project-a", caller: "assistant", run_ref: "round-1", at: "2026-11-08T10:00:00.000Z" }]);
   } finally { db.close(); }
+});
+
+test("PF-A14: prompt guidance splits cleanly from locked JSON output contracts and validates advanced full-text edits", () => {
+  const sample = readFileSync(new URL("../apps/local-host/prompts/skills.revise.md", import.meta.url), "utf8");
+  const split = splitPromptContract(sample, sample);
+  assert.ok(split.locked_format && split.locked_format.includes("JSON"), "detects trailing JSON format contract");
+  assert.ok(split.required_keys.includes("name") && split.required_keys.includes("body"), `extracts schema keys: ${split.required_keys.join(",")}`);
+  assert.equal(split.format_intact, true);
+  assert.ok(!split.editable.includes("只输出一个 JSON 对象"), "editable guidance omits machine JSON constraint");
+
+  const updated = composeSimplifiedPrompt(sample, "语气简洁，按要点整理改动说明。");
+  assert.ok(updated.startsWith("语气简洁，按要点整理改动说明。"), "keeps user guidance");
+  assert.ok(updated.endsWith(split.locked_format), "preserves system-owned output contract verbatim");
+  const reSplit = splitPromptContract(sample, updated);
+  assert.equal(reSplit.editable, "语气简洁，按要点整理改动说明。");
+  assert.equal(reSplit.format_intact, true);
+
+  assert.throws(() => validateFullPromptBody(sample, "直接用自然语言回答即可"), /JSON/u, "rejects dropping JSON contract");
+  assert.throws(() => validateFullPromptBody(sample, '只输出 JSON：{"name":string}'), /body/u, "names missing required JSON fields");
+  assert.doesNotThrow(() => validateFullPromptBody(sample, updated));
+
+  // P1-5: defensive deduplication prevents appending locked_format twice if a client sends the full prompt in simplified mode.
+  const deduped = composeSimplifiedPrompt(sample, updated);
+  assert.equal(deduped, updated, "composeSimplifiedPrompt does not duplicate an already-present locked format block");
+  assert.equal(deduped.split(split.locked_format).length - 1, 1);
+
+  // P1-5: validation errors follow the active UI locale (zh and en).
+  installHostUiText();
+  runWithLocale("en", () => {
+    assert.throws(() => composeSimplifiedPrompt(sample, "   "), /Restore default/u, "English empty guidance error");
+    assert.throws(() => validateFullPromptBody(sample, "plain text"), /missing the required JSON output format/u, "English missing JSON error");
+    assert.throws(() => validateFullPromptBody(sample, 'Output JSON {"name":string}'), /missing required fields: .*body/u, "English missing key error");
+  });
+  runWithLocale("zh", () => {
+    assert.throws(() => composeSimplifiedPrompt(sample, "   "), /恢复默认/u, "Chinese empty guidance error");
+    assert.throws(() => validateFullPromptBody(sample, "纯文本"), /缺少 JSON 输出格式要求/u, "Chinese missing JSON error");
+  });
 });

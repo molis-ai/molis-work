@@ -33,6 +33,8 @@ P0 让普通文档在 PR 和合并队列均省掉无关构建与运行测试；�
 
 P2（共享构建产物、夜间 probe 合并、发布优化）、产品源码/公共 API、真实 Home、凭据、版本、签名和发布不在本轮。不上新构建框架或跨运行调度服务，不以改超时、放宽断言或删除测试来提速。
 
+**追认（用户 2026-11-21，三天复核 D-3）**：#2156 做了上面列为非目标的 P2（Linux 作业共享一次构建、PR 全量分层、夜间 probe 并入 full-suite），并删了 7 个测试，合并时 0 review、找不到批准记录。用户选「追认并补洞」：范围照现状保留；删掉的测试里，`design-system-giants.test.ts`（RAC-370～372）、`ui-audit-browser.e2e.test.ts`（ASR-13 的性能对照）与 `ui-audit-2026-09-22.test.ts` 里走公开入口的两例由三天复核修复（MR21-14）恢复，CPK-08、WMD-13 改为 `scripts/gates/source-counts.mjs` 的源码守卫（#2201）；`capability-pack-closeout`、`files-retirement-cleanup`、`platform-naming-pg097`、`rename-molis-work` 属于测试卫生规则不许的收口清单，不恢复。visual-audit 的路径过滤由 #2201 补上插件 SDK 与插件界面文件；宿主渲染的页面（`apps/local-host/src/**` 里的页面与样式）仍只靠夜间，见三天复核 spec 的 MR21-15。
+
 ## 文件边界、依赖与实施顺序
 
 唯一需求来源是本 spec。实现位于 `.github/workflows/ci.yml`、`.github/workflows/full-suite.yml`、`scripts/ci-test-selection.mjs` 及小型选择/汇总辅助模块、`scripts/run-tests/shard.mjs`、`scripts/ci-shard-weights.mjs` 和必要的调用点。验证修改现有 `tests/ci-*.test.ts`、`tests/run-tests-shard.test.ts`、工作流夹具，并新增能证明新边界的回归。云端发现且已复现的测试准备缺陷可在对应测试内修复（本次为 `tests/connections-page.e2e.test.ts` 的 OAuth 后返回设置页）；不放宽断言、超时或产品语义。权重事实仍在 `tests/ci-shard-weights.json`。

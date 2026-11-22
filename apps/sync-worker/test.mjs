@@ -17,7 +17,7 @@ import {lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {LocalProjectDatabase,projectApprovalSyncSelection} from '@molis-ai/molis-work-app-local-host';
 import {GoalProjectApplication,boardSnapshot} from '../../tests/fixtures/goal-application.ts';
-import {applySql} from './testing.mjs';
+import {applyMigrations} from './testing.mjs';
 import {goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
 
 test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async t=>{
@@ -37,7 +37,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
   t.mock.method(globalThis,'fetch',(url,init)=>mf.dispatchFetch('http://local'+new URL(url).pathname+new URL(url).search,init));
   try{
     const db=await mf.getD1Database('DB');
-    await applySql(db,'0001_sync.sql');
+    await applyMigrations(db);
     const call=(path,token,body,method=body===undefined?'GET':'POST')=>mf.dispatchFetch('http://local'+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
     assert.equal((await call('/v1/policy','invalid')).status,401);
     assert.equal((await call('/v1/policy','wrong-app')).status,403);
@@ -120,9 +120,16 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
 
 // GSYNC-01/04: real Host project creation and Goal facts through Rust/WASM and D1.
 async function verifyGoalsTransport({homes,check,clients,runtimes}) {
-  const project=await runtimes[0].withCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Goals through D1',actor_id:'alice'}));
+  const project=await runtimes[0].withCatalog({homeDirectory:homes[0]},async c=>{
+    const p=await c.createProject({display_name:'Goals through D1',actor_id:'alice'});
+    c.addProjectPlugin({project_id:p.project_id,plugin_id:'goals',actor_id:'alice'});
+    return p;
+  });
   const selection=goalSyncSelection,sync=clients;
-  await runtimes[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
+  await runtimes[1].withCatalog({homeDirectory:homes[1]},async catalog=>{
+    await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check);
+    catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'goals',actor_id:'alice'});
+  });
   for(const runtime of runtimes)await runtime.openProjects();
   const store=new LocalProjectDatabase(project.database_path);
   try {

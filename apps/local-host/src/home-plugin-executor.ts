@@ -242,6 +242,18 @@ export class HomePluginExecutor implements PluginExecutor {
     await Promise.all([...this.sessions.values()].map(session => session.background?.stopProjectJobs(projectId)));
   }
 
+  /** Whether an instance runs a background execution or a job in the project. Its terminals are not the project's: closing it leaves them. */
+  hasProjectWork(projectId: string): boolean {
+    return [...this.sessions.values()].some(session => !!session.background?.hasProjectWork(projectId));
+  }
+
+  /** Synchronous count of active background executions and command-kept jobs across Home plugin instances. */
+  activeWorkCount(): number {
+    let count = 0;
+    for (const session of this.sessions.values()) count += session.background?.activeWorkCount() ?? 0;
+    return count;
+  }
+
   private deletionsOf(installId: string): PartitionDeletions {
     let deletions = this.partitionDeletions.get(installId);
     if (!deletions) this.partitionDeletions.set(installId, deletions = partitionDeletions());

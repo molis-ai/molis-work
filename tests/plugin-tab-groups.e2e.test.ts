@@ -52,22 +52,20 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   const interfacesTitle = "让不同 AI 对话看到同一项目进度";
   const interfacesOutcome = "用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作";
   const pane = (id: string) => `[data-tab-pane=${JSON.stringify(id)}]`;
-  const activeFrame = (id: string) => `[...document.querySelectorAll('iframe[data-pane-owner=${JSON.stringify(id)}]')].find(f => !f.hidden)`;
+  const paneNode = (id: string) => `document.querySelector(${JSON.stringify(pane(id))})`;
   const gesture = async (point: { x: number; y: number }, clicks = 2) => {
     for (let count = 1; count <= clicks; count += 1) for (const type of ["mousePressed", "mouseReleased"] as const) {
       await command("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "left", clickCount: count }, sessionId);
     }
   };
-  const framePoint = async (id: string, selector: string, requireFrame = true) => evaluate<{ x: number; y: number }>(`(async () => {
-    const f=${activeFrame(id)}, d=f?.contentDocument || document, row=d.querySelector(${JSON.stringify(selector)});
-    if (${requireFrame} && !f) throw new Error('Missing active pane iframe');
-    if (!row) throw new Error('Missing visible row: ' + ${JSON.stringify(selector)});
+  const panePoint = async (id: string, selector: string) => evaluate<{ x: number; y: number }>(`(async () => {
+    const p=${paneNode(id)}, row=p?.querySelector(${JSON.stringify(selector)});
+    if (!p || !row) throw new Error('Missing visible row in pane: ' + ${JSON.stringify(selector)});
     row.scrollIntoView({block:'nearest',behavior:'instant'});
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const r=row.getBoundingClientRect(), offset=f?.getBoundingClientRect() || {left:0,top:0};
-    const innerX=r.left+Math.min(40,r.width/2), innerY=r.top+r.height/2;
-    const hit=d.elementFromPoint(innerX,innerY), x=offset.left+innerX, y=offset.top+innerY;
-    if (!r.width || !r.height || !row.contains(hit) || (f && document.elementFromPoint(x,y)!==f)) throw new Error('Pane pointer target is not visible: ' + ${JSON.stringify(selector)});
+    const r=row.getBoundingClientRect(), x=r.left+Math.min(40,r.width/2), y=r.top+r.height/2;
+    const hit=document.elementFromPoint(x,y);
+    if (!r.width || !r.height || !row.contains(hit)) throw new Error('Pane pointer target is not visible: ' + ${JSON.stringify(selector)});
     return {x,y};
   })()`);
   await browser.setViewport(1440, 1000);
@@ -83,60 +81,56 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   assert.deepEqual(await evaluate("window.__t380CoreTrusted"), [{ id: "CORE", trusted: true }, { id: "CORE", trusted: true }]);
   await click('[data-layout-open]');
   await click('[data-layout-split="right"]');
-  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0");
   const paneIds = await evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left).map(p=>p.dataset.tabPane)");
   const [leftId, rightId] = paneIds;
-  await waitFor(`document.querySelector(${JSON.stringify(pane(rightId))})?.querySelector('.tab-item[aria-current][data-item-id=CORE]') && ${activeFrame(rightId)}?.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'`, 30_000);
-  assert.equal(await evaluate(`${activeFrame(leftId)}.contentDocument.querySelector('[data-frame-goal-title]')?.textContent`), coreTitle);
-  assert.equal(await evaluate(`${activeFrame(leftId)}.contentDocument.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
-  assert.equal(await evaluate(`${activeFrame(rightId)}.contentDocument.querySelector('[data-frame-goal-title]')?.textContent`), coreTitle);
-  assert.equal(await evaluate(`${activeFrame(rightId)}.contentDocument.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
-  const leftCoreTabId = await evaluate<string>(`document.querySelector(${JSON.stringify(pane(leftId))}).querySelector('.tab-item[aria-current][data-item-id=CORE]').dataset.tabId`);
+  await waitFor(`${paneNode(rightId)}?.querySelector('.tab-item[aria-current][data-item-id=CORE]') && ${paneNode(rightId)}?.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal === 'CORE'`, 15_000);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-title]')?.textContent`), coreTitle);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), coreOutcome);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-title]')?.textContent`), coreTitle);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), coreOutcome);
+  const leftCoreTabId = await evaluate<string>(`${paneNode(leftId)}.querySelector('.tab-item[aria-current][data-item-id=CORE]').dataset.tabId`);
   await click(`${pane(rightId)} .tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger`);
-  const rightPage = `(${activeFrame(rightId)})`;
-  await waitFor(`${rightPage}?.contentDocument?.readyState === 'complete' && !${rightPage}.contentWindow.location.search.includes('paneItem=')`, 30_000);
-  // RAC2804: the correct right document, its current page tab, and a readable INTERFACES row agree.
-  await waitFor(`${rightPage}.contentDocument.querySelector('.tree-node[data-select-goal=INTERFACES]')?.getClientRects().length > 0`, 10_000);
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(pane(rightId))}).querySelector('.tab-item[aria-current]')?.dataset.tabKind`), "plugin");
-  assert.equal(await evaluate(`${rightPage}.contentDocument.querySelector('[data-goal-canvas-shell]').hidden`), false);
-  assert.equal(await evaluate(`${rightPage}.contentDocument.body.innerText.includes(${JSON.stringify(interfacesTitle)})`), true);
-  assert.equal(await evaluate(`${rightPage}.contentDocument.querySelector('[data-goal-canvas-shell]').closest('[data-tab-pane-body]') != null`), true);
-  assert.equal(await evaluate(`${activeFrame(leftId)}?.contentDocument?.querySelector('[data-frame-goal-title]')?.textContent`), coreTitle);
-  assert.equal(await evaluate(`${activeFrame(leftId)}?.contentDocument?.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
-  await evaluate(`window.__t380RightTrusted=[]; ${rightPage}.contentDocument.addEventListener('pointerdown', e => { const row=e.target.closest('[data-select-goal]'); if (row) window.__t380RightTrusted.push({id:row.dataset.selectGoal,trusted:e.isTrusted,url:e.view.location.href}); }, true)`);
-  await gesture(await framePoint(rightId, '.tree-node[data-select-goal=INTERFACES]'));
-  // RAC2805: a real double click in the right iframe opens its item and leaves left CORE intact.
-  await waitFor(`document.querySelector(${JSON.stringify(pane(rightId))}).querySelector('.tab-item[aria-current][data-item-id=INTERFACES]') && ${activeFrame(rightId)}?.contentWindow.location.search.includes('paneItem=INTERFACES') && ${activeFrame(rightId)}?.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'INTERFACES'`, 30_000);
-  assert.deepEqual(await evaluate("window.__t380RightTrusted.map(({id,trusted})=>({id,trusted}))"), [{ id: "INTERFACES", trusted: true }, { id: "INTERFACES", trusted: true }]);
-  assert.equal(await evaluate(`window.__t380RightTrusted.every(r=>r.url.includes('workbenchPane=${rightId}') && !r.url.includes('paneItem='))`), true);
-  assert.equal(await evaluate(`${activeFrame(rightId)}.contentDocument.querySelector('[data-frame-goal-title]')?.textContent`), interfacesTitle);
-  assert.equal(await evaluate(`${activeFrame(rightId)}.contentDocument.querySelector('[data-frame-goal-outcome]')?.textContent`), interfacesOutcome);
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(pane(leftId))}).querySelector('.tab-item[aria-current]')?.dataset.tabId`), leftCoreTabId);
-  assert.equal(await evaluate(`${activeFrame(leftId)}.contentDocument.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal`), "CORE");
-  assert.equal(await evaluate(`${activeFrame(leftId)}.contentDocument.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
+  // RAC2804: the right pane, its current page tab, and a readable INTERFACES row agree.
+  await waitFor(`${paneNode(rightId)}.querySelector('[data-goal-canvas-shell]:not([hidden]) .tree-node[data-select-goal=INTERFACES]')?.getClientRects().length > 0`, 10_000);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('.tab-item[aria-current]')?.dataset.tabKind`), "plugin");
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('[data-goal-canvas-shell]').hidden`), false);
+  assert.equal(await evaluate(`${paneNode(rightId)}.innerText.includes(${JSON.stringify(interfacesTitle)})`), true);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('[data-goal-canvas-shell]').closest('[data-tab-pane-body]') != null`), true);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-title]')?.textContent`), coreTitle);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), coreOutcome);
+  await evaluate(`window.__t380RightTrusted=[]; ${paneNode(rightId)}.addEventListener('pointerdown', e => { const row=e.target.closest('[data-select-goal]'); if (row) window.__t380RightTrusted.push({id:row.dataset.selectGoal,trusted:e.isTrusted,pane:e.target.closest('[data-tab-pane]')?.dataset.tabPane}); }, true)`);
+  await gesture(await panePoint(rightId, '[data-goal-canvas-shell]:not([hidden]) .tree-node[data-select-goal=INTERFACES]'));
+  // RAC2805: a real double click in the right pane opens its item and leaves left CORE intact.
+  await waitFor(`${paneNode(rightId)}.querySelector('.tab-item[aria-current][data-item-id=INTERFACES]') && ${paneNode(rightId)}.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal === 'INTERFACES'`, 15_000);
+  assert.deepEqual(await evaluate("window.__t380RightTrusted"), [{ id: "INTERFACES", trusted: true, pane: rightId }, { id: "INTERFACES", trusted: true, pane: rightId }]);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-title]')?.textContent`), interfacesTitle);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), interfacesOutcome);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('.tab-item[aria-current]')?.dataset.tabId`), leftCoreTabId);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal`), "CORE");
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), coreOutcome);
   await click(`${pane(rightId)} .tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger`);
-  await waitFor(`${rightPage}?.contentDocument?.querySelector('.tree-node[data-select-goal=INTERFACES]')?.getClientRects().length > 0 && !${rightPage}.contentWindow.location.search.includes('paneItem=')`, 30_000);
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(pane(rightId))}).querySelector('.tab-item[data-item-id=CORE]') != null`), true);
+  await waitFor(`${paneNode(rightId)}.querySelector('[data-goal-canvas-shell]:not([hidden]) .tree-node[data-select-goal=INTERFACES]')?.getClientRects().length > 0`, 15_000);
+  assert.equal(await evaluate(`${paneNode(rightId)}.querySelector('.tab-item[data-item-id=CORE]') != null`), true);
   // RAC2806: reload retains the distinct page and item, then closing right retains the original left CORE tab.
   await reloadPage();
-  await waitFor(`document.querySelector(${JSON.stringify(pane(leftId))})?.querySelector('.tab-item[aria-current][data-item-id=CORE]') && ${activeFrame(leftId)}?.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'`, 30_000);
-  await waitFor(`${rightPage}?.contentDocument?.querySelector('.tree-node[data-select-goal=INTERFACES]')?.getClientRects().length > 0`, 30_000);
-  assert.equal(await evaluate(`${activeFrame(leftId)}.contentDocument.querySelector('[data-frame-goal-title]')?.textContent`), coreTitle);
-  assert.equal(await evaluate(`${activeFrame(leftId)}.contentDocument.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
-  assert.equal(await evaluate(`${rightPage}.contentDocument.body.innerText.includes(${JSON.stringify(interfacesTitle)})`), true);
+  await waitFor(`${paneNode(leftId)}?.querySelector('.tab-item[aria-current][data-item-id=CORE]') && ${paneNode(leftId)}?.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal === 'CORE'`, 15_000);
+  await waitFor(`${paneNode(rightId)}?.querySelector('[data-goal-canvas-shell]:not([hidden]) .tree-node[data-select-goal=INTERFACES]')?.getClientRects().length > 0`, 15_000);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-title]')?.textContent`), coreTitle);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), coreOutcome);
+  assert.equal(await evaluate(`${paneNode(rightId)}.innerText.includes(${JSON.stringify(interfacesTitle)})`), true);
   await click(`${pane(rightId)} [data-tab-pane-close]`);
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1");
   assert.equal(await evaluate(`document.querySelector('[data-tab-pane]')?.dataset.tabPane`), leftId);
   await waitFor(`document.querySelector('[data-titlebar-tabs][data-chrome-pane=${JSON.stringify(leftId)}] .tab-item[aria-current][data-item-id=CORE]')`);
   assert.equal(await evaluate(`document.querySelector('[data-titlebar-tabs] .tab-item[aria-current]')?.dataset.tabId`), leftCoreTabId);
-  const remainingCore = `((${activeFrame(leftId)})?.contentDocument || document)`;
-  await waitFor(`${remainingCore}.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && ${remainingCore}.querySelector('[data-frame-goal-work]')?.getClientRects().length > 0`, 30_000);
-  assert.equal(await evaluate(`${remainingCore}.querySelector('[data-frame-goal-title]')?.textContent`), coreTitle);
-  assert.equal(await evaluate(`${remainingCore}.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
-  await gesture(await framePoint(leftId, '[data-frame-goal-work]', false), 1);
-  await waitFor(`${remainingCore}.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === 'CORE' && ${remainingCore}.querySelector('[data-goal-node-workspace]')?.getClientRects().length > 0`, 30_000);
+  await waitFor(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal === 'CORE' && ${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-work]')?.getClientRects().length > 0`, 15_000);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-title]')?.textContent`), coreTitle);
+  assert.equal(await evaluate(`${paneNode(leftId)}.querySelector('[data-goal-frame-surface]:not([hidden]) [data-frame-goal-outcome]')?.textContent`), coreOutcome);
+  await gesture(await panePoint(leftId, '[data-goal-frame-surface]:not([hidden]) [data-frame-goal-work]'), 1);
+  await waitFor(`${paneNode(leftId)}.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === 'CORE' && ${paneNode(leftId)}.querySelector('[data-goal-node-workspace]')?.getClientRects().length > 0`, 15_000);
   } catch (error) {
-    const state = await command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,surface:f.contentDocument?.body?.dataset.desktopSurface,roots:[...f.contentDocument?.querySelectorAll('[data-ui-client-state]')||[]].map(r=>({state:r.dataset.uiClientState,plugin:r.dataset.pluginOwner,page:r.dataset.pluginPage,hidden:r.hidden})),children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({surface:c.dataset.pluginFrame,src:c.src,connected:c.isConnected}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    const state = await command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')})),frameGoal:p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal,shellHidden:p.querySelector('[data-goal-canvas-shell]')?.hidden}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic('T405 Goals beside CORE failed ' + JSON.stringify({ phases, frameEvents, paneReads, state }));
     throw error;
   } finally { settled = true; }
@@ -213,7 +207,8 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   assert.ok(localHost.homePlugins);
   const platform = await localHost.homePlugins.ready();
   assert.ok(platform);
-  const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.checkVisibility()),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
+  // An open item takes the whole Feed page (36A-3): the list, and this row in it, stays behind 返回 through a revision.
+  const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.isConnected),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
   const beforeRevision = await rowState();
   assert.equal(beforeRevision.visible, true, JSON.stringify(beforeRevision));
   try { await feed.waitFor(`document.querySelector('[data-feed-entry-id="${a.item_id}"]').dataset.feedEntryRead==='read' && t403PendingReads===0`); }
@@ -289,7 +284,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   for (const scheme of ["light", "dark"] as const) {
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: scheme }] }, sessionId);
     await evaluate(`(() => { document.documentElement.dataset.theme = "${scheme}"; document.documentElement.dataset.resolvedTheme = "${scheme}"; })()`);
-    await waitFor(`getComputedStyle(document.body).getPropertyValue('--hue-blue').trim() === ${JSON.stringify(scheme === "light" ? "#3c6fc6" : "#8fb2f5")}`);
+    await waitFor(`getComputedStyle(document.body).getPropertyValue('--hue-blue').trim() === ${JSON.stringify(scheme === "light" ? "#316896" : "#7ab3e0")}`);
     const low = (await evaluate<Array<{ tab: string; ratio: number }>>(GROUP_CONTRAST)).filter((entry) => entry.ratio < 4.5);
     assert.deepEqual(low, [], `${scheme}: every title in a group reads at 4.5:1`);
   }
@@ -321,9 +316,8 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   const goalsPaneSelector = `[data-tab-pane=${JSON.stringify(goalsPaneId)}]`;
   const goalsPane = `document.querySelector(${JSON.stringify(goalsPaneSelector)})`;
   await evaluate(`${goalsPane}.querySelector('.tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger').click()`);
-  const frame = `document.querySelector('iframe[data-pane-owner="' + ${goalsPane}.dataset.tabPane + '"]')`;
-  await waitFor(`${frame}?.contentDocument?.readyState === 'complete' && ${frame}?.contentDocument?.querySelector('[data-record-owner=goals] [data-tree-item][data-goal-id=CORE]')`, 30_000);
-  await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tree-item][data-goal-id=CORE] .tree-node').dispatchEvent(new f.contentWindow.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, ctrlKey: true })); })()`);
+  await waitFor(`${goalsPane}.querySelector('[data-record-owner=goals]:not([hidden]) [data-tree-item][data-goal-id=CORE] .tree-node')`, 15_000);
+  await evaluate(`(() => { ${goalsPane}.querySelector('[data-record-owner=goals]:not([hidden]) [data-tree-item][data-goal-id=CORE] .tree-node').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, ctrlKey: true })); })()`);
   await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "the pane stays on the Goals page");
 
@@ -346,8 +340,9 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
   const pages = (() => { try { return ["A", "B", "C"].map((letter) => store.create({ project_id: projectId!, title: `Page ${letter}`, body: { type: "doc", content: [] } })); } finally { store.close(); } })();
   const [a, b, c] = pages.map((page) => page.id) as [string, string, string];
   await browser.setViewport(1440, 1000);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a}` }, sessionId));
-  await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
+  // An open document takes the whole Pages page (36A-3), so several are picked in the list, with none open.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded !== 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
   const selected = `[...document.querySelectorAll('[data-pages-rows] button[data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
   assert.deepEqual(await child.evaluate(`(() => { const list = document.querySelector('[data-pages-rows]'); return [list.getAttribute('role'), list.getAttribute('aria-multiselectable'), list.querySelector('button[data-page-id]').getAttribute('role')]; })()`),
     ["listbox", "true", "option"], "the list says it picks several");
@@ -356,20 +351,20 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button, clickCount: 1, modifiers }, sessionId);
   };
 
-  // D24 a real ⌘-click on B picks it, with the open A, and opens no tab.
+  // D24 real ⌘-clicks on A and B pick both and open neither: no tab, no editor.
+  await press(a, "left", 4);
   await press(b, "left", 4);
   await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${b}"]')`), null, "a ⌘-click in the list opens no tab");
 
-  // D24 a middle click on C still opens it behind in the Pages group; the picks and the open page stay. The page was
-  // opened with openItem, so the current tab is A's item tab (or the Pages tab): whichever it is, it stays current.
+  // D24 a middle click on C still opens it behind in the Pages group; the picks stay and the Pages tab stays current.
   const current = `(() => { const tab = document.querySelector('[data-titlebar-tabs] .tab-item[aria-current]'); return tab ? tab.dataset.tabKind + ":" + (tab.dataset.itemId ?? tab.dataset.plugin) : null; })()`;
   const before = await evaluate<string | null>(current);
-  assert.ok(before === `item:${a}` || before === "plugin:pages", `the pane is on Pages before the middle click (${before})`);
+  assert.equal(before, "plugin:pages", "the pane is on Pages before the middle click");
   await press(c, "middle", 0);
   await waitFor(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${c}"]')`);
   assert.equal(await evaluate(current), before, "the pane stays where it was");
-  assert.equal(await child.evaluate("document.querySelector('[data-pages-title]')?.value"), "Page A", "A stays open in the editor");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the list stays in front: no document opened in the editor");
   assert.equal(await child.evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
 });
 
@@ -430,7 +425,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
     let frameApi;
     Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){
       const mount=api.mount;
-      api.mount=(root,host,pack)=>{if(pack.id==='pages'&&!host.side&&new URL(location.href).searchParams.get('paneItem')===${JSON.stringify(a.id)}){window.t405EarlySelects=(window.t405EarlySelects||0)+1;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(a.id)}}}));}return mount(root,host,pack);};frameApi=api;
+      api.mount=(root,host,pack)=>{if(pack.id==='pages'&&!host.side&&new URLSearchParams(root.dataset.paneSearch||location.search).get('paneItem')===${JSON.stringify(a.id)}){window.t405EarlySelects=(window.t405EarlySelects||0)+1;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(a.id)}}}));}return mount(root,host,pack);};frameApi=api;
     }});
     globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{
       if(key==='pages'&&!host.side){window.t405Host=host;const editor=window.MolisWorkPagesEditor;
@@ -438,22 +433,30 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
       return factory(host);
     };return true;}});
   `);
-  const aRight = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-a"]');
-  const aLeft = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="left-a"]');
-  const bRight = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-b"]');
-  const defaultPage = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-default"]');
+  const aRight = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="right-a"] iframe[data-plugin-frame="pages"]');
+  const aLeft = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="left-a"] iframe[data-plugin-frame="pages"]');
+  const bRight = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="right-b"] iframe[data-plugin-frame="pages"]');
+  const defaultPage = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="right-default"] iframe[data-plugin-frame="pages"]');
+  // What is under test is the platform's item navigation from a declared row pressed in a frame (T405). An open document takes
+  // the whole Pages page (36A-3) and its list is the page behind it, so the test lays the list back beside the document in the
+  // frame it presses, to have a declared row under a real pointer while that frame's editor stays open.
+  const pressRow = async (frame: typeof aRight, id: string) => {
+    await frame.evaluate(`(()=>{if(document.getElementById('t405-list-beside'))return;const style=document.createElement('style');style.id='t405-list-beside';
+      style.textContent='html body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-list.plugin-stage-list{display:block!important;position:relative;z-index:5;width:280px;background:var(--paper)}';document.head.append(style);})()`);
+    await frame.click(`button[data-page-id="${id}"]`);
+  };
   await browser.setViewport(2200, 1000);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
   await waitFor("document.querySelector('[data-tab-edge=right]')");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
-  await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe[data-pane-owner]:not([hidden])').length===2");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe.tab-content-frame').length===0 && [...document.querySelectorAll('[data-tab-pane]')].every(p=>p.querySelector('[data-work-surface=pages]:not([hidden]) iframe[data-plugin-frame=pages]'))");
   const paneIds = await evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left).map(p=>p.dataset.tabPane)");
   const [left, right] = paneIds;
   const layout = () => evaluate<{ panes: Array<{ id: string; activeTabId: string; tabs: Array<{ id: string; kind: string; itemId?: string; title?: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))`);
   const initial = await layout(), leftTab = initial.panes.find(p => p.id === left)!.activeTabId, rightTab = initial.panes.find(p => p.id === right)!.activeTabId;
-  const ownerSelector = (paneId: string, tabId: string) => `iframe[data-pane-owner="${paneId}"][data-pane-tab="${tabId}"]`;
+  const ownerSelector = (paneId: string, tabId: string) => `[data-tab-pane="${paneId}"] [data-work-surface="pages"][data-pane-tab="${tabId}"]`;
   const sourceSelector = ownerSelector(right!, rightTab);
-  const ownerWindow = `document.querySelector(${JSON.stringify(sourceSelector)}).contentWindow`;
+  const ownerWindow = "window";
   await evaluate(`document.querySelector(${JSON.stringify(sourceSelector)}).dataset.full16Owner='right-a';document.querySelector(${JSON.stringify(ownerSelector(left!, leftTab))}).dataset.full16Owner='left-a'`);
   await aRight.waitFor("document.querySelector('[data-pages-title]')?.value==='Item A'");
   await aLeft.waitFor("document.querySelector('[data-pages-title]')?.value==='Item A'");
@@ -468,10 +471,11 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   assert.equal(await itemCount(b.id), 0); assert.equal(await evaluate(`${ownerWindow}.t405TaggedCount`), 0);
   await aRight.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
   await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
-  assert.equal(await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]'),box=row?.getBoundingClientRect();return Boolean(row?.checkVisibility()&&box.width>0&&box.height>0);})()`), true, "the actual right-A pane keeps a visible Pages row before independent control input");
+  // An open document takes the whole Pages page (36A-3): the list stays in the pane behind 返回, so the row is there but not shown.
+  assert.equal(await aRight.evaluate(`Boolean(document.querySelector('button[data-page-id="${b.id}"]'))`), true, "the actual right-A pane keeps its Pages row before independent control input");
   // An independent control inside a broad declared row keeps its own action, rather than opening the row's item.
   await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]');const control=document.createElement('span');control.dataset.t405RowControl='1';control.setAttribute('role','button');control.tabIndex=0;control.textContent='control';control.addEventListener('click',event=>{event.stopPropagation();window.t405ControlClicks=(window.t405ControlClicks||0)+1;});row.append(control);})()`);
-  await aRight.click("[data-t405-row-control]");
+  await aRight.evaluate("document.querySelector('[data-t405-row-control]').click()");
   assert.equal(await aRight.evaluate("window.t405ControlClicks"), 1); assert.equal(await itemCount(b.id), 0);
   await aRight.evaluate("(()=>{window.t405OriginalEditor=window.t405Editor;window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror');})()");
   await aLeft.evaluate("void(window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror'))");
@@ -480,7 +484,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   holdSaves = true;
   await aRight.evaluate(`(()=>{const view=window.t405Editor.view;view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,view.state.schema.nodes.paragraph.create(null,view.state.schema.text(${JSON.stringify(draft)}))));})()`);
   await saveHeld; assert.equal(heldStatus, 200, "the real A save handler completed while its reply remains held");
-  await aRight.click(`button[data-page-id="${b.id}"]`);
+  await pressRow(aRight, b.id);
   await waitFor(`(()=>{const s=JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')),p=s.panes.find(p=>p.id===${JSON.stringify(right)});return p.tabs.find(t=>t.id===p.activeTabId)?.itemId===${JSON.stringify(b.id)};})()`);
   let saved = await layout(), rightPane = saved.panes.find(p => p.id === right)!, bTab = rightPane.activeTabId;
   assert.equal(rightPane.tabs.find(tab => tab.id === rightTab)?.itemId, a.id); assert.equal(rightPane.tabs.find(tab => tab.id === bTab)?.title, "Item B");
@@ -492,26 +496,27 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
     { id: a.id, title: "Item A", text: draft, sameEditor: true, sameNode: true });
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(sourceSelector)})===window.t405OriginalAFrame && window.t405OriginalAFrame.hidden`), true);
   assert.equal(await aLeft.evaluate("document.querySelector('[data-pages-title]').value==='Item A' && document.querySelector('[data-pages-editor] .ProseMirror')===window.t405OriginalEditorNode"), true);
-  assert.equal(await evaluate(`new URL(document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).src).searchParams.get('paneItem')`), b.id, "read the actual B frame, not retained hidden A");
+  assert.equal(await evaluate(`new URLSearchParams(document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).dataset.paneSearch || '').get('paneItem')`), b.id, "read the actual B surface, not retained hidden A");
   const selectTab = async (id: string) => { await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-tab-id="${id}"] .tab-item-trigger`); };
   await selectTab(rightTab);
   await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
   assert.equal(await aRight.evaluate(`window.t405Editor===window.t405OriginalEditor && window.t405Editor.view.state.doc.textContent===${JSON.stringify(draft)}`), true);
   holdSaves = false; heldSaves.splice(0).forEach(release => release());
   await aRight.waitFor("document.querySelector('[data-pages-editor-status]').textContent==='已保存'");
-  await aRight.click(`button[data-page-id="${b.id}"]`);
+  await pressRow(aRight, b.id);
   await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)})?.activeTabId===${JSON.stringify(bTab)}`);
   await bRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
   assert.equal(await itemCount(b.id), 1); assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, bTab, "B deduplicates to its original tab");
-  await bRight.click(`button[data-page-id="${b.id}"]`);
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).contentWindow.t405TaggedCount`), 0, "same-item clicks do not emit a new item intent");
+  const taggedBeforeSameClick = await evaluate<number>(`${ownerWindow}.t405TaggedCount`);
+  await pressRow(bRight, b.id);
+  assert.equal(await evaluate<number>(`${ownerWindow}.t405TaggedCount`), taggedBeforeSameClick, "same-item clicks do not emit a new item intent");
   await evaluate(`document.querySelector('[data-tab-pane="${left}"]').click()`);
   await evaluate(`document.querySelector('[data-tab-pane="${right}"]').click()`);
   await bRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
   const holdIntent = async (id: string) => {
     await selectTab(rightTab); await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
     await evaluate(`${ownerWindow}.t405HoldItemIntent=true`);
-    await aRight.click(`button[data-page-id="${id}"]`);
+    await pressRow(aRight, id);
     await waitFor(`${ownerWindow}.t405HeldItemIntents.length===1`);
   };
   const releaseIntent = async (before = "", after = "") => {
@@ -523,13 +528,13 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   assert.equal(await itemCount(c.id), 0, "an actual held intent from a now-hidden A frame opens nothing");
   for (const kind of ["default", "different item"] as const) {
     await holdIntent(c.id);
-    const change = `const tab=view.document.querySelector('[data-work-surface=pages]').closest('[data-tab-pane]').querySelector('[data-tab-strip] [data-tab-id="'+CSS.escape(view.t405HeldItemIntents[0].message.itemTabId)+'"][aria-current="page"]'),saved={...tab.dataset};`;
+    const change = `const tab=document.querySelector('[data-full16-owner="right-a"]').closest('[data-tab-pane]').querySelector('[data-tab-strip] [data-tab-id="'+CSS.escape(view.t405HeldItemIntents[0].message.itemTabId)+'"][aria-current="page"]'),saved={...tab.dataset};`;
     const mutate = kind === "default" ? "tab.dataset.tabKind='plugin';delete tab.dataset.itemId;" : `tab.dataset.tabId='later-item-tab';tab.dataset.itemId=${JSON.stringify(b.id)};`;
     await releaseIntent(change + mutate, "Object.assign(tab.dataset,saved);");
     assert.equal(await itemCount(c.id), 0, `${kind} owner state rejects the earlier tagged intent`);
   }
   await holdIntent(d.id);
-  await releaseIntent("view.document.querySelector('[data-work-surface=pages]').remove();");
+  await releaseIntent('document.querySelector(\'[data-full16-owner="right-a"]\').remove();');
   assert.equal(await itemCount(d.id), 0, "a removed source root cannot replay its earlier item intent");
   await selectTab(bTab);
   await bRight.evaluate(`window.t405Host.openItem('pages',${JSON.stringify(c.id)},'Item C')`);
@@ -541,18 +546,21 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await waitFor(`document.querySelector(${defaultOwner})?.checkVisibility()`);
   await evaluate(`document.querySelector(${defaultOwner}).dataset.full16Owner='right-default'`);
   await defaultPage.waitFor("window.t405InitialItem===null && document.querySelector('[data-pages-rows]')");
-  await defaultPage.click(`button[data-page-id="${c.id}"]`);
+  await pressRow(defaultPage, c.id);
   await defaultPage.waitFor("document.querySelector('[data-pages-title]').value==='Item C'");
   assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, null, "a default plugin page still selects in place");
-  // FSS-07: active and retained split documents update on the same connection, including after an in-page link.
-  await evaluate(`document.querySelector(${defaultOwner}).contentWindow.history.replaceState(null, '', '#pages')`);
+  // FSS-07: active and retained split surfaces update on the single connection, including after an in-page link.
+  await evaluate(`history.replaceState(null, '', '#pages')`);
   await evaluate(`molisWorkRequest('/api/ui/appearance', { body: { request_id: 'split-pages-folio', expected_revision: 0,
     choice: { kind: 'selection', selection: { skin: { id: 'folio', revision: 1 }, font: { policy: 'follow-skin' }, mono: null } } } })`);
-  await waitFor(`document.querySelector(${defaultOwner}).contentDocument.documentElement.dataset.uiSkin==='folio@1'
-    && ${ownerWindow}.document.documentElement.dataset.uiSkin==='folio@1'`);
+  await waitFor("document.documentElement.dataset.uiSkin==='folio@1'");
+  await defaultPage.waitFor("document.documentElement.dataset.uiSkin==='folio@1'");
+  await aLeft.waitFor("document.documentElement.dataset.uiSkin==='folio@1'");
+  await selectTab(bTab);
+  await bRight.waitFor("document.documentElement.dataset.uiSkin==='folio@1' && document.querySelector('[data-pages-title]')?.value==='Item B'");
   assert.equal(peakAppearanceStreams, 1, JSON.stringify(appearanceSources));
   assert.ok(appearanceSources.every(source => !source.includes('workbenchPane=')), JSON.stringify(appearanceSources));
-  await selectTab(bTab); await browser.reloadPage();
+  await browser.reloadPage();
   await waitFor(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))})`);
   await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).dataset.full16Owner='right-b'`);
   await bRight.waitFor("document.querySelector('[data-pages-title]')?.value==='Item B'");

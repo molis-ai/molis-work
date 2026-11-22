@@ -277,3 +277,21 @@
 .k-in i:hover{background:var(--line);color:var(--ink)}
 .zq-g{margin:6px 0 2px;padding:6px 8px 0;box-shadow:inset 0 1px 0 var(--line);font-size:11.5px;color:var(--faint)}
 .rp-m{flex:none;color:var(--accent);cursor:pointer}
+
+/* 原型没画的两处（第 36A 批壳层开工时补）：主对话等你确认；没有自己页面的事件的平台页 */
+.tc.ex .nw.you{background:var(--amber)}
+.dd-cf{align-self:flex-start;max-width:94%;padding:10px 12px 11px;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);font-size:12.5px;color:var(--ink-soft)}
+.dd-cf p{display:flex;align-items:center;gap:8px;margin:0 0 8px;color:var(--ink)}
+.dd-cf .zc-a{display:flex;gap:8px}
+.pp.np{gap:14px;width:776px}
+.pp.np.two{flex-direction:row;gap:28px;width:auto;padding-right:40px}
+.np-l{flex:1;min-width:0;max-width:620px}.np-r{flex:none;width:280px;display:flex;flex-direction:column;gap:6px}
+.np-f{display:flex;flex-wrap:wrap;gap:6px 28px;font-size:12.5px}
+.np-r .np-f{flex-direction:column;gap:4px;margin-bottom:10px}
+.np-f div{display:flex;gap:8px;white-space:nowrap}.np-f span{color:var(--muted)}.np-f b{font-weight:500}.np-f b.next{color:var(--ink)}
+.np-own{padding:16px 18px;border-radius:14px;background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.np-oh{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12.5px}.np-oh svg{color:var(--muted)}.np-oh small{color:var(--muted)}
+.np-own p{margin:0 0 12px;font-size:14px;line-height:1.75}
+.np-oa{display:flex;gap:8px}
+.np-n{color:var(--faint);font-size:12px}
+.w1 .pp.np.two{flex-direction:column}.w1 .np-r{width:auto}

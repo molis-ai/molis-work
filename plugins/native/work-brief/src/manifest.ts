@@ -3,6 +3,7 @@ import { workBriefActions, workBriefPersonalActions } from "./actions.js";
 import { WORK_BRIEF_DATABASE } from "./database.js";
 import { briefArtifactPreview } from "./fix.js";
 import { BRIEF_ARTIFACT_SCHEMA_VERSION, BRIEF_ARTIFACT_TYPE_ID, WORK_BRIEF_PLUGIN_ID } from "./identity.js";
+import { workBriefSync } from "./replication.js";
 import { WORK_BRIEF_VIEW_ID, workBriefPresentation, workBriefPresentationActions } from "./presentation.js";
 import { WORK_BRIEF_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -41,6 +42,7 @@ export const workBriefManifest: PluginManifest = {
   read_groups: [{ group_id: "work-brief", title: "简报", description: "项目的简报、它的版本与依据",
     actions: [workBriefActions.list.capability_id, workBriefActions.get.capability_id, "work-brief.subject.read", "work-brief.search.entries"] }],
   databases: { home: WORK_BRIEF_DATABASE },
+  sync: workBriefSync,
   capabilities: { provides: [], consumes: ["search.references"] },
   artifacts: {
     produces: [{ artifact_type_id: BRIEF_ARTIFACT_TYPE_ID, schema_version: BRIEF_ARTIFACT_SCHEMA_VERSION, title: "简报", title_text: { key: "work-brief.artifacts.type-title" },
@@ -48,6 +50,19 @@ export const workBriefManifest: PluginManifest = {
     consumes: [],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "work-brief.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "work-brief.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "work-brief.help.example-1" }, { key: "work-brief.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "work-brief.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "work-brief.help.advanced-summary" }, body: { key: "work-brief.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [WORK_BRIEF_UI_CONTRIBUTION_ID],
     views: [
       // The project's brief. The home shows this view whole while the plugin runs (`presentation.overview.lead`).

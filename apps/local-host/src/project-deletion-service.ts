@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {readStorageSpace} from '@molis-ai/molis-work-storage';
 import {admitProjectSync} from './project-sync-admission.js';
 import { withPassiveProjectChange } from './passive-sync-execution.js';
@@ -6,6 +7,7 @@ import type { DeleteProjectInput, ProjectDeletionResult } from "@molis-ai/molis-
 import { requireDeletionConfirmed, requiredDeletionIdempotencyKey, requiredOutputFiles } from "./managed-project-deletion.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { readUnpublishedCopyProjectIds } from "./project-copy-journal.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { ProjectRecycleInput } from '@molis-ai/molis-work-module-projects';
 import { PERSONAL_SPACE_PROJECT_ID } from './personal-space.js';
@@ -43,6 +45,13 @@ export class ProjectDeletionService {
     if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space('个人空间不能删除；可以把里面的内容移到项目或逐个删除');
     return this.withCatalog({ homeDirectory }, async catalog => {
       beforeEffect();
+      const space = readStorageSpace(catalog.homeDirectory);
+      if (
+        catalog.recycle.isStagedCopy(input.project_id)
+        || (space?.kind === 'personal' && readUnpublishedCopyProjectIds(catalog.homeDirectory, space.spaceId, beforeEffect).has(input.project_id))
+      ) {
+        throw new ActionError('actions.conflict', '该项目正处于未完成的复制暂存状态，不能手动恢复或回收');
+      }
       const replay = catalog.recycle.check(input);
       if (replay) return replay;
       const observed = catalog.recycle.inspect(input.project_id);
@@ -118,6 +127,19 @@ export class ProjectDeletionService {
       if (readStorageSpace(catalog.homeDirectory)?.kind !== 'personal') {
         throw catalogErrors.project_storage_invalid('仅个人空间项目可按服务端过期凭据最终清理');
       }
+      const existing = catalog.findProjectDeletion(input.actor_id, input.idempotency_key);
+      if (existing) {
+        if (existing.project_id !== input.project_id.trim()) {
+          throw catalogErrors.deletion_idempotency_conflict('同一个项目删除请求键不能用于不同的项目、删除确认或对默认输出目录里文件的选择');
+        }
+        return catalog.deleteProject({
+          project_id: input.project_id,
+          actor_id: input.actor_id,
+          idempotency_key: input.idempotency_key,
+          delete_confirmed: true,
+          output_files: 'keep',
+        }, { allowRecycled: true });
+      }
       if (!catalog.recycle.isRecycled(input.project_id)) {
         throw catalogErrors.project_storage_invalid('项目尚未进入回收状态，不能执行最终清理');
       }
@@ -138,23 +160,15 @@ export class ProjectDeletionService {
         await this.ports.releaseProject(observed.database_path);
         await guards.refreshChildren?.();
         assertReady();
-        // Recycled projects are hidden from ProjectService.get(); unhide under the passive
-        // reservation immediately before delegating physical deletion and receipt recording.
-        await catalog.commit(() => catalog.recycle.change({
-          project_id: input.project_id,
-          recycled: false,
-          confirmed: true,
-          actor_id: input.actor_id,
-          operation_id: `${input.idempotency_key}:finalize`,
-          expected_state: observed.state,
-        }, assertReady));
+        // Delete the recycled project directly in a single catalog transaction without restoring it
+        // or emitting a `project.restored` event.
         return catalog.deleteProject({
           project_id: input.project_id,
           actor_id: input.actor_id,
           idempotency_key: input.idempotency_key,
           delete_confirmed: true,
           output_files: 'keep',
-        });
+        }, { allowRecycled: true, beforeCommit: assertReady });
       });
     });
   }

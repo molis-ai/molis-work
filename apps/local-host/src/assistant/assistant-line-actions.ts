@@ -5,12 +5,13 @@ import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineT
   type ActionDefinition, type ActionHandlerBinding, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskDecision, type OpenTarget,
   type TaskServesBindInput, type TaskServesInput, type TaskServesResult, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewRequest, StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview, type AssistantScope, type AssistantSendInput, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview, type AssistantScope, type AssistantSendInput, type AssistantWorkState, assistantUnderWay, assistantWaitsOnPerson } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { workTitle } from "./assistant-work-title.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * The Assistant on the work line (specs/work-line §5, §6; contract-design §2, §4, §5): it reports its works like any registrant
@@ -100,10 +101,8 @@ export interface AssistantLineSource {
   stop(workId: string): Promise<void>;
 }
 
-const UNDER_WAY: readonly AssistantWorkState[] = ["running", "waiting-input", "waiting-review", "paused", "needs-check"];
-const WAITS_ON_PERSON: readonly AssistantWorkState[] = ["waiting-input", "waiting-review", "needs-check"];
 const RING: Readonly<Record<AssistantWorkState, StateRingState>> = { idle: "idle", running: "running", "waiting-input": "answer", "waiting-review": "approval", paused: "paused",
-  completed: "done", failed: "failed", stopped: "stopped", "needs-check": "verify" };
+  completed: "done", failed: "failed", stopped: "stopped", "needs-check": "verify", unreadable: "unavailable" };
 /** The state as one phrase, said in the reader's language when the line or the table is read (not kept). */
 const words = (state: AssistantWorkState) => uiText.text(`workbench.assistant-line.state-${state}`);
 const nameOf = (work: StoredWork) => workTitle(work) || uiText.text("workbench.assistant-line.untitled");
@@ -129,9 +128,9 @@ const servesOf = (work: StoredWork): ActionSubject[] => isEvent(work) ? [subject
 export function assistantWorkEvents(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState }>, window: WorkEventWindow): WorkEvent[] {
   const events = works.filter(({ work }) => isEvent(work)).map(({ work, state }): WorkEvent & { under_way: boolean } => ({
     event_id: work.work_id, subject: subjectOf(work), title: nameOf(work), summary: words(state), content: "", facts: [], category: "personal",
-    placement: UNDER_WAY.includes(state) ? "active" : "occurred", occurred_at: work.updated_at, state: RING[state],
+    placement: assistantUnderWay(state) ? "active" : "occurred", occurred_at: work.updated_at, state: RING[state],
     // What waits on the person is said by the task table's row for the same work, so the line counts it once.
-    needs_attention: false, open: openOf(work), under_way: UNDER_WAY.includes(state) }));
+    needs_attention: false, open: openOf(work), under_way: assistantUnderWay(state) }));
   const ended = events.filter(event => !event.under_way && event.state !== "idle" && withinWorkEventWindow(event.occurred_at, window))
     .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, ENDED_SHOWN);
   return [...events.filter(event => event.under_way), ...ended].map(({ under_way: _underWay, ...event }) => event);
@@ -142,7 +141,7 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
   const action = { capability_id: ASSISTANT_LINE_ACTIONS.decide.capability_id, version: ASSISTANT_LINE_ACTIONS.decide.version }, name = nameOf(work);
   const held = reviews.slice(0, 10).flatMap(review => {
     const input = (decision: "approve" | "reject") => ({ work_id: work.work_id, review_id: review.review_id, version: review.version, decision });
-    const said = { name, what: review.summary.slice(0, 200) || uiText.text("workbench.assistant-line.this-step") };
+    const said = { name, what: cutHead(review.summary, 200) || uiText.text("workbench.assistant-line.this-step") };
     const approve = review.decisions.approve.available, reject = review.decisions.reject.available;
     const answers = review.kind === ASSISTANT_NEXT_STEP_REVIEW
       ? [...(approve ? [{ role: "approve" as const, action, input: input("approve"), summary: uiText.text("workbench.assistant-step-gate.go-on", { name }) }] : []),
@@ -151,21 +150,21 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
          ...(reject ? [{ role: "revise" as const, action, input: input("reject"), summary: uiText.text("workbench.assistant-line.revise-step", said) },
            { role: "reject" as const, action, input: input("reject"), summary: uiText.text("workbench.assistant-line.reject-step", said) }] : [])];
     if (!answers.length) return [];
-    return [{ id: review.review_id, ...(review.reference ? { reference: review.reference } : {}), ask: review.summary.slice(0, 1000) || uiText.text("workbench.assistant-line.step-to-approve"), why: uiText.text("workbench.assistant-line.why-ask"),
-      changes: review.fields.slice(0, 20).map(field => ({ label: field.label.slice(0, 200) || uiText.text("workbench.assistant-line.content"), value: field.value.slice(0, 2000) })),
+    return [{ id: review.review_id, ...(review.reference ? { reference: review.reference } : {}), ask: cutHead(review.summary, 1000) || uiText.text("workbench.assistant-line.step-to-approve"), why: uiText.text("workbench.assistant-line.why-ask"),
+      changes: review.fields.slice(0, 20).map(field => ({ label: cutHead(field.label, 200) || uiText.text("workbench.assistant-line.content"), value: cutHead(field.value, 2000) })),
       answers }];
   });
   const acceptAll = acceptance?.choices.find(choice => choice.id === "accept_all" && choice.availability.available);
   if (!acceptance || !acceptAll || held.length >= 10) return held;
   const openIds = new Set(acceptAll.accepts);
-  const said = { name, what: acceptance.summary.slice(0, 200) };
+  const said = { name, what: cutHead(acceptance.summary, 200) };
   const input = (decision: "approve" | "reject") => ({ work_id: work.work_id, review_id: `acceptance:${work.work_id}`, version: acceptance.reference.version, decision });
   return [...held, {
-    id: `acceptance:${work.work_id}:${acceptance.reference.version.slice(0, 16)}`,
+    id: `acceptance:${work.work_id}:${cutHead(acceptance.reference.version, 16)}`,
     reference: acceptance.reference,
     ask: uiText.text("common.presentation.needs-acceptance"),
-    why: acceptance.summary.slice(0, 1000),
-    changes: acceptance.requirements.filter(req => openIds.has(req.id)).slice(0, 20).map(req => ({ label: req.id.slice(0, 200), value: req.statement.slice(0, 2000) })),
+    why: cutHead(acceptance.summary, 1000),
+    changes: acceptance.requirements.filter(req => openIds.has(req.id)).slice(0, 20).map(req => ({ label: cutHead(req.id, 200), value: cutHead(req.statement, 2000) })),
     answers: [
       { role: "approve", action, input: input("approve"), summary: uiText.text("workbench.assistant-line.approve-step", said) },
       { role: "revise", action, input: input("reject"), summary: uiText.text("workbench.assistant-line.revise-step", said) },
@@ -174,16 +173,16 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
 }
 
 export function assistantBackgroundTasks(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState; reviews?: readonly AssistantPendingReview[]; acceptance?: ReviewRequest }>): BackgroundTask[] {
-  return works.filter(({ work, state, acceptance }) => isTask(work) && (UNDER_WAY.includes(state) || Boolean(acceptance?.choices.some(c => c.id === "accept_all" && c.availability.available)))).map(({ work, state, reviews, acceptance }): BackgroundTask => {
+  return works.filter(({ work, state, acceptance }) => isTask(work) && (assistantUnderWay(state) || Boolean(acceptance?.choices.some(c => c.id === "accept_all" && c.availability.available)))).map(({ work, state, reviews, acceptance }): BackgroundTask => {
     const waitingAcceptance = Boolean(acceptance?.choices.some(c => c.id === "accept_all" && c.availability.available));
     return {
-      subject: subjectOf(work), title: nameOf(work), state: waitingAcceptance && !UNDER_WAY.includes(state) ? "approval" : RING[state],
-      step: { text: waitingAcceptance && !UNDER_WAY.includes(state) ? uiText.text("common.presentation.needs-acceptance") : words(state) }, details: [],
-      waiting: WAITS_ON_PERSON.includes(state) || waitingAcceptance,
+      subject: subjectOf(work), title: nameOf(work), state: waitingAcceptance && !assistantUnderWay(state) ? "approval" : RING[state],
+      step: { text: waitingAcceptance && !assistantUnderWay(state) ? uiText.text("common.presentation.needs-acceptance") : words(state) }, details: [],
+      waiting: assistantWaitsOnPerson(state) || waitingAcceptance,
       started_at: work.created_at, updated_at: work.updated_at,
       executor: work.executor.kind === "plugin" ? { kind: "plugin", label: work.executor.title } : work.character ? { kind: "character", label: work.character.title } : { kind: "assistant", label: uiText.text("workbench.assistant-line.assistant") },
       serves: servesOf(work), scope: "project",
-      commands: state === "paused" || !UNDER_WAY.includes(state) ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: uiText.text("workbench.assistant-line.stop-work", { title: nameOf(work) }) }],
+      commands: state === "paused" || !assistantUnderWay(state) ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: uiText.text("workbench.assistant-line.stop-work", { title: nameOf(work) }) }],
       decisions: decisionsOf(work, reviews ?? [], acceptance), open: openOf(work),
     };
   });

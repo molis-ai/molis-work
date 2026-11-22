@@ -13,7 +13,7 @@ export const cssString = (value: string) => "'" + value.replace(/[\\'"<>&\n]/g, 
 export function renderAgentStudio(text: (key: string, values?: Record<string, string | number>) => string = uiText): string {
   const mine = text("plugin-builder.agent-studio.my-plugins"), newPlugin = text("plugin-builder.agent-studio.new-plugin"), edit = text("plugin-builder.agent-studio.apply-changes"), send = text("plugin-builder.agent-studio.send"), codeAgent = text("plugin-builder.agent-studio.code-agent");
   return '<section class="as-shell" data-agent-studio style="--as-idle:' + cssString(text("plugin-builder.agent-studio.not-connected-yet")) + ';--as-wired:' + cssString('✓ ' + text("plugin-builder.agent-studio.connected")) + '">'
-    + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">' + mine + '</span><select data-as-builds aria-label="' + mine + '"></select></label>'
+    + '<header class="as-top"><div class="as-top-actions" data-help-slot><label class="as-select"><span class="as-sr">' + mine + '</span><select data-as-builds aria-label="' + mine + '"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="' + newPlugin + '" title="' + newPlugin + '"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
     + '<label class="as-select as-model"><span>' + text("plugin-builder.agent-studio.model") + '</span><select data-as-model aria-label="' + text("plugin-builder.agent-studio.model-used-building") + '"></select></label>'
     + renderButton({ variant: "ghost", className: "as-icon", icon: "sparkles", iconOnly: true,

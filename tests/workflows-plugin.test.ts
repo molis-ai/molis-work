@@ -10,7 +10,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, directHandoffLink, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
@@ -26,18 +26,20 @@ test("链的编辑：加站、拿掉、调顺序时，每段衔接跟着它连�
   chain = insertStation(chain, 1, newStation("pages"));
   assert.deepEqual(plugins(chain), ["feed", "pages"]);
   chain = setLink(chain, 0, fn("{正文}"));
-  // Dropped between the two: the old handoff now reaches the new station, the new station hands on by hand.
+  // Dropped between the two: the old handoff now reaches the new station, and the new station defaults to direct pass-through (PF-A13).
   chain = insertStation(chain, 1, newStation("inbox"));
   assert.deepEqual(plugins(chain), ["feed", "inbox", "pages"]);
-  assert.deepEqual(kinds(chain), ["function", "manual"]);
+  assert.deepEqual(kinds(chain), ["function", "function"]);
+  assert.equal(chain.links[1]?.body_template, "{正文}");
   chain = setLink(chain, 1, ai("整理成一页"));
   chain = insertStation(chain, 0, newStation("lingguang"));
-  assert.deepEqual(kinds(chain), ["manual", "function", "ai"]);
+  assert.deepEqual(kinds(chain), ["function", "function", "ai"]);
+  assert.equal(chain.links[0]?.body_template, "{正文}");
   // Removing the first station drops its outgoing handoff; removing a middle one keeps its incoming handoff.
   assert.deepEqual(kinds(removeStation(chain, 0)), ["function", "ai"]);
   assert.deepEqual(plugins(removeStation(chain, 2)), ["lingguang", "feed", "pages"]);
-  assert.deepEqual(kinds(removeStation(chain, 2)), ["manual", "function"]);
-  assert.deepEqual(kinds(removeStation(chain, 3)), ["manual", "function"]);
+  assert.deepEqual(kinds(removeStation(chain, 2)), ["function", "function"]);
+  assert.deepEqual(kinds(removeStation(chain, 3)), ["function", "function"]);
   const moved = moveStation(chain, 0, 4);
   assert.deepEqual(plugins(moved), ["feed", "inbox", "pages", "lingguang"]);
   assert.equal(moved.links.length, 3);
@@ -53,6 +55,8 @@ test("没配好的衔接不算接上：Function 要有规则，AI 要有要求�
   const none = { available: false, code: "actions.connection_required", reason: "还没有可用的文字模型" } as const;
   const unreadable = { available: false, code: "catalog.unknown_database", reason: "文字模型的设置读不了，请检查模型设置" } as const;
   assert.deepEqual(linkReadiness(manualLink(), none), { ready: true, reason: "" });
+  assert.deepEqual(linkReadiness(directHandoffLink(), none), { ready: true, reason: "" }, "PF-A13: direct pass-through handoff is immediately ready without model or judgment rule");
+  assert.deepEqual(applyFunctionRule(directHandoffLink(), { title: "标题", body: "原文正文", url: null, source: null }), { title: "标题", body: "原文正文", url: null, source: null }, "PF-A13: direct pass-through keeps title and body unchanged");
   assert.equal(linkReadiness(fn(" "), model).ready, false);
   assert.equal(linkReadiness(fn("{正文}"), none).ready, true);
   assert.equal(linkReadiness(ai(""), model).reason, "还没写 AI 要整理成什么");

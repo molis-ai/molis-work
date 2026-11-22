@@ -15,7 +15,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-summary-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 22px; margin-bottom: 2px; }
   ${ASSIST} .assistant-summary-top:not(:has(.assistant-state:not(:empty), .assistant-control:not([hidden]))) { display: none; }
   ${ASSIST} .assistant-summary-controls { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
-  ${ASSIST} .assistant-control { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
+  ${ASSIST} .assistant-control { height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} .assistant-control[hidden] { display: none; }
   ${ASSIST} .assistant-control:hover { background: var(--nav-hover); color: var(--ink); }
@@ -27,7 +27,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
   ${ASSIST} .assistant-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--wash); }
-  ${ASSIST} .assistant-segment { min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  ${ASSIST} .assistant-segment { min-width: 0; height: 28px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
   ${ASSIST} .assistant-segment:hover:not(:disabled) { color: var(--ink); }
   ${ASSIST} .assistant-segment[aria-pressed="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
   ${ASSIST} .assistant-segment:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
@@ -48,7 +48,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
-  ${ASSIST} .assistant-side-action { flex: none; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  ${ASSIST} .assistant-side-action { flex: none; height: 28px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
   ${ASSIST} .assistant-side-action:hover:not(:disabled) { background: var(--nav-active); }
   ${ASSIST} .assistant-side-action { transition: background-color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} .assistant-side-action[aria-busy="true"] { color: var(--muted); cursor: progress; }
@@ -129,7 +129,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   /* Buttons on cards: primary is graphite, secondary a quiet outline, both with the shared press. */
   ${ASSIST} .assistant-side-action { display: inline-flex; align-items: center; gap: 4px; }
   ${ASSIST} .assistant-side-action .assistant-glyph-icon svg { width: 13px; height: 13px; }
-  ${ASSIST} .assistant-side-action:is(.is-primary, .is-secondary) { height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+  ${ASSIST} .assistant-side-action:is(.is-primary, .is-secondary) { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
   ${ASSIST} .assistant-side-action.is-primary { background: var(--ink); color: var(--paper); }
   ${ASSIST} .assistant-side-action.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
   ${ASSIST} .assistant-side-action.is-secondary { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
@@ -221,7 +221,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-code-head { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 12px; box-shadow: inset 0 -1px 0 var(--line); color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-code-lang { color: var(--ink-soft); font-weight: 500; }
   ${ASSIST} .assistant-code-lines { margin-right: auto; }
-  ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+  ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { position: relative; height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done); }
@@ -259,15 +259,14 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-activity .assistant-state-ring { width: 20px; height: 20px; }
   ${ASSIST} :is(.assistant-activity, .assistant-recovery > li)[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
-  ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
-  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} .assistant-tab-main:active { transform: scale(.98); }
-  ${ASSIST} .assistant-tab { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-head .dock-window-action, .assistant-control, .assistant-start, .assistant-copy):active:not(:disabled) { transform: scale(.94); }
+  ${ASSIST} .assistant-head .dock-window-action { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .info-tab:active { transform: scale(.98); }
   ${ASSIST} .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
   ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: craft-rise var(--dur-move) var(--ease-quint); }
-  ${ASSIST} .assistant-panel[data-layout="drawer"][data-side="open"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
-  @keyframes assistant-drawer { from { opacity: .6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+  ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
+  @keyframes assistant-drawer { from { opacity: .6; transform: translateX(16px); } to { opacity: 1; transform: none; } }
   ${ASSIST} .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${ASSIST} :is(.assistant-thread > .assistant-card, .assistant-thread > .assistant-problem, .assistant-round > .assistant-msg, .assistant-round > .assistant-card) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   /* “Go to it” marks what it took you to for a moment. */
@@ -285,6 +284,8 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   /* A new work starts from this page's starting points or goes back to a recent work. */
   ${ASSIST} .assistant-empty-list { display: flex; flex-direction: column; gap: 4px; max-width: 520px; margin-top: 14px; }
   ${ASSIST} .assistant-empty-list:empty { display: none; }
+  ${ASSIST} .assistant-event-hint { margin: 0; color: var(--ink-soft); }
+  ${ASSIST} .assistant-event-hint[hidden] { display: none; }
   ${ASSIST} .assistant-empty-title { margin: 10px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-empty-title:first-child { margin-top: 0; }
   ${ASSIST} .assistant-start { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
@@ -297,8 +298,10 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-empty-list > :nth-child(4) { animation-delay: 90ms; } ${ASSIST} .assistant-empty-list > :nth-child(n + 5) { animation-delay: 120ms; }
   ${ASSIST} .assistant-empty-hint { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
-  ${ASSIST} .assistant-copy { align-self: flex-start; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+  ${ASSIST} .assistant-copy { align-self: flex-start; position: relative; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  /* BL-127: the small copy keys keep their size; what can be pressed is 28px tall. */
+  ${ASSIST} :is(.assistant-copy, .assistant-code-copy, .assistant-code-more)::after { content: ""; position: absolute; inset: -3px 0; }
   ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-copy]) { opacity: 1; }
   ${ASSIST} .assistant-copy:hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-copy[data-copy=done] { color: var(--hue-green-fill); }
@@ -307,15 +310,15 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-round-time::before, ${ASSIST} .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   /* The conversation: the person's words on the right, the Host's in the middle, the answer as text, what it did as quiet lines. */
-  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
-  ${ASSIST} .assistant-empty { color: var(--muted); }
-  ${ASSIST} .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
-  ${ASSIST} .assistant-empty p { margin: 0; }
+  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 24px 22px 16px; font-size: 13px; line-height: 1.7; overscroll-behavior: contain; }
+  /* What was said stands on the input (helm.html .pz .lv-b): a short conversation leaves its room above, not under. */
+  ${ASSIST} .assistant-thread::before { content: ""; flex: none; margin-top: auto; margin-bottom: -10px; }
+  ${ASSIST} .assistant-empty { max-width: 94%; margin: 0; color: var(--ink); }
   ${ASSIST} .assistant-empty[hidden] { display: none; }
   ${ASSIST} .assistant-round { display: flex; flex-direction: column; gap: 8px; }
   ${ASSIST} .assistant-msg { max-width: 100%; overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
-  ${ASSIST} .assistant-msg--assistant { color: var(--ink); }
+  ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 76%; padding: 7px 12px; border-radius: 12px; background: var(--control-fill, var(--nav-active)); color: var(--ink); white-space: pre-wrap; }
+  ${ASSIST} .assistant-msg--assistant { max-width: 94%; color: var(--ink); }
   ${ASSIST} .assistant-msg--note { font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-msg--host { align-self: center; max-width: 85%; padding: 4px 12px; border: 1px dashed var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; text-align: center; white-space: pre-wrap; }
   ${ASSIST} .assistant-rich > :last-child { margin-bottom: 0; }
@@ -382,19 +385,23 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   /* The target reaches past the drawn line, to the bar's 28px floor (44px to a finger, in the touch rules). */
   ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -4px 0; }
   ${ASSIST} .assistant-attention[hidden] { display: none; }
-  /* At rest the composer is one row, so its receiver row is also its send row: the count then stands at the composer's left
-     instead of over its send button, and send keeps the bar's right end (VUX-16). */
-  ${ASSIST} .assistant-composer:has(> .mw-composer[data-rest] ~ .assistant-attention:not([hidden])) { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-auto-flow: row dense; align-items: center; column-gap: 6px; }
-  ${ASSIST} .assistant-composer > .mw-composer[data-rest] { grid-column: 2; }
-  ${ASSIST} .assistant-composer > .mw-composer[data-rest] ~ .assistant-attention { position: relative; top: auto; right: auto; grid-column: 1; }
+  /* At rest (and when CSS Anchor Positioning is unavailable, while written in too) the count stands at the composer's left
+     instead of over its text, counts or send button, and send keeps the bar's right end (VUX-16). */
+  ${ASSIST} .assistant-composer:has(> .mw-composer ~ .assistant-attention:not([hidden])) { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-auto-flow: row dense; align-items: center; column-gap: 6px; }
+  ${ASSIST} .assistant-composer > .mw-composer { grid-column: 2; }
+  ${ASSIST} .assistant-composer > .mw-composer ~ .assistant-attention { position: relative; top: auto; right: auto; grid-column: 1; }
   ${ASSIST} .assistant-composer > .assistant-answer { grid-column: 1 / -1; }
-  /* Written in, the receiver row is the composer's foot (the shared composer, batch 10): the count stands just after the
-     receiver there, not over the text at the top right. */
-  ${ASSIST} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__to { anchor-name: --assistant-receiver; }
-  ${ASSIST} .assistant-composer > .mw-composer:not([data-rest]) ~ .assistant-attention { position-anchor: --assistant-receiver; top: anchor(center); right: auto; left: calc(anchor(right) + 6px); translate: 0 -50%; }
+  /* Written in, the receiver row is the composer's foot (the shared composer, batch 10): with Anchor Positioning the count
+     stands just after the receiver there, not over the text at the top right. */
+  @supports (anchor-name: --x) {
+    ${ASSIST} .assistant-composer:has(> .mw-composer:not([data-rest]) ~ .assistant-attention:not([hidden])) { display: block; }
+    ${ASSIST} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__to { anchor-name: --assistant-receiver; }
+    ${ASSIST} .assistant-composer > .mw-composer:not([data-rest]) ~ .assistant-attention { position: absolute; position-anchor: --assistant-receiver; top: anchor(center); right: auto; left: calc(anchor(right) + 6px); translate: 0 -50%; }
+  }
   ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }
+  ${ASSIST} .assistant-notices > [hidden] { display: none; }
   ${ASSIST} .assistant-notice { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; background: var(--nav-hover); }
   ${ASSIST} .assistant-notice-text { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
   ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }

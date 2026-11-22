@@ -8,6 +8,7 @@ import { isExternalSessionMaterial } from "./assistant-external-sessions.js";
 import type { AssistantStore } from "./assistant-store.js";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { attachConversationFile, forgetOwnedAttachments, holdsConversationAttachment, readConversationAttachment, type AttachmentOwner, type AttachmentRead, type AttachmentReadResult } from "../material-attachments.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * The Assistant's files, kept by the platform's material service like any plugin's (platform capability audit §6): the Assistant is a
@@ -66,7 +67,7 @@ export class AssistantMaterialAccess {
    * Send's materials. What cannot be read says why (scanned, encrypted, damaged, a kind no reader takes); nothing is guessed.
    */
   async readAttachment(input: { name: string; data: string }, control: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> } = {}): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
-    const name = typeof input?.name === "string" ? input.name.trim().slice(0, 200) : "";
+    const name = typeof input?.name === "string" ? cutHead(input.name.trim(), 200) : "";
     if (!name || typeof input.data !== "string" || !input.data) throw assistantErrors.invalid("没有收到文件");
     const attachments = this.attachments;
     if (!attachments) throw assistantErrors.unsupported("当前环境不能保存附件");

@@ -22,10 +22,14 @@ export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-f
 export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();
 /** `window.molisTip`, the one tooltip (`browser/tip.ts`, VUX-05). */
 export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();
+/** `window.molisOnDemandHelp`, shared Scheme A on-demand help controller (`browser/on-demand-help.ts`, VUX-55). */
+export const ON_DEMAND_HELP_CLIENT_SCRIPT = readFileSync(new URL("../dist/on-demand-help-client.js", import.meta.url), "utf8").trim();
 /** `window.molisDropZone`, one drop-zone child/drag-leave owner (`browser/drop-zone.ts`, VUX-18). */
 export const DROP_ZONE_CLIENT_SCRIPT = readFileSync(new URL("../dist/drop-zone-client.js", import.meta.url), "utf8").trim();
 /** `window.molisReflow`, one measured reflow for chips and rows (`browser/reflow.ts`, VUX-16/18). */
 export const REFLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/reflow-client.js", import.meta.url), "utf8").trim();
+/** Shared feedback helpers (`window.molisBusy`, `molisToast`, `molisAutosave`, `molisOptimisticToggle`, `molisEnhanceDateInputs`). */
+export const FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/feedback-client.js", import.meta.url), "utf8").trim();
 /** The overflow fade's sensor (`browser/overflow-fade.ts`, VUX-27). */
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */

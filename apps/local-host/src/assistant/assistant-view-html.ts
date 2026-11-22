@@ -71,10 +71,10 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
         const reask = candidate.work.executor.kind !== "plugin";
         for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id], undefined, reask), ...(question !== words?.question ? {} : words.field ? { draft_from_composer: words.field } : { from_composer: true }) });
       }
-      // The Skills each round used, one line above its reply (SKL-11). A round still under way that has read none yet says nothing:
-      // 「这一轮没用技能」 is true only once it ended. The page opens the shell's panel from the line's buttons.
+      // The Skills each round used, one line with its reply (SKL-11). A round that used none says nothing (POLISH-19): a Skill for
+      // the next round is chosen from the input's own menu. The page opens the shell's panel from the line's buttons.
       for (const round of candidate.rounds) {
-        if (round.skills && (round.skills.length || round.ended_at)) Object.assign(round, { skills_html: renderSkillLine({ picks: round.skills, round: round.run_id, words: {
+        if (round.skills?.length) Object.assign(round, { skills_html: renderSkillLine({ picks: round.skills, round: round.run_id, words: {
           used: ports.say("workbench.skill-picks.used"), auto: ports.say("workbench.skill-picks.auto"), named: ports.say("workbench.skill-picks.named"),
           none: ports.say("workbench.skill-picks.none"), choose: ports.say("workbench.skill-picks.choose") } }) });
       }

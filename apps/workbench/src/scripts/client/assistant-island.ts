@@ -1,11 +1,11 @@
-import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
+import { ASSISTANT_MAX_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { say as uiSay } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
-import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_WORK_STATE_TRAITS, type AssistantPendingReview, type AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantNoticeText, renderAssistantSavedText } from "../../assistant-text-html.js";
 import type { AssistantReviewDisplay } from "@molis-ai/molis-work-ui-host";
@@ -19,7 +19,7 @@ import { ASSISTANT_CONNECTION_PART } from "./assistant-connection.js";
 import { ASSISTANT_SIDE_KIT_PART } from "./assistant-side-kit.js";
 import { ASSISTANT_SIDE_PATH_PART } from "./assistant-side-path.js";
 import { ASSISTANT_STRIP_PART } from "./assistant-strip.js";
-import { ASSISTANT_TABS_PART } from "./assistant-tabs.js";
+import { ASSISTANT_HEAD_PART } from "./assistant-head.js";
 import { ASSISTANT_NOTICES_PART } from "./assistant-notices.js";
 import { ASSISTANT_MATERIALS_PART } from "./assistant-materials.js";
 import { ASSISTANT_COMPOSER_PART } from "./assistant-composer.js";
@@ -51,14 +51,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const compose = island.querySelector("[data-assistant-composer]");
   const input = compose?.querySelector(".mw-composer__input");
   const thread = island.querySelector("[data-assistant-thread]");
-  const empty = island.querySelector("[data-assistant-empty]");
+  const empty = island.querySelector("[data-assistant-empty]"), eventHint = island.querySelector("[data-assistant-event-hint]");
   const workNav = island.querySelector("[data-assistant-works]");
   const worksToggle = island.querySelector("[data-assistant-works-toggle]");
   const titleEl = island.querySelector("[data-assistant-work-title]");
   const stateEl = island.querySelector("[data-assistant-work-state]");
   const nowEl = island.querySelector("[data-assistant-now]");
   const metaEl = island.querySelector("[data-assistant-meta]");
-  const tabsEl = island.querySelector("[data-assistant-tabs]");
   const side = island.querySelector("[data-assistant-side]");
   const sideToggle = island.querySelector("[data-assistant-side-toggle]");
   const sideDot = island.querySelector("[data-assistant-side-dot]");
@@ -70,7 +69,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || keyless?.matches ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   const STATE_LABELS = { idle: "workbench.assistant-island.not-started", running: "workbench.assistant-island.progress", "waiting-input": "workbench.assistant-island.needs-answer", "waiting-review": "workbench.assistant-island.needs-approval", paused: "workbench.assistant-island.paused",
-    completed: "workbench.assistant-island.done", failed: "workbench.assistant-island.not-finished", stopped: "workbench.assistant-island.stopped", "needs-check": "workbench.assistant-island.needs-checking" };
+    completed: "workbench.assistant-island.done", failed: "workbench.assistant-island.not-finished", stopped: "workbench.assistant-island.stopped", "needs-check": "workbench.assistant-island.needs-checking",
+    unreadable: "workbench.assistant-island.unreadable" };
   const store = {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
@@ -104,72 +104,43 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const executorsLoaded = loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
-  const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
+  const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", unreadable: "unavailable", completed: "round-ended" })[state] || state;
+  const SUB_RING = { completed: "round-ended", "reconcile-required": "verify", cancelled: "stopped", "awaiting-input": "answer", "awaiting-review": "approval", compacting: "running", pausing: "paused" }; // a sub-agent's states the ring has no name for, as the ring's (one that waits for the person, in amber)
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
 ${ASSISTANT_PERMISSIONS_PART}
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
-  const setPanel = (open) => { if (!open) closeSubtask(); if (!presentation?.show(open) && panel) panel.hidden = !open; };
+  const setPanel = (open) => { if (!open) { closeSubtask(); presentation?.set(false); } if (panel) panel.hidden = !open; };
   /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
   const paintAim = (sync = true) => {
-    const work = getWork(); presentation?.syncWork(work);
+    const work = getWork();
     if (island.dataset.receiver === "page") { if (sync) syncComposer(); return; }
     input.readOnly = !!work?.reply_target;
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
-    input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : curEvent ? readText("workbench.assistant-island.about-this-event") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
-      : hint ? hint : searchKey() ? readText("workbench.assistant-island.ask-assistant-press-key-search", { key: searchKey() }) : readText("workbench.assistant-island.ask-assistant-do-something");
+    input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : curEvent ? eventPlaceholder() : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
+      : hint ? hint : readText("workbench.assistant-island.say-to-place", { name: project ? project.title || readText("workbench.assistant-island.project") : readText("workbench.assistant-island.personal") });
     if (sync) syncComposer();
   };
   keyless?.addEventListener?.("change", () => paintAim());
   const remember = () => store.set(scoped("current"), curId);
 
-  /* ─── Tabs: one per open work; which are open is this viewer's own convenience ─ */
-  const MAX_TABS = 6;
-  const savedTabs = () => { try { const saved = JSON.parse(store.get(scoped("tabs")) || "[]"); return Array.isArray(saved) ? saved.filter((id) => typeof id === "string" && id).slice(0, MAX_TABS) : []; } catch { return []; } };
-  let tabs = savedTabs();
-  const seenAt = new Map();
-  const saveTabs = () => store.set(scoped("tabs"), tabs.length ? JSON.stringify(tabs) : null);
-  let fresh = false; // A press on ＋ starts a separate work instead of the main conversation (mains() and the rest: assistant-tabs.ts).
-  // Events of the work line opened as tabs here, and the one in front (specs/work-line §4.4; the rest is in assistant-tabs.ts).
-  const WORK_KIND = "assistant_work";
+  let fresh = false; // 另起一件 starts a separate work instead of the main conversation (mains() and the rest: assistant-head.ts).
+  // Events opened here, and the one the conversation is about (specs/work-line §4.4; the rest is in assistant-head.ts).
+  const WORK_KIND = "assistant_work", MAX_EVENTS = 6;
   let eventTabs = [], curEvent = null;
-  // Words not yet sent with no work in front are kept per place: the event's tab, or a new work (WLN-13).
+  // Words not yet sent with no work in front are kept per place: the event, or a new work (WLN-13).
   const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : talkDraft ? "talk-draft:" + talkDraft : "new-draft");
-  // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
-  const openTab = (id) => {
-    if (!id) return;
-    seenAt.set(id, Date.now());
-    if (tabs.includes(id)) return;
-    tabs.push(id);
-    while (tabs.length > MAX_TABS) {
-      const closable = tabs.filter((one) => one !== id && one !== curId);
-      if (!closable.length) break;
-      const oldest = closable.reduce((a, b) => (seenAt.get(a) || 0) <= (seenAt.get(b) || 0) ? a : b);
-      tabs.splice(tabs.indexOf(oldest), 1);
-    }
-    saveTabs();
-  };
-  // Closing a tab only puts the work away: it stays in the list of works, and its notices still open it.
-  const closeTab = (id) => {
-    if (id.startsWith("event:")) return closeEvent(id.slice(6));
-    const at = tabs.indexOf(id);
-    if (at < 0) return;
-    tabs.splice(at, 1); saveTabs();
-    if (id === curId) void switchTo(tabs[at] || tabs[at - 1] || null);
-    else drawTabs();
-  };
 ${ASSISTANT_LAYOUT_PART}
 
-  const switchTo = async (id) => { const to = id || (fresh ? null : mainId()); if (to !== curId || curEvent) await showWork(to); else if (!id) drawTabs(); };
-  // \`about\`: the event whose tab this is. A work that is the conversation of an open event tab is shown in that tab.
+  const switchTo = async (id) => { const to = id || (fresh ? null : mainId()); if (to !== curId || curEvent) await showWork(to); else if (!id) drawHead(); };
+  // \`about\`: the event the conversation is about. A work that is the conversation about an opened event is shown as that event's.
   const showWork = async (id, about = null) => {
     if (id && !about) about = eventTabs.find((one) => aboutEvent(one.subject)?.work_id === id)?.key || null;
     if (id) fresh = false; else if (!fresh && !about) id = mainId();
     curEvent = about; curId = id; remember(); problem = null; view = null; pendingChar = undefined;
-    if (!about) openTab(id);
     if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > .assistant-problem").forEach((node) => node.remove());
     thread.querySelectorAll(":scope > [data-review]").forEach(removeReview);
@@ -184,7 +155,7 @@ ${ASSISTANT_CONNECTION_PART}
 ${ASSISTANT_CONVERSATION_PART}
   /* ─── The side pane: what this work is, how it got here, what it used and what it made ─ */
   const usageBox = island.querySelector("[data-assistant-usage]");
-  const WAITING = new Set(["waiting-input", "waiting-review", "needs-check"]);
+  const WAITING = new Set(${JSON.stringify(Object.entries(ASSISTANT_WORK_STATE_TRAITS).flatMap(([state, traits]) => traits.waits_on_person ? [state] : []))});
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
   const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? readText("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
@@ -290,16 +261,47 @@ ${ASSISTANT_SIDE_PATH_PART}
 
   /* What this work used (its sub-tasks with it) and the cap the person gave it; a sub-task shows its delegating work's. */
   const renderUsage = (work) => usagePane.paint(work);
-  // Raising a work's cap is done in its usage box: the side pane opens on it.
+  // Raising a work's cap is done in its usage box, among the work's details.
   const openUsage = () => {
-    if (spacious()) store.set(SIDE_KEY, null); else drawerOpen = true;
-    paintLayout();
+    setDetails(true);
     const details = usageBox?.querySelector("details");
     if (details) details.open = true;
     usageBox?.querySelector("input")?.focus();
   };
 
 ${ASSISTANT_STRIP_PART}
+  // 上下文, the last card of 信息: who the words go to, how it works, what the next words carry, where the work is kept.
+  // Read from what the input is set to; a row with nothing to say is left out.
+  const contextCard = island.querySelector("[data-info-context]");
+  function eventPlaceholder() {
+    const about = eventOf(), live = about ? host.lineEvent?.(about.subject) : null, name = live?.title || about?.title || "";
+    return readText(live?.group === "you" ? "workbench.assistant-island.reply-to-event" : live?.group === "now" ? "workbench.assistant-island.add-to-event" : "workbench.assistant-island.say-to-event", { name });
+  }
+  function paintContext(work) { if (!contextCard) return;
+    const offer = modeOffer(), mode = offer && offer.modes.length ? modeRows(offer).find((row) => row.id === ((work ? work.executor.mode : nextMode) || offer.default_mode)) : null;
+    const leave = island.querySelector("[data-assistant-permission-summary]");
+    const who = work ? (work.executor.kind === "plugin" ? work.executor.title : work.character?.title || readText("workbench.common.assistant"))
+      : nextExec !== "assistant" ? executorChoices().find((one) => one.id === nextExec)?.label || "" : nextChar?.title || readText("workbench.common.assistant");
+    const carried = stripPending().map((one) => one.title || one.name || "").filter(Boolean);
+    const place = work ? scopeLabel(work.scope, work.scope_title) : nextExec === "assistant" && nextScope === "personal" ? readText("workbench.assistant-island.personal") : project ? project.title || readText("workbench.assistant-island.project") : readText("workbench.assistant-island.personal");
+    const values = { who, way: mode ? mode.label : leave && !leave.hidden ? leave.textContent.trim() : "", carry: carried.length ? carried.join(readText("workbench.work-line.list-sep")) : readText("workbench.work-line.context-carry-none"), place };
+    for (const row of contextCard.querySelectorAll("[data-context-row]")) {
+      const value = values[row.dataset.contextRow] || "", cell = row.querySelector("[data-context-value]");
+      row.hidden = !value; if (cell.textContent !== value) { cell.textContent = value; cell.title = value; }
+    }
+  }
+  // 「⋯ › 详情」: everything else known about the work (its path, what was agreed, where it runs, what it used) and the
+  // choices of a new one take the information column's place; the back key, or Esc, returns to what the column showed.
+  const detailsPane = island.querySelector("[data-info-details]"), infoColumn = island.querySelector("[data-assistant-side]");
+  const setDetails = (open, back) => { if (!detailsPane) return;
+    if (open && !spacious() && !drawerOpen) { drawerOpen = true; paintLayout(); } // a phone's width: asking for the details asks for the column
+    if (detailsPane.hidden === !open) return; detailsPane.hidden = !open; infoColumn?.toggleAttribute("data-details", open);
+    if (open) { setPanel(true); detailsPane.querySelector("[data-info-details-close]")?.focus(); } else if (back) island.querySelector("[data-assistant-more]")?.focus();
+  };
+  island.querySelector("[data-info-details-open]")?.addEventListener("click", () => setDetails(true)); detailsPane?.querySelector("[data-info-details-close]")?.addEventListener("click", () => setDetails(false, true));
+  detailsPane?.addEventListener("keydown", (event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); setDetails(false, true); } });
+  // The column was asked for something else (a tab, a list's key in the input, an event opened): the details give way.
+  if (infoColumn && "MutationObserver" in window) new MutationObserver(() => setDetails(false)).observe(infoColumn, { attributes: true, attributeFilter: ["data-info"] });
   const metaRow = (label, ...content) => { const term = el("dt", "", label), detail = el("dd"); detail.append(...content); return [term, detail]; };
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
@@ -319,7 +321,7 @@ ${ASSISTANT_STRIP_PART}
     /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
     const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
     controls("stop").forEach((btnEl) => { btnEl.hidden = btnEl.hasAttribute("data-keep-connections") ? state !== "waiting-input" || work.executor.kind !== "assistant" : !isLive(state) && !liveChildren; });
-    paintStrip();
+    paintStrip(); paintContext(work);
     if (!metaEl) return;
     const signature = JSON.stringify([work?.work_id, work?.executor, work?.scope, work && isLive(work.state), roleButtonLabel(),
       nextExec, nextScope, nextMode, executors, executorSession(nextExec)]);
@@ -383,7 +385,7 @@ ${ASSISTANT_STRIP_PART}
     sideDot.hidden = !look;
   };
 
-${ASSISTANT_TABS_PART}
+${ASSISTANT_HEAD_PART}
   const objectSurface = el("div", "assistant-conversation-objects"); objectSurface.dataset.assistantObjectSurface = "";
   let surfaceWork = null, conversationObjects = null, conversationRevision = "";
   const conversationSurface = (work, rounds, put) => {
@@ -402,6 +404,18 @@ ${ASSISTANT_TABS_PART}
     if (signature !== conversationRevision) { conversationRevision = signature; void conversationObjects.update(); }
     else void conversationObjects.update(false);
   };
+  // A main conversation here that waits for the person (a confirmation, a question) while it is not what they are looking at.
+  const waitingMain = () => mains().find((work) => (work.state === "waiting-input" || work.state === "waiting-review") && !(panel && !panel.hidden && !curEvent && curId === work.work_id)) || null;
+  // A reply that came while the conversation was closed is said once, by a dot on the key that opens it (§4「底栏第十三版」第 3 条).
+  // (\`work\` is the work in front once its conversation is read: what it already held when first read is not news — unless
+  // the person's own Send made that work, \`askedIn\`: its answer may be there by the first read, and it is the news.)
+  let lastReply = { work: null, reply: "" }, askedIn = null;
+  const heardReply = (work) => {
+    const replies = thread.querySelectorAll(":scope > [data-round] > .assistant-msg--assistant[data-reply-id]"), last = replies[replies.length - 1];
+    const reply = last && String(last.dataset.text || "").trim() ? last.dataset.replyId : "", at = work ? work.work_id : null;
+    if (at !== lastReply.work) { const asked = Boolean(at) && askedIn === at; lastReply = { work: at, reply: asked ? "" : reply }; if (!asked) { if (at) askedIn = null; return; } }
+    if (reply && reply !== lastReply.reply) { lastReply.reply = reply; askedIn = null; if (panel && panel.hidden) host.lineConversation?.({ unread: true }); }
+  };
   const render = () => {
     const before = nearBottom() ? null : thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
@@ -418,14 +432,17 @@ ${ASSISTANT_TABS_PART}
       else memoryButton.removeAttribute("href");
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
-    if (empty) empty.hidden = Boolean(curId || curEvent);
+    if (empty) { empty.hidden = Boolean(curId || curEvent); empty.textContent = readText("workbench.assistant-dock.empty-line", { name: project ? project.title || readText("workbench.assistant-island.project") : readText("workbench.assistant-island.personal") }); }
     paintEmpty(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
     const rounds = work ? view.rounds : [];
     if (work) announceEffects(work, rounds);
     [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });
     const put = placer(thread);
-    eventSurface(put);
+    eventSurface();
     if (empty) put(empty);
+    // An event in front with nothing said about it yet: one quiet line says whose conversation this is.
+    const unsaid = curEvent && !curId ? eventOf() : null;
+    if (eventHint) { eventHint.hidden = !unsaid; if (unsaid) eventHint.textContent = readText("workbench.work-line.say-about-event", { name: unsaid.title }); put(eventHint); }
     const fromPages = work ? (view.cards || []).filter((card) => card.status !== "dismissed" && pageCard(card)) : [];
     [...thread.children].forEach((node) => { if (node.dataset.card && !fromPages.some((card) => card.card_id === node.dataset.card)) node.remove(); });
     let placed = 0;
@@ -493,7 +510,7 @@ ${ASSISTANT_TABS_PART}
       }
       thread.append(box);
     }
-    paintSum(); paintAim(); paintList(); drawTabs(); paintSideDot(work);
+    paintSum(); paintAim(); paintList(); drawHead(); paintSideDot(work); heardReply(work);
     if (before === null) scrollOwner()?.pin(); else if (thread.scrollHeight > before + 4) unseen = true;
     paintJump();
   };
@@ -520,12 +537,12 @@ ${ASSISTANT_TABS_PART}
         const mark = markOf(work);
         if (mark) item.dataset.mark = mark;
         if (work.work_id === curId) item.setAttribute("aria-current", "true");
-        const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title) + (tabs.includes(work.work_id) ? " · " + readText("workbench.assistant-island.open-2") : ""));
+        const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title));
         meta.dataset.state = work.state; meta.dataset.mwState = ringState(work.state);
         const head = el("span", "assistant-works-head");
         head.append(tabMark(mark, work), el("span", "assistant-works-title", work.title));
         item.append(head, meta);
-        item.addEventListener("click", () => { setWorks(false); switchTo(work.work_id); });
+        item.addEventListener("click", () => { setWorks(false); askAssistant(); switchTo(work.work_id); });
         workNav.append(item);
       });
     });
@@ -563,18 +580,14 @@ ${ASSISTANT_TABS_PART}
       if (was && was !== states(works)) document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // With no work in front the main conversation is: shown as soon as the list says there is one.
-      // An event's tab takes the conversation about it once there is one (said elsewhere), unless words are being written here.
+      // An event in front takes the conversation about it once there is one (said elsewhere), unless words are being written here.
       const about = !curId && curEvent && !String(input.value || "").trim() ? aboutEvent(eventOf().subject) : null;
       if (about) { curId = about.work_id; remember(); queueMicrotask(() => { if (curId === about.work_id && !view) reload().then(poll); }); }
       // Not while words written before it existed wait here, or a Send of them is unconfirmed (its first Send is what opened it): they
       // stay with what they were written for until sent or checked, and the reply then brings the main conversation in front.
       const held = String(input.value || "").trim() || store.get(newDraftKey()) || store.get(scoped("unsent") + ":new");
       if (!curId && !fresh && !curEvent && !held) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
-      // A tab whose work is gone closes; the work in front always has one.
-      const kept = tabs.filter((id) => works.some((work) => work.work_id === id));
-      if (kept.length !== tabs.length) { tabs = kept; saveTabs(); }
-      if (!curEvent) openTab(curId);
-      paintList(); paintAim(); paintSum(); drawTabs();
+      paintList(); paintAim(); paintSum(); drawHead();
     } catch { /* the list stays as it was; the next refresh retries */ }
   };
 
@@ -628,7 +641,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     void loadExecutors();
   };
   document.addEventListener("molis-work:language-changed", retitleReviews);
-  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});
+  presentation = (${ASSISTANT_MAX_FACTORY})({island,panel});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
   island.querySelector("[data-assistant-memory]")?.addEventListener("click", (event) => {
@@ -690,10 +703,10 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   if (panel && "MutationObserver" in window) new MutationObserver(() => {
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
-    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
-    else { void conversationObjects?.update(false); cardHandle?.update(); drawTabs(); paintJump(); }
+    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); setDetails(false); restIfStale(); }
+    else { void conversationObjects?.update(false); cardHandle?.update(); drawHead(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
-  // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
+  // The list of works is a dropdown under the conversation's head: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
     if (workNav && !workNav.hidden && event.target?.nodeType === 1 && !workNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);
   });
@@ -701,13 +714,17 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   // The pill names what the page on show would bring, so it follows the page: another object, another surface.
   let materialsFrame = 0;
   const repaintMaterials = () => { if (!materialsFrame) materialsFrame = requestAnimationFrame(() => { materialsFrame = 0; paintMats(); }); };
+  document.addEventListener("molis-work:place-changed", repaintMaterials);
   if ("MutationObserver" in window) {
-    const watcher = new MutationObserver((records) => { if (records.some((record) => !island.contains(record.target))) repaintMaterials(); });
-    watcher.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden"] });
-    watchers.push(watcher);
+    const targets = [document.querySelector("[data-tab-panes]"), document.getElementById("side-panel"), document.querySelector(".chooser")].filter(Boolean);
+    for (const target of targets) {
+      const watcher = new MutationObserver((records) => { if (records.some((record) => !island.contains(record.target))) repaintMaterials(); });
+      watcher.observe(target, { subtree: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden"] });
+      watchers.push(watcher);
+    }
   }
 
-  openTab(curId); render(); paintLayout(); repaintMaterials();
+  render(); paintLayout(); repaintMaterials();
   // A work's own draft is known once the list arrives (the composer puts it back only into an empty box).
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
   loadWorks().then(() => { worksArrived(); restIfStale(); if (curId) return reload().then(poll); }).finally(() => { worksArrived(); announcing = true; });
@@ -716,19 +733,36 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     fill: (text) => { setWords(text); input.focus(); },
     /** Search's 问助理: the words go now, to where the next Send goes. */
     ask: (text) => say(text, {}),
-    /** The work line's press on an event: its tab in the dialog, opened and in front (specs/work-line §4.4). */
+    /** A press on an event: the conversation about it, opened and in front (specs/work-line §4.4). */
     openEvent,
-    /** The dialog put away or brought back with its tabs as they were: the requirement column takes its place while open. */
+    /** The conversation put away or brought back as it was: the requirement column takes its place while open. */
     dialog: (open) => setPanel(open),
-    /** The card of this event went to the side panel: its tab is put away and the dialog closes (WLN-14). */
-    parked: (subject) => { if (subject.kind === WORK_KIND) closeTab(subject.id); else closeEvent(eventKey(subject)); setPanel(false); },
+    /** What is known about this event went to the side panel: the conversation goes back to now and closes (WLN-14). */
+    parked: (subject) => { if (subject.kind === WORK_KIND) { if (curId === subject.id) void switchTo(null); } else closeEvent(eventKey(subject)); setPanel(false); },
+    /** A main conversation of this place waits for the person's confirmation and is not the one in front: what it asks, in one line. */
+    mainWaiting: () => { const main = waitingMain(); return main ? { ask: view && view.work.work_id === main.work_id ? nowLine(main) || stateLabel(main.state) : stateLabel(main.state) } : null; },
+    /** The objects that want a look (the page's attention read), and their list opened over the key that asked. */
+    attention: () => attentionSubjects,
+    openAttention: (from, only) => { lookOnly = new Set((only || []).map(one => one.kind + ":" + one.id)); setNotices(true, "objects", from); },
+    /** That conversation, opened and in front. */
+    openMain: () => { const main = waitingMain() || mains()[0]; askAssistant(); setPanel(true); fresh = false; return switchTo(main ? main.work_id : null); },
+    /** The steps given to sub-agents that this page knows of: the works another work handed out, and the sub-agents of the work in front. */
+    subtasks: () => {
+      const sdk = view && view.work.work_id === curId && view.sdk_subtasks && view.sdk_subtasks.children || [];
+      return works.filter((work) => work.delegated_by && !work.delegated_by.taken_back_at && !work.archived).map((work) => ({ parent: { kind: WORK_KIND, id: work.delegated_by.work_id }, subject: { kind: WORK_KIND, id: work.work_id },
+        key: JSON.stringify([work.work_id]), title: work.title, ring: ringState(work.state), step: stateLabel(work.state) }))
+        .concat(sdk.map((child) => ({ parent: { kind: WORK_KIND, id: curId }, key: JSON.stringify([curId, child.parent_run.run_id, child.subagent_id]), title: child.role_name || child.role_id,
+          ring: SUB_RING[child.state] || child.state,
+          step: globalThis.t.text("workbench.subtask-conversation.phase." + (child.state === "cancelled" ? "stopped" : child.state)) })));
+    },
+    openSubtask: (key) => { try { const [work, run, child] = JSON.parse(key); if (typeof work === "string") void openSubtask(work, run, child); } catch { /* not a key of this page */ } },
     /** Back to now (Esc on the line): the main conversation in front, the caret in the input. */
-    toNow: () => { fresh = false; void switchTo(null).then(() => input.focus()); },
+    toNow: (quiet) => { fresh = false; void switchTo(null).then(() => { if (!quiet) input.focus(); }); },
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => {
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
-      closeSubtask(); project = chosen; tabs = savedTabs(); eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
+      closeSubtask(); project = chosen; eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
     dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };

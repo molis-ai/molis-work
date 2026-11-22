@@ -1,5 +1,5 @@
-/* Plugin studio main path prototype. Builds on ../workbench-shared-paths/styles.css and the decided form styles in
-   ../intelligent-surfaces-forms/forms.css. Not production CSS. */
+/* Plugin studio main path prototype. Builds on ../archive/workbench-shared-paths/styles.css and the decided form styles in
+   ../archive/intelligent-surfaces-forms/forms.css. Not production CSS. */
 .shell{position:fixed;inset:40px 0 0 0;padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px}
 .studio{flex:1;min-height:0;background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);display:flex;flex-direction:column;overflow:hidden;position:relative}
 .shead{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px 0 16px;border-bottom:1px solid var(--line);flex:none}

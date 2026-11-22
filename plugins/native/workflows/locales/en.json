@@ -7,6 +7,7 @@
     "workflows.action.last-failed": "Last run of “{action}” failed: {error}",
     "workflows.action.last-unconfirmed": "Last run of “{action}” was never confirmed",
     "workflows.action.run-again": "Run again",
+    "workflows.ai.model-cost-note": "Uses your connected text model to organize the content; billed by the provider.",
     "workflows.ai.placeholder": "e.g. A one-page brief with background, key points and open questions; keep the original link.",
     "workflows.ai.target": "What to organise it into",
     "workflows.chain.heading": "Order and handoffs",
@@ -87,15 +88,16 @@
     "workflows.judgment.unavailable": "Unavailable",
     "workflows.judgment.unreadable": "This rule’s results can’t be read right now; your earlier choices are kept.",
     "workflows.judgment.write": "Write a judgment rule",
-    "workflows.kind.ai-help": "AI reads the previous result and organises it for the next step. What it produced stays in this run’s record.",
-    "workflows.kind.function": "Template transform",
-    "workflows.kind.function-help": "Turns the previous result into what the next step can use, by a fixed rule, without asking anyone.",
-    "workflows.kind.judgment": "Judgment rule",
-    "workflows.kind.judgment-help": "A published judgment rule checks this step’s content: only the ticked results pass it unchanged to the next station; otherwise this run stops here and records the judgment.",
-    "workflows.kind.manual": "Manual",
-    "workflows.kind.manual-help": "A person reviews this step and decides whether and what to hand over.",
+    "workflows.kind.ai": "Let AI organize",
+    "workflows.kind.ai-help": "AI reads the previous result and organizes it for the next step. What it produced stays in this run’s record.",
+    "workflows.kind.function": "Pass through",
+    "workflows.kind.function-help": "Passes the previous title and body directly to the next step without pausing; open custom formatting only if needed.",
+    "workflows.kind.judgment": "Filter by rule",
+    "workflows.kind.judgment-help": "A published judgment rule checks this step’s content: only matching results pass unchanged to the next station; otherwise this run pauses and explains why.",
+    "workflows.kind.manual": "I decide",
+    "workflows.kind.manual-help": "The run pauses so you can read, edit the title and body, and decide whether to hand it over.",
     "workflows.link.connected": "Connected",
-    "workflows.link.heading": "This handoff",
+    "workflows.link.heading": "How should this pass to the next step?",
     "workflows.link.not-connected": "Not connected",
     "workflows.link.not-connected-reason": "Not connected:",
     "workflows.link.open-model-settings": "Open model settings",
@@ -143,6 +145,8 @@
     "workflows.return.back": "Back to “{title}”",
     "workflows.rule.body": "Body rule",
     "workflows.rule.body-placeholder": "e.g. Source: {source}\nLink: {link}\n\n{body}",
+    "workflows.rule.customize": "Customize handoff format (advanced)",
+    "workflows.rule.direct-summary": "Passes the previous title and body directly to the next step — no template syntax needed.",
     "workflows.rule.insert": "Insert",
     "workflows.rule.insert-into-body": "Insert into the body rule",
     "workflows.rule.title": "Title rule",
@@ -229,8 +233,8 @@
     "workflows.toast.back-to-manual": {
       "plural_arg": "count",
       "forms": {
-        "one": "{count} handoff went back to manual",
-        "other": "{count} handoffs went back to manual"
+        "one": "{count} handoff reset to pass through",
+        "other": "{count} handoffs reset to pass through"
       }
     },
     "workflows.toast.handed-to": "Handed to {next}",
@@ -247,6 +251,13 @@
     "workflows.verdict.no-result": "Result “None”",
     "workflows.verdict.result": "Result “{choice}”",
     "workflows.agent-prompt.workflows-ai-handoff.title": "AI handoff",
-    "workflows.agent-prompt.workflows-ai-handoff.purpose": "Organize the previous step’s result into content the next step can use, following this handoff’s requirements"
+    "workflows.agent-prompt.workflows-ai-handoff.purpose": "Organize the previous step’s result into content the next step can use, following this handoff’s requirements",
+    "workflows.help.title": "Workflows",
+    "workflows.help.what": "Chains plugins into a repeatable sequence and lets you choose how each step’s result passes to the next, keeping every run isolated.",
+    "workflows.help.example-1": "Start from a Feed item and pass it straight through or let AI organize it into a Pages brief",
+    "workflows.help.example-2": "Set a critical step to “I decide” so you review and edit before handing it over",
+    "workflows.help.scope": "Default pass-through runs purely locally with zero model cost; model or judgment services are called only when you select “Let AI organize” or “Filter by rule”.",
+    "workflows.help.advanced-summary": "Custom templates, edits, and stopping runs",
+    "workflows.help.advanced": "Expand “Customize handoff format (advanced)” to combine title, source, or date; ending a run keeps everything already delivered to earlier plugins."
   }
 }

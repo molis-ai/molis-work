@@ -1,6 +1,6 @@
 # 插件同等地位收口：Goals 减负与去特权（Plugin Equal Standing）
 
-状态：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
+状态：合后整改另有 [#2187](https://github.com/molis-ai/molis-work/pull/2187)、[#2192](https://github.com/molis-ai/molis-work/pull/2192)，四项转为 Backlog（BL-b44-shell-goals-state、BL-b44-coding-scene-enum、BL-b44-feed-home-dir-and-styles、BL-b44-information-plan-to-feed），外壳的 Goals 与 Feed/Inbox 点名未完成；PEQ-11 待一骏本人实物验收（2026-11-21 三天复核补记）。此前：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
@@ -365,7 +365,7 @@
 | 2026-11-13 | 复查：12-2「采用后接 Coding」怎么接（弹窗） | 声明提前到 12-2（推荐）；先写死登记例外；推迟到 44 之后 | 声明提前到 12-2 | 「可承接上手材料」声明最小形式随 12-2 先落，片 1／片 7 只迁 Todo、Pages |
 | 2026-11-13 | 复查：Coding 的命令行入口放哪（弹窗） | 插件声明命令（推荐）；只给通用调用动作入口；平台 CLI 留 coding run 作例外 | 插件声明命令 | 84-1 先落「插件在 Manifest 声明命令、CLI 按已装插件生成子命令」，CLI 不写 Coding |
 | 2026-11-13 | 复查：审查合同稿谁先写（弹窗） | 32-2 先写共用合同稿（推荐）；拆一个设计小片提前 | 32-2 先写 | 32-2 开工前把审查合同写进授权需求书，39-1 沿用并补全 |
-| 2026-11-17 | 第 44 批定样：新项目首屏（弹窗，[定样](../../docs/design/project-without-goals/README.md)） | A 一个入口（推荐）；B 加起步组合；C 落到首个插件 | A 一个入口 | PEQ-07 改为无历史时进「项目首页」；片 5 |
+| 2026-11-17 | 第 44 批定样：新项目首屏（弹窗，[定样](../../docs/design/archive/project-without-goals/README.md)） | A 一个入口（推荐）；B 加起步组合；C 落到首个插件 | A 一个入口 | PEQ-07 改为无历史时进「项目首页」；片 5 |
 | 2026-11-17 | 第 44 批定样：移除与加回（弹窗） | A 就地再点一次（推荐）；B 确认气泡 | A 就地再点一次 | 沿用通用的再点一次，文案按插件通用写；移除后格子标「数据已保留」、提示可撤销；片 5、PEQ-02、PEQ-11 |
 | 2026-11-17 | 存量搬迁（弹窗，[CONTRACT-CHANGES「第 44 批存量搬迁」](../../docs/system/CONTRACT-CHANGES.md)） | 指导 A；要求认可 B1 全搬（推荐）／B2 只搬定义／B3 不搬；goal-advance 收据 C | 指导 A；要求认可 B1；收据 C | 片 2、片 9、第 7 项按草案实现；B1 的同步前提开工时定 |
 | 2026-11-17 | 门禁（弹窗） | PEQ-03「平台目录不 import 插件包」新门禁；已改的 CLI 边界与管理接线两处门禁脚本 | 都同意 | 片 5 加门禁；两处脚本改动随本批 PR |

@@ -40,13 +40,20 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   document.addEventListener("keydown", returnFocus, true);
   scope.own(() => document.removeEventListener("keydown", returnFocus, true));
   scope.listen(window, "molis:assistant-context-action-chosen", event => {
-    const value = (event as CustomEvent<ContextActionChosen>).detail;
+    const value = (event as CustomEvent<ContextActionChosen & { _surface?: Element }>).detail;
+    if (value?._surface && value._surface !== root) return;
     if (value?.plugin_id !== pluginId || !scope.visible || value.handled || typeof value.prepare !== "function") return;
+    if (!value._surface && value.object?.id) {
+      try {
+        const own = JSON.parse(root.getAttribute("data-assistant-context") || "null") as { object?: { id?: string } } | null;
+        if (own?.object?.id && own.object.id !== value.object.id) return;
+      } catch { /* Ignore unreadable assistant context while matching target object. */ }
+    }
     chosen?.reply(false);
     let reply!: (taken: boolean) => void;
     value.handled = new Promise<boolean>(resolve => { reply = resolve; });
     chosen = { id: crypto.randomUUID(), value, reply, pending: {} };
-    const { prepare: _prepare, run: _run, handled: _handled, ...plain } = value;
+    const { prepare: _prepare, run: _run, handled: _handled, _surface: _target, ...plain } = value;
     send({ type: "context-choice", choice: chosen.id, value: plain, runnable: typeof value.run === "function" });
   });
   scope.listen(root, "molis:context-tool-invoke", event => send({ type: "context-tool", value: (event as CustomEvent).detail }));
@@ -56,7 +63,11 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   return async (message: ContextUp): Promise<void> => {
     if (!scope.alive) return;
     if (message.type === "context-key") {
-      if (scope.visible) document.dispatchEvent(new KeyboardEvent("keydown", {key: ".", ctrlKey: true, bubbles: true}));
+      if (scope.visible) {
+        const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+        const mac = typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0 ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: ".", code: "Period", metaKey: mac, ctrlKey: !mac, bubbles: true, cancelable: true }));
+      }
       return;
     }
     if (message.type === "context-unreadable") {

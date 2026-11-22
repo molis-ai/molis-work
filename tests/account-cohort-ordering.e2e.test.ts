@@ -36,7 +36,11 @@ for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed sta
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice' && window.cohortOrdering.events");
+  // The side panel's view is still mounting after the page shows; one that closes mid-switch cancels the preparation ("View closed").
+  await waitFor("document.querySelector('iframe[data-side-frame][data-loaded]')?.contentDocument?.querySelector('[data-plugin-page][data-ui-client-state=ready]')");
   await click('.bar-account [data-account-link]');
+  // Opening the menu refreshes the account and keeps its buttons disabled meanwhile; a press on a disabled button is dropped.
+  await waitFor("(b => b && !b.hidden && !b.disabled)(document.querySelector('#mw-account-menu:not([hidden]) [data-personal-action=switch]'))");
   await click('[data-personal-action=switch]');
   await waitFor("window.cohortOrdering.acks.includes('old-preparation')");
   await evaluate(`{
@@ -78,6 +82,8 @@ test('ASR-04 a current start failure still reports its original error and does n
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice'");
   await click('.bar-account [data-account-link]');
+  // Opening the menu refreshes the account and keeps its buttons disabled meanwhile; a press on a disabled button is dropped.
+  await waitFor("(b => b && !b.hidden && !b.disabled)(document.querySelector('#mw-account-menu:not([hidden]) [data-personal-action=switch]'))");
   await click('[data-personal-action=switch]');
   // The existing request owner turns a failed POST delivery into this outcome-unknown error; begin must propagate it unchanged.
   await waitFor("document.querySelector('#mw-account-menu [role=alert]')?.textContent==='不知道这次操作有没有完成，请刷新后核对' && !document.querySelector('[data-personal-action=switch]').disabled");

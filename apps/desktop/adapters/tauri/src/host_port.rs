@@ -9,7 +9,7 @@
 //! pages it loads (`runtime-capabilities/`, granted at start for that port), use it; a Host on any
 //! other port or origin gets nothing (S-14).
 use serde::Deserialize;
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{Ipv6Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
@@ -29,7 +29,7 @@ pub(crate) fn port() -> u16 {
 pub(crate) fn set_port(port: u16) {
     let previous = PORT.swap(port, Ordering::AcqRel);
     if previous != port {
-        crate::web_identity::invalidate_health_lease();
+        crate::web_identity::clear_verified_process_id();
     }
 }
 
@@ -79,21 +79,21 @@ fn endpoint_port_of(text: &[u8]) -> Option<u16> {
     u16::try_from(endpoint.port).ok().filter(|port| *port > 0)
 }
 
-/// Something listens on this port, whoever it is.
+/// Something listens on this port on IPv4 or IPv6 loopback (including wildcard `0.0.0.0`/`[::]`), whoever it is.
 pub(crate) fn occupied(port: u16) -> bool {
-    TcpStream::connect_timeout(
-        &SocketAddr::from(([127, 0, 0, 1], port)),
-        Duration::from_millis(250),
-    )
-    .is_ok()
+    let timeout = Duration::from_millis(250);
+    TcpStream::connect_timeout(&SocketAddr::from(([127, 0, 0, 1], port)), timeout).is_ok()
+        || TcpStream::connect_timeout(&SocketAddr::from((Ipv6Addr::LOCALHOST, port)), timeout)
+            .is_ok()
 }
 
-/// A port of 4174–4199 that nothing listens on, for a Host this desktop starts while 4173 is
-/// another program's.
+/// A port of 4174–4199 that nothing listens on (checked via dual-stack connect probe + IPv4 bind so
+/// macOS wildcard `0.0.0.0`/`[::]` listeners are skipped), for a Host this desktop starts while 4173
+/// is another program's.
 pub(crate) fn spare_port() -> Option<u16> {
     SPARE_PORTS
         .clone()
-        .find(|port| TcpListener::bind(("127.0.0.1", *port)).is_ok())
+        .find(|port| !occupied(*port) && TcpListener::bind(("127.0.0.1", *port)).is_ok())
 }
 
 /// The shell's IPC grants. They are the files in `runtime-capabilities/`, with the proved port put
@@ -175,5 +175,20 @@ mod tests {
         ] {
             assert!(!is_origin(&Url::parse(other).unwrap(), 4190), "{other}");
         }
+    }
+
+    #[test]
+    fn res07_occupied_detects_ipv4_wildcard_and_ipv6_loopback_listeners() {
+        let ipv4 = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        assert!(occupied(ipv4.local_addr().unwrap().port()));
+        let wildcard = TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        assert!(occupied(wildcard.local_addr().unwrap().port()));
+        if let Ok(ipv6) = TcpListener::bind((Ipv6Addr::LOCALHOST, 0)) {
+            assert!(occupied(ipv6.local_addr().unwrap().port()));
+        }
+        let ephemeral = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let free_port = ephemeral.local_addr().unwrap().port();
+        drop(ephemeral);
+        assert!(!occupied(free_port));
     }
 }

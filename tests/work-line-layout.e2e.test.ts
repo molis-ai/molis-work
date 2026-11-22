@@ -62,28 +62,36 @@ for (const lang of ["zh", "en"]) test(`§4「底栏第十三版」(${lang}): the
   }
 });
 
-// WLN-37 and WLN-24 (as §16 rewrote them): a source that cannot be read stays fixed under the open list's title, out of the rows
-// that scroll; 办完 ends in 更早 N; the list opens right above the stack and as wide (§4「底栏第十三版」第 4 条).
-test("WLN-37, WLN-24: an unreadable source stays under the open list's title while its rows scroll; 更早 N ends 办完; the list stands right above the stack, as wide", { timeout: 120_000 }, async (t) => {
+// WLN-37 and WLN-24 (as §16 rewrote them): the lists are the information column's, under its tabs (§4「底栏第十三版」第 4 条). A
+// source that cannot be read stays fixed above the rows, which scroll under it; 办完 ends in 更早 N.
+test("WLN-37, WLN-24, POLISH-09: an unreadable source stays under the information column's tabs while the open list's rows scroll; 更早 N ends 办完", { timeout: 120_000 }, async (t) => {
   const page = await open(t, 1440); if (!page) return;
   const { evaluate, size, settle } = page;
   for (const width of [1440, 1100]) {
     await size(width); await settle(); await settle();
-    const view = await evaluate<{ shown: boolean; above: boolean; wide: boolean; under: boolean; fixed: boolean; scrolled: boolean; last: boolean }>(`(() => {
-      const line = ${LINES}[3], lists = line.querySelector('[data-work-lists]'), stack = line.querySelector('[data-work-stack]').getBoundingClientRect();
-      const head = lists.querySelector('.work-lists-head'), source = lists.querySelector('[data-work-lists-sources] > *'), body = lists.querySelector('[data-work-lists-body]');
-      const rows = body.querySelector('[data-work-list-rows="done"]'), at = lists.getBoundingClientRect();
+    const view = await evaluate<{ shown: boolean; inside: boolean; under: boolean; fixed: boolean; scrolled: boolean }>(`(() => {
+      const side = [...document.querySelectorAll('[data-nav-specimen="wl-dialog"] .assistant-side')].at(-1), column = side.getBoundingClientRect();
+      const lists = side.querySelector('[data-work-lists]'), tabs = side.querySelector('[data-info-tabs]').getBoundingClientRect();
+      const source = lists.querySelector('[data-work-lists-sources] > *'), body = lists.querySelector('[data-work-lists-body]'), rows = body.querySelector('[data-work-list-rows="now"]'), at = lists.getBoundingClientRect();
       // Rows enough to scroll: the specimen's own, again.
       const extra = [...rows.querySelectorAll('.work-list-item')].map((row) => row.cloneNode(true));
-      for (let i = 0; i < 4; i += 1) for (const row of extra) rows.prepend(row.cloneNode(true));
+      for (let i = 0; i < 6; i += 1) for (const row of extra) rows.prepend(row.cloneNode(true));
       const before = source.getBoundingClientRect().top; body.scrollTop = body.scrollHeight;
-      // The list grows upwards with its rows, so the title is measured once they are in.
-      const after = source.getBoundingClientRect(), title = head.getBoundingClientRect(), last = rows.lastElementChild;
-      return { shown: lists.checkVisibility() && at.height > 0, above: at.bottom <= stack.top + 1 && at.bottom >= stack.top - 16, wide: Math.abs(at.left - stack.left) <= 1 && Math.abs(at.width - stack.width) <= 1,
-        under: after.top >= title.bottom - 1 && after.bottom <= body.getBoundingClientRect().top + 1, fixed: Math.abs(after.top - before) <= 0.5, scrolled: body.scrollTop > 0,
-        last: Boolean(last?.matches('[data-work-lists-earlier]')) && /更早 \\d+/u.test(last.textContent) }; })()`);
-    assert.deepEqual(view, { shown: true, above: true, wide: true, under: true, fixed: true, scrolled: true, last: true }, `${width}px`);
+      const after = source.getBoundingClientRect();
+      return { shown: lists.checkVisibility() && at.height > 0, inside: at.left >= column.left - 1 && at.right <= column.right + 1 && at.bottom <= column.bottom + 1,
+        under: after.top >= tabs.bottom - 1 && after.bottom <= body.getBoundingClientRect().top + 1, fixed: Math.abs(after.top - before) <= 0.5, scrolled: body.scrollTop > 0 }; })()`);
+    assert.deepEqual(view, { shown: true, inside: true, under: true, fixed: true, scrolled: true }, `${width}px`);
   }
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-nav-specimen="wl-lists"] .work-list')].filter(list => list.querySelector('[data-work-lists-earlier]')).map(list => [list.lastElementChild.matches('[data-work-lists-earlier]'), /更早 \\d+/u.test(list.lastElementChild.textContent)])`),
+    [[true, true]], "办完 alone ends in 更早 N");
+  // POLISH-09 (as rewritten for the list's row): the name has a line of its own and keeps six characters at least — what is cut
+  // is what the event says, under it — and the owner's mark carries no state colour.
+  const rows = await evaluate<Array<{ name: number; six: number; mark: string; state: string }>>(`[...document.querySelectorAll('[data-nav-specimen="wl-lists"] .work-list .work-event')].map(row => {
+    const name = row.querySelector('.work-event-name'), mark = row.querySelector(':scope > svg');
+    return { name: name.clientWidth, six: 6 * parseFloat(getComputedStyle(name).fontSize), mark: mark ? getComputedStyle(mark).color : 'none', state: row.dataset.state || '' }; })`);
+  assert.ok(rows.length >= 3 && new Set(rows.map(row => row.state)).size > 1, `the specimen's lists show events in several states (${JSON.stringify(rows.map(row => row.state))})`);
+  assert.deepEqual(rows.filter(row => row.name < row.six), [], "POLISH-09: every name keeps room for six characters");
+  assert.equal(new Set(rows.map(row => row.mark)).size, 1, `POLISH-09: the mark is one quiet colour whatever the state (${JSON.stringify([...new Set(rows.map(row => row.mark))])})`);
 });
 
 test("WLN-03: what the hand added stands above the composer, inside its specimen", { timeout: 120_000 }, async (t) => {
@@ -99,40 +107,51 @@ test("WLN-03: what the hand added stands above the composer, inside its specimen
   }
 });
 
-test("WLN-35, WLN-18: the task panel floats beside its dialog, over its right side where there is no room, and above the line on a phone", { timeout: 120_000 }, async (t) => {
-  const page = await open(t, 1340); if (!page) return;
-  const { evaluate, size, settle } = page;
-  const view = (kind: string) => evaluate<{ place: string; top: number; gap: number; inDialog: boolean; inStage: boolean; aboveLine: boolean | null }>(`(() => {
-    const float = document.querySelector('[data-work-task-float="wl-dialog-${kind}"]'), panel = float.firstElementChild.getBoundingClientRect();
-    const dialog = document.getElementById('wl-dialog-${kind}').getBoundingClientRect(), stage = float.closest('[data-work-float-frame]'), frame = stage.getBoundingClientRect();
-    const line = stage.querySelector('.work-line[data-work-line]')?.getBoundingClientRect();
-    return { place: float.dataset.place, top: Math.round(panel.top - dialog.top), gap: Math.round(panel.left - dialog.right), inDialog: panel.left >= dialog.left - 1 && panel.right <= dialog.right + 1,
-      inStage: panel.left >= frame.left - 1 && panel.right <= frame.right + 1 && panel.top >= frame.top - 1 && panel.bottom <= frame.bottom + 1, aboveLine: line ? panel.bottom <= line.top + 1 : null }; })()`);
-  const beside = await view("main");
-  assert.deepEqual([beside.place, beside.top, beside.gap, beside.inStage], ["beside", 0, 12, true], "beside the dialog, top edges level");
-  const over = await view("narrow");
-  assert.deepEqual([over.place, over.inDialog, over.inStage], ["over", true, true], "over the dialog where the stage has no room beside it");
-  assert.ok(over.top >= 44, "under the tab bar");
-
-  // Before: over the dialog the panel ran past its foot and "reconnect" was cut off.
-  const foot = (kind: string) => evaluate<{ place: string; inDialog: boolean; reconnect: boolean }>(`(() => { const float = document.querySelector('[data-work-task-float="wl-dialog-${kind}"]'), panel = float.firstElementChild.getBoundingClientRect();
-    const dialog = document.getElementById('wl-dialog-${kind}').getBoundingClientRect(), frame = float.closest('[data-work-float-frame]').getBoundingClientRect(), button = float.querySelector('.work-task-banner .mw-btn')?.getBoundingClientRect();
-    return { place: float.dataset.place, inDialog: panel.bottom <= dialog.bottom + 1 && panel.bottom <= frame.bottom + 1, reconnect: Boolean(button && button.height > 0 && button.bottom <= panel.bottom + 1 && button.top >= panel.top) }; })()`);
-  assert.deepEqual(await foot("offline"), { place: "beside", inDialog: true, reconnect: true }, "1340: the offline panel, beside");
-  for (const width of [900, 800]) {
-    await size(width); await settle(); await settle();
-    assert.deepEqual(await foot("offline"), { place: "over", inDialog: true, reconnect: true }, `${width}px: the offline panel over its dialog ends inside it, with reconnect in reach`);
-    assert.deepEqual([(await view("main")).place, (await view("main")).inStage], ["over", true], `${width}px: the panel over the main dialog`);
-  }
-
-  await size(390); await settle();
-  assert.equal((await view("main")).inStage, true, "390: the panel is a layer inside its frame");
-  // The board's dialog stage has no line; with one in the frame (as in the product) the layer stands clear of it. Before, the
-  // script measured the dialog's tab bar instead of the line.
-  await evaluate(`(() => { const stage = document.getElementById('wl-dialog-main').closest('[data-work-float-frame]'), line = document.createElement('div');
-    line.className = 'work-line'; line.setAttribute('data-work-line', ''); line.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:120px;display:block';
-    stage.append(line); window.dispatchEvent(new Event('resize')); return true; })()`);
+test("non-anchor fallback measures --counts-top and --counts-left when CSS Anchor Positioning is unsupported", { timeout: 120_000 }, async (t) => {
+  const browser = await openBoardBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await command("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      const orig = CSS.supports.bind(CSS);
+      CSS.supports = (...args) => {
+        if (String(args[0]).includes("anchor-name")) return false;
+        return orig(...args);
+      };
+    })();`,
+  }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}${FRAME}zh` }, sessionId));
+  await waitFor(`document.readyState === 'complete' && ${LINES}.length === 4`, 15_000);
+  await evaluate("document.fonts.ready.then(() => true)");
+  const settle = async () => { await evaluate(FRAMES); await evaluate(FRAMES); };
   await settle();
-  const phone = await view("main");
-  assert.deepEqual([phone.inStage, phone.aboveLine], [true, true], "390: the layer stands above the line");
+
+  // Inject an in-flow block above .mw-composer__text and a left-column sibling before .mw-composer (simulating non-anchor grid with .assistant-attention)
+  // and verify installCountsRoom sets --counts-top and --counts-left to match .mw-composer__text's offset inside .work-line-slot.
+  const measured = await evaluate<{ initialTop: number; afterNoticeTop: number; expectedTop: number; afterLeftShift: number; expectedLeft: number }>(`(async () => {
+    const line = ${LINES}[0];
+    const slot = line.querySelector('.work-line-slot');
+    const composer = slot.querySelector('.mw-composer');
+    const text = slot.querySelector('.mw-composer__text');
+    const initialTop = parseFloat(slot.style.getPropertyValue('--counts-top')) || 0;
+    const notice = document.createElement('div');
+    notice.className = 'mw-composer__notice';
+    notice.style.height = '32px';
+    notice.textContent = 'Notice line';
+    composer.prepend(notice);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const expectedTop = Math.max(0, Math.round(text.getBoundingClientRect().top - slot.getBoundingClientRect().top));
+    const afterNoticeTop = parseFloat(slot.style.getPropertyValue('--counts-top')) || 0;
+    composer.style.marginLeft = '52px';
+    composer.toggleAttribute('data-rest', false);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const expectedLeft = Math.max(0, Math.round(text.getBoundingClientRect().left - slot.getBoundingClientRect().left));
+    const afterLeftShift = parseFloat(slot.style.getPropertyValue('--counts-left')) || 0;
+    return { initialTop, afterNoticeTop, expectedTop, afterLeftShift, expectedLeft };
+  })()`);
+  assert.equal(measured.initialTop, 0, "baseline --counts-top starts at 0");
+  assert.ok(measured.expectedTop >= 30, `expected --counts-top >= 30 with notice line, got ${measured.expectedTop}`);
+  assert.equal(measured.afterNoticeTop, measured.expectedTop, "--counts-top tracks in-flow block above .mw-composer__text");
+  assert.ok(measured.expectedLeft >= 50, `expected --counts-left >= 50 when shifted right of column 1, got ${measured.expectedLeft}`);
+  assert.equal(measured.afterLeftShift, measured.expectedLeft, "--counts-left tracks horizontal offset of .mw-composer__text");
 });

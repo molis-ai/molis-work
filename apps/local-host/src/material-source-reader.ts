@@ -4,16 +4,12 @@ import { request as httpRequest } from "node:http";
 import { isIP } from "node:net";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isPublicAddress } from "@molis-ai/molis-work-contracts/platform/public-address";
 import type { Readable, Transform } from "node:stream";
 
-/** Public sources only. Every redirect is resolved again and pinned to its validated IP. */
+/** Public sources only, by the platform's one table (S-10). Every redirect is resolved again and pinned to its validated IP. */
 export function isMaterialPublicAddress(address: string): boolean {
-  if (isIP(address) === 4) {
-    const [a, b, c] = address.split(".").map(Number);
-    return a !== 0 && a !== 10 && a !== 127 && a! < 224 && !(a === 169 && b === 254) && !(a === 172 && b! >= 16 && b! <= 31) && !(a === 192 && b === 168) && !(a === 100 && b! >= 64 && b! <= 127) && !(a === 198 && (b === 18 || b === 19)) && !(a === 192 && b === 0) && !(a === 192 && b === 88 && c === 99) && !(a === 198 && b === 51 && c === 100) && !(a === 203 && b === 0 && c === 113);
-  }
-  const normalized = address.toLowerCase();
-  return isIP(address) === 6 && /^[23][0-9a-f]{3}:/u.test(normalized) && !normalized.startsWith("2001:db8:") && !normalized.startsWith("2001::") && !normalized.startsWith("2001:0:") && !normalized.startsWith("2002:");
+  return isPublicAddress(address);
 }
 /**
  * The corporate fake-IP proxy's block, 198.18.0.0/15 exactly (user decision 2026-09-27: plugins and Coding treat it as a normal address; the

@@ -1,7 +1,7 @@
 import { homeSqlitePath, rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { existsSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
-import { openConnectorsStore, readConnectorsStore } from "./connectors-store.js";
+import { readConnectorsStore, withConnectorsStore } from "./connectors-store.js";
 import { defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { bindConnectorAuthorizationProtocol, clearConnectorAuthorizationPresentation, connectorAuthorizationInstallation, readConnectorAuthorizationCompletion } from "./connector-authorization-presentation.js";
@@ -30,14 +30,10 @@ export interface ConnectorSetupPlan {
 interface ConnectorSetupInitiator { actor_id: string; project_id: string | null; runtime_session_id?: string }
 const TTL = 10 * 60_000;
 const hash = (state: string) => createHash("sha256").update(state).digest("hex");
-function withAttempts<T>(home: string, run: (db: ReturnType<typeof openConnectorsStore>) => T): T {
-  const db = openConnectorsStore(home);
-  try { return run(db); } finally { db.close(); }
-}
 /** Public status and cancellation authority, separate from the one-use OAuth state and credentials. */
 export function beginConnectorAuthorization(home: string, state: string, connectionId: string, serviceId: string, now = Date.now(), preparedId?: string) {
   expireConnectorAuthorizations(home, now);
-  const id = withAttempts(home, db => {
+  const id = withConnectorsStore(home, db => {
     const expired = db.prepare("DELETE FROM connector_authorization_results WHERE setup_json IS NULL AND expires_at < ? RETURNING id").all(now - TTL) as Array<{ id: string }>;
     for (const row of expired) clearConnectorAuthorizationPresentation(home, row.id);
     if (preparedId) {
@@ -59,11 +55,11 @@ export function beginConnectorAuthorization(home: string, state: string, connect
  */
 export function expireConnectorAuthorizations(home: string, now = Date.now()): void {
   if (!existsSync(homeSqlitePath(home, "connectors"))) return;
-  const rows = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='expired' WHERE status IN ('prepared','pending') AND expires_at<? RETURNING id").all(now)) as Array<{ id: string }>;
+  const rows = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status='expired' WHERE status IN ('prepared','pending') AND expires_at<? RETURNING id").all(now)) as Array<{ id: string }>;
   for (const row of rows) { invalidateConnectorRequests(home, row.id); clearConnectorAuthorizationPresentation(home, row.id); }
 }
 export function finishConnectorAuthorization(home: string, state: string, status: "connected" | "cancelled" | "failed" | "expired", connectionId?: string) {
-  const rows = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status=?, connection_id=COALESCE(?,connection_id) WHERE state_hash=? AND status='pending' AND expires_at>=? RETURNING id").all(status, connectionId ?? null, hash(state), Date.now())) as Array<{ id: string }>;
+  const rows = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status=?, connection_id=COALESCE(?,connection_id) WHERE state_hash=? AND status='pending' AND expires_at>=? RETURNING id").all(status, connectionId ?? null, hash(state), Date.now())) as Array<{ id: string }>;
   for (const row of rows) {
     if (status !== "connected") invalidateConnectorRequests(home, row.id);
     clearConnectorAuthorizationPresentation(home, row.id, status === "failed");
@@ -78,7 +74,7 @@ export function assertConnectorAuthorizationPending(home: string, state: string)
 }
 /** A cancellation is accepted only while the owner has not committed. Never undo an established connection. */
 export function cancelConnectorAuthorization(home: string, id: string, expectedStatus?: "prepared") {
-  withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE id=? AND (? IS NULL OR status=?) AND (status IN ('prepared','pending') AND expires_at>=? OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL))")
+  withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE id=? AND (? IS NULL OR status=?) AND (status IN ('prepared','pending') AND expires_at>=? OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL))")
     .run(id, expectedStatus ?? null, expectedStatus ?? null, Date.now()));
   let cleanup;
   if (connectorAuthorizationStatus(home, id)?.status === "cancelled") { invalidateConnectorRequests(home, id); cleanup = clearConnectorAuthorizationPresentation(home, id); }
@@ -87,12 +83,12 @@ export function cancelConnectorAuthorization(home: string, id: string, expectedS
 }
 /** Disconnect/remove withdraw every outstanding attempt for this exact connection, including consumed callbacks. */
 export function cancelConnectorAuthorizationsForConnection(home: string, connectionId: string): void {
-  const rows = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE connection_id=? AND (status IN ('prepared','pending') OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL)) RETURNING id").all(connectionId)) as Array<{ id: string }>;
+  const rows = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE connection_id=? AND (status IN ('prepared','pending') OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL)) RETURNING id").all(connectionId)) as Array<{ id: string }>;
   for (const row of rows) { invalidateConnectorRequests(home, row.id); clearConnectorAuthorizationPresentation(home, row.id); }
 }
 /** Stopping one work withdraws only the unfinished requests it owns, never another session's independent request. */
 export function cancelConnectorAuthorizationsForSession(home: string, sessionId: string, actorId: string): void {
-  const rows = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE json_extract(initiator_json,'$.runtime_session_id')=? AND json_extract(initiator_json,'$.actor_id')=? AND (status IN ('prepared','pending') OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL)) RETURNING id")
+  const rows = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE json_extract(initiator_json,'$.runtime_session_id')=? AND json_extract(initiator_json,'$.actor_id')=? AND (status IN ('prepared','pending') OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL)) RETURNING id")
     .all(sessionId, actorId)) as Array<{ id: string }>;
   for (const row of rows) { invalidateConnectorRequests(home, row.id); clearConnectorAuthorizationPresentation(home, row.id); }
 }
@@ -144,7 +140,7 @@ export function pendingConnectorAuthorizations(home: string, serviceId?: string)
 
 /** The same authority record starts before the person enters a credential or an OAuth session exists. */
 export function prepareConnectorAuthorization(home: string, setup: ConnectorSetupPlan, initiator: ConnectorSetupInitiator, now = Date.now()) {
-  const { id, created } = withAttempts(home, db => {
+  const { id, created } = withConnectorsStore(home, db => {
     const plan = JSON.stringify(setup), owner = JSON.stringify(initiator);
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -177,18 +173,18 @@ export function assertConnectorSetup(home: string, id: string, actual: Pick<Conn
 
 /** The callback knows only its one-use state. It cannot select a work or bypass that request's current intent. */
 export function connectorAuthorizationForState(home: string, state: string) {
-  const row = withAttempts(home, db => db.prepare("SELECT id FROM connector_authorization_results WHERE state_hash=?").get(hash(state))) as { id: string } | undefined;
+  const row = withConnectorsStore(home, db => db.prepare("SELECT id FROM connector_authorization_results WHERE state_hash=?").get(hash(state))) as { id: string } | undefined;
   return row ? connectorAuthorizationStatus(home, row.id) : null;
 }
 
 /** A new human message parks commits, without deciding whether the connection is still wanted. */
 export function holdConnectorAuthorizationsForSession(home: string, sessionId: string, actorId: string, revision: string): void {
-  withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET initiator_json=json_set(initiator_json,'$.intent_revision',?,'$.commit_held',json('true')) WHERE json_extract(initiator_json,'$.runtime_session_id')=? AND json_extract(initiator_json,'$.actor_id')=? AND status IN ('prepared','pending')")
+  withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET initiator_json=json_set(initiator_json,'$.intent_revision',?,'$.commit_held',json('true')) WHERE json_extract(initiator_json,'$.runtime_session_id')=? AND json_extract(initiator_json,'$.actor_id')=? AND status IN ('prepared','pending')")
     .run(revision, sessionId, actorId));
 }
 
 export function releaseConnectorAuthorizationIntent(home: string, id: string, revision: string): void {
-  const changed = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET initiator_json=json_set(initiator_json,'$.commit_held',json('false')) WHERE id=? AND json_extract(initiator_json,'$.intent_revision')=? AND status IN ('prepared','pending') AND expires_at>=?")
+  const changed = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET initiator_json=json_set(initiator_json,'$.commit_held',json('false')) WHERE id=? AND json_extract(initiator_json,'$.intent_revision')=? AND status IN ('prepared','pending') AND expires_at>=?")
     .run(id, revision, Date.now()));
   if (!changed.changes) throw connectorErrors["connector.connection.invalid"]("接入要求已变化或请求已结束，请读取最新状态");
 }
@@ -196,13 +192,13 @@ export function releaseConnectorAuthorizationIntent(home: string, id: string, re
 /** An explicit retry reopens only a failed local verification, preserving its exact prepared plan. */
 export function retryLocalConnectorAuthorization(home: string, id: string): void {
   if (!connectorAuthorizationInstallation(home, id)?.ready) throw connectorErrors["connector.connection.invalid"]("没有可继续验证的安装，请重新准备接入");
-  const changed = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='prepared', expires_at=? WHERE id=? AND status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL)").run(Date.now() + 24 * 60 * 60_000, id));
+  const changed = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status='prepared', expires_at=? WHERE id=? AND status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL)").run(Date.now() + 24 * 60 * 60_000, id));
   if (!changed.changes) throw connectorErrors["connector.connection.invalid"]("接入请求已变化，请读取当前状态");
 }
 
 /** An installed CLI waits on the same request for person login; installation alone is not an account connection. */
 export function prepareInstalledCliAuthorization(home: string, state: string): void {
-  const row = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='prepared', expires_at=? WHERE state_hash=? AND status='pending' AND expires_at>=? AND json_extract(setup_json,'$.cli_setup') IS NOT NULL RETURNING id")
+  const row = withConnectorsStore(home, db => db.prepare("UPDATE connector_authorization_results SET status='prepared', expires_at=? WHERE state_hash=? AND status='pending' AND expires_at>=? AND json_extract(setup_json,'$.cli_setup') IS NOT NULL RETURNING id")
     .get(Date.now() + 24 * 60 * 60_000, hash(state), Date.now())) as { id: string } | undefined;
   if (!row) throw connectorErrors["connector.connection.invalid"]("CLI 接入已取消或过期，请查看当前状态");
   clearConnectorAuthorizationPresentation(home, row.id, true);

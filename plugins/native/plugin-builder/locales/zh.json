@@ -373,6 +373,13 @@
     "plugin-builder.agent-prompt.builder-revise.purpose": "按用户的修改意见改动已有插件代码",
     "plugin-builder.agent-prompt.builder-acceptance.title": "功能制作 · 质量检查",
     "plugin-builder.agent-prompt.builder-acceptance.purpose": "按设计里的验收项检查生成的插件",
-    "plugin-builder.agent-studio.record-or-form-unavailable": "原记录或表单已不可用"
+    "plugin-builder.agent-studio.record-or-form-unavailable": "原记录或表单已不可用",
+    "plugin-builder.help.title": "插件创作台",
+    "plugin-builder.help.what": "用日常语言描述你想要的小工具，从起草设计、自动构建到在隔离环境里试用，最后由你决定是否安装。",
+    "plugin-builder.help.example-1": "描述一个团队常用表单或看板需求，让创作台先给出一份设计答卷",
+    "plugin-builder.help.example-2": "在预览里亲自填一条数据试用，满意后再安装到当前项目或个人空间",
+    "plugin-builder.help.scope": "设计与构建过程会调用你已连接的文字模型，按服务商规则计费；生成的插件运行在受控沙箱里，只有你明确批准的权限才会被授予。",
+    "plugin-builder.help.advanced-summary": "沙箱权限与版本更新",
+    "plugin-builder.help.advanced": "试用阶段不会改动正式项目数据；日后改进同一个插件时，会作为新版本由你确认换版并保留原有数据。"
   }
 }

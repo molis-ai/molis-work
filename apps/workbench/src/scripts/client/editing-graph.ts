@@ -34,14 +34,35 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       return true;
     };
 
-    const showToast = (message, error = false, action = null) => {
-      molisWorkRequest.toast(toast, typeof message === "string" ? undefined : message, typeof message === "string" ? message : undefined, { ms: action ? 6000 : 2200 });
-      toast.dataset.mwState = error ? "failed" : "done";
+    const showToast = (message, errorOrOpts = false, action = null) => {
+      const opts = typeof errorOrOpts === "object" && errorOrOpts !== null ? errorOrOpts : { tone: errorOrOpts ? "error" : "default" };
+      const resolvedAction = action || opts.action || null;
+      if (typeof message === "string" && typeof window.molisToast === "function") {
+        window.molisToast(message, {
+          ...opts,
+          ...(resolvedAction && resolvedAction.label && typeof resolvedAction.onClick === "function" ? { action: resolvedAction } : {}),
+        });
+        return;
+      }
+      const error = opts.tone === "error";
+      const tiers = { short: 2600, normal: 4200, long: 7000 };
+      const ms = typeof opts.duration === "number" && Number.isFinite(opts.duration)
+        ? Math.min(30_000, Math.max(1200, opts.duration))
+        : (opts.duration && tiers[opts.duration]) || (resolvedAction || error ? tiers.long : opts.tone === "warning" ? tiers.normal : tiers.short);
+      molisWorkRequest.toast(toast, typeof message === "string" ? undefined : message, typeof message === "string" ? message : undefined, { ms });
+      toast.dataset.mwState = error ? "failed" : opts.tone === "warning" ? "waiting" : "done";
       toast.classList.toggle("is-error", error);
-      if (action && action.label && typeof action.onClick === "function") {
+      if (resolvedAction && resolvedAction.label && typeof resolvedAction.onClick === "function") {
         const button = document.createElement("button");
-        button.type = "button"; button.className = "mw-toast__action"; button.dataset.toastAction = ""; button.textContent = action.label;
-        button.addEventListener("click", () => { toast.classList.remove("is-visible"); toast.style.pointerEvents = ""; action.onClick(); }, { once: true });
+        button.type = "button";
+        button.className = "mw-toast__action";
+        button.dataset.toastAction = "";
+        button.textContent = resolvedAction.label;
+        button.addEventListener("click", () => {
+          toast.classList.remove("is-visible");
+          toast.style.pointerEvents = "";
+          resolvedAction.onClick();
+        }, { once: true });
         toast.append(button);
         toast.style.pointerEvents = "auto";
       }
@@ -191,7 +212,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
       route,
       openGoalTab: (id) => tabWorkspace?.openItem("goals", id, undefined, "frame"),
-      openGoalWork: () => tabWorkspace?.openGoalWork(),
+      openGoalWork: (paneId) => tabWorkspace?.openGoalWork(paneId),
       activateGoalsMother: () => {
         const current = tabWorkspace?.state?.();
         const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
@@ -204,9 +225,29 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
         refreshHome: () => projectHome?.sync(),
+        mountHomeClone: (surface) => globalThis.molisWorkHomeView?.mountHome({
+          root: surface,
+          read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
+          navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
+          market: () => tabWorkspace?.setExclusive("market"),
+          picker: () => {
+            const toggle = document.querySelector("[data-plugin-picker-toggle]");
+            const popover = document.querySelector("[data-plugin-picker-popover]");
+            if (toggle) { if (popover?.hidden !== false) toggle.click(); }
+            else tabWorkspace?.setExclusive("market");
+          },
+          lead: { adopt: () => null, release: () => {} },
+          offers: () => ({ refresh() {}, clear() {} }),
+          projectKey: state.project?.project_id || "",
+          translate: readText,
+          receipt: showToast,
+          changed: () => { projectHome?.sync(); projectPositions?.invalidate(); },
+          offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
+          words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
+        }),
         discussionObjects: frame => projectPositions?.discussion(frame, (path, body, signal) => molisWorkRequest(path, { body, signal })),
-        showToast, paneMessages,
-        showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
+        showToast, paneMessages, route,
+        showGoalFrame: (id, target) => frameContainer?.showGoalFrame(id, target),
         translate: readText,
         getSurface: () => activeDesktopSurface,
         setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -215,6 +256,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setMobileView: (...args) => setMobileView(...args),
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
+        loadGoalDocumentInto: (targetPane, goalId) => loadGoalDocumentInto(targetPane, goalId),
         getDocumentGoalId: () => goalData ? documentPane.querySelector("[data-goal-view]")?.dataset.goalView : undefined,
         getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
         visibleGoals: () => visibleGoals(),

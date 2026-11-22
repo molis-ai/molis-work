@@ -88,13 +88,13 @@ test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
   assert.match(settings, /:not\(\[type="range"\]\):not\(\.mw-slider\):not\(\.mw-input\):not\(\.mw-textarea\):not\(\.mw-select\)/);
 });
 
-// Soft Workbench (DESIGN.md → Shapes): 10px control corners, 14px surfaces, 32px controls from the shared helpers.
+// Soft Workbench (DESIGN.md → Shapes): 8px control corners, 10px item corners, 14px surfaces, 32px controls from the shared helpers.
 test("shared tokens describe control radius, height, and translucent borders", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-control: 10px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-item: 8px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-control: 8px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-item: 10px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--control-h: 32px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 10%, transparent\)/);
   assert.match(COSS_CONTROL_STYLES, /border-radius: var\(--radius-control\);/);
 });
 
@@ -115,7 +115,7 @@ test("settings secondary buttons leave the 4px blue-outline contract", () => {
   const settings = renderMolisWorkSettingsStylesheet();
   // The secondary button takes its corner and size from .mw-btn (and --sm/--lg); it adds only its colours.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn \{[^}]*border: 1px solid transparent;[^}]*border-radius: var\(--radius-control, 8px\);/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--secondary \{ background: var\(--control-fill\); color: var\(--ink\); \}/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--secondary \{[^}]*border-color: var\(--control-border\);[^}]*background: var\(--paper\);[^}]*color: var\(--ink\);/);
   assert.ok(settings.includes(".mw-btn--secondary {"));
   assert.doesNotMatch(
     settings,
@@ -156,10 +156,10 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
 test("the way in shares the workbench tokens in both themes", () => {
   const arrival = renderMolisWorkArrivalStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(workbench, /--page: #eef3f7/);
-  assert.match(workbench, /--page: #141a20/);
-  assert.match(arrival, /--page: #eef3f7/);
-  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #141a20/);
+  assert.match(workbench, /--page: #f5f7fa/);
+  assert.match(workbench, /--page: #0f1318/);
+  assert.match(arrival, /--page: #f5f7fa/);
+  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #0f1318/);
   assert.match(arrival, /\.arrival \{[^}]*background: var\(--desk\)/);
   assert.match(arrival, /\.stage-sheet \{[^}]*background: var\(--paper\)/);
   assert.doesNotMatch(arrival, /--ob-page|--ob-window|--onboarding-/);
@@ -213,7 +213,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   // A crowded line no longer drops parts in steps: the composer folds its scene controls behind 更多 on a narrow box.
   assert.match(css, /@container mw-composer \(max-width: 480px\) \{[\s\S]*?\.mw-composer__more \{ display: block; \}/, "a narrow composer folds its controls behind 更多 instead of overflowing");
   assert.match(touch, /\) :is\(\.assistant-popover, \.assistant-next-row, \.assistant-context-strip, \.plugin-picker-popover, \.navigator-project-menu-popover, \.assistant-panel\) :is\(button:not\(\.assistant-inline-object\), summary, a\[href\]:not\(\.assistant-link\), input:not\(\[type=checkbox\], \[type=radio\]\), select, textarea\) \{ min-width: 44px; min-height: 44px; \}/, "what the bar opens (the \"+\" menu's rows, the choosers, the notices, the strip's chips, the switcher's buttons, the Dock's list, the project menu, the whole opened panel: its tab bar, the list of works, the details and the conversation) is 44px on touch, and only what sits inside a sentence is left to the two rules below");
-  assert.match(touch, /\.assistant-works \{ top: 52px; \}/, "the list of all works hangs below the panel's 50px tab bar");
+  assert.match(touch, /:is\(\.assistant-works, \.assistant-more\) \{ top: 50px; \}/, "the list of all works and the more menu hang below the conversation's 52px title line");
   assert.match(touch, /\.assistant-code-head \{ min-height: 44px; \}/, "a code block's head is 44px");
   // A question's options and a card's buttons are the shared interaction parts now (A1+H2): 44px on touch in their own sheet.
   assert.match(INTERACTION_QUESTION_STYLES, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*:is\(\.mw-ix-option, \.mw-ix-choices \.mw-choice\) \{ min-height: 44px; \}\s*\.mw-ix-card \.mw-btn \{ min-height: 44px; \}/, "a question's options and a card's buttons are 44px");
@@ -221,7 +221,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(touch, /\.assistant-inline-object \{ position: relative; min-width: 44px; justify-content: center; \}[\s\S]*?\.assistant-inline-object::after \{ content: ""; position: absolute; inset: -12px -2px; \}/, "and an object chip inside a sentence is answered for by an invisible area around it");
   assert.match(touch, /\.plugin-picker-popover \{ --ops-btn: 44px; \}/, "and the switcher's pin and add buttons are 44px, with the room for two of them in the row");
   assert.match(css, /\.plugin-picker-popover \{ --ops-btn: var\(--control-h, 32px\); --tile-yield: calc\(var\(--ops-btn\) \* 2 \+ 16px\); \}[\s\S]*?\.plugin-rail-ops > \.mw-btn \{\s*width: var\(--ops-btn\); min-width: var\(--ops-btn\); min-height: var\(--ops-btn\);/, "with a fine pointer they are the floor's size (32px, 28px compact), not the 28px of a small icon button, and the row gives up room for them");
-  assert.match(touch, /\.assistant-tabbar \{ height: 50px; gap: 0; \}\s*body\.immersive-workbench:not\(\[data-pane-embedded\]\) :is\(\.assistant-tab, \.assistant-tab-new\) \{ height: 44px; margin-bottom: 0; \}/, "and the panel's tab bar holds its 44px targets: a 50px bar, 44px tabs and a new-work button that sits on the bar's floor");
+  assert.match(touch, /\.assistant-head \{ height: 52px; \}\s*body\.immersive-workbench:not\(\[data-pane-embedded\]\) \.assistant-head \.dock-window-action \{ width: 44px; height: 44px; \}\s*body\.immersive-workbench:not\(\[data-pane-embedded\]\) \.info-tab \{ height: 44px; \}/, "POLISH-18: the conversation's title line holds its three 44px keys, and the information column's tabs are 44px tall");
   assert.match(css, /@media\(max-width:760px\),\(pointer:coarse\) \{\s*\.workspace-layout-menu \.mw-menu__item, \.workspace-tab-menu input \{ min-height:44px; \}\s*\.workspace-tab-menu-colors \{ --swatch: 44px; \}/, "the strip's menus (the layout and tab rows, a group's name field and its colour swatches, drawn small inside their target) are 44px where the strip is");
   assert.match(css, /\.workspace-tab-menu-colors \{ --swatch: 32px; display:grid; grid-template-columns:repeat\(4, var\(--swatch\)\);[^}]*\}\s*\.workspace-tab-menu-colors button \{ position:relative; width:var\(--swatch\); height:var\(--swatch\); min-width:var\(--swatch\); min-height:var\(--swatch\);[^}]*\}\s*\.workspace-tab-menu-colors button::before \{ content:""; position:absolute; inset:calc\(\(var\(--swatch\) - 18px\) \/ 2\);/, "and with a fine pointer a colour swatch is a 32px target with the 18px dot drawn inside it, not an 18px button");
   assert.match(css, /@media \(max-width: 374px\) \{ [^\n]*\.workbench-bar \{ column-gap: 0; padding-inline: 0; \} [^\n]*\.bar-center \{ margin-inline: 8px; \} \}/, "below 375px (eight 44px targets and the bar's padding) the bar's gap and side padding give way, so the phone's second row fits 360 and 320px and the Assistant line above it keeps its place");

@@ -13,6 +13,7 @@ import { pcRecords, pcRelations } from './plugin-component-records.js';
 import { pcControls, pcDetail } from './plugin-component-controls.js';
 import { pcOutput, pcQuery } from './plugin-component-output.js';
 import { pcPart, pcSubmit } from './plugin-component-part.js';
+import { pcHelp } from './plugin-component-help.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[]; deriveFieldWords?: boolean }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
   mountSurfaceSlot?: UiPageView<HTMLElement>['surfaceSlot'];
@@ -56,14 +57,19 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   // Each layer is a function of the state plus what the layers before it added.
   const c1 = Object.assign(state, kit, { word }), c2 = Object.assign(c1, pcRelations(c1)), c3 = Object.assign(c2, pcRecords(c2), pcDetail(c2), pcControls(c2));
   const c4 = Object.assign(c3, pcOutput(c3)), c5 = Object.assign(c4, pcQuery(c4)), c6 = Object.assign(c5, pcSubmit(c5)), c7 = Object.assign(c6, pcPart(c6));
-  const life = pcLifecycle(c7), localeChanged = () => {
-    selectAuthoringWords(state.view); kit.refreshWords(root);
+  const help = pcHelp(c7);
+  const life = pcLifecycle(c7, help);
+  const localeChanged = () => {
+    selectAuthoringWords(state.view);
+    kit.refreshWords(root);
+    help.syncHelp();
   };
   document.addEventListener("molis-work:language-changed", localeChanged);
   const openInput = (id: string): boolean => {
     const part = state.parts.get(id);
     if (state.disposed || !part?.form || !part.node.submit || !c7.ready(part.node.submit.operationId)) return false;
     c7.selectPage(part.node.pageId);
+    help.placeHelp(part.node.pageId);
     if (part.opener) { part.opener.click(); return true; }
     part.root.scrollIntoView({ block: "nearest" });
     part.form.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select")?.focus();
@@ -89,6 +95,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     if (!match) return false;
     const { part, value } = match, generation = c7.epoch;
     c7.selectPage(part.node.pageId);
+    help.placeHelp(part.node.pageId);
     c7.select(part.node.id, value);
     const selected = c7.selectionVersions.get(part.node.id);
     if (c7.reading(part.node) || c7.selectable(part.node.id)) await c7.refresh();
@@ -106,7 +113,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     document.removeEventListener("molis-work:language-changed", localeChanged); life.destroy();
   } };
 }
-function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt) {
+function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt, help: ReturnType<typeof pcHelp>) {
   const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, words, word, bindWord, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;
   async function update(next: PluginComponentView) {
     if (c.disposed) return;
@@ -121,7 +128,16 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     for (const page of next.contract.pages) {
       pageIds.add(page.id); let element = pages.get(page.id);
       if (!element) { element = make('div', undefined, 'pc-page'); element.dataset.page = page.id; pages.set(page.id, element); root.append(element); }
-      const tab = words('button', () => word(page.title), 'mw-tabs__tab'); tab.type = 'button'; tab.dataset.page = page.id; tab.setAttribute('role', 'tab'); tab.addEventListener('click', () => { selectPage(page.id); void refresh(); }); tabList.append(tab);
+      const tab = words('button', () => word(page.title), 'mw-tabs__tab');
+      tab.type = 'button';
+      tab.dataset.page = page.id;
+      tab.setAttribute('role', 'tab');
+      tab.addEventListener('click', () => {
+        selectPage(page.id);
+        help.placeHelp(page.id);
+        void refresh();
+      });
+      tabList.append(tab);
       for (const region of page.regions) {
         const key = page.id + '/' + region.id; regionIds.add(key); let section = regions.get(key);
         if (!section) { section = make('section', undefined, 'pc-region'); regions.set(key, section); element.append(section); }
@@ -190,7 +206,9 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     composition.update(next.presentation, pages, parts);
     for (const part of parts.values()) showDetail(part);
     if (focused?.isConnected && !focused.closest('[hidden]')) { focused.focus({ preventScroll: true }); if (caret) focused.setSelectionRange(caret[0]!, caret[1]!); }
-    selectPage(pageIds.has(c.currentPage) ? c.currentPage : next.contract.pages[0]!.id); if (refreshNeeded) await refresh();
+    selectPage(pageIds.has(c.currentPage) ? c.currentPage : next.contract.pages[0]!.id);
+    help.syncHelp();
+    if (refreshNeeded) await refresh();
   }
   function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { part.slot?.dispose(); clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
   return { update, destroy };

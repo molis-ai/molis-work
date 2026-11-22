@@ -1,13 +1,13 @@
 import { connectResidentAccount, type ResidentAccountConnection } from "./resident-account-connection.js";
 import { homeHostUrl } from "./host-endpoint.js";
 import { mcpErrors } from "./mcp-errors.js";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { ensureSystemAgentService } from "./system-agent-service.js";
 import { workspaceRefFor } from "./agent-host-composition.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
@@ -136,10 +136,16 @@ export class LocalMcpServer {
 
   /** The Runtime connection pins the installation-selected Home and credential once, until an explicit new context. */
   private async connectedResident(signal:AbortSignal):Promise<ResidentAccountConnection> {
-    const home=this.runtimeContextHost?.homeDirectory??resolveMolisWorkHome();
-    await ensureMcpRequestResident(this.ensureResident,home,this.actionServiceUrl!,signal);signal.throwIfAborted();
+    const home = this.runtimeContextHost?.homeDirectory ?? resolveConfiguredHome();
+    await ensureMcpRequestResident(this.ensureResident,home,this.actionServiceUrl!,signal);
+    signal.throwIfAborted();
     const pending=this.residentAccount??=connectResidentAccount(home,this.actionServiceUrl!,signal);
-    try{return await pending;}catch(error){if(this.residentAccount===pending)this.residentAccount=undefined;throw error;}
+    try {
+      return await pending;
+    } catch (error) {
+      if (this.residentAccount === pending) this.residentAccount = undefined;
+      throw error;
+    }
   }
 
   private currentActions() {
@@ -161,7 +167,7 @@ export class LocalMcpServer {
 
   /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor. A Runtime without one is marked on
    * the context, and dispatch refuses the actions that declare `authorship: "session"` (see `authorizeMcpActions`). */
-  private async authorizedActions(sessionCall?: McpToolCallContext) {
+  private async authorizedActions(sessionCall?: McpToolCallContext, known?: (name: string) => ActionReference | undefined) {
     const connection = this.runtimeConnection;
     const current = this.currentActions();
     const sessionActor = (call: McpToolCallContext) => runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
@@ -186,12 +192,12 @@ export class LocalMcpServer {
         validate_authority: checkContext,
       };
       return { service, context,
-        ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
+        ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName, known }) };
     }
     const reference = this.runtimeConnection ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
     const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext, checkContext, () => { if (this.localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭"); });
     return { ...current, context,
-      ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
+      ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName, known }) };
   }
 
   private async ensureCatalog(): Promise<AssembledMcpCatalog & { actionServiceError?: ActionError }> {
@@ -281,7 +287,10 @@ export class LocalMcpServer {
       // records are authored by a Session is refused at dispatch for a call without one, wrapped or not.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
       const runtimeCall = this.runtimeContextHost ? callContext : undefined;
-      const actions = await this.authorizedActions(runtimeCall);
+      // The catalog of this connection already says which action the name is: the call looks up that one (batch 103-2).
+      const listed = entry.action;
+      const actions = await this.authorizedActions(runtimeCall, wanted => wanted === name && listed
+        ? { capability_id: listed.capability_id, version: listed.version, provider_id: listed.provider.provider_id } : undefined);
       return actions.ports.callTool(name, arguments_, callContext);
     }
     const contextHandler = lookupContextTool(this.contextTools, name);
@@ -290,8 +299,8 @@ export class LocalMcpServer {
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
       runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
       ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: mcpResidentManagement(this.ensureResident,
-        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL")
-          ?? homeHostUrl(resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome()),
+        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveConfiguredHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL")
+          ?? homeHostUrl(resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveConfiguredHome()),
         mcpRequestSignal(this.transportLifetime.signal),resident?.controlToken) } : {}) }, name, arguments_);
   }
 

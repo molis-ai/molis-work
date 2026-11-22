@@ -5,6 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 import { holdSubtaskDraft } from "./fixtures/subtask-draft-barrier.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 const userTexts = (body: ModelWire) => body.messages.filter(message => message.role === "user").map(message => typeof message.content === "string" ? message.content : JSON.stringify(message.content));
 
@@ -60,7 +61,8 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   // Read the existing path list after the parent has settled, then use its actual child-name button.
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
   await browser.waitFor("document.querySelector('.assistant-subtask-name')", 15_000);
-  if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await browser.evaluate(OPEN_DETAILS);
   await browser.evaluate(`(() => { const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='main draft stays';input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   if (place === "home" && source === "sdk") {
     // B59-FIX-03: an unchanged Assistant wait does not project the original question and review widgets again.
@@ -86,7 +88,8 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     await browser.waitFor("!document.querySelector('script[data-assistant-subtasks]')");
     assert.equal(await browser.evaluate("!!document.querySelector('[data-work-task-float]')"), false);
     await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:${JSON.stringify(sent.work.work_id)}}}))`);
-    if (!await browser.evaluate("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
+    // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+    await browser.evaluate(OPEN_DETAILS);
     await browser.waitFor("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0");
   }
   const workPath = source === "work" ? base + "/works/" + current!.delegated![0]!.work_id : undefined;
@@ -158,8 +161,11 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   await browser.waitFor("!document.querySelector('[data-work-task-float]') && document.activeElement===document.getElementById(window.__subtaskEntry.id)");
   await browser.click(".assistant-subtask-name"); await browser.waitFor(childInput);
   await browser.click("[data-assistant-composer] .mw-composer__input");
-  if (place === "project") await browser.waitFor("!document.querySelector('[data-work-task-float]')");
-  assert.equal(await browser.evaluate("document.activeElement===document.querySelector('[data-assistant-composer] .mw-composer__input')"), true, "choosing the main input preserves its focus; Home keeps both conversations open");
+  // WLN-36 (36A-3): the task's card stands in the info column's place and the conversation beside it does not change, in a
+  // project as on Home; it is put away by its own key.
+  assert.equal(await browser.evaluate("document.activeElement===document.querySelector('[data-assistant-composer] .mw-composer__input')"), true, "choosing the main input preserves its focus; both conversations stay open");
+  assert.equal(await browser.evaluate("!!document.querySelector('[data-work-task-float]')"), true, "the card stays beside the conversation");
+  await browser.click("[data-work-task-float] [data-subtask-close]"); await browser.waitFor("!document.querySelector('[data-work-task-float]')");
   await browser.click("[data-assistant-panel-close]");
   followUp.resolve();
   let updates: AssistantNotice[] = [];
@@ -177,7 +183,8 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     // B59-FIX-01/02: a close before the first budget POST leaves the same action usable on the actual Home float.
     await browser.evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:" + JSON.stringify(sent.work.work_id) + "}}))");
     await browser.waitFor("document.querySelector('.assistant-subtask-name')");
-    if (!await browser.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
+    // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+    await browser.evaluate(OPEN_DETAILS);
     const extend = "[data-work-task-float] [data-subtask-action=extend-budget]";
     await browser.click(".assistant-subtask-name");
     await browser.waitFor("document.querySelector(" + JSON.stringify(extend) + ") && " + childInput + ".disabled");

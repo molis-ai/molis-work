@@ -40,6 +40,11 @@ export function runWithMolisWorkHome<T>(homeDirectory: string, operation: () => 
   return homeScope.run(resolveHomeDirectory(homeDirectory), operation);
 }
 
+/** Current Host-scoped Home set by `runWithMolisWorkHome`, or undefined outside an explicit scope. */
+export function scopedMolisWorkHome(): string | undefined {
+  return homeScope.getStore();
+}
+
 export function resolveMolisWorkHome(): string {
   const scoped = homeScope.getStore();
   if (scoped) return scoped;

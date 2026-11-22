@@ -131,10 +131,10 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   const frame = "document.querySelector('[data-asst-frame]')";
   const inFrame = <T>(body: string) => evaluate<T>(`(async () => { const d = ${frame}.contentDocument, w = d.defaultView; ${body} })()`);
   const ready = (work: string) => `(() => { const d = ${frame}.contentDocument; const p = d?.querySelector('[data-assistant-panel]'); return d?.readyState === 'complete' && p && !p.hidden
-    && d.querySelector('.assistant-tab[data-current]')?.dataset.tab === '${work}' && !d.querySelector('[data-assistant-block=tools]').hidden; })()`;
+    && d.querySelector('[data-assistant-head]')?.dataset.about === '${work}' && !d.querySelector('[data-assistant-block=tools]').hidden; })()`;
   const open = async (work: string) => {
-    await inFrame(`d.querySelector('[data-tab="${work}"] .assistant-tab-main').click(); return null;`);
-    await waitFor(`(() => { const d = ${frame}.contentDocument; return d.querySelector('.assistant-tab[data-current]')?.dataset.tab === '${work}' && d.querySelector('[data-assistant-usage]').dataset.signature?.includes('"${work}"'); })()`, 15_000);
+    await inFrame(`d.dispatchEvent(new w.CustomEvent('molis:assistant-open', { detail: { work_id: '${work}' } })); return null;`);
+    await waitFor(`(() => { const d = ${frame}.contentDocument; return d.querySelector('[data-assistant-head]')?.dataset.about === '${work}' && d.querySelector('[data-assistant-usage]').dataset.signature?.includes('"${work}"'); })()`, 15_000);
   };
   // The usage box of the open work, opened: each part's title and its rows.
   const usage = () => inFrame<{ summary: string; parts: Record<string, string[]>; bar: boolean }>(`const box = d.querySelector('[data-assistant-usage]'); if (box.hidden) return null;
@@ -167,8 +167,8 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
     return { head: step.querySelector('summary').textContent, rows: [...step.querySelectorAll('.assistant-activity-detail > p')].map((p) => p.textContent),
       raw: fold.textContent, open: fold.open };`);
   assert.equal(refused.head, "修改 Pages · 新建摘要文档 — 没有完成");
-  assert.deepEqual(refused.rows, ["调用的能力pages.docs.create", "原因输入不符合能力合同", "整个输入多了合同里没有的内容"]);
-  assert.match(refused.raw, /^原始说明Hook "molis-action-gateway-pages" blocked/);
+  assert.deepEqual(refused.rows, ["调用的能力example.docs.create", "原因输入不符合能力合同", "整个输入多了合同里没有的内容"]);
+  assert.match(refused.raw, /^原始说明Hook "molis-action-gateway-example-docs" blocked/);
   assert.equal(refused.open, false, "the runtime's text stays folded until asked for");
 
   // The works' own words in English beside the English interface: the panel, its tabs, the thread and the side pane keep no Chinese.
@@ -179,8 +179,11 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   const left = await inFrame<string>(`const panel = d.querySelector('[data-assistant-panel]');
     return [...panel.querySelectorAll('*')].filter((n) => n.getClientRects().length).map((n) => [...n.childNodes].filter((c) => c.nodeType === 3).map((c) => c.data).join('')).join(' ').match(/[㐀-鿿]+/g)?.join(' ') ?? '';`);
   assert.equal(left, "", "no Chinese left in the panel in English words and English interface");
-  // The main conversation leads the works, named as it is read (batch 32: it stores no title).
-  assert.deepEqual(await inFrame<string[]>("return [...d.querySelectorAll('.assistant-tab-title')].slice(0, 4).map((n) => n.textContent);"), ["Main", "Sign-in keeps the old session cookie", "Plan the trial review", "Reply to Yijun Wang's email"]);
+  // POLISH-19: no tab row; the works are named in the list of all works, in English.
+  assert.equal(await inFrame<number>("return d.querySelectorAll('.assistant-tab').length;"), 0);
+  // (The list of all works is drawn when asked for, from 更多 › 全部工作.)
+  await inFrame("d.querySelector('[data-assistant-works-toggle]').click();");
+  assert.deepEqual(await inFrame<boolean[]>("return ['Sign-in keeps the old session cookie', 'Plan the trial review', \"Reply to Yijun Wang's email\"].map((title) => [...d.querySelectorAll('.assistant-works-item')].some((n) => n.textContent.includes(title)));"), [true, true, true]);
   assert.match((await usage()).summary, /^Usage · 18,200 tokens$/);
   // Mixed words: one thread holds both languages.
   await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="text"][data-cond-value="mixed"]').click()`);
@@ -203,13 +206,8 @@ test("VUX-39 the board's Assistant questionnaire: one choice, several and other 
   // Opens the work that asks, and fills its questionnaire: 英文 for the one choice, two of the arrangements and words of its own, a note.
   const fill = async (answer: "refused" | "ok") => {
     // VUX-39: the new document can contain hidden tabs before its initial work has opened.
-    await waitFor(inside(`(() => {
-      const button = d.querySelector('[data-tab="board-reply"] .assistant-tab-main'), box = button?.getBoundingClientRect();
-      return d.querySelector('[data-asst-frame-page]')?.dataset.answer === ${JSON.stringify(answer)}
-        && !!box?.width && !!box?.height && !button.disabled
-        && button.contains(d.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
-    })()`), 20_000);
-    await inFrame("d.querySelector('[data-tab=\"board-reply\"] .assistant-tab-main').click(); return null;");
+    await waitFor(inside(`d.querySelector('[data-asst-frame-page]')?.dataset.answer === ${JSON.stringify(answer)} && Boolean(d.querySelector('[data-assistant-head]')?.dataset.about)`), 20_000);
+    await inFrame("d.dispatchEvent(new w.CustomEvent('molis:assistant-open', { detail: { work_id: 'board-reply' } })); return null;");
     await waitFor(inside("!!d.querySelector('[data-question] [type=submit]')"), 15_000);
     return inFrame<{ one: string[]; several: string[]; other: string }>(`const c = ${card};
       const q1 = c.querySelector('[data-ix-field=q1]'), q2 = c.querySelector('[data-ix-field=q2]');

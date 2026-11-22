@@ -120,6 +120,6 @@ test('injected host resolver connects to real registry.npmjs.org over pinned HTT
   assert.equal(response.status, 200);
   assert.match(response.headers['content-type'] ?? '', /application\/json/);
   assert.deepEqual(JSON.parse(response.body), {});
-  assert.ok(resolved.length > 0 && resolved.every(isPublicAddress));
+  assert.ok(resolved.length > 0 && resolved.every((address) => isPublicAddress(address)));
   t.diagnostic(`registry.npmjs.org returned HTTP ${response.status} through pinned HTTPS`);
 });

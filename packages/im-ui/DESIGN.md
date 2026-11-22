@@ -25,6 +25,8 @@ rounded:
 
 # 项目讨论界面约定
 
+> **规范收敛（2026-11-21，决定 60）**：颜色、圆角、阴影、字体与共享控件统一以仓库根目录 [`DESIGN.md`](../../DESIGN.md) 与 [`skills/molis-design-ui/SKILL.md`](../../skills/molis-design-ui/SKILL.md) 为唯一准星；上方 frontmatter 与下文中的旧字面色值/圆角仅作历史记录，实现层只消费设计系统语义令牌（`renderSkinScope` + `renderShapeTokens` + `renderControlMetrics` + `appearanceHead`）。
+
 ## Overview
 
 工作保持在原处，讨论就地展开。右侧采用轻量话题标签与自然对话流，让成员短暂对齐后继续工作。表达简洁、层次清楚，不用目录、统计卡片或多条并列会话构造 dashboard。

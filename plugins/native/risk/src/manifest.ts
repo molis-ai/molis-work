@@ -4,6 +4,7 @@ import { RISK_PROJECT_DATABASE } from "./database.js";
 import { RISK_PLUGIN_ID } from "./identity.js";
 import { riskMethods } from "./methods.js";
 import { riskPresentation, riskPresentationActions } from "./presentation.js";
+import { riskSync } from "./replication.js";
 import { riskReviewActions, SCHEDULE_TASKS } from "./review.js";
 import { riskSearchActions } from "./search.js";
 import { RISK_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -38,10 +39,24 @@ export const riskManifest: PluginManifest = {
   read_groups: [{ group_id: "risk", title: "风险", description: "项目里的风险、它们的关联与进展",
     actions: [riskActions.list.capability_id, riskActions.get.capability_id, riskSearchActions.subject.capability_id, riskSearchActions.entries.capability_id] }],
   databases: { project: RISK_PROJECT_DATABASE },
+  sync: riskSync,
   // A risk's review is a Schedule task (review.ts); called as the risk action's caller.
   capabilities: { provides: [], consumes: [...Object.values(SCHEDULE_TASKS).map(reference => reference.capability_id), "search.references"] },
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "risk.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "risk.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "risk.help.example-1" }, { key: "risk.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "risk.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "risk.help.advanced-summary" }, body: { key: "risk.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [RISK_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "overview", slot: "navigator", title: "风险", title_text: { key: "risk.view.overview" }, contribution_id: RISK_UI_CONTRIBUTION_ID, icon: "shield", hue: "orange",

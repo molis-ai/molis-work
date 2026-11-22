@@ -9,7 +9,7 @@ import test from "node:test";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { workEnvironment, workSettings } from "../scripts/account-environments.mjs";
 import { carrierIssues, connectorApplicationReferences, misplacedValues, missingProfileValues, nodeVersion, tauriSettings } from "../tooling/release/profile.mjs";
-import { releaseProfile } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkRuntimePayload, installMolisWorkHome, releaseProfile } from "@molis-ai/molis-work-app-local-host";
 import { packBundledReleasePackages } from "../tooling/release/pack-bundled.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -119,5 +119,67 @@ test("26-9 S-bundled-packages: the build uses the dev key reference to produce o
   for (const file of files) {
     const { bundle } = verifyPluginPackageSignature(JSON.parse(await readFile(join(output, file), "utf8")));
     assert.equal(file, bundle.payload.manifest.plugin_id + ".json");
+  }
+});
+
+// Building the whole runtime payload alone takes about 45 s on a developer Mac (2026-11-22); with the probes the whole test takes 60–100 s
+// there and on CI, so 60 s timed out every run. The limit leaves room for a loaded machine; nothing it checks is loosened.
+test("ENV-13: packaged test runtime isolates MCP, CLI, and Host home resolution from ~/.molis-work", { timeout: 180_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-test-env-isolation-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const testSettings = workSettings("test", pathToFileURL(root), { publicOnly: true, installed: true });
+  // Reject invalid release configuration before walking or fingerprinting the runtime source.
+  for (const badSyncOrigin of ["https://work.molis.ai", "https://auth.test.molis.ai", "http://127.0.0.1:8788", "https://work.test.molis.ai/api"]) {
+    await assert.rejects(
+      createMolisWorkRuntimePayload({
+        sourceDirectory: join(directory, "unread-source"),
+        destinationDirectory: join(directory, "bad-payload"),
+        nodeExecutablePath: process.execPath,
+        desktopDistribution: { profile: "test", account: testSettings.account, syncOrigin: badSyncOrigin },
+      }),
+      /sync origin/u,
+    );
+  }
+  const payload = join(directory, "payload");
+  await createMolisWorkRuntimePayload({
+    sourceDirectory: root,
+    destinationDirectory: payload,
+    nodeExecutablePath: process.execPath,
+    desktopDistribution: { profile: "test", account: testSettings.account, syncOrigin: testSettings.syncOrigin },
+  });
+  const fakeHome = join(directory, "fake-user-home");
+  await mkdir(fakeHome, { recursive: true });
+  const expectedTestHome = join(fakeHome, ".molis-work-environments", "installed-test");
+  const wrongProdHome = join(fakeHome, ".molis-work");
+  const cleanEnv = { ...process.env, HOME: fakeHome, MOLIS_WORK_HOME: wrongProdHome, MOLIS_WORK_RUNTIME_ID: "codex", MOLIS_WORK_ACCOUNT_CONFIG: '{"forged":true}' };
+  delete cleanEnv.NODE_TEST_CONTEXT;
+  delete cleanEnv.MOLIS_WORK_WEB_URL;
+  const probe = execFileSync(process.execPath, [
+    "--input-type=module",
+    "-e",
+    `
+      const host = await import(${JSON.stringify(pathToFileURL(join(payload, "node_modules", "@molis-ai", "molis-work-app-local-host", "dist", "index.js")).href)});
+      const profile = await import(${JSON.stringify(pathToFileURL(join(payload, "node_modules", "@molis-ai", "molis-work-app-local-host", "dist", "active-release-profile.js")).href)});
+      const runtimeHost = host.runtimeContextHostFromEnvironment();
+      console.log(JSON.stringify({
+        configuredHome: host.resolveConfiguredHome(),
+        runtimeHome: runtimeHost?.homeDirectory ?? null,
+        accountEnv: JSON.parse(profile.configuredAccountEnvironment() ?? "null"),
+        syncOrigin: profile.configuredSyncOrigin() ?? null,
+      }));
+    `,
+  ], { env: cleanEnv, encoding: "utf8" });
+  const result = JSON.parse(probe);
+  assert.equal(result.configuredHome.endsWith("/.molis-work-environments/installed-test"), true, result.configuredHome);
+  assert.equal(result.runtimeHome.endsWith("/.molis-work-environments/installed-test"), true, result.runtimeHome);
+  assert.equal(result.configuredHome.includes("/.molis-work/"), false);
+  assert.equal(result.accountEnv.clientId, testSettings.account.clientId, "packaged account config ignores poisoned MOLIS_WORK_ACCOUNT_CONFIG");
+  assert.equal(result.syncOrigin, testSettings.syncOrigin);
+  // Installing the packaged test payload pins MOLIS_WORK_HOME in generated bin/molis-work, bin/molis-work-mcp, and bin/molis-work-web.
+  const installed = await installMolisWorkHome({ homeDirectory: expectedTestHome, sourceDirectory: payload });
+  for (const launcher of [installed.launchers.cli, installed.launchers.mcp, installed.launchers.web]) {
+    const text = await readFile(launcher, "utf8");
+    assert.ok(text.includes("MOLIS_WORK_HOME="), launcher);
+    assert.ok(text.includes("installed-test"), launcher);
   }
 });

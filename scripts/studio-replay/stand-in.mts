@@ -9,9 +9,10 @@
 import { createServer, type Server } from 'node:http';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LocalCatalogMetadata, LocalSqliteStorage, createFileSecretStore, runWithMolisWorkHome } from '@molis-ai/molis-work-storage';
-import { ModelProviderStore, createModelProviderTables } from '../../apps/local-host/src/model-provider-store.js';
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from '../../apps/local-host/src/project-catalog-contract.js';
+import { createContextLedger } from '@molis-ai/molis-work-module-context-ledger';
+import { LocalSqliteStorage, createFileSecretStore, runWithMolisWorkHome } from '@molis-ai/molis-work-storage';
+import { ModelProviderStore } from '../../apps/local-host/src/model-provider-store.js';
+import { initializeCatalog } from '../../apps/local-host/src/catalog-schema.js';
 import { withConnectorConnections } from '../../apps/local-host/src/connector-connection-store.js';
 
 /** Per stage, the answer; a list answers the first request with its first item, the next with its second, and the last one for every request after. */
@@ -76,8 +77,8 @@ export function configureStandInHome(home: string, address: string): void {
   mkdirSync(join(home, 'projects'), { recursive: true });
   const storage = new LocalSqliteStorage(join(home, 'projects', 'catalog.db'));
   try {
-    const metadata = new LocalCatalogMetadata(storage.db);
-    metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(storage.db);
+    createContextLedger(storage.db, { initializeSchema: true, authorize: () => false });
+    initializeCatalog(storage);
     const connection = withConnectorConnections(home, store => {
       const created = store.createToken({ serviceId: 'model-api', displayName: 'stand-in model', token: 'stand-in-key-not-a-secret' });
       store.assertTarget(created.connection_id, 'model-api', address);

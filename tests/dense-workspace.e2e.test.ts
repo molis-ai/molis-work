@@ -12,7 +12,7 @@ import { pluginFrameBrowser } from './fixtures/plugin-frame-browser.js';
 test('Dense workspace keeps many long tabs, nested panes and long Feed content inside the viewport',{timeout:90000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {command,sessionId,evaluate,click,openGoalFrame,waitFor,navigate,origin,projectId}=b;
-  const owners=await Promise.all([0,1,2].map(index=>pluginFrameBrowser(t,b,'feed',`iframe.tab-content-frame[data-dense-owner="${index}"]`)));
+  const owners=await Promise.all([0,1,2].map(index=>pluginFrameBrowser(t,b,'feed',undefined,`[data-tab-pane][data-dense-owner="${index}"] iframe[data-plugin-frame="feed"]`)));
   await addProjectPlugin(b.web, projectId!, "feed");
   const app=new GoalProjectApplication(b.store),ids:string[]=[];
   for(let i=0;i<12;i++)ids.push(app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:`工作区验收 ${i}：跨团队长期目标，保留清晰的信息层级和用户注意力`,outcome:'切换与分屏可连续使用',actor_id:'web-user',actor_kind:'user',idempotency_key:'dense-'+i}).goal.goal_id);
@@ -27,9 +27,9 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await click('[data-plugin-id=feed]');
   for(const direction of ['right','bottom']) {
     await click('[data-layout-open]');await click(`[data-layout-split=${direction}]`);
-    await waitFor(`document.querySelectorAll('iframe.tab-content-frame').length>=${direction==='right'?2:3}`);
+    await waitFor(`document.querySelectorAll('[data-tab-pane]').length===${direction==='right'?2:3} && document.querySelectorAll('iframe.tab-content-frame').length===0 && [...document.querySelectorAll('[data-tab-pane]')].every(p=>p.querySelector('[data-work-surface=feed]:not([hidden]) iframe[data-plugin-frame=feed]'))`);
   }
-  const bindings=await evaluate<Array<{pane:string;tab:string;actualPane:string}>>("[...document.querySelectorAll('iframe.tab-content-frame')].filter(frame=>!frame.hidden&&frame.getClientRects().length).map((frame,index)=>{frame.dataset.denseOwner=String(index);return {pane:frame.dataset.paneOwner,tab:frame.dataset.paneTab,actualPane:document.querySelector('[data-tab-pane=\"'+CSS.escape(frame.dataset.paneOwner)+'\"]')?.dataset.tabPane}})");
+  const bindings=await evaluate<Array<{pane:string;tab:string;actualPane:string}>>("[...document.querySelectorAll('[data-tab-pane]')].filter(pane=>!pane.hidden&&pane.getClientRects().length).map((pane,index)=>{pane.dataset.denseOwner=String(index);const surf=pane.querySelector('[data-work-surface=feed]:not([hidden])');return {pane:pane.dataset.tabPane,tab:surf?.dataset.paneTab||'',actualPane:pane.dataset.tabPane}})");
   assert.equal(bindings.length,3);assert.equal(new Set(bindings.map(binding=>binding.pane)).size,3);
   assert.ok(bindings.every(binding=>binding.pane===binding.actualPane&&binding.tab),'each child belongs to its actual pane and tab');
   for(const owner of owners)await owner.waitFor("document.querySelector('[data-feed-entry-id]')");
@@ -44,7 +44,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await reader.waitFor(`document.querySelector('[data-feed-detail="${entryId}"]')?.textContent.includes('记录 39')`);
 
   assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollWidth<=innerWidth+1'),true);
-  assert.equal(await evaluate("[...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument.scrollingElement.scrollHeight<=f.clientHeight+1)"),true);
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane]')].every(p=>p.scrollHeight<=p.clientHeight+1 && p.scrollWidth<=p.clientWidth+1)"),true);
   for(const owner of owners)assert.equal(await owner.evaluate('document.scrollingElement.scrollHeight<=innerHeight+1&&document.scrollingElement.scrollWidth<=innerWidth+1'),true);
   const dir=`${REVIEW_EVIDENCE}/closing-v14`;await mkdir(dir,{recursive:true});
   const capture=async(name:string)=>{const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}.png`,Buffer.from(shot.data,'base64'));};

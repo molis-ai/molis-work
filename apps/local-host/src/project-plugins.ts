@@ -78,6 +78,17 @@ export async function runningProjectPlatform(store: LocalProjectDatabase, projec
 export const currentProjectPlatform = (store: LocalProjectDatabase, projectId: string) =>
   started.get(store)?.get(projectId)?.current?.platform ?? null;
 
+/** Whether the project's plugins are still starting, or one of them has work running that closing the project would end. */
+export function projectPluginsHaveWork(store: LocalProjectDatabase, projectId: string): boolean {
+  const opening = started.get(store)?.get(projectId);
+  return !!opening && (!opening.current || !!opening.current.platform?.hasProjectWork(projectId));
+}
+
+/** Synchronous count of active background executions and command-kept jobs in this project's built-in plugins. */
+export function projectPluginsActiveWorkCount(store: LocalProjectDatabase, projectId: string): number {
+  return started.get(store)?.get(projectId)?.current?.platform?.activeWorkCount() ?? 0;
+}
+
 /** Reconcile through the project's existing queue without starting a plugin platform. */
 export async function refreshRunningProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<ProjectPluginRefreshResult | null> {
   const opening = started.get(store)?.get(projectId);

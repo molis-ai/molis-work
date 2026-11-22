@@ -14,6 +14,7 @@ import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-isla
 import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
 import { WEB_LOCALES, type WebLocale } from "./i18n.js";
+import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderLanguageHead } from "./language-resource.js";
 import type { AssistantBoardSamples } from "./assistant-board-samples.js";
 
@@ -57,7 +58,7 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
   + `.mw-asst{flex:1;display:grid;align-content:start;gap:8px;padding:12px 16px}.mw-asst p{margin:0;color:var(--muted);font-size:12px}`
   + `.mw-asst-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.mw-asst-row [role=status]{color:var(--muted);font-size:12px}`;
 
-export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
+export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts, appearance?: WorkbenchAppearance): string {
   const { readText } = ports;
   const bar = renderWorkbenchBar({ readText, escapeHtml, icon });
   const data = JSON.stringify({ samples: ports.samples, current: WORK_IDS[options.work], answer: options.answer }).replaceAll("<", "\\u003c");
@@ -73,6 +74,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   ${renderLanguageHead(ports.htmlLang())}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
+  ${appearanceHead(appearance)}
   <style>${FRAME_STYLES}</style>
 </head>
 <body class="immersive-workbench mw-asst-page">

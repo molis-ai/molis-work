@@ -686,7 +686,14 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
     const station = request.to.station;
     const receive = views.find(view => view.action.workflow_content?.id === station && view.action.workflow_content.role === "receive" && view.availability.available);
     if (!receive) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.no-plugin-here-can-receive-content"));
-    const item = await scope.client.invoke(scope.caller, ref(receive), { title, body, source: from, request_id: `placement:${request.request_id}` }) as WorkflowItemRef;
+    let url = request.payload?.url;
+    // Only a source verified by its owner can supply a binding in the reserved namespace.
+    if (source.kind === "form" && read.state === "ok" && read.context?.subject.kind === source.kind && read.context.subject.id === source.id) {
+      url = "molis-source://form/" + encodeURIComponent(source.id);
+    } else if (url?.trimStart().toLowerCase().startsWith("molis-source://")) {
+      url = undefined;
+    }
+    const item = await scope.client.invoke(scope.caller, ref(receive), { title, body, source: from, ...(url != null ? { url } : {}), request_id: `placement:${request.request_id}` }) as WorkflowItemRef;
     // The station's object is of the kind it declares (Jelly's is a note, not a calendar entry).
     if (!receive.action.subject_kinds.includes(item.subject.kind)) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
     created = { kind: item.subject.kind, id: item.subject.id, project_id: request.to_project_id };

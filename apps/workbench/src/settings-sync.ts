@@ -38,14 +38,18 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       const spaceId=state?.policy?.spaceId;
       const dialog=node('dialog','mw-dialog mw-dialog--form'),shell=node('div','mw-form mw-dialog__shell'),header=node('header','mw-form__header');dialog.dataset.syncDialog='';
       header.append(node('h2','',readText(title)));const main=node('div','mw-form__body');main.append(body);const footer=node('footer','mw-form__footer'),problem=node('p','settings-form-error');problem.setAttribute('role','alert');problem.hidden=true;main.append(problem);
-      for(const [label,run] of actions)footer.append(button(label,async()=>{footer.querySelectorAll('button').forEach(el=>el.disabled=true);try{if(state?.policy?.spaceId!==spaceId)throw new Error(readText("workbench.settings-sync.account-has-changed-please-reopen-view"));await run();dialog.close();}catch(error){problem.textContent=error.message;problem.hidden=false;}finally{footer.querySelectorAll('button').forEach(el=>el.disabled=false);}}));
+      for(const [label,run] of actions)footer.append(button(label,async()=>{footer.querySelectorAll('button').forEach(el=>el.disabled=true);try{if(state?.policy?.spaceId!==spaceId)throw new Error(readText("workbench.settings-sync.account-has-changed-please-reopen-view"));if((await run())!==false)dialog.close();}catch(error){problem.textContent=error.message;problem.hidden=false;}finally{footer.querySelectorAll('button').forEach(el=>el.disabled=false);}}));
       const cancel=node('button','mw-btn mw-btn--secondary',readText("common.control.cancel"));cancel.type='button';cancel.addEventListener('click',()=>dialog.close());footer.append(cancel);shell.append(header,main,footer);dialog.append(shell);document.body.append(dialog);
-      const observer=new MutationObserver(()=>{if(!root.isConnected)dialog.close();});observer.observe(document.body,{childList:true,subtree:true});dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();},{once:true});dialog.showModal();cancel.focus();return dialog;
+      const observer=new MutationObserver(()=>{if(!root.isConnected)dialog.close();});
+      for(let ancestor=root.parentElement;ancestor&&ancestor!==document.body;ancestor=ancestor.parentElement){observer.observe(ancestor,{childList:true});if(ancestor.matches('[data-settings-stage-body],main'))break;}
+      dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();},{once:true});dialog.showModal();cancel.focus();return dialog;
     };
-    const confirmPermanent=(run)=>{
+    const confirmPermanent=(run)=>new Promise(resolve=>{
+      let confirmed=false;
       const notice=node('p','settings-muted',readText("workbench.settings-sync.confirm-permanent-cleanup"));
-      return sheet("workbench.settings-sync.permanent-cleanup",notice,[["workbench.settings-sync.confirm-cleanup",run]]);
-    };
+      const dialog=sheet("workbench.settings-sync.permanent-cleanup",notice,[["workbench.settings-sync.confirm-cleanup",async()=>{await run();confirmed=true;}]]);
+      dialog.addEventListener('close',()=>resolve(confirmed),{once:true});
+    });
     ${SYNC_COMPARISON_SCRIPT}
     const compare=async(collection,item,recovery=false)=>{
       try{
@@ -71,7 +75,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       root.querySelector('[data-sync-quota]').textContent=data.quota?readText("workbench.settings-sync.cloud-storage")+' '+(data.quota.usedBytes/1e6).toFixed(2)+' / '+(data.quota.limitBytes/1e6).toFixed(0)+' MB':'';
       root.querySelector('[data-sync-automatic]').checked=data.device.automatic===true;
       fields.replaceChildren(node('legend','',readText("workbench.settings-sync.content-sync")));
-      const groups=[[readText("workbench.settings-sync.group-platform"),item=>item.selection.plugin_id.startsWith('io.molis.work.module.')||item.selection.plugin_id.startsWith('io.molis.work.service.')],[readText("workbench.settings-sync.group-plugins"),item=>!item.selection.plugin_id.startsWith('io.molis.work.module.')&&!item.selection.plugin_id.startsWith('io.molis.work.service.')]];
+      const groups=[[readText("workbench.settings-sync.group-platform"),item=>item.group==='platform'],[readText("workbench.settings-sync.group-plugins"),item=>item.group!=='platform']];
       for(const [groupLabel,match] of groups){
         const items=data.collections.map((item,index)=>[index,item]).filter(([,item])=>match(item));
         if(!items.length)continue;

@@ -1,4 +1,4 @@
-import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutWithEllipsis, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRecoveryReport, AgentRunView, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -66,7 +66,7 @@ export function roundDiagnostics(workId: string, work: StoredWork | null, round:
       ...(material.method ? { method: { ...material.method } } : {}) })),
     usage: tokens ? { input: tokens.input, output: tokens.output, cached_input: tokens.cached_input ?? 0 } : null,
     failures: (view?.activity ?? []).filter(item => item.state === "failed" || item.state === "unknown")
-      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400), ...(item.output ? { detail: item.output.slice(0, 600) } : {}) })),
+      .map(item => ({ tool: item.name, target: cutHead(item.target, 200), state: item.state as "failed" | "unknown", summary: cutHead(item.summary, 400), ...(item.output ? { detail: cutHead(item.output, 600) } : {}) })),
   };
 }
 

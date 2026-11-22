@@ -19,7 +19,10 @@ import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.
 import { identity } from "./assistant-relations.js";
 import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
 import { promptTitle } from "./assistant-work-title.js";
+import { repeatingFailure } from "../host-log.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
+
+const continueFailures = repeatingFailure("assistant", "hand_back_round_failed");
 
 /**
  * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `active` sub-tasks
@@ -163,14 +166,14 @@ export class AssistantDelegations {
         const listed = (input.requirements ?? []).slice(0, 20).map((item, index) => ({ id: `r${index + 1}`, statement: item.statement, ...(item.expected ? { expected: item.expected } : {}), requires_person: item.requires_person === true }));
         const hung = listed.length > 0 && Boolean(parent.project_ref && this.ports.acceptance);
         const node_id = `p-${randomUUID().slice(0, 12)}`;
-        const child = store.create({ actor_id: actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
+        const child = store.create({ actor_id: actorId, title: cutHead(input.title, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
           origin: { surface: "assistant", title: `「${promptTitle(parent)}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
-          delegated_by: { graph_id, node_id, title: promptTitle(parent), acceptance: input.acceptance.slice(0, 2000), ...(hung ? { requirements: listed.length } : {}) },
+          delegated_by: { graph_id, node_id, title: promptTitle(parent), acceptance: cutHead(input.acceptance, 2000), ...(hung ? { requirements: listed.length } : {}) },
           // Done for the event the round named; else, unless it is registered as an event of its own, for the event this work is (or is done for).
           ...(input.for_event ? { serves: [{ kind: input.for_event.kind, id: input.for_event.id }] } : input.track || !parent.project_ref ? {} : { serves: eventBehind(parent) }),
           ...(input.track && parent.project_ref ? { line_event: true as const } : {}) });
-        const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
-          text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: promptTitle(parent) } }));
+        const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: cutHead(material.title, 200),
+          text: cutHead(material.text, 20_000), explicit: true, source: { surface: "assistant", title: promptTitle(parent) } }));
         try {
           // A Character's own main conversation hands its parts to itself unless it names another role: the task is done, and
           // reported back, by the one the person is talking to (WLN-40).
@@ -217,7 +220,7 @@ export class AssistantDelegations {
         if (open(steps).length || !child.session_id) throw assistantErrors.state("这个子任务还在做：先用 check-delegated-work 等它交回，再按验收标准追加");
         if (followUps(steps) >= DELEGATION_LIMITS.followUps) throw assistantErrors.limit(`已经追加过 ${DELEGATION_LIMITS.followUps} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
         // A follow-up is a step of its own under the part: an ended step is never reopened. The work waits for it too.
-        const step = steps.length ? { graph_id, node_id: `${node_id}.f${followUps(steps) + 1}`, under: node_id, session_id: child.session_id, title: `追加：${text.split("\n")[0]!.slice(0, 60)}` }
+        const step = steps.length ? { graph_id, node_id: `${node_id}.f${followUps(steps) + 1}`, under: node_id, session_id: child.session_id, title: `追加：${cutHead(text.split("\n")[0]!, 60)}` }
           : { graph_id, node_id, session_id: child.session_id, title: child.title };
         await inAssistantWorkEffect(host.adapter(RUNTIME), { assertCurrent, beforeEffect: async () => assertCurrent() }, () => graphs.add({ ...step, wait_reason: WAITS_FOR_PARTS }));
         try { await this.ports.dispatch(child, text, [], "assistant", undefined, () => { assertCurrent(); return true; }); }
@@ -346,7 +349,7 @@ export class AssistantDelegations {
     if (work.delegated_by) { this.ports.subtaskReports?.kick(work.work_id); return; }
     if (!work.graph_id) return;
     const graphs = await this.#graphs();
-    graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continue(ready).catch(() => undefined); })();
+    graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continued(ready); })();
   }
 
   /** A hand-back round of the work is being prepared: a stop may withdraw it. */
@@ -366,8 +369,13 @@ export class AssistantDelegations {
   /** The Host started: works whose parts all came back while it was away go on now (the SDK kept their continuations). */
   async attach(): Promise<void> { this.#listen(await this.#graphs()); this.ports.subtaskReports?.attach(); }
 
+  /** A hand-back round that could not start leaves the work waiting: said once per work graph until one of its rounds starts again. */
+  #continued(ready: { graph_id: string; request_key: string }): Promise<void> {
+    return this.#continue(ready).then(() => continueFailures.worked(ready.graph_id), (error: unknown) => continueFailures.failed(ready.graph_id, error));
+  }
+
   #listen(graphs: AgentWorkGraphPort): void {
-    this.#listening ??= graphs.onReady(ready => void this.#continue(ready).catch(() => undefined));
+    this.#listening ??= graphs.onReady(ready => void this.#continued(ready));
   }
 
   /** Parts not taken back that ended since the work's latest round began (none left open), how each ended, and its last step. */

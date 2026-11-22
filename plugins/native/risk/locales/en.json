@@ -150,6 +150,13 @@
     "risk.status.mitigating": "Mitigating",
     "risk.status.open": "Open",
     "risk.view.overview": "Risks",
-    "risk.view.record": "Risk"
+    "risk.view.record": "Risk",
+    "risk.help.title": "Risk",
+    "risk.help.what": "Track project risks, impact levels, mitigations, and review check-ins so critical blockers are never forgotten.",
+    "risk.help.example-1": "Log a release or dependency risk with triggers and a mitigation plan",
+    "risk.help.example-2": "Filter open high-impact risks and close them once mitigated",
+    "risk.help.scope": "Risk entries stay in this project’s local database; optional review reminders trigger locally under your permission.",
+    "risk.help.advanced-summary": "Linking goals and reviews",
+    "risk.help.advanced": "Cross-reference goals so high-severity risks are double-checked before goal closure."
   }
 }

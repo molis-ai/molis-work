@@ -25,7 +25,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "optionalDependencies": {
     "node-pty": "1.1.0"
   }
 }

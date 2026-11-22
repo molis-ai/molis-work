@@ -176,14 +176,14 @@ fi
     await click(`[data-shelf-source="${first.item_id}"]`);
     const evidence = specEvidenceDirectory("specs/archive/shelf-dropagent-parity/evidence");
     await mkdir(evidence, { recursive: true });
-    // At 820px the 213px list stays beside the open file, which leaves the stage under 640px: its narrow layout.
-    for (const [name, theme, width] of [["browser-compare-light", "light", 1440], ["browser-compare-dark", "dark", 1440], ["browser-compare-narrow", "light", 820]] as const) {
+    // An open file takes the whole Shelf page (36A-3), so the stage's narrow layout is a window under 640px.
+    for (const [name, theme, width] of [["browser-compare-light", "light", 1440], ["browser-compare-dark", "dark", 1440], ["browser-compare-narrow", "light", 600]] as const) {
       await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
       await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
       await browser.evaluate(`document.documentElement.dataset.resolvedTheme = ${JSON.stringify(theme)}`);
-      // Soft Workbench: the Shelf reading side is the shared soft surface in each theme.
-      await waitFor(`getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === ${JSON.stringify(theme === "dark" ? "#1f272f" : "#f5f8fb")}`);
-      if (width === 820) await waitFor("document.querySelector('[data-shelf-stage]').classList.contains('is-narrow')");
+      // Soft Workbench (91-0b Decision 60): the Shelf reading side is the shared soft surface in each theme.
+      await waitFor(`getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === ${JSON.stringify(theme === "dark" ? "#151b22" : "#f8fafc")}`);
+      if (width === 600) await waitFor("document.querySelector('[data-shelf-stage]').classList.contains('is-narrow')");
       await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
       await writeFile(`${evidence}/${name}.png`, Buffer.from(shot.data, "base64"));
@@ -260,7 +260,9 @@ fi
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
     assert.equal(await readFile(join(shelf.root,single.payload.paths[0]!), 'utf8'), single.saved, 'the native path really exists and contains the complete saved bytes');
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
-    await click("[data-shelf-edit]");
+    // The row's copy key is on the list, the page behind an open file (36A-3): going back for it saved the edit and closed
+    // the file, which is opened again to choose a second one with it.
+    await select(first.item_id);
     await waitFor("!document.querySelector('[data-shelf-editor]')");
     await evaluate(`document.querySelector(${JSON.stringify(row(second.item_id))}).dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}))`);
     await waitFor("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item].is-on').length === 2");

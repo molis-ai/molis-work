@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底栏第十二版 · 对话分栏 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <link rel="stylesheet" href="../screens.css">
+  <link rel="stylesheet" href="../line.css">
+  <link rel="stylesheet" href="../dirs.css">
+  <link rel="stylesheet" href="../focus.css">
+  <link rel="stylesheet" href="../lip.css">
+  <link rel="stylesheet" href="../rail.css">
+  <link rel="stylesheet" href="../pane.css">
+</head>
+<body class="sp-body">
+  <div id="icons" hidden></div>
+  <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>底栏第十二版</b>
+    <span class="ln-ctrls" id="ctrls">
+      <button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-go="story"><span data-slot="button-label">演示一遍</span></button>
+      <span class="ln-vr"></span>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="ask"><span data-slot="button-label">它问你</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="step"><span data-slot="button-label">做完一步</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="bad"><span data-slot="button-label">没办成</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="float"><span data-slot="button-label">页面上拿一段</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="tasks"><span data-slot="button-label">任务栏</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reply"><span data-slot="button-label">回复到了</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="side"><span data-slot="button-label">侧边栏</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="max"><span data-slot="button-label">最大化</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="back"><span data-slot="button-label">从设置回来</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="fail"><span data-slot="button-label">没发出去</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reset"><span data-slot="button-label">重置</span></button>
+    </span>
+    <span class="grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标出固定区域" id="marks">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="off">不标</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="on">标出固定区域</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1920">1920</button>
+      <button type="button" class="mw-toggle" aria-pressed="true" value="1440">1440</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1180">1180</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1024">1024</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="820">820</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="390">390</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="light">浅色</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="dark">深色</button>
+    </span>
+  </header>
+  <main id="dirs">
+    <section class="d-sec" id="proto">
+      <h2>33 · 底栏第十二版：三段各自向上长（对话分栏，该你的是一叠卡）</h2>
+      <p>可以直接点：左边的卡和卡上的按钮、输入框上沿的事项标签、右边线上的站、输入框下面那一行、主区里的行。上面的按钮各演一条动线，「演示一遍」按顺序走完。布局用户已认可；这一稿把现在的功能、后面要来的需求、动线、状态、引导放在一起细化。顶部的页签是静态的，没有跟着换。</p>
+      <div class="sp-fit"><div class="sp-win c lp rz pz" id="win"></div></div>
+      <div class="ln-say" aria-live="polite"><b id="step">平常</b><span id="say">左边是一叠该你的卡，中间是输入框，上沿的标签是事项，右边一条线上是办完的、在办的、接下来的。</span></div>
+      <div class="ln-rules">
+        <div><b>左边：一叠该你的卡</b><span>最上面一张就是下一件该你的：哪件事、它问什么、可以怎么答。能直接在卡上答，答完这张飞走，下面一张上来。想看清楚再定，点卡片本身。它要你定的时候，那件事从右边的「在办」到这一叠里。</span></div>
+        <div><b>中间：输入框，上沿的标签只有事项和事件</b><span>当前事项是一个组：事项名后面是它里面开着的事件对话，整组上沿一道墨蓝，和输入框是同一张。别的事项是右边收起的一枚，带等你的件数。组里只放你打开过、还没关的对话。换项目不在这里。</span></div>
+        <div><b>右边：一条线，办完、在办、接下来</b><span>三站位置不变，每站两行小字：叫什么、几件，点名一件。实线是走过的，点线是还没到的。点名字专注到那件，点组名看这一站的全部。</span></div>
+        <div><b>对话分两栏</b><span>右栏只有说过的话，和输入框一样宽。左栏在那叠卡的正上方，从上到下：该你做的（选择项、接续）、这件事现在怎样（信息卡）、到现在为止（总结）、上下文（谁来办、方式、带着什么、放在哪）。</span></div>
+      </div>
+
+      <h3 class="ln-h3">一句话：底栏三段，各自向上长出自己的一块</h3>
+      <table class="ln-count map">
+        <thead><tr><th>底栏的一段</th><th>平常</th><th>向上长出来的</th><th>里面放什么</th></tr></thead>
+        <tbody>
+          <tr><td>左：该你</td><td>一叠卡，最上面一张带回答</td><td>左栏（和对话一起开合）</td><td>该你做的 → 这件事现在怎样 → 到现在为止 → 上下文</td></tr>
+          <tr><td>中：输入框，上沿是事项标签</td><td>字一行；带着什么、给谁一行</td><td>对话</td><td>只有说过的话，连同回执、安放、结果卡</td></tr>
+          <tr><td>右：一条线，办完、在办、接下来</td><td>每站两行小字</td><td>任务栏（自己开合）</td><td>这一站的全部；在办的每件写真实步骤，能展开它派出去的子任务，在这里和子任务说话</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">一件事在哪，只看它的状态</h3>
+      <table class="ln-count map">
+        <thead><tr><th>状态</th><th>在哪</th><th>那里写什么</th><th>能做什么</th><th>标记</th></tr></thead>
+        <tbody>
+          <tr><td>等你处理：要你定、要你答、交回待验收、要授权</td><td>左边卡叠</td><td>哪件事、它问什么、最多两个回答</td><td>回答、打开、先看下一张</td><td>琥珀点</td></tr>
+          <tr><td>失败、部分完成、中断</td><td>左边卡叠</td><td>哪一步没成、为什么</td><td>再试一次、先放下、打开</td><td>红点</td></tr>
+          <tr><td>结果不确定</td><td>左边卡叠</td><td>先核对</td><td>只有「去核对」，卡上不给重试</td><td>问号</td></tr>
+          <tr><td>进行</td><td>右边「在办」</td><td>名字、真实的当前步骤</td><td>补充、打断、停下</td><td>转环</td></tr>
+          <tr><td>排队</td><td>右边「在办」</td><td>排在谁之后、为什么</td><td>调先后、不办了</td><td>空心环</td></tr>
+          <tr><td>未开始、停下了</td><td>右边「接下来」</td><td>什么时候、等谁</td><td>开始办、改期、接着做</td><td>空心点</td></tr>
+          <tr><td>建议（助理或页面提的）</td><td>右边「接下来」</td><td>谁提的、为什么</td><td>开始办、不用了。不算等你的</td><td>虚线点</td></tr>
+          <tr><td>完成</td><td>右边「办完」，最近的在前</td><td>结果一句话</td><td>打开结果、再改改、撤销</td><td>勾</td></tr>
+          <tr><td>断线、重启后</td><td>原地不动，变虚</td><td>连不上，正在核对</td><td>核对完以前不给动作</td><td>虚线环</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">九条动线（上面的按钮各演一条）</h3>
+      <table class="ln-count map">
+        <thead><tr><th>动线</th><th>步骤</th><th>人动几下</th></tr></thead>
+        <tbody>
+          <tr><td>交办一件事</td><td>打字 → 回车 → 对话向上长，右栏先回一句接了什么，一个点飞到「在办」→ 点主区回去干活</td><td>2</td></tr>
+          <tr><td>它问你，不离开手上的事</td><td>卡到了左边 → 在卡上点回答 → 卡飞走</td><td>1</td></tr>
+          <tr><td>想看清楚再定</td><td>点卡片 → 对话分栏，主区换成那一页 → 左栏最上面定；「改一下」是光标进输入框 → 左栏给出下一件该你的</td><td>2</td></tr>
+          <tr><td>看进度、补充、打断、停下</td><td>点「在办」的名字 → 左栏看步骤 → 说一句（右下可改成打断、下一轮）；没字时发送键是停下</td><td>1–2</td></tr>
+          <tr><td>看结果、验收</td><td>「办完」亮一下 → 点名字 → 左栏最上面「打开结果」「再改改」</td><td>2</td></tr>
+          <tr><td>从页面上拿一段交给助理</td><td>选中 → 浮条 → ✦ 助理（小片进输入框左下）或「记成待办」（待确认的卡到卡叠最上面）</td><td>2–3</td></tr>
+          <tr><td>同时盯几件、和子任务说话</td><td>点「在办 N」→ 任务栏 → 展开看它派出去的 → 点一个，在任务栏里说</td><td>2–3</td></tr>
+          <tr><td>换事项</td><td>点另一枚标签 → 卡叠、线、主区一起换；草稿和「给谁」按事项留着</td><td>1</td></tr>
+          <tr><td>出错和回来</td><td>没发出去：字还在，再试。办到一半失败：红点的卡到左边。缺授权：去授权，回来卡变成「接着做」。重启：线上原地变虚，核对完恢复</td><td>1–2</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">现有的和要来的，各落在哪</h3>
+      <table class="ln-count map">
+        <thead><tr><th>东西</th><th>现在或原方案</th><th>第十二版</th></tr></thead>
+        <tbody>
+          <tr><td>情境条：手上的、落点、材料</td><td>输入框上方一行</td><td>输入框下面一行的左半边，一排小片；放不下收成「+N」</td></tr>
+          <tr><td>下一步行</td><td>和输入框同一行，最多 3 个</td><td>等你的 → 卡叠最上面一张；不等你的 → 对话左栏最上面一张；建议 → 「接下来」里的虚线项</td></tr>
+          <tr><td>浮条的 ✦ 助理</td><td>打开助理</td><td>小片飞进输入框左下，光标进输入框，对话不自己打开</td></tr>
+          <tr><td>浮条的写动作</td><td>卡片进对话</td><td>要确认的 → 卡叠最上面，在卡上确认，落点闪；能直接建的 → 「办完」多一件，带撤销</td></tr>
+          <tr><td>后台任务面板</td><td>对话右上角的图形</td><td>右边的线就是入口：点「在办 N」向上长出任务栏</td></tr>
+          <tr><td>子代理</td><td>右侧浮窗，带自己的输入框（第 58 批已定样）</td><td>任务栏里那件任务下面的行；点开在任务栏里对话</td></tr>
+          <tr><td>事件卡三段、决定请求</td><td>对话里的事件页签</td><td>左栏的信息卡和最上面那张；卡叠上是「同意」和「看 N 处」</td></tr>
+          <tr><td>回执、安放</td><td>对话里</td><td>对话右栏：回执在你那句话下面，安放在回复下面</td></tr>
+          <tr><td>收起到最新回复的浮卡</td><td>浮在主区上</td><td>不要了：回复到了而对话关着，亮着的标签上一个点</td></tr>
+          <tr><td>线头、「在：发布 v2」</td><td>线最左、输入框里的小片</td><td>标签末尾的 ⌄；亮着的标签就是「在哪」</td></tr>
+          <tr><td>主动建议（第 64 批）、事项容器（第 36、37 批）</td><td>还没做</td><td>建议是「接下来」里的虚线项；换标签时卡叠、线、主区、顶部页签、右侧、助理范围一起换</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">每样东西的固定位置</h3>
+      <table class="ln-count map">
+        <thead><tr><th>东西</th><th>固定在哪</th><th>什么时候看得见</th></tr></thead>
+        <tbody>
+          <tr><td>1 · 该你的</td><td>输入框左边的一叠卡，选择项就在卡上；专注着的那件不在这一叠里，它在对话左栏最上面</td><td>有等你的时候；没有时写「没有等你的」</td></tr>
+          <tr><td>2 · 在哪件事项里、对着哪件事、换事项</td><td>输入框上沿的标签：当前事项一组（事项名 › 开着的事件），别的事项各一枚；对话打开时在对话顶部</td><td>一直</td></tr>
+          <tr><td>这件事项的东西、停着的卡和清单</td><td>主区右边的侧边栏（是主区的一部分，底栏不跟着它挪）</td><td>开了侧边栏时</td></tr>
+          <tr><td>3 · 字</td><td>输入框上面一行。提示语写着这句话是对谁说的</td><td>一直</td></tr>
+          <tr><td>4 · 正在看、附件、材料</td><td>输入框下面一行的左半边</td><td>一直</td></tr>
+          <tr><td>5 · 发给谁、怎么送达</td><td>输入框下面一行的右半边；再往右是语音、发送</td><td>一直；送达方式只在它在办时</td></tr>
+          <tr><td>6 · 办完的、在办的、接下来的</td><td>输入框右边一条线上的三站</td><td>一直；没有时位置留着</td></tr>
+          <tr><td>9 · 这一站的全部、后台任务、子任务</td><td>右边向上长的任务栏</td><td>点了站的组名以后</td></tr>
+          <tr><td>7 · 选择项、接续（下一件该你的、从设置回来接着做）、发送中和没发出</td><td>对话左栏最上面一张卡。一次只有一组，第一项实心</td><td>对话开着、而且有下一步时</td></tr>
+          <tr><td>任务反馈的智能卡片</td><td>对话左栏第二张：名字、状态、进度、步骤；在事项的对话里是各组件数和从这里交办出去的那几件</td><td>对话开着时</td></tr>
+          <tr><td>总结</td><td>对话左栏第三张：到现在为止</td><td>对话开着时</td></tr>
+          <tr><td>上下文</td><td>对话左栏最下面：谁来办、方式、这句话带着什么、放在哪件事项</td><td>对话开着时</td></tr>
+          <tr><td>8 · 说过的话</td><td>对话右栏，只有它</td><td>对话开着时</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">我先按这些做了，你可以改</h3>
+      <table class="ln-count map">
+        <thead><tr><th>细则</th><th>这一稿的做法</th><th>别的做法</th></tr></thead>
+        <tbody>
+          <tr><td>底部高度</td><td>116：上面空 4，事项标签 28，输入框 74，底边 10</td><td>标签浮在主区下沿上，底部 100</td></tr>
+          <tr><td>输入框宽度</td><td>1440 宽时 660，1180 时 560，1024 时 470</td><td>—</td></tr>
+          <tr><td>对话的大小</td><td>右栏和输入框一样宽；左栏和那叠卡一样宽；高 440，不跟着内容变；话少时贴着输入框从下往上排</td><td>高度跟着内容</td></tr>
+          <tr><td>墨蓝实底</td><td>一屏一个：框里有字时是发送键，没字时是最该点的那个回答</td><td>只有发送键是实底</td></tr>
+          <tr><td>回复到了、对话关着</td><td>亮着的标签上一个点，不弹出来</td><td>浮一张最新回复的卡（现行）</td></tr>
+          <tr><td>✦ 助理</td><td>不自己打开对话</td><td>打开对话（现行）</td></tr>
+          <tr><td>后台任务的入口</td><td>右边的线（点「在办 N」）</td><td>对话右上角的图形（现行）</td></tr>
+          <tr><td>它问的那句话</td><td>左栏的卡里有（带选择项），右栏的对话里也有（它说过的话）</td><td>只在左栏</td></tr>
+          <tr><td>标签放什么</td><td>只有事项和事件。当前事项一组，组里是你打开过、还没关的事件对话；别的「现在」的事项各一枚；其余和「不选事项」在 ⌄ 里。项目不在这里</td><td>等你的、在办的自动进组（会乱）</td></tr>
+          <tr><td>最大化</td><td>左栏、对话、任务栏一起顶到页签下面，主区和侧边栏让出来；对话还是和输入框一样宽</td><td>对话在主区里开成一页</td></tr>
+          <tr><td>宽窗口</td><td>输入框最宽 720，卡叠最宽 400、三站最宽 470，都贴着输入框</td><td>跟着窗口拉开</td></tr>
+          <tr><td>在卡上直接答</td><td>可以，不用先打开那件事</td><td>卡上只有「打开」</td></tr>
+          <tr><td>点一件事</td><td>对话长出来，主区换成它那一页（顶部切到它的页签）</td><td>主区不动，只开对话</td></tr>
+          <tr><td>窄窗口</td><td>1180 以下：右边三站只留组名和件数。960 以下（点 820）：两行，卡叠和三站收成标签行右端的件数，点开向上弹。540 以下（点 390）：标签行只留当前事项和专注的事件，对话占满工作面</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script src="../../kit/kit.js"></script>
+  <script src="../screens.js"></script>
+  <script src="pane.js"></script>
+</body>
+</html>

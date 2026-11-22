@@ -202,6 +202,7 @@ export class MolisWorkProjectCatalog {
   private readonly personalProjects: PersonalProjectProvisioner;
   readonly wasProjectPluginRemoved:(projectId:string,pluginId:string)=>boolean;
   readonly ensureSyncedProject: PersonalProjectProvisioner['ensureSyncedProject'];
+  readonly stageHiddenProject: PersonalProjectProvisioner['stageHiddenProject'];
   readonly prepareSyncedProjectRestore: PersonalProjectProvisioner['prepareSyncedProjectRestore'];
   readonly projectPluginRequirements:(projectId:string)=>ReturnType<typeof projectPluginRequirements>;
 
@@ -239,6 +240,7 @@ export class MolisWorkProjectCatalog {
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
     this.setProjectPlugin = (projectId, actorId, input) => bumpAnd(this, () => this.projects.commands.setProjectPlugin(projectId, actorId, input));
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
+    this.stageHiddenProject = this.personalProjects.stageHiddenProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
     this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
@@ -434,9 +436,15 @@ export class MolisWorkProjectCatalog {
   listProjectDeletions(): MolisWorkProjectDeletionRecord[] {
     return this.projects.query.listProjectDeletions();
   }
-  async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
+  findProjectDeletion(actorId: string, idempotencyKey: string) {
+    return this.projects.lifecycle.findDeletion(actorId.trim(), idempotencyKey.trim());
+  }
+  async deleteProject(
+    input: DeleteMolisWorkProjectInput,
+    options?: { allowRecycled?: boolean; beforeCommit?: () => void },
+  ): Promise<MolisWorkProjectDeletionResult> {
     if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能删除；可以把里面的内容移到项目或逐个删除");
-    return notifyAfterAsync(this.homeDirectory, this.projectDeletion.deleteProject(input));
+    return notifyAfterAsync(this.homeDirectory, this.projectDeletion.deleteProject(input, options));
   }
 
   renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): MolisWorkProjectRecord {

@@ -63,7 +63,7 @@ export const frameAssets = {
   fromPane(source: Window) { return panes?.from({ origin: location.origin, data: { type: "frame-asset-source" }, source }) ?? null; },
   async list(signal?: AbortSignal): Promise<FrameAsset[]> {
     const items = new Map<string, FrameAsset>();
-    for (const root of document.querySelectorAll<HTMLElement>("[data-plugin-producer]")) {
+    for (const root of document.querySelectorAll<HTMLElement>("[data-plugin-producer]:not([data-pane-clone])")) {
       const payload: unknown = JSON.parse(root.querySelector("script[data-plugin-document]")?.textContent ?? "null");
       if (typeof payload !== "string" || !project(payload, root).length && !payload.includes("data-frame-assets-input")) continue;
       try {
@@ -90,7 +90,7 @@ export const frameAssets = {
     let outer: Window = window;
     if (parent !== window && parent.molisPluginFrames?.assets.fromPane(window)) outer = parent;
     if (outer !== window) windows.push(outer);
-    for (const frame of outer.document.querySelectorAll<HTMLIFrameElement>("iframe[data-pane-owner]")) {
+    for (const frame of outer.document.querySelectorAll<HTMLIFrameElement>('#side-panel iframe[data-pane-owner="side"]')) {
       if (frame.contentWindow && outer.molisPluginFrames?.assets.fromPane(frame.contentWindow) === frame) windows.push(frame.contentWindow);
     }
     for (const owner of new Set(windows)) {

@@ -288,6 +288,75 @@ export interface MwEnvChecklistOptions {
     readonly attrs?: Record<string, AttrValue>;
 }
 
+export type MwFactTone = "neutral" | "ok" | "warn" | "out";
+
+export interface MwHelpButtonOptions {
+    readonly topic?: string;
+    readonly focus?: string;
+    readonly label: string;
+    readonly variant?: "ghost" | "link" | "secondary";
+    readonly size?: "sm" | "md";
+    readonly id?: string;
+    readonly controls?: string;
+    readonly expanded?: boolean;
+    readonly className?: string;
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwHelpContentOptions {
+    readonly sections: readonly MwHelpSectionView[];
+    readonly focusId?: string;
+    readonly nextStep?: MwHelpNextStepView;
+    readonly error?: MwHelpErrorView;
+    readonly className?: string;
+}
+
+export interface MwHelpErrorView {
+    readonly title: string;
+    readonly body: string;
+    readonly retryLabel: string;
+    readonly retryAttrs?: Record<string, AttrValue>;
+}
+
+export interface MwHelpFirstVisitTipOptions {
+    readonly storageKey: string;
+    readonly text: string;
+    readonly actionLabel: string;
+    readonly skipLabel: string;
+    readonly topic?: string;
+    readonly className?: string;
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwHelpNextStepView {
+    readonly title: string;
+    readonly fact: string;
+    readonly action: MwButtonOptions;
+}
+
+export interface MwHelpSectionView {
+    readonly id: string;
+    readonly heading: string;
+    readonly body?: string;
+    readonly items?: readonly string[];
+    readonly collapsible?: boolean;
+    readonly summary?: string;
+}
+
+export interface MwHelpTopicData {
+    readonly id: string;
+    readonly title: string;
+    readonly context?: string;
+    readonly firstVisitTip?: string;
+    readonly sections: readonly MwHelpSectionView[];
+    readonly nextStep?: {
+        readonly title: string;
+        readonly fact: string;
+        readonly actionLabel: string;
+        readonly actionHref?: string;
+    };
+}
+
 export interface MwInlineRecoveryBlock {
     readonly title: string;
     readonly body: string;
@@ -309,6 +378,23 @@ export interface MwMaterialsTrackOptions {
     readonly tone?: MwStatusTone;
     readonly ariaLabel?: string;
     readonly title?: string;
+}
+
+export interface MwPreActionFactRow {
+    readonly tone?: MwFactTone;
+    readonly icon?: PluginIconName;
+    readonly text: string;
+    readonly detail?: string;
+    readonly action?: MwButtonOptions;
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwPreActionFactsOptions {
+    readonly heading: string;
+    readonly ariaLabel?: string;
+    readonly rows: readonly MwPreActionFactRow[];
+    readonly className?: string;
+    readonly attrs?: Record<string, AttrValue>;
 }
 
 export interface MwRoundReportCardOptions {
@@ -907,6 +993,16 @@ export declare function renderGroup(options: {
     className?: string;
 }): string;
 
+export declare function renderHelpButton(options: MwHelpButtonOptions): string;
+
+export declare function renderHelpContent(options: MwHelpContentOptions): string;
+
+export declare function renderHelpDataScript(topics: readonly MwHelpTopicData[]): string;
+
+export declare function renderHelpDeclarationScript(declaration: UiHelpDeclaration): string;
+
+export declare function renderHelpFirstVisitTip(options: MwHelpFirstVisitTipOptions): string;
+
 export declare function renderInput(options?: MwInputOptions): string;
 
 export declare function renderInputGroup(options: {
@@ -1053,6 +1149,8 @@ export declare function renderPopover(options: {
     attrs?: Record<string, AttrValue>;
     preview?: boolean;
 }): string;
+
+export declare function renderPreActionFacts(options: MwPreActionFactsOptions): string;
 
 export declare function renderPresentationForm(object: OwnedPresentationObject, form: FormKind, values: PresentationFormValues): string;
 
@@ -1315,6 +1413,8 @@ export declare function resolveUiEnvironment(input: UiEnvironmentInput): UiEnvir
 
 export declare function ringSegmentPath(points: number[][]): string;
 
+export declare function sandboxHelpDeclarationProblems(contract: Pick<SandboxPluginContract, "pluginId" | "help" | "ui">): string[];
+
 export declare const say: UiSayTool;
 
 export declare function skinTokenDeclarations(skin: UiResolvedSkin, select?: SkinTokenSelection): string;
@@ -1332,6 +1432,8 @@ export declare const textKeyPrefix: (owner: string) => string;
 export declare function textRefProblems(value: unknown, check?: TextRefCheck): readonly string[];
 
 export declare function tryOwnedTextRef(ref: unknown, owner: string): OwnedTextRef | null;
+
+export declare function uiHelpDeclarationProblems(manifest: Pick<PluginManifest, "plugin_id" | "ui">): string[];
 
 export declare function withDevicePreferences(snapshot: UiEnvironmentSnapshot, device: UiDevicePreferences): UiEnvironmentSnapshot;
 

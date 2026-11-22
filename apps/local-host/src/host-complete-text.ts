@@ -1,5 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, UNMARKED_IMAGES_NOTE, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
@@ -80,12 +81,12 @@ export function hostHasTextModel(options: HostTextOptions = {}): boolean {
  */
 export function hostTextGeneration(options: HostTextOptions = {}): HostTextGeneration | undefined {
   if (options.env !== undefined || options.resolveInference) return readHostTextGeneration(options);
-  const home = options.homeDirectory ?? resolveMolisWorkHome();
+  const home = options.homeDirectory ?? resolveConfiguredHome();
   return rememberInDirectoryPass(hostTextGeneration, JSON.stringify([home, options.selection ?? null]), () => readHostTextGeneration({ ...options, homeDirectory: home }));
 }
 
 function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | undefined {
-  const home = options.homeDirectory ?? resolveMolisWorkHome();
+  const home = options.homeDirectory ?? resolveConfiguredHome();
   if (options.env === undefined) {
     const opened = openConfiguredModels(home);
     if (opened) try {

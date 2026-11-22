@@ -190,7 +190,7 @@ async function openAssistant(j: Journey, currentProject: string | null, target: 
   await j.page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 });
   await j.page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 });
   await j.page.wait("document.querySelector('[data-assistant-panel]')?.checkVisibility()");
-  if (await j.page.evaluate("document.querySelector('[data-assistant-works]').hidden")) await j.page.click("[data-assistant-works-toggle]");
+  if (await j.page.evaluate("document.querySelector('[data-assistant-works]').hidden")) { await j.page.click("[data-assistant-more]"); await j.page.click("[data-assistant-works-toggle]"); };
   // Opening paints cached rows, then replaces them after the real /works read. Click the completed read's current row.
   await untilSetup(async () => j.requests.slice(listAt).find(one => one.mainPage && one.method === "GET" && one.path.endsWith("/api/assistant/works")
     && j.finished.has(one.requestId) && j.responses.some(response => response.requestId === one.requestId && response.status === 200)), "this page's work-list request started by opening finishes its actual refresh");
@@ -207,6 +207,9 @@ async function openAssistant(j: Journey, currentProject: string | null, target: 
     return {preserved:document.querySelector('[data-assistant-panel]').checkVisibility(),unprevented,href:link.getAttribute('href')};
   })`);
   assert.deepEqual(modifiers, Array.from({ length: 4 }, () => ({ preserved: true, unprevented: true, href: settingsPath(target) })));
+  // 本会话记忆 is in the conversation's details (更多 › 详情, 36A-3).
+  await j.page.click("[data-assistant-more]"); await j.page.click("[data-info-details-open]");
+  await j.page.wait("document.querySelector('[data-assistant-memory]')?.checkVisibility()");
   const at = j.requests.length; await j.page.click("[data-assistant-memory]"); await activateMemory(j.page); assertProtectedReads(j, at, target);
   await j.page.wait("!document.querySelector('[data-assistant-panel]')?.checkVisibility()");
   assert.ok((await j.page.evaluate<string[]>(`[...document.querySelectorAll('${active} [data-memory-id] .memory-meta span')].map(node=>node.textContent).filter(text=>text.startsWith('适用：'))`))

@@ -1,7 +1,7 @@
 import { renderKitSettings } from "./settings-kit.js";
 import { renderWebSearchSettings } from "./settings-web-search.js";
 import { renderModelSettingsDocument } from "./settings-models.js";
-import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderShellEnvironmentBadge } from "./document-shell.js";
 import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { t as uiText, icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
@@ -31,6 +31,7 @@ import { renderMcpSettings, renderRuntimeSettings } from "./settings-runtimes.js
 import { renderProjectSettings } from "./settings-project-manager.js";
 import { renderFunctionsWorkbench } from "./judgment-rules/ui.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
+import { withSettingsHelp } from "./settings-help-topics.js";
 import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./judgment-rules/bootstrap.js";
 /** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
 const NETWORK_DOC_HREF = {
@@ -39,6 +40,7 @@ const NETWORK_DOC_HREF = {
 } as const;
 export interface SettingsRenderPrimitives {
   accountRegistration?: boolean;
+  environmentName?(): "dev" | "test" | undefined;
   catalogTextPacks: ProjectSettingsPagePorts["catalogTextPacks"];
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
@@ -149,10 +151,19 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins, view.dynamic_plugin_settings))}
-    <div class="settings-content">${content}</div>
+    <div class="settings-content">${withSettingsHelp(
+      view.capabilities?.rules
+        ? "judgment-rules"
+        : view.capabilities?.section === "history"
+          ? "call-history"
+          : capabilities && view.section !== "connectors" && view.section !== "mcp"
+            ? "capabilities"
+            : view.section,
+      content,
+    )}</div>
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(primitives.environmentName?.())}
   ${settingsText(pluginPage, primitives.catalogTextPacks)}${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${view.section === "authorizations" ? '<script defer src="/assets/molis-work-capabilities.js"></script>' : ""}${appearanceClientTag(appearance)}
 </body></html>`;
 }

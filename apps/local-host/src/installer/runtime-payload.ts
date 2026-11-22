@@ -1,3 +1,4 @@
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { parseAccountEnvironment } from "@molis-ai/molis-work-service-account";
 import { installerErrors } from "./errors.js";
 import { createHash } from "node:crypto";
@@ -20,16 +21,40 @@ export interface MolisWorkRuntimePayloadOptions {
   desktopDistribution?: { readonly profile: string; readonly signedPackages?: string; readonly account?: unknown; readonly syncOrigin?: string };
 }
 
+function validateDistributionSyncOrigin(syncOrigin: string | undefined, expected: string, authOrigin: string): string | undefined {
+  if (syncOrigin === undefined || syncOrigin === "") return undefined;
+  if (typeof syncOrigin !== "string") {
+    throw new Error("Release sync origin is invalid");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(syncOrigin);
+  } catch {
+    throw new Error("Release sync origin is invalid");
+  }
+  const testDomain = parsed.hostname === "test.molis.ai" || parsed.hostname.endsWith(".test.molis.ai");
+  if (
+    parsed.origin !== syncOrigin
+    || parsed.protocol !== "https:"
+    || parsed.origin === authOrigin
+    || isLoopbackHostname(parsed.hostname)
+    || parsed.hostname.endsWith(".localhost")
+    || testDomain !== (expected === "test")
+  ) {
+    throw new Error("Release sync origin does not match its profile");
+  }
+  return syncOrigin;
+}
+
 /** Packages the same self-contained release used by Home installation, without installing or starting it. */
 export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePayloadOptions): Promise<{ directory: string; version: string }> {
   const destination = path.resolve(options.destinationDirectory);
   if (await pathState(destination)) throw installerErrors["installer.source.invalid"](`Runtime payload 输出已存在，不会覆盖: ${destination}`);
   const nodeExecutable = path.resolve(options.nodeExecutablePath);
   if (!(await pathState(nodeExecutable))?.isFile()) throw installerErrors["installer.source.invalid"](`Runtime Node 不是文件: ${nodeExecutable}`);
-  const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
-  source.bundledNodePath = nodeExecutable;
   const distribution = options.desktopDistribution;
   let account: ReturnType<typeof parseAccountEnvironment> | undefined;
+  let syncOrigin: string | undefined;
   if (distribution) {
     const expected = releaseProfile(distribution.profile).accountEnvironment;
     if (expected) {
@@ -37,17 +62,20 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
       const kind = expected === 'prod' ? 'PRODUCTION' : 'TEST';
       if (account.environmentKind !== kind || account.deliveryMode !== 'LIVE' || account.providerMode !== 'LIVE')
         throw new Error("Release account configuration does not match its profile");
-    } else if (distribution.account !== undefined) {
+      syncOrigin = validateDistributionSyncOrigin(distribution.syncOrigin, expected, account.authOrigin);
+    } else if (distribution.account !== undefined || (distribution.syncOrigin !== undefined && distribution.syncOrigin !== "")) {
       throw new Error("This release profile has no packaged account configuration");
     }
   }
+  const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
+  source.bundledNodePath = nodeExecutable;
   source.contentDigest = createHash("sha256").update(JSON.stringify({
     source: source.contentDigest,
     node: await digestPaths(path.dirname(nodeExecutable), [path.basename(nodeExecutable)]),
     ...(distribution && {
       profile: distribution.profile,
       account,
-      syncOrigin: distribution.syncOrigin,
+      syncOrigin,
       signedPackages: distribution.signedPackages
         ? await digestPaths(path.dirname(distribution.signedPackages), [path.basename(distribution.signedPackages)])
         : null,
@@ -62,7 +90,7 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
       const host = path.join(staged, "node_modules", "@molis-ai", "molis-work-app-local-host", "dist");
       await fs.writeFile(path.join(host, "selected-release-profile"), distribution.profile + "\n", { flag: "wx" });
       if (account) {
-        await fs.writeFile(path.join(host, "selected-account-config.json"), JSON.stringify({ account, syncOrigin: distribution.syncOrigin }), { flag: "wx" });
+        await fs.writeFile(path.join(host, "selected-account-config.json"), JSON.stringify({ account, syncOrigin }), { flag: "wx" });
       }
       if (distribution.signedPackages) {
         // The build already put the unsigned drafts (`<plugin_id>.draft.json`, batch 41) in this folder: each signed package goes in beside

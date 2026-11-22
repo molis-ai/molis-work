@@ -69,6 +69,19 @@ export const shelfManifest: PluginManifest = {
     { route_id: "shelf.project-result-receive", method: "POST", path: "/project-result" },
   ],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "shelf.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "shelf.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "shelf.help.example-1" }, { key: "shelf.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "shelf.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "shelf.help.advanced-summary" }, body: { key: "shelf.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [SHELF_UI_CONTRIBUTION_ID, SHELF_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
       // The side panel's first tab (order 0, before 灵光's 10 and the panel's own tabs); it never opens in the work area.

@@ -7,7 +7,8 @@ export interface PluginRuntimeReleaseArtifact {
   version: string;
   manifest_digest: string;
   manifest: PluginManifest;
-  module_source: string;
+  /** The archived code a non-`host` build restores from; a build the Host ships keeps only its Manifest (`persistReleaseArtifact`). */
+  module_source?: string;
 }
 
 export interface PluginRuntimeReleaseArtifactRepository {
@@ -37,7 +38,7 @@ export const PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL = `
     );
 `;
 
-/** Code shipped by a trusted Native factory, stored inside the project Runtime database. */
+/** What a Native factory shipped (its Manifest, and its code unless the Host ships it), stored inside the project Runtime database. */
 export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRuntimeReleaseArtifactRepository {
   /** `declaredAttention`'s statements, prepared once: the Inbox asks it of every running installation on each check. */
   private attention?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
@@ -109,14 +110,14 @@ export class MemoryPluginRuntimeReleaseArtifactRepository implements PluginRunti
   }
 }
 
-export function createPluginRuntimeReleaseArtifact(manifest: PluginManifest, moduleSource: string): PluginRuntimeReleaseArtifact {
+export function createPluginRuntimeReleaseArtifact(manifest: PluginManifest, moduleSource?: string): PluginRuntimeReleaseArtifact {
   return {
     plugin_id: manifest.plugin_id,
     publisher_signature: manifest.publisher.signature,
     version: manifest.version,
     manifest_digest: pluginManifestDigest(manifest),
     manifest,
-    module_source: moduleSource,
+    ...(moduleSource === undefined ? {} : { module_source: moduleSource }),
   };
 }
 
@@ -125,7 +126,7 @@ function validateArtifact(artifact: PluginRuntimeReleaseArtifact): void {
     || artifact.publisher_signature !== artifact.manifest.publisher.signature
     || artifact.version !== artifact.manifest.version
     || artifact.manifest_digest !== pluginManifestDigest(artifact.manifest)
-    || !artifact.module_source.trim()) {
+    || (artifact.module_source !== undefined && !artifact.module_source.trim())) {
     throw new Error("Plugin Runtime 发行物身份不一致");
   }
 }

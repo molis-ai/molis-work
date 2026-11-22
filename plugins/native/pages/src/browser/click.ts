@@ -1,6 +1,6 @@
 import { blankLeaving, dropBlank } from "./blank.js";
 import { clearPicked, paintPicked, reportFocus } from "./context.js";
-import { assertReadable, createPage, exportDocument, loadList, movePage, openDocument, persist, printDocument, publishPage, saveOpen, toggleStar } from "./document.js";
+import { assertReadable, createPage, exportDocument, loadList, movePage, openDocument, openVersionDiff, persist, printDocument, publishPage, saveOpen, toggleStar } from "./document.js";
 import { stop } from "./dom.js";
 import { closeEditor, draftOf, remember, storeDocument } from "./editor.js";
 import { closeCreate, closeMore, closeMove, openMove, toggleCreate, toggleMore } from "./menus.js";
@@ -134,10 +134,11 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
     await toggleStar(page, page.sel.id);
     return;
   }
+  // Back saves what is unsaved, as opening another document does: a document that was only read is not written again.
   if (hit("[data-pages-back]")) {
     const seq = ++page.selectionSeq;
     page.openingId = null;
-    await persist(page);
+    if (page.saveTimer || page.dirty) await persist(page); else await page.saveQueue;
     if (seq !== page.selectionSeq) return;
     page.dirty = false;
     const left = blankLeaving(page);
@@ -164,6 +165,10 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
   if (hit("[data-pages-promote]") && page.sel) {
     closeMore(page);
     await publishPage(page, page.sel.id);
+    return;
+  }
+  if (hit("[data-pages-compare-versions]")) {
+    openVersionDiff(page);
     return;
   }
   const exported = hit("[data-pages-export]");

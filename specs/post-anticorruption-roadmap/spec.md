@@ -71,6 +71,7 @@
 |  | [逐项交付与证据关联合同](reference/batches/24.md#batch-24-item-3) |
 | [25](reference/batches/25.md) | [常驻、休眠与单 Home 执行恢复](reference/batches/25.md#batch-25-item-1) |
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |
+|  | [回到上一版（U6 的回退，从 26-6 提前）](reference/batches/25.md#batch-25-item-3) |
 | [26](reference/batches/26.md) | [插件升级 U4](reference/batches/26.md#batch-26-item-5) |
 |  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
 |  | [状态词汇门禁与文档](reference/batches/26.md#batch-26-item-8)（原 27-6）；[47](reference/batches/47.md)消费 26-5、26-7、26-8 |
@@ -108,8 +109,8 @@
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
 |  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
-| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1) |
-|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
+| [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，PFG-19、PF-A12～15；本人验收 [BL-b40-governance-help-acceptance](../backlog/BL-b40-governance-help-acceptance.md)） |
+|  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2)（[#2204](https://github.com/molis-ai/molis-work/pull/2204)，VUX-51～56／58～59、ONB-47～48 入口与事实；VUX-57 准备返回接续归 45-1） |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
 |  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
 |  | [在设置里写自己的技能](reference/batches/41.md#batch-41-item-3) |
@@ -208,7 +209,7 @@
 | [72](reference/batches/72.md) | [复杂场景设计定稿 → 并入 77](reference/batches/72.md#batch-72-item-1)（2026-11-18） |
 | [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
 |  | [场景包与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
-|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../backlog/BL-tests-umask.md) |
+|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)（已合入）、[BL-tests-umask](https://github.com/molis-ai/molis-work/blob/d5dd1fbb6aec214c743e34fba9434f7f131ae6f1/specs/backlog/BL-tests-umask.md)（#2171 已合入） |
 |  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
 | [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |
 | [75](reference/batches/75.md) | [本机使用统计](reference/batches/75.md#batch-75-item-1) |
@@ -235,15 +236,17 @@
 |  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
-| [91](reference/batches/91.md) | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（2026-11-18 加并扩为 91A，前置 35-2／36A／37-2，[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)） |
+| [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（2026-11-21 零阻塞前置，[决定 60](reference/decisions.md#decision-60)） |
+|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（[决定 60](reference/decisions.md#decision-60)） |
+|  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（并入 `91-0b` 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
-|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5) |
+|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5)（拆入 `91-0a` 先行落地 + `91-0b` 实装校准，[决定 60](reference/decisions.md#decision-60)） |
 | [91B](reference/batches/91b.md) | [入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口](reference/batches/91b.md#batch-91b-item-1)（2026-11-18 加，紧接 91，不等 38～89，[决定 55](reference/decisions.md#decision-55)） |
 |  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
 |  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
-|  | [全站轻动效收口与三层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
+|  | [全站轻动效收口与五层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |
@@ -259,14 +262,14 @@
 |  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
 | [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
 | [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
-| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2) |
-| [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，前置 100-2，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2) |
-| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2) |
-| [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
-|  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2) |
+| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，#2186 已合入，[决定 58](reference/decisions.md#decision-58)） |
+|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
+| [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，#2189 已合入，[决定 58](reference/decisions.md#decision-58)） |
+|  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2)（#2189 已合入） |
+| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2216 已合入） |
+|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2)（#2196 已合入） |
+| [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2205 已合入 `1faf24dbf0`） |
+|  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2)（#2211 已合入 `7acf6bea7a`） |
 | [104](reference/batches/104.md) | [15+ 插件非 Agent 单次 AI 调用纳管](reference/batches/104.md#batch-104-item-1)（2026-11-20 加，前置 91、101-1，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [面向非技术用户的全站统一报错翻译与安全重试](reference/batches/104.md#batch-104-item-2) |
 | [105](reference/batches/105.md) | [防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批](reference/batches/105.md#batch-105-item-1)（2026-11-20 加，前置 39、100-2，仅波次审批等 62，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |

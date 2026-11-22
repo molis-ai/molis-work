@@ -25,6 +25,7 @@ const LIVE = 6, WHOLE = "pre, code, button, svg";
 type Source = { html: string; text: string; shell: string | null };
 const sources = new WeakMap<Node, Source>();
 const easing = new WeakMap<HTMLElement, HTMLElement[]>();
+const queued = new WeakMap<HTMLElement, { frame: number; html: string; grow?: StreamTextOptions["grow"] }>();
 const segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
 const segments = segmenter ? (text: string) => segmenter.segment(text) : undefined;
 
@@ -66,46 +67,141 @@ function reveal(container: HTMLElement, block: Node, from: number): number {
   return made;
 }
 
+function finishInside(container: HTMLElement, target: Node) {
+  const pieces = easing.get(container);
+  if (!pieces?.length) {
+    return;
+  }
+  const kept: HTMLElement[] = [];
+  for (const piece of pieces) {
+    if (!piece.isConnected) {
+      continue;
+    }
+    if (target === piece || target.contains(piece)) {
+      finish(piece);
+    } else {
+      kept.push(piece);
+    }
+  }
+  if (kept.length) {
+    easing.set(container, kept);
+  } else {
+    easing.delete(container);
+  }
+}
+
+function finishDirect(container: HTMLElement, parent: Node) {
+  const pieces = easing.get(container);
+  if (!pieces?.length) {
+    return;
+  }
+  const kept: HTMLElement[] = [];
+  for (const piece of pieces) {
+    if (!piece.isConnected) {
+      continue;
+    }
+    if (piece.parentNode === parent) {
+      finish(piece);
+    } else {
+      kept.push(piece);
+    }
+  }
+  if (kept.length) {
+    easing.set(container, kept);
+  } else {
+    easing.delete(container);
+  }
+}
+
 function patch(container: HTMLElement, parent: Node, incoming: Node[], shown: boolean, result: StreamTextResult, grow?: StreamTextOptions["grow"]) {
+  finishDirect(container, parent);
   const current = [...parent.childNodes];
   let same = 0;
-  while (same < incoming.length && same < current.length && sources.get(current[same]!)?.html === sourceOf(incoming[same]!).html) same += 1;
+  while (same < incoming.length && same < current.length && sources.get(current[same]!)?.html === sourceOf(incoming[same]!).html) {
+    same += 1;
+  }
   result.kept += same;
-  const first = same, old = current[same], next = incoming[same], was = old && sources.get(old);
+  const first = same;
+  const old = current[same];
+  const next = incoming[same];
+  const was = old && sources.get(old);
   const descend = old instanceof Element && next instanceof Element && !old.matches(WHOLE) && was?.shell != null && was.shell === sourceOf(next).shell;
   if (descend) {
-    // Read before its children move over to the kept element.
+    // Only finish in-flight reveals inside the branch being modified; keep untouched blocks smoothly easing.
     sources.set(old, sourceOf(next));
     patch(container, old, [...next.childNodes], shown, result, grow);
     same += 1;
   } else if (grow && old instanceof Element && next instanceof Element && old.tagName === next.tagName && was) {
     // Read before the owner may move the children of `next` over.
     const source = sourceOf(next);
-    if (grow(old, next)) { sources.set(old, source); result.grown += 1; same += 1; }
+    if (grow(old, next)) {
+      sources.set(old, source);
+      result.grown += 1;
+      same += 1;
+    }
   }
-  for (const node of current.slice(same)) node.remove();
+  for (const node of current.slice(same)) {
+    finishInside(container, node);
+    node.remove();
+  }
   incoming.slice(same).forEach((node, offset) => {
     remember(node);
     parent.appendChild(node);
     result.replaced += 1;
-    if (!shown) return;
+    if (!shown) {
+      return;
+    }
     // The first node that differs grew if its text only went on; any later one is new from its first character.
     const before = offset === 0 && same === first && was ? was.text : "";
-    if (before && !node.textContent?.startsWith(before)) return;
+    if (before && !node.textContent?.startsWith(before)) {
+      return;
+    }
     result.fresh += reveal(container, node, freshStart(node.textContent ?? "", before.length, segments));
   });
 }
 
-function molisStreamText(container: HTMLElement, html: string, { reveal: show = false, grow }: StreamTextOptions = {}): StreamTextResult {
-  if (show) container.dataset.streamed = "";
-  const shown = show && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Restore split text before comparing it with the renderer's complete source snapshot.
-  for (const piece of easing.get(container) ?? []) finish(piece); easing.delete(container);
+function applyStreamPatch(container: HTMLElement, html: string, shown: boolean, grow?: StreamTextOptions["grow"]): StreamTextResult {
+  if (!shown) {
+    // Final update, redraw, or reduced motion finishes every in-flight reveal immediately.
+    for (const piece of easing.get(container) ?? []) {
+      finish(piece);
+    }
+    easing.delete(container);
+  }
   const template = document.createElement("template");
   template.innerHTML = html;
   const result = { kept: 0, replaced: 0, fresh: 0, grown: 0 };
   patch(container, container, [...template.content.childNodes], shown, result, grow);
   return result;
+}
+
+function molisStreamText(container: HTMLElement, html: string, { reveal: show = false, pace = false, grow }: StreamTextOptions = {}): StreamTextResult {
+  if (show) {
+    container.dataset.streamed = "";
+  }
+  const shown = show && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pending = queued.get(container);
+  if (pace && shown && typeof requestAnimationFrame === "function") {
+    if (pending) {
+      pending.html = html;
+      pending.grow = grow;
+      return { kept: 0, replaced: 0, fresh: 0, grown: 0 };
+    }
+    const entry = { frame: 0, html, grow };
+    entry.frame = requestAnimationFrame(() => {
+      queued.delete(container);
+      if (container.isConnected) {
+        applyStreamPatch(container, entry.html, true, entry.grow);
+      }
+    });
+    queued.set(container, entry);
+    return { kept: 0, replaced: 0, fresh: 0, grown: 0 };
+  }
+  if (pending) {
+    cancelAnimationFrame(pending.frame);
+    queued.delete(container);
+  }
+  return applyStreamPatch(container, html, shown, grow);
 }
 
 window.molisStreamText ??= molisStreamText;

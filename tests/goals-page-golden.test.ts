@@ -33,6 +33,25 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // B35-R1 adds the Sessions link to onboarding for the current project. Sessions sets its tab state after mounting.
 // Main ffd077b2df reproduced all 52 accepted hashes. Applying just these changes to its Sessions template matched the 16
 // whole pages byte for byte, including the desktop link. The other 36 hashes matched directly.
+// Batch 40 (#2204, VUX-55, VUX-58) adds Scheme A on-demand help: the hidden right-side help tab/body (`side-panel-help.ts`)
+// and sibling `<script type="application/json" data-plugin-help>` payloads on framed pages shift all 16 `page-*` records by
+// a uniform +2632 (zh) / +3174 (en), and the header Help trigger + `<script data-mw-help-data>` (plus `<section>` around
+// project rules) update the 12 `settings-*` records; all 24 `refresh-*`, `momentum-*`, and `document-*` records stay byte-for-byte identical.
+// Batch 40 post-audit fix switches settings help from pre-resolved `data-mw-help-data` to live-translatable `data-mw-help-declaration`
+// (updating the 12 `settings-*` records symmetrically: general +216/-67, guidance +235/+8, rules +209/-89), removes the duplicate outer
+// `data-side-help-body` attribute, and adds Scheme A Help triggers/declarations on Goals stage, Project Home, Artifacts, and Sessions
+// (shifting all 8 `page-current*` records uniformly by +3801 zh / +3289 en and all 8 `page-{archive,trash}*` records by +2800 zh / +2284 en;
+// all 24 `refresh-*`, `momentum-*`, and `document-*` records remain byte-for-byte identical).
+// Batch 36A-3 (shell conversation batch, PR #2218): the bottom bar's markup changed (the conversation column's head and more menu,
+// the info column and its lists, the three first-place glyphs, the expand key), and only it. All 66 pages were drawn on an
+// independently built main 73d6667760 (each matched its record there) and on this branch and compared token by token: every changed
+// token of the 16 whole pages lies inside the bar (`data-assistant-island` and the work line beside it), a uniform -3154 (zh) /
+// -3134 (en) characters; the Goals content, JSON blocks and the other 50 records are byte for byte the same. The 16 were then
+// recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 91-0b (#2222, Decision 60) adds the global↔project scope switch (`settings-scope-switch`) and real-time sidebar filter
+// (`[data-settings-nav-filter]` / `[data-settings-nav-empty]`) in standalone & drawer settings navigation (shifting all 8 `page-*.zh`
+// records uniformly by +1246, all 8 `page-*.en` by +1360, all 3 standalone `settings-*.zh` by +496, and all 3 standalone `settings-*.en`
+// by +553; all 24 `refresh-*`, `momentum-*`, and `document-*` records and all 6 `settings-*-embedded.*` records remain byte-for-byte identical).
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

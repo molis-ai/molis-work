@@ -65,7 +65,7 @@ function stepReport(actions: BoundActionClient): WorkflowStepReport {
 
 /** The directory as the client the content protocol reads: one running call's, so a station is reached with that call's authority. */
 function delegated(directory: PluginActionDirectory, caller: ActionExecutionContext): BoundActionClient {
-  return { discover: () => directory.discover(),
+  return { discover: () => directory.discover(), discoverOne: reference => directory.discoverOne(reference),
     invoke: <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => directory.invoke<Output>(definition, input, controlOf(caller)) };
 }
 

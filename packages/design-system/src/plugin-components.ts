@@ -251,7 +251,9 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-part-head{margin-bottom:8px}.pc-part-title{font-size:15px;font-weight:600;color:var(--ink)}.pc-part-description{color:var(--muted);margin:-4px 0 12px!important;max-width:72ch;white-space:pre-wrap}
 .pc-app-head{display:flex;align-items:center;gap:16px;padding:0!important;border:0!important;background:none!important}.pc-app-head .mw-frame__heading{flex:1;min-width:0}
 .pc-app-head h1{font-size:24px;font-weight:600;letter-spacing:-.025em;line-height:1.3;overflow-wrap:anywhere}.pc-app-description{color:var(--muted);margin-top:4px!important;font-size:13px}
-.pc-app-actions{display:flex;gap:8px;flex:none}
+.pc-app-actions{display:flex;align-items:center;gap:8px;flex:none}
+.pc-help-bar{display:flex;justify-content:flex-end;margin:0 0 12px}
+.pc-facts{flex:1 1 100%;margin:8px 0 4px}
 .pc-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;flex:none;background:var(--rail);color:var(--ink-soft)}.pc-mark .pc-icon{width:20px;height:20px;stroke-width:1.7}
 /* Inside the workbench the tab chip already names the plugin: the stage keeps its one-line purpose and its new buttons. */
 [data-framed] .pc-app-head .pc-mark,[data-framed] .pc-app-head h1{display:none}[data-framed] .pc-app-description{margin:0!important}
@@ -271,7 +273,7 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-toolbar{display:flex;align-items:center;gap:12px 16px;flex-wrap:wrap;margin:0 0 12px;padding:0;border:0;background:none}
 .pc-filter{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;flex:1 1 auto;min-width:0}.pc-filter-item{display:flex;align-items:center;gap:8px;min-width:0}.pc-filter-label{font-size:12px;color:var(--muted);white-space:nowrap}
 .pc-search{flex:1 1 220px;max-width:340px}.pc-search .pc-icon{color:var(--faint);margin-left:8px}.pc-filter-item:has(.pc-search){flex:1 1 220px;max-width:340px}.pc-filter-item .pc-search{width:100%}
-.pc-tools{display:flex;align-items:center;gap:4px;margin-left:auto}.pc-count{font-size:12px;color:var(--faint);margin-right:4px}.pc-count[data-count]:not([data-count=""])::before{content:"共 " attr(data-count) " 条"}
+.pc-tools{display:flex;align-items:center;gap:4px;margin-left:auto}.pc-count{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;margin-right:4px}.pc-count[data-count]:not([data-count=""])::before{content:attr(data-count)}
 .pc-output{min-width:0}
 .pc-directory{display:flex;flex-direction:column;border:0;border-radius:0;background:transparent;overflow:visible}
 .pc-directory>.pc-record,.pc-agenda-items>.pc-record{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--r-row,10px);background:var(--paper);box-shadow:0 0 0 1px var(--line),0 1px 3px color-mix(in srgb,var(--shadow-color,#000) 6%,transparent)}.pc-directory>.pc-record+.pc-record,.pc-agenda-items>.pc-record+.pc-record{margin-top:8px}
@@ -283,7 +285,8 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-record-figure{flex:none;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pc-row-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:none}.pc-row-actions .pc-row-action.pc-row-action[data-pc-select]{border-color:color-mix(in srgb,var(--accent) 34%,transparent);background:var(--accent-soft);color:var(--accent-strong,var(--accent))}.pc-row-actions .pc-row-action.pc-row-action[data-pc-select]:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 18%,var(--paper));color:var(--accent-strong,var(--accent))}.pc-row-actions .pc-row-action.pc-row-action[data-danger]{border-color:color-mix(in srgb,var(--red) 30%,transparent);color:var(--red)}.pc-row-actions .pc-row-action.pc-row-action[data-danger]:hover:not(:disabled){background:var(--red-soft,color-mix(in srgb,var(--red) 10%,transparent));color:var(--red)}
 .pc-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:16px}
-.pc-card-grid>.pc-record{display:flex;flex-direction:column;min-width:0;transition:box-shadow var(--dur-move),transform var(--dur-move)}.pc-card-grid>.pc-record:hover{box-shadow:var(--lift-2);transform:translateY(-1px)}
+.pc-card-grid>.pc-record{display:flex;flex-direction:column;min-width:0;transition:box-shadow var(--dur-hover),border-color var(--dur-hover)}.pc-card-grid>.pc-record:hover{box-shadow:0 0 0 1px var(--line-strong),var(--lift-2),inset 0 1px 0 var(--edge-highlight,transparent)}
+.mw-card .pc-figures .mw-card,.mw-card .mw-card{box-shadow:inset 0 0 0 1px var(--line);background:var(--surface-soft)}
 .pc-card-grid .mw-card__description{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}.pc-card-grid .mw-card__panel{display:grid;gap:8px;flex:1}
 .pc-add-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:128px;border:1.5px dashed var(--line-strong,var(--line));border-radius:var(--r-card,12px);background:none;color:var(--muted);font:inherit;cursor:pointer;transition:border-color 130ms,color 130ms}.pc-add-tile:hover{border-color:var(--blue);color:var(--blue)}.pc-add-tile .pc-icon{width:20px;height:20px}
 .pc-table td[data-number]{text-align:right}.pc-table td:last-child .pc-row-actions{justify-content:flex-end}.pc-table tbody tr:first-child td:first-child{font-weight:500}
@@ -297,7 +300,7 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-empty{min-height:0;padding:32px 16px}
 .pc-skeleton{display:grid;gap:12px}.pc-skeleton .mw-skeleton{display:block;height:44px;border-radius:10px}.pc-skeleton[data-idle] .mw-skeleton{animation:none;opacity:.6}
 .pc-working{margin-top:12px;font-size:13px;color:var(--muted)}
-.pc-success{margin-top:12px;animation:craft-rise var(--dur-move) var(--ease-quint);transition:opacity var(--dur-move) var(--ease-quint)}.pc-success.is-leaving{opacity:0}.pc-success::before{content:"✓ "}
+.pc-success{margin-top:12px;animation:craft-rise var(--dur-move) var(--ease-quint);transition:opacity var(--dur-move) var(--ease-quint)}.pc-success.is-leaving{opacity:0}
 .pc-error{margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}
 .pc-dialog-error{flex:1 1 100%;margin:0}
 .pc-kind-form>.pc-output:not(:empty),.pc-kind-button>.pc-output:not(:empty){margin-top:12px;animation:craft-rise var(--dur-arrive) var(--ease-quint)}

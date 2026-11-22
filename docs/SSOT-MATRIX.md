@@ -19,7 +19,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 产品是什么（Agent OS、协作工作台与多插件基座）、对用户承诺什么 | [`PRODUCT.md`](../PRODUCT.md) |
 | 安装、启动、维护与卸载 | [`docs/installation.md`](installation.md)（[English](installation.en.md)） |
 | CLI 命令、源码构建与日常开发 | [`docs/cli-and-development.md`](cli-and-development.md)（[English](cli-and-development.en.md)）；仓库执行约束见 [`AGENTS.md`](../AGENTS.md) |
-| 生产界面的视觉与交互规范 | [`DESIGN.md`](../DESIGN.md)及其引用的现行规范；[`docs/design/`](design/README.md)是设计参考与原型 |
+| 生产界面的视觉与交互规范 | [`DESIGN.md`](../DESIGN.md)及其引用的现行规范；执行手册见 [`skills/molis-design-ui/SKILL.md`](../skills/molis-design-ui/SKILL.md)；[`docs/design/`](design/README.md)是设计参考与原型 |
 | 模型调用、Agent、提示词与上下文 | [`docs/platform/PROLOGUE-AI.md`](platform/PROLOGUE-AI.md)；执行步骤见 [`skills/molis-prologue-ai/SKILL.md`](../skills/molis-prologue-ai/SKILL.md) |
 | 发布规则、操作步骤与某次发布的范围 | [`docs/releases/POLICY.md`](releases/POLICY.md)管规则，[`CHECKLIST.md`](releases/CHECKLIST.md)管步骤；[`CHANGELOG.md`](releases/CHANGELOG.md)及各版本发布记录管变化、验证与缺口 |
 | Home 里的库、文件归谁，如何备份与卸载 | [`docs/system/HOME-DATA.md`](system/HOME-DATA.md) |
@@ -123,7 +123,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- | --- | --- | --- |
 | `horizontal/connector-host` | Provider 连接、凭据引用和调用 Receipt | Provider-neutral 连接/Receipt；Integration contribution 提供 Driver | `production` | FD1/FD3/AP2/Cutover | 横向服务：@yijunw0212 |
 | `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `production` | `specs/archive/schedule-plugin/spec.md` | 横向服务：@yijunw0212 |
-| `horizontal/runtime-host` | 本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放；按插件 `work_terminals` 声明提供对象工作终端与提示组装（第 44 批 44-4） | PTY server host；Codex 会话适配器与路由已随 Sessions 下线删除，Sessions 重做见 BL-177；缺片：Sessions 重做（Codex 会话适配器已随 Sessions 下线删除）；后续：BL-177 | `slice` | WK2 已迁 Host/Adapter；WK3 已迁产品编排；第 44 批 44-4 | 横向服务：@yijunw0212 |
+| `horizontal/runtime-host` | 本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放（按插件 `work_terminals` 声明的对象工作终端服务与提示组装在 `apps/local-host/src/work-terminal-service.ts`，底层 PTY 仍由本包宿主；第 44 批 44-4） | PTY server host；Codex 会话适配器与路由已随 Sessions 下线删除，Sessions 重做见 BL-177；缺片：Sessions 重做（Codex 会话适配器已随 Sessions 下线删除）；后续：BL-177 | `slice` | WK2 已迁 Host/Adapter；WK3 已迁产品编排；第 44 批 44-4 | 横向服务：@yijunw0212 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），没有第二个执行引擎（`claude` 命令行适配器已于 2026-10 删除，外部 Agent 运行时按口径暂缓）；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `production` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` | 共享核心：@yijunw0212、@jingxusandra-gif |
 | `horizontal/appearance` | 一个 Home 的外观选择与最近使用语言 | `interface/state.json` 的精确选择、修订、恢复组合及本人操作回执；`config/ui-locale.json` 给没有页面的工作。定义由 Design System 发布，动作合同在 `platform/ui` | `slice` | [第 16 批 B1](../specs/font-and-skin-system/bc-runtime-contract.md) | 横向服务：@yijunw0212 |
 | `horizontal/account` | 中央账号协议与 Host 会话适配；身份和商业事实由 Auth 持有，本地身份与 Home 不变 | 固定中央客户端、可信环境、持久会话、邮箱/手机认证及 Google/GitHub 回跳；资料与商业管理页面待后续任务 | `slice` | `specs/unified-account/spec.md` | 横向服务：@yijunw0212 |

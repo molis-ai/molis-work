@@ -12,7 +12,7 @@
 
 | 编号 | 要求 | 证明 |
 | --- | --- | --- |
-| MR21-01 | 定时任务的一轮只发起各项目的 tick、不等它们结束：一个项目长时间的唤醒不挡别的项目下一轮；停止时仍等所有在跑的 tick | `tests/project-scheduler-retry.test.ts`「MR21-01」 |
+| MR21-01 | 定时任务的一轮只发起各项目的 tick、不等它们结束：一个项目长时间的唤醒不挡别的项目下一轮；tick 还在跑的项目不被放去休眠，等它最后一个 tick 结束再问（第 103 批休眠）；停止时仍等所有在跑的 tick | `tests/project-scheduler-retry.test.ts`「MR21-01」 |
 | MR21-02 | 待核对插件事件的确认可以不写理由；工作台不再把界面译文当理由存进记录；写了理由才存（去空白，最多 2000 字） | `tests/plugin-event-recovery.test.ts`「MR21-02」 |
 | MR21-03 | 个人同步云端清理后的本机最终清理接上生产调用方 | 未做，[BL-mr21-personal-purge-finalize](../backlog/BL-mr21-personal-purge-finalize.md)；`PCSYNC-OPT-16` 改为「部分」 |
 | MR21-04 | 一次放置同时改归属与事项时，先在主线核对事项（可见、权限、上限），核不过就整次拒绝，主人那边什么都不写 | `tests/mainline-items.test.ts` B36F-06 里的 MR21-04 断言 |

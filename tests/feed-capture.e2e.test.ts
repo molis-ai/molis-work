@@ -10,7 +10,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
-import { feedCaptureScene, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedContentActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -254,6 +254,13 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
     };
     return value(host);
   }:value;return true}});`);
+  const project = molisWorkHostProjectReference({ databasePath, projectId });
+  const feedOwner = { actor_id: "owner", audience: "user" as const, project_id: projectId, permissions: [...FEED_ACTION_PERMISSIONS] };
+  // Manual sources leave no enabled wakeup; arm a scheduled wakeup before opening the reader so the empty-tick check below does not itself invalidate the open page.
+  await localHost.withProject(project, runtime => {
+    assert.equal(scheduleServiceFor(runtime.store.db).list("io.molis.work.feed").some(job => job.enabled), false, "manual sources leave no enabled wake job");
+  }, { activatePlugins: true });
+  await localHost.actionClient(project).invoke(feedOwner, feedSourceActions.schedule, { source_id: source.source_id, mode: "interval", enabled: true, interval_minutes: 60 });
   const child = await pluginFrameBrowser(t, b, "feed");
   const path = `/projects/${projectId}/?openPlugin=feed`;
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, sessionId));
@@ -280,14 +287,13 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.waitFor("document.querySelector('.feed-materials')?.open === true");
   await child.click('[data-feed-material-page="200"]');
   await child.waitFor("document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')");
-  // Drive the real wakeup while the reader is on two later pages. A successful empty tick is not a Feed view change.
+  // Drive the real wakeup while the reader is on two later pages. A successful empty tick (`到期 0`) is not a Feed view change.
   const revision = async () => (await b.web.get<{ revision: string }>(
     `/projects/${projectId}/api/plugins/io.molis.work.feed/view-revision`)).revision;
-  const project = molisWorkHostProjectReference({ databasePath, projectId });
   const wake = () => localHost.withProject(project, async runtime => {
     const clock = scheduleServiceFor(runtime.store.db), jobs = () => clock.list("io.molis.work.feed");
-    const job = jobs().find(job => job.capability_id === "feed.sources.wake");
-    assert.ok(job?.next_due_at, "the running Feed installed its wakeup");
+    const job = jobs().find(job => job.capability_id === "feed.sources.wake" && job.enabled);
+    assert.ok(job?.next_due_at, "the running Feed installed its wakeup for the scheduled source");
     const at = new Date(Math.max(Date.now(), Date.parse(job.next_due_at)) + 1);
     const result = await clock.tick(at);
     assert.equal(result.failed, 0);
@@ -296,6 +302,9 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
     assert.equal(receipt?.status, "ok");
     return receipt?.detail;
   }, { activatePlugins: true });
+  // Shift the source's next_pull_at past the already-armed +60m wakeup so this real wakeup executes an empty (`到期 0`) tick without network or view invalidation.
+  store.db.prepare("UPDATE feed_sources SET schedule_json = json_set(schedule_json, '$.next_pull_at', ?) WHERE source_id = ?")
+    .run(new Date(Date.now() + 120 * 60_000).toISOString(), source.source_id);
   const beforeEmptyWake = await revision();
   assert.match(await wake() ?? "", /^到期 0，/);
   assert.equal(await revision(), beforeEmptyWake, "an empty wakeup does not invalidate the reader");
@@ -396,6 +405,8 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   const beforeChangedWake = await revision();
   const overdue = createLocalFeedSourceService(store.db, projectId, undefined, () => new Date(Date.now() - 20 * 60_000));
   const scheduled = overdue.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
+  const overdueDue = scheduled.schedule.mode === "interval" ? scheduled.schedule.next_pull_at! : new Date(Date.now() - 15 * 60_000).toISOString();
+  store.db.prepare("UPDATE schedule_jobs SET next_due_at = ? WHERE plugin_id = 'io.molis.work.feed' AND enabled = 1").run(overdueDue);
   assert.match(await wake() ?? "", /^到期 1，完成 0，失败 0，跳过 1$/);
   assert.notDeepEqual(feed.sources.get(projectId, source.source_id).schedule, scheduled.schedule);
   assert.notEqual(await revision(), beforeChangedWake, "a wakeup that updated the source still invalidates the reader");

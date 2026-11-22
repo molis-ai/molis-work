@@ -19,7 +19,7 @@ export type CodingProviderRequest = { messages: Array<{ content: string | Array<
 /** Real HTTP, catalog, workspace authorization, Agent Host and the installed SDK; only the provider response is controlled. */
 export async function codingProductHost(t: TestContext, respond: (request: CodingProviderRequest, turn: number) => Response | Promise<Response>, options: {
   loopbackProvider?: boolean;
-  pluginFixtures?: ConstructorParameters<typeof MolisWorkLocalHost>[0]["pluginFixtures"];
+  pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"];
 } = {}) {
   const home = await mkdtemp(join(tmpdir(), "coding-product-")), directory = join(home, "work");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";

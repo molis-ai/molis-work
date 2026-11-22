@@ -173,7 +173,7 @@ export function createSharedScenePlugin(options: { pluginId?: string; name?: str
     ui: { contributions: [] },
     agent: {
       roles: [{ role_id: "reader", version: 1, name: "Alt Coder Reader", execution: "read-only" }],
-      prompts: [{ prompt_id: "reader", version: 1, name: "Alt Coder Role", summary: "Read-only shared-scene coder" }],
+      prompts: [{ prompt_id: "reader", version: 1 }],
     },
     actions: [bindingAction, runAction, enqueueAction, learningRunAction],
     routes: [

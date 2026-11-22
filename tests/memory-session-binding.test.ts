@@ -462,7 +462,13 @@ test("BL-memory-shared-scene-session-binding dual plugins sharing coding scene d
       target: { kind: "coding", id: sharedBusinessId, project_id: project, plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" },
     },
   };
-  const purgeReq = { appId: "io.molis.work", purpose: "session-preview" as const, selection: { sessionRef: { kind: "session" as const, id: codingRun.body.run.ref.session_id, revision: 1 as const }, operationId: "op-1" } };
+  const purgeReq: Parameters<NonNullable<typeof runtimePolicy.authorizePurgeInspection>>[1] = {
+    appId: "io.molis.work",
+    purpose: "session-preview",
+    kind: "memory",
+    context: { consumer: "ui", currentScene: "coding", purpose: "management", sessionRef: { kind: "session", id: codingRun.body.run.ref.session_id, revision: 1 } },
+    selection: { kind: "session", sessionRef: { kind: "session", id: codingRun.body.run.ref.session_id, revision: 1 }, operationId: "op-1" },
+  };
   assert.equal(await runtimePolicy.authorizePurgeInspection!(codingCaller, purgeReq,
     { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, plugin_id: "io.molis.work.coding", install_id: "coding-install" }), true);
   assert.equal(await runtimePolicy.authorizePurgeInspection!(codingCaller, purgeReq,

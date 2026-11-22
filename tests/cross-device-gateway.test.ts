@@ -7,9 +7,7 @@ import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { changeMcpClientCredential, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { configureMemberActions } from "@molis-ai/molis-work-app-local-host";
-import { gatewayFactory } from "@molis-ai/molis-work-app-local-host";
-import { CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
+import { configureMemberActions, gatewayFactory, hostContinuityActions } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 test("local administrator grants through the protected owner API and gateway keeps member actors separate",{timeout:120000},async()=>{
@@ -26,7 +24,8 @@ test("local administrator grants through the protected owner API and gateway kee
   const first=factory({projectId:project.project_id,memberId:'member-a',validate:()=>{},signal:new AbortController().signal});
   const second=factory({projectId:project.project_id,memberId:'member-b',validate:()=>{},signal:new AbortController().signal});
   const admin={homeDirectory:home,hostUrl:url,controlTokenFile:join(home,'config/web-control-token'),projectId:project.project_id};
-  const action=(id:string)=>CONTINUITY_ACTIONS.find(a=>a.capability_id===id)!;
+  const continuityActions=hostContinuityActions();
+  const action=(id:string)=>continuityActions.find(a=>a.capability_id===id)!;
   try {
     await assert.rejects(first.client.discover(first.caller),{code:"actions.connection_required"});
     changeMcpClientCredential(home,first.caller.actor_id,"connect");

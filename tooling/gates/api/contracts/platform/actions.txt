@@ -5504,6 +5504,13 @@ export declare const WORK_ITEM_RELATED_OUTPUT_SCHEMA: {
     readonly additionalProperties: false;
 };
 
+export declare const WORK_PROGRESS_CONTINUITY_PROTOCOL: Record<WorkProgressContinuityRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const WORK_PROGRESS_CONTINUITY_ROLES: readonly ["states.read", "progress.record", "progress.receipt"];
+
 export declare const WORK_TERMINAL_ACTIONS: readonly ActionDefinition[];
 
 export declare const WORK_TERMINAL_PATH = "/api/work-terminals";
@@ -5733,6 +5740,8 @@ export interface WorkItemRelatedInput {
 export interface WorkItemRelatedResult {
     subjects: ActionSubject[];
 }
+
+export type WorkProgressContinuityRole = (typeof WORK_PROGRESS_CONTINUITY_ROLES)[number];
 
 export interface WorkTerminalCloseInput {
     readonly plugin_id: string;
@@ -6265,6 +6274,8 @@ export declare function workExecutorRoleOf(action: {
 }): WorkExecutorRole | null;
 
 export declare function workItemPromotionRoleOf(action: TypedActionShape): WorkItemPromotionRole | null;
+
+export declare function workProgressContinuityRoleOf(action: TypedActionShape): WorkProgressContinuityRole | null;
 
 export declare const workTerminalActions: {
     readonly list: ActionDefinition<WorkTerminalListInput, WorkTerminalListResult>;

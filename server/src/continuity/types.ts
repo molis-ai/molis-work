@@ -5,7 +5,7 @@ export interface ProgressCommand { command_id: string; project_id: string; goal_
 export interface BoundActions { client: ActionClient; caller: ActionCallContext }
 export type ActionFactory = (input: { projectId: string; memberId: string; validate: () => void; signal: AbortSignal }) => BoundActions;
 export interface GoalProjection { goal_id: string; title: string; outcome: string; status: string; cursor: number; can_record: boolean; summary: string; next_step: string; next_actor: string; updated_at: string | null }
-/** What continuity reads of `goals.state.read@1` and of the `goals.progress.*` results: only the fields it shows or returns. */
+/** What continuity reads of a work-progress provider's state and progress results: only the fields it shows or returns. */
 export interface GoalStateFacts {
   intent: { title: string }; agreement: { outcome: string }; work_status: string; goal_event_cursor: number; can_record: boolean;
   progress_summary: { summary: string; next_step: string | null; next_actor: string | null; recorded_at: string } | null;

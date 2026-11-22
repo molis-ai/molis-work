@@ -75,3 +75,14 @@ test("PEQ-03 Host demo-seed is plugin-neutral and carries no Goals plugin ID, Go
   const demoSeed = text(join(HOST, "demo-seed.ts"));
   assert.doesNotMatch(demoSeed, /io\.molis\.work\.goals|"goals\.|DEMO_GOALS/u, "apps/local-host/src/demo-seed.ts hardcodes Goals again");
 });
+
+test("PEQ-03 Continuity server and app-server carry no hardcoded Goals plugin ID or capability names", () => {
+  const serverSources = [
+    ...sources(join(ROOT, "server", "src", "continuity")),
+    ...sources(join(ROOT, "apps", "server", "src")),
+    join(HOST, "continuity-admin.ts"),
+    join(HOST, "continuity-gateway.ts"),
+  ];
+  const found = serverSources.filter(path => /io\.molis\.work\.goals|["']goals\.|project_goals/u.test(text(path)));
+  assert.deepEqual(found, [], `Continuity hardcodes Goals again: ${where(found)}`);
+});

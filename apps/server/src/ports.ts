@@ -1,5 +1,7 @@
+import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionFactory } from "@molis-ai/molis-work-server";
 export interface ServerCompositionPorts {
+  continuityActions?: readonly ActionReference[];
   gatewayFactory(options: { url: string; homeDirectory: string }): ActionFactory;
   configureMemberActions(input: { hostUrl: string; homeDirectory: string; controlTokenFile: string; memberId: string; projectId: string; role: "owner" | "editor" | "viewer" | "revoked" }): Promise<unknown>;
   restoreWorkAssets(bundle: unknown, destination: string): Promise<unknown>;

@@ -31,8 +31,8 @@
 //
 // Not covered, said here so nobody reads the gate as stronger than it is (the spec §5a records the same list):
 //  - The count is the splitter's verdict, so a plugin whose class names do not start with its id and that forgets to declare
-//    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Text Stats is such a plugin today; its rules
-//    stay shared because it has no frame, and its number is not part of this budget.
+//    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Any framed plugin with non-id class prefixes
+//    (such as `stats-` on Text Stats or `as-`/`pb-` on Studio) must declare `stylesheetPrefixes` so its rules split into its own sheet.
 //  - Rules a plugin keeps in a host module rather than its registration stylesheet are not seen: only the registered
 //    `stylesheet` and `settingsStylesheet` are measured.
 //  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is

@@ -11,7 +11,7 @@ export const INTERACTION_OPTION_STYLES = `
 /* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
 .mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
 .mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
-  transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
 .mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-option:active:not(:disabled) { transform: scale(.97); }
 /* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
@@ -204,7 +204,7 @@ export const INTERACTION_STEP_STYLES = `
 .mw-ix-steps:not(:has(.mw-ix-step:not([hidden]))) { display: none; }
 .mw-ix-step { display: inline-flex; align-items: center; gap: 8px; height: var(--mw-ix-step-h); padding: 0 14px 0 12px; border: 0; border-radius: var(--r-composer, 15px); background: var(--paper); color: var(--ink); font: inherit;
   font-weight: var(--weight-control, 500); white-space: nowrap; cursor: pointer; box-shadow: var(--lift-2);
-  animation: mw-ix-step-in var(--dur-move) var(--ease-quint); transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  animation: mw-ix-step-in var(--dur-move) var(--ease-quint); transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
 .mw-ix-step:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-step:active:not(:disabled) { transform: scale(.97); }
 .mw-ix-step:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }

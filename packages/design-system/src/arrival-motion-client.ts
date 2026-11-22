@@ -9,7 +9,8 @@
 export const ARRIVAL_MOTION_CLIENT_SCRIPT = String.raw`
 (() => {
   if (window.molisArrival) return;
-  const EASE = 'cubic-bezier(.22, 1, .36, 1)';
+  // The product's one curve for things that move, as the page's tokens have it (DESIGN.md Motion; POLISH-33).
+  const EASE = getComputedStyle(document.documentElement).getPropertyValue('--ease-quint').trim() || 'ease-out';
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const state = { paused: false };
   // Reduced motion, a browser under automation and the explicit still flag all show the end state.
@@ -124,7 +125,7 @@ export const ARRIVAL_MOTION_CLIENT_SCRIPT = String.raw`
         if (keep || this.previousX == null) return [];
         const distance = this.previousX[index] - row.getBoundingClientRect().left;
         if (Math.abs(distance) < 0.5) return [];
-        const animation = row.animate([{ transform: 'translateX(' + distance + 'px)' }, { transform: 'translateX(0)' }], { duration: 420, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+        const animation = row.animate([{ transform: 'translateX(' + distance + 'px)' }, { transform: 'translateX(0)' }], { duration: 420, easing: EASE });
         animation.pause();
         return [animation];
       });

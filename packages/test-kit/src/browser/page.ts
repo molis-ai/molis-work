@@ -44,25 +44,38 @@ export class ChromePage {
     })`, Math.max(this.browser.commandTimeoutMs, timeoutMs + 2_000));
   }
 
-  /** Clicks the element's centre with real mouse events; a missing, disabled, hidden or covered element throws. */
-  async click(selector: string): Promise<void> {
+  /**
+   * Clicks the element's centre with real mouse events. Like a person, it waits (up to `timeoutMs`, default 5 s) for the element
+   * to be there, laid out, enabled and on top; one still missing, disabled, hidden or covered then throws, naming why.
+   */
+  async click(selector: string, options: { readonly timeoutMs?: number } = {}): Promise<void> {
+    const timeoutMs = options.timeoutMs ?? 5_000;
     const point = await this.evaluate<{ x: number; y: number }>(`(async () => {
-      const element = document.querySelector(${JSON.stringify(selector)});
-      if (!element) throw Error('Missing ' + ${JSON.stringify(selector)});
-      element.scrollIntoView({ block: 'center', behavior: 'instant' });
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const box = element.getBoundingClientRect();
-      if (!box.width || !box.height || element.disabled) throw Error('Unavailable ' + ${JSON.stringify(selector)});
-      if (!element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))) throw Error('Covered ' + ${JSON.stringify(selector)});
-      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    })()`);
+      const selector = ${JSON.stringify(selector)};
+      const until = Date.now() + ${timeoutMs};
+      const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      for (;;) {
+        const element = document.querySelector(selector);
+        let problem = 'Missing';
+        if (element) {
+          element.scrollIntoView({ block: 'center', behavior: 'instant' });
+          await frame();
+          const box = element.getBoundingClientRect();
+          if (!box.width || !box.height || element.disabled) problem = 'Unavailable';
+          else if (!element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))) problem = 'Covered';
+          else return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        }
+        if (Date.now() > until) throw Error(problem + ' ' + selector);
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+    })()`, Math.max(this.browser.commandTimeoutMs, timeoutMs + 2_000));
     await this.command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 });
     await this.command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 });
   }
 
-  /** Replaces the text of a field the way a person does: focus by click, select all, type. */
-  async fill(selector: string, text: string): Promise<void> {
-    await this.click(selector);
+  /** Replaces the text of a field the way a person does: focus by click (which waits for the field, as `click` does), select all, type. */
+  async fill(selector: string, text: string, options: { readonly timeoutMs?: number } = {}): Promise<void> {
+    await this.click(selector, options);
     await this.command("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: process.platform === "darwin" ? 4 : 2, commands: ["selectAll"] });
     await this.command("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: 0 });
     await this.command("Input.insertText", { text });

@@ -15,7 +15,7 @@ const scopeOf = (node) => {
 };
 const exported = (node) => node.modifiers?.some((item) => item.kind === ts.SyntaxKind.ExportKeyword);
 const sourcePath = (value) => value.replace(/(^|\/)dist\//, "$1src/").replace(/\.m?js$/, ".ts");
-export const browserWantsText = (file) => /(^|\/)package\.json$/.test(file) || /\/tooling\/build-[^/]+\.mjs$/.test(file);
+export const browserWantsText = (file) => /(^|\/)package\.json$/.test(file) || /(^|\/)tooling\/build-[^/]+\.mjs$/.test(file);
 
 export function createBrowserGraph(snapshot, isSource) {
   const entries = new Map();
@@ -28,7 +28,7 @@ export function createBrowserGraph(snapshot, isSource) {
       const text = snapshot.read(file); if (text === null) continue;
       try { const json = JSON.parse(text); if (json.name) packages.set(json.name, { dir: path.posix.dirname(file), json }); }
       catch { /* The package inventory validates malformed package manifests separately. */ }
-    } else if (/\/tooling\/build-[^/]+\.mjs$/.test(file)) {
+    } else if (/(^|\/)tooling\/build-[^/]+\.mjs$/.test(file)) {
       const text = snapshot.read(file);
       if (text !== null) buildScripts.set(file, text);
     }

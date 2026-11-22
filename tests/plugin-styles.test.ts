@@ -445,3 +445,21 @@ test("102-1 PEQ plugin-base stylesheet ships all core SDK primitives and plugin-
   const selectMenuSrc = readFileSync(new URL("../packages/design-system/src/select-menu-client.ts", import.meta.url), "utf8");
   assert.match(selectMenuSrc, /"mw-select-picker__trigger " \+ select\.className/, "102-1: select-picker trigger must start with mw- class for [class^='mw-'] focus-visible parity");
 });
+
+test("102-1 text-stats declares stylesheetPrefixes so its .stats-* rules ship in text-stats.css instead of the shared workbench sheet", async () => {
+  const textStats = packs.find((pack) => pack.project_plugin_id === "text-stats")!;
+  assert.deepEqual([...(textStats.stylesheetPrefixes ?? [])], ["stats-"]);
+  const own = pluginOnDemandStylesheet("text-stats", packs);
+  assert.ok(own && own.includes(".stats-counts") && own.includes(".stats-origin"), "text-stats.css carries its own .stats-* rules");
+  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
+    assert.doesNotMatch(sheet, /\.stats-(?:counts|origin)\b/u, "shared sheets no longer carry text-stats .stats-* rules");
+  }
+  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "text-stats", "Text Stats")), `${link("text-stats")}<p>x</p>`);
+  const assets = createLocalWebAssets({ ptyClientFilePath: () => "/missing-pty-client.js", renderer: {
+    renderMolisWorkWorkbenchClientScript: () => "", renderMolisWorkWorkbenchStylesheet: () => "", renderMolisWorkArrivalStylesheet: () => "", renderMolisWorkSettingsStylesheet: () => "" } });
+  const served = await serve(assets, "/assets/molis-work-plugins/text-stats.css");
+  assert.equal(served.status, 200);
+  assert.match(served.type, /^text\/css/);
+  assert.match(served.body, /\.stats-counts\b/u);
+  assert.match(served.body, /\.stats-origin\b/u);
+});

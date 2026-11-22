@@ -159,6 +159,8 @@ export interface Refs {
   prompts?: import("./prompt-commands.js").PromptCommands;
   composerLabels?: ReturnType<typeof codingComposerLabels>;
   composerModels: ComposerModels;
+  /** Draws what the next round is given as tags over the box (composer-mount.ts); set when a composer first mounts. */
+  nextRound?: () => void;
   cooperationUi: CooperationClient;
   draft: CodingDraft;
   inputEditor: InputEditor;

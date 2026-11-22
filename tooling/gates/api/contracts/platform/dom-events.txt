@@ -174,13 +174,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line";
     readonly summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.";
 }, {
-    readonly name: "molis-work:record-document-loaded";
-    readonly kind: "request";
-    readonly owner: "immersive-navigation";
-    readonly on: "document";
-    readonly detail: "{ recordId }";
-    readonly summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.";
-}, {
     readonly name: "molis-work:record-gone";
     readonly kind: "request";
     readonly owner: "tab-workspace";

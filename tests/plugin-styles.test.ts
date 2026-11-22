@@ -36,9 +36,9 @@ test("RAC-756 a rule moves out only when every selector names the plugin's own c
 
 const packs = pluginWorkbenchPacks();
 const framed = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && pack.clientFactory);
-const onDemand = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && (pack.clientFactory || pack.pageClients));
+const onDemand = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && (pack.clientFactory || pack.pageClient));
 
-test("RAC-757 a plugin with its own client or pageClients splits its sheet with nothing lost; other shell plugins keep theirs in the shared one", () => {
+test("RAC-757 a plugin with its own client or pageClient splits its sheet with nothing lost; other shell plugins keep theirs in the shared one", () => {
   const shared = pluginWorkbenchStyles(packs, "beneath-shell") + pluginWorkbenchStyles(packs);
   let moved = 0;
   for (const pack of packs.filter((one) => one.stylesheet)) {

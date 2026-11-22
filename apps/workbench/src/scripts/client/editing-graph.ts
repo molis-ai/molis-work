@@ -1,19 +1,11 @@
-import { FRAME_CONTAINER_FACTORY_SCRIPT } from "./frame-container.js";
 import { TAB_WORKSPACE_FACTORY_SCRIPT } from "./tab-workspace.js";
-import { pluginPageClients } from "../../plugin-workbench.js";
+import { pluginPageClientScript } from "../../plugin-workbench.js";
 
-const GOALS_PAGE = pluginPageClients("goals");
-/** AP3 Workbench client segment: editing-graph. */
+/**
+ * AP3 Workbench client segment: editing-graph. The shell's own form, toast, pane and workspace-mode helpers, then the page
+ * clients of the plugins whose page the shell draws (specs/page-client-lifecycle) and the tab workspace.
+ */
 export const CLIENT_EDITING_GRAPH_SCRIPT = `
-    const { updateRelationPreviews, updateAllRelationFormPreviews, handleGoalRelationChange,
-      handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_PAGE.goalsRelation})({
-        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: globalThis.t.text,
-        refreshBoard: (...args) => refreshBoard(...args),
-        requireFormFacts: (...args) => requireFormFacts(...args),
-        requireDecisionText: (...args) => requireDecisionText(...args),
-        showFactorReceipt: (...args) => showFactorReceipt(...args),
-        humanDecisionError: (...args) => humanDecisionError(...args),
-      });
     const requireFormFacts = (form, errorBox) => {
       const invalid = [...form.querySelectorAll("[required]")].find((control) => {
         if (control.type === "checkbox" || control.type === "radio") return !control.checked;
@@ -68,37 +60,15 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       }
     };
 
-    const goalPageBase = () => route(trashView ? "/trash/goals/" : archiveView ? "/archive/goals/" : "/goals/");
-    const goalPageUrl = (goalId) => goalPageBase() + encodeURIComponent(goalId) + (document.body.dataset.nativeDesktop === "true" ? "?desktop=1" : "");
-
-    const { readCreateDraft, refreshCreateChoices, openCreate, handleGoalDialogClick, handleGoalTrashSubmit,
-      bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_PAGE.goalsDialogs})({
-        dialog, form, route, controlHeaders: molisWorkControlHeaders,
-        refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,
-        currentLocale: () => document.documentElement.lang, translate: globalThis.t.text,
-        clearCollectionUiState: () => sessionStorage.removeItem(storageKey),
-        clearCurrentGoalUiState: () => sessionStorage.removeItem(currentGoalUiStorageKey),
-        navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
-      });
-    const { handleGoalLifecycleClick } = (${GOALS_PAGE.goalsLifecycle})({
-      route, controlHeaders: molisWorkControlHeaders, refreshBoard: (...args) => refreshBoard(...args),
-      showToast, navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
-    });
     const applyMobilePanePresence = () => {
       if (immersiveNavigation) { immersiveNavigation.syncPresence(); return; }
-      const graph = workspace.querySelector("[data-goal-momentum]");
       const narrow = matchMedia("(max-width: 760px)").matches;
       const view = workspace.dataset.mobileView || "tree";
       const mode = workspace.dataset.workspaceMode;
-      const canvas = workspace.querySelector('[data-goal-canvas-shell][data-goal-active="true"]');
-      if (canvas) {
-        treePane.toggleAttribute("inert", narrow && view !== "tree");
-        canvas.toggleAttribute("inert", narrow && view === "tree");
-        documentPane.removeAttribute("inert");
-        tuiPane?.toggleAttribute("inert", Boolean(documentPane.querySelector(".goal-event-document.is-editing-goal")));
-        graph?.toggleAttribute("inert", canvas.dataset.expanded === "true");
-        return;
-      }
+      if (pages.some((page) => page.presence?.({ narrow, view, mode }))) return;
+      const own = pages.map((page) => page.panes?.() || {});
+      const documentPane = own.map((panes) => panes.document).find(Boolean) || null;
+      const graph = own.map((panes) => panes.graph).find(Boolean) || null;
       const visiblePane = !narrow
         ? null
         : mode === "graph" && view !== "tree"
@@ -127,23 +97,15 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       applyMobilePanePresence();
     };
 
-    const { graphElement, loadGoalGraph, syncGoalWorkspace, updateGraphVisibility, readMomentumState,
-      restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
-      locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
-      (${GOALS_PAGE.goalsMomentum})({
-        workspace, documentCollection, route, translate: globalThis.t.text,
-        projectId: state.project?.project_id || state.snapshot.board.project_id,
-        selectGoal: (...args) => selectGoal(...args),
-        openFrame: (id) => frameContainer?.openFrame(id),
-        applySelection: (id) => applySelection(id, false),
-        isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
-        isKanbanTabActive: () => frameContainer?.isKanbanTabActive() === true,
-        getSelected: () => selected, getSelectedStatuses: () => getSelectedStatuses(),
-        queueSave: () => queueSave(), setWorkspaceMode: (...args) => setWorkspaceMode(...args),
-        setNavigatorView: (...args) => setNavigatorView(...args),
+    const syncNavigatorButtons = () => {
+      document.querySelectorAll("button[data-navigator-view]").forEach((button) => {
+        const active = button.dataset.navigatorView === navigatorView;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", String(active));
       });
+    };
     const setWorkspaceMode = (view, persist = true, preserveMobile = false) => {
-      const graph = goalData ? graphElement() : null;
+      const graph = pages.map((page) => page.graph?.()).find(Boolean) || null;
       const nextMode = view === "graph" && graph
         ? "graph"
         : view === "runtime" && tuiPane
@@ -154,73 +116,42 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       workspace.dataset.navigatorView = navigatorView;
       workspace.dataset.workspaceMode = nextMode;
       workspace.classList.toggle("is-graph-view", nextMode === "graph");
-      const canvasActive = goalData && Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goals";
-      if (canvasActive) {
-        documentPane.hidden = false;
-        if (tuiPane) tuiPane.hidden = false;
-        syncGoalWorkspace(nextMode, true);
-        graphElement()?.removeAttribute("hidden");
-        immersiveNavigation?.syncGoalMode(nextMode);
-        document.querySelectorAll("button[data-navigator-view]").forEach((button) => {
-          const active = button.dataset.navigatorView === navigatorView;
-          button.classList.toggle("is-active", active);
-          button.setAttribute("aria-selected", String(active));
-        });
-        if (matchMedia("(max-width: 760px)").matches) {
-          if (!preserveMobile) setMobileView("document");
-        } else applyMobilePanePresence();
-        if (persist) queueSave();
-        return;
-      }
-      if (goalData) {
-        syncGoalWorkspace(nextMode, false);
-        documentPane.hidden = nextMode !== "focus";
-      }
+      if (pages.some((page) => page.mode?.(nextMode, { persist, preserveMobile, syncNavigator: syncNavigatorButtons }))) return;
       if (tuiPane) tuiPane.hidden = nextMode !== "runtime";
-      document.querySelectorAll("button[data-navigator-view]").forEach((button) => {
-        const active = button.dataset.navigatorView === navigatorView;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-      });
-      if (graph && !workspace.querySelector("[data-goal-canvas-shell]")) graph.hidden = nextMode !== "graph";
-      if (nextMode === "graph" && !workspace.querySelector("[data-goal-canvas-shell]")) {
-        if (graph?.dataset.loaded === "true") updateGraphVisibility();
-        else void loadGoalGraph();
-      }
+      syncNavigatorButtons();
+      pages.forEach((page) => page.modeShown?.(nextMode));
       if (matchMedia("(max-width: 760px)").matches) {
         if (!preserveMobile) setMobileView(nextMode === "runtime" ? "tui" : "document");
       } else applyMobilePanePresence();
       if (persist) queueSave();
     };
 
-    const setNavigatorView = (view, persist = true) => {
-      setWorkspaceMode(view === "graph" ? "graph" : "focus", persist);
+    const pageHost = {
+      workspace, directoryPane: treePane, terminalPane: tuiPane, route, translate: readText, showToast, requireFormFacts,
+      isAbortError: (...args) => isAbortError(...args),
+      lifetime: () => pageLifetime, getSurface: () => activeDesktopSurface,
+      setWorkSurface: (...args) => setDesktopWorkSurface(...args), setDirectory: (...args) => setDesktopDirectory(...args),
+      setDirectoryCollapsed: (...args) => setDirectoryCollapsed(...args),
+      setWorkspaceMode, setMobileView, applyMobilePanePresence,
+      tabs: () => tabWorkspace, immersive: () => immersiveNavigation, frameAssets: () => deferredClients.frameAssets(),
+      revealDeepLinkTarget: (...args) => revealDeepLinkTarget(...args), revealDeepLinkFromId: (...args) => revealDeepLinkFromId(...args),
+      queueSave, saveUiState: () => saveUiState(), readUiState: () => readUiState(), applyUiState: (ui) => applyUiState(ui),
+      restoreDisclosures: (...args) => restoreDisclosures(...args),
+      searchBusy: () => globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil, searchQuietAt: () => searchBusyUntil,
+      pageChanged: () => { projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); projectPositions?.invalidate(); },
+      localPathname, uiStorageKey, navigationVersion: desktopNavigationStateVersion,
+      openEntryItem: (...args) => openDirectorySurface(...args), surfaceScroll: (surface) => desktopSurfaceScroll[surface],
     };
-
-    frameContainer = (${FRAME_CONTAINER_FACTORY_SCRIPT})({
-      translate: readText, showToast,
-      frameAssets: () => deferredClients.frameAssets(),
-      visible: () => boardLifetime?.visible === true,
-      visibleGoals: () => visibleGoals(),
-      getSurface: () => activeDesktopSurface,
-      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
-      setDirectory: (...args) => setDesktopDirectory(...args),
-      setWorkspaceMode: (...args) => setWorkspaceMode(...args),
-      setMobileView: (...args) => setMobileView(...args),
-      applySelection: (goalId) => applySelection(goalId, false),
-      locateGraphNode: (id) => locateGraphNode(id),
-      getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
-      route,
-      openGoalTab: (id) => tabWorkspace?.openItem("goals", id, undefined, "frame"),
-      openGoalWork: (paneId) => tabWorkspace?.openGoalWork(paneId),
-      activateGoalsMother: () => {
-        const current = tabWorkspace?.state?.();
-        const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
-        const tab = pane?.tabs?.find((item) => item.id === pane.activeTabId);
-        if (!tab && pane?.viewPlugin === "goals") return;
-        tabWorkspace?.openPlugin("goals");
-      },
-    });
+    for (const [plugin, factory] of ${pluginPageClientScript()}) {
+      try {
+        const page = factory(pageHost);
+        if (page) pages.push(page);
+      } catch (error) {
+        console.warn("Molis Work page client failed to start", plugin, error);
+      }
+    }
+    uiScope = pages.map((page) => page.uiScope?.()).find(Boolean) || "current";
+    storageKey = uiStorageKey + ":" + uiScope;
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
@@ -241,7 +172,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
           settingsHref: (section) => route("/settings/" + section),
           lead: { adopt: () => null, release: () => {} },
           offers: () => ({ refresh() {}, clear() {} }),
-          projectKey: state.project?.project_id || "",
+          projectKey: project.project_id || "",
           translate: readText,
           receipt: showToast,
           changed: () => { projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); projectPositions?.invalidate(); },
@@ -250,22 +181,16 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         }),
         discussionObjects: frame => projectPositions?.discussion(frame, (path, body, signal) => molisWorkRequest(path, { body, signal })),
         showToast, paneMessages, route,
-        showGoalFrame: (id, target) => frameContainer?.showGoalFrame(id, target),
         translate: readText,
         getSurface: () => activeDesktopSurface,
         setWorkSurface: (...args) => setDesktopWorkSurface(...args),
         setDirectory: (...args) => setDesktopDirectory(...args),
         setWorkspaceMode: (...args) => setWorkspaceMode(...args),
         setMobileView: (...args) => setMobileView(...args),
-        applySelection: (goalId) => applySelection(goalId, false),
-        loadGoalDocument: (goalId) => loadGoalDocument(goalId),
-        loadGoalDocumentInto: (targetPane, goalId) => loadGoalDocumentInto(targetPane, goalId),
-        getDocumentGoalId: () => goalData ? documentPane.querySelector("[data-goal-view]")?.dataset.goalView : undefined,
-        getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
-        visibleGoals: () => visibleGoals(),
-        showCanvas: () => frameContainer?.showCanvas(),
-        restoreBoard: () => frameContainer?.restoreBoard(),
-        releaseFrame: () => frameContainer?.releaseFrame(),
+        getProjectId: () => project.project_id,
+        pageClient: (plugin) => pageFor(plugin),
+        pageClients: () => pages,
+        declareTab: (tab) => pages.forEach((page) => page.declare?.(tab)),
         openEntry: (plugin, origin) => openSurfaceEntry(plugin, origin),
       });
     } catch (error) {

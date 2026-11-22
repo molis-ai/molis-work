@@ -1,22 +1,5 @@
 /** AP3 Workbench client segment: events-primary. */
-export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-policy-error]");
-        if (factorError) factorError.hidden = true;
-      }
-      if (handleTreeStatusChange(changed)) return;
-      handleGoalRelationChange(changed);
-    });
-    document.addEventListener("input", (event) => {
-      const changed = event.target?.nodeType === 1 ? event.target : null;
-      if (!changed) return;
-      const changedFactorForm = changed.closest("[data-relation-form], [data-policy-form]");
-      if (changedFactorForm) {
-        changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-policy-error]");
-        if (factorError) factorError.hidden = true;
-      }
-    });
-    const treeResizeBlocked = () => document.body.classList.contains("immersive-workbench")
+export const CLIENT_EVENTS_PRIMARY_SCRIPT = `    const treeResizeBlocked = () => document.body.classList.contains("immersive-workbench")
       ? matchMedia("(max-width: 600px)").matches
       : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui");
     const beginTreeResize = (clientX) => {
@@ -93,7 +76,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       });
     }
 
-    bindTreeFilterTrigger();
     document.addEventListener("click", async (event) => {
       const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target) return;

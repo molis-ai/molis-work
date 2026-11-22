@@ -1,5 +1,5 @@
 import { codingArtifacts, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE } from "./artifacts.js";
-import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
+import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback, codingChangeStats } from "./changeset.js";
 import { codingOutputs } from "./outputs.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingDraft } from "./drafts.js";
@@ -76,8 +76,10 @@ const ROUTES: RouteMaker[] = [
     return [false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), runId = text(request.params.runId, "coding.field.run");
       const artifacts = codingArtifacts(context);
+      // 只回统计 (`stats`): the same round, answered in lines alone — no text of any file, no reader markup.
+      const stats = !save && request.query?.stats === "1";
       const existing = readCodingChangeSet(artifacts, record.session_id, runId);
-      if (existing) return { ...existing, output: context.services!.outputs!.reference("changeset") };
+      if (existing) return stats ? codingChangeStats(existing.change) : { ...existing, output: context.services!.outputs!.reference("changeset") };
       if (request.query?.fixed === "1") throw codingFailure("coding.server.change-unreadable");
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -85,6 +87,7 @@ const ROUTES: RouteMaker[] = [
       if (!ref) throw codingFailure("coding.server.run-elsewhere");
       const run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
       const change = createCodingChangeSet(record.session_id, run, await codingActions(a.context, beforeWrite).invoke(agent.readRunReviews, [session, ref]));
+      if (stats) return codingChangeStats(change);
       if (!save) return { change, reference: null, saved_at: null, output: context.services!.outputs!.reference("changeset") };
       await beforeWrite(); beforeWrite.assert_current();
       const saved = readCodingChangeSet(artifacts, record.session_id, runId);

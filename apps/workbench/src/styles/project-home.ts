@@ -22,6 +22,8 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .immersive-home .home-lead-bar { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: .2rem .7rem; flex-wrap: wrap; min-block-size: 2rem; padding: .2rem clamp(.6rem, 2cqi, 1.2rem); color: var(--muted); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }
   .immersive-home .home-lead-bar p { margin: 0; margin-inline-end: auto; overflow-wrap: anywhere; }
   /* Where am I: the page's kind as a quiet line, then the project's own name. */
+  .immersive-home .home-heading-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .immersive-home .home-heading-bar > .mw-btn { flex: none; }
   .immersive-home .home-heading { display: grid; gap: .25rem; }
   .immersive-home .home-heading h1 { margin: 0; font-family: var(--type-display-font); font-size: var(--type-display-size); line-height: max(var(--type-display-line-height), 1.3); overflow-wrap: anywhere; text-wrap: balance; }
   .immersive-home .home-heading p, .home-read-state { margin: 0; color: var(--muted); }
@@ -64,6 +66,9 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
     .home-groups .home-row:hover .mw-presentation--row .mw-item { background: var(--nav-hover); }
   }
   .home-row .mw-presentation__row-title[aria-haspopup] { cursor: pointer; }
+  @media (max-width: 760px), (pointer: coarse) {
+    .home-row .mw-presentation__row-title[aria-haspopup] { display: inline-flex; align-items: center; min-block-size: 28px; }
+  }
   .home-row .mw-presentation__more { z-index: 1; }
   .home-row .mw-presentation__more[open] { z-index: 2; }
   .home-row:has(>.surface-correction-menu) { position: relative; }

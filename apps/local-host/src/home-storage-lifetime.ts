@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, readStorageSpace, storageOwnerHeldHere, upgradeInProgressRefusal, type StorageOwner, type StorageSpace } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, releaseHeldHomeSqlite, assertNoPendingHomeRestore, readStorageSpace, storageOwnerHeldHere, upgradeInProgressRefusal, type StorageOwner, type StorageSpace } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ensureHomeUpgraded, homeUpgradeLooksPending, watchHomeUpgradePending } from "./home-upgrade.js";
@@ -149,10 +149,14 @@ export function closeHomeStorageLifetime(host: object, state: CleanupAttempt & {
   });
 }
 
-/** Called only after every actual business resource has closed. Failed or still-borrowed releases remain retryable. */
+/**
+ * Called only after every actual business resource has closed. Failed or still-borrowed releases remain retryable. The store connections
+ * this process held for the Home (`heldHomeSqlite`) go with the ownership: nothing may write the Home's files once the lock is given back.
+ */
 export function releaseHomeStorageOwner(host: object): void {
   const held = owners.get(host);
   if (!held || held.released) return;
+  releaseHeldHomeSqlite(held.home);
   held.owner.release();
   held.released = true;
 }

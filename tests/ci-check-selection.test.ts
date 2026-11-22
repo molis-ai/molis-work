@@ -136,11 +136,33 @@ test("MR19-07 plugin stylesheet and shared browser component changes run the PR 
     "plugins/native/coding/src/styles.ts",
     "plugins/native/coding/src/footnote-styles.ts",
     "plugins/native/goals/src/workbench-styles.ts",
+    "plugins/native/issues/tooling/minify-styles.mjs",
+    "plugins/native/risk/tooling/minify-styles.mjs",
+    "plugins/native/work-brief/tooling/minify-styles.mjs",
     "plugins/native/feed/src/stage-ui.ts",
     "plugins/native/goals/src/kanban-ui.ts",
     "plugins/native/goals/src/tree-ui-model.ts",
     "plugins/native/alchemist/src/work-reuse/ui.ts",
+    "plugins/native/alchemist/src/work-reuse/client.ts",
+    "plugins/native/alchemist/src/client-views.ts",
     "plugins/native/goals/src/page/chrome.ts",
+    "plugins/native/goals/src/dialogs-client.ts",
+    "plugins/native/goals/src/momentum-view.ts",
+    "plugins/native/goals/src/workbench-clients.ts",
+    "plugins/native/goals/src/momentum-layout.ts",
+    "plugins/native/coding/src/change-html.ts",
+    "plugins/native/coding/src/workbench-client.ts",
+    "plugins/native/coding/src/delegation-view.ts",
+    "plugins/native/pages/src/editor-block-menu.ts",
+    "plugins/native/pages/src/comment-side-client.ts",
+    "plugins/native/pages/src/comment-side-view.ts",
+    "plugins/native/pages/src/tone.ts",
+    "plugins/native/plugin-builder/src/workbench.ts",
+    "plugins/native/plugin-builder/src/agent-studio.ts",
+    "plugins/native/shelf/src/settings-client.ts",
+    "plugins/native/shelf/src/glyphs.ts",
+    "plugins/native/ppt/src/colors.ts",
+    "plugins/native/form/src/fillpage.ts",
     "packages/plugin-sdk/src/ui.ts",
     "packages/plugin-sdk/src/browser.ts",
     "packages/plugin-sdk/src/browser/subtask-conversation.ts",
@@ -151,5 +173,16 @@ test("MR19-07 plugin stylesheet and shared browser component changes run the PR 
   }
   assert.equal(triggers("horizontal/evaluation/src/service.ts"), false);
   assert.equal(triggers("plugins/native/todo/src/store.ts"), false);
-  assert.match(visual, /tests\/fixtures\/visual-capture\.mts/, "nightly/manual visual audit exercises visual-capture settlement");
+  assert.equal(triggers("plugins/native/plugin-builder/src/agent-store.ts"), false);
+  const auditJob = jobBlock("audit", visual);
+  assert.doesNotMatch(auditJob, /tests\/fixtures\/visual-capture\.mts/, "audit shards no longer run visual-capture inline");
+  const captureJob = jobBlock("visual-capture", visual);
+  assert.match(captureJob, /^    needs: \[build\]$/m);
+  assert.match(captureJob, /^    timeout-minutes: 45$/m);
+  assert.match(captureJob, /node scripts\/run-tests\.mjs --shard 1\/1 --timeout-seconds 1200 --retries 1 tests\/fixtures\/visual-capture\.mts/);
+  const captureCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(captureJob)![1]!;
+  assert.equal(Boolean(evaluateExpression(captureCond, { "needs.build.result": "success", "github.event_name": "schedule" })), true);
+  assert.equal(Boolean(evaluateExpression(captureCond, { "needs.build.result": "success", "github.event_name": "workflow_dispatch" })), true);
+  assert.equal(Boolean(evaluateExpression(captureCond, { "needs.build.result": "success", "github.event_name": "pull_request" })), false);
+  assert.equal(Boolean(evaluateExpression(captureCond, { "needs.build.result": "failure", "github.event_name": "schedule" })), false);
 });

@@ -91,7 +91,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   const inner: Record<string, () => string> = {
     conversation: () => body("conversation", uiText.text("workbench.side-panel-tab.conversation"), `<div class="side-parked" data-side-parked data-empty="true"><p class="side-parked-empty mw-empty">${uiText("workbench.work-line.nothing-parked")}</p></div>`),
-    help: () => body("help", uiText.text("workbench.side-panel-tab.help"), renderSideHelp(primitives), " data-side-help-body"),
+    help: () => body("help", uiText.text("workbench.side-panel-tab.help"), renderSideHelp(primitives)),
     discussion: () => body("discussion", uiText.text("workbench.side-panel.project-discussion"), `<iframe title="${uiText("workbench.side-panel.group-chat-threads")}"></iframe>`),
     browser: () => body("browser", uiText.text("workbench.side-panel.browser"), renderSideBrowser(primitives), " data-side-browser"),
     computer: () => body("computer", uiText.text("workbench.side-panel.computer"), renderSideComputer(primitives), " data-side-computer"),
@@ -329,9 +329,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
     expanded();imVisible();drawUndo();reveal();
   };
+  const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
   const select=(id,target)=>{
-    choose(id);draw(target);
+    choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -344,11 +345,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       select(options.tab??current(),options.target);
       if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
-      if(inner)ready(inner,()=>inner.focus());
+      if(inner)ready(inner,()=>{inner.focus();inner.contentWindow?.focus();});
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
-      const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');
-      if(helpBtn&&!helpBtn.hidden){helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);}
+      dropHelpTab();
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
       if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:switchButton??strip.querySelector('[data-side-tab][aria-selected="true"]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       // The side's name and its list go with it: a focus there goes to the switch that opens it again.
@@ -359,14 +359,12 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
-    const dropHelpTab=()=>{const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
     if(tab==='help'){
       const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');
-      if(detail.close===true){if(helpBtn)helpBtn.hidden=true;dropHelpTab();setOpen(false);save();return true;}
+      if(detail.close===true){dropHelpTab();setOpen(false);save();return true;}
       if(helpBtn)helpBtn.hidden=false;
     }
     if(tab!==undefined&&!offered(tab))return false;
-    if(tab!=='help'&&buttons().find(button=>button.dataset.sideTab==='help')?.hidden)dropHelpTab();
     setOpen(true,{tab,target:detail.target,focus:detail.focus===true});save();
     return true;
   };
@@ -483,8 +481,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       if(keys==='Mod+Backslash')toggle();
       else if(keys==='Mod+K'||keys==='Mod+F'){
         const source=forwarded.from(event),body=source?.closest('[data-side-body]');
-        if(open&&source&&body?.dataset.sideBody===current()&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true}))
-          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:true,bubbles:true}));
+        if(open&&source&&body?.dataset.sideBody===current()&&!source.closest('[hidden],[inert]')&&source.checkVisibility({checkVisibilityCSS:true})){
+          const mac=navigator.userAgentData?.platform?navigator.userAgentData.platform==='macOS':/Mac|iPhone|iPad|iPod/.test(navigator.platform||'');
+          window.dispatchEvent(new KeyboardEvent('keydown',{key:keys.slice(-1),metaKey:mac,ctrlKey:!mac,bubbles:true}));
+        }
       }else keyed(keys);
       return;
     }

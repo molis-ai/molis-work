@@ -14,6 +14,7 @@ export const ASSISTANT_STRIP_PART = String.raw`  /* 概况: the work's state and
     if (ready) return ready + " " + readText("workbench.assistant-strip.actions-waiting");
     if (work.state === "paused") return readText("workbench.assistant-strip.paused-click-continue-go");
     if (work.state === "needs-check") return readText("workbench.assistant-strip.operation-s-outcome-unconfirmed-check-first");
+    if (work.state === "unreadable") return readText("workbench.assistant-strip.state-unreadable");
     if ((work.state === "failed" || work.state === "stopped") && last && last.stop_reason && last.stop_reason_code !== "person") return last.stop_reason;
     if (work.state === "completed" && last && last.ended_at) return readText("workbench.assistant-strip.finished") + " " + when(last.ended_at);
     return "";

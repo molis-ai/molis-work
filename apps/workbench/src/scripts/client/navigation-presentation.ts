@@ -266,7 +266,8 @@ ${TOP_CORNER_PART}
   // the strip's size changing, or the side saying so, paints the current one again (paintCurrent waits for the next frame).
   if ('ResizeObserver' in window) new ResizeObserver(paintCurrent).observe(dock);
   document.addEventListener('molis:side-shown', paintCurrent);
-  new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class', 'data-exclusive'] });
+  const tabWorkspace = document.querySelector('.tab-workspace');
+  if (tabWorkspace) new MutationObserver(paintCurrent).observe(tabWorkspace, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class', 'data-exclusive'] });
   new MutationObserver(paintCurrent).observe(dock.querySelector('.plugin-rail-items') || dock, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   paintDock();
 }`;

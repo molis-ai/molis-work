@@ -123,7 +123,7 @@ export const SIDE_HELP_SCRIPT = String.raw`(() => {
     if (detail.open && detail.tab === "help") {
       if (detail.target) paint(detail.target);
       root.focus({ preventScroll: true });
-    } else if (!detail.open) {
+    } else {
       const tab = helpTab();
       if (tab) tab.hidden = true;
       openedSideForHelp = false;

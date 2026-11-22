@@ -68,6 +68,12 @@ function aggregatePlugin() {
   return { definition, calls, nested, touched, waits };
 }
 
+/**
+ * The Home's ports read only the projects open now: what these tests are about. Projects asleep or not opened yet are read through
+ * `resting` (batch 103-1), tested on their own below; its background pass would open this rig's other projects while these run.
+ */
+const openOnly = (host: MolisWorkLocalHost) => ({ ...homeAggregatePorts(host), resting: undefined });
+
 async function rig(t: import("node:test").TestContext) {
   const home = await mkdtemp(join(tmpdir(), "home-aggregate-"));
   const references: LocalHostProjectReference[] = [];
@@ -97,7 +103,7 @@ test("S-49 PG-043 the Home calls only declared read-only queries, one call per o
 
   const status = t.mock.method(LocalHost.prototype, "status", () => { throw new Error("aggregation must not copy the full capability directory"); });
   const functionsClosed = t.mock.method(FunctionsService.prototype, "close");
-  const result = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, { nest: true });
+  const result = await collectHomeAggregate<{ project: string }>(openOnly(host), TYPE, { nest: true });
   assert.equal(status.mock.callCount(), 0);
   assert.equal(functionsClosed.mock.callCount(), 0);
   status.mock.restore();
@@ -110,18 +116,18 @@ test("S-49 PG-043 the Home calls only declared read-only queries, one call per o
   assert.deepEqual(result.issues, [], "a plugin that is off in a project is passed over, not reported");
   assert.equal(plugin.touched.length, 0, "whatever the query calls in turn is read-only too: its command did not run");
   assert.equal(plugin.nested.length, 2); assert.ok(!plugin.nested.includes("ran"), plugin.nested.join());
-  assert.ok(!open().includes(closed.project_id), "a project never opened is not opened to be read");
+  assert.ok(!open().includes(closed.project_id), "reading the open projects does not open another");
 
   // A project closed since is neither called nor opened again.
   assert.equal(await host.closeProject(b), true);
   plugin.calls.length = 0;
-  const after = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+  const after = await collectHomeAggregate<{ project: string }>(openOnly(host), TYPE, {});
   assert.deepEqual(plugin.calls.map(call => call.project), [a.project_id]);
   assert.deepEqual(after.answers.map(item => item.project_id), [a.project_id]);
   assert.deepEqual(open(), [a, off].map(reference => reference.project_id).sort());
 
   // SYS-15-D2: the query declaration is itself read-only, including a direct call by the person.
-  const ports = homeAggregatePorts(host), caller = await ports.context(a), source = after.answers[0]!.source;
+  const ports = openOnly(host), caller = await ports.context(a), source = after.answers[0]!.source;
   await ports.client(a).invoke(caller, source, { nest: true });
   assert.deepEqual(plugin.touched, []); assert.equal(plugin.nested.at(-1), "actions.forbidden");
 });
@@ -131,7 +137,7 @@ test("AAP-03 a project closing after enumeration is skipped and a closed candida
   t.after(() => release.resolve());
   const { host, plugin, a, b } = await rig(t);
   for (const ref of [a, b]) await startProjectPlugins(host, ref);
-  const ports = homeAggregatePorts(host), candidates = ports.openProjects();
+  const ports = openOnly(host), candidates = ports.openProjects();
   const held = host.withProject(b, async () => { started.resolve(); await release.promise; });
   await started.promise;
   const closing = host.closeProject(b);
@@ -153,7 +159,7 @@ test("AAP-03 a query rechecks authority after waiting across project close or au
     const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     releases.push(() => release.resolve());
     plugin.waits.set(a.project_id, async () => { started.resolve(); await release.promise; });
-    const read = collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+    const read = collectHomeAggregate<{ project: string }>(openOnly(host), TYPE, {});
     await started.promise;
     let closing: Promise<boolean> | undefined;
     if (change === "revoke") disabled.add(a.project_id); else closing = host.closeProject(a);
@@ -165,7 +171,7 @@ test("AAP-03 a query rechecks authority after waiting across project close or au
     else {
       assert.ok(result.issues.some(issue => issue.project_id === a.project_id), "withdrawal is reported");
       disabled.delete(a.project_id); plugin.waits.delete(a.project_id);
-      const recovered = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+      const recovered = await collectHomeAggregate<{ project: string }>(openOnly(host), TYPE, {});
       assert.deepEqual(recovered.answers.map(answer => answer.project_id).sort(), [a.project_id, b.project_id].sort());
     }
   }
@@ -200,13 +206,13 @@ test("SYS-05 a stalled Home provider is cancelled, other projects return, and a 
   t.after(() => release.resolve());
   let providerSignal: AbortSignal | undefined;
   plugin.waits.set(a.project_id, async signal => { providerSignal = signal; await release.promise; });
-  const result = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+  const result = await collectHomeAggregate<{ project: string }>(openOnly(host), TYPE, {});
   assert.deepEqual(result.answers.map(answer => answer.project_id), [b.project_id]);
   assert.deepEqual(result.issues.map(issue => [issue.project_id, issue.source?.capability_id, issue.code]), [[a.project_id, tasks.capability_id, "actions.timeout"]]);
   assert.equal(providerSignal?.aborted, true);
   release.resolve();
   plugin.waits.clear();
-  const retry = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+  const retry = await collectHomeAggregate<{ project: string }>(openOnly(host), TYPE, {});
   assert.deepEqual(retry.answers.map(answer => answer.project_id).sort(), [a.project_id, b.project_id].sort());
   assert.deepEqual(retry.issues, []);
   assert.equal(result.answers.length, 1, "a late result cannot mutate the returned partial snapshot");
@@ -215,7 +221,7 @@ test("SYS-05 a stalled Home provider is cancelled, other projects return, and a 
 test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the whole read", { timeout: 15_000 }, async t => {
   const { host, plugin, a, b } = await rig(t);
   for (const ref of [a, b]) await startProjectPlugins(host, ref);
-  const ports = homeAggregatePorts(host), held = Promise.withResolvers<void>();
+  const ports = openOnly(host), held = Promise.withResolvers<void>();
   t.after(() => held.resolve());
   let discoverySignal: AbortSignal | undefined;
   const result = await collectHomeAggregate({ ...ports, context: async (reference, signal) => {
@@ -236,4 +242,38 @@ test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the
   controller.abort(reason);
   await rejected;
   release.resolve();
+});
+
+// S-49 as changed by batch 103-1 (user 2026-11-21): a project put to sleep is answered from its last read while it was not used since,
+// marked resting, without being opened or called; one not read since the Host started, or used since, is opened in the background,
+// quietly (it goes back to sleep as if unread), and read once with the same read-only rules; one closed on purpose is neither.
+test("S-49 B103-01 the Home answers a sleeping project from its last read, opens a project not read yet once in the background, and leaves one closed on purpose", async t => {
+  const { host, plugin, a, b, closed, open } = await rig(t);
+  await startProjectPlugins(host, a);
+  const ports = homeAggregatePorts(host), pass = () => ports.resting!.readings.pass;
+  const read = async () => (await collectHomeAggregate<{ project: string }>(ports, TYPE, {})).answers
+    .map(answer => `${answer.project_id === a.project_id ? "a" : answer.project_id === b.project_id ? "b" : answer.project_id === closed.project_id ? "closed" : "other"}${answer.resting ? ":resting" : ""}`).sort();
+  assert.deepEqual(await read(), ["a"], "only the open project answers now; the others are read in the background");
+  await pass();
+  assert.ok(open().includes(b.project_id) && open().includes(closed.project_id), "the projects not read yet were opened to be read");
+  assert.ok(plugin.calls.filter(call => call.project === closed.project_id).every(call => call.query_only), "with the same read-only call");
+  assert.equal(host.projectRest(closed.storage_key).usedAt, 0, "opening it to read it did not count as using it");
+  assert.deepEqual(await read(), ["a", "b", "closed"]);
+  // Closed on purpose: neither read nor opened again.
+  assert.equal(await host.closeProject(b), true);
+  assert.deepEqual(await read(), ["a", "closed"]);
+  await pass();
+  assert.ok(!open().includes(b.project_id), "a project closed on purpose is not opened to be read");
+  // Put to sleep unused: answered from its last read, without opening or calling it.
+  assert.equal(await host.sleepIfIdle(closed, 0), true);
+  plugin.calls.length = 0;
+  assert.deepEqual(await read(), ["a", "closed:resting"]);
+  await pass();
+  assert.ok(!open().includes(closed.project_id) && !plugin.calls.some(call => call.project === closed.project_id), "the sleeping project was neither opened nor called");
+  // Used, then asleep again: its last read no longer holds, so it is read again, in the background.
+  await host.withProject(closed, async () => undefined);
+  assert.equal(await host.sleepIfIdle(closed, 0), true);
+  assert.deepEqual(await read(), ["a"]);
+  await pass();
+  assert.ok(plugin.calls.some(call => call.project === closed.project_id), "read again after it was used");
 });

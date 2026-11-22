@@ -42,6 +42,37 @@ export function createFrameFetch(port: MessagePort, origin: string): typeof fetc
   };
 }
 
+const JSON_CONTENT_TYPE = /^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i;
+
+function rawRequestBlob(bytes: ArrayBuffer, contentType: string): Blob {
+  const blob = new Blob([bytes], { type: contentType });
+  // WHATWG File API lowercases `blob.type`, which corrupts case-sensitive `multipart/form-data; boundary=...` values.
+  if (blob.type !== contentType) {
+    Object.defineProperty(blob, "type", { value: contentType, enumerable: true, configurable: true });
+  }
+  return blob;
+}
+
+/**
+ * Decodes a bridged plugin-frame request body without crashing on non-JSON payloads (`FormData`, `Blob`,
+ * `URLSearchParams`, `text/plain`, or raw binary buffers). Non-JSON payloads flow via `molisWorkRequest`'s `file`
+ * slot while preserving the exact `Content-Type` header (including multipart boundary casing).
+ */
+export function frameRequestPayload(
+  rawBody: ArrayBuffer | null | undefined,
+  contentType: string | undefined,
+): { body?: unknown; file?: Blob } {
+  if (!rawBody || !rawBody.byteLength) return {};
+  if (!contentType || JSON_CONTENT_TYPE.test(contentType)) {
+    try {
+      return { body: JSON.parse(new TextDecoder().decode(rawBody)) };
+    } catch {
+      return { file: rawRequestBlob(rawBody, contentType || "application/octet-stream") };
+    }
+  }
+  return { file: rawRequestBlob(rawBody, contentType) };
+}
+
 interface Active { controller: AbortController; reader?: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>; reading: boolean }
 /** The owner uses its existing request helper; the child's idempotency keys are namespaced to this page. */
 export function frameRequests(port: MessagePort, pageId: string, scope: FrameScope) {
@@ -78,14 +109,17 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
       if (url.origin !== location.origin || url.username || url.password || !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) throw new Error("Request refused");
       const headers: Record<string, string> = { "x-molis-plugin-page": pageId };
       let key: string | undefined;
+      let contentType: string | undefined;
       for (const [name, value] of message.headers || []) {
-        if (name.toLowerCase() === "accept" || name.toLowerCase() === "last-event-id" && value.length <= 1024) headers[name] = value;
-        if (name.toLowerCase() === "x-molis-work-idempotency-key" && value.length <= 128) key = pageId + ":" + value;
+        const lower = name.toLowerCase();
+        if (lower === "accept" || lower === "last-event-id" && value.length <= 1024) headers[name] = value;
+        else if (lower === "x-molis-work-idempotency-key" && value.length <= 128) key = pageId + ":" + value;
+        else if (lower === "content-type" && value.length <= 256 && !/[\r\n]/.test(value)) contentType = value;
       }
       const entry: Active = { controller: new AbortController(), reading: false }; active.set(id, entry);
-      const body: unknown = message.body?.byteLength ? JSON.parse(new TextDecoder().decode(message.body)) : undefined;
+      const payload = frameRequestPayload(message.body, contentType);
       const response = await molisWorkRequest<Response>(url.href, { method: method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE", headers,
-        body, key, as: "response", signal: AbortSignal.any([scope.signal, entry.controller.signal]) });
+        ...payload, key, as: "response", signal: AbortSignal.any([scope.signal, entry.controller.signal]) });
       scope.assertCurrent();
       if (!active.has(id)) return;
       entry.reader = response.body?.getReader();

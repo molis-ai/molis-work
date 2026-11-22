@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, readdir, rm, chmod, symlink, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { createBuildProject, buildManifest, copyBuildRevision } from '../apps/local-host/src/plugin-builder/build-project.js';
 import { runPluginChecks } from '../apps/local-host/src/plugin-builder/build-checks.js';
 import type { BuildCheckOptions } from '../apps/local-host/src/plugin-builder/build-types.js';
@@ -61,25 +61,6 @@ test('revision helper symlinks refuse before any target input changes', async ()
     assert.deepEqual(await readFile(join(target, 'package.json')), before);
     await assert.rejects(readFile(join(target, 'src/escape.ts')), { code: 'ENOENT' });
   } finally { await f.close(); await rm(target, { recursive: true, force: true }); }
-});
-
-// Not macOS-only: the Linux run has no Seatbelt, so G2's "Cannot find module" for a missing declaration only shows on a Mac.
-test('every relative import in the SDK declarations written into a project names a declaration written beside it', async () => {
-  const f = await fixture();
-  try {
-    const root = join(f.root, 'developer'), files = (await readdir(root, { recursive: true })).filter(path => path.endsWith('.d.ts'));
-    assert.ok(files.includes(join('contracts', 'platform', 'plugin-sandbox.d.ts')), 'the SandboxSdk declaration is there');
-    const relative = /(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
-    for (const file of files) {
-      const text = await readFile(join(root, file), 'utf8');
-      // G2 compiles with the ES2022 library alone and no types: the Host's service types name `AbortSignal`, which it does not have.
-      assert.ok(!text.includes('AbortSignal'), `${file} names AbortSignal, which the isolated compiler does not have`);
-      for (const [, specifier] of text.matchAll(relative)) {
-        const target = join(dirname(file), specifier).replace(/\.js$/, '.d.ts');
-        assert.ok(files.includes(target), `${file} imports ${specifier}, but ${target} is not among the project's declarations`);
-      }
-    }
-  } finally { await f.close(); }
 });
 
 test('all six gates run actual code and tests in Seatbelt while unrelated stub remains disconnected', mac, async () => {

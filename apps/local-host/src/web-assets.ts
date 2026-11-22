@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -72,11 +72,20 @@ function bundledAppearanceFile(route: string): { body: string | Buffer; contentT
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
-  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkArrivalStylesheet" | "renderMolisWorkSettingsStylesheet">;
+  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkArrivalStylesheet" | "renderMolisWorkSettingsStylesheet">
+    & Partial<Pick<WorkbenchRenderer, "renderMolisWorkPluginBaseStylesheet">>;
 }) {
   const { ptyClientFilePath } = ports;
-  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
-  const workbenchAssets = new Map<string, { body: string | Buffer; contentType: string; etag: string }>();
+  const {
+    renderMolisWorkWorkbenchStylesheet,
+    renderMolisWorkWorkbenchClientScript,
+    renderMolisWorkArrivalStylesheet,
+    renderMolisWorkSettingsStylesheet,
+    renderMolisWorkPluginBaseStylesheet = defaultPluginBaseStylesheet,
+  } = ports.renderer;
+  type Asset = { body: string | Buffer; contentType: string; etag: string };
+  // An asset is compacted once per process; requests that come while it is being compacted wait for the same result.
+  const workbenchAssets = new Map<string, Asset | Promise<Asset>>();
   function servePtyClient(request: IncomingMessage, response: ServerResponse): boolean {
     const filePath = ptyClientFilePath();
     if (!fs.existsSync(filePath)) {
@@ -105,7 +114,7 @@ export function createLocalWebAssets(ports: {
     request: IncomingMessage,
     response: ServerResponse,
     pathname: string,
-  ): boolean {
+  ): boolean | Promise<true> {
     if (request.method !== "GET" && request.method !== "HEAD") return false;
     const language = workbenchLanguageResource(pathname);
     if (language) {
@@ -127,9 +136,11 @@ export function createLocalWebAssets(ports: {
     if (!asset) {
       const plugin = pathname.match(/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/);
       const client = plugin?.[2] === "js" ? pluginWorkbenchClientAsset(plugin[1]!) : null;
-      const styles = plugin?.[2] === "css" ? pluginOnDemandStylesheet(plugin[1]!) : null;
+      const styles = plugin?.[2] === "css" ? pluginFrameServedStylesheet(plugin[1]!) : null;
       const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : styles ? { body: styles, contentType: "text/css; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
+      : pathname === "/assets/molis-work-plugin-base.css"
+        ? { body: renderMolisWorkPluginBaseStylesheet(), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-plugin-frame.js"
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
@@ -164,11 +175,26 @@ export function createLocalWebAssets(ports: {
           ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
           : declaredPluginClientAsset(pathname) ?? bundledAppearanceFile(pathname);
       if (!loaded) return false;
-      const body = loaded.contentType.startsWith("text/javascript") ? tightenServedJs(loaded.body.toString())
-        : loaded.contentType.startsWith("text/css") ? tightenServedCss(loaded.body.toString()) : loaded.body;
-      asset = { body, contentType: loaded.contentType, etag: `"${createHash("sha256").update(body).digest("base64url")}"` };
-      workbenchAssets.set(key, asset);
+      const compacting = (async (): Promise<Asset> => {
+        const body = loaded.contentType.startsWith("text/javascript") ? await tightenServedJs(loaded.body.toString())
+          : loaded.contentType.startsWith("text/css") ? await tightenServedCss(loaded.body.toString()) : loaded.body;
+        return { body, contentType: loaded.contentType, etag: `"${createHash("sha256").update(body).digest("base64url")}"` };
+      })();
+      asset = compacting;
+      workbenchAssets.set(key, compacting);
+      void compacting.then(done => { if (workbenchAssets.get(key) === compacting) workbenchAssets.set(key, done); }, () => {
+        if (workbenchAssets.get(key) === compacting) workbenchAssets.delete(key);
+      });
     }
+    // A compaction that failed, or a send that threw, answers this request; the failed compaction is not kept (above).
+    if (asset instanceof Promise) return asset.then(ready => sendAsset(request, response, ready)).catch((error: unknown) => {
+      if (!response.headersSent) sendJson(response, 500, { error: "页面资源暂时无法生成，请刷新重试" });
+      else response.destroy(error instanceof Error ? error : undefined);
+      return true as const;
+    });
+    return sendAsset(request, response, asset);
+  }
+  function sendAsset(request: IncomingMessage, response: ServerResponse, asset: Asset): true {
     const { etag } = asset;
     const headers = {
       "content-type": asset.contentType,

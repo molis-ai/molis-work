@@ -18,19 +18,23 @@ interface Panes {
   take(token: string, frame: unknown): unknown;
 }
 
-/** The page around the panes: two pane frames, and a frame that is not a pane. */
+/** The page around the side pane frames: two side pane frames, a stray main-area pane-owner frame, and a frame that is not a pane. */
 function page() {
   const top: Record<string, unknown> = {};
   top.parent = top;
-  const paneA = { contentWindow: { name: "pane a" }, dataset: { paneOwner: "a" } };
-  const paneB = { contentWindow: { name: "pane b" }, dataset: { paneOwner: "b" } };
+  const paneA = { contentWindow: { name: "side pane a" }, dataset: { paneOwner: "side" } };
+  const paneB = { contentWindow: { name: "side pane b" }, dataset: { paneOwner: "side" } };
+  const forgedMain = { contentWindow: { name: "forged main pane" }, dataset: { paneOwner: "a" } };
   const stray = { contentWindow: { name: "not a pane" }, dataset: {} };
-  const document = { querySelectorAll: (selector: string) => selector === "iframe[data-pane-owner]" ? [paneA, paneB] : [paneA, paneB, stray] };
+  const document = {
+    querySelectorAll: (selector: string) =>
+      selector === '#side-panel iframe[data-pane-owner="side"]' ? [paneA, paneB] : [paneA, paneB, forgedMain, stray],
+  };
   const panes = vm.runInNewContext(PANE_MESSAGES_SCRIPT, { window: top, document, location: { origin: ORIGIN } }) as Panes;
-  return { top, paneA, paneB, stray, panes };
+  return { top, paneA, paneB, forgedMain, stray, panes };
 }
 
-/** Inside a pane: the page around it, and another window. */
+/** Inside an embedded side pane: the page around it, and another window. */
 function pane() {
   const around = { name: "page" };
   const self: Record<string, unknown> = { parent: around };
@@ -38,11 +42,12 @@ function pane() {
   return { around, self, panes };
 }
 
-test("S-30 the page takes a pane message only from this origin and from the window of one of its panes", () => {
-  const { top, paneA, paneB, stray, panes } = page();
+test("S-30 the page takes a pane message only from this origin and from the window of a side pane frame", () => {
+  const { top, paneA, paneB, forgedMain, stray, panes } = page();
   const message = { type: "workbench-surface-landing", landing: null };
-  assert.equal(panes.from({ origin: ORIGIN, source: paneA.contentWindow, data: message }), paneA, "a pane's own message names its frame");
+  assert.equal(panes.from({ origin: ORIGIN, source: paneA.contentWindow, data: message }), paneA, "a side pane's own message names its frame");
   assert.equal(panes.from({ origin: ORIGIN, source: paneB.contentWindow, data: message }), paneB);
+  assert.equal(panes.from({ origin: ORIGIN, source: forgedMain.contentWindow, data: message }), null, "a non-side iframe[data-pane-owner] outside #side-panel is refused");
   assert.equal(panes.from({ origin: ORIGIN, source: stray.contentWindow, data: message }), null, "a frame that is not a pane");
   assert.equal(panes.from({ origin: ORIGIN, source: top, data: message }), null, "the page itself");
   assert.equal(panes.from({ origin: ORIGIN, source: { name: "another window" }, data: message }), null, "a window that is not a frame here (a popup, an opener)");
@@ -84,19 +89,19 @@ test("S-30 RAC-2687 generic view updates retain the exact pane-window and parent
   }
 });
 
-// 07-S2: a main tab moved to the right side shows in a pane page whose frame is `iframe[data-pane-owner="side"]`, and a pane
-// page hands ⌘⇧↵ up as `workbench-pane-solo`. The check is the same one; this puts the new sender and message in its evidence.
+// 07-S2: a main tab moved to the right side shows in a pane page whose frame is `#side-panel iframe[data-pane-owner="side"]`, and a pane
+// page hands ⌘⇧↵ up as `workbench-pane-solo`. Non-side frames claiming `data-pane-owner` are refused (102-1 single-document split).
 test("S-30 07-S2 the right side's pane page frame and workbench-pane-solo pass the same check: only that frame's own window, from this origin", () => {
   const top: Record<string, unknown> = {};
   top.parent = top;
-  const main = { contentWindow: { name: "pane a" }, dataset: { paneOwner: "a" } };
+  const forgedMain = { contentWindow: { name: "forged main frame" }, dataset: { paneOwner: "a" } };
   const side = { contentWindow: { name: "moved tab on the right" }, dataset: { paneOwner: "side" } };
   const sidePlugin = { contentWindow: { name: "a side panel plugin frame" }, dataset: { sideFrame: "" } };
-  const document = { querySelectorAll: (selector: string) => selector === "iframe[data-pane-owner]" ? [main, side] : [main, side, sidePlugin] };
+  const document = { querySelectorAll: (selector: string) => selector === '#side-panel iframe[data-pane-owner="side"]' ? [side] : [forgedMain, side, sidePlugin] };
   const panes = vm.runInNewContext(PANE_MESSAGES_SCRIPT, { window: top, document, location: { origin: ORIGIN } }) as Panes;
   for (const data of [{ type: "workbench-pane-solo" }, { type: "workbench-pane-open", plugin: "goals" }, { type: "workbench-pane-focus" }]) {
     assert.equal(panes.from({ origin: ORIGIN, source: side.contentWindow, data }), side, `${data.type} from the side's pane page names its frame`);
-    assert.equal(panes.from({ origin: ORIGIN, source: main.contentWindow, data: { ...data, paneOwner: "side", paneId: "side" } }), main, `${data.type}: a main pane cannot speak as the side by saying so`);
+    assert.equal(panes.from({ origin: ORIGIN, source: forgedMain.contentWindow, data: { ...data, paneOwner: "side", paneId: "side" } }), null, `${data.type}: a non-side frame cannot speak as the side`);
     assert.equal(panes.from({ origin: ORIGIN, source: sidePlugin.contentWindow, data }), null, `${data.type}: a side panel plugin frame is not a pane page`);
     assert.equal(panes.from({ origin: ORIGIN, source: top, data }), null, `${data.type}: the page itself`);
     assert.equal(panes.from({ origin: ORIGIN, source: { name: "a popup" }, data }), null, `${data.type}: a window that is not a frame here`);
@@ -283,8 +288,9 @@ function contextPage() {
   const frameWindow = (to: string) => ({ postMessage: (message: Record<string, unknown>) => told.push({ to, message }) });
   // The Shelf tab's frame sits in the side panel's cell for that tab (context-landing's `place`).
   const cell = { dataset: { sideBody: "plugin:shelf/side" } };
+  const sidePaneCell = { dataset: { sideBody: "pane-1" } };
   const shelf = element({ contentWindow: frameWindow("shelf"), closest: (selector: string) => selector === "[data-side-panel] [data-side-body]" ? cell : null });
-  const pane = element({ contentWindow: frameWindow("pane"), dataset: { paneOwner: "pane-b" } });
+  const pane = element({ contentWindow: frameWindow("pane"), dataset: { paneOwner: "side" }, closest: (selector: string) => selector === "[data-side-panel] [data-side-body]" ? sidePaneCell : null });
   // A same-origin frame that is neither: a plugin's own preview inside the work area, say.
   const stray = element({ contentWindow: frameWindow("stray") });
   const top: Record<string, unknown> = { addEventListener: (type: string, fn: (event: unknown) => void) => { if (type === "message") windowListeners.push(fn); }, dispatchEvent: () => true };
@@ -294,7 +300,7 @@ function contextPage() {
     createElement: () => { const node = element(); made.push(node); return node; },
     querySelector: () => null, getElementById: () => null, dispatchEvent: () => true,
     addEventListener: (type: string, fn: (event: unknown) => void) => { (documentListeners[type] ||= []).push(fn); },
-    querySelectorAll: (selector: string) => selector === "#side-panel iframe[data-side-frame]" ? [shelf] : selector === "iframe[data-pane-owner]" ? [pane] : [],
+    querySelectorAll: (selector: string) => selector === "#side-panel iframe[data-side-frame]" ? [shelf] : selector === '#side-panel iframe[data-pane-owner="side"]' ? [pane] : [],
   };
   const documentListeners: Record<string, Array<(event: unknown) => void>> = {};
   class PageElement {}
@@ -334,7 +340,7 @@ function contextPage() {
   return { top, shelf, pane, stray, requests, told, send, settle, toolbarShown, land, hold, flashes, focusHere, inAssistant };
 }
 
-test("S-30 AC-S04 a workbench-surface-focus that is not from a side panel plugin frame (or a split pane) is dropped: nothing is asked, no toolbar", async () => {
+test("S-30 AC-S04 a workbench-surface-focus that is not from a side panel plugin frame (or a side pane) is dropped: nothing is asked, no toolbar", async () => {
   type Page = ReturnType<typeof contextPage>;
   const refused: Array<[string, (page: Page) => unknown, string?]> = [
     ["a same-origin frame that is not a side tab", page => page.stray.contentWindow],
@@ -375,12 +381,12 @@ test("S-30 §10.28 a place or side tab a surface reports of itself is replaced b
     return [focus.place, focus.side_tab];
   };
   const forged = { place: "side", side_tab: "plugin:forged/side" };
-  const pane = contextPage();
-  pane.send(pane.pane.contentWindow, ORIGIN, forged);
-  assert.deepEqual(await asked(pane), ["main", undefined], "a split pane is on the left, whatever it says");
+  const sidePane = contextPage();
+  sidePane.send(sidePane.pane.contentWindow, ORIGIN, { place: "main", side_tab: "plugin:forged/side" });
+  assert.deepEqual(await asked(sidePane), ["side", "pane-1"], "a side pane is in its side panel cell, whatever it says");
   const here = contextPage();
   here.focusHere(forged);
-  assert.deepEqual(await asked(here), ["main", undefined], "this page's own surface is on the left, whatever it says");
+  assert.deepEqual(await asked(here), ["main", undefined], "this page's own surface (including CSS Grid split panes) is on the left, whatever it says");
   const island = contextPage();
   island.focusHere({ place: "main", side_tab: "plugin:forged/side" }, island.inAssistant);
   assert.deepEqual(await asked(island), ["assistant", undefined], "a surface in the Assistant is in the Assistant, whatever it says");

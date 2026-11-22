@@ -28,3 +28,58 @@ test("HOST-CLOSE-01 an open that fails while the Host closes does not fail the c
   assert.equal(host.lifecycle(), "closed");
   assert.deepEqual(host.status().projects, []);
 });
+
+// B103-01: an open project nobody has used for a while, with nothing running, is put to sleep; a call that comes while it closes waits and
+// opens it again instead of being refused as closing, and a project in use or with work running stays open.
+test("B103-01 an idle project is put to sleep only when nothing of it runs; a call during its close opens it again", async () => {
+  const opened: string[] = [], closed: string[] = [];
+  let releaseClose!: () => void;
+  let closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
+  let holdClose = false;
+  const host = new LocalHost<{ id: string }>({
+    instanceId: "test-local-host-sleep",
+    runtimeFactory: {
+      open: reference => { opened.push(reference.project_id); return { id: reference.project_id }; },
+      close: async runtime => { if (holdClose) await closeGate; closed.push(runtime.id); },
+    },
+  });
+  const reference = { project_id: "p1", storage_key: "memory:p1" };
+  try {
+    await host.withRuntime(reference, () => undefined);
+    assert.equal(await host.sleepIfIdle(reference.storage_key, 60_000, async () => false), false, "used just now: stays open");
+    assert.equal(await host.sleepIfIdle(reference.storage_key, 0, async () => true), false, "work still running: stays open");
+    let inside!: () => void;
+    const busy = host.withRuntime(reference, () => new Promise<void>(resolve => { inside = resolve; }));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(await host.sleepIfIdle(reference.storage_key, 0, async () => false), false, "a call under way: stays open");
+    inside(); await busy;
+    assert.deepEqual(closed, []);
+    holdClose = true;
+    const sleeping = host.sleepIfIdle(reference.storage_key, 0, async () => false);
+    await new Promise(resolve => setImmediate(resolve));
+    const call = host.withRuntime(reference, runtime => runtime.id);
+    releaseClose();
+    assert.equal(await sleeping, true);
+    assert.equal(await call, "p1", "the call that came during the close is not refused");
+    assert.deepEqual(closed, ["p1"]);
+    assert.deepEqual(opened, ["p1", "p1"], "it opened the project again");
+    // Closed on purpose while asleep (deleted, restored, synced): it is no longer resting, so nothing wakes it to read it.
+    holdClose = false;
+    assert.equal(await host.sleepIfIdle(reference.storage_key, 0, async () => false), true);
+    assert.equal(host.projectRest(reference.storage_key).state, "asleep");
+    await host.closeProject(reference.storage_key);
+    assert.equal(host.projectRest(reference.storage_key).state, "closed");
+    // Closed on purpose while it was being put to sleep: it ends closed, not asleep, and its runtime is closed once.
+    await host.withRuntime(reference, () => undefined);
+    closed.length = 0;
+    closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
+    holdClose = true;
+    const asleep = host.sleepIfIdle(reference.storage_key, 0, async () => false);
+    await new Promise(resolve => setImmediate(resolve));
+    const purposeful = host.closeProject(reference.storage_key);
+    releaseClose();
+    await Promise.all([asleep, purposeful]);
+    assert.equal(host.projectRest(reference.storage_key).state, "closed");
+    assert.deepEqual(closed, ["p1"]);
+  } finally { releaseClose(); await host.close(); }
+});

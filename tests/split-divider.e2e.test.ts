@@ -25,7 +25,7 @@ test("VUX-23/24 QEA-179: the split divider has a dead zone, follows, snaps with 
   const mouse = (type: string, x: number, buttons = 1) => command("Input.dispatchMouseEvent", { type, x, y: center.y, button: "left", buttons, clickCount: 1 }, sessionId);
   /** Where the divider would be for this ratio, in page x. */
   const at = (ratio: number) => center.x + (ratio - 0.5) * center.width;
-  const guarded = () => evaluate<{ resizing: boolean; frames: string[] }>(`({ resizing: ${root}.classList.contains('is-resizing'), frames: [...document.querySelectorAll('iframe.tab-content-frame')].map(frame => getComputedStyle(frame).pointerEvents) })`);
+  const guarded = () => evaluate<{ resizing: boolean; frames: string[] }>(`({ resizing: ${root}.classList.contains('is-resizing'), frames: [...document.querySelectorAll('[data-tab-pane-body], iframe[data-plugin-frame]')].map(node => getComputedStyle(node).pointerEvents) })`);
   assert.equal(await value(), 50);
 
   // T405-FULL-10: the candidate guards the first cross-frame movement, without changing or saving the ratio.

@@ -39,7 +39,10 @@ export function projectSurfaceContext(host: LocalHost<MolisWorkProjectRuntime>, 
     const transport = pluginRouteControl(signal, () => {
       if (owner.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭");
     }, assertSource);
-    return host.withExistingRuntime(reference, async runtime => {
+    // A project that went to sleep while its page stayed open is woken for the person looking at it (batch 103-1); a project closed on
+    // purpose or never opened stays as it is, so a display position still never prepares plugins of its own accord.
+    const wake = host.projectRest(reference.storage_key).state === "asleep" ? owner.withProject(reference, () => undefined) : undefined;
+    return Promise.resolve(wake).then(() => host.withExistingRuntime(reference, async runtime => {
       requireSynchronous(transport.assert_authority_current?.());
       if (!homeDirectory) throw new ActionError("actions.unavailable", "呈现需要 Home 目录");
       const original = surfaceHomeDirectory({ store: runtime.store, reference, homeDirectory, home: owner.homePlugins, readCatalog });
@@ -49,7 +52,7 @@ export function projectSurfaceContext(host: LocalHost<MolisWorkProjectRuntime>, 
         retained.assertCurrent(); requireSynchronous(authority.caller.assert_authority_current?.(...args));
       } } : authority.caller;
       return use({ ...authority, caller, runtime, catalog, transport, client: host.actionClient(reference), ...(retained ? { retained: true } : {}) });
-    });
+    }));
   };
 }
 

@@ -214,9 +214,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${PAGES} dialog.mw-sheet:not([open]) { opacity: 0; transform: translateX(32px); }
   ${PAGES} dialog.mw-sheet::backdrop { transition: opacity var(--dur-move) var(--ease-quint), overlay var(--dur-move) allow-discrete, display var(--dur-move) allow-discrete; }
   ${PAGES} dialog.mw-sheet:not([open])::backdrop { opacity: 0; }
-  /* A tab switch: the current tab's paper settles in; the pane's content comes up with a short fade. */
+  /* A tab switch: the current tab's paper settles in. */
   ${WORKBENCH} .tab-item { transition: background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
-  ${WORKBENCH} iframe.tab-content-frame:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
   /* A disclosure the person opens (never one rendered open) lets its content settle in. */
   ${PAGES} details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }

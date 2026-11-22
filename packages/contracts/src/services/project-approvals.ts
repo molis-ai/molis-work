@@ -13,12 +13,7 @@ export const servicesProjectApprovalsContract = {
 
 export type TrustedReviewReference = ReviewReference<Extract<ReviewOwner, { kind: "trusted-decision" }> & { readonly scope: "project" }>;
 
-/** The sandbox writer compares this declared owner row with the frozen review target at BEGIN IMMEDIATE. */
-export interface TrustedReviewRow {
-  readonly table: string;
-  readonly id_column: string;
-  readonly version_column: string;
-}
+export type { TrustedReviewRow } from "./trusted-review-row.js";
 
 /** Exact saved request and option. A request body cannot supply the decision's actor, provenance, or target. */
 export interface TrustedReviewCommand {

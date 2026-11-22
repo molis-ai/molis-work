@@ -195,10 +195,24 @@ test("what the definitions leave out passes against the merge-base", () => {
 test("WMD-13 and PG-097 definition: S-75 host-plugin-ids reservation and non-TS helpers behave as documented", () => {
   assert.equal(countFile("apps/local-host/src/host-plugin-ids.ts", 'export const IDS = new Set(["io.molis.work.files"]);\n', { inSource: true }).oldNames, 0);
   assert.equal(countFile("packages/design-system/src/primitives/catalog-skill-selection.ts", "export const ok = 1;\n", { inSource: true }).oldNames, 0);
+  assert.equal(countFile("packages/design-system/src/primitives/catalog-skill-selection.mts", "export const ok = 1;\n", { inSource: true }).oldNames, 0);
   assert.equal(countFile("packages/alpha/src/skill-selection.ts", "export const bad = 1;\n", { inSource: true }).oldNames, 1);
+  assert.equal(countFile("packages/alpha/src/skill-selection.mts", "export const bad = 1;\n", { inSource: true }).oldNames, 1);
+  // Leading word boundaries prevent false matches on prefixed identifiers while still catching quoted literals.
+  assert.equal(countFile("packages/alpha/src/quoted.ts", 'const a = "io.molis.work.files"; const b = "agent.skills.discover"; const c = \'agent.skills.install\';\n', { inSource: true }).oldNames, 3);
+  assert.equal(countFile("packages/alpha/src/prefixed.ts", 'const a = "studio.molis.work.files"; const b = "my_agent.skills.discover"; const c = "xagent.skills.install";\n', { inSource: true }).oldNames, 0);
   assert.equal(countNonTsOldNames("apps/desktop/adapters/tauri/src/main.rs", "const OLD: &str = \"GoalBoard\";\n"), 1);
+  assert.equal(countNonTsOldNames("packages/alpha/src/contest/run.sh", "echo GoalBoard\n"), 1);
+  assert.equal(countNonTsOldNames("packages/alpha/src/distribution/Makefile", "all:\n\techo MOLIS_JELLY_X\n"), 1);
   assert.equal(countNonTsOldNames("pnpm-lock.yaml", "goalboard MOLIS_JELLY_X\n"), 0);
   assert.equal(countNonTsOldNames("docs/history.yaml", "goalboard MOLIS_JELLY_X\n"), 0);
+  assert.equal(countNonTsOldNames("specs/demo/sample.yml", "goalboard MOLIS_JELLY_X\n"), 0);
+  // Nested tests/test/dist/node_modules directories are excluded at any depth.
+  assert.equal(countNonTsOldNames("tests/fixture.sh", "echo GoalBoard\n"), 0);
+  assert.equal(countNonTsOldNames("packages/alpha/tests/fixture.rs", "const X: &str = \"GoalBoard\";\n"), 0);
+  assert.equal(countNonTsOldNames("packages/alpha/test/fixture.sh", "echo MOLIS_JELLY_X\n"), 0);
+  assert.equal(countNonTsOldNames("apps/local-host/dist/bundle.sh", "echo GoalBoard\n"), 0);
+  assert.equal(countNonTsOldNames("packages/alpha/node_modules/dep/Makefile", "all:\n\techo GoalBoard\n"), 0);
   assert.equal(countNonTsOldNames("plugins/native/files/src/index.ts", "export const x = 1;\n"), 1);
 });
 

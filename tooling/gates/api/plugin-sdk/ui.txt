@@ -1413,7 +1413,7 @@ export declare function resolveUiEnvironment(input: UiEnvironmentInput): UiEnvir
 
 export declare function ringSegmentPath(points: number[][]): string;
 
-export declare function sandboxHelpDeclarationProblems(contract: Pick<SandboxPluginContract, "pluginId" | "help">): string[];
+export declare function sandboxHelpDeclarationProblems(contract: Pick<SandboxPluginContract, "pluginId" | "help" | "ui">): string[];
 
 export declare const say: UiSayTool;
 

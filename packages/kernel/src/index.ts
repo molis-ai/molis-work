@@ -141,10 +141,12 @@ export class CapabilityRegistry<Context> {
   }
 
   private requireCapability(context: Context, definition: HostCapabilityDescriptor): RegisteredCapability<Context> {
-    const descriptor = normalizedDescriptor(definition);
-    const registered = this.entries.get(capabilityKey(descriptor));
-    if (!registered || registered.descriptor.operation !== descriptor.operation) {
-      throw kernelErrors.capability_missing(`Capability 未注册: ${capabilityKey(descriptor)}`);
+    // Only the key is needed: copying the whole definition (its schemas run to hundreds of KB) on every call is what the frozen
+    // registration snapshot exists to avoid. The id is trimmed as at registration, so a caller's own definition still finds its entry.
+    const key = capabilityKey({ capability_id: definition.capability_id.trim(), version: definition.version, action_provider: definition.action_provider });
+    const registered = this.entries.get(key);
+    if (!registered || registered.descriptor.operation !== definition.operation) {
+      throw kernelErrors.capability_missing(`Capability 未注册: ${key}`);
     }
     const availability = requireSynchronous(inDirectoryPass(() => registered.availability?.(context)));
     if (availability && !availability.available) throw new ActionError(availability.code, availability.reason, { kind: availability.kind });

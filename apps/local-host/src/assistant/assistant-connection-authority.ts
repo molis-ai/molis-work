@@ -9,6 +9,7 @@ import { assistantAuthority } from "./assistant-authority.js";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { connectorReadyChecker } from "../connector-ready-checker.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, type StoredWork } from "./assistant-store.js";
+import { exactBoundActionView } from "../exact-action-view.js";
 
 /** Restores only permission to read this session's own setup state, never an old round's general action grant. */
 async function withConnectionActions<T>(home: string, localHost: MolisWorkLocalHost, scope: ConnectorSetupCheckScope, required: typeof connectorManagementActions.authorization, read: (actions: AgentActionClient, work: StoredWork) => Promise<T>): Promise<T> {
@@ -26,8 +27,7 @@ async function withConnectionActions<T>(home: string, localHost: MolisWorkLocalH
     const authority = assistantAuthority(localHost, work, () => store.disabledActions(scope.actor_id));
     const actions = await authority.actions!("prologue", current);
     const expected = required;
-    const available = (await actions.discover()).some(view => view.capability_id === expected.capability_id && view.version === expected.version
-      && view.provider.provider_id === "system.connectors" && view.availability.available);
+    const available = !!(await exactBoundActionView(actions, { ...expected, provider_id: "system.connectors" }))?.availability.available;
     if (!available) throw new ActionError("actions.forbidden", "当前助理没有读取接入状态的权限");
     current(); const result = await read(actions, work); current(); return result;
   } finally { db.close(); }

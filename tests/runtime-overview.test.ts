@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -39,8 +40,8 @@ function harness(answers: Record<string, (input: unknown) => unknown>, options: 
   const answer = (key: string, input: unknown) => { calls.push(key); const respond = answers[key]; if (!respond) throw new ActionError("actions.not_found", "没有"); return respond(input); };
   const aggregate: HomeAggregatePorts = {
     openProjects: () => projects, whileOpen: async (_reference, work) => work(),
-    client: project => ({ discover: async () => projectViews(project.project_id),
-      invoke: async (_caller, action, input) => answer(`${project.project_id}:${action.capability_id}`, input) }),
+    client: project => (fakeActionClient({ discover: async () => projectViews(project.project_id),
+      invoke: async (_caller, action, input) => answer(`${project.project_id}:${action.capability_id}`, input) })),
     context: async project => context(project.project_id), projectPlugins: async () => () => true,
   };
   const homeViews = [view(homeOverview, "assistant", null), view(homeDecision, "assistant", null)];

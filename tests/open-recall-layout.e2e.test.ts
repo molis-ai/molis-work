@@ -117,10 +117,10 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
   await click(`${LAYOUT_MENU} [data-layout-split=right]`);
-  await waitFor("document.querySelectorAll('[data-tab-workspace] .tab-pane, [data-tab-workspace] .tab-content-frame').length >= 2", 15_000);
+  await waitFor("document.querySelectorAll('[data-tab-workspace] .tab-pane').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0", 15_000);
   await key("Enter", "Enter", META | SHIFT);
   await waitFor("document.querySelector('[data-tab-workspace][data-solo], .tab-workspace[data-solo]')");
-  const solo = await evaluate<{ shown: number; saved: unknown; exclusive: unknown }>(`({ shown: new Set([...document.querySelectorAll('.tab-workspace-panes > :is(.tab-pane, .tab-content-frame)')].filter(node => node.checkVisibility()).map(node => node.dataset.tabPane || node.dataset.paneOwner)).size,
+  const solo = await evaluate<{ shown: number; saved: unknown; exclusive: unknown }>(`({ shown: new Set([...document.querySelectorAll('.tab-workspace-panes > .tab-pane')].filter(node => node.checkVisibility()).map(node => node.dataset.tabPane)).size,
     saved: ${stored}?.solo, exclusive: ${stored}?.exclusive })`);
   assert.equal(solo.shown, 1, "独看 shows only the focused pane");
   assert.ok(solo.saved && typeof (solo.saved as { paneId: unknown }).paneId === "string", JSON.stringify(solo));
@@ -419,10 +419,9 @@ test("PFG-24 口径 8 ② a Dataset record found from the other column opens in 
   await waitFor(`Boolean(document.querySelector('[data-global-search-id="${id}"]'))`, 15_000);
   await click(`[data-global-search-id="${id}"]`);
   await waitFor(`${stored}.focusedPaneId === ${JSON.stringify(first)} && ${toasted("已在另一栏打开，切过去了")}`, 15_000);
-  const ownerFrame = `iframe.tab-content-frame[data-pane-owner="${first}"]:not([hidden])`;
-  await waitFor(`document.querySelector(${JSON.stringify(ownerFrame)})`, 20_000);
-  const held = await pluginFrameBrowser(t, b, "dataset", ownerFrame);
-  await held.waitFor("document.querySelector('[data-dataset-title]')?.value === '另一栏召回这份数据' && !document.querySelector('[data-dataset-stage-workspace]').hidden", 20_000);
+  const ownerFrame = `[data-tab-pane="${first}"] [data-work-surface="dataset"]:not([hidden]) iframe[data-plugin-frame="dataset"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(ownerFrame)})) && document.querySelectorAll('iframe[data-plugin-frame="dataset"]').length === 1`, 20_000);
+  await dataset.waitFor("document.querySelector('[data-dataset-title]')?.value === '另一栏召回这份数据' && !document.querySelector('[data-dataset-stage-workspace]').hidden", 20_000);
   const tabs = await evaluate<{ itemTabs: number; savedItems: number; second: number }>(`(() => { const saved = ${stored};
     return { itemTabs: document.querySelectorAll('.tab-item[data-plugin=dataset][data-item-id]').length,
       savedItems: saved.panes.flatMap(pane => pane.tabs).filter(tab => tab.plugin === 'dataset' && tab.kind === 'item').length, second: saved.panes[1].tabs.length }; })()`);

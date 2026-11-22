@@ -1,14 +1,29 @@
-import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, renderHelpButton, renderHelpDeclarationScript } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { buildGoalCollectionModel } from "../collection-model.js";
 import { renderGoalDetailsAside, renderImmersiveGoalHeader, renderImmersiveWorkTabs } from "./chrome.js";
 import { renderGoalFrameStage } from "./frame-stage.js";
 import { createGoalsPage } from "./index.js";
 import type { GoalsPagePorts } from "./ports.js";
 import type { GoalsPageView } from "./view.js";
-import type { StagePageModel, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { StagePageModel, UiContribution, UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsStageData } from "../stage-action.js";
 
 export const GOALS_STAGE_CONTRIBUTION_ID = "io.molis.work.goals.stage";
+
+/** Single source of truth for Goals' Scheme A on-demand help (referenced by `goalsManifest.ui.help` and mounted on stage). */
+export const GOALS_UI_HELP: UiHelpDeclaration = {
+  default_topic: "page",
+  topics: [{
+    id: "page",
+    title: { key: "goals.help.title" },
+    sections: [
+      { id: "what", heading: { key: "common.help.section-what" }, body: { key: "goals.help.what" } },
+      { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "goals.help.example-1" }, { key: "goals.help.example-2" }] },
+      { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "goals.help.scope" } },
+      { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "goals.help.advanced-summary" }, body: { key: "goals.help.advanced" } },
+    ],
+  }],
+};
 
 export function goalsPagePorts(model: Pick<StagePageModel, "drawing" | "primitives">): GoalsPagePorts<GoalsPageView> {
   const { drawing } = model;
@@ -116,7 +131,7 @@ function renderMolisWorkRefreshFragment(
       <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${uiText("goals.workbench-stage.canvas")}" title="${uiText("goals.workbench-stage.canvas")}">${icon("network")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.canvas")}</span></button>
       <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${uiText("goals.workbench-stage.board")}" title="${uiText("goals.workbench-stage.board")}">${icon("columns")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.board")}</span></button>
     </div>
-    <a class="mw-btn mw-btn--ghost goal-work-planning-toggle" href="__PROJECT_RULES_SETTINGS__" data-craft-tip="${uiText("goals.workbench-stage.work-rules")}">${icon("shield")}<span>${uiText("goals.workbench-stage.work-rules")}</span></a></div>
+    <a class="mw-btn mw-btn--ghost goal-work-planning-toggle" href="__PROJECT_RULES_SETTINGS__" data-craft-tip="${uiText("goals.workbench-stage.work-rules")}">${icon("shield")}<span>${uiText("goals.workbench-stage.work-rules")}</span></a>${renderHelpButton({ topic: "page", label: uiText.text("common.help.title"), size: "sm", className: "goal-work-planning-toggle", attrs: { "data-craft-tip": uiText.text("common.help.title") } })}</div>
     <section class="goal-node-workspace" data-goal-node-workspace aria-label="${uiText("goals.workbench-stage.goal-workspace")}" hidden>
       ${renderImmersiveGoalHeader(selected?.goal.title || "", primitives)}
       <div class="goal-node-workbench" data-goal-node-workbench>
@@ -127,6 +142,7 @@ function renderMolisWorkRefreshFragment(
         ${renderGoalDetailsAside(goalDocument, primitives)}
       </div>
     </section>
+    ${renderHelpDeclarationScript(GOALS_UI_HELP)}
   </div>` : `${stageList}${goalDocument}`;
   const frameStage = showTui ? renderGoalFrameStage({ readText, icon }) : "";
     return { title, showTui, stage: goalStage, frame: frameStage };

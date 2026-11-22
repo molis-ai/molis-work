@@ -90,6 +90,7 @@ export async function executeIsolatedReplay(options: {
 
   const guardedClient: ActionClient = {
     discover: (ctx) => options.clientFor(ctx).discover(ctx),
+    discoverOne: (ctx, ref) => options.clientFor(ctx).discoverOne(ctx, ref),
     invoke: async (ctx, action, input) => {
       const view = await lookupView(ctx, action);
       const blockReason = isExternalEffectCapability(action.capability_id, view);

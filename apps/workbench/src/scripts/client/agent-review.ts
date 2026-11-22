@@ -19,7 +19,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const feedbackKey=id=>'molis-review-feedback:'+host.route('/api/agent/reviews')+':'+id;
   const readFeedback=id=>{try{return sessionStorage.getItem(feedbackKey(id)) ?? feedbackDrafts.get(id) ?? '';}catch{return feedbackDrafts.get(id) ?? '';}};
-  const saveFeedback=(id,text)=>{feedbackDrafts.set(id,text);try{if(text)sessionStorage.setItem(feedbackKey(id),text);else sessionStorage.removeItem(feedbackKey(id));}catch{}};
+  const saveFeedback=(id,text)=>{feedbackDrafts.set(id,text);try{if(text)sessionStorage.setItem(feedbackKey(id),text);else sessionStorage.removeItem(feedbackKey(id));}catch{/* Ignore sessionStorage write failure for review feedback draft. */}};
   const syncActions=row=>{
     const id=row.dataset.agentReviewItem,hasFeedback=Boolean(row.querySelector('[data-agent-review-feedback]')?.value.trim());
     row.querySelectorAll('[data-agent-review-approve],[data-agent-review-reject],[data-agent-review-inspect]').forEach(button=>{button.disabled=busy.has(id) || hasFeedback && button.hasAttribute('data-agent-review-approve');});

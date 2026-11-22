@@ -352,3 +352,17 @@ test("S-52 PG-038 a job kept through MCP follows on after the grant is revoked, 
     assert.notEqual(row.actor_id, actor); assert.equal(row.audience, "plugin"); assert.notEqual(row.call_id, kept.call_id, "the job is an operation of its own");
   }
 });
+
+// B103-01: a project with a job a command kept in it is not put to sleep; the Home plugin host says so per project, and no longer once it
+// ends. A job the activation's start() keeps (a standing loop every opening keeps again) does not hold the project open.
+test("B103-01 a job a command kept counts as work running in its project, and only there, until it ends", async t => {
+  const probe = jobProbe("jobliveness", "project"), { release, finished } = held(probe);
+  const { host, actions } = await homeJobs(t, probe);
+  assert.equal(host.hasProjectWork("p1"), false);
+  await actions.invoke(person(probe.permissions, "p1"), probe.keep, { id: "p1" });
+  assert.equal(host.hasProjectWork("p1"), true, "the job runs in p1");
+  assert.equal(host.hasProjectWork("p2"), false, "and not in another project");
+  release.resolve(); await finished.promise; await probe.kept[0]!.done.catch(() => undefined);
+  await setTimeout(0);
+  assert.equal(host.hasProjectWork("p1"), false, "nothing runs once it ended");
+});

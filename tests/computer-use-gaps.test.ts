@@ -565,11 +565,26 @@ test("PF-A15: verifiable local app discovery lists human-readable app names, pre
     assert.equal(blockedNotes.built_in, false);
     assert.equal(blockedNotes.user_forbidden, true);
 
+    settings.forbid({ bundle_id: "com.1password.1password", name: "1Password" });
+    const withBoth = await listVerifiableComputerApps(settings.forbidden(), { directories: [root], useCache: false });
+    const builtInOverlap = withBoth.find(a => a.bundle_id === "com.1password.1password")!;
+    assert.equal(builtInOverlap.built_in, true, "P2-10: built_in stays true even when also present in userForbidden");
+
     settings.allow("com.apple.Notes");
     settings.allow("com.1password.1password");
     const afterAllow = await listVerifiableComputerApps(settings.forbidden(), { directories: [root], useCache: false });
     assert.equal(afterAllow.find(a => a.bundle_id === "com.apple.Notes")!.tier, "ask");
     assert.equal(afterAllow.find(a => a.bundle_id === "com.1password.1password")!.tier, "forbidden", "built-in forbidden cannot be revoked");
+
+    if (process.platform === "darwin") {
+      const commentedContents = path.join(root, "Commented.app", "Contents");
+      mkdirSync(commentedContents, { recursive: true });
+      writeFileSync(path.join(commentedContents, "Info.plist"),
+        '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><!-- note --><string>com.example.Commented</string><key>CFBundleDisplayName</key><string>Commented App</string></dict></plist>');
+      const withCommented = await listVerifiableComputerApps([], { directories: [root], useCache: false });
+      const found = withCommented.find(a => a.bundle_id === "com.example.Commented");
+      assert.equal(found?.name, "Commented App", "P2-10: XML plist with comment falls back to plutil on macOS");
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });

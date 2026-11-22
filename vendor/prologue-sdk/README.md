@@ -1,6 +1,14 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main ae163997（2026-11-21，0.1.0-rc.2 安全与 Harness 审计加固）
+## 当前包：official main 65c1722b（2026-11-21，0.1.0-rc.3 策略单调性与破坏性命令/存储代理加固）
+
+运行包为 `prologue-sdk-0.1.0-rc.3.tgz`，**1,497,231 字节**，SHA-256 `211d8b032acafa52b8a05f8a227d5283680c3117842d1afcce5b4e42fab5d651`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `65c1722b14f9c0b18599d2614ddf48e654ae3af0`（[Prologue #141](https://github.com/molis-ai/molis-prologue/pull/141)，基于 [Prologue #140](https://github.com/molis-ai/molis-prologue/pull/140) `ae1639977e73f51114e2dd673ddaf1086142629c`），无 vendor 补丁。
+
+本包落地三项安全与 Harness 加固：`EffectChain.prepare` 策略单调性（`restrict` 严格单调合并并遵守 `posture.approval === "never"`，仅允许外层显式工具级 `ask` 规则经不可伪造的内部 `WeakSet` 接力在无规则 `default-deny` 的 `path`/`command` 层询问，任何显式 `hard-deny`/`floor-deny`/`rule-deny`/`posture-never-denies` 均不可降级）；破坏性命令守卫覆盖 Windows 盘符根路径删除及大小写/后缀归一化后的 `dd`/`shutdown`；`NodeHost.storage` 公开代理以白名单收窄 `has`/`get` 至 `PUBLIC_STORAGE_METHODS`，阻断内部字段与非公开方法泄露，并升至 `0.1.0-rc.3`。
+
+两份独立官方 `git archive` 使用 Node 24.14.0 与 pnpm 11.9.0 离线构建打包，经 `cmp -s` 核验产物逐字节一致。现核查 74 个 Prologue 提交，上一份官方 `0.1.0-rc.2`（`ae163997`）包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main ae163997（2026-11-21，0.1.0-rc.2 安全与 Harness 审计加固）
 
 运行包为 `prologue-sdk-0.1.0-rc.2.tgz`，**1,496,047 字节**，SHA-256 `4dda9ec9700cdb90a59fb43e62d642f46db17637319d479a3abfb6328ee13b3e`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `ae1639977e73f51114e2dd673ddaf1086142629c`（[Prologue #140](https://github.com/molis-ai/molis-prologue/pull/140)，基于 [Prologue #139](https://github.com/molis-ai/molis-prologue/pull/139) `ba7e49426a641ea532cc0d7f91ca38719ccf621d` 与 #138 `cfb842e4`），无 vendor 补丁。
 

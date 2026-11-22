@@ -202,10 +202,11 @@ test("RAC-760 the host serves a plugin's own sheet at its address, and nothing a
   assert.equal((await serve(assets, "/assets/molis-work-plugins/coding.js")).status, 200, "the client bundle keeps its address");
 });
 
-test("RAC-761 the plugin sheets come after the workbench sheet the frame links in its head, inside the sheet sources its policy already allows", () => {
+test("RAC-761 the plugin sheets come after the lightweight plugin base sheet in the frame's head, inside the sheet sources its policy already allows (102-1)", () => {
   const bundle = readFileSync(`${root}apps/workbench/dist/plugin-frame-client.js`, "utf8");
   const head = bundle.indexOf("<link rel=\"stylesheet\""), body = bundle.indexOf("<body", head);
-  assert.ok(head > 0 && body > head && /molis-work-workbench\.css/.test(bundle.slice(head, body)), "the frame's head links the workbench sheet, and its body holds the page, which starts with the plugin's links");
+  assert.ok(head > 0 && body > head && /molis-work-plugin-base\.css/.test(bundle.slice(head, body)), "the frame's head links the lightweight plugin base sheet, followed by hoisted plugin stylesheet links before <body>");
+  assert.doesNotMatch(bundle.slice(head, body), /molis-work-workbench\.css/, "plugin frames no longer load the full 940 KB workbench stylesheet");
   assert.match(bundle, /style-src 'unsafe-inline' "?\s*\+\s*\w+\s*\+\s*"?\/assets\//, "the frame's policy allows sheets from /assets/ only");
 });
 

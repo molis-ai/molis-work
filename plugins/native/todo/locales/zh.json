@@ -250,6 +250,7 @@
     "todo.work.idle": "尚未开始",
     "todo.work.moved-to": "已移到「{place}」",
     "todo.work.needs-check": "需要核对",
+    "todo.work.unreadable": "读不到状态",
     "todo.work.output": "产出",
     "todo.work.paused": "已暂停",
     "todo.work.stopped": "已停止",

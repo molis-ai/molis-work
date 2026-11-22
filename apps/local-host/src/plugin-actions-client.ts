@@ -249,11 +249,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       const plugin = outer?.caller.audience === "plugin" && inPluginInstance(outer, context) ? outer : undefined;
       const actions = ownActions({ project_id: plugin?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin);
       const target = { ...reference, provider_id: reference.provider_id ?? ownProvider };
-      const view = actions.discoverOne
-        ? await actions.discoverOne(target)
-        : (await actions.discover()).find(row => row.capability_id === target.capability_id
-          && row.version === target.version
-          && row.provider.provider_id === target.provider_id);
+      const view = await actions.discoverOne(target);
       return view && view.provider.plugin_install_id === context.install_id ? view : undefined;
     },
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
@@ -297,9 +293,7 @@ export function withPreparedActions(client: HostActionClient, prepare: (caller: 
     discoverMatching: async (caller, select) => { await ready(caller); return matchingActions(client, caller, select); },
     discoverOne: async (caller, reference) => {
       await ready(caller);
-      if (client.discoverOne) return client.discoverOne(caller, reference);
-      return (await client.discover(caller)).find(view => view.capability_id === reference.capability_id && view.version === reference.version
-        && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+      return client.discoverOne(caller, reference);
     },
     invoke: async (caller, capability, input) => {
       try { await ready(caller); }
@@ -319,12 +313,7 @@ export function homePluginActions(host: Pick<import("./local-host.js").LocalHost
   };
   return {
     discover: caller => client(caller).discover(caller),
-    discoverOne: async (caller, reference) => {
-      const target = client(caller);
-      return target.discoverOne ? target.discoverOne(caller, reference)
-        : (await target.discover(caller)).find(view => view.capability_id === reference.capability_id && view.version === reference.version
-          && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
-    },
+    discoverOne: (caller, reference) => client(caller).discoverOne(caller, reference),
     invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input),
   };
 }

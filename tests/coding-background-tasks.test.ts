@@ -44,7 +44,8 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   const home = await openTestHome(t);
   const alpha = await home.createProject("Alpha", ["coding"]), beta = await home.createProject("Beta", ["coding"]), unopened = await home.createProject("Unopened", ["coding"]);
   const without = await home.createProject("Without Coding");
-  // The Home reads the projects that are open; the person opens one by looking at it, which starts its plugins.
+  // The Home reads the projects that are open; the person opens one by looking at it, which starts its plugins. One it has never read
+  // (the third) it opens quietly, once, and lists from then on (batch 103-1, S-49): the first lists may come before that read.
   for (const project of [alpha, beta, without]) await startProjectPlugins(home.host, project.reference);
   const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
   const seed = async (project: { project_id: string; database_path: string }, sessions: Array<[id: string, state: string, at: string, options?: { steps?: { mine: number; subtasks: number; unowned: number }; commands?: string[] }]>) => {
@@ -81,9 +82,14 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   await seed(without, [["w1", "running", later(98)]]);
   assert.ok(!home.host.status().projects.some(project => project.project_id === unopened.project_id), "the Home never opened the third project");
 
-  const attention = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
-  const rows = attention.background_tasks.tasks;
+  const listed = async () => (await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention")).background_tasks.tasks;
+  let rows = await listed();
+  for (const deadline = Date.now() + 30_000; !rows.some(row => row.project_id === unopened.project_id) && Date.now() < deadline;) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    rows = await listed();
+  }
   assert.deepEqual(rows.map(row => [row.project_name, row.subject.id, row.state, row.waiting]), [
+    ["Unopened", "u1", "running", false],
     ["Alpha", "a4", "answer", true], ["Alpha", "a9", "round-ended", false], ["Alpha", "a8", "queued", true], ["Alpha", "a7", "answer", true],
     ["Alpha", "a6", "paused", true], ["Alpha", "a3", "approval", true], ["Alpha", "a1", "running", false],
     ["Beta", "b4", "running", false], ["Beta", "b1", "verify", false], ["Beta", "b2", "verify", true],
@@ -92,11 +98,11 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   // A session is the event its rounds are done for, and where the row opens.
   assert.ok(rows.every(row => row.serves.length === 1 && row.serves[0]!.id === row.subject.id && row.open?.kind === "item" && row.open.surface === "coding" && row.open.id === row.subject.id));
   assert.equal(new Set(rows.map(row => row.id)).size, rows.length, "each row has its own id");
-  assert.deepEqual(rows.map(row => row.project_id), [...Array(7).fill(alpha.project_id), ...Array(3).fill(beta.project_id)]);
-  assert.equal(rows[0]!.title, "a4 的任务");
+  assert.deepEqual(rows.map(row => row.project_id), [unopened.project_id, ...Array(7).fill(alpha.project_id), ...Array(3).fill(beta.project_id)]);
+  assert.equal(rows[1]!.title, "a4 的任务");
   const said = (list: HomeBackgroundTaskRow[]) => Object.fromEntries(list.map(row => [row.subject.id, [row.step?.text, ...row.details.map(({ text }) => text)]]));
   assert.deepEqual(said(rows), {
-    a4: ["本轮已结束", "你负责 1 步"], a9: ["本轮已结束"], a8: ["挂起等待"],
+    u1: ["进行中"], a4: ["本轮已结束", "你负责 1 步"], a9: ["本轮已结束"], a8: ["挂起等待"],
     a7: ["等你回答", "没人认领 3 步"], a6: ["已暂停"], a3: ["等你审查"],
     a1: ["进行中", "2 步在子任务手上"], b4: ["进行中"], b1: ["服务重启前没有结束，打开后核对"], b2: ["需要核对"],
   });
@@ -117,10 +123,11 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   const english = await fetch(home.origin + "/api/attention", { headers: { cookie: LOCALE_COOKIE + "=en", accept: "application/json" } });
   assert.equal(english.status, 200);
   const localized: HomeBackgroundTaskRow[] = (await english.json()).background_tasks.tasks;
-  const unsaid = ({ step: _step, details: _details, open: _open, ...row }: HomeBackgroundTaskRow) => row;
+  // The English read may find the third project asleep by now: the same rows, marked as read before it slept (`resting`).
+  const unsaid = ({ step: _step, details: _details, open: _open, resting: _resting, ...row }: HomeBackgroundTaskRow) => row;
   assert.deepEqual(localized.map(unsaid), rows.map(unsaid));
   assert.deepEqual(said(localized), {
-    a4: ["The round ended", "1 step with you"], a9: ["The round ended"], a8: ["Queued"],
+    u1: ["In progress"], a4: ["The round ended", "1 step with you"], a9: ["The round ended"], a8: ["Queued"],
     a7: ["Waiting for your answer", "3 unclaimed steps"], a6: ["Paused"], a3: ["Waiting for your review"],
     a1: ["In progress", "2 steps with sub-tasks"], b4: ["In progress"], b1: ["This did not finish before the service restarted. Open it to check."], b2: ["Needs checking"],
   });
@@ -204,7 +211,7 @@ test("W5-01-CODING-36 the Home lists what any plugin declares for it: another pl
   assert.deepEqual(rows.map(row => [row.project_name, row.origin, row.subject.id, row.state, row.waiting, row.step, row.serves, row.open?.id]), [
     ["B", SOURCE, `job-${b}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${b}`],
     ["A", SOURCE, `job-${a}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${a}`],
-  ], "the plugin the Home has never heard of is listed, newest first; the project where it is off and the one never opened are not");
+  ], "the plugin the Home has never heard of is listed, newest first; the project where it is off is not, nor, in this first list, the one never opened (the Home reads it afterwards, quietly)");
   assert.deepEqual(rows.map(row => row.commands), rows.map(row => [{ role: "stop", action: { capability_id: "homebg.stop", version: 1, provider_id: row.source.provider_id }, input: { job: "j1" }, summary: "导出到文件" }]),
     "its command is its own action, pinned to the provider the answer came from");
   assert.deepEqual(plugin.state.calls.map(call => call.project).sort(), [a, b].sort(), "one call in each open project where the plugin is on");

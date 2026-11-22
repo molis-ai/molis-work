@@ -31,7 +31,7 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
     stripDuplicateIds(copy);
     RUNTIME_SURFACE_ATTRS.forEach((attr) => copy.removeAttribute(attr));
     if (id === "home") {
-      copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-lead], [data-home-lead-bar]").forEach((el) => el.replaceChildren());
+      copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-lead], [data-home-margin], [data-home-version]").forEach((el) => el.replaceChildren());
     } else if (id === "materials") {
       copy.querySelectorAll("[data-materials-stage-body], [data-materials-stage-title], [data-materials-stage-meta], [data-stage-materials-held], [data-stage-materials-problem]").forEach((el) => el.replaceChildren());
     } else if (id === "artifacts") {

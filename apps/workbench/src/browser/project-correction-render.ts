@@ -5,7 +5,7 @@ import type { SurfaceDisplayCorrection, SurfaceHomeDisplay } from "@molis-ai/mol
 
 type Control = NonNullable<PresentationFormValues["actions"]>[number];
 export type CorrectionControls = Map<string, SurfaceDisplayCorrection>;
-export type CorrectionRender = { controls: CorrectionControls; recovery?: ActionSubject; defaults?: boolean; headerOnly?: boolean };
+export type CorrectionRender = { controls: CorrectionControls; recovery?: ActionSubject; defaults?: boolean; headerOnly?: boolean; quiet?: boolean };
 export const restoreObject = "surface-correction:restore";
 export const restorePosition = "surface-correction:restore-position";
 export const correctionText = (key: string) => say.text({ owner: "workbench", key: "workbench.surfaces.correct." + key });
@@ -45,7 +45,9 @@ export function correctionHeader(data: SurfaceHomeDisplay, index: number, option
   if (settings) controls.set(restorePosition, { correction: "reset", expected_revision });
   if (recovery) controls.set(restoreObject, { correction: "reset", subject: recovery, expected_revision });
   if (headerOnly) return settings ? correctionMenu([{ key: restorePosition, label: correctionText("restore-position") }], "surface-correction-default") : "";
-  const reason = position.reasons?.[index] ?? data.reason;
+  // A page that says how it is ordered in its own headings (`quiet`) shows this line only once the person has changed something.
+  if (options.quiet && expected_revision === "0" && !recovery) return "";
+  const reason = options.quiet ? undefined : position.reasons?.[index] ?? data.reason;
   return '<div class="surface-correction-reason" data-surface-correction-reason><div>'
     + (reason ? '<p>' + say(reason) + '</p>' : "")
     + '<small>' + e(correctionText("scope." + position.kind)) + '</small></div>'

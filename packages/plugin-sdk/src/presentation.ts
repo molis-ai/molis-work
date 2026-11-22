@@ -123,9 +123,22 @@ export function presentationValuesProblems(input: PresentationValuesInput, value
 export function presentationOverviewProblems(declaration: PresentationOverviewDeclaration, overview: PresentationOverview): string[] {
   const offered = new Set((declaration.start ?? []).map(entry => `${entry.capability_id}@${entry.version}`));
   const seen = new Set<string>();
-  return overview.start.flatMap((entry, index) => {
+  const starts = overview.start.flatMap((entry, index) => {
     const key = `${entry.capability_id}@${entry.version}`;
     const problem = !offered.has(key) ? `start[${index}] ${key} 不在声明的 overview.start 里` : seen.has(key) ? `start[${index}] ${key} 重复` : null;
+    seen.add(key);
+    return problem ? [problem] : [];
+  });
+  return [...starts, ...presentationOutlineProblems(overview.outline)];
+}
+
+/** An outline reads top to bottom: no child before its parent, no object twice, no count past its total. */
+function presentationOutlineProblems(outline: PresentationOverview["outline"]): string[] {
+  const seen = new Set<string>();
+  return (outline?.nodes ?? []).flatMap((node, index) => {
+    const key = JSON.stringify([node.subject.kind, node.subject.id]);
+    const problem = index === 0 && node.depth === 1 ? `outline.nodes[0] 是子项，前面没有它的上一级` : seen.has(key) ? `outline.nodes[${index}] 重复`
+      : node.progress && node.progress.done > node.progress.total ? `outline.nodes[${index}] 的完成数大于总数` : null;
     seen.add(key);
     return problem ? [problem] : [];
   });

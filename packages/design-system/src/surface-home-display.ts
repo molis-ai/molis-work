@@ -30,6 +30,8 @@ export interface SurfaceHomeDisplay extends SurfaceDescription {
   lead?: { owner_plugin_id: string; target: unknown };
   display: {
     owners: Record<string, PresentationFormValues["ownerDisplay"]>;
+    /** Where each owner's own page is in the shell (the key of its row on the start page), for the owners that have one. */
+    shell_keys?: Record<string, string>;
     rows: SurfaceHomeRowDisplay[];
   };
 }

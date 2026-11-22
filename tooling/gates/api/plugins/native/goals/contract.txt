@@ -731,6 +731,7 @@ export type GoalEventSemanticFamily = (typeof goalEventSemanticFamilies)[number]
 
 export interface GoalEventStateApi {
     readWorkState(projectId: string, goalId: string): GoalEventWorkStateView;
+    readWorkStatus(projectId: string, goalId: string): GoalEventWorkStateView["work_status"];
     adoptOwner(input: {
         project_id: string;
         goal_id: string;

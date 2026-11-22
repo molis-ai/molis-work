@@ -26,17 +26,21 @@ test("SCS-11: an ordinary signed plugin opens its original form and exact origin
     const storage = new SqlitePluginPrivateStorage(runtime.store.db);
     return storage.snapshotInstallationData(installed.install_id);
   });
-  const start = '[data-home-card="' + PACKAGE_PLUGIN_ID + '"] [data-home-control$=":start:0"]';
+  // The first page does not start work: the package's own "start" is on its row of the start page under ＋ (POLISH-83).
+  const start = '[data-plugin-picker-popover] [data-rail-start="' + PACKAGE_PLUGIN_ID + ':start:0"]';
+  const stage = '[data-work-surface][data-installed-plugin=' + JSON.stringify(PACKAGE_PLUGIN_ID) + ']';
   const dialog = 'document.querySelector(\'[data-component-id="editor"] dialog\')';
   await go();
-  await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`);
+  await b.waitFor(`!!document.querySelector(${JSON.stringify(stage)})`);
   // The installed stage mounts the package's opaque frame itself, named by the stage's surface.
   const child = await pluginFrameBrowser(t, b, await b.evaluate<string>(`document.querySelector('[data-work-surface][data-installed-plugin=${JSON.stringify(PACKAGE_PLUGIN_ID)}]').dataset.workSurface`));
   const open = async () => {
+    if (await b.evaluate<boolean>("document.querySelector('[data-plugin-picker-popover]').hidden")) await b.click('[data-plugin-picker-toggle]');
+    await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})?.checkVisibility()`);
     await b.click(start);
     await child.waitFor(`${dialog}?.open && ${dialog}.contains(document.activeElement)`, 15_000);
   };
-  const backHome = async () => { await b.click('[data-corner-home]'); await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`); };
+  const backHome = async () => { await b.click('[data-corner-home]'); await b.waitFor("!!document.querySelector('[data-work-surface=home]:not([hidden]) [data-home-sources]')"); };
   const submit = async (text: string) => {
     await child.evaluate(`(() => { const field=${dialog}.querySelector('[name="text"]');
       field.value=${JSON.stringify(text)}; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
@@ -63,9 +67,12 @@ test("SCS-11: an ordinary signed plugin opens its original form and exact origin
   assert.deepEqual(JSON.parse(two[0]!.item_value), [["notes", JSON.stringify([{ id: "1", text: "one original signed submission" }, { id: "2", text: "a distinct second record" }])]]);
   await backHome();
   const row = '[data-home-subject-kind="sandbox-home-note"][data-home-subject-id="2"]';
-  const openRecord = row + ' [data-presentation-action$=":open"]';
+  // A row of the first page has no button of its own: its name opens it, through its peek when it has one.
+  const openRecord = row + ' .mw-presentation__row-title', peekOpen = '[data-home-peek] [data-presentation-action$=":peek-open"]';
   await b.waitFor(`document.querySelector(${JSON.stringify(row)})?.textContent.includes("a distinct second record")`);
   await b.click(openRecord);
+  await b.waitFor(`!!document.querySelector(${JSON.stringify(peekOpen)})?.checkVisibility() || !document.querySelector(${JSON.stringify(row)})?.checkVisibility()`);
+  if (await b.evaluate<boolean>(`!!document.querySelector(${JSON.stringify(peekOpen)})?.checkVisibility()`)) await b.click(peekOpen);
   await child.waitFor(`document.activeElement.matches('[data-record-id="2"][aria-current=true]') && document.activeElement.textContent.includes("a distinct second record")`);
   assert.deepEqual(await writes(), two, "opening the exact signed record does not write");
 });

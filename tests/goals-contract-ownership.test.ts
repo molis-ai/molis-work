@@ -30,7 +30,7 @@ const EXACT = "type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() 
 const FACTS_API = ["configure", "intent", "isEventStateOwner", "listEvents", "listLatestEvents", "listLatestReports",
   "listLatestTimeline", "readConfig", "readEvent", "readIntentSourceKind", "readObservedEventCursor", "readRequirementLinks", "report",
   "runImmediate", "state"];
-const STATE_API = ["adoptOwner", "applyConcern", "citeDecision", "readProgressReceipt", "readWorkState", "recordNote", "recordProgress",
+const STATE_API = ["adoptOwner", "applyConcern", "citeDecision", "readProgressReceipt", "readWorkState", "readWorkStatus", "recordNote", "recordProgress",
   "recordTrustedDecision", "requestDecision", "resumeWork", "setAgreement", "submitClosure"];
 const INTENT_API = ["recordArtifacts", "remember", "replay"];
 

@@ -3,6 +3,7 @@ import { errorMessage } from "../dom.js";
 import { shut, terminal, unread } from "./composer-state.js";
 import type { Page } from "./page.js";
 import { status } from "./request.js";
+import { drawRulesLabel } from "./rules.js";
 
 /** Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds the whole choice it hears back for the session that asked. */
 export async function openMaterials(page: Page) {
@@ -37,11 +38,13 @@ export function drawComposer(page: Page) {
   composer.hold(unread(page) ? readText("coding.composer.reading-session") : s.sending && !s.composerSending ? readText("coding.composer.busy") : null);
   composer.setRunning(active);
   const title = s.state.sessions.find(item => item.session_id === s.current)?.title ?? "";
-  const drawn = JSON.stringify([s.current, s.sessionOnShow, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.scene(), counts(page)]);
+  const drawn = JSON.stringify([s.current, s.sessionOnShow, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.summary(), s.lastRun?.frozen.instructions?.trusted, s.lastRun?.frozen.instructions?.files.length, counts(page), unread(page)]);
   if (drawn !== s.composerDrawn) {
     s.composerDrawn = drawn;
     composer.refresh();
+    refs.nextRound?.();
   }
+  drawRulesLabel(page);
   q("[data-coding-rename]").hidden = !s.current;
   q("[data-coding-archive]").hidden = !s.current;
   const memory = q<HTMLAnchorElement>("[data-coding-memory-open]");

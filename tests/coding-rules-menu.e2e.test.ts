@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { CODING_COMPOSER, CODING_TAKEN, codingControl, codingControlsShown } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_MODELS_LISTED, CODING_TAKEN, codingAdd, codingControl } from "./fixtures/coding-composer.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { asideReply } from "./fixtures/ending-review.js";
 
@@ -24,12 +24,13 @@ function answer(text: string): string {
 
 const RULE = "RULES_MARKER: answer in one short sentence.";
 const DIALOG = "[data-coding-rules-dialog]";
-const RULES = codingControl("rules");
+/** 「规则 N」 over the rules in 「本轮设置」 (the Coding frame): kept as the latest round stands, read here without opening it. */
+const RULES = "[data-coding-workbench] [data-coding-rules-label]";
 
 /**
  * BCD-05, BCD-08, BCD-10, BCD-14 (batch12-design §3.6, §3.7): the round a person starts in their own output folder is given its AGENTS.md,
- * and 「规则 N」 at the foot of the bar counts the files that round recorded, opening a menu that lists the project's own instructions and
- * the files apart. Reading turned off: the next round reads none and the menu says why, with the Host's confirm to turn it on. A round
+ * and 「规则 N」 in 「本轮设置」 (opened from ＋; POLISH-28 took it out of the bar's bottom row) counts the files that round recorded, over a
+ * list of the project's own instructions and the files apart. Reading turned off: the next round reads none and the menu says why, with the Host's confirm to turn it on. A round
  * that recorded nothing (from before this was recorded) says so instead of guessing.
  */
 test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given, why nothing was read, and the way to change it", { timeout: 300_000 }, async t => {
@@ -80,9 +81,10 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await child.click(`${coding} [data-coding-new]`);
-  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
+  await child.waitFor(CODING_MODELS_LISTED);
   const session = await child.evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession ?? ''`);
-  const label = () => b.evaluate<string>(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() ?? ''`);
+  const label = () => child.evaluate<string>(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() ?? ''`);
   /** Sends one round in 讨论 and waits for its model call and for the bar to say what it recorded. */
   const round = async (words: string, expected: string) => {
     const before = bodies.length;
@@ -92,13 +94,13 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
     await b.click(`${CODING_COMPOSER} [data-composer-send]`);
     for (let i = 0; i < 600 && bodies.length <= before; i++) await new Promise(resolve => setTimeout(resolve, 50));
     assert.ok(bodies.length > before, "the round called the model");
-    // The round has ended once the way of working may change again; by then the bar says what it recorded.
-    await b.waitFor(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() === ${JSON.stringify(expected)} && !document.querySelector(${JSON.stringify(codingControl("intent"))}).disabled`, 30_000);
+    // The round has ended once the way of working may change again; by then 「本轮设置」 says what it recorded.
+    await b.waitFor(`!document.querySelector(${JSON.stringify(codingControl("intent"))}).disabled`, 30_000);
+    await child.waitFor(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() === ${JSON.stringify(expected)}`, 30_000);
     return bodies.at(-1)!;
   };
   const openMenu = async () => {
-    await b.evaluate(codingControlsShown);
-    await b.click(RULES);
+    await b.evaluate(codingAdd("settings"));
     await child.waitFor(`document.querySelector(${JSON.stringify(DIALOG)})?.open === true`);
     return child.evaluate<string>(`document.querySelector(${JSON.stringify(DIALOG)}).textContent.replace(/\\s+/g,' ')`);
   };
@@ -158,7 +160,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/?openPlugin=coding`)}` }, sessionId));
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`, 20_000);
   await child.click(`${coding} [data-coding-session="${session}"]`);
-  await b.waitFor(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() === 'Rules 1'`, 20_000);
+  await child.waitFor(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() === 'Rules 1'`, 20_000);
   const english = await openMenu();
   assert.match(english, /Repository instruction files.*1MDAGENTS\.md.*In effect/);
   await shot("en-light-1440-trusted");
@@ -180,7 +182,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/locale?lang=zh&next=${encodeURIComponent(`/projects/${projectId}/?openPlugin=coding`)}` }, sessionId));
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`, 20_000);
   await child.click(`${coding} [data-coding-session="${session}"]`);
-  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && Boolean(document.querySelector(${JSON.stringify(RULES)}))`, 20_000);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`, 20_000);
   assert.equal(await label(), "规则", "an unrecorded round counts nothing");
   const unrecorded = await openMenu();
   assert.match(unrecorded, /本轮未记录规则来源/);

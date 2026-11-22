@@ -11,7 +11,7 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { asideReply } from "./fixtures/ending-review.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes into a question, and what they answer, stays with the session,
 // project and object it was asked in. Each test asserts the refusal: the other session, project or object never gets it.
@@ -135,8 +135,9 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     // whole time; the shared bar mirrors the shut a moment later, so typing before New is back would be wiped by the session's own draft.
     await waitFor(`!document.querySelector('${coding} [data-coding-new]').disabled`, 30_000);
     // The box is the workbench bar's one input (unified-input-voice §10.3): it is filled and sent in the top document.
-    await b.waitFor(`${CODING_OPEN} && document.querySelector('${CODING_BOX}').value === '' && document.querySelector('${codingControl("model")}').options.length >= 1`);
-    await fill(codingControl("model"), JSON.stringify(["local-only", "fixture-plain"]));
+    await b.waitFor(`${CODING_OPEN} && document.querySelector('${CODING_BOX}').value === ''`);
+    await child.waitFor(CODING_MODELS_LISTED);
+    await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["local-only", "fixture-plain"])));
     await fill(codingControl("intent"), "discuss");
     await fill(CODING_BOX, task);
     await b.waitFor(`!document.querySelector('${CODING_SEND}').disabled`);

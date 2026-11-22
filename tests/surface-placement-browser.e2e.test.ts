@@ -20,7 +20,7 @@ test("IUI-07 IUI-08 IUI-26: a real Home card can choose a project and a receiver
   await b.setViewport(1440, 900);
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
-  const row = '[data-home-card="io.molis.work.goals"] [data-home-subject-id="' + goal.goal_id + '"]';
+  const row = '[data-home-owner="io.molis.work.goals"][data-home-subject-id="' + goal.goal_id + '"]';
   const q = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const visible = (selector: string) => "!!" + q(selector) + "?.checkVisibility()";
   const select = async (where: string, label: string) => {

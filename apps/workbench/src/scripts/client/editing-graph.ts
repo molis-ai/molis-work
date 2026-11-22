@@ -168,6 +168,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
             if (toggle) { if (popover?.hidden !== false) toggle.click(); }
             else tabWorkspace?.setExclusive("market");
           },
+          write: () => assistantIsland?.toNow(),
+          settingsHref: (section) => route("/settings/" + section),
           lead: { adopt: () => null, release: () => {} },
           offers: () => ({ refresh() {}, clear() {} }),
           projectKey: project.project_id || "",

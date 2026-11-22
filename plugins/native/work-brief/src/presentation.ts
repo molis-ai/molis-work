@@ -1,14 +1,14 @@
 import { bindActionHandler, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext,
   type ActionHandlerBinding, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindPresentationValuesHandler, definePresentationOverviewAction, definePresentationValuesAction, PRESENTATION_LIMITS,
-  type PresentationDeclaration, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
+  type PresentationDeclaration, type PresentationLede, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { WORK_BRIEF_READ } from "./actions.js";
 import { workBriefErrors } from "./error.js";
 import { BRIEF_KIND, WORK_BRIEF_PROJECT_PLUGIN_ID } from "./identity.js";
-import type { BriefRecord, BriefVersion } from "./model.js";
+import { briefSubjectKey, type BriefRecord, type BriefVersion } from "./model.js";
 import type { BriefStore } from "./store.js";
 
-/** The main-area view that is the project's brief, and that the home shows whole (`presentation.overview.lead`). */
+/** The main-area view that is the project's brief: its versions, bases and revisions. The home shows its sentences (`overview.lede`). */
 export const WORK_BRIEF_VIEW_ID = "brief";
 
 const values = definePresentationValuesAction("work-brief.presentation.values", /* @version action.work-brief.presentation.values */ 1, [BRIEF_KIND], "简报显示字段", [...WORK_BRIEF_READ]);
@@ -29,10 +29,10 @@ export const workBriefPresentation = {
       peek: { fields: ["title", "state", "waiting", "updated_at"] } },
     text: { lines: ["title", "state", "waiting", "updated_at"] },
   }],
-  overview: { capability_id: overview.capability_id, version: overview.version, lead: { view_id: WORK_BRIEF_VIEW_ID } },
+  overview: { capability_id: overview.capability_id, version: overview.version },
 } as const satisfies PresentationDeclaration;
 
-const count = (name: string, number: number) => [{ name, kind: "number" as const, number }];
+const count = (name: string, number: number) => [{ name, kind: "number" as const, number }], count_ = count;
 const waitingIn = (version: BriefVersion | null) => version?.attention.length ?? 0;
 /** A project's own brief has no title of its own: it shows under the plugin's words for it, in the reader's language. */
 const titleOf = (brief: BriefRecord) => brief.title || { key: "work-brief.presentation.home-title" };
@@ -42,6 +42,30 @@ function contentOf(version: BriefVersion | null): string {
   if (!version) return "";
   return [...version.claims.map(claim => `- ${claim.text}${claim.cites.length ? ` [${claim.cites.map(cite => cite.title).join("; ")}]` : ""}`),
     ...version.attention.map(item => `! ${item.why} (${item.subject.kind}:${item.subject.id})`), ...version.next.map(option => `> ${option.text}: ${option.why}`)].join("\n");
+}
+
+/**
+ * The project's own brief as the head of the first page (`overview.lede`): its sentences as stored, the sources each stands on, and
+ * one mark each: a source it stands on could not be read (`gap`), something it cites waits for the person (`yours`), or it differs
+ * from the version before (`changed`). Before anything is written, one line that says so and the words of the button to this page.
+ */
+function ledeOf(version: BriefVersion | null, before: BriefVersion | null): PresentationLede {
+  if (!version?.claims.length) return { label: { key: "work-brief.presentation.home-title" }, sentences: [],
+    invite: { text: { key: "work-brief.presentation.invite" }, action: { key: "work-brief.presentation.invite-action" } } };
+  const unread = new Set(version.sources.filter(row => row.read !== "ok" && row.read !== "none").map(row => row.plugin_id));
+  const waiting = new Set(version.attention.map(item => briefSubjectKey(item.subject)));
+  const was = before && new Map(before.claims.map(claim => [claim.claim_id, claim.text]));
+  const changed = (id: string, text: string) => Boolean(was && was.get(id) !== text);
+  const count = version.claims.filter(claim => changed(claim.claim_id, claim.text)).length;
+  return { label: count ? { key: "work-brief.presentation.lede-label-changed", args: [...count_("version", version.version), ...count_("count", count)] }
+      : { key: "work-brief.presentation.lede-label", args: count_("version", version.version) },
+    as_of: version.as_of,
+    sentences: version.claims.slice(0, PRESENTATION_LIMITS.lede_sentences).map(claim => {
+      const sources = [...new Set(claim.cites.map(cite => cite.owner_plugin_id))].slice(0, PRESENTATION_LIMITS.lede_sources);
+      const mark = claim.cites.some(cite => cite.gap === "gone" || cite.gap === "unreadable" || unread.has(cite.owner_plugin_id)) ? "gap" as const
+        : claim.cites.some(cite => waiting.has(briefSubjectKey(cite.subject))) ? "yours" as const : changed(claim.claim_id, claim.text) ? "changed" as const : undefined;
+      return { text: claim.text.slice(0, PRESENTATION_LIMITS.lede_sentence), ...(sources.length ? { sources } : {}), ...(mark ? { mark } : {}) };
+    }) };
 }
 
 export function createPresentationHandlers(read: <T>(run: (store: BriefStore) => T) => T): ActionHandlerBinding[] {
@@ -56,9 +80,13 @@ export function createPresentationHandlers(read: <T>(run: (store: BriefStore) =>
     }) }))),
     bindActionHandler(overview, () => read(store => {
       const briefs = store.list(), waiting = briefs.reduce((total, brief) => total + waitingIn(store.version(brief)), 0);
-      return { summary: !briefs.length ? { key: "work-brief.presentation.empty" } : waiting ? { key: "work-brief.presentation.summary-waiting", args: count("count", waiting) }
+      const home = store.home(), version = home && store.version(home);
+      const before = home && version?.base_version ? store.version(home, version.base_version) : null;
+      // The project's own brief is the head of the page, so it is not also listed among the page's objects.
+      const listed = briefs.filter(brief => brief.brief_id !== home?.brief_id);
+      return { lede: ledeOf(version, before), summary: !briefs.length ? { key: "work-brief.presentation.empty" } : waiting ? { key: "work-brief.presentation.summary-waiting", args: count("count", waiting) }
         : { key: "work-brief.presentation.summary", args: count("count", briefs.length) },
-        subjects: briefs.slice(0, PRESENTATION_LIMITS.overview_subjects).map(brief => ({ kind: BRIEF_KIND, id: brief.brief_id })), start: [] };
+        subjects: listed.slice(0, PRESENTATION_LIMITS.overview_subjects).map(brief => ({ kind: BRIEF_KIND, id: brief.brief_id })), start: [] };
     })),
     bindSearchEntriesHandler(entries, () => read(store => store.list().filter(brief => brief.current_version > 0).map(brief => ({
       subject: { kind: BRIEF_KIND, id: brief.brief_id }, revision: String(brief.revision), title: brief.title || "Work Brief",

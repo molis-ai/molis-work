@@ -15,7 +15,9 @@ import { readRuleValues } from "./values.js";
 export type ObjectSource =
   | { subject: ActionSubject; kind: "request" }
   | { subject: ActionSubject; kind: "attention"; entry: AttentionSurfaceEntry }
-  | { subject: ActionSubject; kind: "overview"; plugin: SurfacePlugin };
+  | { subject: ActionSubject; kind: "overview"; plugin: SurfacePlugin }
+  /** An object of the plugin's overview `outline`: read like an overview object, shown in the outline group. */
+  | { subject: ActionSubject; kind: "outline"; plugin: SurfacePlugin };
 
 interface Candidate {
   subject: ActionSubject;
@@ -25,6 +27,7 @@ interface Candidate {
   values?: ActionView;
   requested: boolean;
   inOverview: boolean;
+  inOutline: boolean;
   entries: AttentionSurfaceEntry[];
 }
 
@@ -36,6 +39,7 @@ interface Projected {
   dependencies: readonly ActionView[];
   attention?: { entry: AttentionSurfaceEntry; rank: number };
   inOverview: boolean;
+  inOutline: boolean;
   pin: number;
   projectId: string | null;
   simpler: boolean;
@@ -101,7 +105,8 @@ function pickCandidates(read: ComposeRead, sources: readonly ObjectSource[], rou
     const plugin = route.plugin ?? (fallback.length === 1 ? fallback[0] : undefined);
     const entries = facts.filter(entry => entry.owner_plugin_id === plugin?.plugin_id);
     const inOverview = offers.some(source => source.kind === "overview" && source.plugin === plugin);
-    if (!plugin || (!requested && !entries.length && !inOverview)) {
+    const inOutline = offers.some(source => source.kind === "outline" && source.plugin === plugin);
+    if (!plugin || (!requested && !entries.length && !inOverview && !inOutline)) {
       if (requested) unproved = true;
       continue;
     }
@@ -112,7 +117,7 @@ function pickCandidates(read: ComposeRead, sources: readonly ObjectSource[], rou
       }
       continue;
     }
-    candidates.push({ ...route, subject, plugin, entries, inOverview, requested });
+    candidates.push({ ...route, subject, plugin, entries, inOverview, inOutline, requested });
   }
   return { candidates, disabled, unproved };
 }
@@ -178,7 +183,7 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, f
   const item: SurfaceItem = { subject, owner_plugin_id: plugin.plugin_id, state, ...display,
     actions: request.slot.kind === "home" && !attention ? actions.map(action => ({ ...action, primary: false })) : actions,
     ...(notices ? { notices } : {}), ...(state === "stale" && value?.read_at ? { read_at: value.read_at } : {}) };
-  return { item, revision, attention, inOverview: candidate.inOverview, dependencies,
+  return { item, revision, attention, inOverview: candidate.inOverview, inOutline: candidate.inOutline, dependencies,
     pin: pin ?? PRESENTATION_LIMITS.values_subjects, adjusted: Boolean(readable && (preference || !attention && pin !== undefined)),
     projectId: plugin.scope === "home" ? null : ports.caller.project_id, simpler: Boolean(readable && display.form !== chosenForm) };
 }
@@ -233,7 +238,7 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
     if (!fallback && stateFor(candidate, answer) === "stale" && !answer?.item?.read_at) {
       unreadable = true;
       if (candidate.entries.length) unreadableAttention = true;
-      if (candidate.inOverview && (candidate.values || !candidate.object)) unreadableOwners.add(candidate.plugin.plugin_id);
+      if ((candidate.inOverview || candidate.inOutline) && (candidate.values || !candidate.object)) unreadableOwners.add(candidate.plugin.plugin_id);
     }
     const projection = renderCandidate(candidate, answer, fallback, read);
     return projection ? [projection] : [];

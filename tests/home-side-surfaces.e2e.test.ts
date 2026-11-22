@@ -28,7 +28,7 @@ async function growsAndFallsBack(browser: Browser, child: Child, selector: strin
   assert.equal(await child.evaluate("typeof window.molisFit === 'function'"), true, `${selector}: the page carries the field-fit program`);
   const box = JSON.stringify(selector);
   const height = () => child.evaluate<number>(`document.querySelector(${box}).getBoundingClientRect().height`);
-  await child.evaluate(`(() => { const field = document.querySelector(${box}); field.scrollIntoView({ block: 'center' }); field.focus(); })()`);
+  await child.click(selector);
   const empty = await height();
   for (let line = 1; line <= 8; line++) await command("Input.insertText", { text: (line === 1 ? "" : "\n") + "第 " + line + " 行：" + "写满一行再多一点的长度".repeat(3) }, sessionId);
   const grown = await height();
@@ -80,7 +80,7 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, navigate, origin, projectId } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: WITHOUT_FIELD_SIZING }, sessionId);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 900);
 
   const issues = await pluginFrameBrowser(t, browser, "issues");
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
@@ -140,16 +140,17 @@ test("VUX-16 (fallback): the discussion side panel's IM composer is the same fie
 test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab stop each", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, navigate, origin } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 900);
   const todo = await pluginFrameBrowser(t, browser, "todo");
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/todo` }, sessionId));
   await todo.waitFor("document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]')?.hidden === true", 30_000);
+  await todo.click("[data-todo-quick-input]");
   const found: string[] = [];
   // The quick add's placement radio group is on the page as it opens.
   assert.ok(await keyboardGroups(browser, todo, "Home Todo quick", found, 1) >= 1, "the quick add's placement group is audited");
 
   // One todo, so the detail editor's placement choices radio group can be opened.
-  await todo.evaluate("(() => { const input = document.querySelector('[data-todo-quick-input]'); input.focus(); })()");
+  await todo.click("[data-todo-quick-input]");
   await command("Input.insertText", { text: "验收 Home 待办的键盘分组" }, sessionId);
   await todo.evaluate("document.querySelector('[data-todo-quick-submit]').click()");
   // The quick add answers in whichever view the item belongs to; every view lists it from "全部".
@@ -161,11 +162,11 @@ test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab s
   // separate product gap from the radio groups this test proves rove in a Home frame.
   await todo.evaluate("document.querySelector('[data-todo-row] [data-todo-id]').click()");
   await todo.waitFor("!document.querySelector('[data-todo-stage-workspace]').hidden", 20_000);
-  await todo.click('[data-todo-pop-open="place"]');
-  await todo.waitFor("document.querySelector('[data-todo-placement-choices]')?.checkVisibility() && document.querySelectorAll('[data-todo-placement-choices] [role=radio]').length >= 2", 20_000);
+  await todo.waitFor("document.querySelectorAll('[data-todo-placement-choices] [role=radio]').length >= 2", 20_000);
+  await todo.evaluate("document.querySelector('[data-todo-pop-open=place]').click()");
+  await todo.waitFor("!document.querySelector('[data-todo-placement-choices]').hidden && document.querySelector('[data-todo-placement-choices] [role=radio]')?.getClientRects().length", 10_000);
   await todo.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  // The status choices are aria-pressed toggle buttons (the same markup on the project page), so the shared audit's
-  // radiogroup definition — radios in a radiogroup — reads the placement choices group, not it.
+  // The placement choices radiogroup lives inside the place popover (#2208); once opened, the shared audit checks its roving radios.
   assert.ok(await keyboardGroups(browser, todo, "Home Todo detail", found, 1) >= 1, "the placement choices radio group is audited");
   assert.deepEqual(found, []);
 });
@@ -173,7 +174,7 @@ test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab s
 test("VUX-28: the Issue type radio group in a Home Issue and in the Issue side view rove, one tab stop each", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, evaluate, navigate, origin, projectId } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 900);
   const child = await pluginFrameBrowser(t, browser, "issues");
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 30_000);

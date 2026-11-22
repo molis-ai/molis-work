@@ -3,7 +3,7 @@ import { VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_STYLES } from '@molis-ai/mol
 import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plugin-builder';
 import { authorizeLocalWebRequest, installHostUiText, pluginPagesFor, registeredBuiltinText, runWithLocale, runWithRegisteredText, readText, htmlLang, handlePageLocales, WebSessions, webPageToken, withWebSessionRequest, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import { handleLanguagePreference, languagePreview, requestLanguage } from '../apps/local-host/dist/web-ui-preference.js';
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderPluginDocumentShell, workbenchLanguageResource,
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet, renderPluginDocumentShell, workbenchLanguageResource,
   BUILTIN_PLUGIN_CATALOG, STYLES, MORE_STYLES, RESPONSIVE_STYLES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
 
 /** The isolated harness exercises the workbench's opaque frame; only the outer application and model are fixtures. */
@@ -14,6 +14,9 @@ export function studioFrameAsset(response: ServerResponse, path: string): boolea
     : path === "/assets/molis-work-plugins/plugin-builder.js" ? pluginWorkbenchClientAsset("plugin-builder")
     : path === "/assets/molis-work-workbench.css" ? STYLES + MORE_STYLES + RESPONSIVE_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES
     : path === "/assets/molis-work-settings.css" ? VISUAL_FOUNDATION_STYLES
+    // The opaque frame loads the plugin base sheet and the plugin's own served sheet, as the Host serves them (102-1).
+    : path === "/assets/molis-work-plugin-base.css" ? renderMolisWorkPluginBaseStylesheet()
+    : path === "/assets/molis-work-plugins/plugin-builder.css" ? pluginFrameServedStylesheet("plugin-builder")
     : workbenchLanguageResource(path)?.body ?? null;
   if (body === null) return false;
   response.writeHead(200, { "content-type": path.endsWith(".css") ? "text/css" : "text/javascript" }); response.end(body); return true;

@@ -182,6 +182,8 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
     operations: [{ id: "items.list", kind: "query", description: "List", input: {}, output: [{ id: "string", title: "string" }], effects: { storage: ["read"] }, examples: [{ input: {}, output: [] }] }],
     pages: [{ id: "home", title: "Home", parts: [{ id: "list", intent: "collection", purpose: "Show", props: { idField: "id", titleField: "title", emptyText: "Empty" }, read: "items.list" }] }],
     acceptance: [{ id: "empty", description: "Empty", steps: [{ action: "page", pageId: "home" }, { action: "expectWord", componentId: "list", word: "emptyText" }] }],
+    // Every design answers `states` (SMP-11); these items have none.
+    states: [],
   };
   const droppedValid: string[] = [];
   const validExpanded = expandDesign({

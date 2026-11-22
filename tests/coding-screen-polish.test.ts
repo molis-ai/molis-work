@@ -11,12 +11,16 @@ import {
   type CodingSessionEntry,
   type CodingUiModel,
   type CodingUiPrimitives,
+  codingRouteActions,
 } from "@molis-ai/molis-work-plugin-coding";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { pageText, withPageText } from "./fixtures/page-text.js";
 import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
-// Screen polish, first round, P4 first half (specs/screen-polish/p4-coding.md): what the server draws and what an ended
+// Screen polish, first round, P4 (specs/screen-polish/p4-coding.md; both halves): what the server draws and what an ended
 // round's line says. What the page does with it in a browser is in coding-screen-polish.e2e.test.ts.
 
 const renderCodingDirectory: typeof drawCodingDirectory = (...args) => withPageText("zh", ["coding"], () => drawCodingDirectory(...args));
@@ -204,4 +208,18 @@ test("POLISH-24 增减行只算真正落盘的：被拒的不算，同一文件�
   assert.equal(codingRoundTally([write("a.ts", 20, 6), write("b.ts", 1, 1, "unknown")], []), null, "有一次写入结果不明，整行不写增减");
   assert.equal(codingRoundTally([write("a.ts", 20, 6), write("b.ts", 1, 1, "failed")], []), null);
   assert.equal(codingRoundTally([write("a.ts", 2, 2, "not-applied")], []), null, "什么都没落盘就没有增减行");
+});
+
+test("POLISH-24 方案乙：coding.changesets.read 可以只要行数（stats），页面路由和动作调用两头都带得过去；不认识的字段照旧拒绝", () => {
+  const read = codingRouteActions["coding.read-changeset"]!, schema = read.definition.action.input_schema;
+  const round = { session_id: "session-1", run_id: "run-1" };
+  for (const input of [round, { ...round, fixed: true }, { ...round, stats: true }]) assertActionInput(schema, input);
+  assert.throws(() => assertActionInput(schema, { ...round, stats: "1" }), ActionError, "stats 是布尔值");
+  assert.throws(() => assertActionInput(schema, { ...round, lines: true }), ActionError, "输入仍是封闭的");
+  const request = (query: Record<string, string>): PluginRouteRequest => ({ method: "GET", pathname: "/sessions/session-1/runs/run-1/changeset", params: { sessionId: "session-1", runId: "run-1" }, query, body: {}, actor_id: "web-user" });
+  const asked = read.toInput(request({ stats: "1" }));
+  assertActionInput(schema, asked);
+  assert.equal((asked as { stats?: unknown }).stats, true, "页面路由带上 stats");
+  assert.deepEqual(read.toRequest(asked).query, { stats: "1" }, "动作调用把它带回路由");
+  assert.deepEqual(read.toRequest(read.toInput(request({}))).query, {}, "不传时和原来一样读全量");
 });

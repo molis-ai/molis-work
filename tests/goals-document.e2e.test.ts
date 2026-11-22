@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+
+const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = readFileSync(new URL("../plugins/native/goals/dist/document-bundle.js", import.meta.url), "utf8");
 
 test("Goal document tabs retry lazy loading, restore selection, and keep the current event document", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);

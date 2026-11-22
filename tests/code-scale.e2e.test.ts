@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { CODING_COMPOSER, CODING_TAKEN } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_TAKEN, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -199,8 +199,9 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
   await click(`${coding} [data-coding-new]`);
-  await browser.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
-  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await browser.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
+  await child.waitFor(CODING_MODELS_LISTED);
+  await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["local-only", "fixture-model"])));
   await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
   await barFill(`${CODING_COMPOSER} .mw-composer__input`, "写一大段代码");
   await browser.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);

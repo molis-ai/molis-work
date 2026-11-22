@@ -90,13 +90,15 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
 
 ## 开发要求
 
-看板可见性修复沿用 [界面体验规范](../../../specs/visual-ui-experience/spec.md)：隐藏时刷新不把零宽度当成手机布局，宽板显示前展开所有列；窄板由人折叠的列在隐藏刷新和再次显示后保持折叠。布局仍取看板所在容器的宽度，不改断点、滚轮方向或 Goal 事实。范围为 `momentum-client.ts` 与 `tests/goals-kanban-visibility.e2e.test.ts`；真实浏览器验证隐藏刷新后宽板卡片可见、窄板折叠保持，并原样回归 `tests/attention-journey.e2e.test.ts` 的列内滚动。
+看板可见性修复沿用 [界面体验规范](../../../specs/visual-ui-experience/spec.md)：隐藏时刷新不把零宽度当成手机布局，宽板显示前展开所有列；窄板由人折叠的列在隐藏刷新和再次显示后保持折叠。布局仍取看板所在容器的宽度，不改断点、滚轮方向或 Goal 事实。范围为 `src/browser/momentum.ts` 与 `tests/goals-kanban-visibility.e2e.test.ts`；真实浏览器验证隐藏刷新后宽板卡片可见、窄板折叠保持，并原样回归 `tests/attention-journey.e2e.test.ts` 的列内滚动。
 
 固定输入和交付物的动作等待 owner，因此声明并发调度；委托保留原调用的授权、取消和生命周期，owner 返回后再次检查原 beforeEffect、同步授权和 Goal 是否归档/移入回收站，再写 Ledger 关联。owner 已提交的成果保留。收尾表单遇到固定回执未知时先核对清单，同一意图不自动再次固定；已有版本可沿 reference 关联，新明确固定意图仍增版。
 
 `goals.deliverables.pin`、`goals.artifact_inputs.pin` 声明 `delegation: "confirmation-only"`：对象 owner 固定当前内容时可能读取它自己的动态关联，外层输入不能固定这个目标，因此不能以完整参数匹配获得可复用自动委托。人工确认后的调用、原授权和业务检查保留。声明提取证据见 `tests/security-invariants-pages-delegation.test.ts`；实际自动委托消费由 agent-host 接线。
 
 问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求。要求修改沿事件表单，项目默认沿统一授权管理页。
+
+页面客户端（[页面客户端生命周期](../../../specs/page-client-lifecycle/spec.md)）写在 `src/browser/`：带类型的 TypeScript，`tsconfig.browser.json` 检查类型，构建用 esbuild 把 `src/browser/page.ts` 打成 `dist/goals-page-client.js`，`src/page-client.ts` 读它交给登记的 `workbench.pageClient`。只有单元测试单独挂载的部分由 `scripts/build-test-pieces.mjs` 另打成 `dist/*-bundle.js`。请求只经页面的 `molisWorkRequest`，界面文字只用稳定键，不写成模板字符串里的页面脚本（`tests/goals-client-bundle.test.ts`）。
 
 - 负责：Goals 的导航、界面、按需样式（`goals.css`）、命令与组合，以及 Goals 与 Governance 的项目私有表声明（Manifest 的 `databases.project`、`src/project-database.ts`，S8、PG-020）。`src/module/` 拥有 Goal 约定、工作事件历史、关注项、关系图、规则生效计算、生命周期、关系图检查与影响分析。`src/governance/` 拥有 Goal Tree 结构提案和物化结果。
 - 不负责：平台拥有项目指导（`modules/projects`）、审批规则与可信决定记录（`horizontal/project-approvals`）、要求与认可（`modules/acceptance`）以及对象工作终端（平台 `work_terminals` 声明与 `/api/work-terminals/:pluginId/:kind/:id`，原 `src/terminal-actions.ts` 与 Goals 终端路由已于第 44 批删除）。拆解与规划方法归自带技能包（`plugins/content/planning-methods`），由助理选用。Goals 支持跨模块来源引用。Artifact、Project 与 Session 的事实归各自主人。Goals 的项目表读写登记见 `tooling/gates/table-owners.json`。

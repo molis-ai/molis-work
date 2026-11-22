@@ -16,7 +16,6 @@ import { api, sessionPath, status } from "./request.js";
 import { select, surfaceChanged } from "./select.js";
 import { startFromComposer } from "./mount-submit.js";
 import type { RoundSelection } from "./shapes.js";
-import { rulesControl } from "./rules.js";
 
 /** How many other sessions 「发给」 lists: the latest; the rest are in the page's own list beside it. */
 const OTHERS = 5;
@@ -67,24 +66,39 @@ export async function stopRound(page: Page) {
   }
 }
 
-/** What the next round is given (materials, methods, a Character, actions, MCP), as small tags in the bar once chosen; each opens its choice again. */
-function nextRound(page: Page): ComposerControl[] {
-  const held = counts(page);
-  const chosen: Record<string, number> = { materials: held.materials, character: held.character ? 1 : 0, methods: held.methods, actions: held.actions, mcp: held.mcp };
-  return codingCommands(page).filter(command => (chosen[command.slash] ?? 0) > 0)
-    .map(command => ({ kind: "button" as const, id: "next-" + command.slash, label: command.label, ...(command.hint ? { title: command.hint } : {}), disabled: command.enabled === false, run: () => void command.run() }));
+/**
+ * The bar's own control: the way of working (fixed while a round runs). Its name carries the model chosen, so the tooltip says
+ * which model the next round uses; the model, its effort and the rules are 「本轮设置」 in ＋ (screen-polish §6.7, POLISH-28: the
+ * bottom row is ＋, who it goes to, this, and send). What the next round is given is said over the box (`drawNextRound`).
+ */
+function sceneControls(page: Page): ComposerControl[] {
+  const { readText, s } = page, model = page.refs.composerModels.summary();
+  return [
+    { kind: "select", id: "intent", label: model ? readText("coding.intent.label-model", { model }) : readText("coding.intent.label"), value: s.intent, options: s.intents,
+      disabled: roundActive(page) || s.sending || unread(page), change: value => chooseIntent(page, value) },
+  ];
 }
 
-/** The bar's controls: the way of working (fixed while a round runs), then the model's, then what the next round is given. */
-function sceneControls(page: Page): ComposerControl[] {
-  const { readText, s } = page;
-  return [
-    { kind: "select", id: "intent", label: readText("coding.intent.label"), value: s.intent, options: s.intents, disabled: roundActive(page) || s.sending || unread(page),
-      change: value => chooseIntent(page, value) },
-    ...page.refs.composerModels.scene(),
-    ...nextRound(page),
-    ...rulesControl(page),
-  ];
+/**
+ * What the next round is given (materials, methods, a Character, actions, MCP), as small tags over the box once chosen; each
+ * opens its choice again. They were controls in the bar's bottom row until that row was kept to four (POLISH-28; the person
+ * chose this place over the bottom row on 2026-11-22). Drawn with the composer (`refs.nextRound`), from the same commands ＋ lists.
+ */
+function drawNextRound(page: Page): void {
+  const { q, s } = page, row = q("[data-coding-next-round]"), held = counts(page);
+  const chosen: Record<string, number> = { materials: held.materials, character: held.character ? 1 : 0, methods: held.methods, actions: held.actions, mcp: held.mcp };
+  const tags = s.current && s.sessionOnShow ? codingCommands(page).filter(command => (chosen[command.slash] ?? 0) > 0) : [];
+  row.hidden = !tags.length;
+  row.replaceChildren(...tags.map(command => {
+    const tag = document.createElement("button");
+    tag.type = "button";
+    tag.className = "mw-btn mw-btn--ghost mw-btn--sm";
+    tag.textContent = command.label;
+    tag.disabled = command.enabled === false;
+    if (command.hint) tag.title = command.hint;
+    tag.addEventListener("click", () => void command.run());
+    return tag;
+  }));
 }
 
 /** The page's commands under `/`; those that set what the next round is given are in ＋ too, with their glyph. */
@@ -191,6 +205,7 @@ export function mountCodingComposer(page: Page, id: string) {
     return one ? { label: one.label, choose: () => { models.choose(value); configurationChanged(page); refs.composer.refresh(); } } : null;
   }) : null;
   const images = refs.images;
+  refs.nextRound = () => drawNextRound(page);
   refs.composer = window.molisComposer(q("[data-coding-input]"), {
     kind: "ai", entry: "session", labels: refs.composerLabels, sources: true,
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),

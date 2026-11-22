@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 import { openCoding } from "./fixtures/coding-browser.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_SEND, codingControl } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_SEND, codingControl, CODING_MODEL } from "./fixtures/coding-composer.js";
 
 // Coding A2 (docs/design/coding-daily-basics scheme A): typing / lists every command in three groups — built-in, this project's
 // (.molis/commands, .claude/commands read too) and the person's own; a file that cannot be read is listed and marked, the others
@@ -79,7 +79,7 @@ test("Coding A1 A2 B35-R7 the / menu sends the exact prompt and /init writes onl
     await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
   };
   await opened.start("");
-  await owner.waitFor(`document.querySelector(${JSON.stringify(codingControl("model"))})?.value.includes('fixture-plain')`, 30_000);
+  await waitFor(`document.querySelector(${JSON.stringify(CODING_MODEL)})?.value.includes('fixture-plain')`, 30_000);
 
   // The project's commands, added while the session is open: typing / reads them again.
   const commands = join(homeDirectory, "coding-first-read", ".molis", "commands");

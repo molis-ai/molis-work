@@ -1,9 +1,12 @@
 import {
-  SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, SKILL_TOOLS,
+  isSkillAppliesTo, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, SKILL_TOOLS,
   type AgentSkillDeclaration, type PluginMethodDeclaration, type SkillResourceDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCALE_TAG } from "@molis-ai/molis-work-contracts/platform/ui";
+
+/** Who a Skill is for, as an author reads it (BL-b44-coding-scene-enum): the platform names no plugin. */
+const APPLIES_TO_WORDS = "assistant、both，或一个插件在 Manifest 申报的场景名（如 coding）";
 import { quoted, validToken, validVersion } from "./declaration-problems.js";
 
 // The checks a Skill declaration gets (specs/skill-packs/contract-design.md §4.2), in Manifest `methods` and in `agent.skills`.
@@ -85,7 +88,7 @@ export function inspectSkillDeclarations(methods: unknown): PluginDeclarationPro
     }
     for (const key of Object.keys(method)) if (!METHOD_KEYS.has(key)) problems.push({ skill_id, reason: `方法 ${skill_id} 不能写 ${quoted(key)}` });
     if (method.description === undefined) problems.push({ skill_id, reason: `方法 ${skill_id} 要写 description：什么时候用它` });
-    if (method.applies_to === undefined) problems.push({ skill_id, reason: `方法 ${skill_id} 要写 applies_to：${SKILL_APPLIES_TO.join("、")}` });
+    if (method.applies_to === undefined) problems.push({ skill_id, reason: `方法 ${skill_id} 要写 applies_to：${APPLIES_TO_WORDS}` });
     problems.push(...skillFieldProblems(method, "methods"));
   }
   return problems;
@@ -102,7 +105,7 @@ export function skillFieldProblems(skill: AgentSkillDeclaration, where: Where): 
   if (where === "agent") {
     for (const key of METHODS_ONLY) if (skill[key] !== undefined) say(`不能写 ${key}：只有给别的 Agent 的方法（methods）才写`);
   } else {
-    if (skill.applies_to !== undefined && !(SKILL_APPLIES_TO as readonly unknown[]).includes(skill.applies_to)) say(`的 applies_to 只能是 ${SKILL_APPLIES_TO.join("、")}`);
+    if (skill.applies_to !== undefined && !isSkillAppliesTo(skill.applies_to)) say(`的 applies_to 只能是 ${APPLIES_TO_WORDS}`);
     if (skill.user_invocable !== undefined && typeof skill.user_invocable !== "boolean") say("的 user_invocable 只能是布尔值");
     if (skill.argument_hint !== undefined && !boundedText(skill.argument_hint, SKILL_LIMITS.argumentHintChars)) say(`的 argument_hint 限 1～${SKILL_LIMITS.argumentHintChars} 字`);
     if (skill.locales !== undefined && (!Array.isArray(skill.locales) || !skill.locales.length || skill.locales.some(locale => typeof locale !== "string" || !LOCALE_TAG.test(locale))

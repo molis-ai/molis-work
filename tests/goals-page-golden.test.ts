@@ -338,6 +338,8 @@ const pages: Record<string, Draw> = {
 // Batch 101 (101-1 item 5, on main cb03f3e196): `apps/workbench/src/plugin-event-recovery.ts` removed the raw JSON disclosure,
 // manual reason textarea, and self-accepted duplicate-risk radio group from the workbench shell dialog (−509 zh / −598 en on every
 // one of the 16 `page-*` whole-page records); all 36 fragment/settings records and JSON data blocks stayed byte-identical.
+// BL-b44-feed-home-dir-and-styles (on main 263d50061b): the shared list class `feed-stage-tree` is `mw-stage-tree`. Drawn independently
+// from that main, the 16 `page-*` records differ only on the artifact directory's class (-2 each); the other 36 records are unchanged.
 // BL-b44-shell-goals-state (PCL-01, on main 2d8244c287): the shell finds its panes by generic marks instead of Goals' ids, and the
 // page client reads the project title from the page. Drawn independently from that main, the 16 `page-*` records differ only by
 // ` data-project-title="Golden project"` on <body> (+36), ` data-directory-pane` on the tree pane (+20), ` data-surface-stage` on each

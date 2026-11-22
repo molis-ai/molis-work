@@ -323,7 +323,7 @@ export function pageRefresh(context: RefreshContext) {
       link.textContent = context.goalTitle ? globalThis.t.text("goals.page-client-refresh.return-title", { title: context.goalTitle }) : globalThis.t.text("goals.page-client-refresh.return-goal");
       receipt.append(link);
     }
-    const receiptAnchor = receiptHost.querySelector(".feed-detail-header, .goal-workspace-hero");
+    const receiptAnchor = receiptHost.querySelector(".mw-detail-header, .goal-workspace-hero");
     if (receiptAnchor) receiptAnchor.after(receipt);
     else receiptHost.prepend(receipt);
     receipt.focus({ preventScroll: true });

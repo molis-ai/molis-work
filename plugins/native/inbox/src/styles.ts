@@ -1,9 +1,9 @@
 /** Inbox-owned workbench styles served on demand at `/assets/molis-work-plugins/inbox.css` (PG-070, PEQ-08). */
 export const INBOX_STYLES = `
   body.immersive-workbench .tab-pane-body > [data-inbox-workbench] { overflow: hidden; padding: 0; }
-  body.immersive-workbench .tab-pane-body [data-inbox-workbench] .feed-detail-empty { display: grid; place-items: center; align-content: center; width: 100%; min-height: 100%; margin: 0; padding: 48px 24px; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); text-align: center; }
-  body.immersive-workbench .tab-pane-body [data-inbox-workbench] .feed-detail-empty svg { width: 20px; height: 20px; color: var(--faint); stroke-width: 1.6; }
-  body.immersive-workbench .tab-pane-body [data-inbox-workbench] .feed-detail-empty h1 { margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: 0; }
+  body.immersive-workbench .tab-pane-body [data-inbox-workbench] .mw-detail-empty { display: grid; place-items: center; align-content: center; width: 100%; min-height: 100%; margin: 0; padding: 48px 24px; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); text-align: center; }
+  body.immersive-workbench .tab-pane-body [data-inbox-workbench] .mw-detail-empty svg { width: 20px; height: 20px; color: var(--faint); stroke-width: 1.6; }
+  body.immersive-workbench .tab-pane-body [data-inbox-workbench] .mw-detail-empty h1 { margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: 0; }
   body[data-desktop-shell="true"] [data-inbox-workbench] .inbox-attention-context .inbox-attention-next { order: -1; padding: 0 0 16px; }
   body[data-desktop-shell="true"] [data-inbox-workbench] .inbox-attention-context .inbox-attention-next dt { color: var(--blue-dark); font-weight: var(--weight-control, 500); }
   body[data-desktop-shell="true"] [data-inbox-workbench] .inbox-attention-context .inbox-attention-next dd { color: var(--ink); font-size: 13px; font-weight: 400; line-height: 1.5; }
@@ -35,8 +35,8 @@ export const INBOX_STYLES = `
   .inbox-compose-dialog [role=status] { color: var(--muted); font-size: 13px; }
   .inbox-compose-result { padding: 12px 0; border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
   .inbox-compose-result button { flex: none; }
-  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header { width: 100%; max-width: none; }
-  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header h1 { width: 100%; max-width: none; }
+  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .mw-detail-header { width: 100%; max-width: none; }
+  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .mw-detail-header h1 { width: 100%; max-width: none; }
   .inbox-object-title .mw-presentation__tag { font-size: var(--type-title-size, 1rem); display: flex; align-items: flex-start; block-size: auto; max-width: none; white-space: normal; }
   .inbox-object-title .mw-presentation__tag strong { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 `;

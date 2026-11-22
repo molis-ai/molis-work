@@ -54,26 +54,26 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
 
   body.immersive-workbench .tree-pane :is(.tree-footer, [data-tree-footer]) { display: none !important; }
   body.immersive-workbench .tree-pane .artifact-version-list .mw-dir-row,
-  body.immersive-workbench .plugin-stage-list .artifact-version-list .feed-stage-entry { width: 100%; }
+  body.immersive-workbench .plugin-stage-list .artifact-version-list .mw-stage-entry { width: 100%; }
 
-  body.immersive-workbench .feed-stage-tree { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px clamp(16px, 3vw, 40px) 24px; }
-  body.immersive-workbench .feed-stage-list { width: 100%; min-width: 0; max-width: 1104px; margin-inline: auto; padding-top: 8px; }
-  body.immersive-workbench .plugin-stage-shell > .feed-stage-list { max-width: none; margin-inline: 0; }
-  body.immersive-workbench .feed-stage-list .goal-collection-fold { margin: 0 0 12px; border: 0; }
-  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary {
+  body.immersive-workbench .mw-stage-tree { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px clamp(16px, 3vw, 40px) 24px; }
+  body.immersive-workbench .mw-stage-list { width: 100%; min-width: 0; max-width: 1104px; margin-inline: auto; padding-top: 8px; }
+  body.immersive-workbench .plugin-stage-shell > .mw-stage-list { max-width: none; margin-inline: 0; }
+  body.immersive-workbench .mw-stage-list .goal-collection-fold { margin: 0 0 12px; border: 0; }
+  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary {
     display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px;
     border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer;
   }
-  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
-  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary strong {
+  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
+  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary strong {
     flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 12px; font-weight: var(--weight-control, 500);
   }
-  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
-  body.immersive-workbench .feed-stage-list .goal-collection-empty { margin: 0; padding: 8px 8px 12px 24px; font-size: 12px; color: var(--muted); }
-  body.immersive-workbench .feed-stage-item { width: 100%; min-width: 0; border: 0; border-radius: 0; }
-  body.immersive-workbench .feed-stage-item.is-open { margin-block: 0; border: 0; background: transparent; }
-  body.immersive-workbench .feed-stage-entry {
+  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
+  body.immersive-workbench .mw-stage-list .goal-collection-empty { margin: 0; padding: 8px 8px 12px 24px; font-size: 12px; color: var(--muted); }
+  body.immersive-workbench .mw-stage-item { width: 100%; min-width: 0; border: 0; border-radius: 0; }
+  body.immersive-workbench .mw-stage-item.is-open { margin-block: 0; border: 0; background: transparent; }
+  body.immersive-workbench .mw-stage-entry {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(7rem, 12rem) max-content max-content;
     grid-template-rows: 28px;
@@ -82,18 +82,17 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
     width: 100%; min-width: 0; height: 28px; min-height: 28px; padding: 0 8px; box-sizing: border-box;
     border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: var(--ink); text-align: left; cursor: pointer; overflow: visible;
   }
-  body.immersive-workbench .feed-stage-entry:hover { background: var(--nav-hover); }
-  body.immersive-workbench .feed-stage-entry:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
-  body.immersive-workbench .feed-stage-entry:is(.is-selected, .is-open, [aria-expanded="true"]),
-  body.immersive-workbench .feed-stage-item.is-open > .feed-stage-item-line .feed-stage-entry { background: var(--nav-active); }
-  body.immersive-workbench .feed-stage-item.is-open .feed-stage-entry { height: 28px; min-height: 28px; padding: 0 8px; }
-  body.immersive-workbench .feed-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; grid-column: 1; overflow: hidden; }
-  body.immersive-workbench .feed-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  body.immersive-workbench .feed-entry-source,
-  body.immersive-workbench .feed-stage-entry > time { min-width: 0; color: var(--muted); font-size: 11px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  body.immersive-workbench .feed-stage-entry > time { font-variant-numeric: tabular-nums; }
-  body.immersive-workbench .feed-stage-entry .feed-entry-status { flex: none; min-width: 0; justify-self: end; overflow: visible; }
-  body.immersive-workbench .feed-stage-entry .feed-entry-status > span { overflow: visible; text-overflow: clip; }
+  body.immersive-workbench .mw-stage-entry:hover { background: var(--nav-hover); }
+  body.immersive-workbench .mw-stage-entry:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  body.immersive-workbench .mw-stage-entry:is(.is-selected, .is-open, [aria-expanded="true"]) { background: var(--nav-active); }
+  body.immersive-workbench .mw-stage-item.is-open .mw-stage-entry { height: 28px; min-height: 28px; padding: 0 8px; }
+  body.immersive-workbench .mw-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; grid-column: 1; overflow: hidden; }
+  body.immersive-workbench .mw-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.immersive-workbench .mw-entry-source,
+  body.immersive-workbench .mw-stage-entry > time { min-width: 0; color: var(--muted); font-size: 11px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.immersive-workbench .mw-stage-entry > time { font-variant-numeric: tabular-nums; }
+  body.immersive-workbench .mw-stage-entry .mw-entry-status { flex: none; min-width: 0; justify-self: end; overflow: visible; }
+  body.immersive-workbench .mw-stage-entry .mw-entry-status > span { overflow: visible; text-overflow: clip; }
   @media (max-width: 600px) {
     body.immersive-workbench .tree-resizer { display: none; }
     body.immersive-workbench .directory-content-scroll { padding-right: 0; }
@@ -102,13 +101,13 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
     body.immersive-workbench .tree-pane .tree-tool { width: 36px; height: 40px; min-height: 40px; }
   }
   @media (max-width: 760px) {
-    body.immersive-workbench .feed-stage-entry {
+    body.immersive-workbench .mw-stage-entry {
       height: auto; min-height: 44px; padding: 8px 12px;
       grid-template-columns: minmax(0, 1fr) max-content;
       grid-template-rows: auto;
     }
-    body.immersive-workbench .feed-entry-source,
-    body.immersive-workbench .feed-stage-entry > time { display: none; }
+    body.immersive-workbench .mw-entry-source,
+    body.immersive-workbench .mw-stage-entry > time { display: none; }
   }
 
   body.immersive-workbench .runtime-plan-dialog { width: min(680px, calc(100vw - 28px)); max-height: min(760px, calc(100dvh - 28px)); padding: 0; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--paper); box-shadow: var(--lift-3); }

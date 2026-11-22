@@ -68,5 +68,5 @@ test("UPG1-07: only the map's version of the secrets file is in the chain: the s
   const versions = JSON.parse(readFileSync(new URL("../tooling/versions.json", import.meta.url), "utf8")) as { versions: Record<string, number> };
   assert.equal(versions.versions["format.secret-store.envelope"], 1);
   assert.equal(versions.versions["format.secret-store.home-payload"], 1);
-  assert.ok(homeUpgradeDescriptors().some(descriptor => "file" in descriptor && descriptor.pattern === join("feed", "secrets.json")));
+  assert.ok(homeUpgradeDescriptors().some(descriptor => "file" in descriptor && descriptor.pattern === join("security", "secrets.json")));
 });

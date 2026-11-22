@@ -61,7 +61,7 @@ function providerStore(home: string, action: (store: ModelProviderStore, storage
 test("Jelly empty model settings do not create a catalog, preferences, secret files or send a request", t => {
   const home = homeFor(t, false); let requests = 0; t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected network"); });
   assert.deepEqual(configuration(home).read(), { configured: false, providers: [], connections: [], source: "none" }); assert.equal(completion(home), undefined); assert.equal(requests, 0);
-  assert.equal(existsSync(join(home, "projects")), false); assert.equal(existsSync(join(home, "jelly")), false); assert.equal(existsSync(join(home, "feed")), false);
+  assert.equal(existsSync(join(home, "projects")), false); assert.equal(existsSync(join(home, "jelly")), false); assert.equal(existsSync(join(home, "security")), false);
   assert.throws(() => configuration(home).save({ base_url: "https://example.com/v1", model_id: "model" }), /尚未初始化/); assert.equal(existsSync(join(home, "projects")), false);
 });
 
@@ -131,7 +131,7 @@ test("Jelly rejects insecure configuration and unowned catalogs without mutating
   configuration(home).save({ base_url: "https://models.example.com/v1", model_id: "good", connection_id: connection.connection_id }); const before = readFileSync(join(home, "jelly", "preferences.json"), "utf8");
   for (const base_url of ["http://192.168.1.8/v1", "http://external.example.com", "https://user:password@example.com", "https://example.com?api_key=secret", "file:///tmp/model"]) assert.throws(() => configuration(home).save({ base_url, model_id: "bad", connection_id: connection.connection_id }));
   assert.equal(readFileSync(join(home, "jelly", "preferences.json"), "utf8"), before); assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore()).get(connection.credential_ref!), "preserved-key");
-  const unknown = join(home, "unknown"); mkdirSync(join(unknown, "projects"), { recursive: true }); const db = new LocalSqliteStorage(join(unknown, "projects", "catalog.db")); db.close(); assert.throws(() => configuration(unknown).read(), /未知项目目录数据库/); assert.equal(existsSync(join(unknown, "feed")), false);
+  const unknown = join(home, "unknown"); mkdirSync(join(unknown, "projects"), { recursive: true }); const db = new LocalSqliteStorage(join(unknown, "projects", "catalog.db")); db.close(); assert.throws(() => configuration(unknown).read(), /未知项目目录数据库/); assert.equal(existsSync(join(unknown, "security")), false);
 });
 
 test("Jelly model actions reuse the original provider and preference owners and discover live disablement", async t => {

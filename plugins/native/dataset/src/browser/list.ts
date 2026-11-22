@@ -21,7 +21,7 @@ export function installList(page: DatasetPage): void {
   // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
   const fixedCell = (record: Dataset) => {
     const node = document.createElement("span");
-    node.className = "mw-status mw-status--plain feed-entry-status";
+    node.className = "mw-status mw-status--plain mw-entry-status";
     if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = uiText.text("dataset.fixed.unfinished"); }
     else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = uiText.text("dataset.fixed.label") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
@@ -32,14 +32,14 @@ export function installList(page: DatasetPage): void {
 
   const listRow = (record: Dataset) => {
     const item = document.createElement("article");
-    item.className = "feed-stage-item creative-artifact-row";
+    item.className = "mw-stage-item creative-artifact-row";
     const row = document.createElement("button");
     row.type = "button";
-    row.className = "feed-stage-entry directory-list-row" + (s.selected?.id === record.id ? " is-selected" : "");
+    row.className = "mw-stage-entry directory-list-row" + (s.selected?.id === record.id ? " is-selected" : "");
     row.dataset.datasetId = record.id;
     row.setAttribute("aria-selected", String(s.selected?.id === record.id));
     const leading = document.createElement("span");
-    leading.className = "feed-stage-leading";
+    leading.className = "mw-stage-leading";
     const title = document.createElement("strong");
     title.title = record.title;
     title.textContent = record.title;

@@ -282,7 +282,7 @@ function feedDetailHtml(html: string, itemId: string): string {
   const marker = `data-feed-detail="${itemId}"`;
   const start = html.indexOf(marker);
   assert.notEqual(start, -1, `missing feed detail ${itemId}`);
-  const next = html.indexOf('<article class="feed-detail', start + marker.length);
+  const next = html.indexOf('<article class="mw-detail', start + marker.length);
   return html.slice(start, next === -1 ? html.length : next);
 }
 

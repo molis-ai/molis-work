@@ -36,7 +36,7 @@
    3. 列下周最重要的三件事，问本人是否同意。
    ```
 
-   - 必填：`description`（什么时候用，1–1024 字）和 `applies_to`（`assistant`、`coding` 或 `both`，谁能用它）。
+   - 必填：`description`（什么时候用，1–1024 字）和 `applies_to`（谁能用它：`assistant`、某个插件在 Manifest `memory_scene` 申报的场景名如 Coding 的 `coding`，或 `both`＝助理和每个插件场景）。
    - 可选：`summary`（不写取 `description` 的开头）、`version`（不写是 1）、`when_to_use`、`when_not_to_use`、`user_invocable`（`false` 时本人不能点名）、`argument_hint`（点名时名字后面写什么，至多 80 字）、`tools`、`connector_categories`（正文里 `~~project tracker` 一类占位指的连接器类别）、`native_only_reason`（只能由本地 Agent 用时写原因）。
    - 正文：严格 UTF-8、非空白，至多 500 行、20,000 个 UTF-16 单元。正文写步骤和边界，不写死对象标识；要改数据的步骤照常经 `change-capability`，由本人确认。
    - 正文变了就升 `version`：宿主按 `skill_id` 加版本认一份技能，同一版本两份正文会被当成同一份。

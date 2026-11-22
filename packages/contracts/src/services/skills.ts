@@ -4,7 +4,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSchema } from "../platform/actions.js";
 import { inputSchemaFor } from "../platform/action-input.js";
 import { closedObjectSchema as object } from "../platform/closed-object-schema.js";
-import { SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type SkillAppliesTo, type SkillResourceRole } from "../platform/plugin-agent.js";
+import { isPluginSceneName, SCENE_NAME_PATTERN, SKILL_APPLIES_TO_SCHEMA, SKILL_ENTRY_SCHEMA, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type SkillAppliesTo, type SkillResourceRole } from "../platform/plugin-agent.js";
 import { CHARACTER_IMPORT_LIMITS, CHARACTER_IMPORT_RUNTIMES, type CharacterImportRuntimeId } from "../modules/character-import.js";
 import type { SkillRef } from "./agent-definitions.js";
 import { SKILL_REFS_MAX, skillRefSchema as skillRef } from "./skill-ref-schema.js";
@@ -91,11 +91,12 @@ export interface SkillPick {
   picked: "named" | "auto";
 }
 
-/** Who a round's Skill line belongs to: the Assistant, Coding, or a plugin's own Agent round (batch 41). */
-export const SKILL_PICK_CONSUMERS = ["assistant", "coding", "agent"] as const;
-export type SkillPickConsumer = (typeof SKILL_PICK_CONSUMERS)[number];
-export const isSkillPickConsumer = (value: unknown): value is SkillPickConsumer =>
-  typeof value === "string" && (SKILL_PICK_CONSUMERS as readonly string[]).includes(value);
+/**
+ * Who a round's Skill line belongs to (batch 41): the Assistant, a plugin Agent by its declared scene (Coding's `coding`), or a
+ * plugin's own Agent round with no scene (`agent`). BL-b44-coding-scene-enum: the platform names no plugin.
+ */
+export type SkillPickConsumer = string;
+export const isSkillPickConsumer = (value: unknown): value is SkillPickConsumer => value === "assistant" || value === "agent" || isPluginSceneName(value);
 
 export type SkillAvailability = { available: true } | { available: false; reason: SkillUnavailableReason; detail?: string };
 
@@ -140,9 +141,9 @@ export interface SkillCatalogEntry {
   /** Only while enabled: when it was enabled from `off`, by whom, and in which scope. Switching between `auto` and `manual` keeps it. */
   enabled?: { at: string; by: string; scope: SkillScope };
   availability: SkillAvailability;
-  last_used?: { at: string; caller: "assistant" | "coding" | "agent"; run_ref?: string };
+  last_used?: { at: string; caller: SkillPickConsumer; run_ref?: string };
   /** How many of the uses kept for this Skill in this scope each entry made (the latest `USES_KEPT` per Skill, not a total): after adopting a version, the person sees it used from the Assistant and from Coding (batch 42, across-entry check). Entries with none are left out. */
-  recent_uses?: { assistant?: number; coding?: number; agent?: number };
+  recent_uses?: Readonly<Record<SkillPickConsumer, number>>;
   /** Only on the person's view of one of their own Skills that is a copy (batch 42): where it came from, and the source's newer version when one is installed that the person has not looked at and left. The copy stays in use as it is either way. */
   based_on?: { source: SkillSourceRef; newer_version?: number };
   /** Only on the person's view: an open draft of this Skill (one of their own) or a copy of it in this scope. */
@@ -247,7 +248,8 @@ export interface SkillResourceContent {
 }
 
 export interface SkillCatalogListRequest {
-  applies_to?: Exclude<SkillAppliesTo, "both">;
+  /** One entry: `assistant` or a plugin scene. */
+  applies_to?: string;
   states?: SkillState[];
 }
 export interface SkillSettingsSetRequest {
@@ -374,7 +376,7 @@ export interface SkillCase extends SkillCaseFields {
 export const SKILL_TRIAL_VERDICTS = ["match", "differs", "unknown"] as const;
 export type SkillTrialVerdict = (typeof SKILL_TRIAL_VERDICTS)[number];
 /** The entries a Skill is replayed in: the Assistant and Coding, each with its own role, as `applies_to` says. */
-export type SkillTrialConsumer = Exclude<SkillAppliesTo, "both">;
+export type SkillTrialConsumer = string;
 /** Most characters of one replayed result kept and shown. */
 export const SKILL_TRIAL_OUTPUT_CHARS = 8000;
 /** One entry × one version of a replay: what the model wrote with that version's body, and how it compares with the known answer. */
@@ -537,7 +539,8 @@ const text = { type: "string" } as const;
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
 const count = { type: "integer", minimum: 0 } as const;
 const skillVersion = { type: "integer", minimum: 1 } as const;
-const appliesTo = { enum: [...SKILL_APPLIES_TO] };
+const appliesTo = SKILL_APPLIES_TO_SCHEMA;
+const pickConsumer = { anyOf: [{ enum: ["assistant", "agent"] }, { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: ["assistant", "common", "agent", "both"] } }] } as const;
 const state = { enum: [...SKILL_STATES] };
 const scope = { enum: [...SKILL_SCOPES] };
 const role = { enum: Object.keys(SKILL_RESOURCE_FOLDERS) };
@@ -558,8 +561,8 @@ export const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema = object({
   connector_categories: { type: "array", items: text }, runs_scripts: { type: "boolean" }, excerpt: { type: "string", maxLength: SKILL_EXCERPT_CHARS },
   pack: object({ plugin_id: text, title: text, version: text, publisher_label: text, trust: { enum: ["host", "pinned", "home_local"] }, scope }),
   state, settings_revision: count, enabled: object({ at: text, by: text, scope }), availability,
-  last_used: object({ at: text, caller: { enum: ["assistant", "coding", "agent"] }, run_ref: text }, ["at", "caller"]),
-  recent_uses: object({ assistant: count, coding: count, agent: count }, []),
+  last_used: object({ at: text, caller: pickConsumer, run_ref: text }, ["at", "caller"]),
+  recent_uses: { type: "object", propertyNames: pickConsumer, additionalProperties: count },
   based_on: object({ source: sourceRef, newer_version: skillVersion }, ["source"]), draft: object({ draft_id: text }),
 }, ["ref", "name", "description", "applies_to", "user_invocable", "tools", "resources", "connector_categories", "runs_scripts", "excerpt", "pack", "state",
   "settings_revision", "availability"]);
@@ -588,7 +591,7 @@ const person = { kind: "operation" as const, scope: "home" as const, effect: "wr
 export const skillCatalogActions = {
   list: { capability_id: "skills.catalog.list", version: /* @version action.skills.catalog.list */ 1, operation: "query", action: { ...reader,
     title: "列出技能", description: "列出这个范围里装着的技能：名称、什么时候用、适用于助理还是 Coding、声明的工具、附带文件、正文开头、所在的包、在这个范围的状态（关、自动、仅手动）和能不能用。不返回正文。Agent 和插件只拿到已启用的（自动、仅手动），看不到关着的。",
-    input_schema: inputSchemaFor<SkillCatalogListRequest>()(object({ applies_to: { enum: SKILL_APPLIES_TO.filter((value): value is Exclude<SkillAppliesTo, "both"> => value !== "both") },
+    input_schema: inputSchemaFor<SkillCatalogListRequest>()(object({ applies_to: SKILL_ENTRY_SCHEMA,
       states: { type: "array", minItems: 1, maxItems: SKILL_STATES.length, uniqueItems: true, items: state } }, [])),
     output_schema: object({ skills: { type: "array", items: SKILL_CATALOG_ENTRY_SCHEMA } }) } } as ActionDefinition<SkillCatalogListRequest, { skills: SkillCatalogEntry[] }>,
   readBodies: { capability_id: "skills.body.read", version: /* @version action.skills.body.read */ 1, operation: "query", action: { ...reader,
@@ -672,7 +675,7 @@ const caseRequired = ["title", "task", "expected"] as const;
 const caseSchema = object({ ...caseFields, case_id: draftId, origin: { enum: ["conversation", "person"] } }, [...caseRequired, "case_id", "origin"]);
 const verdict = { enum: [...SKILL_TRIAL_VERDICTS] };
 const trialSchema = object({ trial_id: draftId, draft_revision: revision, case_id: draftId, ran_at: text, verdict,
-  cells: { type: "array", maxItems: 4, items: object({ consumer: { enum: ["assistant", "coding"] }, side: { enum: ["base", "draft"] },
+  cells: { type: "array", maxItems: 16, items: object({ consumer: SKILL_ENTRY_SCHEMA, side: { enum: ["base", "draft"] },
     output: { type: "string", maxLength: SKILL_TRIAL_OUTPUT_CHARS }, verdict, differences: { type: "array", maxItems: 20, items: text } }) } });
 const replacements = { type: "object", maxProperties: 50, propertyNames: { type: "string", maxLength: 80 }, additionalProperties: { type: "string", maxLength: 200 } } as const;
 const draftSchema = object({ draft_id: draftId, scope, target, fields: draftFieldsSchema, revision, origin, created_at: text, updated_at: text,

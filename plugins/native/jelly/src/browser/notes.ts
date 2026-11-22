@@ -33,7 +33,7 @@ export const recordFor = (page: JellyPage, kind: string, id: string): JellyNote 
 export function renderRecords(page: JellyPage): void {
   const records = page.ws().notes.filter((record) => Boolean(record.archived_at) === page.archived && matches(page, record, blockText(record)))
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updated_at.localeCompare(a.updated_at));
-  const row = (record: JellyNote) => `<button type="button" class="jelly-row feed-stage-entry directory-list-row${page.selected?.id === record.id ? " is-selected" : ""}" data-jelly-record="${esc(record.id)}" data-jelly-id="${esc(record.id)}">`
+  const row = (record: JellyNote) => `<button type="button" class="jelly-row mw-stage-entry directory-list-row${page.selected?.id === record.id ? " is-selected" : ""}" data-jelly-record="${esc(record.id)}" data-jelly-id="${esc(record.id)}">`
     + `<div class="jelly-row-main"><strong>${esc(record.title || uiText.text("jelly.note.untitled"))}</strong><p>${esc(cutHead(blockText(record).replace(/\s+/g, " "), 180))}</p></div>`
     + `<div class="jelly-row-meta">${record.pinned ? '<svg aria-hidden="true"><use href="#icon-pin"></use></svg>' : ""}${page.categoryDot(record.category_id)}<time>${esc(dateLabel(record.updated_at.slice(0, 10), true))}</time></div></button>`;
   keepListScroll(page, () => {

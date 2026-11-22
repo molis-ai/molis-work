@@ -8,6 +8,7 @@ import type { MemoryScopeCommands } from "./scope-commands.js";
 import type { MemoryForgetting } from "./forgetting.js";
 import { personOnly } from "./places.js";
 import { memoryErrors } from "./errors.js";
+import { isMemorySessionScene } from "@molis-ai/molis-work-contracts/services/memory";
 import { learnedInSession, memorySources, type MemorySourceSession } from "./session-links.js";
 
 export const MEMORY_SESSION_CLEAR_PREFIX = "memory-session-clear:";
@@ -32,7 +33,7 @@ export function isMemorySessionClearPlan(value: unknown): value is MemorySession
   if (!value || typeof value !== "object") return false;
   const plan = value as MemorySessionClearPlan, binding = plan.binding;
   if (!fields(plan, ["version", "actor_id", "operation_id", "binding", "groups", "targets", "started", "complete", "done"]) || plan.version !== /* @version format.memory.session-clear-plan */ 1
-    || !id(plan.actor_id) || !id(plan.operation_id) || !binding || !["coding", "assistant"].includes(binding.current_scene)
+    || !id(plan.actor_id) || !id(plan.operation_id) || !binding || !isMemorySessionScene(binding.current_scene)
     || !binding.session || !id(binding.session.session_id) || binding.session.runtime_id !== "prologue" || !binding.target || !id(binding.target.id)
     || binding.target.kind !== binding.current_scene || !(binding.target.project_id === null || id(binding.target.project_id))
     || !Array.isArray(plan.targets) || !plan.targets.length || !Array.isArray(plan.groups) || !plan.groups.length

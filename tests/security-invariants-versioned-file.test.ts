@@ -105,8 +105,8 @@ test("S-upgrade-too-new-untouched: `config/onboarding.json` one version ahead or
   assert.deepEqual(projects, [], "no project and no personal space");
 });
 
-test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead, unreadable or holding an entry that is not sealed: a login is refused before it sends anything or spends its code", async t => {
-  const relative = join("feed", "secrets.json"), callback = "http://127.0.0.1:4173/account/callback";
+test("S-upgrade-too-new-untouched: `security/secrets.json` one version ahead, unreadable or holding an entry that is not sealed: a login is refused before it sends anything or spends its code", async t => {
+  const relative = join("security", "secrets.json"), callback = "http://127.0.0.1:4173/account/callback";
   const config = trialAccountConfig("http://127.0.0.1:8787", "http://127.0.0.1:4173");
   // What the vault turns out to be, from the one this build wrote: a newer build's, damaged, or with another owner's entry that is not a current
   // envelope (version and structure fine: only the check `put` makes finds that one).

@@ -22,7 +22,7 @@ import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
-import { assertSqliteDatabaseFiles } from "@molis-ai/molis-work-storage";
+import { assertSqliteDatabaseFiles, HOME_SECURITY_DIRNAME } from "@molis-ai/molis-work-storage";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -172,7 +172,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "settings.json"), file: COMPUTER_SETTINGS_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },
   { owner: "modules/shelf", block: { kind: "shelf" }, pattern: join("shelf", "catalog.json"), file: SHELF_CATALOG_FILE },
-  { owner: "packages/storage", block: HOME_BLOCK, pattern: join("feed", "secrets.json"), file: SECRET_STORE_FILE },
+  { owner: "packages/storage", block: HOME_BLOCK, pattern: join(HOME_SECURITY_DIRNAME, "secrets.json"), file: SECRET_STORE_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "runtimes" }, pattern: join("runtime-integrations", "*.json"), file: RUNTIME_INTEGRATION_RECEIPT_FILE, paths: runtimeReceipts },
   { owner: "apps/local-host", block: { kind: "setting", page: "models" }, pattern: join(installedPreference.store_name, installedPreference.file_name),
     file: MODEL_PREFERENCE_FILE, paths: installedModelPreferences },

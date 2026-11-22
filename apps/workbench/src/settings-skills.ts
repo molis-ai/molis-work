@@ -1,3 +1,5 @@
+import { SKILL_SCENES } from "./skill-scenes.js";
+
 /**
  * 08's Skill parts (docs/design/skill-packs): the three states, the facts, a package's Skills in an install review, choosing their states
  * after installing, importing from a local Agent, and one Skill's detail. The 「能力包」 page (settings-kit.ts) draws a Skill with
@@ -9,7 +11,9 @@ const readText = globalThis.t.text, el = (tag, cls, text) => { const n = documen
 const button = (text, fn, variant = "secondary") => { const n = el("button", "mw-btn mw-btn--" + variant + " mw-btn--sm", readText(text)); n.type = "button"; n.addEventListener("click", fn); return n; };
 const api = (project, path, body = {}) => molisWorkRequest((project ? "/projects/" + encodeURIComponent(project) : "") + "/api/skills/" + path, { body });
 const installApi = (project, path, body = {}) => molisWorkRequest("/projects/" + encodeURIComponent(project || "personal") + "/api/plugin-trust/" + path, { body });
-const STATES = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" }, FOR = { assistant: "workbench.common.assistant", coding: "workbench.settings-skills.coding", agent: "workbench.settings-skills.agent", both: "workbench.settings-skills.assistant-and-coding" };
+const STATES = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" }, SCENES = ${JSON.stringify(SKILL_SCENES)};
+const forText = value => value === "assistant" ? readText("workbench.common.assistant") : value === "agent" ? readText("workbench.settings-skills.agent")
+  : value === "both" ? readText("workbench.settings-skills.assistant-and-plugins", { list: SCENES.map(row => row.name).join(readText("common.list.separator")) }) : SCENES.find(row => row.scene === value)?.name || value;
 const WHY = { plugin_disabled: "workbench.settings-skills.the-plugin-is-disabled-your-settings-will-apply", publisher_revoked: "workbench.catalog-skill-packs.retracted", resource_invalid: "workbench.settings-skills.the-skill-or-its-files-are-missing-reinstall", requires_unmet: "workbench.settings-skills.a-required-capability-is-unavailable", connection_missing: "workbench.settings-skills.connect-the-required-service-first", native_only: "workbench.settings-skills.this-skill-requires-a-local-agent", not_applicable: "workbench.settings-skills.not-applicable-to-the-current-execution-mode" };
 const LOCKED = new Set(["plugin_disabled", "publisher_revoked", "resource_invalid"]);
 const key = s => s.ref.install_id + "/" + s.ref.skill_id;
@@ -29,14 +33,14 @@ finally { group.disabled = !skill.availability.available && LOCKED.has(skill.ava
 };
 const facts = skill => {
 const dl = el("dl", "mw-facts"), fact = (label, text) => { if (text) dl.append(el("dt", "", readText(label)), el("dd", "", text)); };
-fact("workbench.settings-skills.for", readText(FOR[skill.applies_to])); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
+fact("workbench.settings-skills.for", forText(skill.applies_to)); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
 fact("workbench.settings-skills.connector-categories", (skill.connector_categories || []).join(readText("common.list.separator")));
 fact("workbench.settings-skills.included-files", skill.resources.map(r => r.path + " · " + r.bytes + " B" + (r.role === "script" ? " · " + readText("workbench.settings-skills.runs-code") : "")).join("\n") || readText("workbench.catalog-skill-packs.no-included-files"));
 fact("workbench.catalog-skill-packs.start-of-the-text", skill.excerpt); return dl;
 };
 const preview = (panel, skills) => { if (!skills?.length) return;
 panel.append(el("h3", "", readText("workbench.settings-skills.skills-in-this-package"))); const list = el("ul", "mw-items");
-for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", readText(FOR[s.applies_to])));
+for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", forText(s.applies_to)));
 const CHANGE = { added: "workbench.settings.add", body_changed: "workbench.settings-skills.body-changed", resources_changed: "workbench.settings-skills.files-changed", removed: "workbench.settings-skills.will-be-removed" };
 if (s.runs_scripts) text.append(el("small", "", readText("workbench.settings-skills.runs-code"))); if (s.connector_categories?.length) text.append(el("small", "", s.connector_categories.join(readText("common.list.separator")))); if (s.change) text.append(el("small", "", readText(CHANGE[s.change]))); if (s.state === "manual" && s.change !== "removed") text.append(el("small", "", readText("workbench.settings-skills.manual-setting-is-kept")));
 const detail = el("details", "mw-item__more"), summary = el("summary", "", readText("workbench.catalog-skill-packs.details")); detail.append(summary, facts(s)); row.append(detail); list.append(row); } panel.append(list);
@@ -56,7 +60,7 @@ const scan = button("workbench.settings-skills.find-skills", async () => { scan.
 try { const found = await installApi(project, "skills/import/preview", { source: { kind: "runtime", runtime_id: source.value } }); stage.replaceChildren();
 if (!found.candidates.length) { stage.append(el("p", "", readText("workbench.settings-skills.no-skills-found-in-this-source"))); return; }
 stage.append(el("p", "settings-muted", readText("workbench.settings-skills.import-a-snapshot-later-changes-to-the-source")));
-const allFor = el("select", "mw-select"); allFor.setAttribute("aria-label", readText("workbench.settings-skills.for")); const addOptions = (select, selected) => { for (const value of ["assistant", "coding", "both"]) { const option = el("option", "", readText(FOR[value])); option.value = value; option.selected = value === selected; select.append(option); } }; addOptions(allFor, found.applies_to); stage.append(allFor);
+const allFor = el("select", "mw-select"); allFor.setAttribute("aria-label", readText("workbench.settings-skills.for")); const addOptions = (select, selected) => { for (const value of ["assistant", ...SCENES.map(row => row.scene), "both"]) { const option = el("option", "", forText(value)); option.value = value; option.selected = value === selected; select.append(option); } }; addOptions(allFor, found.applies_to); stage.append(allFor);
 const choices = []; for (const c of found.candidates) { const row = el("div", "skill-import-row"), label = el("label", "mw-check-row"), check = el("input"); check.type = "checkbox"; check.checked = c.importable; check.disabled = !c.importable; label.append(check, el("strong", "", c.name)); row.append(label, el("p", "settings-muted", c.description)); const who = el("select", "mw-select"); who.setAttribute("aria-label", c.name + " · " + readText("workbench.settings-skills.for")); addOptions(who, c.applies_to || found.applies_to); who.disabled = c.applies_to_from === "file" || !c.importable; row.append(who); if (c.reason) row.append(el("p", "settings-muted", c.reason)); if (c.runs_scripts) row.append(el("small", "", readText("workbench.settings-skills.runs-code"))); stage.append(row); choices.push({ c, check, who }); }
 allFor.addEventListener("change", () => choices.forEach(({ who }) => { if (!who.disabled) who.value = allFor.value; }));
 const confirm = button("workbench.settings-skills.agree-and-import", async () => { confirm.disabled = true; fail.hidden = true;
@@ -83,7 +87,7 @@ if (skill.state !== "off" && skill.availability.available) {
 const full = el("div"), open = button("workbench.settings-skills.read-full-text", async () => { open.disabled = true; try { const result = (await api(project, "body", { refs: [skill.ref] })).results[0]; if (!result.ok) throw new Error(readText("workbench.settings-skills.the-skill-version-or-setting-changed-refresh-the")); full.replaceChildren(el("pre", "skill-full-text", result.body)); } catch (cause) { error(full, cause, redraw); open.disabled = false; } }, "link"); open.dataset.skBody = ""; box.append(open, full);
 }
 if (skill.enabled) box.append(el("p", "settings-muted", readText("workbench.settings-skills.enabled") + " · " + skill.enabled.at.slice(0,10) + " · " + skill.enabled.by + " · " + readText(skill.enabled.scope === "home" ? "workbench.index.personal-space" : "workbench.settings-skills.current-project")));
-if (skill.last_used) box.append(el("p", "mw-list-detail__used", readText("workbench.settings-skills.last-used") + " · " + skill.last_used.at.slice(0,16).replace("T"," ") + " · " + readText(FOR[skill.last_used.caller])));
+if (skill.last_used) box.append(el("p", "mw-list-detail__used", readText("workbench.settings-skills.last-used") + " · " + skill.last_used.at.slice(0,16).replace("T"," ") + " · " + forText(skill.last_used.caller)));
 const nextStep = { plugin_disabled: "workbench.home-plugin-page.enable-plugin", publisher_revoked: "workbench.settings-skills.uninstall-package", resource_invalid: "workbench.catalog-skill-packs.reinstall" };
 const link = el("a", "mw-btn mw-btn--link", readText(nextStep[skill.availability.reason] || "workbench.settings-skills.manage-package")); link.href = "/projects/" + encodeURIComponent(project || "personal") + "/settings/plugins"; box.append(link);
 return title;

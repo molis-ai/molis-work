@@ -83,7 +83,7 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
     ? `<div class="mw-empty" data-schedule-empty><span class="mw-empty__mark">${p.icon("timer")}</span><h1>${uiText("schedule.list.empty-title")}</h1><p>${uiText("schedule.list.empty-body")}</p></div>`
     : `${taskRows}${jobFold}`;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="schedule" data-work-surface-label="Schedule" hidden data-schedule-workbench data-schedule-stage-shell data-expanded="false">
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-schedule-list>
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-schedule-list>
       <header class="plugin-stage-chrome schedule-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-schedule-new>${p.icon("plus")}<span>${uiText("schedule.action.new")}</span></button>
       </header>
@@ -94,7 +94,7 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
       ${model.tasks.map((task) => renderTaskDetail(task, model.route_prefix, p)).join("")}
       ${jobs.map((job) => renderScheduleDetail(job, p)).join("")}
       ${operations.map(run => renderOperationDetail(run, p)).join("")}
-      <div class="feed-detail-empty mw-empty" data-schedule-detail-empty>${p.icon("timer")}<h1>${uiText("schedule.detail.choose")}</h1></div>
+      <div class="mw-detail-empty mw-empty" data-schedule-detail-empty>${p.icon("timer")}<h1>${uiText("schedule.detail.choose")}</h1></div>
     </div>
     ${renderReminderRecoveryDialog(p)}
     ${renderOperationRecoveryDialog(p)}
@@ -106,7 +106,7 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
  * is chosen once it exists, in its detail, so the form only says so.
  */
 function renderTaskForm(routePrefix: string, p: ScheduleUiPrimitives): string {
-  return `<section class="feed-detail schedule-task-form" data-schedule-create-pane aria-labelledby="schedule-create-title" hidden>
+  return `<section class="mw-detail schedule-task-form" data-schedule-create-pane aria-labelledby="schedule-create-title" hidden>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-create-close aria-label="${uiText("schedule.action.back")}" title="${uiText("schedule.action.back")}">${p.icon("chevron-right")}</button></header>
     <form class="mw-form" data-schedule-create-form>
       <header class="mw-form__header"><div><h2 id="schedule-create-title" data-schedule-form-title>${uiText("schedule.action.new")}</h2><p>${uiText("schedule.form.help")}</p></div></header>
@@ -167,12 +167,12 @@ function renderTaskRow(task: ScheduleConversationTaskView, p: ScheduleUiPrimitiv
   const tone = task.unread ? "attention" : task.enabled ? "progress" : "quiet";
   // A task that is off has no next round, whatever time its last wakeup was set for (a one-off task that ran, a paused one).
   const next = task.enabled && task.next_due_at ? `${uiText.text("schedule.label.next")} ${p.escape(p.formatDate(task.next_due_at))}` : uiText.text("schedule.label.not-scheduled");
-  return `<article class="inbox-stage-item feed-stage-item" data-schedule-item-wrap="${p.escape(task.task_id)}">
-    <button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="task" data-schedule-task-id="${p.escape(task.task_id)}" data-schedule-enabled="${task.enabled ? "true" : "false"}">
-      <span class="feed-stage-leading">${renderKindMark(p)}<strong title="${p.escape(task.title)}">${p.escape(task.title)}</strong></span>
-      <span class="feed-entry-source">${(task.repeat === "none" ? uiText("schedule.label.once") : uiText("schedule.label.daily-at", { time: task.clock_label }))} · ${next}</span>
-      <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-mw-state="${task.unread ? "unread" : task.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
-      <span class="mw-status mw-status--attention mw-status--plain feed-entry-status" data-mw-state="approval" data-schedule-row-reconfirm hidden>${uiText("schedule.status.reconfirm")}</span>
+  return `<article class="inbox-stage-item mw-stage-item" data-schedule-item-wrap="${p.escape(task.task_id)}">
+    <button class="mw-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="task" data-schedule-task-id="${p.escape(task.task_id)}" data-schedule-enabled="${task.enabled ? "true" : "false"}">
+      <span class="mw-stage-leading">${renderKindMark(p)}<strong title="${p.escape(task.title)}">${p.escape(task.title)}</strong></span>
+      <span class="mw-entry-source">${(task.repeat === "none" ? uiText("schedule.label.once") : uiText("schedule.label.daily-at", { time: task.clock_label }))} · ${next}</span>
+      <span class="mw-status mw-status--${tone} mw-status--plain mw-entry-status" data-mw-state="${task.unread ? "unread" : task.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
+      <span class="mw-status mw-status--attention mw-status--plain mw-entry-status" data-mw-state="approval" data-schedule-row-reconfirm hidden>${uiText("schedule.status.reconfirm")}</span>
     </button>
   </article>`;
 }
@@ -190,23 +190,23 @@ function renderTaskDetail(task: ScheduleConversationTaskView, routePrefix: strin
     const important = turn.important ? `<span class="mw-status mw-status--attention mw-status--plain">${uiText("schedule.turn.important")}</span>` : "";
     return `<article class="schedule-turn schedule-turn--${p.escape(turn.kind)}"><header><small>${p.escape(who)}</small>${important}<time>${p.escape(p.formatDate(turn.created_at))}</time></header><p>${p.escape(turn.text)}</p></article>`;
   }).join("");
-  return `<article class="feed-detail inbox-reference-detail schedule-task-detail" data-schedule-detail="${p.escape(task.task_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText("schedule.action.back")}" title="${uiText("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${(task.repeat === "none" ? uiText("schedule.label.once") : uiText("schedule.label.daily-at", { time: task.clock_label }))}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-mw-state="${task.unread ? "unread" : enabled ? "ready" : "paused"}" data-schedule-detail-status>${p.escape(status)}</span><span class="mw-status mw-status--attention" data-mw-state="approval" data-schedule-detail-reconfirm hidden>${uiText("schedule.status.reconfirm")}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${uiText("schedule.action.edit")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${uiText("schedule.action.archive")}</button></header>
+  return `<article class="mw-detail inbox-reference-detail schedule-task-detail" data-schedule-detail="${p.escape(task.task_id)}" hidden>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText("schedule.action.back")}" title="${uiText("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="mw-detail-kicker"><span class="mw-status mw-status--quiet">${(task.repeat === "none" ? uiText("schedule.label.once") : uiText("schedule.label.daily-at", { time: task.clock_label }))}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-mw-state="${task.unread ? "unread" : enabled ? "ready" : "paused"}" data-schedule-detail-status>${p.escape(status)}</span><span class="mw-status mw-status--attention" data-mw-state="approval" data-schedule-detail-reconfirm hidden>${uiText("schedule.status.reconfirm")}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${uiText("schedule.action.edit")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${uiText("schedule.action.archive")}</button></header>
     <textarea data-schedule-task-instructions hidden>${p.escape(task.instructions)}</textarea><input data-schedule-task-time type="hidden" value="${p.escape(task.clock_label)}"${task.repeat === "none" ? ` data-schedule-task-once="${p.escape(task.run_at ? p.formatDate(task.run_at) : "")}"` : ""}><input data-schedule-task-notify type="hidden" value="${task.notify_important ? "true" : "false"}">
-    <header class="feed-detail-header"><h1>${p.escape(task.title)}</h1><p>${next}</p></header>
+    <header class="mw-detail-header"><h1>${p.escape(task.title)}</h1><p>${next}</p></header>
     <div class="schedule-thread" data-schedule-thread>${renderReadsSection(task, routePrefix, p)}${turns}</div>
-    <p class="feed-action-status" data-schedule-action-status role="status" hidden></p>
+    <p class="mw-action-status" data-schedule-action-status role="status" hidden></p>
   </article>`;
 }
 
 function renderScheduleRow(job: ScheduleJobView, p: ScheduleUiPrimitives): string {
   const status = job.reminder?.needs_confirmation ? uiText.text("schedule.status.needs-confirmation") : job.enabled ? uiText.text("schedule.status.enabled") : uiText.text("schedule.status.paused");
   const tone = job.reminder?.needs_confirmation ? "attention" : job.enabled ? "progress" : "quiet";
-  return `<article class="inbox-stage-item feed-stage-item" data-schedule-item-wrap="${p.escape(job.job_id)}">
-    <button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="job" data-schedule-job-id="${p.escape(job.job_id)}" data-schedule-enabled="${job.enabled ? "true" : "false"}">
-      <span class="feed-stage-leading"><strong title="${p.escape(job.title)}">${p.escape(job.title)}</strong></span>
-      <span class="feed-entry-source">${uiText("schedule.label.next")} ${p.escape(p.formatDate(job.next_due_at))}</span>
-      <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-mw-state="${job.reminder?.needs_confirmation ? "approval" : job.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
+  return `<article class="inbox-stage-item mw-stage-item" data-schedule-item-wrap="${p.escape(job.job_id)}">
+    <button class="mw-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="job" data-schedule-job-id="${p.escape(job.job_id)}" data-schedule-enabled="${job.enabled ? "true" : "false"}">
+      <span class="mw-stage-leading"><strong title="${p.escape(job.title)}">${p.escape(job.title)}</strong></span>
+      <span class="mw-entry-source">${uiText("schedule.label.next")} ${p.escape(p.formatDate(job.next_due_at))}</span>
+      <span class="mw-status mw-status--${tone} mw-status--plain mw-entry-status" data-mw-state="${job.reminder?.needs_confirmation ? "approval" : job.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
     </button>
   </article>`;
 }
@@ -225,11 +225,11 @@ function renderScheduleDetail(job: ScheduleJobView, p: ScheduleUiPrimitives): st
   const toggle = enabled
     ? `<button class="mw-btn mw-btn--ghost" type="button" data-schedule-enabled-action="false" data-schedule-job-id="${p.escape(job.job_id)}">${uiText("schedule.action.pause")}</button>`
     : reminder?.needs_confirmation ? "" : `<button class="mw-btn mw-btn--secondary" type="button" data-schedule-enabled-action="true" data-schedule-job-id="${p.escape(job.job_id)}">${uiText("schedule.action.resume")}</button>`;
-  return `<article class="feed-detail inbox-reference-detail" data-schedule-detail="${p.escape(job.job_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText("schedule.action.back")}" title="${uiText("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(reminder?.plugin_title ?? job.plugin_id)}</span><span class="mw-status mw-status--${reminder?.needs_confirmation ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status data-mw-state="${reminder?.needs_confirmation ? "approval" : enabled ? "ready" : "paused"}">${p.escape(status)}</span></div></header>
-    <header class="feed-detail-header"><h1>${p.escape(job.title)}</h1></header>
+  return `<article class="mw-detail inbox-reference-detail" data-schedule-detail="${p.escape(job.job_id)}" hidden>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText("schedule.action.back")}" title="${uiText("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="mw-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(reminder?.plugin_title ?? job.plugin_id)}</span><span class="mw-status mw-status--${reminder?.needs_confirmation ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status data-mw-state="${reminder?.needs_confirmation ? "approval" : enabled ? "ready" : "paused"}">${p.escape(status)}</span></div></header>
+    <header class="mw-detail-header"><h1>${p.escape(job.title)}</h1></header>
     ${reminder ? `<div class="inbox-reference-body"><p data-schedule-reminder-text>${p.escape(reminder.text)}</p>${reminder.needs_confirmation ? `<p>${uiText("schedule.job.identity-unverified")}</p><p data-schedule-reminder-target>${target ? p.escape(`${target.title} · ${target.version} · ${target.publisher}`) : uiText("schedule.job.install-first")}</p>` : ""}</div>` : ""}
-    <div class="inbox-reference-footer"><div class="feed-detail-actions">${recovery}${toggle}</div><p class="feed-action-status" data-schedule-action-status role="status" hidden></p></div>
+    <div class="inbox-reference-footer"><div class="mw-detail-actions">${recovery}${toggle}</div><p class="mw-action-status" data-schedule-action-status role="status" hidden></p></div>
     <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${uiText("schedule.job.alarm")}"><dl>
       ${reminder ? "" : `<div><dt>${uiText("schedule.job.api")}</dt><dd>${p.escape(job.capability_id)}</dd></div>
       <div><dt>${uiText("schedule.job.object-key")}</dt><dd>${p.escape(job.object_ref)}</dd></div>`}

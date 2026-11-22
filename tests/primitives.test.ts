@@ -325,7 +325,7 @@ test("catalog ships the Soft Workbench palette and complete icon library", () =>
   // layer no longer tints it, and the board shows it.
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);
   assert.match(html, /class="mw-empty__mark"/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\.feed-stage-entry:is\(\.is-selected, \.is-open, \[aria-selected="true"\]\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.mw-stage-entry:is\(\.is-selected, \.is-open, \[aria-selected="true"\]\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--faint\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink-soft\)/);

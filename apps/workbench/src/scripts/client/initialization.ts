@@ -151,7 +151,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       },
       write: () => assistantIsland?.toNow(),
       settingsHref: (section) => route("/settings/" + section),
-      lead: { adopt: (box, target) => tabWorkspace?.adoptHomeLead(box, target) ?? null, release: (node) => tabWorkspace?.releaseHomeLead(node) },
       offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
       projectKey: state.project?.project_id || "",
       translate: readText,

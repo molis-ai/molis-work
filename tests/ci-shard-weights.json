@@ -2004,7 +2004,6 @@
  "tests/surface-cross-positions.e2e.test.ts": 238,
  "tests/surface-home-composition.test.ts": 7,
  "tests/surface-home-contracts.test.ts": 1,
- "tests/surface-home-lead.test.ts": 1,
  "tests/surface-home-workbench.e2e.test.ts": 69,
  "tests/surface-placement-browser.e2e.test.ts": 26,
  "tests/sync-baseline-triggers.test.ts": 1,

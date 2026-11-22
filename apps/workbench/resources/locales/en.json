@@ -4492,7 +4492,6 @@
       }
     },
     "workbench.home.hidden-above": "Also listed above: {count}",
-    "workbench.home.lead-failed": "The page {name} writes can’t open right now. Below is where the project stands.",
     "workbench.home.loading": "Loading the project home…",
     "workbench.home.navigation-failed": "Couldn’t open this. Refresh and try again.",
     "workbench.home.open": "Open",

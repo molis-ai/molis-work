@@ -322,7 +322,7 @@ const ownAction = (actions: readonly Record<string, unknown>[], capabilityId: un
 function overviewProblems(value: unknown, actions: readonly Record<string, unknown>[], ui: unknown): string[] {
   const at = "presentation.overview";
   if (!isRecord(value)) return [`${at} 必须是对象`];
-  const problems = [...extraKeys(value, ["capability_id", "version", "note", "start", "lead"], at), ...leadProblems(value.lead, `${at}.lead`, ui)];
+  const problems = [...extraKeys(value, ["capability_id", "version", "note", "start"], at)];
   const action = ownAction(actions, value.capability_id, value.version);
   if (!action) problems.push(`${at} 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）`);
   else if (!isPresentationOverviewReader(action)) {
@@ -330,15 +330,6 @@ function overviewProblems(value: unknown, actions: readonly Record<string, unkno
   }
   if (value.note !== undefined) problems.push(...textProblems(value.note, `${at}.note`));
   return [...problems, ...startProblems(value.start, `${at}.start`, actions, ui)];
-}
-
-/** The home's main content is one of this Manifest's own main-area views, so a declaration cannot point the home at another plugin's page. */
-function leadProblems(value: unknown, at: string, ui: unknown): string[] {
-  if (value === undefined) return [];
-  if (!isRecord(value) || extraKeys(value, ["view_id"], at).length > 0 || typeof value.view_id !== "string") return [`${at} 只写 view_id`];
-  const views = isRecord(ui) && Array.isArray(ui.views) ? ui.views.filter(isRecord) : [];
-  return views.some(view => view.view_id === value.view_id && (view.slot === "navigator" || view.slot === "stage")) ? []
-    : [`${at}.view_id 要是本 Manifest 自己的主区视图（ui.views 里 slot 为 navigator 或 stage 的那一个）`];
 }
 
 /**

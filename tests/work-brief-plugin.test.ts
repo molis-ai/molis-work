@@ -370,8 +370,8 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   const made = await risk("供应商延期");
   await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "交付有延期风险。", cites: [{ kind: "risk", id: made.risk_id }] }] } });
   const withBrief = await home();
-  // One home (specs/screen-polish §八之二): no plugin page stands in for it.
-  assert.equal(withBrief.groups.some(group => group.kind === "lead"), false);
+  // One home (specs/screen-polish §八之二): the brief is its opening sentences, on the brief's own card.
+  assert.deepEqual(withBrief.groups.map(group => group.kind).filter(kind => kind !== "attention" && kind !== "plugin" && kind !== "outline"), []);
   const lede = card(withBrief)?.plugin_card?.lede;
   assert.deepEqual(lede?.sentences, [{ text: "交付有延期风险。", sources: [RISK_ID] }], "each sentence names the plugins it stands on");
   assert.deepEqual([keyed(lede?.label), lede?.invite], [[WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.lede-label"], undefined]);

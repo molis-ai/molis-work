@@ -44,7 +44,7 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
         const copy = surface.cloneNode(true);
         stripDuplicateIds(copy);
         if (id === "home") {
-          copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-lead], [data-home-margin], [data-home-version]").forEach((el) => el.replaceChildren());
+          copy.querySelectorAll("[data-home-groups], [data-home-status], [data-home-margin], [data-home-version]").forEach((el) => el.replaceChildren());
         }
         copy.hidden = true;
         surfaceTemplates.set(id, copy);

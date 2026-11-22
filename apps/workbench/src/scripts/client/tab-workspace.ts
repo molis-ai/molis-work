@@ -28,7 +28,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
+  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, PLUGIN_MANIFEST_IDS = ${JSON.stringify(pluginManifestIds())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
   // The Host's plugin directory on the page: each plugin's group colour (the hue its Manifest declares), what ＋ lists (口径 8) and
@@ -734,7 +734,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (plugin === "goals" && loadingGoalId === itemId) loadingGoalId = loading;
   });
-  return { apply, readView, writeView, openView, focusPane, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, focusPane, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.

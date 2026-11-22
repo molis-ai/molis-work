@@ -29,6 +29,8 @@ test("SSC-18 overview declarations require the common free read protocol and an 
   assert.equal(overview.action.execution?.cost, "none");
   assert.equal(isPresentationOverviewReader(overview), true);
   assert.deepEqual(validatePresentationDeclaration(manifest), []);
+  // One home: a plugin's page does not stand in for it (decision 62). A Manifest that still names one is refused, not read around.
+  assert.match(validatePresentationDeclaration({ ...manifest, presentation: { objects: [], overview: { ...declaration, lead: { view_id: "stage" } } } }).join("\n"), /presentation\.overview 不认这些字段：lead/);
   for (const action of [
     { ...overview.action, execution: undefined },
     { ...overview.action, execution: { cost: "unknown" } },
@@ -106,6 +108,11 @@ test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritt
   ]) assert.throws(() => assertSurfaceDescription({ ...picked, groups: [attention, { ...group, plugin_card }] }, candidate), { code: "actions.output_invalid" });
   assert.throws(() => assertSurfaceDescription({ ...picked, groups: [{ ...attention, plugin_card: card }, group] }, candidate), { code: "actions.output_invalid" });
   assert.throws(() => assertSurfaceDescription({ ...picked, groups: [{ ...attention, plugin_card: null }, group] }, candidate), { code: "actions.output_invalid" });
+  // No group stands a plugin's page in for the home: the kind and its field are gone from the contract.
+  for (const lead of [{ kind: "lead", owner_plugin_id: owner, state: "ok", items: [], lead: { installation: release, view_id: "stage" } }, { ...group, lead: { installation: release, view_id: "stage" } }]) {
+    const led = description([lead as unknown as SurfaceGroup]);
+    assert.throws(() => assertSurfaceDescription(led, led), { code: "actions.output_invalid" });
+  }
   const forged = description([{ ...group, plugin_card: { ...card, summary: { owner: "other", key: "notes.home.empty" } } }]);
   assert.throws(() => assertSurfaceDescription(forged, forged), { code: "actions.output_invalid" });
   const unreadableRows = description([{ ...group, state: "unreadable" }]);

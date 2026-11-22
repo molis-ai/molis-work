@@ -286,14 +286,6 @@ ${TAB_WORKSPACE_CLONES_PART}
       section.querySelectorAll(":scope > [data-tab-pane-body] > [data-pane-clone]").forEach((child) => disposeClone(child));
       section.querySelectorAll(":scope > [data-tab-pane-body] > :not([data-pane-clone])").forEach((child) => {
         if (child.matches('[data-work-surface="home"]')) {
-          child.querySelectorAll("[data-home-lead] > [data-work-surface]").forEach((lead) => {
-            lead.hidden = true;
-            if (!lead.querySelector(":scope > iframe[data-plugin-frame]")) pool.append(lead);
-            else {
-              if (lead.dataset.workSurface) removedCanonicalIds.add(lead.dataset.workSurface);
-              lead.remove();
-            }
-          });
           child.hidden = true;
           delete child.dataset.paneTab;
           delete child.dataset.paneKey;

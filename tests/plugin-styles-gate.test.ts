@@ -357,6 +357,7 @@ test("RAC-769 this repository's own build freezes the few declared-shared leftov
     "on-demand plugins (including Goals, Feed and Inbox) keep zero namespace rules in the shared sheet; only declared-shared leftovers remain");
   assert.deepEqual(report.budgetPrefixes?.["goals"], ["goal-"], "Goals' prefix stays remembered so its rules cannot fall back to the shared sheet");
   assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
+  assert.deepEqual(report.budgetPrefixes?.["text-stats"], ["stats-"], "Text Stats' prefix stays remembered so its rules cannot fall back to the shared sheet");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);
   const passed = run(repoRoot);
   assert.equal(passed.code, 0, passed.out);

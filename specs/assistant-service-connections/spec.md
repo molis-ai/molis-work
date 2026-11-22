@@ -824,7 +824,7 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 
 ### 13.1 服务与模型连接的界面定样（第 13 批，2026-11-04）
 
-用户在可点原型（[`docs/design/service-connections/`](../../docs/design/archive/service-connections/README.md)）里看过三块各三个方案、六种状态（正常、取消登录、登录失效、换账号、服务限流、密钥被拒）后定下：
+用户在可点原型（[`docs/design/archive/service-connections/`](../../docs/design/archive/service-connections/README.md)）里看过三块各三个方案、六种状态（正常、取消登录、登录失效、换账号、服务限流、密钥被拒）后定下：
 
 | 块 | 定下 | 否掉的 | 理由 |
 | --- | --- | --- | --- |
@@ -1156,7 +1156,7 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 
 ### 13.7 服务差异、默认网页搜索与类别（第 61 批，2026-11-18）
 
-定样在 [`docs/design/service-coverage-automation/`](../../docs/design/archive/service-coverage-automation/README.md)（提交 `7f4a809505`、`34e708762b`、`c5f24c7165`），1440／1024／390、中英文、深浅色与异常状态都出过。
+定样在 [`docs/design/archive/service-coverage-automation/`](../../docs/design/archive/service-coverage-automation/README.md)（提交 `7f4a809505`、`34e708762b`、`c5f24c7165`），1440／1024／390、中英文、深浅色与异常状态都出过。
 
 | 事项 | 定下 | 谁定 | 理由与代价 |
 | --- | --- | --- | --- |

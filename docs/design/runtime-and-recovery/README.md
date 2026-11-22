@@ -16,7 +16,7 @@ node docs/design/kit/build.mjs
 python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 ```
 
-第二步生成产品样式（`docs/design/_catalog/dist/`，不入库）。不跑这一步，页面没有样式。顶部斜纹条是原型控制，不是产品界面：选话题、状态，切中英文和深浅色，「从头再来」清掉点过的东西。数据全是示例，点按钮只在本页里变化，不连任何服务。
+第二步生成产品样式（`docs/design/kit/dist/`，不入库）。不跑这一步，页面没有样式。顶部斜纹条是原型控制，不是产品界面：选话题、状态，切中英文和深浅色，「从头再来」清掉点过的东西。数据全是示例，点按钮只在本页里变化，不连任何服务。
 
 ## 五个话题（已定方案 A）
 
@@ -36,7 +36,7 @@ python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 
 版面和每一处选择都照选定的方案 A，不动；换的只是部件。原来拷来的 `base.css`、`parts.css`、`immersive.css`、`icons.js` 和自写的 `rr.css` 都删了，改用产品的样式表、图标 sprite 和 `foundation.js`。
 
-- 组件板上没有、按 token 画的「组件板新增」：Dock 上的「暂不可用」点（`.cand-pin-dot`，琥珀是要处理的，蓝是要知道的）和行前的种类色块（`.cand-kind`）。清单与来由见 [`_catalog`](../kit/README.md#组件板新增交-d-轨补标本)。
+- 组件板上没有、按 token 画的「组件板新增」：Dock 上的「暂不可用」点（`.cand-pin-dot`，琥珀是要处理的，蓝是要知道的）和行前的种类色块（`.cand-kind`）。清单与来由见 [`kit`](../kit/README.md#组件板新增交-d-轨补标本)。
 - 底栏 Dock 只放三颗（首页、Pages、Feed），产品底栏在 1024 宽度下放得下的就是这么多；出问题的那一块总在里面。
 
 ## 依据

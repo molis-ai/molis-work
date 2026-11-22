@@ -10,6 +10,8 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 
 **产品气质**：Soft Workbench——柔和桌面托起一张连续白纸，字阶与灰度先建层，唯一墨青/深墨主操作，琥珀只留给「轮到你」，所有动效与反馈克制、可中断、确定可恢复。
 
+> **阶段口径说明（`91-0a` → `91-0b`）**：本 Skill 随 [决定 60](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-60) 的前置段 `91-0a` 先行落地。凡标注 **`[91-0b 落定]`** 的新皮肤（`pure-studio@1` / `warm-atelier@1` 及 `soft-workbench@1` 晴朗亮底）、F1 字体栈、纸面细边次按钮、反馈原语（`molisBusy` / 统一 `host.showToast` / 五态自动保存 / `optimisticToggle` / 日期增强器）、`--measure-*` / `--stage-list-w` / `@container plugin-stage` 与 `228px` 设置左轨/侧栏筛选，将在紧邻的 `91-0b` 实装并同步去除阶段标注；在此之前开发代码以当前 `HEAD` 已有令牌与 API 为准（如底栏高度读 `--dock-h`、现役皮肤为 `soft-workbench@1` 与 `folio@1`）。
+
 ---
 
 ## 按任务读哪章（渐进披露，不要一次硬背 150 KB）
@@ -17,7 +19,7 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 | 你正在做什么 | 必读章节 |
 | --- | --- |
 | 配色、4 套内置皮肤、明暗对比度、Sans + 中文排版、字阶/圆角/阴影令牌 | [tokens-and-typography.md](tokens-and-typography.md) |
-| 工作台方案 C 顶栏、第十三版底栏、12 视图右侧栏、到达/IM/独立插件壳、桌面红绿灯安全区 | [shell-and-surfaces.md](shell-and-surfaces.md) |
+| 工作台方案 C 顶栏、第十三版底栏、11 视图右侧栏、到达/IM/独立插件壳、桌面红绿灯安全区 | [shell-and-surfaces.md](shell-and-surfaces.md) |
 | `mw-*` 组件选型、按钮/输入框/6px 状态标材质、9 大共享机制、`@container` 与四档版心 | [components-and-mechanisms.md](components-and-mechanisms.md) |
 | 新增或修改全局设置（6 组）/ 项目设置（9 页）/ 插件设置页 | [settings-pages.md](settings-pages.md) |
 | 动效语法「一变一动」、流式输出与追底、250ms 防闪 `molisBusy`、统一 Toast、五态自动保存与 AI 反馈 | [motion-and-feedback.md](motion-and-feedback.md) |

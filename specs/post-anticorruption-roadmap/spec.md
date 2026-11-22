@@ -242,11 +242,11 @@
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
-|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5) |
+|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5)（拆入 `91-0a` 先行落地 + `91-0b` 实装校准，[决定 60](reference/decisions.md#decision-60)） |
 | [91B](reference/batches/91b.md) | [入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口](reference/batches/91b.md#batch-91b-item-1)（2026-11-18 加，紧接 91，不等 38～89，[决定 55](reference/decisions.md#decision-55)） |
 |  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
 |  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
-|  | [全站轻动效收口与三层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
+|  | [全站轻动效收口与五层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |

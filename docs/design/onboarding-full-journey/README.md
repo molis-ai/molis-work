@@ -14,7 +14,7 @@ node docs/design/kit/build.mjs
 python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 ```
 
-第二步生成产品样式（`docs/design/_catalog/dist/`，不入库）。不跑这一步，页面没有样式。顶上一条斜纹是**原型控制**，不是产品的一部分：切场景、状态、中英文和浅深色；「从头再来」清掉本页记住的进度。
+第二步生成产品样式（`docs/design/kit/dist/`，不入库）。不跑这一步，页面没有样式。顶上一条斜纹是**原型控制**，不是产品的一部分：切场景、状态、中英文和浅深色；「从头再来」清掉本页记住的进度。
 
 ## 框架：和第一次打开软件时一样
 
@@ -71,7 +71,7 @@ python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 | 建好后的项目页 | 产品工作台底栏（插件切换、Dock、助理输入框、项目选择）与 `mw-brief`：第一期在 `mw-brief__focus` 里，三段用 `mw-goal-track`；空项目用 `mw-empty` |
 | 轻提示 | `mw-toast` |
 
-组件板上没有、按 token 画在 `../kit/prototype.css` 的「组件板新增」：带名字的步骤条、种类色块、进度圆环、成形中的项目卡、连接线。清单与来由见 [`_catalog`](../kit/README.md#组件板新增交-d-轨补标本)。
+组件板上没有、按 token 画在 `../kit/prototype.css` 的「组件板新增」：带名字的步骤条、种类色块、进度圆环、成形中的项目卡、连接线。清单与来由见 [`kit`](../kit/README.md#组件板新增交-d-轨补标本)。
 
 ## 推荐走一遍
 

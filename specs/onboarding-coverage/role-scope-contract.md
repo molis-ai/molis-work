@@ -107,7 +107,7 @@ type CharacterRoleReadOutput = { results: CharacterRoleReadResult[] };
 | `packages/contracts/src/modules/character-role-scope.ts`、`packages/contracts/src/platform/blueprint-source.ts` | 相邻纯合同、来源叶定义。 |
 | `tooling/gates/api/contracts/modules/characters.txt` | `pnpm api:update` 后提交此子路径的变化。 |
 | `tests/character-role-scope-contract.test.ts`、本文 | 公开入口验收和设计说明。 |
-| `docs/design/role-scope/app.js`、`docs/design/role-scope/README.md` | 仅校正用户已定的项目默认停用取值、来源、提示和影响说明。 |
+| `docs/design/archive/role-scope/app.js`、`docs/design/archive/role-scope/README.md` | 仅校正用户已定的项目默认停用取值、来源、提示和影响说明。 |
 
 公共包根、`package.json` exports、SDK、Manifest、Host 动作快照、版本登记、存储／升级、运行时和 UI 均在本片的文件边界之外。主台协调第 36 批目录和第 20 批交接引用。源码按分支合入，只有公开子路径可消费后，P-2b 才能把类型用作交付依据。
 

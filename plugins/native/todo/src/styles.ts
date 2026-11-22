@@ -106,6 +106,8 @@ export const TODO_STYLES = `
      are one set of rules. Type steps: 20 (the todo), 15 (its notes), 13 (rows), 12 (facts). —— */
   .todo-detail { position: relative; overflow: hidden; container: todo-detail / inline-size; }
   .todo-bar { display: flex; align-items: center; gap: 8px; flex: none; height: 48px; padding: 0 16px 0 12px; }
+  /* The page's heading is for screen readers; it still sits on the type scale. */
+  .todo-bar > h1 { font-size: 13px; }
   .todo-save { display: inline-flex; align-items: center; margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
   .todo-save[data-mw-state="unsaved"] { color: var(--ink-soft); }
   .todo-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
@@ -118,9 +120,9 @@ export const TODO_STYLES = `
   .todo-alert[hidden], .todo-alert [hidden] { display: none; }
   .todo-head { grid-area: head; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title acts" "line acts"; align-items: start; gap: 8px 24px; margin-bottom: 28px; }
   .todo-titlebox { grid-area: title; display: grid; gap: 8px; min-width: 0; }
-  /* The platform frames every bare textarea (textarea:not(.mw-textarea)); these two are the page's own text, so the frame is taken off here and only shows on hover and focus. */
-  .todo-detail .todo-editor textarea.todo-name, .todo-detail .todo-editor textarea.todo-notes { display: block; box-sizing: content-box; border: 0; resize: none; overflow: hidden; field-sizing: content; background: transparent; box-shadow: none; color: var(--ink); font: inherit; overflow-wrap: anywhere; cursor: text; }
-  .todo-detail .todo-editor textarea.todo-name { width: 100%; margin: -4px -8px; padding: 4px 8px; border-radius: var(--r-control); font-size: 20px; font-weight: 600; line-height: 1.4; letter-spacing: -.02em; }
+  /* The platform frames every bare textarea (textarea:not(.mw-textarea)); these two are the page's own text, so the frame is taken off here and only shows on hover and focus. They grow by the shared data-fit sizing, without its two-line floor and its cap. */
+  .todo-detail .todo-editor textarea.todo-name, .todo-detail .todo-editor textarea.todo-notes { display: block; box-sizing: content-box; border: 0; resize: none; overflow: hidden; max-height: none; background: transparent; box-shadow: none; color: var(--ink); font: inherit; overflow-wrap: anywhere; cursor: text; }
+  .todo-detail .todo-editor textarea.todo-name { width: 100%; min-height: 0; margin: -4px -8px; padding: 4px 8px; border-radius: var(--r-control); font-size: 20px; font-weight: 600; line-height: 1.4; letter-spacing: -.02em; }
   .todo-detail .todo-editor textarea.todo-name[data-closed] { color: var(--ink-soft); }
   .todo-detail .todo-editor textarea.todo-notes { width: 100%; min-height: 52px; margin: -8px -12px; padding: 8px 12px; border-radius: var(--r-row); font-size: 15px; line-height: 1.7; }
   .todo-name::placeholder, .todo-notes::placeholder { color: var(--faint); font-weight: 400; }
@@ -264,7 +266,7 @@ export const TODO_STYLES = `
   .todo-time { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 8px; padding: 0 8px 4px; font-size: 13px; }
   .todo-time > hr { grid-column: 1 / -1; width: 100%; margin-inline: -4px; }
   .todo-time > label { color: var(--ink-soft); }
-  .todo-time-row { display: flex; align-items: center; gap: 2px; }
+  .todo-time-row { display: flex; align-items: center; gap: 4px; }
   .todo-time-row > .mw-input { box-sizing: border-box; width: 64px; min-height: 28px; margin-right: 4px; padding: 0 8px; text-align: center; font-variant-numeric: tabular-nums; }
   .todo-time-row > .mw-toggle { min-height: 26px; padding: 0 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
   .todo-time > small, .todo-pop-hint { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
@@ -274,7 +276,9 @@ export const TODO_STYLES = `
   .todo-link-pop { display: grid; gap: 8px; width: 320px; padding: 8px; }
   .todo-link-pop > .mw-toggle-group { display: flex; }
   .todo-link-pop > .mw-toggle-group > .mw-toggle { flex: 1; padding: 0 6px; white-space: nowrap; }
-  .todo-link-list { display: grid; max-height: 204px; overflow: auto; }
+  .todo-link-list { display: grid; grid-template-columns: minmax(0, 1fr); max-height: 204px; overflow: hidden auto; }
+  /* A long name is cut, with the status still in view at the end of the row. */
+  .todo-link-list > .mw-menu__item > [data-slot="menu-item-label"] { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .todo-link-list > .todo-none { padding: 8px 12px; }
   .todo-toast { position: absolute; left: 0; right: 0; bottom: 16px; z-index: 22; display: flex; justify-content: center; pointer-events: none; }
   .todo-toast[hidden], .todo-toast [hidden] { display: none; }

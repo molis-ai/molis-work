@@ -58,7 +58,7 @@ const statusItem = ([value, label]: readonly [string, string]) =>
 
 /** One row of the side block: its name on the left, its value on the right, the whole row opens its popover. */
 const prop = (name: string, glyph: Parameters<typeof icon>[0], label: string) =>
-  `<button class="todo-prop" type="button" data-todo-pop-open="${name}" aria-haspopup="dialog" aria-expanded="false">${icon(glyph)}<span class="todo-prop-name">${uiText(label)}</span><span class="todo-prop-value" data-todo-prop-value="${name}"></span>${icon("chevron-down")}</button>`;
+  `<button class="todo-prop" type="button" data-todo-pop-open="${name}" aria-expanded="false">${icon(glyph)}<span class="todo-prop-name">${uiText(label)}</span><span class="todo-prop-value" data-todo-prop-value="${name}"></span>${icon("chevron-down")}</button>`;
 
 export function renderTodoWorkbench(model: TodoUiModel): string {
   const { primitives: p } = model;
@@ -136,7 +136,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
           </div>
           <header class="todo-head">
             <div class="todo-titlebox">
-              <textarea class="todo-name" data-todo-field="title" rows="1" maxlength="200" spellcheck="false" aria-label="${uiText("todo.field.what")}" placeholder="${uiText("todo.field.what")}" aria-describedby="todo-title-error"></textarea>
+              <textarea class="todo-name" data-fit data-todo-field="title" rows="1" maxlength="200" spellcheck="false" aria-label="${uiText("todo.field.what")}" placeholder="${uiText("todo.field.what")}" aria-describedby="todo-title-error"></textarea>
               <p class="todo-title-error" id="todo-title-error" data-todo-title-error role="alert" hidden>${icon("circle-alert")}<span>${uiText("todo.error.title-empty")}</span></p>
             </div>
             <div class="todo-line">
@@ -169,17 +169,17 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
               <div class="todo-wait">
                 <input class="mw-input" data-todo-field="waiting.who" maxlength="80" aria-label="${uiText("todo.field.waiting-who")}" placeholder="${uiText("todo.wait.who-placeholder")}">
                 <input class="mw-input" data-todo-field="waiting.what" maxlength="200" aria-label="${uiText("todo.field.waiting-what")}" placeholder="${uiText("todo.wait.what-placeholder")}">
-                <button class="mw-btn mw-btn--ghost" type="button" data-todo-pop-open="follow" aria-haspopup="dialog" aria-expanded="false">${icon("calendar")}<span data-todo-follow-label></span></button>
+                <button class="mw-btn mw-btn--ghost" type="button" data-todo-pop-open="follow" aria-expanded="false">${icon("calendar")}<span data-todo-follow-label></span></button>
               </div>
             </section>
             <section class="todo-works" data-todo-works-section aria-label="${uiText("todo.link.work")}" hidden><div data-todo-works></div></section>
-            <textarea class="todo-notes" data-todo-field="notes" rows="2" aria-label="${uiText("todo.field.notes")}" placeholder="${uiText("todo.field.notes-placeholder")}"></textarea>
+            <textarea class="todo-notes" data-fit data-todo-field="notes" rows="2" aria-label="${uiText("todo.field.notes")}" placeholder="${uiText("todo.field.notes-placeholder")}"></textarea>
             <section class="todo-section">
               <h2>${uiText("todo.source.title")}<em data-todo-sources-count></em></h2>
               <div class="todo-sources" data-todo-sources></div>
             </section>
             <section class="todo-section">
-              <h2>${uiText("todo.link.title")}<em data-todo-links-count></em><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-todo-pop-open="link" aria-haspopup="dialog" aria-expanded="false">${icon("plus")}<span>${uiText("todo.link.add")}</span></button></h2>
+              <h2>${uiText("todo.link.title")}<em data-todo-links-count></em><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-todo-pop-open="link" aria-expanded="false">${icon("plus")}<span>${uiText("todo.link.add")}</span></button></h2>
               <div data-todo-links></div>
             </section>
             <details class="todo-hist" data-todo-history-fold>
@@ -210,7 +210,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <div class="mw-menu__group">${STATUSES.slice(3).map(statusItem).join("")}</div>
       </div>
       <div class="mw-menu todo-pop" data-todo-pop="place" data-todo-placement-choices role="radiogroup" aria-label="${uiText("todo.field.place")}" hidden></div>
-      <div class="mw-popover todo-pop todo-date" data-todo-pop="date" role="dialog" hidden>
+      <div class="mw-popover todo-pop todo-date" data-todo-pop="date" role="group" hidden>
         <div data-todo-date-quick></div>
         <hr>
         <section class="mw-calendar" data-slot="calendar" data-todo-calendar>
@@ -229,7 +229,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <p class="todo-pop-hint" data-todo-remind-hint hidden>${uiText("todo.field.remind-hint")}</p>
         <div class="todo-pop-foot"><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-todo-date-clear>${uiText("todo.date.clear")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-todo-pop-close>${uiText("todo.date.ok")}</button></div>
       </div>
-      <div class="mw-popover todo-pop todo-link-pop" data-todo-pop="link" role="dialog" aria-label="${uiText("todo.link.add")}" hidden>
+      <div class="mw-popover todo-pop todo-link-pop" data-todo-pop="link" role="group" aria-label="${uiText("todo.link.add")}" hidden>
         <div class="mw-toggle-group" data-slot="toggle-group" role="radiogroup" aria-label="${uiText("todo.link.relation")}">${RELATIONS.map(([value, label], index) => `<button class="mw-toggle${index ? "" : " is-current"}" type="button" role="radio" aria-checked="${!index}" data-todo-link-relation="${value}">${uiText(label)}</button>`).join("")}</div>
         <label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-todo-link-search placeholder="${uiText("todo.link.search")}" aria-label="${uiText("todo.link.search")}"></label>
         <div class="todo-link-list" data-todo-link-list role="listbox" aria-label="${uiText("todo.link.add")}"></div>

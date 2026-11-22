@@ -164,6 +164,7 @@ export function installPops(page: TodoPage): void {
       ring.setAttribute("aria-hidden", "true");
       const text = make("span", "", other.title);
       text.dataset.slot = "menu-item-label";
+      text.title = other.title;
       button.append(ring, text, make("small", "", page.statusName(other.status)));
       box.append(button);
     }

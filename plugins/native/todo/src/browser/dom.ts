@@ -1,3 +1,5 @@
+// The workbench's page helpers on `window` (molisFit …): types only.
+import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 /** Small DOM helpers the Todo page shares. */
 export function make<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -16,11 +18,9 @@ export function arrive(node: HTMLElement | null): void {
   node.classList.add("is-arriving");
 }
 
-/** A text area as tall as what it holds (where the browser does not size it by its content itself). */
+/** After code sets a text area's value: the shared intrinsic sizing (`data-fit`) measures it again. */
 export function fitArea(area: HTMLInputElement | HTMLTextAreaElement): void {
-  area.style.height = "auto";
-  // Not laid out yet (the page is hidden): leave the height to the styles until it is.
-  area.style.height = area.scrollHeight ? `${area.scrollHeight}px` : "";
+  if (area instanceof HTMLTextAreaElement) window.molisFit?.(area);
 }
 
 export const pad = (value: number) => String(value).padStart(2, "0");

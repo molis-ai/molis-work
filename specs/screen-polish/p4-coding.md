@@ -239,6 +239,13 @@ PR 开出后 main 进了 #2101（Coding 的环境检查卡改由读状态的那�
 - **门禁。** `node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`pnpm page-assets:check`、`node scripts/gates/first-screen.mjs --base origin/main`、`pnpm plugin-styles:check`、`node scripts/gates/translations.mjs --missing`（0 个问题）、`node scripts/gates/test-typecheck.mjs`、`pnpm secrets:check` 都通过。页面资源现在按路由总量预算量（逐文件许可已在第 100 批退役），各路由都在预算内，没有新增资源或路径。`node scripts/audit-ui-copy.mjs` 报 1 处英文旧词（`coding.change.note`），是原有文案，不是这次写的。
 - **走查。** 中文、英文各自浅色、深色，1440、1024、390，加 ＋ 菜单和「本轮设置」，截图在 `.impeccable/qa/review/screen-polish/p4b/after/`（不入库），和样稿 `docs/design/screen-polish/` 第 1 屏对过：阅读列 720px、底排「＋ / 会话名 / 任务方式 / 发送」。
 
+**评审后（2026-11-22 同日）又跑的：** 合并 main `2fd376b6d5` 后整体构建。新增与改动的断言——
+`tests/coding-model-controls.e2e.test.ts`：在真实的下拉里用键盘（↓ 打开、↓ 移动、↵ 选中）选模型和思考力度，选完焦点仍在刚用的控件上；Esc 关掉「本轮设置」焦点回到底部输入框；按「本轮改用」后焦点落在模型的选择上。
+`tests/coding-composer-materials.e2e.test.ts`：选了资料以后小标签在输入框上方看得见、底排仍只有「任务方式」、点小标签重新打开资料选择且原来选的还勾着。
+`tests/coding-screen-polish.e2e.test.ts`：打开 ＋ 不用滚动就看得到「本轮设置」；1024 下输入框上方几行不宽于输入框；390 下底排也不超过四个。
+`tests/coding-changeset-http.test.ts`：全部写入被拒时回 0 行、空列表。
+本机一次一个跑过的浏览器文件 12 个（模型控件、逐屏打磨、资料、规则菜单、底栏稳定、Coding 工作台、会话首读、指令、动作卡、底栏收件人、动作选择、触控目标），单元文件 3 个，都通过；其中 Coding 工作台在连跑十个文件的最后一个时等 Git 页面超时一次，单独重跑通过，与本次改动无关的那一步（切到 Git 插件）。其余受影响的浏览器文件交 CI 全量。门禁同上一轮各项重跑通过。走查补了三张图：1024 输入框上方、＋ 菜单、小标签（`.impeccable/qa/review/screen-polish/p4b/after/`，不入库）。
+
 ### 没做和没验证的
 
 - **390 宽时对话区很矮**：量下来对话区 357px，上面是头部 132px，下面是平台输入框 232px（提示行两行加输入框）。Coding 自己能让出来的只有头部的几像素，这次没动；要改得动平台输入框在窄屏下的提示行，记给底栏。

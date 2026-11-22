@@ -222,6 +222,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "scenes",
       "skills"
     ]
   },
@@ -231,7 +232,8 @@
     "keys": [
       "entries",
       "issues",
-      "packs"
+      "packs",
+      "scenes"
     ]
   },
   "GET /api/board": {
@@ -535,6 +537,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "scenes",
       "skills"
     ]
   },
@@ -544,7 +547,8 @@
     "keys": [
       "entries",
       "issues",
-      "packs"
+      "packs",
+      "scenes"
     ]
   },
   "GET <project>/api/plugin-trust/overview": {

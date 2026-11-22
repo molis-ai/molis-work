@@ -5,7 +5,7 @@ import { closedObjectSchema as object } from "./closed-object-schema.js";
 import type { ExternalToolId } from "./external-tools.js";
 import type { AgentRoleExecution } from "./plugin-agent.js";
 import type { PersonalCharacterRef, ProjectCharacterMemberRef } from "../modules/character-role-scope.js";
-import { SKILL_CATALOG_ENTRY_SCHEMA, type SkillCatalogEntry, type SkillPackTrust } from "../services/skills.js";
+import { SKILL_CATALOG_ENTRY_SCHEMA, SKILL_SCENE_CHOICE_SCHEMA, type SkillCatalogEntry, type SkillPackTrust, type SkillSceneChoice } from "../services/skills.js";
 
 // What each owner reports of its own AI kit entries — Skills, prompts, roles, tools, MCP — for the kit page (`kit.catalog.list@1`,
 // `services/kit`) to gather into packs (specs/capability-pack/contract-design.md §4.5, §4.6). The Host finds reporters by these two
@@ -153,7 +153,7 @@ export interface KitReportedPack {
   exportable?: true;
   upgraded?: { from: string; to: string; at: string };
 }
-export interface KitReport { entries: KitReportedEntry[]; packs?: KitReportedPack[] }
+export interface KitReport { entries: KitReportedEntry[]; packs?: KitReportedPack[]; scenes?: SkillSceneChoice[] }
 
 /** Limits written into the schemas (§4.5). */
 export const KIT_LIMITS = { nameChars: 200, descriptionChars: 2000, where: 20, whereChars: 200, declared: 64, entriesPerReporter: 2000, rolesPerPack: 64 } as const;
@@ -242,6 +242,7 @@ export const KIT_REPORT_OUTPUT_SCHEMA: ActionSchema = object({
   entries: { type: "array", maxItems: KIT_LIMITS.entriesPerReporter, items: KIT_REPORTED_ENTRY_SCHEMA },
   packs: { type: "array", maxItems: KIT_LIMITS.entriesPerReporter, items: object({ source: pluginSource, description: text(KIT_LIMITS.descriptionChars),
     status: { enum: ["enabled", "disabled", "uninstalled"] }, exportable: { const: true }, upgraded }, ["source", "description", "status"]) },
+  scenes: { type: "array", maxItems: 200, items: SKILL_SCENE_CHOICE_SCHEMA },
 }, ["entries"]);
 
 /**

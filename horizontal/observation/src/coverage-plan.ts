@@ -19,7 +19,9 @@ const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "rep
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // This covers the protected Goal source review (`goals.inputs.review_source`, `goals.inputs.review_change`),
-  // fixed Pages comparison (`pages.artifacts.diff`) and Form-to-Dataset delivery (`placement.convert`, `dataset.content.receive`).
+  // fixed Pages comparison (`pages.artifacts.diff`), Form-to-Dataset delivery (`placement.convert`, `dataset.content.receive`),
+  // and dynamic Skill/Kit scene candidate reads and bindings (`kit.catalog.list`, `skills.kit.report`, `skills.catalog.list`,
+  // `skills.import.preview`, `skills.import.confirm`, `skills.drafts.adopt`, `plugins.install.preview`).
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", "schedule", "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.

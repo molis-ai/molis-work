@@ -3,6 +3,7 @@ import { askingMarkup, draftFromSentence } from "./authoring.js";
 import { draftEditing, type DraftEditing } from "./draft-editing.js";
 import { draftTurns, type DraftTurns } from "./draft-turns.js";
 import { listDrafts, messageOf, readDraft } from "./drafts.js";
+import { skillScenes } from "./scenes.js";
 import { skillActions } from "./skill-actions.js";
 import { writingContext, type WritingContext, type WritingPage } from "./writing-context.js";
 import { draftsStrip, workshopMarkup } from "./workshop.js";
@@ -99,7 +100,14 @@ export function skillWriting(page: WritingPage) {
     if (name === "au-self") return edit.create(asking.scope, { kind: "new" });
     if (name !== "au-draft") return;
     asking.busy = true; asking.failure = undefined; draw();
-    try { const fields = await draftFromSentence(project, asking.intent); if (view.asking === asking) await edit.create(asking.scope, { kind: "new" }, fields); }
+    try {
+      const fields = await draftFromSentence(project, asking.intent);
+      if (asking.scope === "home" && fields.applies_to !== "assistant" && fields.applies_to !== "both"
+        && !skillScenes("home").some(row => row.scene === fields.applies_to)) {
+        fields.applies_to = "assistant";
+      }
+      if (view.asking === asking) await edit.create(asking.scope, { kind: "new" }, fields);
+    }
     catch (cause) { asking.busy = false; asking.failure = messageOf(cause); if (view.asking === asking) draw("au-failure"); }
   }
 

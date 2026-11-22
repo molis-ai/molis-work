@@ -7,7 +7,7 @@ import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { HomeConsentLedger, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { newPublisher } from "./fixtures/sandbox-package.js";
+import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { signedContentPackage } from "./fixtures/content-package.js";
 
 test("SKC-05 the explicit dedicated browser accepts a CI wrapper and refuses personal Chrome or fallback", async () => {
@@ -160,4 +160,96 @@ test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the act
   await go("/settings/kit");
   await page.wait("document.querySelector('[data-kit-settings][data-project=\"\"] .kit-summary')?.textContent.length > 0", { describe: "JSON.stringify([...document.querySelectorAll('[data-kit-settings]')].map(n => ({project:n.dataset.project,text:n.innerText})))" });
   assert.equal(await page.evaluate("document.querySelector('[data-kit-settings][data-project=\"\"]').innerText.includes('meeting-notes')"), false, "project state and installation never leak into Home catalog");
+});
+
+test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox package scene is visible and bindable in Skill settings, isolated from Home, and disappears after disable and uninstall", { skip: process.platform !== "darwin", timeout: 180_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-third-party-scene-ui-"));
+  let browser: ChromeHarness | undefined;
+  t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  const f = await serveHomeRuntime(t), project = await f.project("Third-party scene settings");
+  browser = await ChromeHarness.start(directory, { executable: requiredHeadlessTestBrowser() });
+  const page = await browser.page();
+  await page.command("Runtime.enable");
+  const go = async (path: string) => {
+    await page.evaluate("globalThis.scenePreviousDocument = true");
+    await page.command("Page.navigate", { url: f.origin + path });
+    await page.wait("!globalThis.scenePreviousDocument && document.readyState === 'complete'");
+  };
+  const openNewDraftForm = async () => {
+    await page.wait("!!document.querySelector('[data-kit-body] .mw-item__pick')");
+    await page.click('[data-kit-settings] [data-kit-act="skill-new"]');
+    await page.wait("!!document.querySelector('[data-kit-settings] [data-kit-act=\"au-self\"]')");
+    await page.click('[data-kit-settings] [data-kit-act="au-self"]');
+    await page.wait("!!document.querySelector('[data-kit-settings] [data-kit-act=\"au-applies\"]')");
+  };
+
+  // 1. Install a real signed third-party sandbox package declaring `memory_scene: "field-notes"` through `/settings/plugins`.
+  await go(`/projects/${project.project_id}/settings/plugins`);
+  await page.wait("!!document.querySelector('[data-plugin-trust-pick]')");
+  const bundle = signedPackage(newPublisher(), undefined, { pluginId: "io.molis.work.example.field-notes", name: "Field Notes", memoryScene: "field-notes" });
+  const file = join(directory, "field-notes.json");
+  await writeFile(file, JSON.stringify(bundle));
+  const doc = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");
+  const input = await page.command<{ nodeId: number }>("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "[data-plugin-trust-pick]" });
+  await page.command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] });
+  await page.wait("document.querySelector('[data-plugin-trust-preview]')?.innerText.includes('Field Notes')", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
+  await page.fill("[data-plugin-trust-preview] input", "Field Notes Publisher");
+  await page.click("[data-plugin-trust-preview] .mw-btn--primary");
+  await page.wait("document.querySelector('[data-plugin-trust-preview]')?.hidden === true", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
+
+  // 2. Open project Skill settings (`/projects/:id/settings/kit`): `"Field Notes"` is visible & bindable on a new Skill.
+  await go(`/projects/${project.project_id}/settings/kit`);
+  await openNewDraftForm();
+  assert.equal(await page.evaluate("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')?.textContent?.trim()"), "Field Notes");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"both\"]')?.textContent ?? ''"), /Field Notes/);
+  await page.fill("#au-name", "现场纪要方法");
+  await page.fill("#au-description", "整理现场笔记时使用。");
+  await page.fill("#au-body", "# 现场纪要\n\n按时间线列出关键观察。");
+  await page.click('[data-kit-settings] [data-kit-act="au-applies"][data-kit-v="field-notes"]');
+  await page.wait("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')?.getAttribute('aria-pressed') === 'true'");
+  await page.wait("document.querySelector('[data-sk-bar] .mw-adopt-bar__status')?.innerText.includes('已自动保存')");
+  await page.click('[data-kit-settings] [data-kit-act="sk-adopt"]');
+  await page.wait("document.querySelector('[data-kit-notice]')?.innerText.includes('已采用')");
+  await page.wait("!!document.querySelector('[data-kit-skill] .mw-facts')");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-kit-skill] .mw-facts')?.innerText ?? ''"), /Field Notes/);
+  assert.match(await page.evaluate<string>("document.querySelector('.kit-outer')?.innerText ?? ''"), /Field Notes/);
+
+  // 3. Home Skill settings (`/settings/kit`) must NOT expose the project-only third-party scene.
+  await go("/settings/kit");
+  await openNewDraftForm();
+  assert.equal(await page.evaluate("!!document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')"), false, "project scene must not appear in Home Skill settings");
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"both\"]')?.textContent ?? ''"), /Field Notes/);
+
+  // 4. Disable the plugin: `"Field Notes"` disappears immediately from project Skill settings.
+  const disableResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/disable`, { method: "POST", body: { plugin_id: "io.molis.work.example.field-notes" } });
+  assert.equal(disableResp.status, 200);
+  await go(`/projects/${project.project_id}/settings/kit`);
+  await openNewDraftForm();
+  assert.equal(await page.evaluate("!!document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')"), false, "disabled plugin scene disappears immediately");
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"both\"]')?.textContent ?? ''"), /Field Notes/);
+
+  // 5. Re-enable brings it back; uninstall (`keep_data: true`) removes it immediately again.
+  const overview = await (await f.request(`/projects/${project.project_id}/api/plugin-trust/overview`)).json() as {
+    plugins: Array<{ plugin_id: string; install_id: string; installation_generation: string; manifest_digest: string; version: string; uninstall_target: unknown }>;
+  };
+  const row = overview.plugins.find(item => item.plugin_id === "io.molis.work.example.field-notes")!;
+  const enableResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/enable`, {
+    method: "POST",
+    body: { plugin_id: "io.molis.work.example.field-notes", expected_installation: { scope: "project", install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } },
+  });
+  assert.equal(enableResp.status, 200);
+  await go(`/projects/${project.project_id}/settings/kit`);
+  await openNewDraftForm();
+  assert.equal(await page.evaluate("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')?.textContent?.trim()"), "Field Notes");
+
+  const overview2 = await (await f.request(`/projects/${project.project_id}/api/plugin-trust/overview`)).json() as typeof overview;
+  const target = overview2.plugins.find(item => item.plugin_id === "io.molis.work.example.field-notes")!.uninstall_target;
+  const uninstallResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/uninstall`, {
+    method: "POST", body: { plugin_id: "io.molis.work.example.field-notes", keep_data: true, target },
+  });
+  assert.equal(uninstallResp.status, 200);
+  await go(`/projects/${project.project_id}/settings/kit`);
+  await openNewDraftForm();
+  assert.equal(await page.evaluate("!!document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')"), false, "uninstalled plugin scene disappears immediately");
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"both\"]')?.textContent ?? ''"), /Field Notes/);
 });

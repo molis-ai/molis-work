@@ -18,6 +18,8 @@ export const ADDRESSES_NEVER_PUBLIC: readonly string[] = [
   "::", "::1", "fc00::1", "fd12:3456::1", "fe80::1", "ff02::1",
   "::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:10.0.0.1", "::ffff:a00:1", "0:0:0:0:0:ffff:7f00:1", "::127.0.0.1",
   "64:ff9b::7f00:1", "2002:7f00:1::1", "2001::1", "2001:db8::1",
+  // MR21-11: the ranges the four copies used to answer differently, before there was one table
+  "3fff::1", "2001:10::1",
 ];
 
 /** Always public. */

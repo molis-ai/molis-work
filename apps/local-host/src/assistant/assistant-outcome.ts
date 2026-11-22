@@ -2,6 +2,7 @@ import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/ag
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { cardOutcomeSteps, type NextStep, type NextStepSay } from "../agent-next-steps.js";
 import { deliveryNote, deliverySteps, isOpenable, type DeliveryNote } from "./assistant-delivery.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** The most steps the outcome slot gives the row; the row shows three in all and folds the rest. */
 const OUTCOME_STEPS = 2;
@@ -37,7 +38,7 @@ function cardOutcome<Word>(view: AssistantWorkView, say: NextStepSay<Word>): Nex
 /** What the latest round made, or the same words again when it failed. */
 function roundOutcome<Word>(view: AssistantWorkView, say: NextStepSay<Word>): NextStep<Word>[] {
   const last = view.rounds.at(-1);
-  if (last?.phase === "failed") return [{ id: "retry", label: say("workbench.assistant-outcome.try-the-same-words-again"), source: last.text.slice(0, 200) }];
+  if (last?.phase === "failed") return [{ id: "retry", label: say("workbench.assistant-outcome.try-the-same-words-again"), source: cutHead(last.text, 200) }];
   if (last?.phase !== "completed") return [];
   return view.objects.filter(object => object.relation === "result" && isOpenable(object)).slice(0, OUTCOME_STEPS)
     .map((object, index) => ({ id: `open:${object.subject.kind}:${object.subject.id}`, label: say("workbench.assistant-outcome.open-title", { title: object.title }), source: say("workbench.assistant-outcome.what-this-turn-made"),

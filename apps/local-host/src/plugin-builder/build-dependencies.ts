@@ -85,8 +85,11 @@ async function unpack(stage: string, archive: string, target: string, max: numbe
     const kill = (reason: Error) => { failure ??= reason; if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); } } };
     const timer = setTimeout(() => kill(new Error('Dependency unpack timed out')), 10_000);
     const abort = () => kill(new Error('Dependency installation cancelled')); signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
-    child.stdout.on('data', chunk => { output += String(chunk); if (output.length > 1024 * 1024) kill(new Error('Unpack result exceeds limit')); });
-    child.stderr.on('data', chunk => { error += String(chunk); if (error.length > 8192) kill(new Error('Unpack diagnostics exceed limit')); });
+    // Decoded as a stream: a character split across two chunks stays one character (MR21-12).
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => { output += chunk; if (output.length > 1024 * 1024) kill(new Error('Unpack result exceeds limit')); });
+    child.stderr.on('data', (chunk: string) => { error += chunk; if (error.length > 8192) kill(new Error('Unpack diagnostics exceed limit')); });
     child.on('error', reject);
     child.on('close', code => { clearTimeout(timer); signal?.removeEventListener('abort', abort); if (failure || code !== 0) reject(failure ?? new Error(`Dependency rejected by sandbox unpacker: ${error.slice(0, 2000)}`)); else { try { resolve(JSON.parse(output)); } catch { reject(new Error('Invalid unpack result')); } } });
   });

@@ -72,34 +72,50 @@ export function startWebProjectSchedulers(options: {
   const rounds = repeatingFailure("schedule", "round_failed");
   const ran = (key: string) => rounds.worked(key);
   const failed = (key: string, schedule: "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
+  // A round starts every project's tick and returns at once: one project's long wakeup (a model call, an outside service) must not
+  // hold the next round, so the others keep running every 30 seconds (the scheduler's claim keeps a job from running twice). Only
+  // stop() waits for the ticks still in flight.
   const inFlight = new Set<Promise<void>>();
-  const round = () => runWithMolisWorkHome(homeDirectory, async () => {
-    const ticks: Promise<void>[] = [];
+  // How many ticks of each project are still running: a round no longer waits for them, so none of those is put to sleep meanwhile.
+  const ticking = new Map<string, number>();
+  // After a round, a project nobody has used for `idleMs` and with nothing running is put to sleep, unless its clock is due within the
+  // next two rounds: it would only be opened again. A call that comes later opens it, and its clock wakes it when something is due.
+  // A round does not wait for its ticks, so a project whose tick is still running is offered when its last tick settles, not before.
+  type OpenProject = ReturnType<typeof localHost.projects>[number];
+  const offerSleep = async (project: OpenProject) => {
+    if (fixture || stopped || project.state !== "ready" || ticking.has(project.storage_key)) return;
+    if (isDue(project.storage_key, new Date(Date.now() + 2 * ROUND_MS).toISOString())) return;
+    try { await localHost.sleepIfIdle(project, options.idleMs ?? PROJECT_IDLE_MS); }
+    catch (error) { if (!stopped) options.onError(error); }
+  };
+  const sleepIdle = async () => {
+    for (const project of localHost.projects()) {
+      if (stopped) return;
+      await offerSleep(project);
+    }
+  };
+  const round = () => runWithMolisWorkHome(homeDirectory, () => {
     for (const [databasePath, runtime] of runtimes) {
+      ticking.set(databasePath, (ticking.get(databasePath) ?? 0) + 1);
       const tracked = withCallId(newCallId(), () => runtime.schedule.tick())
         .then(result => {
           ran(`tasks:${databasePath}`);
           if (!stopped && result.invoked) changed(databasePath);
         })
         .catch(failed(`tasks:${databasePath}`, "tasks"))
-        .finally(() => { inFlight.delete(tracked); });
+        .finally(async () => {
+          const left = (ticking.get(databasePath) ?? 1) - 1;
+          if (left > 0) ticking.set(databasePath, left);
+          else {
+            ticking.delete(databasePath);
+            const project = fixture ? undefined : localHost.projects().find(open => open.storage_key === databasePath);
+            if (project) await offerSleep(project);
+          }
+          inFlight.delete(tracked);
+        });
       inFlight.add(tracked);
-      ticks.push(tracked);
     }
-    await Promise.all(ticks);
   });
-  // After a round, a project nobody has used for `idleMs` and with nothing running is put to sleep, unless its clock is due within the
-  // next two rounds: it would only be opened again. A call that comes later opens it, and its clock wakes it when something is due.
-  const sleepIdle = async () => {
-    if (fixture) return;
-    const soon = new Date(Date.now() + 2 * ROUND_MS).toISOString();
-    for (const project of localHost.projects()) {
-      if (stopped) return;
-      if (project.state !== "ready" || isDue(project.storage_key, soon)) continue;
-      try { await localHost.sleepIfIdle(project, options.idleMs ?? PROJECT_IDLE_MS); }
-      catch (error) { if (!stopped) options.onError(error); }
-    }
-  };
   const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: ROUND_MS,
     run: () => openDue().then(() => { if (!stopped) return round(); }).then(() => { if (!stopped) return sleepIdle(); }) });
   return { runtimes, activeCount: () => inFlight.size, stop: () => stopping ??= (async () => {

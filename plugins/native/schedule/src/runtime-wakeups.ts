@@ -32,7 +32,8 @@ function notificationTitle(title: string): string {
 export function tellOpenPages(ui: Pick<PluginHostServices["ui"], "invalidate">, caller: Pick<ActionExecutionContext, "signal" | "assert_authority_current">): void {
   if (caller.signal?.aborted) return;
   try { caller.assert_authority_current?.(); } catch { return; }
-  ui.invalidate();
+  // Telling pages is a courtesy after the work is done: a plugin being stopped cannot be told, and that never replaces the result.
+  try { ui.invalidate(); } catch { /* the pages read again on their own */ }
 }
 
 /**

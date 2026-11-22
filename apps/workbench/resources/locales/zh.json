@@ -5289,8 +5289,6 @@
     "workbench.plugin-event-recovery.original-handler-may-already-have-produced-result-check": "原处理可能已经产生结果。先核对实际结果；重试会再次处理，跳过只结束这一条通知。",
     "workbench.plugin-event-recovery.outcome-could-not-be-confirmed-refresh-review-before": "无法确认处理结果，请重新读取后核对。",
     "workbench.plugin-event-recovery.plugin-notifications-review": "待核对的插件通知",
-    "workbench.plugin-event-recovery.reason-retried": "由用户在工作台确认重试",
-    "workbench.plugin-event-recovery.reason-skipped": "由用户在工作台确认跳过",
     "workbench.plugin-event-recovery.reload": "重新读取",
     "workbench.plugin-event-recovery.retry-action": "重试",
     "workbench.plugin-event-recovery.retry-requested": "已请求重试",

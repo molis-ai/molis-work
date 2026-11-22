@@ -7,6 +7,7 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { assistantErrors } from "./assistant-errors.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** The person's own action client in a project, as far as the Assistant's reads of other plugins need it. */
 export interface PersonActions {
@@ -118,7 +119,7 @@ export class WorkExecutor {
   state(): Promise<WorkExecutorState> { return this.call("state", {}); }
 
   async createSession(title: string, mode?: string): Promise<string> {
-    return (await this.call("session.open", { title: title.slice(0, 200), ...(mode ? { mode } : {}) })).session_id;
+    return (await this.call("session.open", { title: cutHead(title, 200), ...(mode ? { mode } : {}) })).session_id;
   }
 
   read(sessionId: string, window = 6): Promise<WorkExecutorSession> { return this.call("session.read", { session_id: sessionId, window }); }

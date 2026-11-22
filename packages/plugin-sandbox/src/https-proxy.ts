@@ -4,6 +4,7 @@ import { request as httpsRequest } from 'node:https';
 import type { SandboxNetworkRequest, SandboxNetworkResponse } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServiceContext, SandboxServices } from './broker.js';
 import { SandboxError } from './schema.js';
+import { isPublicAddress } from '@molis-ai/molis-work-contracts/platform/public-address';
 
 export interface SandboxSecret { value: string; header: string; prefix?: string; domains: string[] }
 export interface HttpsProxyOptions {
@@ -13,26 +14,8 @@ export interface HttpsProxyOptions {
   requestBytes?: number; responseBytes?: number; timeoutMs?: number;
 }
 
-/** Conservative public-unicast policy. IPv6 only permits global 2000::/3, excluding transition ranges. */
-export function isPublicAddress(address: string): boolean {
-  const family = isIP(address);
-  if (family === 4) {
-    const [a, b, c] = address.split('.').map(Number) as [number, number, number, number];
-    if (a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19))) return false;
-    if ((a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113) || (a === 192 && b === 88 && c === 99)) return false;
-    return true;
-  }
-  if (family === 6) {
-    // Mapped IPv4, ULA, link-local, multicast, loopback and NAT64 are outside this range.
-    const first = Number.parseInt(address.split(':')[0]!, 16);
-    if (!Number.isFinite(first) || first < 0x2000 || first > 0x3fff) return false;
-    const normalized = new URL(`https://[${address}]/`).hostname.slice(1, -1).toLowerCase();
-    const second = Number.parseInt(normalized.split(':')[1] || '0', 16);
-    if (normalized.startsWith('2001:db8:') || first === 0x2002 || first === 0x3fff || (first === 0x2001 && second < 0x200)) return false;
-    return true;
-  }
-  return false;
-}
+/** The platform's one public-address table (S-10); the sandbox proxy takes no fake-IP answer: a plugin's name is resolved by the trusted host. */
+export { isPublicAddress };
 
 export function validateNetworkRequest(request: SandboxNetworkRequest, approvedDomains: string[], limit: number): URL {
   if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).some(k => !['url', 'method', 'headers', 'body', 'secretRefs'].includes(k))) throw new SandboxError('sandbox.invalid_request', 'Invalid network request fields');

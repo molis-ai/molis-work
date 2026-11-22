@@ -15,8 +15,7 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingHttpHeaders } from 'node:http';
-import { isIP } from 'node:net';
-import { isPublicAddress } from '@molis-ai/molis-work-plugin-sandbox';
+import { isPublicAddress } from '@molis-ai/molis-work-contracts/platform/public-address';
 
 const TIMEOUT_MS = 15_000, MAX_BODY = 1024 * 1024;
 
@@ -29,7 +28,7 @@ export function publicAddress(address: string): boolean {
   // 198.18.0.0/15 stays reachable (the user's decision, 2026-09-27): a proxy in fake-IP mode (Clash, Surge, Stash)
   // answers every name from it and connects by that name; without such a proxy nothing is routed there. Plugins
   // reach sites only by an approved name, never by an address they write themselves.
-  return isPublicAddress(address) || (isIP(address) === 4 && /^198\.1[89]\./.test(address));
+  return isPublicAddress(address, { fakeIpProxy: true });
 }
 
 export type PublicLookup = (hostname: string, callback: (error: Error | null, addresses: LookupAddress[]) => void) => void;

@@ -161,7 +161,8 @@ test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab s
   // separate product gap from the radio groups this test proves rove in a Home frame.
   await todo.evaluate("document.querySelector('[data-todo-row] [data-todo-id]').click()");
   await todo.waitFor("!document.querySelector('[data-todo-stage-workspace]').hidden", 20_000);
-  await todo.waitFor("document.querySelectorAll('[data-todo-placement-choices] [role=radio]').length >= 2", 20_000);
+  await todo.click('[data-todo-pop-open="place"]');
+  await todo.waitFor("document.querySelector('[data-todo-placement-choices]')?.checkVisibility() && document.querySelectorAll('[data-todo-placement-choices] [role=radio]').length >= 2", 20_000);
   await todo.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // The status choices are aria-pressed toggle buttons (the same markup on the project page), so the shared audit's
   // radiogroup definition — radios in a radiogroup — reads the placement choices group, not it.

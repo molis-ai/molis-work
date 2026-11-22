@@ -72,7 +72,6 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   const WORKSPACE_SHORTCUTS = ["Mod+BracketLeft", "Mod+BracketRight", "Alt+ArrowLeft", "Alt+ArrowRight", "Mod+Shift+T", "Mod+Shift+Enter"];
   const ownsWorkspace = Boolean(document.querySelector("[data-tab-workspace], .workspace-history"));
   if (ownsWorkspace) shortcuts.push(...WORKSPACE_SHORTCUTS);
-  shortcuts.push("Mod+Period");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
   // Hand DOM and WindowProxy focus into the opaque child iframe only after it reports ready so an
   // uncommitted OOPIF swap never drops focus while Chromium 158+ still allows its internal .focus() call.
@@ -90,7 +89,7 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
     if (message.type === "close-side") {
       if (side && parent !== window) parent.postMessage({ type: "molis:side-close" }, location.origin);
     } else if (shortcuts.includes(message.keys)) {
-      const localWorkspaceChord = ownsWorkspace && (WORKSPACE_SHORTCUTS.includes(message.keys) || message.keys === "Mod+Period");
+      const localWorkspaceChord = ownsWorkspace && WORKSPACE_SHORTCUTS.includes(message.keys);
       if (parent !== window && !localWorkspaceChord) parent.postMessage({ type: "molis:side-key", keys: message.keys }, location.origin);
       else {
         // Dispatch on `document` with `bubbles: true` so both `document` listeners (tab-workspace, plugin-tab-groups,
@@ -132,17 +131,20 @@ export function childNavigation(port: MessagePort, scope: FrameScope, config: Fr
   scope.listen(window, "keydown", event => {
     const key = event as KeyboardEvent;
     if (key.repeat || key.isComposing || key.defaultPrevented) return;
+    if (document.querySelector("dialog[open],:popover-open")) return;
     const mac = isMacPlatform();
     const chord = normalizeChildShortcut(key, mac);
     const target = key.target instanceof Element ? key.target : null;
     const inTerminal = Boolean(target?.closest("[data-tui-pane],.xterm"));
-    const inEditable = inTerminal || Boolean(target?.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"]'));
-    if (inTerminal && ["Mod+K", "Mod+F", "Mod+BracketLeft", "Mod+BracketRight", "Mod+Shift+T", "Mod+Shift+Enter", "Mod+Period", "Alt+ArrowLeft", "Alt+ArrowRight"].includes(chord)) return;
+    const inEditable = inTerminal
+      || Boolean(target instanceof HTMLElement && target.isContentEditable)
+      || Boolean(target?.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"]'));
+    if (inTerminal && ["Mod+K", "Mod+F", "Mod+BracketLeft", "Mod+BracketRight", "Mod+Shift+T", "Mod+Shift+Enter", "Alt+ArrowLeft", "Alt+ArrowRight"].includes(chord)) return;
     if (inEditable && ["Mod+Shift+T", "Mod+Shift+Enter", "Alt+ArrowLeft", "Alt+ArrowRight"].includes(chord)) return;
     if (!mac && (chord === "Mod+BracketLeft" || chord === "Mod+BracketRight")) return;
     if (mac && (chord === "Alt+ArrowLeft" || chord === "Alt+ArrowRight")) return;
     if (chord && config.shortcuts.includes(chord)) { key.preventDefault(); port.postMessage({ type: "shortcut", keys: chord } satisfies FrameUp); }
-    else if (config.side && key.key === "Escape" && !document.querySelector("dialog[open],:popover-open")) {
+    else if (config.side && key.key === "Escape") {
       key.preventDefault(); port.postMessage({ type: "close-side" } satisfies FrameUp);
     }
   });

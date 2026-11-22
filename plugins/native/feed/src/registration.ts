@@ -22,6 +22,7 @@ export const registration: PluginRegistration = {
     order: 5,
     contributions: [feedUiContribution],
     stylesheet: FEED_STYLES,
+    frameStyleFeatures: ["keep-edits", "source-ladder", "detail-reading"],
     stylesheetPrefixes: ["source-"],
     surfaceAliases: ["sources"],
     searchRow: { selector: "[data-feed-task-toggle]", idDataset: "feedTaskToggle" },

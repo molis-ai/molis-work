@@ -108,16 +108,21 @@ function openPlugin(host: FrameHost, surface: unknown, prefix: string, view?: un
 }
 
 /** D0124/D0335: one typed UI boundary, after the live/visible frame check. */
-function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined): void {
+function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement): void {
   const args = message.args;
   if (!Array.isArray(args) || args.length > 3) return;
   const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
+  const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
   if (message.name === "showToast") {
     if (text(args[0], 4000) && (args[1] === undefined || typeof args[1] === "boolean")) host.showToast?.(args[0], args[1] === true);
   } else if (message.name === "openPlugin") {
-    if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) openPlugin(host, args[0], prefix, args[1], args[2]);
+    if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) {
+      if (paneId) host.focusPane?.(paneId);
+      openPlugin(host, args[0], prefix, args[1], args[2]);
+    }
   } else if (message.name === "openItem" || message.name === "openBeside") {
     if (!text(args[0], 101) || !/^[a-z][a-z0-9-]{0,100}$/u.test(args[0]) || !text(args[1]) || !args[1] || (args[2] !== undefined && !text(args[2]))) return;
+    if (paneId) host.focusPane?.(paneId);
     if (message.itemTabId !== undefined) {
       if (message.name !== "openItem" || message.itemTabId !== tabId) return;
       host.openItem?.(pack.id, args[1], args[2], undefined, { from: pack.id });
@@ -266,8 +271,9 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.own(cancelDocuments);
   const terminal = frameTerminal(port, scope, grant.page_id);
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
-  const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
-  const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side));
+  let childReady = false;
+  const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side), frame, () => childReady);
+  const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side), root);
   const makeIntake = pageIntake(scope, frame, root);
   const placement = pagePlacement(port, scope, root, frame);
   const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
@@ -357,7 +363,14 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "placement-slots" || message.type === "placement-open") { placement(message); return; }
     if (message.type === "surface-slot-open" || message.type === "surface-slot-layout" || message.type === "surface-slot-close") { surfaceSlot(message); return; }
     if (message.type === "review-show" || message.type === "review-layout" || message.type === "review-close") { void reviews(message); return; }
-    if (message.type === "open-behind") { if (scope.visible && typeof message.itemId === "string" && message.itemId.length <= 1000 && typeof message.title === "string") host.openBehind?.(pack.id, message.itemId, message.title.slice(0, 1000)); return; }
+    if (message.type === "open-behind") {
+      if (scope.visible && typeof message.itemId === "string" && message.itemId.length <= 1000 && typeof message.title === "string") {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+        host.openBehind?.(pack.id, message.itemId, message.title.slice(0, 1000));
+      }
+      return;
+    }
     if (message.type === "workspace") { void workspaces(message); return; }
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
@@ -372,10 +385,31 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "context-intake") { makeIntake(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
     if (message.type === "modal") { modal(message.open); return; }
-    if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
-    if (message.type === "shortcut" || message.type === "close-side") { navigation.receive(message); return; }
+    if (message.type === "interaction") {
+      if (scope.visible) {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+        window.dispatchEvent(new CustomEvent("molis:surface-interaction"));
+      }
+      return;
+    }
+    if (message.type === "shortcut" || message.type === "close-side") {
+      if (scope.visible && message.type === "shortcut") {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+      }
+      navigation.receive(message);
+      return;
+    }
     if (message.type === "terminal") { void terminal(message); return; }
-    if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
+    if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") {
+      if (scope.visible && message.type === "context-key") {
+        const paneId = root.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+        if (paneId) host.focusPane?.(paneId);
+      }
+      void contextMessage(message);
+      return;
+    }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (message.type === "knowledge-pick") { pickMaterials(message); return; }
@@ -406,12 +440,13 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
       else if (message.type === "ready") {
         clearTimeout(deadline);
+        childReady = true;
         if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
         root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); readyResolve();
       }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui") {
-        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId);
+        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
         else navigate(root, message, route(""), returns.link);
@@ -434,7 +469,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => { state(); port.postMessage({ type: "model-ready" }); });
   bindFrameDocument(frame, root, businessScope, challenge => frameDocument(root, pack, challenge, environment.initial), channel.port2, async () => ({
-    mount: clientMount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
+    mount: clientMount, subjectSurfaces: surfaces, search: root.dataset.paneSearch || location.search, origin: location.origin,
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
     nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, bar: task ? false : barTakes(Boolean(host.side), mount?.target_slot_id), ...(task ? { task: task.input() } : {}), appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),

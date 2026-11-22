@@ -11,7 +11,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     const event = current(); if (!event?.subject) return null;
     const key = keyOf(event.subject);
     if (!states.has(key)) {
-      let pending = null; try { pending = JSON.parse(sessionStorage.getItem('molis.home-action:' + key) || 'null'); } catch {}
+      let pending = null; try { pending = JSON.parse(sessionStorage.getItem('molis.home-action:' + key) || 'null'); } catch { /* Ignore unavailable or corrupt home-action draft. */ }
       states.set(key, { key, subject: event.subject, requestId: pending?.request_id || crypto.randomUUID(), pending: pending?.offer || null,
         offers: [], issues: [], loading: false, busy: false, reloadRequested: false, loadedAt: 0, error: '', result: null, confirming: null });
     }

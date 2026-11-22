@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { checkSqliteBaselineVersion, assertSqliteBaselineShape, readDatabaseSpace, readStorageSpace, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
+import { checkSqliteBaselineVersion, assertSqliteBaselineShape, withHeldHomeSqlite, readDatabaseSpace, readStorageSpace, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
@@ -22,14 +22,16 @@ function assertHomeStoreShape(db: Parameters<typeof assertSqliteBaselineShape>[0
   catch (error) { if (isSqliteSchemaStructureMismatch(error)) throw invalidHomeStoreShape(); throw error; }
 }
 
+/** The storage baseline refuses a same-version changed structure before opening writable; this store names that refusal itself. */
+function namedOpenRefusal(error: unknown): unknown {
+  if (isSqliteSchemaStructureMismatch(error)) return invalidHomeStoreShape();
+  if (isSqliteVersionRefusal(error)) return refusedHomeStore(error);
+  return error;
+}
+
 function openWritableHomePluginDatabase(home: string) {
   try { return openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE); }
-  catch (error) {
-    // The storage baseline refuses a same-version changed structure before opening writable; this store names that refusal itself.
-    if (isSqliteSchemaStructureMismatch(error)) throw invalidHomeStoreShape();
-    if (isSqliteVersionRefusal(error)) throw refusedHomeStore(error);
-    throw error;
-  }
+  catch (error) { throw namedOpenRefusal(error); }
 }
 
 /** Validate the complete current structure before any repository constructor can create a missing table. */
@@ -71,14 +73,19 @@ export const HOME_PLUGIN_RUNTIME_HOME_STORE: HomeStoreDeclaration = { path: "plu
 
 /**
  * The Home's consent ledger and pinned publishers, for the project platforms of this Home (the Home's own Runtime holds the store open
- * and uses it directly). Each call opens the store, does its one thing and closes it, so a platform holds nothing that has to be
- * released with the Host; the calls are few (a plugin that asks for no consent never reaches the store).
+ * and uses it directly). Each call borrows the process's one held connection to the store (its complete current structure checked when it
+ * was opened, batch 103-1) and does its one thing; the Host releases the connection with the Home.
  */
 export class HomeConsentLedger implements PluginConsentLedger {
   constructor(private readonly home: string) {}
   private use<Result>(work: (ledger: SqlitePluginConsentLedger) => Result): Result {
-    const { db } = openHomePluginStore(this.home);
-    try { return work(new SqlitePluginConsentLedger(db)); } finally { db.close(); }
+    let opened = false;
+    try {
+      return withHeldHomeSqlite(this.home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE, db => {
+        opened = true;
+        return work(new SqlitePluginConsentLedger(db));
+      }, { prepare: db => assertHomeStoreShape(db, this.home) });
+    } catch (error) { throw opened ? error : namedOpenRefusal(error); }
   }
   record: PluginConsentLedger["record"] = entry => this.use(ledger => ledger.record(entry));
   consents: PluginConsentLedger["consents"] = pluginId => this.use(ledger => ledger.consents(pluginId));

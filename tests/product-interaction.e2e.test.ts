@@ -32,19 +32,18 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   await click('[data-layout-open]');
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-layout-split]')].map(x=>x.dataset.layoutSplit)"), ["right","bottom"], "07-S2: the titlebar's one layout menu splits right or down (copy table)");
   await click('[data-layout-split="bottom"]');
-  await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelector('[data-direction=column]')");
-  // Each pane is a page of its own, so both panes load the whole workbench before showing the Frame.
-  try { await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE')", 8_000); }
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe.tab-content-frame').length===0 && document.querySelector('[data-direction=column]')");
+  try { await waitFor("[...document.querySelectorAll('[data-tab-pane]')].every(p=>p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal==='CORE')", 8_000); }
   catch (error) {
-    const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({pane:f.dataset.paneOwner,tab:f.dataset.paneTab,hidden:f.hidden,src:f.src,ready:f.contentDocument?.readyState,goal:f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200),goal:p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic("T405 product after split " + JSON.stringify({ paneReads, state })); throw error;
   }
-  const paneIds = await evaluate<string[]>("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.dataset.paneOwner)");
+  const paneIds = await evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].map(p=>p.dataset.tabPane)");
   const [paneId, otherPaneId] = paneIds;
-  const pane = (id: string) => `document.querySelector('iframe.tab-content-frame[data-pane-owner="${id}"]:not([hidden])').contentDocument`;
+  const pane = (id: string) => `document.querySelector('[data-tab-pane="${id}"]')`;
   await evaluate(`${pane(paneId)}.querySelector('[data-frame-goal-work]').click()`);
   // 打开工作区 turns that pane, and only that pane, to the Goal's work view, and the workspace remembers it for the pane's tab.
-  await waitFor(`${pane(paneId)}.querySelector('[data-goal-frame-surface]').hidden && !${pane(paneId)}.querySelector('[data-goal-node-workspace]').hidden`);
+  await waitFor(`${pane(paneId)}.querySelector('[data-goal-frame-surface]')?.hidden !== false && ${pane(paneId)}.querySelector('[data-goal-node-workspace]')?.hidden === false`);
   await waitFor(`(() => { const saved = JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))?.panes.find(p=>p.id==='${paneId}'); return saved?.tabs.find(tab=>tab.id===saved.activeTabId)?.view==='work'; })()`);
   assert.equal(await evaluate(`!${pane(otherPaneId)}.querySelector('[data-goal-frame-surface]').hidden && ${pane(otherPaneId)}.querySelector('[data-goal-frame-surface]').dataset.frameGoal==='CORE'`), true);
   // The Goal's document then loads into that pane; it is a full document read, slower than the switch itself.

@@ -1,8 +1,9 @@
 import { ActionError, bindActionHandler, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { scopeInstallations } from "./scope-installations.js";
 import { MAINLINE_PROVIDER_ID, mainlineActions, mainlineItemActions } from "@molis-ai/molis-work-contracts/services/mainline";
-import { MainlineStore, completeItem, convertItem, createItem, decideBackgroundTask, editGroups, holdsBind, holdsCandidates, holdsCreate, holdsList, holdsRelease, moveItem, openMainlineDatabase,
+import { MainlineStore, completeItem, convertItem, createItem, decideBackgroundTask, editGroups, holdsBind, holdsCandidates, holdsCreate, holdsList, holdsRelease, moveItem, MAINLINE_BASELINE, MAINLINE_HOME_STORE,
   openObject, placeTask, readBackgroundTasks, readContents, readItemTasks, readItemSubject, readMainline, readWaiting, readWorkLine, removeItem, renameItem, runBackgroundTaskCommand, switchItem,
   type ItemDeclaration, type MainlineItemPorts } from "@molis-ai/molis-work-service-mainline";
 
@@ -32,8 +33,8 @@ export function mainlineItemPorts(host: MainlineHostPorts): MainlineItemPorts {
   return {
     open: caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "主线在项目里读写");
-      const db = openMainlineDatabase(host.homeDirectory);
-      try { return { store: new MainlineStore(db, caller.actor_id, caller.project_id), close: () => db.close() }; } catch (error) { db.close(); throw error; }
+      // The Home's one held connection: borrowed for the call, never closed by it (batch 103-1).
+      return new MainlineStore(heldHomeSqlite(host.homeDirectory, MAINLINE_HOME_STORE.path, MAINLINE_BASELINE), caller.actor_id, caller.project_id);
     },
     declarations: caller => host.declarations(caller),
   };

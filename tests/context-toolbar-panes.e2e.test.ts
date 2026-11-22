@@ -19,10 +19,9 @@ async function pagesWorkbench(t: TestContext) {
   if (!browser) return null;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
-  const pane = await pluginFrameBrowser(t, browser, "pages", "iframe.tab-content-frame:not([hidden])");
-  await command("Page.addScriptToEvaluateOnNewDocument", {source:`window.__holds=[];window.__signals=[];
-    window.addEventListener("message",event=>{if(event.data?.type==="workbench-context-hold")window.__holds.push(event.data)});
-    const original=window.fetch;window.fetch=async(...args)=>{if(String(args[0]).includes("/api/contextual/signal"))window.__signals.push(JSON.parse(args[1].body));return original(...args)};`},sessionId);
+  const pane = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane].is-focused iframe[data-plugin-frame="pages"]');
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:`window.__judgeBodies=[];window.__signals=[];
+    const original=window.fetch;window.fetch=async(...args)=>{const url=String(args[0]);if(url.includes("/api/contextual/signal"))window.__signals.push(JSON.parse(args[1].body));if(url.includes("/api/contextual/judge"))window.__judgeBodies.push(JSON.parse(args[1].body));return original(...args)};`},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const setup = openPagesStore(homeDirectory);
@@ -37,27 +36,30 @@ const selectIn = (scope: string) => `(() => { const doc = ${scope}; const editor
   const text = editor.querySelector('p').firstChild; const range = doc.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
   const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range); doc.dispatchEvent(new Event('selectionchange')); })()`;
 
-test("W2-02: a split pane draws its bar in its own document; holding it is reported to the top document; Esc puts it away as ignored", { timeout: 120_000 }, async t => {
+test("W2-02: a split pane draws its bar in view anchored to the pane; holding it pins its keys; Esc puts it away as ignored", { timeout: 120_000 }, async t => {
   const browser = await pagesWorkbench(t);
   if (!browser) return;
   const { evaluate, waitFor, click } = browser;
   await click("[data-layout-open]");
   await click("[data-layout-split=right]");
-  const PANE = "[...document.querySelectorAll('iframe.tab-content-frame')].find(frame => frame.contentDocument?.querySelector('iframe[data-plugin-frame=pages]'))";
-  await browser.pane.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`,20_000);
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0", 15_000);
+  await browser.pane.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`, 20_000);
+  await browser.pane.click("[data-pages-editor] .ProseMirror p");
   await browser.pane.evaluate(selectIn("document"));
-  await waitFor(`Boolean(${PANE}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000);
-  const placed = await evaluate<{ inPane: boolean; inTop: boolean; inView: boolean }>(`(() => { const doc = ${PANE}.contentDocument, bar = doc.querySelector(${JSON.stringify(BAR)}), box = bar.getBoundingClientRect();
-    return { inPane: bar.ownerDocument === doc, inTop: Boolean(document.querySelector(${JSON.stringify(BAR)})), inView: box.left >= 0 && box.right <= doc.defaultView.innerWidth && box.top >= 0 }; })()`);
-  assert.deepEqual(placed, { inPane: true, inTop: false, inView: true }, "the pane's own document draws the bar, inside the pane; the top document draws none");
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000);
+  const placed = await evaluate<{ inView: boolean; nearPane: boolean }>(`(() => { const paneBox = document.querySelector('[data-tab-pane].is-focused').getBoundingClientRect(), bar = document.querySelector(${JSON.stringify(BAR)}), box = bar.getBoundingClientRect();
+    return { inView: box.left >= 0 && box.right <= innerWidth && box.top >= 0, nearPane: box.right >= paneBox.left && box.left <= paneBox.right }; })()`);
+  assert.deepEqual(placed, { inView: true, nearPane: true }, "the floating context toolbar renders in view anchored to the split pane");
 
-  // Reaching a button holds the bar: the pane says which keys are under the person, so a ranking that arrives meanwhile leaves them where they are.
-  const key = await evaluate<string>(`(() => { const button = ${PANE}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}); button.focus(); return button.dataset.key; })()`);
-  await waitFor(`window.__holds.some(hold => Array.isArray(hold.pinned) && hold.pinned.includes(${JSON.stringify(key)}))`, 5_000);
+  // Reaching a button holds the bar: while focused, a focus-clear from the pane does not dismiss it.
+  const key = await evaluate<string>(`(() => { const button = document.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}); button.focus(); return button.dataset.key; })()`);
+  await evaluate(`document.querySelector('[data-tab-pane].is-focused [data-work-surface=pages]')?.dispatchEvent(new CustomEvent('molis:surface-focus', { bubbles: true, detail: null }))`);
+  assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)})?.dataset.key`), key, "holding the bar keeps it open while a button is focused");
+  assert.equal(await evaluate<string>("document.activeElement?.dataset?.key"), key, "focused bar action keeps focus while held");
 
   // Esc on the bar puts it away and tells the Host the person ignored what was offered.
-  await evaluate(`${PANE}.contentDocument.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-  await waitFor(`!${PANE}.contentDocument.querySelector(${JSON.stringify(BAR)})`, 5_000);
+  await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await waitFor(`!document.querySelector(${JSON.stringify(BAR)})`, 5_000);
   await waitFor(`window.__signals.some(body => body.signal === 'ignored' && body.key === ${JSON.stringify(key)})`, 5_000);
   assert.equal(await evaluate<boolean>(`window.__signals.every(body => body.signal === 'ignored')`), true, "putting the bar away accepts nothing");
 });
@@ -72,6 +74,7 @@ test("W2-05: the editor's shortcuts are unchanged with the bar up; ⌘K opens th
     await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key, code, windowsVirtualKeyCode: keyCode, modifiers }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode, modifiers }, sessionId);
   };
+  await browser.child.click("[data-pages-editor] .ProseMirror p");
   await browser.child.evaluate(selectIn("document"));
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${BAR} .mw-ctx__tools button`)}))`, 15_000);
 

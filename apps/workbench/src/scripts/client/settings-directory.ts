@@ -109,7 +109,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   const returns = host.returns;
   const modelReady = () => {
-    const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
+    const frames = [...document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]')].map((frame) => frame.contentDocument);
     [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
   };
   // A save whose answer already says this provider can run is not read again (specs/draft-and-return §3.4).

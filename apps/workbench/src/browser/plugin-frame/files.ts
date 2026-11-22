@@ -3,12 +3,31 @@ import type { FrameScope, FrameUp } from "./types.js";
 
 export function pageFiles(port: MessagePort, scope: FrameScope, request: UiRequest, copyText: (text: string) => Promise<void>): UiPageFiles<HTMLImageElement | HTMLIFrameElement> {
   const media = new Map<Element, { controller: AbortController; address?: string }>();
-  const release = (element: Element) => {
-    const entry = media.get(element); media.delete(element); entry?.controller.abort();
-    if (entry?.address) URL.revokeObjectURL(entry.address);
+  let observer: MutationObserver | null = null;
+  const stopWatchingIfEmpty = () => {
+    if (media.size === 0 && observer) {
+      observer.disconnect();
+      observer = null;
+    }
   };
-  scope.own(() => { for (const element of media.keys()) release(element); });
-  scope.observe(new MutationObserver(() => { for (const element of media.keys()) if (!element.isConnected) release(element); }), document.body, { childList: true, subtree: true });
+  const release = (element: Element) => {
+    const entry = media.get(element);
+    media.delete(element);
+    entry?.controller.abort();
+    if (entry?.address) URL.revokeObjectURL(entry.address);
+    stopWatchingIfEmpty();
+  };
+  const watchMedia = () => {
+    if (observer || media.size === 0) return;
+    observer = new MutationObserver(() => {
+      for (const element of [...media.keys()]) if (!element.isConnected) release(element);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  };
+  scope.own(() => {
+    for (const element of [...media.keys()]) release(element);
+    stopWatchingIfEmpty();
+  });
   return {
     copyText,
     async download(blob, filename) {
@@ -18,6 +37,7 @@ export function pageFiles(port: MessagePort, scope: FrameScope, request: UiReque
     printDocument: html => port.postMessage({ type: "print", html } satisfies FrameUp),
     loadMedia(element, path) {
       release(element); const entry = { controller: new AbortController(), address: undefined as string | undefined }; media.set(element, entry);
+      watchMedia();
       void (async () => {
         const response = await request<Response>(path, { as: "response", scope, signal: entry.controller.signal });
         if (!response.ok) throw new Error(request.text(await response.json()));

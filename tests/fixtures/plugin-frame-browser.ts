@@ -5,7 +5,7 @@ import { renderPluginFrameClientScript } from "@molis-ai/molis-work-app-workbenc
 import type { openGoalBrowser } from "./goal-browser.js";
 
 type Browser = Pick<NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, "command" | "on" | "evaluate" | "sessionId">;
-type Context = { id: number; auxData?: { frameId?: string; isDefault?: boolean } };
+type Context = { id: number; origin?: string; auxData?: { frameId?: string; isDefault?: boolean } };
 
 /** One line about the browser and window an input failure happened in; a value that could not be read is "unavailable". */
 export const inputDeliveryDetails = (values: { chrome?: string; window?: string; inner?: string }): string =>
@@ -62,11 +62,35 @@ export async function pluginFrameInitScript(t: TestContext, browser: Browser & {
 
 /** Operate the real child execution context through DevTools; never pierce it through the owner's DOM. */
 export async function pluginFrameBrowser(t: TestContext, browser: Browser, surface?: string, ownerFrame?: string, frameSelector?: string) {
-  const contexts = new Map<string, { id: number; session: string }>();
+  // Keep live default contexts keyed by (frameId, session) and evict destroyed/detached contexts so a fast OOPIF srcdoc
+  // target is never clobbered by a late pre-swap about:blank executionContextCreated from the parent renderer process.
+  const contexts = new Map<string, Map<string, { id: number; origin: string }>>();
   t.after(browser.on("Runtime.executionContextCreated", (params, session) => {
     const context = params.context as Context;
-    if (context.auxData?.isDefault && context.auxData.frameId && session) contexts.set(context.auxData.frameId, { id: context.id, session });
+    const frameId = context.auxData?.frameId;
+    if (!context.auxData?.isDefault || !frameId || !session) return;
+    let bySession = contexts.get(frameId);
+    if (!bySession) { bySession = new Map(); contexts.set(frameId, bySession); }
+    bySession.set(session, { id: context.id, origin: context.origin ?? "" });
   }));
+  t.after(browser.on("Runtime.executionContextDestroyed", (params, session) => {
+    const id = params.executionContextId as number | undefined;
+    if (!session || id === undefined) return;
+    for (const [frameId, bySession] of contexts) {
+      if (bySession.get(session)?.id === id) {
+        bySession.delete(session);
+        if (!bySession.size) contexts.delete(frameId);
+      }
+    }
+  }));
+  const clearSession = (session: string | undefined) => {
+    if (!session) return;
+    for (const [frameId, bySession] of contexts) {
+      if (bySession.delete(session) && !bySession.size) contexts.delete(frameId);
+    }
+  };
+  t.after(browser.on("Runtime.executionContextsCleared", (_params, session) => clearSession(session)));
+  t.after(browser.on("Target.detachedFromTarget", params => clearSession(typeof params.sessionId === "string" ? params.sessionId : undefined)));
   t.after(browser.on("Target.attachedToTarget", params => {
     const info = params.targetInfo as { type?: string };
     if (info.type === "iframe") void browser.command("Runtime.enable", {}, String(params.sessionId)).catch(() => {});
@@ -101,7 +125,12 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     const { node } = await browser.command<{ node: { frameId?: string } }>("DOM.describeNode", { objectId: object.result.objectId }, browser.sessionId);
     await browser.command("Runtime.releaseObject", { objectId: object.result.objectId }, browser.sessionId);
     assert.ok(node.frameId, "frame owner must identify a real child");
-    const current = contexts.get(node.frameId);
+    const bySession = contexts.get(node.frameId);
+    const entries = bySession ? [...bySession.entries()] : [];
+    const chosen = entries.find(([session, entry]) => session !== browser.sessionId && (entry.origin === "null" || entry.origin === ""))
+      ?? entries.find(([session]) => session !== browser.sessionId)
+      ?? entries.at(-1);
+    const current = chosen ? { id: chosen[1].id, session: chosen[0] } : undefined;
     assert.ok(current, `Missing child execution context: ${node.frameId}`);
     await followPageMotion(current.session);
     return { ...current, frameId: node.frameId };

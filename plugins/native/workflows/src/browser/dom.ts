@@ -36,11 +36,11 @@ export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 /** Motion: nothing moves for a person who asked for less of it. */
 export const calm = () => Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-export const EASE_OUT = "cubic-bezier(.16, 1, .3, 1)";
-export const EASE_SETTLE = "cubic-bezier(.32, 1.22, .52, 1)";
-export const EASE_STANDARD = "cubic-bezier(.32, .72, 0, 1)";
+/** Everything here moves on the product's one curve, as the page's tokens have it (DESIGN.md Motion; POLISH-33). A station
+ *  or a link's pill is wider than 32px, so none of them springs (POLISH-35). */
+const ease = () => getComputedStyle(document.documentElement).getPropertyValue("--ease-quint").trim() || "ease-out";
 export const motion = (node: Element | null | undefined, frames: Keyframe[], options: KeyframeAnimationOptions) =>
-  (!node || !node.animate || calm()) ? null : node.animate(frames, { easing: EASE_OUT, ...options });
+  (!node || !node.animate || calm()) ? null : node.animate(frames, { easing: ease(), ...options });
 export const arrive = (node: HTMLElement | null) => {
   if (!node || calm()) return;
   node.classList.remove("is-arriving"); void node.offsetWidth; node.classList.add("is-arriving");

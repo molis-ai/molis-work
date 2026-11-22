@@ -8,7 +8,7 @@
 
 ### 统一时长与曲线（禁止任何非令牌数字与私造 JS `cubic-bezier`）
 - 时长令牌：`--dur-press: 130ms`、`--dur-hover: 130ms`、`--dur-move: 250ms`、`--dur-arrive: 420ms`、`--dur-moment: 640ms`、`--dur-stagger: 60ms`、`--dur-reveal: 90ms`
-- 曲线令牌：`--ease-quint`（`cubic-bezier(.22, 1, .36, 1)`，主位移与展开，利落刹停）、`--ease-spring`（`cubic-bezier(.2, 1.35, .4, 1)`，轻回弹，仅用于按压与分段滑块）、`--ease-reveal`（流式浸润）
+- 曲线令牌：`--ease-quint`（`cubic-bezier(.22, 1, .36, 1)`，主位移与展开，利落刹停）、`--ease-spring`（`cubic-bezier(.2, 1.35, .4, 1)`，轻回弹，只用于宽高都不超过 32px 的小东西：小图标键的按压、勾选落定、开关滑块；按钮、选项卡片、分段滑块这些更大的用 quint，POLISH-35）、`--ease-reveal`（流式浸润）
 - **无页面刷新感四铁律**：
   1. **持久化 DOM + FLIP**：切换筛选/视图/增删条目调用 `window.molisListTransition` / `window.molisReflow`（自带容器高度呼吸），绝不整块 `innerHTML` 闪烁重建。
   2. **平滑展开**：折叠明细使用 `<details class="mw-collapsible">` 的 `::details-content` 自然高度过渡（`0fr → 1fr` 仅限白名单折叠原语）；`.mw-inset-row__drawer` 使用纯合成层 `craft-rise` 轻浮展开，避免触发布局属性动画门禁。
@@ -30,7 +30,7 @@
 
 ## 2. 确定性行为反馈闭环（0ms → 250ms → 回执 / 回滚）
 
-1. **按下即回应（0ms）**：所有 `.mw-btn` 具备 `scale(.985)` 轻按压回弹；底栏与 Coding 发送在非 IME 组合态 `<16ms` 乐观上屏（失败无损恢复草稿与修订号）。
+1. **按下即回应（0ms）**：所有 `.mw-btn` 具备 `scale(.985)` 轻按压（回来不冲过头）；底栏与 Coding 发送在非 IME 组合态 `<16ms` 乐观上屏（失败无损恢复草稿与修订号）。
 2. **`250ms` 静默阈值与 `window.molisBusy(btn, work, opts?)`**：
    - 任何耗时 `< 250ms` 的请求**不闪骨架、不闪转圈**；超过 `250ms` 才淡入 `.mw-spinner` 并设 `data-loading` + `aria-busy="true"` + 防连点锁，有图标时原位等宽替换不抖动，弹窗内自动拦截 `Esc` 并在 `finally` 释放。
    - **禁止**手写 `button.disabled = true` 灰死僵住、**禁止**整页 `workspace.inert = true` 无声冻屏、**禁止**绕开 `250ms` 立刻渲染 `.mw-loading`。

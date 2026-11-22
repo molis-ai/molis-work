@@ -1,7 +1,7 @@
 import type { WorkflowLink } from "../model.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { EASE_STANDARD, copy, ico, motion, uid } from "./dom.js";
+import { copy, ico, motion, uid } from "./dom.js";
 import { drawFlow } from "./flow.js";
 import { drawList } from "./list.js";
 import { emitCtx } from "./nav.js";
@@ -132,7 +132,7 @@ export async function removeAt(page: WorkflowsPage, index: number, { keyboard = 
   const { ui, view, root } = page;
   const flow = ui.workflow; if (!flow) return;
   const station = flow.stations[index]!;
-  const leaving = motion(view.querySelector(`[data-wf-chain] [data-wf-station="${index}"]`), [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.88)" }], { duration: 130, easing: EASE_STANDARD, fill: "forwards" });
+  const leaving = motion(view.querySelector(`[data-wf-chain] [data-wf-station="${index}"]`), [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.88)" }], { duration: 130, fill: "forwards" });
   if (leaving) await Promise.race([leaving.finished.catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 180))]);
   if (ui.workflow !== flow || root.dataset.wfMode !== "workflow") return;
   const at = flow.stations.findIndex((item) => item.station_id === station.station_id);

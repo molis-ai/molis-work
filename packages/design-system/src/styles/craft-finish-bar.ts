@@ -235,7 +235,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) {
     position: relative; display: inline-grid; place-items: center; flex: none; width: var(--dock-btn); height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
     background: transparent; box-shadow: none; color: var(--ink-soft); cursor: pointer; list-style: none;
-    transition: transform var(--dur-move) var(--ease-spring), background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
+    transition: transform var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
@@ -355,7 +355,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .plugin-picker-trigger {
     display: flex; align-items: center; gap: 8px; max-width: 100%; height: 34px; padding: 0 8px; border: 0; border-radius: 9px;
     background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring);
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint);
   }
   ${SHELL} .plugin-picker-trigger:hover, ${SHELL} .plugin-picker-trigger[aria-expanded="true"] { background: var(--rail); color: var(--ink); }
   ${SHELL} .plugin-picker-trigger > svg { flex: none; width: 12px; height: 12px; color: var(--muted); transition: transform var(--dur-move) var(--ease-quint); }

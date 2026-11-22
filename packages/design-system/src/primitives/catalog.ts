@@ -1,6 +1,7 @@
 import { renderCatalogExamples } from "../catalog-examples.js";
 import { escapeHtml, icon, renderButton, renderDirectoryRow, renderStatusMark, t, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ICON_LIBRARY } from "../icons.js";
+import { baselineToken } from "../baseline.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
 import { MW_ACTION_TONES, MW_CONTENT_MARKS, MW_CONTENT_SURFACES, MW_HUES, MW_STATUS_TONES, MW_SURFACES, MW_TYPE_TONES } from "../palette.js";
@@ -139,7 +140,9 @@ function craftSection(): string {
     ["--dur-moment", "640ms", "只属于完成与落地的一刻"],
     ["--dur-stagger", "60ms", "错开：几张卡片一起到达时，微弱流动节奏（至多四张）"],
   ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("") +
-    `<tr><td><code>--ease-quint</code></td><td>cubic-bezier(.22, 1, .36, 1)</td><td>到达、移动、展开、离开——除按下回弹外的一切</td></tr><tr><td><code>--ease-spring</code></td><td>cubic-bezier(.2, 1.35, .4, 1)</td><td>只用于按下后的回弹与勾选落定</td></tr>`;
+    // The curves' values are read from the baseline, the one place they are written (POLISH-33).
+    [["ease-quint", "到达、移动、展开、离开——除按下回弹外的一切"], ["ease-spring", "只用于 32px 以内的小东西：小键回弹、勾选落定、开关滑块"]]
+      .map(([name, role]) => `<tr><td><code>--${name}</code></td><td>${escape(baselineToken(name!).replace(/^[^:]*:\s*|;\s*$/gu, ""))}</td><td>${role}</td></tr>`).join("");
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
     .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<span>${escape(name)}</span></span>`).join("");
   return section("craft", "空间 · 层次 · 动效", `

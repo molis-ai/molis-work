@@ -80,7 +80,7 @@ function settle(c: Composer, change: () => void) {
   for (const node of [box, ...parts()]) for (const motion of node?.getAnimations() ?? []) if (motion.id === SETTLE) motion.cancel();
   const to = box.getBoundingClientRect();
   if (Math.abs(from.height - to.height) < 1 && seen().every((rect, index) => rect?.left === was[index]?.left && rect?.top === was[index]?.top)) return;
-  const duration = parseFloat(token("--dur-move", "250ms")) || 250, easing = token("--ease-quint", "cubic-bezier(.22, 1, .36, 1)");
+  const duration = parseFloat(token("--dur-move", "250ms")) || 250, easing = token("--ease-quint", "ease-out");
   box.dataset.settling = "";
   const height = box.animate([{ height: `${from.height}px` }, { height: `${to.height}px` }], { duration, easing, id: SETTLE });
   const done = () => { if (!box.getAnimations().some((motion) => motion.id === SETTLE && motion.playState === "running")) delete box.dataset.settling; };

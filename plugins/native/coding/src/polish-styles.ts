@@ -114,6 +114,8 @@ export const CODING_POLISH_STYLES = `
    long-turn streaming style invalidation O(1) (VUX-36). */
 @container molis-coding (min-width:761px) {
   .mw-layout-primitives .coding-dialogue > :is(.coding-turns,.coding-composer,[data-coding-report-reader]) { --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-bar))); padding-left:var(--coding-pad-start); padding-right:max(12px, 100% - var(--coding-reading) - var(--coding-pad-start)); }
+  /* What sits over the bar's box is as wide as the box and starts at its left edge too, not centred in the wider reading column. */
+  .mw-layout-primitives .coding-dialogue > .coding-composer { align-items:flex-start; }
   .mw-layout-primitives .coding-dialogue > :is(.coding-delegation-banner,.coding-status,.coding-queued) { box-sizing:border-box; --coding-bar-x:var(--mw-bar-left, calc(240px + (100% - var(--coding-reading)) / 2)); --coding-pad-start:clamp(12px, var(--coding-bar-x) - 240px, max(12px, 100% - 12px - var(--coding-bar))); width:min(100% - var(--coding-pad-start) - 12px, var(--coding-reading)); margin-left:var(--coding-pad-start); margin-right:auto; }
 }
 `;

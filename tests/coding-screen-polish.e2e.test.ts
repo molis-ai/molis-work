@@ -286,12 +286,19 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
     await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
   };
   const wide = await at(1440, 900);
+  await look("zh-light-1440");
   assert.ok(wide.bar < 720, `1440 宽时底部输入框本身不到 720：${wide.bar}`);
   assert.ok(wide.width >= 720, `POLISH-25 1440 宽时对话阅读列不窄于 720px：${wide.width}`);
   assert.ok(Math.abs(wide.left - wide.barLeft) <= 1, `POLISH-25 阅读列加宽以后左缘仍对齐底部输入框（UIV-19）：${JSON.stringify(wide)}`);
   assert.ok(wide.prose >= 560, `POLISH-25 正文段落跟着阅读列变宽，不被 52 字的上限卡住：${wide.prose}`);
   assert.ok(wide.line <= 40 && wide.card <= 52, `回合结束卡在 1440 是一行：${JSON.stringify(wide)}`);
 
+  // What sits over the box in the page (the next round's tags, 工作区与目标, 打开模型设置) is the box's: as wide, from the same left edge.
+  const overBox = () => evaluate<{ rows: number; widest: number; off: number; bar: number }>(`(()=>{const told=getComputedStyle(document.documentElement),left=parseFloat(told.getPropertyValue('--mw-bar-left')),bar=parseFloat(told.getPropertyValue('--mw-bar-column'));
+    const rows=[...document.querySelectorAll('${coding} .coding-composer > *')].map(node=>node.getBoundingClientRect()).filter(box=>box.width>0&&box.height>0);
+    return {rows:rows.length,widest:Math.round(Math.max(0,...rows.map(box=>box.width))),off:Math.round(Math.max(0,...rows.map(box=>Math.abs(box.left-left)))),bar:Math.round(bar)};})()`);
+  const wideOver = await overBox();
+  assert.ok(wideOver.rows >= 1 && wideOver.widest <= wideOver.bar + 1 && wideOver.off <= 1, `1440 宽时输入框上方那几行与输入框同宽、左缘对齐输入框：${JSON.stringify(wideOver)}`);
   // 6.7 (POLISH-28): the bar's bottom row at 1440. Four controls a person can press: ＋, the receiver, the way of working, 发送.
   const foot = await owner.evaluate<{ controls: string[]; receiver: string; ids: string[]; above: boolean }>(`(()=>{const shell=document.querySelector(${JSON.stringify(CODING_COMPOSER)}),row=shell.querySelector('.mw-composer__foot');
     const seen=node=>{const box=node.getBoundingClientRect();return box.width>0&&box.height>0&&getComputedStyle(node).visibility!=='hidden';};
@@ -333,8 +340,8 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
   const narrowFoot = await footCount();
   assert.ok(narrowFoot <= 4, `POLISH-28 1024 宽时底行也不超过四个控件：${narrowFoot}`);
   // What sits over the box in the page keeps the box's own width, so its right end stays clear of the workbench's 帮助 at this width.
-  const over = await evaluate<{ composer: number; bar: number }>(`(()=>{const node=document.querySelector('${coding} .coding-composer > *');return {composer:Math.round(parseFloat(getComputedStyle(node).width)),bar:Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mw-bar-column')))};})()`);
-  assert.ok(over.composer <= over.bar, `输入框上方那几行与输入框同宽，不跟着阅读列放到 720：${JSON.stringify(over)}`);
+  const narrowOver = await overBox();
+  assert.ok(narrowOver.rows >= 1 && narrowOver.widest <= narrowOver.bar + 1 && narrowOver.off <= 1, `1024 宽时输入框上方那几行与输入框同宽、左缘对齐输入框，不跟着阅读列放到 720：${JSON.stringify(narrowOver)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 780, deviceScaleFactor: 1, mobile: false }, sessionId);
   await owner.waitFor("innerWidth<=390", 20_000);
   await look("zh-light-390");

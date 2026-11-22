@@ -140,8 +140,8 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
       lost ||= off && !press.disabled && press === document.activeElement;
       press.disabled = off;
     } else leave(row("data-coding-model-switch-row"));
-    // `focus` on a select the picker has taken is the picker's own control.
-    if (lost) model.focus({ preventScroll: true });
+    // `focus` on a select the picker has taken is the picker's own control; a choice that is off just now cannot take it, so 关闭 does.
+    if (lost) (model.disabled ? rows.closest("dialog")?.querySelector<HTMLElement>("[data-coding-rules-close]") : model)?.focus({ preventScroll: true });
   };
   /** Sets a select to `now` and to whether it can be changed, touching it only where it differs (each touch redraws its picker). */
   const choose = (select: HTMLSelectElement, now: string) => {

@@ -326,7 +326,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-composer small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-composer-footnote { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .coding-composer-footnote kbd { font-size:11px; flex:none; }
-.coding-composer .coding-model-setup { align-self:center; justify-content:flex-start; padding:0; height:auto; min-height:20px; font-size:12px; }
+.coding-composer .coding-model-setup { justify-content:flex-start; padding:0; height:auto; min-height:20px; font-size:12px; }
 .coding-status { padding:4px 32px; min-height:0; }
 .coding-status:empty { display:none; }
 .coding-dialogue > .coding-status { width:min(100%, var(--coding-reading)); margin-inline:auto; padding-inline:0; }

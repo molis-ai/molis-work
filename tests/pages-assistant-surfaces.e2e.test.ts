@@ -332,6 +332,9 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   assert.equal(await evaluate("(() => { const panel = document.querySelector('[data-assistant-panel]').getBoundingClientRect(), strip = document.querySelector('.immersive-titlebar').getBoundingClientRect(); return panel.top >= strip.bottom - 1 && panel.top <= strip.bottom + 24 && panel.left >= 0 && panel.right <= innerWidth + 1; })()"), true, "POLISH-60: the conversation reaches up to the tab strip, inside the window");
   await checkAssistantStage(browser);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // The stage check ends at a phone's width; the key is pressed once the conversation is laid out for this width again.
+  await waitFor("innerWidth === 1440 && document.querySelector('[data-assistant-panel]').dataset.layout === 'split' && document.querySelector('[data-assistant-retract]').checkVisibility({ visibilityProperty: true })");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await click('[data-assistant-retract]');
   await waitFor("!document.body.hasAttribute('data-assistant-max') && document.querySelector('[data-plugin-stage]').checkVisibility({ visibilityProperty: true })");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);

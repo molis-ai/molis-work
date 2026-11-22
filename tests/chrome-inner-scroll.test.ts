@@ -100,8 +100,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.doesNotMatch(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
   assert.match(withPlugins, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   // An open record takes the whole stage (36A, 2026-11-21): its list is not kept beside it; the record's own bar has the way back.
-  assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \.plugin-stage-list \{ display: none !important; \}/);
-  assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \.plugin-stage-workspace \{\s*position: absolute; inset: 0;/);
+  assert.match(workbench, /body\.immersive-workbench \.plugin-stage-shell\[data-expanded="true"\] \{\s*display: block;[^{}]*:is\(\.plugin-stage-chrome, \.plugin-stage-list\) \{ display: none !important; \}\s*\.plugin-stage-workspace \{\s*position: absolute; inset: 0;/);
   assert.doesNotMatch(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[^}]*grid-template-columns: var\(--tree-width/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
   // Bar insets and the back button's optical pull snapped to the 4/8 scale in the visual refinement

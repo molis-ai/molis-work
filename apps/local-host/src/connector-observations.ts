@@ -1,6 +1,5 @@
-import { openExistingBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { ConnectorObservationStore, type ConnectorCheckObservation } from "@molis-ai/molis-work-service-connector-host";
-import { openConnectorsStore, CONNECTORS_BASELINE, CONNECTORS_HOME_STORE } from "./connectors-store.js";
+import { withConnectorsStore } from "./connectors-store.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { afterPassedCheck } from "./connector-failure-runs.js";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
@@ -8,9 +7,8 @@ import { settleConnectionNotices } from "./assistant/assistant-connection-notice
 export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T): T;
 export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T, existingOnly: true): T | undefined;
 export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T, existingOnly = false): T | undefined {
-  const db = existingOnly ? openExistingBaselineHomeSqlite(home, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE) : openConnectorsStore(home);
-  if (!db) return undefined;
-  try { return operation(new ConnectorObservationStore(db)); } finally { db.close(); }
+  return existingOnly ? withConnectorsStore(home, db => operation(new ConnectorObservationStore(db)), true)
+    : withConnectorsStore(home, db => operation(new ConnectorObservationStore(db)));
 }
 
 /** The code a connection's last check carries while the token endpoint has refused its refresh (S-70, `connector-refresh-refusals.ts`). */

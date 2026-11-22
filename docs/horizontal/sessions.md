@@ -11,7 +11,7 @@
 1. **工具登记表是唯一事实表。** `packages/contracts/src/platform/external-tools.ts` 的 `EXTERNAL_TOOLS` 逐入口登记会话存储、读取方式与适配器状态；`horizontal/sessions` 在运行时如实报告 `not_allowed`、`reading`、`complete`、`needs_login`、`version_unreadable`、`failed`、`unsupported` 七种来源状态，并在有原因时区分 `login_expired`/`connection_removed`/`account_changed`、`version_mismatch`/`parse_error`、`tool_missing`/`timed_out`/`read_error`、`adapter_pending`/`tool_gap`。没有适配器的入口不会被伪装成「暂无会话」。
 2. **十个首期适配器，读取能力按合同如实区分。**
    - **Codex**：`codex app-server` stdio JSON-RPC 只读 `thread/list` + `thread/read`（含子代理 `forked_from`）；不使用本地 JSONL 回退。
-   - **Claude Code**：`~/.claude/projects/*/*.jsonl`，跳过 `subagents/`、`isSidechain: true` 与空壳快照。
+   - **Claude Code**：`~/.claude/projects/*/*.jsonl`，跳过 `isSidechain: true` 与空壳快照。`<项目>/<会话>/subagents/agent-*.jsonl` 是子代理轨迹：记在所属会话下（`forked_from`，库里 `subagent = 1`），可按会话键读取，列表与搜索不显示（第 103 批，用户 2026-11-21 定）。
    - **Gemini CLI**：`~/.gemini/tmp/**/*.json`，过滤 `logs.json`/`settings.json`/`projects.json`，省略 `thoughts`，附件标 `[附件未读取]`。
    - **Pi Agent**：`~/.pi/agent/sessions/**/*.jsonl`，通用 JSONL 解析。
    - **GitHub Copilot Coding Agent**：云端 `gh agent-task list --json ...` / `view --log`；走 `cli` 连接，前后核对账号指纹；私有仓库需要 `repo` 权限，权限不足/账号切换按 `login_expired`/`account_changed` 处理。

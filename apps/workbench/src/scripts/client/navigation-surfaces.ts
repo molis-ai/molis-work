@@ -22,7 +22,7 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
             workSurface: "goals",
           }));
         }
-      } catch {}
+      } catch { /* Ignore unavailable sessionStorage when saving goal navigation target. */ }
       const available = new Set(visibleGoals().map((item) => item.goal.goal_id));
       if (!available.has(goalId)) goalId = state.active_goal_id || "";
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
@@ -30,14 +30,15 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
 
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true, intent = "open") => {
       if (!desktopWorkSurfaces.length) return false;
-      const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
+      const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface && candidate.isConnected)
+        || [...document.querySelectorAll('[data-work-surface="' + surface + '"]')].find((candidate) => !candidate.closest("[data-goal-canvas-shell]"));
       if (!nextSurface) {
         if (surface === "goals" && goalData) restoreLastGoal(true);
         return false;
       }
       const surfaceChanged = activeDesktopSurface !== surface;
-      // Passive restore must not retry the current failed client.
-      if (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed") void deferredClients?.prepare(nextSurface);
+      // Passive restore must not retry the current failed client, and pooled surfaces mount only once placed in a pane or cover.
+      if ((!tabWorkspace || !nextSurface.closest("[data-tab-workspace-pool]")) && (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed")) void deferredClients?.prepare(nextSurface);
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
         if (activeDesktopSurface === "goals") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";

@@ -282,7 +282,7 @@ test("PWA-152 the page reads the grants once for the whole list, as counts by st
     { task_id: "sct_b", categories: 2, granted: 0, needs_confirmation: 0, unavailable: 1, removed: 1,
       groups: [{ provider_id: "provider-0", group_id: null, status: "unavailable" }, { provider_id: "provider-1", group_id: null, status: "removed" }] },
   ], "a subject without categories reads project files, like a task with none");
-  const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: { discover: async () => [], invoke: fake.actions.invoke }, changed() {} }));
+  const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: { discoverOne: async () => undefined, discover: async () => [], invoke: fake.actions.invoke }, changed() {} }));
   const answer = await routes.handle({ method: "GET", pathname: "/api/plugins/io.molis.work.schedule/grants", query: new URLSearchParams(), body: {} });
   assert.equal(answer?.status, 200);
   assert.deepEqual((answer?.body as { tasks: Array<{ task_id: string }> }).tasks.map(item => item.task_id), ["sct_a", "sct_b"]);

@@ -9,7 +9,7 @@ import { feedPresentationRecords } from "./store/presentation.js";
 import { SourcesModule } from "./store/sources.js";
 import { assembleFeedApplication } from "./application-assembly.js";
 import { createFeedContentHandlers } from "./content-actions.js";
-import { createRuntimeItemStaging, createRuntimeJudgmentTriggers, createRuntimeSceneRuntime } from "./runtime-judgments.js";
+import { actionClientOf, createRuntimeItemStaging, createRuntimeJudgmentTriggers, createRuntimeSceneRuntime } from "./runtime-judgments.js";
 import { createFeedInboxHandlers } from "./inbox-actions.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedHydrate } from "./item-hydration.js";
@@ -148,7 +148,7 @@ export function createFeedPlugin(): PluginDefinition {
       return readLinkedFeedContext(feed, projectId, input, hydrate);
     };
     const delegation = services?.actions?.directory;
-    const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
+    const subjects: ActionClient | undefined = delegation && actionClientOf(delegation);
     const bindings: ActionHandlerBinding[] = [
       ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql, projectId), new SourcesModule(ports.sql).query),
       { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },

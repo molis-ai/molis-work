@@ -15,15 +15,22 @@ const scopeOf = (node) => {
 };
 const exported = (node) => node.modifiers?.some((item) => item.kind === ts.SyntaxKind.ExportKeyword);
 const sourcePath = (value) => value.replace(/(^|\/)dist\//, "$1src/").replace(/\.m?js$/, ".ts");
-export const browserWantsText = (file) => /(^|\/)package\.json$/.test(file);
+export const browserWantsText = (file) => /(^|\/)package\.json$/.test(file) || /\/tooling\/build-[^/]+\.mjs$/.test(file);
 
 export function createBrowserGraph(snapshot, isSource) {
-  const entries = new Map(), scopes = new WeakMap(), packages = new Map(), properties = new Map();
+  const entries = new Map();
+  const scopes = new WeakMap();
+  const packages = new Map();
+  const properties = new Map();
+  const buildScripts = new Map();
   for (const file of snapshot.files) {
-    if (browserWantsText(file)) {
+    if (/(^|\/)package\.json$/.test(file)) {
       const text = snapshot.read(file); if (text === null) continue;
       try { const json = JSON.parse(text); if (json.name) packages.set(json.name, { dir: path.posix.dirname(file), json }); }
       catch { /* The package inventory validates malformed package manifests separately. */ }
+    } else if (/\/tooling\/build-[^/]+\.mjs$/.test(file)) {
+      const text = snapshot.read(file);
+      if (text !== null) buildScripts.set(file, text);
     }
     if (!isSource(file)) continue;
     const text = snapshot.read(file); if (text === null) continue;
@@ -124,5 +131,5 @@ export function createBrowserGraph(snapshot, isSource) {
     }
     return null;
   };
-  return { entries, lookup, resolveModule, properties, packages, isFunction: fn };
+  return { entries, lookup, resolveModule, properties, packages, buildScripts, isFunction: fn };
 }

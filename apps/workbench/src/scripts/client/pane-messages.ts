@@ -1,17 +1,20 @@
 /**
- * Which window a split-pane message may come from (docs/system/SECURITY-INVARIANTS.md S-30). A split pane is its own
- * document; it and the page around it talk with `postMessage`. Every handler on either side asks here first:
+ * Which window a side-pane message may come from (docs/system/SECURITY-INVARIANTS.md S-30). Main split panes share the
+ * top workbench document via CSS Grid; only a main tab moved to the right side (`#side-panel iframe[data-pane-owner="side"]`,
+ * 07-S2) and a plugin's side view (`#side-panel iframe[data-side-frame]`) run in their own document and talk with
+ * `postMessage`. Every handler on either side asks here first:
  *
- * - `from(event)`: on the page, the pane frame a message came from, when it came from this origin and from the window of
- *   one of the panes (`iframe[data-pane-owner]`); else null and the message is dropped.
- * - `fromParent(event)`: in a pane, whether a message came from the page around it, from this origin.
- * - `keep` / `take`: a token handed to one pane (a choice it may confirm) is taken back by that pane's frame alone, once.
- * - `recordAsk(event)`: in a pane, the page's ask to open one record of a plugin here (`workbench-select-item`, its jump to a
- *   record): `{ plugin, itemId, quiet }` when it came from the page around it and has exactly those fields (two non-empty
- *   strings of at most 1000 characters and a boolean), else null and nothing is passed on to the plugin.
- * - `recordGone(event)`: on the page, a pane page's report that the record it showed is gone (`workbench-pane-record-gone`):
- *   `{ plugin, itemId }` when it came from a pane frame, from this origin, and has exactly `type`, `plugin`, `itemId` and an
- *   optional string `paneId` (two non-empty strings of at most 1000 characters), else null and the page marks no tab.
+ * - `from(event)`: on the page, the right side's pane frame a message came from, when it came from this origin and from
+ *   the window of `#side-panel iframe[data-pane-owner="side"]`; else null and the message is dropped.
+ * - `fromParent(event)`: in an embedded side pane or side view, whether a message came from the page around it, from this origin.
+ * - `keep` / `take`: a token handed to one pane frame (a choice it may confirm) is taken back by that frame alone, once.
+ * - `recordAsk(event)`: in an embedded pane, the page's ask to open one record of a plugin here (`workbench-select-item`, its
+ *   jump to a record): `{ plugin, itemId, quiet }` when it came from the page around it and has exactly those fields (two
+ *   non-empty strings of at most 1000 characters and a boolean), else null and nothing is passed on to the plugin.
+ * - `recordGone(event)`: on the page, a side pane page's report that the record it showed is gone (`workbench-pane-record-gone`):
+ *   `{ plugin, itemId }` when it came from `#side-panel iframe[data-pane-owner="side"]`, from this origin, and has exactly
+ *   `type`, `plugin`, `itemId` and an optional string `paneId` (two non-empty strings of at most 1000 characters), else null
+ *   and the page marks no tab.
  *
  * An expression. The workbench page makes it once (`paneMessages` in the client bootstrap) and hands it to each factory
  * that listens for these messages; a document of its own (a plugin's side view) joins it in.
@@ -21,7 +24,7 @@ export const PANE_MESSAGES_SCRIPT = String.raw`(() => {
     const typed = (event) => event.origin === location.origin && Boolean(event.data) && typeof event.data.type === "string";
     const fromParent = (event) => window.parent !== window && event.source === window.parent && typed(event);
     const text = (value) => typeof value === "string" && value.length > 0 && value.length <= 1000;
-    const from = (event) => typed(event) && [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source) || null;
+    const from = (event) => typed(event) && [...document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]')].find((node) => node.contentWindow === event.source) || null;
     return {
       from,
       fromParent,

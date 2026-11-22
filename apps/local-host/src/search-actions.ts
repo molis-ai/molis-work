@@ -1,5 +1,5 @@
 import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { matchingActions, type HostActionClient } from "./local-host-types.js";
+import { selectedActionClient, type HostActionClient } from "./local-host-types.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { SearchService, findReferenceCandidates, readReferences, type SearchAccess } from "@molis-ai/molis-work-service-search";
@@ -64,10 +64,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     if (!reference) throw new ActionError("actions.scope_mismatch", "搜索缺少当前项目运行环境");
     return ports.projectClient(reference);
   };
-  const searchClient = (client: HostActionClient): ActionClient => ({
-    invoke: client.invoke,
-    discover: caller => matchingActions(client, caller, ({ action }) => isSearchEntriesSource(action) || isSubjectReader(action)),
-  });
+  const searchClient = (client: HostActionClient): ActionClient => selectedActionClient(client, ({ action }) => isSearchEntriesSource(action) || isSubjectReader(action));
   const service = new SearchService({
     index,
     background: refresh => outsidePluginAction(() => runBackgroundWorkIn(ports.homeDirectory, refresh)),

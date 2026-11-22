@@ -9,14 +9,18 @@ import { defaultGrants, directlyUsable } from "./install-rules.js";
 import { UNSIGNED_TRUST, hostBuildConsents, isHostTrust } from "./trust-rules.js";
 import { createPluginRuntimeReleaseArtifact, type PluginRuntimeReleaseArtifactRepository } from "./release-artifacts.js";
 
-/** Persist a trusted factory once per exact manifest before activation or restoration. */
+/**
+ * Persist a trusted factory once per exact manifest before activation or restoration. A build the Host itself ships (`host` trust) always
+ * runs as this build (`directlyUsable`), so its archived code would never be read: only its Manifest is kept, which the next start reads for
+ * what that build declared (`startInstallInput`), and nothing is bundled for it (batch 103-1).
+ */
 export async function persistReleaseArtifact(entry: PluginSupervisorEntry, repository?: PluginRuntimeReleaseArtifactRepository, assertCurrent?: () => void): Promise<void> {
   if (!entry.releaseArtifact) return;
   if (!repository) throw Object.assign(new Error("Native 插件 Runtime 发行物存储未装配"), { code: "plugin.release_store_unavailable" });
   const manifest = entry.definition.manifest;
   const digest = pluginManifestDigest(manifest);
   if (repository.get(manifest.plugin_id, manifest.publisher.signature, manifest.version, digest)) return;
-  const source = await entry.releaseArtifact.capture();
+  const source = isHostTrust(entry.trust ?? UNSIGNED_TRUST) ? undefined : await entry.releaseArtifact.capture();
   assertCurrent?.();
   repository.save(createPluginRuntimeReleaseArtifact(manifest, source));
 }
@@ -87,7 +91,7 @@ export async function resolveInstalledEntry(candidate: PluginSupervisorEntry, in
         || artifact.publisher_signature !== manifest.publisher.signature
         || artifact.manifest.version !== artifact.version
         || artifact.manifest_digest !== pluginManifestDigest(artifact.manifest)
-        || !artifact.module_source.trim()) continue;
+        || !artifact.module_source?.trim()) continue;
       const definition = await candidate.releaseArtifact.restore(artifact.module_source);
       if (definition.manifest.plugin_id !== artifact.plugin_id
         || definition.manifest.publisher.signature !== artifact.publisher_signature

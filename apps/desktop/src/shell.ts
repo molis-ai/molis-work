@@ -64,7 +64,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
       notifying=0;
       try{
         globalThis.__TAURI__?.core?.invoke("shelf_surface_changed",{panel:shelfPanel(),language:document.documentElement.lang,theme:document.documentElement.dataset.resolvedTheme}).catch(()=>{});
-      }catch{}
+      }catch{/* Ignore transient Tauri bridge invoke failure while notifying shelf geometry. */}
     });
   };
   const watchShelfSurface=()=>{

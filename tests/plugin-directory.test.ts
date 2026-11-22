@@ -356,11 +356,13 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   const html = renderMolisWorkWeb(view([installed("notes", { accepts_objects: true }), installed("plain")]));
   const parsed = JSON.parse(directoryData(html)) as Array<{ id: string; accepts_objects: boolean }>;
   // RAC-606-CLIENT-01: both Runtime entries and market fallbacks use exactly the fields the real script consumes.
-  // ＋ (07-S2, 口径 8) also reads a rail plugin's position (`order`, a number) and the personal mark (only ever true).
+  // ＋ (07-S2, 口径 8) also reads a rail plugin's position (`order`, a number) and the personal mark (only ever true); the tab
+  // workspace reads where opening a plugin lands in the side panel (`side`, `side_item`: a side tab key) from the same data.
   for (const entry of parsed as Array<Record<string, unknown>>) {
-    assert.deepEqual(Object.keys(entry).filter(key => key !== "order" && key !== "personal").sort(), ["accepts_objects", "hue", "id"]);
+    assert.deepEqual(Object.keys(entry).filter(key => !["order", "personal", "side", "side_item"].includes(key)).sort(), ["accepts_objects", "hue", "id"]);
     if ("order" in entry) assert.equal(typeof entry.order, "number");
     if ("personal" in entry) assert.equal(entry.personal, true);
+    for (const key of ["side", "side_item"] as const) if (key in entry) assert.match(String(entry[key]), new RegExp(`^plugin:${String(entry.id)}/`, "u"));
   }
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
   assert.equal(parsed.find(entry => entry.id === "plain")?.accepts_objects, false);

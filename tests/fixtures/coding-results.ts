@@ -1,5 +1,5 @@
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionViewFor } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference, ArtifactVersionRecord, FixedVersionRecord, ProcessItemRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginActionClient, PluginArtifactClient, PluginConsumableFilter, PluginHostServices, PluginProcessItemClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -156,7 +156,7 @@ export async function startShelf(platform: FakePlatform, options: { connected?: 
     invokeQuery: async () => { throw new Error("a plugin-only action is reached by invoke"); },
     invoke: async () => { throw new Error("Shelf discovers document providers via actions.dependencies"); },
     dependencies: {
-      discover: async () => [codingView],
+      discover: async () => [codingView], discoverOne: async reference => actionViewFor([codingView], reference),
       check: async () => {},
       invoke: async <Output>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => {
         asked.push(`${reference.capability_id}@${reference.version}`);

@@ -5,7 +5,7 @@ import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineT
   type ActionDefinition, type ActionHandlerBinding, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskDecision, type OpenTarget,
   type TaskServesBindInput, type TaskServesInput, type TaskServesResult, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewRequest, StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview, type AssistantScope, type AssistantSendInput, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview, type AssistantScope, type AssistantSendInput, type AssistantWorkState, assistantUnderWay, assistantWaitsOnPerson } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
@@ -101,10 +101,8 @@ export interface AssistantLineSource {
   stop(workId: string): Promise<void>;
 }
 
-const UNDER_WAY: readonly AssistantWorkState[] = ["running", "waiting-input", "waiting-review", "paused", "needs-check"];
-const WAITS_ON_PERSON: readonly AssistantWorkState[] = ["waiting-input", "waiting-review", "needs-check"];
 const RING: Readonly<Record<AssistantWorkState, StateRingState>> = { idle: "idle", running: "running", "waiting-input": "answer", "waiting-review": "approval", paused: "paused",
-  completed: "done", failed: "failed", stopped: "stopped", "needs-check": "verify" };
+  completed: "done", failed: "failed", stopped: "stopped", "needs-check": "verify", unreadable: "unavailable" };
 /** The state as one phrase, said in the reader's language when the line or the table is read (not kept). */
 const words = (state: AssistantWorkState) => uiText.text(`workbench.assistant-line.state-${state}`);
 const nameOf = (work: StoredWork) => workTitle(work) || uiText.text("workbench.assistant-line.untitled");
@@ -130,9 +128,9 @@ const servesOf = (work: StoredWork): ActionSubject[] => isEvent(work) ? [subject
 export function assistantWorkEvents(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState }>, window: WorkEventWindow): WorkEvent[] {
   const events = works.filter(({ work }) => isEvent(work)).map(({ work, state }): WorkEvent & { under_way: boolean } => ({
     event_id: work.work_id, subject: subjectOf(work), title: nameOf(work), summary: words(state), content: "", facts: [], category: "personal",
-    placement: UNDER_WAY.includes(state) ? "active" : "occurred", occurred_at: work.updated_at, state: RING[state],
+    placement: assistantUnderWay(state) ? "active" : "occurred", occurred_at: work.updated_at, state: RING[state],
     // What waits on the person is said by the task table's row for the same work, so the line counts it once.
-    needs_attention: false, open: openOf(work), under_way: UNDER_WAY.includes(state) }));
+    needs_attention: false, open: openOf(work), under_way: assistantUnderWay(state) }));
   const ended = events.filter(event => !event.under_way && event.state !== "idle" && withinWorkEventWindow(event.occurred_at, window))
     .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, ENDED_SHOWN);
   return [...events.filter(event => event.under_way), ...ended].map(({ under_way: _underWay, ...event }) => event);
@@ -175,16 +173,16 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
 }
 
 export function assistantBackgroundTasks(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState; reviews?: readonly AssistantPendingReview[]; acceptance?: ReviewRequest }>): BackgroundTask[] {
-  return works.filter(({ work, state, acceptance }) => isTask(work) && (UNDER_WAY.includes(state) || Boolean(acceptance?.choices.some(c => c.id === "accept_all" && c.availability.available)))).map(({ work, state, reviews, acceptance }): BackgroundTask => {
+  return works.filter(({ work, state, acceptance }) => isTask(work) && (assistantUnderWay(state) || Boolean(acceptance?.choices.some(c => c.id === "accept_all" && c.availability.available)))).map(({ work, state, reviews, acceptance }): BackgroundTask => {
     const waitingAcceptance = Boolean(acceptance?.choices.some(c => c.id === "accept_all" && c.availability.available));
     return {
-      subject: subjectOf(work), title: nameOf(work), state: waitingAcceptance && !UNDER_WAY.includes(state) ? "approval" : RING[state],
-      step: { text: waitingAcceptance && !UNDER_WAY.includes(state) ? uiText.text("common.presentation.needs-acceptance") : words(state) }, details: [],
-      waiting: WAITS_ON_PERSON.includes(state) || waitingAcceptance,
+      subject: subjectOf(work), title: nameOf(work), state: waitingAcceptance && !assistantUnderWay(state) ? "approval" : RING[state],
+      step: { text: waitingAcceptance && !assistantUnderWay(state) ? uiText.text("common.presentation.needs-acceptance") : words(state) }, details: [],
+      waiting: assistantWaitsOnPerson(state) || waitingAcceptance,
       started_at: work.created_at, updated_at: work.updated_at,
       executor: work.executor.kind === "plugin" ? { kind: "plugin", label: work.executor.title } : work.character ? { kind: "character", label: work.character.title } : { kind: "assistant", label: uiText.text("workbench.assistant-line.assistant") },
       serves: servesOf(work), scope: "project",
-      commands: state === "paused" || !UNDER_WAY.includes(state) ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: uiText.text("workbench.assistant-line.stop-work", { title: nameOf(work) }) }],
+      commands: state === "paused" || !assistantUnderWay(state) ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: uiText.text("workbench.assistant-line.stop-work", { title: nameOf(work) }) }],
       decisions: decisionsOf(work, reviews ?? [], acceptance), open: openOf(work),
     };
   });

@@ -5,7 +5,7 @@ import {openDatasetStore,openFormStore,openLingguangStore,openPptStore,openTodoS
 import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync} from 'node:fs';
+import {readdirSync,readFileSync} from 'node:fs';
 
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
@@ -269,16 +269,21 @@ test('business SQL rollback rolls back the outbox too',async t=>{
   try{db.exec("BEGIN; INSERT INTO folders VALUES ('f','project','Temp','2026-09-30T00:00:00Z','2026-09-30T00:00:00Z'); ROLLBACK;");assert.equal(namespacedReplicaDatabase(db,pluginSyncNamespace(pagesManifest,'documents')).prepare('SELECT COUNT(*) AS n FROM replica_changes').get()!.n,0);}finally{db.close();}
 });
 
-test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled policy',()=>{
+test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled policy, and covering sync_heads index',()=>{
   const db=new DatabaseSync(':memory:');
   try{
-    db.exec(readFileSync('server/migrations/sync/0001_sync.sql','utf8'));
+    for(const file of readdirSync('server/migrations/sync').filter(name=>name.endsWith('.sql')).sort()){
+      db.exec(readFileSync(join('server/migrations/sync',file),'utf8'));
+    }
     const ns=syncNamespace(selection);
     db.prepare('INSERT INTO sync_policy VALUES (?,1,?,?)').run('alice','{}',JSON.stringify([ns]));
     const insert=db.prepare("INSERT INTO sync_events(space,namespace,operation,key,base,value,attachments,policy_revision,fingerprint) VALUES (?,?,?,?,?,?,'[]',?,'schema-fixture')");
     insert.run('alice',ns,'one','doc',0,'{}',1);
     assert.throws(()=>insert.run('alice',ns,'two','doc',0,'{}',1),/SYNC_VERSION_CONFLICT/);
     assert.throws(()=>insert.run('bob',ns,'one','doc',0,'{}',1),/SYNC_POLICY_CONFLICT/);
+    // P1-4: /v1/round MAX(h.revision) over sync_heads must use covering index sync_heads_revision (O(log N)).
+    const plan=db.prepare("EXPLAIN QUERY PLAN SELECT n.value AS namespace,MAX(COALESCE((SELECT e.revision FROM sync_events e WHERE e.space=p.space AND e.namespace=n.value AND e.action<>'archive' ORDER BY e.revision DESC LIMIT 1),0),COALESCE((SELECT MAX(h.revision) FROM sync_heads h WHERE h.space=p.space AND h.namespace=n.value),0)) AS revision FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND p.revision=? ORDER BY CAST(n.key AS INTEGER)").all('alice',1) as Array<{detail:string}>;
+    assert.ok(plan.some(row=>/USING COVERING INDEX sync_heads_revision/i.test(row.detail)),`expected covering index sync_heads_revision in EXPLAIN QUERY PLAN, got ${JSON.stringify(plan)}`);
     db.exec("UPDATE sync_policy SET revision=2,namespaces='[]'");
     assert.throws(()=>insert.run('alice',ns,'three','doc',1,'{}',1),/SYNC_POLICY_CONFLICT/);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM sync_events').get()!.n,1);

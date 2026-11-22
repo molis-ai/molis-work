@@ -33,7 +33,7 @@ import { childSkillPicks } from "./skill-picks.js";
 import { frameAppearance } from "./appearance.js";
 import { frameLanguage } from "./language-child.js";
 import type { FrameStageWords } from "./language.js";
-import type { FrameConfig, FrameDown, FrameUp } from "./types.js";
+import type { FrameConfig, FrameDown, FrameScope, FrameUp } from "./types.js";
 import { childComposer } from "./composer-child.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -71,7 +71,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
   const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
   showStageWords(config.stage);
-  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.pluginId = config.pluginId; document.body.dataset.routePrefix = config.routePrefix;
+  root.hidden = false;
+  document.body.dataset.projectId = config.projectId;
+  document.body.dataset.pluginId = config.pluginId;
+  document.body.dataset.routePrefix = config.routePrefix;
+  document.body.dataset.sideHelpAvailable = config.sideHelp ? "1" : "0";
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
@@ -148,11 +152,15 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     event.preventDefault(); send({ type: "link", url: new URL(href, config.origin).href, download: link.hasAttribute("download") });
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script"); script.src = new URL(url, config.origin).href;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched"))); document.head.append(script);
+    const script = document.createElement("script");
+    script.async = false;
+    script.src = new URL(url, config.origin).href;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched")));
+    document.head.append(script);
   });
-  for (const asset of config.assets) await load(asset);
-  await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
+  const scripts = [...config.assets, "/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js"];
+  await Promise.all(scripts.map(load));
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(uiText.text("common.child.view-entry-missing"));
   childPresentation(port, scope);
@@ -161,7 +169,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   childPlacement(port, scope);
   childFrameAssets(port, scope, root);
   childNavigation(port, scope, config, () => itemTab);
-  mountDeclaredHelp(config.side, root);
+  mountDeclaredHelp(config.side, root, scope);
   context();
   send({ type: "ready" });
 }
@@ -170,9 +178,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
  * Every framed plugin that declares `ui.help` gets a uniform Scheme A 「帮助」 trigger even if its own
  * view does not place a custom `[data-mw-help-trigger]` button. Plugins that draw their own button keep it.
  */
-function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
+function mountDeclaredHelp(side: boolean, root: HTMLElement, scope: FrameScope): void {
   if (side || !document.querySelector("script[data-mw-help-declaration]")) return;
   let floatingBtn: HTMLButtonElement | null = null;
+  let mutating = false;
+  let scheduled = false;
   const avoidOverlap = () => {
     if (!floatingBtn || !floatingBtn.isConnected) return;
     floatingBtn.classList.remove("mw-help-auto-trigger--top");
@@ -189,8 +199,7 @@ function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
     }));
     if (blocked) floatingBtn.classList.add("mw-help-auto-trigger--top");
   };
-  const ensure = () => {
-    if (document.querySelector("[data-mw-help-trigger]")) return;
+  const makeButton = (): HTMLButtonElement => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "mw-btn mw-btn--ghost";
@@ -209,10 +218,30 @@ function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
     label.dataset.slot = "button-label";
     label.textContent = uiText.text("common.help.title");
     btn.append(svg, label);
-    const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome, .wb-head-actions");
-    if (slot) {
-      slot.append(btn);
-    } else {
+    return btn;
+  };
+  const ensure = () => {
+    if (mutating) return;
+    mutating = true;
+    try {
+      if (document.querySelector('[data-mw-help-trigger]:not([data-mw-help-auto="true"])')) {
+        document.querySelectorAll('.mw-help-auto-host, [data-mw-help-auto="true"]').forEach(node => node.remove());
+        floatingBtn = null;
+        return;
+      }
+      const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome");
+      const existing = document.querySelector<HTMLButtonElement>('[data-mw-help-auto="true"]');
+      if (slot) {
+        if (existing && existing.parentElement === slot) return;
+        document.querySelectorAll(".mw-help-auto-host").forEach(node => node.remove());
+        floatingBtn = null;
+        const btn = existing ?? makeButton();
+        btn.classList.remove("mw-help-auto-trigger", "mw-help-auto-trigger--top");
+        slot.append(btn);
+        return;
+      }
+      if (existing?.isConnected) return;
+      const btn = makeButton();
       btn.classList.add("mw-help-auto-trigger");
       const host = document.createElement("div");
       host.className = "mw-help-auto-host";
@@ -220,11 +249,22 @@ function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
       document.body.append(host);
       floatingBtn = btn;
       requestAnimationFrame(avoidOverlap);
+    } finally {
+      mutating = false;
     }
   };
+  const scheduleEnsure = () => {
+    if (mutating || scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      ensure();
+    });
+  };
   ensure();
-  addEventListener("resize", avoidOverlap);
-  document.addEventListener("molis-work:language-changed", () => {
+  scope.observe(new MutationObserver(scheduleEnsure), root, { childList: true, subtree: true });
+  scope.listen(window, "resize", avoidOverlap);
+  scope.listen(document, "molis-work:language-changed", () => {
     const auto = document.querySelector<HTMLElement>('[data-mw-help-auto="true"] [data-slot="button-label"]');
     if (auto) auto.textContent = uiText.text("common.help.title");
   });

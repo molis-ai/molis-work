@@ -1,5 +1,16 @@
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { agentDefinitionsErrors } from "./agent-definitions.js";
+
+function promptErrorText(key: string, fallback: string, values?: Record<string, string | number>): string {
+  try {
+    const resolved = uiText.text(key, values);
+    if (resolved && resolved !== key) return resolved;
+  } catch {
+    // Bare unit tests may call prompt helpers before host locale packs are installed.
+  }
+  return fallback;
+}
 
 /**
  * Splits a prompt between user-editable guidance ("做事方法与内容偏好") and the system-owned
@@ -90,14 +101,25 @@ function hasValidFormat(body: string, requiredKeys: readonly string[]): boolean 
 
 /** Rebuilds the full prompt from simplified user guidance while locking the system output contract. */
 export function composeSimplifiedPrompt(defaultBody: string, guidance: string): string {
-  const clean = guidance.replace(/\r\n/gu, "\n").trim();
-  if (!clean) {
-    throw agentDefinitionsErrors.invalid("做事方法与内容偏好不能为空；要回到原版请点「恢复默认」");
-  }
   const { locked_format } = splitPromptContract(defaultBody, defaultBody);
+  let clean = guidance.replace(/\r\n/gu, "\n").trim();
+  if (locked_format && clean.endsWith(locked_format)) {
+    clean = clean.slice(0, clean.length - locked_format.length).trimEnd();
+  }
+  if (!clean) {
+    throw agentDefinitionsErrors.invalid(
+      promptErrorText("workbench.settings-prompts.error-guidance-empty", "做事方法与内容偏好不能为空；要回到原版请点「恢复默认」"),
+    );
+  }
   const combined = locked_format ? `${clean}\n\n${locked_format}` : clean;
   if (combined.length > AGENT_PROMPT_MAX_CHARS) {
-    throw agentDefinitionsErrors.invalid(`内容偏好加上系统格式约束超过了 ${AGENT_PROMPT_MAX_CHARS} 字，请精简后再保存`);
+    throw agentDefinitionsErrors.invalid(
+      promptErrorText(
+        "workbench.settings-prompts.error-too-long",
+        `内容偏好加上系统格式约束超过了 ${AGENT_PROMPT_MAX_CHARS} 字，请精简后再保存`,
+        { max: AGENT_PROMPT_MAX_CHARS },
+      ),
+    );
   }
   return combined;
 }
@@ -107,10 +129,22 @@ export function validateFullPromptBody(defaultBody: string, nextBody: string): v
   const { locked_format, required_keys } = splitPromptContract(defaultBody, defaultBody);
   if (!locked_format) return;
   if (!/json/iu.test(nextBody)) {
-    throw agentDefinitionsErrors.invalid("高级原文缺少 JSON 输出格式要求，这会导致程序无法读取结果。请补回格式约束，或点「恢复默认」回到原版。");
+    throw agentDefinitionsErrors.invalid(
+      promptErrorText(
+        "workbench.settings-prompts.error-missing-json",
+        "高级原文缺少 JSON 输出格式要求，这会导致程序无法读取结果。请补回格式约束，或点「恢复默认」回到原版。",
+      ),
+    );
   }
   const missing = required_keys.filter(key => !nextBody.includes(`"${key}"`));
   if (missing.length > 0) {
-    throw agentDefinitionsErrors.invalid(`输出格式约束缺少程序需要的字段：${missing.slice(0, 6).join(", ")}。请补回后再保存，或点「恢复默认」回到原版。`);
+    const keys = missing.slice(0, 6).join(", ");
+    throw agentDefinitionsErrors.invalid(
+      promptErrorText(
+        "workbench.settings-prompts.error-missing-keys",
+        `输出格式约束缺少程序需要的字段：${keys}。请补回后再保存，或点「恢复默认」回到原版。`,
+        { keys },
+      ),
+    );
   }
 }

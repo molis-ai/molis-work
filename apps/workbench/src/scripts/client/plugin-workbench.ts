@@ -302,7 +302,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   try {
     const storedPath = sessionStorage.getItem(artifactKey);
     if (inArtifactStage(storedPath)) artifactPath = storedPath;
-  } catch {}
+  } catch { /* Ignore unavailable sessionStorage for last artifact path. */ }
   const showArtifacts = () => {
     const selected = Boolean(detail.querySelector("[data-artifact-id]"));
     shell?.setAttribute("data-expanded", String(selected));
@@ -349,7 +349,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         break;
       }
       artifactPath = path;
-      try { sessionStorage.setItem(artifactKey, path); } catch {}
+      try { sessionStorage.setItem(artifactKey, path); } catch { /* Ignore sessionStorage write failure for last artifact path. */ }
       showArtifacts();
     } catch (error) {
       if (controller.signal.aborted) return;

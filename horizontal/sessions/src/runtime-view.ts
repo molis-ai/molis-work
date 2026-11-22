@@ -245,7 +245,7 @@ function recomputeReportedProjects(
 ): void {
   const decisions = store.decisions.allAttributionDecisions();
   const duplicateLocal = store.duplicateLocalNativeKeys();
-  for (const session of store.activeSessionsOrdered()) {
+  for (const session of store.activeSessionsOrdered({ subagents: true })) {
     const dirRow = session.directory_key ? freshDirs.get(session.directory_key) : undefined;
     const derived = dirRow && dirRow.kind === "session"
       ? {

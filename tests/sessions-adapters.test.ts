@@ -64,6 +64,15 @@ test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder
         JSON.stringify({ type: "summary", summary: "Shell summary without messages" }),
       ].join("\n") + "\n",
     );
+    // B103-2: a subagent's trajectory beside its session; every record is a sidechain and carries the session's id.
+    await mkdir(path.join(claudeDir, "claude-main-1", "subagents"), { recursive: true });
+    await writeFile(
+      path.join(claudeDir, "claude-main-1", "subagents", "agent-a1b2c3.jsonl"),
+      [
+        JSON.stringify({ sessionId: "claude-main-1", isSidechain: true, cwd: repoDir, timestamp: "2026-11-10T01:01:10Z", message: { role: "user", content: "Look through the tests" } }),
+        JSON.stringify({ sessionId: "claude-main-1", isSidechain: true, cwd: repoDir, timestamp: "2026-11-10T01:01:20Z", message: { role: "assistant", content: "Subagent found two tests" } }),
+      ].join("\n") + "\n",
+    );
     const bigText = `HEAD-${"x".repeat(70_000)}-TAIL`;
     await writeFile(
       path.join(claudeDir, "claude-main-1.jsonl"),
@@ -170,6 +179,17 @@ test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder
       ]);
 
       const claudeRow = rows.find(r => r.tool.entry_id === "claude-code")!;
+      // B103-2: the subagent is recorded under its session, left out of the list and the source count, and its trajectory reads.
+      const subagentRow = (() => {
+        using db = new DatabaseSync(homeSqlitePath(homeDir, EXTERNAL_SESSIONS_STORE), { readOnly: true });
+        return db.prepare("SELECT session_key, forked_from, subagent FROM external_sessions WHERE native_id = ?").get("agent-a1b2c3") as
+          { session_key: string; forked_from: string; subagent: number } | undefined;
+      })();
+      assert.equal(subagentRow?.subagent, 1);
+      assert.equal(subagentRow?.forked_from, claudeRow.session_key);
+      assert.equal(listed.sources.find(item => item.entry_id === "claude-code")?.session_count, 1);
+      const subagentHistory = await svc.historyRead({ session_key: subagentRow!.session_key }, PERSON);
+      assert.deepEqual(subagentHistory.entries.map(entry => entry.text), ["Look through the tests", "Subagent found two tests"]);
       const claudeHist1 = await svc.historyRead({ session_key: claudeRow.session_key }, PERSON);
       assert.equal(claudeHist1.entries.some(e => e.text.includes("Sidechain internal chatter")), false);
       assert.ok(claudeHist1.entries.some(e => e.text === "[附件未读取]"));

@@ -54,7 +54,7 @@ export function assistantPersonActions(localHost: MolisWorkLocalHost,
   };
   const personBound = (reference: LocalHostProjectReference): BoundActionClient => {
     const person = personClient(reference), client = localHost.actionClient(reference);
-    return { discover: person.discover, invoke: async (definition, input, control, transport) => {
+    return { discover: person.discover, discoverOne: async action => client.discoverOne(await personContext(reference), action), invoke: async (definition, input, control, transport) => {
       const caller = await personContext(reference);
       return bindActionClient(client, () => caller).invoke(definition, input, control, transport);
     } };

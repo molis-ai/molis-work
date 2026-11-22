@@ -11,7 +11,11 @@ export function childContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   scope.own(() => { for (const entry of pending.values()) entry.reject(new Error("View closed")); pending.clear(); });
   scope.listen(document, "keydown", event => {
     const key = event as KeyboardEvent;
-    if (!key.defaultPrevented && (key.metaKey || key.ctrlKey) && key.key === ".") {
+    const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+    const mac = typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0 ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
+    const mod = mac ? (key.metaKey && !key.ctrlKey) : (key.ctrlKey !== key.metaKey);
+    const inTerminal = key.target instanceof Element && Boolean(key.target.closest("[data-tui-pane],.xterm"));
+    if (!key.defaultPrevented && !inTerminal && mod && !key.shiftKey && !key.altKey && key.key === ".") {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       key.preventDefault(); send({ type: "context-key" });
     }

@@ -109,7 +109,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   const returns = host.returns;
   const modelReady = () => {
-    const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
+    const frames = [...document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]')].map((frame) => frame.contentDocument);
     [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
   };
   // A save whose answer already says this provider can run is not read again (specs/draft-and-return §3.4).
@@ -228,7 +228,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const requestKey = fetchPath || section;
-      if (loading?.key === requestKey) return;
+      // The same page is still loading (the cover was closed and opened again meanwhile): it is the place shown, so the cover says so.
+      if (loading?.key === requestKey) { host.noteCover?.(options.kind, section + (fetchPath ? " " + fetchPath : "")); return; }
       const request = { key: requestKey };
       loading = request;
       const previous = caches.get(section), lifetime = previous && retained.get(previous);

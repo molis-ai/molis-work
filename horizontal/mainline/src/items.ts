@@ -17,8 +17,8 @@ import type { MainlineStore } from "./store.js";
 
 /** What the Host gives the service for one call: the person's store, and the item sources its trusted catalog declares in this project. */
 export interface MainlineItemPorts {
-  /** The person's mainline in the caller's project; closed when the call ends. */
-  open(caller: ActionCallContext): { store: MainlineStore; close(): void };
+  /** The person's mainline in the caller's project, over the Home's held connection: the call borrows it and does not close it. */
+  open(caller: ActionCallContext): MainlineStore;
   /** The presentation declarations of the installations this project reaches, each with the plugin that owns it (never self-reported). */
   declarations(caller: ActionCallContext): Promise<readonly ItemDeclaration[]>;
 }
@@ -32,8 +32,7 @@ const asTarget = (itemId: string): ActionSubject => ({ kind: WORK_ITEM_KIND, id:
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
 
 async function withStore<T>(caller: ActionCallContext, ports: MainlineItemPorts, work: (store: MainlineStore) => T | Promise<T>): Promise<T> {
-  const handle = ports.open(caller);
-  try { return await work(handle.store); } finally { handle.close(); }
+  return await work(ports.open(caller));
 }
 
 /** A kind's source as the caller's directory offers it: the declaring owner and each part it can call now. */

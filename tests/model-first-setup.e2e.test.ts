@@ -168,7 +168,8 @@ test("Cognia in a pane beside the page: its settings link opens the settings ove
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
-  const child=await pluginFrameBrowser(t,browser,"cognia"), paneView=await pluginFrameBrowser(t,browser,"cognia","iframe.tab-content-frame");
+  const child = await pluginFrameBrowser(t, browser, "cognia", undefined, '[data-tab-pane]:nth-of-type(1) iframe[data-plugin-frame="cognia"]');
+  const paneView = await pluginFrameBrowser(t, browser, "cognia", undefined, '[data-tab-pane]:nth-of-type(2) iframe[data-plugin-frame="cognia"]');
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=cognia` }, sessionId));
   await child.waitFor("document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden");

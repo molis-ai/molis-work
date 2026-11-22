@@ -86,8 +86,34 @@ const replaceParts = (parts, node, pattern, replacement, all) => {
 
 // A program the package bundles from TypeScript (as Forms does, plugins/native/form/src/browser/): the source reads the bundle
 // with `readFileSync(new URL("./<name>.js", import.meta.url), "utf8")`, and the package's build script makes `dist/<name>.js`
-// with `esbuild <entry> … --outfile=dist/<name>.js`. The program is then the entry and what it imports, read as typed source.
+// either inline via `esbuild <entry> … --outfile=dist/<name>.js` or via a `node tooling/build-*.mjs` script declaring static
+// `{ entryPoints: ["src/…ts"], outfile: "dist/…js" }` objects. The program is then the entry and what it imports, read as typed source.
 const BUNDLE_STEP = /(?:^|[\s&;/])esbuild\s+(\S+\.ts)\b[^&;]*?--outfile=(\S+\.js)/g;
+const BUILD_SCRIPT_STEP = /(?:^|[\s&;])node\s+(tooling\/build-[^\s&;]+\.mjs)\b/g;
+const scriptBundleSteps = (file, text) => {
+  const steps = [];
+  const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const visit = (node) => {
+    if (ts.isObjectLiteralExpression(node)) {
+      let entry = null;
+      let outfile = null;
+      for (const prop of node.properties) {
+        if (!ts.isPropertyAssignment(prop)) continue;
+        const name = browserName(prop.name);
+        if (name === "outfile" && ts.isStringLiteralLike(prop.initializer) && prop.initializer.text.endsWith(".js")) {
+          outfile = prop.initializer.text;
+        } else if (name === "entryPoints" && ts.isArrayLiteralExpression(prop.initializer) && prop.initializer.elements.length === 1) {
+          const item = prop.initializer.elements[0];
+          if (ts.isStringLiteralLike(item) && item.text.endsWith(".ts")) entry = item.text;
+        }
+      }
+      if (entry && outfile) steps.push([entry, outfile]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return steps;
+};
 const bundleEntry = (graph, node) => {
   if (!ts.isIdentifier(node.expression) || node.expression.text !== "readFileSync" || node.arguments.length !== 2) return null;
   const [url, encoding] = node.arguments.map(unwrap);
@@ -97,8 +123,17 @@ const bundleEntry = (graph, node) => {
   for (const { dir, json } of graph.packages.values()) {
     if (!file.startsWith(dir + "/src/")) continue;
     const bundle = path.posix.normalize(path.posix.join(path.posix.dirname(dir + "/dist/" + file.slice(dir.length + 5)), url.arguments[0].text));
-    for (const [, entry, outfile] of String(json.scripts?.build ?? "").matchAll(BUNDLE_STEP)) {
+    const buildCommand = String(json.scripts?.build ?? "");
+    for (const [, entry, outfile] of buildCommand.matchAll(BUNDLE_STEP)) {
       if (path.posix.join(dir, outfile) === bundle && graph.entries.has(path.posix.join(dir, entry))) return path.posix.join(dir, entry);
+    }
+    for (const [, scriptRel] of buildCommand.matchAll(BUILD_SCRIPT_STEP)) {
+      const scriptPath = path.posix.normalize(path.posix.join(dir, scriptRel));
+      const scriptText = graph.buildScripts?.get(scriptPath);
+      if (!scriptText) continue;
+      for (const [entry, outfile] of scriptBundleSteps(scriptPath, scriptText)) {
+        if (path.posix.join(dir, outfile) === bundle && graph.entries.has(path.posix.join(dir, entry))) return path.posix.join(dir, entry);
+      }
     }
   }
   return null;

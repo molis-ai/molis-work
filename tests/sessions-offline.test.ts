@@ -115,6 +115,8 @@ const EXTERNAL_SESSIONS_WORKBENCH_FILES = new Set([
   "apps/workbench/src/search-rows.ts",
   "apps/workbench/src/sessions/navigation.ts",
   "apps/workbench/src/sessions/ui.ts",
+  // The Sessions surface's on-demand help words, rendered only by sessions/ui.ts above (batch 40, VUX-55).
+  "apps/workbench/src/settings-help-topics.ts",
 ]);
 
 test("RAC-217 SRB-08 design-system and builtin plugin lists carry no retired sessions entry while workbench hosts only the BL-177 surface", () => {

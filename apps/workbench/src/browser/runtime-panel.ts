@@ -47,13 +47,14 @@ const attributes = (attrs: Record<string, string>) => Object.entries(attrs).map(
 const mwButton = (label: string, attrs: Record<string, string>, primary = false) =>
   `<button type="button" class="mw-btn mw-btn--${primary ? "primary" : "secondary"} mw-btn--sm" data-slot="button"${attributes(attrs)}><span data-slot="button-label">${escape(label)}</span></button>`;
 
-function renderHomeExpired(expired: Expired): string {
+function renderHomeExpired(expired: Expired, updated = false): string {
   if (!expired.count) return "";
-  return `<div class="mw-alert" data-slot="alert" role="status" data-runtime-expired><strong>${escape(text("expired", { count: expired.count }))}</strong><div class="runtime-rows"><div class="mw-dir-row mw-dir-row--meta runtime-row" data-runtime-row="expired"><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">${escape(expiredSources(expired))}</span></span><span class="runtime-row__actions">${mwButton(text("expired-seen"), seenAttrs(expired))}</span></div></div></div>`;
+  const notice = updated ? `<p role="status" data-runtime-expired-notice>${escape(text("expired-updated"))}</p>` : "";
+  return `<div class="mw-alert" data-slot="alert" role="status" data-runtime-expired><strong>${escape(text("expired", { count: expired.count }))}</strong><div class="runtime-rows"><div class="mw-dir-row mw-dir-row--meta runtime-row" data-runtime-row="expired"><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">${escape(expiredSources(expired))}</span></span><span class="runtime-row__actions">${mwButton(text("expired-seen"), seenAttrs(expired))}</span></div></div>${notice}</div>`;
 }
 
-function renderHome(view: Overview, handled: boolean): string {
-  const expired = renderHomeExpired(view.expired);
+function renderHome(view: Overview, handled: boolean, expiredUpdated: boolean): string {
+  const expired = renderHomeExpired(view.expired, expiredUpdated);
   if (!view.missed.length) return (handled ? `<div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${escape(text("all-handled"))}</strong></div>` : "") + expired;
   const rows = view.missed.map(run => `<div class="mw-dir-row mw-dir-row--meta runtime-row" data-runtime-row="${escape(run.run_id)}"><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${escape(run.title)}</strong></span><small>${escape(run.source.title)} · ${escape(when(run.due_at))}</small></span><span class="runtime-row__actions">${mwButton(text("run-now"), decideAttrs(run, "run_now"), true)}${mwButton(text("skip"), decideAttrs(run, "skip"))}</span></div>`).join("");
   return `<div class="mw-alert mw-alert--warning" data-slot="alert"><strong>${escape(missedTitle(view))}</strong><div class="runtime-rows">${rows}</div></div>${expired}`;
@@ -62,17 +63,18 @@ function renderHome(view: Overview, handled: boolean): string {
 const root = document.querySelector<HTMLElement>("[data-runtime-panel]"), request = page.molisWorkRequest;
 if (root && request) {
   const body = root.querySelector<HTMLElement>("[data-runtime-body]")!;
-  let view: Overview | null = null, hadMissed = false;
+  let view: Overview | null = null, hadMissed = false, expiredUpdated = false;
   const paint = () => {
     if (!view) return;
-    body.innerHTML = renderHome(view, hadMissed && !view.missed.length);
+    body.innerHTML = renderHome(view, hadMissed && !view.missed.length, expiredUpdated);
     root.hidden = !body.innerHTML;
   };
-  const load = async (): Promise<boolean> => {
+  const load = async (updated = false): Promise<boolean> => {
     // The Host is not answering: the Home page says nothing.
     try {
       view = await request("/api/runtime/overview") as Overview;
       hadMissed ||= view.missed.length > 0;
+      expiredUpdated = updated && view.expired.count > 0;
       paint();
       return true;
     } catch {
@@ -111,19 +113,20 @@ if (root && request) {
           fallback: text("decide-failed"),
         }) as { applied?: boolean } | undefined;
         if (result?.applied === false) {
-          if (!(await load())) {
+          if (!(await load(true))) {
             seen.disabled = false;
             line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
           }
           return;
         }
         if (view) {
+          expiredUpdated = false;
           view = { ...view, expired: { ...view.expired, count: 0, sources: [] } };
           paint();
         }
       } catch (error) {
         if ((error as { status?: number } | null)?.status === 409) {
-          if (await load()) return;
+          if (await load(true)) return;
         }
         seen.disabled = false;
         line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);

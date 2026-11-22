@@ -154,4 +154,32 @@ test("B35 P1-E1: LSP applyEdits clamps oversized character positions to each lin
     const checked = await intelligence.checkWrite({ path: "src/same-start-b.go", before: undefined, after: "pkg_old main\n" });
     assert.equal(checked.text, "/*pre*/package main\n");
   }
+
+  // Case 3 (P2-5): overlapping, inverted, fractional, or null/NaN LSP edits must fail formatting safely and keep original text.
+  const original = "package main  \nvar x = 1\n";
+  const malformedCases: Array<[string, unknown[]]> = [
+    ["overlapping ranges", [
+      { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } }, newText: "A" },
+      { range: { start: { line: 0, character: 3 }, end: { line: 0, character: 9 } }, newText: "B" },
+    ]],
+    ["same-start overlapping replacements", [
+      { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } }, newText: "A" },
+      { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } }, newText: "B" },
+    ]],
+    ["inverted range", [
+      { range: { start: { line: 0, character: 7 }, end: { line: 0, character: 2 } }, newText: "X" },
+    ]],
+    ["fractional coordinate", [
+      { range: { start: { line: 0, character: 1.5 }, end: { line: 0, character: 3 } }, newText: "X" },
+    ]],
+    ["null/NaN coordinate", [
+      { range: { start: { line: Number.NaN, character: 0 }, end: { line: 0, character: 2 } }, newText: "X" },
+    ]],
+  ];
+  for (const [label, edits] of malformedCases) {
+    const { intelligence } = round(t, { FAKE_LSP_CUSTOM_EDITS: JSON.stringify(edits) });
+    const checked = await intelligence.checkWrite({ path: "src/malformed.go", before: undefined, after: original });
+    assert.equal(checked.text, original, `${label}: original text must remain intact`);
+    assert.equal(checked.checks.formatting.state, "failed", `${label}: formatting must report failed`);
+  }
 });

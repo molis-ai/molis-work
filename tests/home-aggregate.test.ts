@@ -1,6 +1,7 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectHomeAggregate, homeAggregatePorts, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { HomeAggregatePorts } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -25,8 +26,8 @@ test("RAC-2437 the Home reports a source listed in the project's plugin manifest
   const ports: HomeAggregatePorts = {
     openProjects: () => [a, b],
     whileOpen: async (_reference, work) => work(),
-    client: projectReference => ({ discover: async () => [unavailableView(projectReference.project_id)],
-      invoke: async () => assert.fail("an unavailable source is never invoked") }),
+    client: projectReference => (fakeActionClient({ discover: async () => [unavailableView(projectReference.project_id)],
+      invoke: async () => assert.fail("an unavailable source is never invoked") })),
     context: async projectReference => context(projectReference.project_id),
     // The manifest fact: A does not list the plugin, B does. Same provider, same refusal in both projects.
     projectPlugins: async projectReference => (pluginId: string) => projectReference.project_id === b.project_id && pluginId === PLUGIN,
@@ -133,8 +134,8 @@ test("RAC-2781 deferred discovery obeys the real parent's exact cancellation rea
     projectPlugins: async () => { throw new ActionError("host.catalog_unavailable", "private catalog error"); },
     whileOpen: async (_project, work) => work(),
     context: async project => context(project.project_id),
-    client: () => ({ discover: async () => { entered(); await held; return []; },
-      invoke: async () => assert.fail("discovery never finished") }),
+    client: () => (fakeActionClient({ discover: async () => { entered(); await held; return []; },
+      invoke: async () => assert.fail("discovery never finished") })),
   };
   const pending = collectHomeAggregate(ports, TYPE, {}, parent.signal);
   // Observe pending before abort so its rejection can never be unhandled.
@@ -178,7 +179,7 @@ test("SYS-05 a context resolving after its discovery timeout cannot start a late
   let captured: AbortSignal | undefined, discoveries = 0, invocations = 0;
   const result = await collectHomeAggregate({ openProjects: () => [project], projectPlugins: async () => () => true,
     whileOpen: async (_project, work) => work(), context: async (_project, signal) => { captured = signal; return held.promise; },
-    client: () => ({ discover: async () => { discoveries++; return []; }, invoke: async () => { invocations++; return {}; } }),
+    client: () => (fakeActionClient({ discover: async () => { discoveries++; return []; }, invoke: async () => { invocations++; return {}; } })),
   }, TYPE, {});
   assert.deepEqual(result, { answers: [], issues: [{ project_id: project.project_id, source: null, code: "actions.timeout" }] });
   assert.equal(captured?.aborted, true);
@@ -216,7 +217,7 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
   const portsFor = (project: { project_id: string; database_path: string }, code: string): HomeAggregatePorts => ({
     openProjects: () => [reference(project)],
     whileOpen: async (_reference, work) => work(),
-    client: () => ({ discover: async () => [view(code)], invoke: async () => assert.fail("an unavailable source is never invoked") }),
+    client: () => (fakeActionClient({ discover: async () => [view(code)], invoke: async () => assert.fail("an unavailable source is never invoked") })),
     context: async projectReference => context(projectReference.project_id),
     projectPlugins: projectReference => host.projectPluginReach(projectReference.project_id),
   });
@@ -228,4 +229,107 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
     const serviceDown = await collectHomeAggregate(portsFor(bareProject, "actions.service_unavailable"), TYPE, {});
     assert.deepEqual(serviceDown.issues.map(issue => issue.code), ["actions.service_unavailable"], "a source that cannot answer is still shown, as on main");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// B103-01: with projects asleep, the Home answers one from its last read while it was not used since, marked resting; one not read yet,
+// or used since that read, is read in the background (opened quietly, the page told) and not waited for; one closed on purpose is left.
+test("B103-01 a sleeping project is answered from its last read until it is used again; one not read yet is read in the background", async () => {
+  const a = reference("project-a"), b = reference("project-b"), c = reference("project-c");
+  const answering = (projectId: string): ActionView => ({ ...unavailableView(projectId), availability: { available: true } as const });
+  const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
+    [a.storage_key, { state: "open", usedAt: 5 }], [b.storage_key, { state: "never", usedAt: undefined }], [c.storage_key, { state: "closed", usedAt: undefined }]]);
+  let quiet = 0;
+  const woken: string[] = [], changed: string[] = [];
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [a, b, c].filter(project => rests.get(project.storage_key)!.state === "open"),
+    whileOpen: async (_reference, work) => work(),
+    client: project => fakeActionClient({ discover: async () => [answering(project.project_id)], invoke: async () => { assert.ok(quiet > 0, "every read is quiet"); return { project: project.project_id }; } }),
+    context: async project => context(project.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => [a, b, c].filter(project => rests.get(project.storage_key)!.state !== "open"),
+      rest: project => rests.get(project.storage_key)!,
+      wake: async (project, work) => { woken.push(project.project_id); return work(); },
+      quietly: async work => { quiet += 1; try { return await work(); } finally { quiet -= 1; } },
+      changed: projectId => { changed.push(projectId); },
+      running: () => true,
+      readings,
+    },
+  };
+  const read = async () => (await collectHomeAggregate(ports, TYPE, {})).answers.map(answer => `${answer.project_id}${answer.resting ? ":resting" : ""}`).sort();
+  assert.deepEqual(await read(), ["project-a"], "the project not read yet is not waited for");
+  await readings.pass;
+  assert.deepEqual([woken, changed], [["project-b"], ["project-b"]], "it was read in the background and the page told; the one closed on purpose was not");
+  // B was opened to be read and went back to sleep unused (as the Host records it, used at 0); A went to sleep unused too.
+  rests.set(a.storage_key, { state: "asleep", usedAt: 5 }); rests.set(b.storage_key, { state: "asleep", usedAt: undefined });
+  woken.length = 0;
+  assert.deepEqual(await read(), ["project-a:resting", "project-b:resting"]);
+  await readings.pass;
+  assert.deepEqual(woken, [], "neither was opened");
+  // A was used before it slept again: its last read no longer holds.
+  rests.set(a.storage_key, { state: "asleep", usedAt: 9 });
+  assert.deepEqual(await read(), ["project-b:resting"]);
+  await readings.pass;
+  assert.deepEqual(woken, ["project-a"]);
+  assert.deepEqual(await read(), ["project-a:resting", "project-b:resting"]);
+  assert.equal(quiet, 0);
+});
+
+// B103-01: a read that never got into the project (it went to sleep between the list and the read) is not kept as its last reading, and
+// an answer made from a per-provider input is shown for a sleeping project only while what it was made from (`keyOf`) is the same.
+test("B103-01 a reading is kept only when it read the project, and shown asleep only while its input key holds", async () => {
+  const a = reference("project-a"), b = reference("project-b");
+  const answering = (projectId: string): ActionView => ({ ...unavailableView(projectId), availability: { available: true } as const });
+  const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
+    [a.storage_key, { state: "open", usedAt: 5 }], [b.storage_key, { state: "never", usedAt: undefined }]]);
+  let listed = [a];
+  const woken: string[] = [];
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => listed,
+    // A falls asleep after it was listed and before the read got in.
+    whileOpen: async (project, work) => {
+      if (project.project_id !== "project-a") return work();
+      rests.set(a.storage_key, { state: "asleep", usedAt: 5 });
+      return undefined;
+    },
+    client: project => fakeActionClient({ discover: async () => [answering(project.project_id)], invoke: async () => ({ project: project.project_id }) }),
+    context: async project => context(project.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => [a, b].filter(project => !listed.includes(project) && rests.get(project.storage_key)!.state !== "open"),
+      rest: project => rests.get(project.storage_key)!,
+      wake: async (project, work) => { woken.push(project.project_id); return work(); },
+      quietly: async work => work(),
+      changed: () => undefined,
+      running: () => true,
+      readings,
+    },
+  };
+  assert.deepEqual((await collectHomeAggregate(ports, TYPE, {})).answers, []);
+  listed = [];
+  assert.deepEqual((await collectHomeAggregate(ports, TYPE, {})).answers, [], "the empty read was not kept as its reading");
+  await readings.pass;
+  assert.deepEqual(woken.filter(id => id === "project-a"), ["project-a"], "so it is read in the background instead");
+
+  let key = "k1";
+  const each = new HomeAggregateInputEach(() => ({}), () => key), plain = new HomeAggregateInputEach(() => ({}));
+  const read = async (input: unknown) => (await collectHomeAggregate(ports, TYPE, input)).answers.map(answer => `${answer.project_id}${answer.resting ? ":resting" : ""}`).sort();
+  rests.set(a.storage_key, { state: "closed", usedAt: undefined });
+  woken.length = 0;
+  assert.deepEqual(await read(each), []);
+  await readings.pass;
+  assert.deepEqual(woken, ["project-b"]);
+  rests.set(b.storage_key, { state: "asleep", usedAt: undefined });
+  woken.length = 0;
+  assert.deepEqual(await read(each), ["project-b:resting"], "same key: the last answer is shown");
+  key = "k2";
+  assert.deepEqual(await read(each), [], "the key changed: that answer no longer holds");
+  await readings.pass;
+  assert.deepEqual(woken, ["project-b"], "and it is read again");
+  woken.length = 0;
+  assert.deepEqual(await read(plain), [], "an input made per provider without a key is read only from open projects");
+  await readings.pass;
+  assert.deepEqual(woken, []);
 });

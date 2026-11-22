@@ -125,7 +125,7 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
         return rows.find(({ record }) => record.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[scope] && record.state !== "uninstalled" && record.publisher_trust === "pinned")?.record.publisher_signature;
       } }),
     drafts: homeAgentDefinitions(home).skillDrafts,
-    draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills")),
+    draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills"), appliesTo => skillAudienceDeclared(appliesTo, home)),
     draftAvailability: () => textModelAvailability(model, "起草技能"),
   };
 }

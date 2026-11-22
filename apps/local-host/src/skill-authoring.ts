@@ -9,10 +9,11 @@ import { randomUUID } from 'node:crypto';
 import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { isSkillAppliesTo, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
+import { SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
   type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
 import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
+import { skillAudienceDeclared } from './memory/memory-plugin-scene.js';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { t } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
@@ -198,7 +199,8 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
  * only: what comes back is cut to the form's limits and handed to the person, and an answer that is not a draft is refused.
  */
 export async function draftSkill(intent: string, complete: HostTextForCommit | undefined, authority: HostTextRequestOptions | undefined,
-  resolve: (prompt: InstructedPrompt) => string = value => composeInstructedPrompt(value.instruction.body, value.data)): Promise<SkillAuthoredFields> {
+  resolve: (prompt: InstructedPrompt) => string = value => composeInstructedPrompt(value.instruction.body, value.data),
+  declared: (appliesTo: unknown) => boolean = appliesTo => skillAudienceDeclared(appliesTo)): Promise<SkillAuthoredFields> {
   const asked = intent.trim();
   if (!asked || asked.length > SKILL_DRAFT_INTENT_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_DRAFT_INTENT_CHARS} 字说想让这个技能做什么`, { field: 'intent' });
   if (!complete) throw textModelRequired('起草技能');
@@ -214,6 +216,7 @@ export async function draftSkill(intent: string, complete: HostTextForCommit | u
   const body = cutHead(text('body').replace(/\r\n?/gu, '\n').split('\n').slice(0, SKILL_LIMITS.bodyLines).join('\n'), SKILL_LIMITS.bodyChars).trim();
   if (!name || !description || !body) throw unreadable();
   const whenNot = cutHead(text('when_not_to_use'), SKILL_LIMITS.whenChars);
-  const applies = isSkillAppliesTo(text('applies_to')) ? text('applies_to') as SkillAppliesTo : 'assistant';
+  // A well-formed name is not enough: the model may only pick someone this Home has (BL-b44-coding-scene-enum).
+  const applies = declared(text('applies_to')) ? text('applies_to') as SkillAppliesTo : 'assistant';
   return { name, description, applies_to: applies, body, ...(whenNot ? { when_not_to_use: whenNot } : {}) };
 }

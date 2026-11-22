@@ -74,8 +74,8 @@ export async function openCoding(t: TestContext, before = "", prepareHome?: (hom
   const closed = async (): Promise<Record<string, boolean>> => ({
     ...await browser.evaluate<Record<string, boolean>>(`(()=>{const at=selector=>document.querySelector(selector);
       return {task:at(${JSON.stringify(CODING_BOX)}).disabled,send:at(${JSON.stringify(CODING_SEND)}).disabled,intent:at(${JSON.stringify(codingControl("intent"))}).disabled};})()`),
-    // The model is a row of 「本轮设置」 in the Coding frame (POLISH-28); not drawn yet counts as closed.
-    model: await evaluate<boolean>(`document.querySelector(${JSON.stringify(CODING_MODEL)})?.disabled !== false`),
+    // The model is a row of 「本轮设置」 in the Coding frame (POLISH-28), drawn with the page: closed is its select's own `disabled`.
+    model: await evaluate<boolean>(`document.querySelector(${JSON.stringify(CODING_MODEL)}).disabled === true`),
   });
   /** Presses 发送, and ⌘↵ in the box past the button (the composer's own key); then gives the page a moment. */
   const trySend = async () => {

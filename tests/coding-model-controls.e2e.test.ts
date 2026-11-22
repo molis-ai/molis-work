@@ -84,6 +84,39 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   // The model, its effort and switching a live round are rows of 「本轮设置」 in the Coding frame (POLISH-28): opened from ＋.
   await waitFor(`document.querySelector('${CODING_MODEL}')?.options.length >= 2`);
   const small = JSON.stringify(["local-only", "fixture-small"]), large = JSON.stringify(["local-only", "fixture-large"]), plain = JSON.stringify(["local-only", "fixture-plain"]);
+  // POLISH-28 「本轮设置」 by keyboard, in the real select picker: ↓ opens the list, ↓ moves, ↵ chooses, and the focus is back on
+  // the control that was used (the rows are kept, not drawn again under it), so the next key goes on from there.
+  const key = async (name: string, code: number, text?: string) => {
+    await command("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key: name, code: name, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code }, sessionId);
+  };
+  const trigger = (selector: string) => `document.querySelector('${selector}').closest('[data-mw-select-picker]').querySelector('[data-mw-select-trigger]')`;
+  const byKeys = async (selector: string, label: string) => {
+    const before = await evaluate<string>(`document.querySelector('${selector}').value`);
+    await click(`[data-mw-select-picker]:has(${selector.split(" ").at(-1)}) [data-mw-select-trigger]`);
+    await waitFor(`!!document.querySelector('[data-mw-select-option]:focus')`, 10_000);
+    await key("Escape", 27);
+    await waitFor(`document.activeElement===${trigger(selector)}`, 10_000);
+    await key("ArrowDown", 40);
+    await waitFor(`!!document.querySelector('[data-mw-select-option]:focus')`, 10_000);
+    const from = await evaluate<string>(`document.activeElement.dataset.value`);
+    await key("ArrowDown", 40);
+    if (await evaluate<string>(`document.activeElement.dataset.value`) === from) await key("ArrowUp", 38);
+    await waitFor(`document.activeElement.dataset.value!==${JSON.stringify(from)}`, 10_000);
+    await key("Enter", 13, "\r");
+    await waitFor(`document.querySelector('${selector}').value!==${JSON.stringify(before)}`, 10_000);
+    assert.equal(await evaluate<boolean>(`document.activeElement===${trigger(selector)}`), true, `POLISH-28 用键盘选完${label}，焦点还在${label}这个控件上`);
+  };
+  await b.evaluate(codingAdd("settings"));
+  await waitFor(`document.querySelector('${coding} [data-coding-rules-dialog]').open`);
+  await byKeys(CODING_MODEL, "模型");
+  await fill(CODING_MODEL, small);
+  await waitFor(`!!document.querySelector('${CODING_EFFORT}')`);
+  await byKeys(CODING_EFFORT, "思考力度");
+  // Closed with Esc, the focus goes back to the bar's box, where 「本轮设置」 was opened from.
+  await key("Escape", 27);
+  await waitFor(`!document.querySelector('${coding} [data-coding-rules-dialog]').open`);
+  await b.waitFor(`document.activeElement===document.querySelector('${CODING_COMPOSER} .mw-composer__input')`, 10_000);
   // An unmarked model offers no effort; the marked one does.
   await fill(CODING_MODEL, plain);
   await waitFor(`!document.querySelector('${CODING_EFFORT}')`);
@@ -110,7 +143,8 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   assert.match(await evaluate<string>(`document.querySelector('${coding} [data-coding-status]').textContent`), /没有标注「fixture-plain」可调思考力度/);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${coding} [data-coding-model-note]').textContent`), /已请求改用/);
   await fill(CODING_MODEL, large);
-  await waitFor(`!!document.querySelector('${CODING_MODEL_SWITCH}') && document.querySelector('${coding} [data-coding-round-model]').textContent.replace(/\\s+/g,' ').match(/这一轮改用 .*fixture-large/)`);
+  // The switch's row is named by the model; its button says 本轮改用.
+  await waitFor(`!!document.querySelector('${CODING_MODEL_SWITCH}') && /fixture-large/.test(document.querySelector('${coding} [data-coding-model-switch-name]')?.textContent ?? '')`);
   const shot = async (name: string) => {
     const directory = join(process.cwd(), ".impeccable/qa/review/prologue-adoption"); await mkdir(directory, { recursive: true });
     const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
@@ -118,6 +152,8 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   };
   await shot("composer-switch-offered");
   await click(CODING_MODEL_SWITCH);
+  // Pressed, the button goes off while the switch is asked for and its row leaves once it is: the focus is on the model's choice, not lost.
+  await waitFor(`document.activeElement===${trigger(CODING_MODEL)}`, 10_000);
   for (let i = 0; i < 200; i++) {
     const seen = await evaluate<{ note: string; status: string }>(`({note:document.querySelector('${coding} [data-coding-model-note]')?.textContent||'',status:document.querySelector('${coding} [data-coding-status]')?.textContent||''})`);
     if (seen.note.includes("已请求改用 fixture-large") || /没有换模型.*fixture-large/.test(seen.status)) { assert.match(seen.note, /已请求改用 fixture-large/, seen.status); break; }

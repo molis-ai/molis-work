@@ -33,6 +33,9 @@ const counted = (label: string, count: number) => count ? label + " · " + count
 function choiceCommands(page: Page): CommandItem[] {
   const { readText, q, refs, s } = page, open = !shut(page), held = counts(page), context = q("[data-coding-context]");
   return [
+    // The model and the rules of the round (screen-polish §6.7): one row here, in place of two controls in the bar's bottom row. First, so it is seen without scrolling ＋.
+    { slash: "settings", label: readText("coding.round-settings.title"), hint: roundSettingsHint(page), keywords: ["模型", "规则", "model", "rules", "设置"], adds: "settings", enabled: open,
+      run: () => openRoundSettings(page) },
     { slash: "materials", label: counted(readText("coding.attach.material"), held.materials), hint: readText("coding.palette.materials-hint"), keywords: ["引用", "材料", "资料", "reference"], adds: "paperclip", enabled: open, run: () => openMaterials(page) },
     { slash: "character", label: held.character ? readText("coding.attach.character") + " · " + (s.characterTitles.get(s.current) || "") : readText("coding.attach.character"),
       hint: held.character ? readText("coding.character.next", { title: s.characterTitles.get(s.current) || "" }) : readText("coding.character.none-next"),
@@ -44,9 +47,6 @@ function choiceCommands(page: Page): CommandItem[] {
     // This session's memory: what it has learned and can clear, one press away rather than under 工作区与目标.
     { slash: "memory", label: readText("coding.memory.session"), hint: readText("coding.palette.memory-hint"), keywords: ["记忆", "memory", "清除"], adds: "sparkles", enabled: Boolean(s.current),
       run: () => q<HTMLAnchorElement>("[data-coding-memory-open]").click() },
-    // The model and the rules of the round (screen-polish §6.7): one row here, in place of two controls in the bar's bottom row.
-    { slash: "settings", label: readText("coding.round-settings.title"), hint: roundSettingsHint(page), keywords: ["模型", "规则", "model", "rules", "设置"], adds: "settings", enabled: Boolean(s.current && s.sessionOnShow),
-      run: () => openRoundSettings(page) },
     { slash: "context", label: readText("coding.attach.context"), hint: context.hidden ? readText("coding.context.show") : readText("coding.context.hide"), keywords: ["workspace", "goal", "目录", "目标"], adds: "tune",
       run: () => { context.hidden = !context.hidden; } },
   ];

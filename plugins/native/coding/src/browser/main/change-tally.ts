@@ -43,7 +43,8 @@ export function readChangeTally(page: Page, run: RunView, redraw: () => void): v
   own.asked.add(id);
   const signal = page.s.viewSignal;
   void api<{ stats: RoundStats | null }>(page, sessionPath(sessionId, runId) + "/changeset?stats=1").then(({ stats }) => {
-    if (!stats) return;
+    // No count to show: it cannot be said exactly (null), or nothing reached the disk (no files).
+    if (!stats?.files.length) return;
     own.tallies.set(id, { added: stats.added_lines, removed: stats.removed_lines, files: stats.files.map(file => ({ path: file.path, added: file.added_lines, removed: file.removed_lines })) });
     if (page.lifetime.alive && page.s.current === sessionId) redraw();
   }, error => {

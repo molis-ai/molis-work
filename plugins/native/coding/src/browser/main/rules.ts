@@ -25,11 +25,17 @@ export function roundSettingsHint(page: Page): string {
   return [model || page.readText("coding.model.none"), rulesWord(page).label].join(" · ");
 }
 
-/** Opens 「本轮设置」; `on` puts the focus on the model's choice (`/model`). */
+/**
+ * Opens 「本轮设置」; `on` puts the focus on the model's choice (`/model`). It is opened from the bar's ＋ or `/`, which are the
+ * workbench's and outside this page, so closing it gives the focus back to the bar's box rather than leaving it in the page.
+ */
 export function openRoundSettings(page: Page, on?: "model"): void {
   const dialog = page.q<HTMLDialogElement>("[data-coding-rules-dialog]");
   drawRules(page);
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+    dialog.addEventListener("close", () => page.refs.composer?.focus(), { once: true });
+    dialog.showModal();
+  }
   if (on) dialog.querySelector<HTMLElement>("[data-coding-model]")?.focus({ preventScroll: true });
 }
 

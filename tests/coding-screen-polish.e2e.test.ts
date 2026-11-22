@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { CODING_COMPOSER, codingAdd } from "./fixtures/coding-composer.js";
+import { shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 // Screen polish, first round, P4 (specs/screen-polish/p4-coding.md; both halves): the Coding page as a person meets it, in the
 // project's running instance. The session and its workspace are real; the one round on show is given to the page as the
@@ -275,6 +278,13 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
       return innerWidth<=${width}&&innerWidth>${width}-80&&Math.abs(turn.left-parseFloat(told.getPropertyValue('--mw-bar-left')))<=1;})()`, 20_000);
     return column();
   };
+  /** A review screenshot of the whole window (opt-in), for the walk-through of 36A-4b. */
+  const look = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    const directory = join(process.cwd(), ".impeccable/qa/review/screen-polish/p4b/after"); await mkdir(directory, { recursive: true });
+    const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
+  };
   const wide = await at(1440, 900);
   assert.ok(wide.bar < 720, `1440 宽时底部输入框本身不到 720：${wide.bar}`);
   assert.ok(wide.width >= 720, `POLISH-25 1440 宽时对话阅读列不窄于 720px：${wide.width}`);
@@ -300,6 +310,9 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
   const rows = `[...document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " [data-composer-command]")})].map(row=>row.textContent.replace(/\\s+/g,' ').trim())`;
   await owner.waitFor(`${rows}.some(text=>text.includes('/settings'))`, 10_000);
   const offered = await owner.evaluate<string>(`${rows}.find(text=>text.includes('/settings'))??''`);
+  assert.equal(await owner.evaluate<boolean>(`(()=>{const row=[...document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " [data-composer-command]")})].find(row=>row.textContent.includes('/settings')),menu=row.closest('[data-compose-menu]'),
+    at=row.getBoundingClientRect(),box=menu.getBoundingClientRect();return menu.scrollTop===0&&at.top>=box.top-1&&at.bottom<=box.bottom+1&&at.height>0;})()`), true, "POLISH-28 打开 ＋ 不用滚动就看得到「本轮设置」");
+  await look("zh-light-1440-plus-menu");
   assert.match(offered, /^本轮设置.+ · 规则/, `POLISH-28 ＋ 里的「本轮设置」一行写出当前模型和规则：${offered}`);
   await owner.evaluate(codingAdd("settings"));
   await waitFor(`document.querySelector('${coding} [data-coding-rules-dialog]').open`, 10_000);
@@ -314,8 +327,18 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
   const middle = await at(1024, 768);
   assert.ok(Math.abs(middle.left - middle.barLeft) <= 1 && middle.width >= Math.min(720, middle.room) - 1, `POLISH-25 1024 宽时阅读列左缘对齐输入框，宽到 720 或对话区右缘：${JSON.stringify(middle)}`);
   assert.ok(middle.line <= 40 && middle.card <= 52, `POLISH-25 1024 宽时回合结束卡的操作不折行：${JSON.stringify(middle)}`);
-  const narrowFoot = await owner.evaluate<number>(`(()=>{const row=document.querySelector(${JSON.stringify(CODING_COMPOSER)}).querySelector('.mw-composer__foot');
+  const footCount = () => owner.evaluate<number>(`(()=>{const row=document.querySelector(${JSON.stringify(CODING_COMPOSER)}).querySelector('.mw-composer__foot');
     return [...row.querySelectorAll('button,select,.mw-tag')].filter(node=>{const box=node.getBoundingClientRect();return box.width>0&&box.height>0&&getComputedStyle(node).visibility!=='hidden'&&(!node.closest('.mw-tag')||node.classList.contains('mw-tag'));}).length;})()`);
+  await look("zh-light-1024");
+  const narrowFoot = await footCount();
   assert.ok(narrowFoot <= 4, `POLISH-28 1024 宽时底行也不超过四个控件：${narrowFoot}`);
+  // What sits over the box in the page keeps the box's own width, so its right end stays clear of the workbench's 帮助 at this width.
+  const over = await evaluate<{ composer: number; bar: number }>(`(()=>{const node=document.querySelector('${coding} .coding-composer > *');return {composer:Math.round(parseFloat(getComputedStyle(node).width)),bar:Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mw-bar-column')))};})()`);
+  assert.ok(over.composer <= over.bar, `输入框上方那几行与输入框同宽，不跟着阅读列放到 720：${JSON.stringify(over)}`);
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 780, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await owner.waitFor("innerWidth<=390", 20_000);
+  await look("zh-light-390");
+  const phoneFoot = await footCount();
+  assert.ok(phoneFoot >= 1 && phoneFoot <= 4, `POLISH-28 390 宽时底行也不超过四个控件：${phoneFoot}`);
   assert.deepEqual(await evaluate("(window.codingTestErrors || [])"), []);
 });

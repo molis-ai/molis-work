@@ -112,14 +112,19 @@ export function codingNetChange(change: CodingChangeSet, path: string):
 /**
  * A round's change in lines alone (the stats-only read of `coding.changesets.read`, screen-polish 方案乙): what its writes left on
  * disk in each file, by the one rule the round's line in the conversation follows (round-tally.ts) — a refused write is left out,
- * a file written several times counts its net change — or `stats: null` when that cannot be said exactly. It carries no text of
+ * a file written several times counts its net change. Nothing on disk (every write turned down, or no write) is zero lines and no
+ * files; `stats: null` is only for what cannot be said exactly (a write failed or its outcome is unknown, or one file's several
+ * writes do not read as one change). It carries no text of
  * any file, so asking for it costs a few dozen bytes however large the files are.
  */
 export function codingChangeStats(change: CodingChangeSet): { stats: { added_lines: number; removed_lines: number; files: { path: string; added_lines: number; removed_lines: number }[] } | null } {
   const nets = [...new Set(change.files.map(file => file.path))].map(path => ({ path, net: codingNetChange(change, path) })).filter(group => group.net.indices.length > 1)
     .map(({ path, net }) => ({ path, available: net.available, ...(net.available ? codingChangedLines(net.before_text, net.after_text) : {}) }));
   const tally = codingRoundTally(change.files, nets);
-  return { stats: tally && { added_lines: tally.added, removed_lines: tally.removed, files: tally.files.map(file => ({ path: file.path, added_lines: file.added, removed_lines: file.removed })) } };
+  if (tally) return { stats: { added_lines: tally.added, removed_lines: tally.removed, files: tally.files.map(file => ({ path: file.path, added_lines: file.added, removed_lines: file.removed })) } };
+  // No count has two causes, told apart here: nothing reached the disk (every write was turned down, or there was none), which
+  // is a known zero; or a write failed or its outcome is unknown, or a file's several writes do not read as one change, which is not.
+  return { stats: change.files.every(file => file.review.execution === "not-applied") ? { added_lines: 0, removed_lines: 0, files: [] } : null };
 }
 
 /** The server derives quoted text from the exact stored side/line, never browser text. */

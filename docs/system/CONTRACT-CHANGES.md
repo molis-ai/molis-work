@@ -1,6 +1,6 @@
 # 合同变更流程
 
-2026-11-22 第 36A 批第 4 项后半（逐屏打磨方案乙）。Coding 的 `coding.changesets.read@1` 输入增加可选的 `stats: true`（页面路由 `?stats=1`）：只返回 `{ stats: { added_lines, removed_lines, files: [{ path, added_lines, removed_lines }] } | null }`，即每个文件落盘后的净增减行，不带文件内容、阅读器标记和成果引用，也不固定版本；有写入结果不明或同一文件多次写入之间被改过、行数说不准时返回 `stats: null`。不传该字段的调用方读到的仍是原来的完整变更，授权范围不变。按阶段一原位扩充并更新动作快照；无持久字段、状态机或兼容路径。仓内改用它的只有 Coding 页面的回合结束卡。见[逐屏打磨 P4 记录](../../specs/screen-polish/p4-coding.md)。
+2026-11-22 第 36A 批第 4 项后半（逐屏打磨方案乙）。Coding 的 `coding.changesets.read@1` 输入增加可选的 `stats: true`（页面路由 `?stats=1`）：只返回 `{ stats: { added_lines, removed_lines, files: [{ path, added_lines, removed_lines }] } | null }`，即每个文件落盘后的净增减行，不带文件内容、阅读器标记和成果引用，也不固定版本；没有写入落盘（全部被拒，或这一轮没有写入）时返回 0 行和空的文件列表；有写入失败或结果不明、或同一文件多次写入之间被改过、行数说不准时返回 `stats: null`。不传该字段的调用方读到的仍是原来的完整变更，授权范围不变。按阶段一原位扩充并更新动作快照；无持久字段、状态机或兼容路径。仓内改用它的只有 Coding 页面的回合结束卡。同一批里 Coding 多了一条内置指令 `/settings`（「本轮设置」）：内置指令的名字优先，项目或个人写的同名提示词指令 `/settings` 不再出现在指令列表里，要用得改名。见[逐屏打磨 P4 记录](../../specs/screen-polish/p4-coding.md)。
 
 2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
 

@@ -11,6 +11,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
+import { shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl, codingType, codingDeliver, codingAdd, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 
 async function fixture(t: TestContext, answer?: (turn: number) => Promise<Response>, title = "共享来源待办") {
@@ -118,6 +119,26 @@ for (const both of [false, true]) test(`QEA-42 QEA-46 QEA-65: mixed choices reco
   await b.evaluate("[...document.querySelectorAll('[data-knowledge-picker-list] li')].find(row => row.textContent.includes('共享来源待办')).querySelector('input[type=checkbox]').click()");
   await b.click("[data-knowledge-picker-confirm]");
   await b.waitFor("!document.querySelector('.knowledge-picker').open");
+  // POLISH-28 (the person's choice, 2026-11-22): what the next round takes is said by a tag over the box, in the page, and the
+  // bar's bottom row keeps its four controls; pressing the tag opens the same choice again, with what was chosen.
+  const tag = "[data-coding-workbench] [data-coding-next-round] button";
+  await child.waitFor(`(()=>{const tag=document.querySelector('${tag}');return !!tag&&tag.checkVisibility()&&/ · 1$/.test(tag.textContent.trim());})()`, 10_000);
+  const tagBottom = await child.evaluate<number>(`document.querySelector('${tag}').getBoundingClientRect().bottom`);
+  const bar = await b.evaluate<{ frame: number | null; box: number; ids: string[] }>(`(()=>{const frame=document.querySelector('[data-work-surface="coding"] iframe'),shell=document.querySelector(${JSON.stringify(CODING_COMPOSER)});
+    return {frame:frame?frame.getBoundingClientRect().top:null,box:shell.getBoundingClientRect().top,ids:[...shell.querySelectorAll('[data-composer-control]')].map(node=>node.dataset.composerControl)};})()`);
+  assert.ok(bar.frame !== null && bar.frame + tagBottom <= bar.box + 1, `POLISH-28 「下一轮带上的」小标签在输入框上方，没有被输入框盖住：${JSON.stringify({ ...bar, tagBottom })}`);
+  assert.deepEqual(bar.ids, ["intent"], "POLISH-28 选了资料以后底行仍只有「任务方式」一个 Coding 控件");
+  if (shouldSaveReviewScreenshots()) {
+    const directory = join(process.cwd(), ".impeccable/qa/review/screen-polish/p4b/after"); await mkdir(directory, { recursive: true });
+    const image = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
+    await writeFile(join(directory, `zh-light-next-round-tag${both ? "-b" : ""}.png`), Buffer.from(image.data, "base64"));
+  }
+  await child.click(tag);
+  await b.waitFor("document.querySelector('.knowledge-picker')?.open === true");
+  await b.waitFor("[...document.querySelectorAll('[data-knowledge-picker-list] li')].some(row => row.textContent.includes('共享来源待办') && row.querySelector('input[type=checkbox]')?.checked)", 20_000);
+  // Closed without confirming, the choice stands.
+  await b.evaluate("document.querySelector('.knowledge-picker').close()");
+  await child.waitFor(`/ · 1$/.test(document.querySelector('${tag}')?.textContent.trim() ?? '')`, 10_000);
   const store = openTodoStore(b.homeDirectory);
   const bad = (() => { try { return store.create({ title: "另一个会撤回的来源", notes: "选择时的正文", placement: "project" }, access).item; } finally { store.close(); } })();
   await choose(bad.title);

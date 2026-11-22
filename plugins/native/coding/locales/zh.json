@@ -980,7 +980,6 @@
     "coding.model.requested": "已请求改用 {model}，下一次模型调用起生效",
     "coding.model.round": "本轮：{model}",
     "coding.model.switch": "本轮改用",
-    "coding.model.switch-row": "这一轮改用 {model}",
     "coding.model.switch-asked": "已请求改用 {model}：从下一次模型调用起生效，已有结果与授权不变。",
     "coding.model.switch-failed": "没有换模型：{reason}",
     "coding.model.switch-title": "从下一次模型调用起改用 {model}；已有结果、工具与授权不变，上下文整理仍用本轮开始时的模型",

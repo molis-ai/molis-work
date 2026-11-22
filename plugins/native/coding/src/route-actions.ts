@@ -124,7 +124,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
   "coding.artifacts": { definition: define("artifacts.list", /* @version action.coding.artifacts.list */ 1, "编码成果目录", "列出本项目已保存的报告与变更", "query", closed({}), ["artifact:read"], READS),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
-  "coding.read-changeset": { definition: define("changesets.read", /* @version action.coding.changesets.read */ 1, "读取变更", "读取一轮的固定变更；没有固定版本时按这一轮的记录生成预览。只要增减行数时传 stats：只回每个文件落盘后的净增减行，不带文件内容", "query",
+  "coding.read-changeset": { definition: define("changesets.read", /* @version action.coding.changesets.read */ 1, "读取变更", "读取一轮的固定变更；没有固定版本时按这一轮的记录生成预览。只要增减行数时传 stats：只回每个文件落盘后的净增减行，不带文件内容；没有写入落盘时是 0 行，有写入失败或结果不明、或同一文件多次写入对不上时 stats 为 null", "query",
       closed({ ...round, fixed: { type: "boolean" }, stats: { type: "boolean" } }, ["session_id", "run_id"]), ["artifact:read"], READS),
     toInput: request => ({ ...fromRequest(request), ...(request.query.fixed === "1" ? { fixed: true } : {}), ...(request.query.stats === "1" ? { stats: true } : {}) }),
     toRequest: input => ({ method: "GET", params: params(input), query: { ...(input.fixed ? { fixed: "1" } : {}), ...(input.stats ? { stats: "1" } : {}) } as Record<string, string>, body: {} }) },

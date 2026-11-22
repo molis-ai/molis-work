@@ -7,7 +7,7 @@ import { codingCommands } from "./commands.js";
 import { chooseIntent, configurationChanged, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
 import { codingImages } from "./images.js";
 import { terminal, unread } from "./composer-state.js";
-import { controls } from "./controls.js";
+import { controls, counts } from "./controls.js";
 import { currentSelection, failedMaterialsOf, selectionMaterialKey } from "./composer.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
@@ -77,6 +77,28 @@ function sceneControls(page: Page): ComposerControl[] {
     { kind: "select", id: "intent", label: model ? readText("coding.intent.label-model", { model }) : readText("coding.intent.label"), value: s.intent, options: s.intents,
       disabled: roundActive(page) || s.sending || unread(page), change: value => chooseIntent(page, value) },
   ];
+}
+
+/**
+ * What the next round is given (materials, methods, a Character, actions, MCP), as small tags over the box once chosen; each
+ * opens its choice again. They were controls in the bar's bottom row until that row was kept to four (POLISH-28; the person
+ * chose this place over the bottom row on 2026-11-22). Drawn with the composer (`refs.nextRound`), from the same commands ＋ lists.
+ */
+function drawNextRound(page: Page): void {
+  const { q, s } = page, row = q("[data-coding-next-round]"), held = counts(page);
+  const chosen: Record<string, number> = { materials: held.materials, character: held.character ? 1 : 0, methods: held.methods, actions: held.actions, mcp: held.mcp };
+  const tags = s.current && s.sessionOnShow ? codingCommands(page).filter(command => (chosen[command.slash] ?? 0) > 0) : [];
+  row.hidden = !tags.length;
+  row.replaceChildren(...tags.map(command => {
+    const tag = document.createElement("button");
+    tag.type = "button";
+    tag.className = "mw-btn mw-btn--ghost mw-btn--sm";
+    tag.textContent = command.label;
+    tag.disabled = command.enabled === false;
+    if (command.hint) tag.title = command.hint;
+    tag.addEventListener("click", () => void command.run());
+    return tag;
+  }));
 }
 
 /** The page's commands under `/`; those that set what the next round is given are in ＋ too, with their glyph. */
@@ -183,6 +205,7 @@ export function mountCodingComposer(page: Page, id: string) {
     return one ? { label: one.label, choose: () => { models.choose(value); configurationChanged(page); refs.composer.refresh(); } } : null;
   }) : null;
   const images = refs.images;
+  refs.nextRound = () => drawNextRound(page);
   refs.composer = window.molisComposer(q("[data-coding-input]"), {
     kind: "ai", entry: "session", labels: refs.composerLabels, sources: true,
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),

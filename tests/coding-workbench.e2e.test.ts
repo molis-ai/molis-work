@@ -234,7 +234,7 @@ test("QEA-186: Coding tools open real stages, preserve session tabs and read fix
   assert.equal(await b.evaluate(`!${addMenu} || ${addMenu}.hidden`), true);
   await b.click(`${CODING_COMPOSER} [data-composer-add]`);
   assert.deepEqual(await b.evaluate(`Array.from(${addMenu}.querySelectorAll('[data-composer-command]'), item => [item.querySelector('kbd, .mw-menu__shortcut')?.textContent.trim(), !!item.querySelector('svg')])`),
-    ["materials", "character", "methods", "actions", "mcp", "delegate", "memory", "settings", "context"].map(command => [`/${command}`, true]),
+    ["settings", "materials", "character", "methods", "actions", "mcp", "delegate", "memory", "context"].map(command => [`/${command}`, true]),
     "each command in the ＋ menu has its glyph, including the Session memory shortcut");
   await b.evaluate(codingAdd("context"));
   assert.equal(await b.evaluate(`${addMenu}.hidden && !${addMenu}.childElementCount`), true, "choosing an item closes the menu");

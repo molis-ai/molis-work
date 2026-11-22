@@ -39,6 +39,11 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
     assert.equal(preview.body.change.files.length, 2); assert.equal(preview.body.change.files[0].review.execution, "unknown"); assert.equal(preview.body.change.files[1].review.execution, "applied");
     // 只回统计 (screen-polish 方案乙, `stats`): a write whose outcome is unknown cannot be counted exactly, so the answer is no count; the answer is the count alone, and asking fixes no version.
     assert.deepEqual((await request(prefix+'?stats=1')).body, { stats: null });
+    // Every write turned down: nothing reached the disk, which is a known zero (no lines, no files), not "cannot say".
+    const receipts = rows.map(row => ({ ...row.receipt }));
+    for (const row of rows) Object.assign(row.receipt, { status: "rejected", effect_settled: false });
+    assert.deepEqual((await request(prefix+'?stats=1')).body, { stats: { added_lines: 0, removed_lines: 0, files: [] } }, "POLISH-24 没有写入落盘时行数是 0，不是说不准");
+    rows.forEach((row, n) => Object.assign(row.receipt, receipts[n]));
     const priorMissing = reads;
     assert.equal((await request(prefix+'?fixed=1')).status, 400);
     assert.equal(reads, priorMissing, "missing fixed artifacts must not read runtime to rebuild");

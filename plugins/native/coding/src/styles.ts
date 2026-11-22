@@ -319,7 +319,8 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 /* A run's waiting question is the shared question card (A2); in the thread it keeps the reading width. */
 [data-coding-question],.coding-cards { max-width:var(--coding-reading); margin:16px auto 24px; }.coding-cards { display:grid; gap:12px; }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
-.coding-composer > * { width:min(100%, var(--coding-reading)); }
+/* What sits over the bar's box keeps the box's own width (the turns alone read at 720): wider, its right end would run under the workbench's 帮助. */
+.coding-composer > * { width:min(100%, var(--coding-bar)); }
 .coding-composer > :is(.coding-context,.coding-next-round) { justify-content:flex-start; }
 ${CODING_FOOTNOTE_STYLES}
 .coding-composer small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }

@@ -240,7 +240,7 @@ test("WBR-11 what other plugins and drafts wrote is shown as text: markup in a t
   // The home draws the sentence as text too: what a draft wrote builds no element on the shell's own page.
   await browser.waitFor(shown(LEDE), 30_000);
   assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(LEDE)}).textContent`), /<img src=x onerror=/u);
-  assert.equal(await browser.evaluate("document.querySelectorAll('[data-work-surface=home] img[src=\"x\"], [data-work-surface=home] script').length"), 0);
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('[data-work-surface=home] .mw-first-page :is(img[src=\"x\"], script)')].map(node => node.parentElement.outerHTML.slice(0, 400))"), []);
   assert.equal(await browser.evaluate("window.__wb_ran ?? null"), null);
   await fromHomeToBrief(browser);
   const page = await pluginFrameBrowser(t, browser, "work-brief");

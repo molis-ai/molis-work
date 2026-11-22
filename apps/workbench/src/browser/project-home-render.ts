@@ -40,7 +40,7 @@ function objectControl(row: SurfaceHomeRowDisplay, action: "open" | "peek" | "pl
 }
 
 /** Where a row is drawn: the first page's own row (`page`), an object of an outline with its depth and count, or a plain list. */
-type RowPlace = { page?: boolean; node?: SurfaceOutlineNode; corrections?: boolean };
+type RowPlace = { page?: boolean; node?: SurfaceOutlineNode };
 
 function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, group: SurfaceGroup, data: SurfaceHomeDisplay, controls: Map<string, HomeControl>, mixed: boolean,
   framed?: readonly FramedSurfaceControl[], fix?: CorrectionRender, place: RowPlace = {}) {
@@ -56,7 +56,7 @@ function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, group: SurfaceGr
   const read = "values" in row.read && !mixed ? { ...row.read, values: Object.fromEntries(Object.entries(row.read.values ?? {}).filter(([key]) =>
     row.declaration.fields.find(field => field.key === key)?.role !== "held_in")) } : row.read;
   // A page ordered by time has no place to pin a row to.
-  const corrections = read.state === "ok" && !row.fallback && place.corrections !== false
+  const corrections = read.state === "ok" && !row.fallback
     ? objectCorrections(data, group, item, fix?.controls).filter(choice => !place.page || fix?.controls.get(choice.key)?.correction !== "pin") : [];
   const peek = actions.some(action => action.key.endsWith(":peek")) && (read.state === "ok" || read.state === "stale") ? controlKey(key, "peek") : "";
   const open = actions.find(action => action.key.endsWith(":open"))?.key ?? "";
@@ -145,29 +145,34 @@ function sinceSection(data: SurfaceHomeDisplay, shown: readonly Shown[], view: H
   // An object of a plugin's outline is drawn there, in its place in the tree: the page shows an object once.
   const outlined = new Set(data.groups.flatMap(group => group.kind === "outline" ? (group.outline ?? []).map(node => subjectKey(group.owner_plugin_id!, node.subject)) : []));
   const listed = shown.filter(entry => !outlined.has(subjectKey(entry.row.owner, entry.row.subject)));
-  const fresh = listed.filter(entry => entry.waiting || after(entry.at, view.since));
+  // What is stuck stays in the list until it moves again, however long ago it stopped.
+  const fresh = listed.filter(entry => entry.waiting || entry.turn === "blocked" || after(entry.at, view.since));
   const since = Boolean(view.since && fresh.length);
   const pool = since ? fresh : listed, opening = since ? SINCE_ROWS : RECENT_ROWS;
-  const rows = view.showAll ? pool : pool.slice(0, opening), more = pool.length - rows.length;
+  // Past the few it opens with, and past what is new: every object the page read is one press away, the earlier ones under their own word.
+  const earlier = since ? listed.filter(entry => !fresh.includes(entry)) : [];
+  const rows = view.showAll ? pool : pool.slice(0, opening), more = pool.length - rows.length + (view.showAll ? 0 : earlier.length);
   const excluded = attention?.excluded?.reduce((count, entry) => count + (entry.count ?? 0), 0) ?? 0;
   const unreadable = attention?.state === "unreadable";
   if (!rows.length && !excluded && !unreadable) return "";
   // The rest are one press away, in place; pressed again the list is the few it opened with.
-  const fold = more > 0 ? { key: "more", label: home("since-more", more) } : view.showAll && pool.length > opening ? { key: "less", label: home("show-less") } : null;
+  const fold = more > 0 ? { key: "more", label: home("since-more", more) } : view.showAll && (pool.length > opening || earlier.length) ? { key: "less", label: home("show-less") } : null;
+  const list = (entries: readonly Shown[]) => `<div class="home-rows mw-first-page__rows">${entries.map(({ row, item, group }) =>
+    rowHtml(row, item, group, data, controls, mixed, undefined, fix, { page: true })).join("")}</div>`;
+  const older = view.showAll && earlier.length ? `<p class="mw-first-page__quiet" data-home-earlier>${e(home("earlier"))}</p>${list(earlier)}` : "";
   const quiet = (fold ? `<p class="mw-first-page__quiet"><button type="button" class="mw-first-page__link" data-home-control="${fold.key}" aria-expanded="${fold.key === "less"}">${e(fold.label)}</button></p>` : "")
     + [unreadable ? home("attention-unreadable") : "", excluded ? home("excluded", excluded) : ""].filter(Boolean).map(line => `<p class="mw-first-page__quiet">${e(line)}</p>`).join("");
   return renderFirstPageSection({ title: home(since ? "since" : "recent"), note: since ? homeAt("since-after", view.since!) : view.since ? home("recent-note") : undefined,
-    attrs: { "data-home-group": "since" }, body: `<div class="home-rows mw-first-page__rows">${rows.map(({ row, item, group }) =>
-      rowHtml(row, item, group, data, controls, mixed, undefined, fix, { page: true })).join("")}</div>${quiet}` });
+    attrs: { "data-home-group": "since" }, body: list(rows) + older + quiet });
 }
 
-function outlineSections(data: SurfaceHomeDisplay, byKey: ReadonlyMap<string, SurfaceHomeRowDisplay>, controls: Map<string, HomeControl>): string {
+function outlineSections(data: SurfaceHomeDisplay, byKey: ReadonlyMap<string, SurfaceHomeRowDisplay>, controls: Map<string, HomeControl>, fix?: CorrectionRender): string {
   return data.groups.filter(group => group.kind === "outline" && group.title && group.outline?.length).map(group => {
     // The outline names its objects; each one is an item of whichever group shows it (an object is on the surface once).
     const rows = group.outline!.flatMap(node => {
       const key = subjectKey(group.owner_plugin_id!, node.subject), row = byKey.get(key);
       const found = data.groups.flatMap(from => from.items.filter(item => subjectKey(item.owner_plugin_id, item.subject) === key).map(item => ({ item, from })))[0];
-      return row && found ? [rowHtml(row, found.item, found.from, data, controls, false, undefined, undefined, { page: true, node, corrections: false })] : [];
+      return row && found ? [rowHtml(row, found.item, found.from, data, controls, false, undefined, fix, { page: true, node })] : [];
     });
     return rows.length ? renderFirstPageSection({ title: say.text(group.title!), attrs: { "data-home-group": "outline:" + group.owner_plugin_id },
       body: `<div class="home-rows mw-first-page__rows">${rows.join("")}</div>` }) : "";
@@ -219,7 +224,9 @@ function ledeHtml(page: NonNullable<ReturnType<typeof pageLede>>, numbers: Reado
   return `<p class="mw-first-page__lede" data-home-lede="${e(owner)}">${lede.sentences.map(sentence => {
     const cls = sentence.mark ? mark[sentence.mark] : "";
     const cites = (sentence.sources ?? []).flatMap(source => numbers.has(source) ? [numbers.get(source)!] : []);
-    return `<span${cls ? ` class="${cls}"` : ""}${sentence.mark ? ` data-home-sentence="${sentence.mark}"` : ""}>${e(sentence.text)}</span>${cites.length ? `<sup>${cites.join(",")}</sup>` : ""}`;
+    // A sentence that closes with full-width punctuation carries its own room; any other is followed by a space.
+    const gap = /[。！？；…」』）]$/u.test(sentence.text.trimEnd()) ? "" : " ";
+    return `<span${cls ? ` class="${cls}"` : ""}${sentence.mark ? ` data-home-sentence="${sentence.mark}"` : ""}>${e(sentence.text)}</span>${cites.length ? `<sup>${cites.join(",")}</sup>` : ""}${gap}`;
   }).join("")}</p>`;
 }
 
@@ -290,7 +297,7 @@ export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeC
   // One ink-blue button on the page: the invitation to write the page up has it before any next step.
   const inviting = Boolean(lede && !lede.lede.sentences.length && head);
   const body = shown.length || lede?.lede.sentences.length || data.groups.some(group => group.kind === "plugin" && (group.state === "unreadable" || group.state === "disabled"))
-    ? (head || factsLine(data)) + sinceSection(data, shown, view, controls, fix) + outlineSections(data, byKey, controls) + nextSection(data, shown, controls, !inviting)
+    ? (head || factsLine(data)) + sinceSection(data, shown, view, controls, fix) + outlineSections(data, byKey, controls, fix) + nextSection(data, shown, controls, !inviting)
     : head + startSection(view, !inviting);
   const margin = marginHtml(data, shown, view, controls, numbers, Boolean(lede));
   // The label of the writing the sentences are from, with its version: it opens the plugin's own page, where the versions are.

@@ -9,10 +9,10 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const home = '[data-work-surface="home"]';
 const GOALS = "io.molis.work.goals";
 const source = `[data-home-card="${GOALS}"]`;
-const since = '[data-home-group="since"]';
 const outline = `[data-home-group="outline:${GOALS}"]`;
 const next = '[data-home-group="next"]';
-const row = since + ' [data-home-row]';
+// A Goal is drawn in its place in the owner's tree, and nowhere else on the page (POLISH-77).
+const row = outline + ' [data-home-row]';
 const title = row + ' .mw-presentation__row-title';
 const endpoint = "/api/host/surface-home";
 // 项目主页 from the start page: the browser's window is under 760px, where the strip's ⌂ shows only while the home is the
@@ -63,7 +63,7 @@ test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 
   assert.equal((await rows()).length, 3);
   await go();
   await shown(row);
-  const page = await b.evaluate<{ groups: string[]; depths: string[]; progress: string; nextPrimary: number[]; steps: number; source: string; pins: number }>(`(() => {
+  const page = await b.evaluate<{ groups: string[]; depths: string[]; progress: string; nextPrimary: number[]; steps: number; source: string; keys: string[] }>(`(() => {
     const box = document.querySelector(${JSON.stringify(home)});
     return { groups: [...box.querySelectorAll('[data-home-group]')].map(node => node.getAttribute('data-home-group')),
       depths: [...box.querySelectorAll(${JSON.stringify(outline + " [data-home-row]")})].map(node => node.getAttribute('data-first-page-depth')),
@@ -71,9 +71,11 @@ test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 
       nextPrimary: [...box.querySelectorAll(${JSON.stringify(next + " .mw-first-page__step")})].map(step => step.querySelectorAll('.mw-btn--primary').length),
       steps: box.querySelectorAll(${JSON.stringify(next + " .mw-first-page__step")}).length,
       source: box.querySelector(${JSON.stringify(source + " .mw-first-page__word")})?.textContent || '',
-      pins: box.querySelectorAll(${JSON.stringify(since + ' [data-surface-correction*="pin"]')}).length };
+      keys: [...box.querySelectorAll('[data-home-row]')].map(node => node.getAttribute('data-home-row')) };
   })()`);
-  assert.deepEqual(page.groups, ["since", "outline:" + GOALS, "next"]);
+  assert.deepEqual(page.groups, ["outline:" + GOALS, "next"], "the tree's objects are not listed a second time under 自你上次来");
+  assert.equal(new Set(page.keys).size, page.keys.length, "an object is on the page once");
+  assert.equal(page.keys.length, 3);
   assert.deepEqual(page.depths, ["0", "1", "1"], "the parent and then its parts");
   assert.equal(page.progress, "0 / 2");
   assert.ok(page.steps > 0 && page.steps <= 3, "at most three next steps");
@@ -81,7 +83,7 @@ test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 
   assert.match(page.source, /正常|No change|有变化|Changed/u);
 
   // Take the actual Tab stop, then use the real browser keyboard, not a direct DOM click or focus on the dialog.
-  await b.evaluate(`document.querySelector(${JSON.stringify(since + ' h2')}).setAttribute('tabindex','-1');document.querySelector(${JSON.stringify(since + ' h2')}).focus()`);
+  await b.evaluate(`document.querySelector(${JSON.stringify(outline + ' h2')}).setAttribute('tabindex','-1');document.querySelector(${JSON.stringify(outline + ' h2')}).focus()`);
   const key = async (name: string, code: number) => {
     await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: name, code: name, windowsVirtualKeyCode: code }, b.sessionId);
     await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code }, b.sessionId);

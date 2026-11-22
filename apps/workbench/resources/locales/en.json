@@ -4483,6 +4483,7 @@
     "workbench.home-plugin-recovery.home-plugin-store-unavailable": "Home plugin store unavailable",
     "workbench.home.attention-unreadable": "Can’t read everything that needs you right now",
     "workbench.home.created": "Created.",
+    "workbench.home.earlier": "Earlier",
     "workbench.home.empty": "Nothing in this project yet.",
     "workbench.home.enable": "Enable",
     "workbench.home.excluded": {

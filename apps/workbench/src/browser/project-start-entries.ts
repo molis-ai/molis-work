@@ -23,7 +23,10 @@ type StartResult = { kind: "stage" | "settings" | "peek" | "enabled" } | { kind:
 export function mountStartEntries(host: StartHost) {
   const root = host.root, controls = new Map<string, HomeControl>();
   let reading: AbortController | null = null, clicking: AbortController | null = null;
-  const clear = () => { root.querySelectorAll("[data-rail-start]").forEach(node => node.remove()); controls.clear(); };
+  const clear = () => {
+    root.querySelectorAll("[data-rail-start]").forEach(node => node.remove());
+    controls.clear();
+  };
   const release = (result: SurfaceHomeDisplay) => {
     const text = result.surface_text?.map(item => item.ref);
     // Nothing here shows an owner's words: the grants this read opened end with it.
@@ -39,12 +42,12 @@ export function mountStartEntries(host: StartHost) {
       if (!ops) continue;
       const name = result.display.owners[owner]?.name ?? "";
       starts.forEach((target, index) => {
-        const key = owner + ":start:" + index, button = document.createElement("button");
+        const key = owner + ":start:" + index;
         controls.set(key, { owner_plugin_id: owner, target });
-        button.type = "button"; button.className = "mw-btn mw-btn--secondary mw-btn--sm mw-btn--icon mw-btn--icon-only rail-start";
-        button.dataset.railStart = key; button.tabIndex = -1;
-        button.title = homeWord("start-new"); button.setAttribute("aria-label", homeLeadWord("start-new-in", name));
-        button.innerHTML = icon("edit");
+        const button = Object.assign(document.createElement("button"), { type: "button", tabIndex: -1, title: homeWord("start-new"),
+          className: "mw-btn mw-btn--secondary mw-btn--sm mw-btn--icon mw-btn--icon-only rail-start", innerHTML: icon("edit") });
+        button.dataset.railStart = key;
+        button.setAttribute("aria-label", homeLeadWord("start-new-in", name));
         ops.prepend(button);
       });
     }
@@ -57,11 +60,18 @@ export function mountStartEntries(host: StartHost) {
       release(result);
       if (request.signal.aborted || reading !== request || root.hidden) return;
       draw(result);
-    } catch { /* The start page is whole without them: the entries are an addition to each row. */ }
-    finally { if (reading === request) reading = null; }
+    } catch {
+      // The start page is whole without them: the entries are an addition to each row.
+    } finally {
+      if (reading === request) reading = null;
+    }
   }
   /** The start page closed: the entries leave with it. A start already pressed runs on, bound to where the person was. */
-  function close() { reading?.abort(); reading = null; clear(); }
+  function close() {
+    reading?.abort();
+    reading = null;
+    clear();
+  }
   async function start(button: HTMLElement) {
     const control = controls.get(button.dataset.railStart ?? "");
     if (!control || clicking) return;
@@ -71,11 +81,13 @@ export function mountStartEntries(host: StartHost) {
     host.close();
     try {
       const result = await host.read<StartResult>("/click", control, request.signal);
-      if (result.kind === "stage") { if (!navigate(result)) host.receipt(homeWord("navigation-failed")); }
+      if (result.kind === "stage" && !navigate(result)) host.receipt(homeWord("navigation-failed"));
       else if (result.kind === "invoked" && !(result.stage && navigate(result.stage))) host.receipt(homeWord(result.retry_open ? "open-failed" : "created"));
     } catch {
       host.receipt(homeWord("navigation-failed"));
-    } finally { if (clicking === request) clicking = null; }
+    } finally {
+      if (clicking === request) clicking = null;
+    }
   }
   root.addEventListener("click", event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-rail-start]") : null;

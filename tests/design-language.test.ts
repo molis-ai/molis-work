@@ -98,7 +98,7 @@ test("UXUP-01 UXUP-02 POLISH-79 Home is headed by the project's name, and only t
   const page = source("apps/workbench/src/project-home.ts");
   assert.match(page, /<div class="mw-first-page__meta"><span>\$\{uiText\("workbench\.project-home\.project-home"\)\}<\/span>[\s\S]*?<h1>\$\{e\(name\)\}<\/h1>/u);
   const render = source("apps/workbench/src/browser/project-home-render.ts");
-  assert.match(render, /variant: index === 0 \? "primary" as const : "secondary" as const/u, "the first next step is the page's one primary button");
+  assert.match(render, /variant: index === 0 && primary \? "primary" as const : "secondary" as const/u, "the first next step is the page's one primary button, unless the page invites the person to write it up");
   assert.match(render, /primary: false \}\];/u, "a row's own actions are all at rest");
   // What waits for the person is the bottom bar's (specs/screen-polish §八之二 第 4 条): the first page lists no second copy of it.
   assert.doesNotMatch(render, /home-clear|data-home-group="attention"/u);

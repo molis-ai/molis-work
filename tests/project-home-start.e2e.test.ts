@@ -125,14 +125,16 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
   const home = async () => { await open('[data-top-corner-toggle]'); await b.click('[data-corner-home]'); };
   // Each owner answers the home under one budget; a slow one shows 重试, which openRow presses as a person would (fixtures/home-rows.ts).
   // The page opens with the latest few rows; the rest are one press away, in place (「另有 N 件」).
-  const more = '[data-work-surface=home] [data-home-control="more"]';
+  const more = '[data-work-surface=home] [data-home-control="more"]', peekOpen = '[data-home-peek] [data-presentation-action$=":peek-open"]';
   const openRow = async (selector: string, owner: string) => {
     await b.waitFor(visible(homeSources), 15_000);
     if (!await b.evaluate<boolean>(visible(selector)) && await b.evaluate<boolean>(visible(more))) await b.click(more);
     await waitForHomeRow(b, selector, "io.molis.work." + owner); await b.click(selector);
+    // A row's name opens the object: through its peek when the owner declares one, whose own "open" goes on to the owner's page.
+    await b.waitFor(`${visible(peekOpen)} || !${visible(homeSources)}`, 15_000);
+    if (await b.evaluate<boolean>(visible(peekOpen))) await b.click(peekOpen);
   };
   await openRow(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title', "inbox");
-  await open('[data-home-peek] [data-presentation-action$=":peek-open"]');
   await inbox.waitFor(`document.querySelector('[data-inbox-detail="${entry.entry_id}"]')?.hidden === false`);
   await home();
   await openRow(homeRow("source", source.source_id) + ' .mw-presentation__row-title', "feed");

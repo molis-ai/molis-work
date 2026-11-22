@@ -4198,6 +4198,7 @@
     "workbench.home.all-plugins": "全部插件",
     "workbench.home.attention-unreadable": "暂时读不到等你处理的事项",
     "workbench.home.created": "已创建。",
+    "workbench.home.earlier": "更早",
     "workbench.home.empty": "这个项目里还没有东西。",
     "workbench.home.enable": "启用",
     "workbench.home.excluded": "有 {count} 件事项来自已停用的插件",

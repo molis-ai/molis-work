@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
-import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_VIEW_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
+import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
 import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
@@ -363,8 +363,10 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   const card = (description: SurfaceDescription) => description.groups.find(group => group.kind === "plugin" && group.owner_plugin_id === WORK_BRIEF_PLUGIN_ID);
   // Installed and nothing written yet: an invitation in its own words, no sentence, and nothing starts by itself.
   const unwritten = card(await home())?.plugin_card?.lede;
-  assert.deepEqual([unwritten?.sentences, unwritten?.invite?.text.key, unwritten?.invite?.action.key, unwritten?.invite?.action.owner],
-    [[], "work-brief.presentation.invite", "work-brief.presentation.invite-action", WORK_BRIEF_PLUGIN_ID]);
+  // A word of the card is a key of the plugin's own words, bound to it.
+  const keyed = (word: unknown) => { const { owner, key } = (word ?? {}) as { owner?: string; key?: string }; return [owner, key]; };
+  assert.deepEqual([unwritten?.sentences, keyed(unwritten?.invite?.text), keyed(unwritten?.invite?.action)],
+    [[], [WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.invite"], [WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.invite-action"]]);
   const made = await risk("供应商延期");
   await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "交付有延期风险。", cites: [{ kind: "risk", id: made.risk_id }] }] } });
   const withBrief = await home();
@@ -372,7 +374,7 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   assert.equal(withBrief.groups.some(group => group.kind === "lead"), false);
   const lede = card(withBrief)?.plugin_card?.lede;
   assert.deepEqual(lede?.sentences, [{ text: "交付有延期风险。", sources: [RISK_ID] }], "each sentence names the plugins it stands on");
-  assert.deepEqual([lede?.label.owner, lede?.label.key, lede?.invite], [WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.lede-label", undefined]);
+  assert.deepEqual([keyed(lede?.label), lede?.invite], [[WORK_BRIEF_PLUGIN_ID, "work-brief.presentation.lede-label"], undefined]);
   assert.ok(lede?.as_of);
   const cards = (description: SurfaceDescription) => description.groups.filter(group => group.kind === "plugin").map(group => [group.owner_plugin_id, group.state]);
   assert.ok(cards(withBrief).some(([owner, state]) => owner === RISK_ID && state === "ok"), "the source keeps its own card");

@@ -115,8 +115,11 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
     const open = event.target.closest<HTMLElement>("[data-home-row-open]")?.dataset.homeRowOpen;
     if (event.key !== "Enter" && event.key !== " ") return;
-    if (key && event.target.matches(".mw-presentation__row-title[aria-haspopup]")) { event.preventDefault(); void act(key, event.target); }
-    else if (open && event.target.matches(".mw-presentation__row-title")) { event.preventDefault(); void act(open, event.target); }
+    const press = key && event.target.matches(".mw-presentation__row-title[aria-haspopup]") ? key
+      : open && event.target.matches(".mw-presentation__row-title") ? open : undefined;
+    if (!press) return;
+    event.preventDefault();
+    void act(press, event.target);
   });
   peek.addEventListener("close", onClose);
 }
@@ -162,14 +165,20 @@ function createLastVisit(projectKey: string) {
   return {
     begin() {
       if (since !== undefined) return since;
-      try { since = localStorage.getItem(key); } catch { since = null; }
+      try {
+        since = localStorage.getItem(key);
+      } catch {
+        since = null;
+      }
       if (since && !Number.isFinite(Date.parse(since))) since = null;
       return since;
     },
     end() {
       if (since === undefined) return;
       since = undefined;
-      try { localStorage.setItem(key, new Date().toISOString()); } catch { /* Storage may be blocked: the page then reads as a first visit. */ }
+      try {
+        localStorage.setItem(key, new Date().toISOString());
+      } catch { /* Storage may be blocked: the page then reads as a first visit. */ }
     },
   };
 }
@@ -266,9 +275,21 @@ export function mountHome(host: HomeHost) {
   const cancel = (release: boolean) => {
     reading?.abort(); reading = null; clicking?.abort(); clicking = null;
     closePeek(); placement.close(false); needsRead = true;
-    if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); margin.replaceChildren(); version?.replaceChildren(); showLead(null); }
+    if (!release) return;
+    drop();
+    showLead(null);
   };
   const releaseText = (old: SurfaceHomeDisplay | null) => releaseHomeText(host, old);
+  /** Takes the painted page off: its words' grants end, and nothing of it can be pressed. */
+  function drop() {
+    releaseText(display);
+    display = null;
+    controls.clear();
+    corrections.clear();
+    groups.replaceChildren();
+    margin.replaceChildren();
+    version?.replaceChildren();
+  }
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
 
   function paint(result: SurfaceHomeDisplay) {
@@ -312,7 +333,12 @@ export function mountHome(host: HomeHost) {
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);
     } catch (error) {
       if (request.signal.aborted || reading !== request || !visible()) return;
-      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); margin.replaceChildren(); version?.replaceChildren(); closePeek(); placement.close(false); showLead(null); }
+      if (unsafe(error)) {
+        drop();
+        closePeek();
+        placement.close(false);
+        showLead(null);
+      }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
   }
@@ -326,12 +352,17 @@ export function mountHome(host: HomeHost) {
     }
     if (key === "market") { host.market(); return; }
     if (key === "picker") { (host.picker ?? host.market)(); return; }
-    if (key === "write") { host.write?.(); return; }
-    if (key === "lead-retry") { await sync(); return; }
+    if (key === "write") {
+      host.write?.();
+      return;
+    }
+    if (key === "lead-retry") return sync();
     if (key === "more" || key === "less") {
       showAll = key === "more";
       if (!display) return;
-      paint(display); primary.apply(); corrections.afterPaint();
+      paint(display);
+      primary.apply();
+      corrections.afterPaint();
       groups.querySelector<HTMLElement>('[data-home-control="' + (showAll ? "less" : "more") + '"]')?.focus({ preventScroll: true });
       return;
     }
@@ -367,7 +398,10 @@ export function mountHome(host: HomeHost) {
       }
     } catch (error) {
       if (!request.signal.aborted && clicking === request && visible()) {
-        if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); margin.replaceChildren(); version?.replaceChildren(); closePeek(); }
+        if (unsafe(error)) {
+          drop();
+          closePeek();
+        }
         caption(key === "open-result" ? "open-failed" : "navigation-failed", key === "open-result" ? key : "refresh");
       }
     } finally {
@@ -382,15 +416,26 @@ export function mountHome(host: HomeHost) {
     restoreFocus = null;
   }, corrections.handle);
 
+  /** The visit ends: when it ended is kept for 「自你上次来」, and the page is taken off. */
+  const leave = () => {
+    visit.end();
+    cancel(true);
+  };
   const visibility = () => {
     const next = visible();
     if (next === shown) return;
     shown = next;
     if (shown && needsRead) void sync();
-    else if (!shown) { visit.end(); cancel(true); }
+    else if (!shown) leave();
   };
   const primary = yieldPrimary(root);
-  const unwatch = watchHome(root, holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { shown = false; visit.end(); cancel(true); });
+  const unwatch = watchHome(root, holder, visibility, () => {
+    cancel(true);
+    if (visible()) void sync();
+  }, () => {
+    shown = false;
+    leave();
+  });
   return {
     sync,
     dispose() {

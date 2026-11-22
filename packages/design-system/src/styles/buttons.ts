@@ -7,64 +7,70 @@ export const BUTTON_STYLES = `
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: var(--control-h, 32px);
-    padding: 0 var(--control-pad-x, 12px);
+    min-height: var(--control-h);
+    padding: 0 var(--control-pad-x);
     border: 1px solid transparent;
     border-radius: var(--radius-control, 8px);
     background: var(--control-fill);
     color: var(--ink);
     font: inherit;
-    font-size: var(--type-control-size, 13px);
-    font-weight: var(--weight-control, 500);
-    line-height: var(--type-control-line-height, 1);
+    font-size: var(--type-control-size);
+    font-weight: var(--weight-control);
+    line-height: var(--type-control-line-height);
     letter-spacing: -.01em;
     box-shadow: none;
     cursor: pointer;
     text-decoration: none;
     white-space: nowrap;
     appearance: none;
-    -webkit-appearance: none;
-    transition:
-      background-color var(--dur-hover, 130ms) var(--ease-quint),
-      color var(--dur-hover, 130ms) var(--ease-quint),
-      border-color var(--dur-hover, 130ms) var(--ease-quint),
-      box-shadow var(--dur-hover, 130ms) var(--ease-quint),
-      opacity var(--dur-hover, 130ms) var(--ease-quint),
-      transform var(--dur-hover, 130ms) var(--ease-spring);
+    transition-property: background-color, color, border-color, box-shadow, opacity, transform;
+    transition-duration: var(--dur-hover);
+    transition-timing-function: var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-quint), var(--ease-spring);
+    &:active:not(:disabled) { transform: scale(.985); }
+    svg { width: 14px; height: 14px; flex: none; }
+    /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.
+       A loading button keeps its own look. */
+    &:disabled:not([data-loading]) { cursor: not-allowed; color: color-mix(in srgb, var(--ink) 35%, transparent); box-shadow: none; }
+    /* With an icon the button keeps its words while it works: the spinner takes the icon's slot, so the width holds. */
+    > .mw-spinner { display: inline-grid; place-items: center; width: 16px; height: 16px; }
+    &[data-loading] {
+      pointer-events: none;
+      > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
+      > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+      > svg { display: none; }
+      &:has(> svg) {
+        > [data-slot="button-label"] { visibility: visible; animation: none; }
+        > .mw-spinner { position: static; width: 14px; height: 14px; }
+      }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) { .mw-btn:active:not(:disabled) { transform: none; } }
+  .mw-btn:focus-visible { ${CONTAINED_FOCUS}; }
+  .mw-btn:is(.mw-btn--primary, .mw-btn--secondary, .mw-btn--danger):disabled:not([data-loading]) {
+    border-color: transparent; background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
   body .mw-btn:active { filter: none; }
-  .mw-btn:active:not(:disabled) { transform: scale(.985); }
-  @media (prefers-reduced-motion: reduce) { .mw-btn:active:not(:disabled) { transform: none; } }
-  .mw-btn svg { width: 14px; height: 14px; flex: none; }
   .mw-btn--sm { min-height: 28px; }
   .mw-btn--md { min-height: 32px; }
-  .mw-btn--lg { min-height: 36px; padding-inline: 16px; }
-  .mw-btn--lg svg { width: 16px; height: 16px; }
+  .mw-btn--lg { min-height: 36px; padding-inline: 16px; svg { width: 16px; height: 16px; } }
   .mw-btn--icon, .mw-btn--icon-only {
-    width: var(--control-h, 28px);
-    min-width: var(--control-h, 28px);
+    width: var(--control-h);
+    min-width: var(--control-h);
     padding: 0;
+    &.mw-btn--sm { width: 28px; min-width: 28px; min-height: 28px; }
   }
-  .mw-btn--icon.mw-btn--sm, .mw-btn--icon-only.mw-btn--sm {
-    width: 28px; min-width: 28px; min-height: 28px;
-  }
-  .mw-btn:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-btn--primary {
     border-color: var(--action);
     background: var(--action);
     color: var(--action-ink);
     box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
-    &:hover:not(:disabled) {
-      background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink)));
-      border-color: var(--action-hover, var(--action));
-      color: var(--action-ink);
+    &:hover:not(:disabled), &[aria-pressed="true"]:not(:disabled) {
+      background: var(--action-hover);
+      border-color: var(--action-hover);
       box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
     }
   }
   .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
-    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
-  }
-  .mw-btn--primary[aria-pressed="true"]:not(:disabled) {
     background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is a crisp paper-bordered action that reads cleanly on both sunlit sheets and recessed wells. */
@@ -72,7 +78,7 @@ export const BUTTON_STYLES = `
     border-color: var(--control-border);
     background: var(--paper);
     color: var(--ink);
-    box-shadow: 0 1px 1.5px color-mix(in srgb, var(--shadow-color) 4%, transparent), inset 0 1px 0 var(--edge-highlight, transparent);
+    box-shadow: 0 1px 1.5px color-mix(in srgb, var(--shadow-color) 4%, transparent), inset 0 1px 0 var(--edge-highlight);
     &:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-soft); }
   }
   .mw-btn--ghost {
@@ -111,31 +117,16 @@ export const BUTTON_STYLES = `
     border: 0;
     background: transparent;
     color: var(--accent);
-    font-weight: var(--weight-control, 500);
+    font-weight: var(--weight-control);
     box-shadow: none;
     &:hover:not(:disabled) {
-      color: var(--accent-strong, var(--accent));
+      color: var(--accent-strong);
       text-decoration: underline;
       text-underline-offset: 3px;
-      background: transparent;
     }
-    &:active:not(:disabled) { color: var(--accent-strong, var(--accent)); }
+    &:active:not(:disabled) { color: var(--accent-strong); }
     &:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
   }
-  /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.
-     A loading button keeps its own look. */
-  .mw-btn:disabled:not([data-loading]) { cursor: not-allowed; color: color-mix(in srgb, var(--ink) 35%, transparent); box-shadow: none; }
-  .mw-btn:is(.mw-btn--primary, .mw-btn--secondary, .mw-btn--danger):disabled:not([data-loading]) {
-    border-color: transparent; background: color-mix(in srgb, var(--ink) 5%, transparent);
-  }
-  .mw-btn[data-loading] { pointer-events: none; }
-  .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
-  .mw-btn[data-loading] > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
-  /* With an icon the button keeps its words while it works: the spinner takes the icon's slot, so the width holds. */
-  .mw-btn > .mw-spinner { display: inline-grid; place-items: center; width: 16px; height: 16px; }
-  .mw-btn[data-loading]:has(> svg) > [data-slot="button-label"] { visibility: visible; animation: none; }
-  .mw-btn[data-loading] > svg { display: none; }
-  .mw-btn[data-loading]:has(> svg) > .mw-spinner { position: static; width: 14px; height: 14px; }
   @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
 
 `;

@@ -5,41 +5,38 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
   body { caret-color: var(--ink); }
   ::selection { background: var(--blue-soft); color: var(--ink); }
   :where(button, a, summary, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
-  :where(button, a, summary) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint); }
+  :where(button, a, summary) { transition-property: background-color, color, border-color, box-shadow; transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint); }
   :where(input, select, textarea) { accent-color: var(--action); }
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 
   .tree-create {
-    height: var(--control-h); min-height: var(--control-h);
+    height: var(--control-h);
     border: 1px solid transparent; border-radius: var(--radius-control);
-    background: var(--control-fill); color: var(--ink); box-shadow: none; font-weight: var(--weight-control, 500);
+    background: var(--control-fill); color: var(--ink); box-shadow: none; font-weight: var(--weight-control);
     &:hover { background: var(--nav-hover); color: var(--ink); }
-  }
-  kbd {
-    display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px;
-    border: 1px solid var(--control-border); border-radius: 6px; background: var(--control-fill); color: var(--muted);
-    font: 11px/20px ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   :where(button:not(:disabled), summary):active { filter: brightness(.94); }
   :where(input, textarea, select) { transition: border-color 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint); }
   :where(dialog) {
-    transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete;
-    opacity: 0; transform: translateY(8px) scale(.98);
-    &[open] { opacity: 1; transform: none; transition-duration: var(--dur-move); &::backdrop { opacity: 1; transition-duration: var(--dur-move); } }
-    &::backdrop { background: var(--scrim); transition: opacity var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete; opacity: 0; }
+    transition-property: opacity, transform, overlay, display; transform: translateY(8px) scale(.98);
+    &, &::backdrop { transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint); transition-behavior: allow-discrete; opacity: 0; }
+    &[open] { transform: none; &, &::backdrop { opacity: 1; transition-duration: var(--dur-move); } }
+    &::backdrop { background: var(--scrim); transition-property: opacity, overlay, display; }
   }
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); &::backdrop { opacity: 0; } } }
   [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-actions { --control-h: 36px; > button { min-height: 36px; } }
-  .mw-stage-leading strong { font-size: 13px; }
+  body.immersive-workbench :focus-visible:not([class^="mw-"]) {
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
+  }
   @media (max-width: 760px) {
     :is(.mw-btn--primary, .mw-btn--secondary, .mw-btn--danger, .form-actions > button) { min-height: 44px; }
     .form-actions { --control-h: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: .01ms; animation-iteration-count: 1; transition-duration: 0s; transition-delay: 0s; scroll-behavior: auto; }
-    :where(dialog), :where(dialog)::backdrop { transform: none; transition: none; animation: none; }
-    [popover]:popover-open { animation: none; }
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+    :where(dialog) { transform: none; }
   }
 `;
 
@@ -50,7 +47,7 @@ export const COSS_CONTROL_STYLES = `
   body { caret-color: var(--ink); }
   ::selection { background: var(--blue-soft); color: var(--ink); }
   :where(button, a, summary, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
-  :where(button, a, summary) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint); }
+  :where(button, a, summary) { transition-property: background-color, color, border-color, box-shadow; transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint); }
   :where(input, select, textarea) { accent-color: var(--action); }
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 

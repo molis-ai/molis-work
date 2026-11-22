@@ -37,7 +37,7 @@ import {
   COPY_FEEDBACK_STYLES,
   FIELD_FIT_STYLES,
   MEDIA_ZOOM_STYLES,
-  MOTION_STYLES,
+  PLUGIN_MOTION_STYLES,
   NUMBER_STYLES,
   OVERFLOW_FADE_STYLES,
   SHOW_MORE_STYLES,
@@ -64,6 +64,7 @@ import {
   MATERIALS_RECOVERY_PARTS_STYLES,
   RECOVERY_PARTS_STYLES,
   CODING_BASICS_STYLES,
+  PLUGIN_TYPEFACE_STYLES,
   TYPEFACE_STYLES,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_PAGE_STYLES,
@@ -155,62 +156,33 @@ export function renderMolisWorkSettingsStylesheet(): string {
 
 const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLLOW_STYLES}${OVERFLOW_FADE_STYLES}${FIELD_FIT_STYLES}${COPY_FEEDBACK_STYLES}${NUMBER_STYLES}${STREAM_TEXT_STYLES}${HIDDEN_SCROLLBAR_STYLES}`;
 
-const PLUGIN_BASE_OMITTED_TOKENS = new Set([
-  "--terminal-muted", "--terminal-faint", "--terminal-border", "--terminal-selection",
-  "--brand-tile-light", "--brand-tile-dark",
-  "--desk", "--press-shade", "--r-composer", "--sheet-inset", "--sheet-shadow",
-  "--motion-instant", "--motion-fast", "--motion-normal", "--motion-arrive", "--ease-standard",
-  "--dur-press", "--nav-raised", "--panel", "--on-accent", "--control-fill-hover", "--control-ring",
-  "--hue-gray-fill", "--hue-gray-soft", "--hue-brown-fill", "--hue-brown-soft", "--hue-orange-fill", "--hue-orange-soft",
-  "--hue-yellow-fill", "--hue-green-fill", "--hue-green-soft", "--hue-mint", "--hue-mint-fill", "--hue-mint-soft",
-  "--hue-cyan-fill", "--hue-blue-fill", "--hue-blue-soft", "--hue-indigo", "--hue-indigo-fill", "--hue-indigo-soft",
-  "--hue-purple-fill", "--hue-purple-soft", "--hue-pink-fill", "--hue-pink-soft", "--hue-red-fill", "--hue-red-soft",
-  "--hue-steel", "--hue-steel-fill", "--hue-steel-soft", "--hue-slate-fill", "--hue-slate-soft",
-  "--mark-slate-fill", "--mark-blue-fill", "--mark-ochre-fill", "--mark-plum-fill", "--mark-clay-fill",
-]);
-
 /**
  * Dedicated lightweight (<80 KB minified) base stylesheet for opaque plugin `srcdoc` frames (102-1).
  * Uses CSS Cascade Layers (`@layer`) for reset, tokens, and foundation defaults while keeping stage,
- * shared primitives, stage finish, and platform control invariants unlayered so specificity resolves
- * identically against unlayered plugin stylesheets without breaking `:where()` resets, stage overrides,
- * or focus contrast.
+ * shared primitives (including fields, severity, calendar, layout shell, and diff view), stage finish,
+ * and platform control invariants unlayered so specificity resolves identically against unlayered plugin
+ * stylesheets without breaking `:where()` resets, stage overrides, or focus contrast.
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
-  const foundation = PLUGIN_FOUNDATION_STYLES.replace(/button, input, textarea, select \{ font-family: var\(--font\); \}\n?/, "");
   let sheet = `@layer reset, tokens, foundation;
 @layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
-@layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
-@layer foundation { ${foundation} }
+@layer tokens { ${PLUGIN_TYPEFACE_STYLES}${PLUGIN_MOTION_STYLES} }
+@layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
 ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES}${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
-.appearance-notice.mw-toast{position:fixed;inset-inline:0;margin-inline:auto;bottom:22px;z-index:31;max-width:min(38em,calc(100vw - 24px))}
-html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important}
-html[data-craft-still] :is(dialog[open],.mw-check,.mw-radio,[data-craft-new],[data-just-opened],[data-just-opened]>*,.is-arriving,.is-arriving *){animation:none!important}
-body .mw-toggle-group{display:inline-flex;gap:3px;padding:3px;border:0;border-radius:11px;background:var(--control-fill);box-shadow:inset 0 0 0 1px var(--line);&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--lift-1),inset 0 1px 0 var(--edge-highlight)}}
-body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
-@media (max-width:760px){body.immersive-workbench{--control-h:44px;.plugin-stage-back{width:44px;height:44px;min-height:44px}}}`;
-  const lightTokens = sheet.match(/(:root,\s*\[data-ui-skin="[^"]+"\])\s*\{([^}]*)\}/);
-  const darkTokens = sheet.match(/(:root\[data-resolved-theme="dark"\][^{]*)\{([^}]*)\}/);
-  if (lightTokens && darkTokens) {
-    const parseEntries = (block: string) => block.split(";").map((entry) => entry.trim()).filter(Boolean).filter((entry) => {
-      const split = entry.indexOf(":");
-      return split < 0 || !PLUGIN_BASE_OMITTED_TOKENS.has(entry.slice(0, split).trim());
-    });
-    const lightKept = parseEntries(lightTokens[2]);
-    const lightProps = new Map(lightKept.map((entry) => {
-      const split = entry.indexOf(":");
-      return [entry.slice(0, split).trim(), entry.slice(split + 1).trim()];
-    }));
-    const darkKept = parseEntries(darkTokens[2]).filter((entry) => {
-      const split = entry.indexOf(":");
-      return split < 0 || lightProps.get(entry.slice(0, split).trim()) !== entry.slice(split + 1).trim();
-    });
-    const lightSelector = lightTokens[1].replace(/\s+/g, "");
-    const darkSelector = darkTokens[1].replace(/,\s*:root\[data-resolved-theme="dark"\][^{]*/, "").trim();
-    sheet = sheet
-      .replace(lightTokens[0], `${lightSelector}{${lightKept.join(";")}}`)
-      .replace(darkTokens[0], `${darkSelector}{${darkKept.join(";")}}`);
+.appearance-notice.mw-toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 22px; z-index: 31; max-width: min(38em, calc(100vw - 24px)); }
+html[data-craft-still] { *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; } :is(dialog[open], .mw-check, .mw-radio, [data-craft-new], [data-just-opened], [data-just-opened] > *, .is-arriving, .is-arriving *) { animation: none !important; } }
+body .mw-toggle-group {
+  display: inline-flex; gap: 3px; padding: 3px; border: 0; border-radius: 11px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--line);
+  > :is(button, a) {
+    min-height: 26px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+    font-size: 12px; font-weight: var(--weight-control); box-shadow: none;
+    &:hover { color: var(--ink); background: transparent; }
   }
+  > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
+    color: var(--ink); background: var(--paper); box-shadow: var(--lift-1), inset 0 1px 0 var(--edge-highlight);
+  }
+}
+body.immersive-workbench .mw-select-picker__trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }`;
   const rootVars = new Set<string>();
   for (const match of sheet.matchAll(/:root(?:\s*,\s*\[data-ui-[^\]]+\])*\s*\{([^}]*)\}/g)) {
     for (const entry of match[1].split(";")) {
@@ -222,20 +194,7 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
     }
   }
   sheet = sheet
-    .replace(/\.mw-stage-leading strong \{ font-size: 13px; \}/, "")
     .replace(/  \.mw-toggle-group \{ display: inline-flex;[^\n]*\}\n?/, "")
-    .replace(
-      /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}\s*\.mw-btn--primary\[aria-pressed="true"\]:not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}/,
-      `.mw-btn--primary:is(:active,[aria-expanded="true"],[aria-pressed="true"]):not(:disabled){background:var(--action-hover);border-color:var(--action-hover)}`,
-    )
-    .replace(
-      /\.mw-input-group \.mw-input, \.mw-number \.mw-input \{[\s\S]*?\.mw-number \.mw-input:is\(:hover, :focus, :focus-visible, \[aria-invalid="true"\]\) \{\s*border: 0; outline: 0; background: transparent; box-shadow: none;\s*\}/,
-      `:is(.mw-input-group,.mw-number) .mw-input{border:0;outline:0;min-height:26px;padding:0;min-width:0;background:transparent;box-shadow:none;border-radius:0;&:is(:hover,:focus,:focus-visible,[aria-invalid="true"]){border:0;outline:0;background:transparent;box-shadow:none}}`,
-    )
-    .replace(
-      /html\[data-resolved-theme="dark"\] \.mw-select \{\s*background-repeat:\s*no-repeat;\s*background-position:\s*right 8px center;\s*background-size:\s*14px 14px;\s*/,
-      `html[data-resolved-theme="dark"] .mw-select{`,
-    )
     .replaceAll("width='16' height='16' viewBox='0 0 24 24'", "viewBox='0 0 24 24'")
     .replace(/ui-monospace,\s*SFMono-Regular,\s*Menlo,\s*monospace/g, "var(--font-mono)")
     .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`)
@@ -246,6 +205,7 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
     .replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3\b/g, "#$1$2$3")
     .replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([.\d]+)\)/g, "rgb($1 $2 $3/$4)")
     .replace(/\boutline:\s*none\b/g, "outline:0")
+    .replace(/\b0px\b/g, "0")
     .replace(/\b130ms\b/g, ".13s")
     .replace(/\b250ms\b/g, ".25s")
     .replace(/\b420ms\b/g, ".42s")
@@ -283,7 +243,7 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
     sheet = stripped.replace(/\btransparent\b/g, "#0000");
   }
   const reducedMotionBodies: string[] = [];
-  sheet = sheet.replace(/(^|\n)[ \t]*@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
+  sheet = sheet.replace(/(^|\n|\})[ \t]*@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
     const trimmed = body.trim();
     if (!trimmed || /^[&>]/.test(trimmed) || !trimmed.includes("{")) {
       return whole;
@@ -297,19 +257,28 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
     for (const block of reducedMotionBodies) {
       for (const rule of block.matchAll(/([^{};]+)\{([^{}]+)\}/g)) {
         const sel = rule[1]!.trim();
-        const decl = rule[2]!.trim().replace(/\s*:\s*/g, ":").replace(/\s*;\s*/g, ";").replace(/;$/, "");
+        const rawDecl = rule[2]!.trim().replace(/;$/, "");
+        const decl = rawDecl.replace(/\s*:\s*/g, ":").replace(/\s*;\s*/g, ";");
         if (decl === "animation:none" || decl === "transition:none" || decl === "animation:none;transition:none") {
           const list = grouped.get(decl) ?? [];
           list.push(sel);
           grouped.set(decl, list);
         } else {
-          other.push(`${sel}{${decl}}`);
+          other.push(`${sel}{${rawDecl}}`);
         }
       }
     }
     const merged = [...other, ...[...grouped.entries()].map(([decl, sels]) => `${sels.join(",")}{${decl}}`)];
     sheet += `\n@media (prefers-reduced-motion: reduce) { ${merged.join(" ")} }`;
   }
+  const forcedColors: string[] = [];
+  sheet = sheet.replace(/(^|\n|\})[ \t]*@media\s*\(forced-colors:\s*active\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (whole, lead: string, body: string) => {
+    const trimmed = body.trim();
+    if (!trimmed || /^[&>]/.test(trimmed) || !trimmed.includes("{")) return whole;
+    forcedColors.push(trimmed);
+    return lead;
+  });
+  if (forcedColors.length > 0) sheet += `\n@media (forced-colors: active) { ${forcedColors.join(" ")} }`;
   return sheet;
 }
 

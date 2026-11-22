@@ -247,12 +247,12 @@ test("91-0b layout measure/master tokens and plugin-frame dependencies stay avai
   const hoistedReducedMotion = base.slice(base.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
   assert.ok(!/>\s*summary::before/.test(hoistedReducedMotion),
     "nested > summary::before rule must not be hoisted to top-level @media(prefers-reduced-motion)");
-  assert.ok(base.indexOf(".mw-input-group:focus-within") > base.indexOf(".mw-input-group {"),
+  assert.ok(base.indexOf(":is(.mw-input-group, .mw-number):focus-within") > base.indexOf(".mw-input-group {"),
     ".mw-input-group:focus-within must follow .mw-input-group hover rules in cascade");
-  assert.ok(base.indexOf('&[aria-invalid="true"]') > base.indexOf(".mw-input-group:focus-within"),
+  assert.ok(base.indexOf('&[aria-invalid="true"]') > base.indexOf(":is(.mw-input-group, .mw-number):focus-within"),
     "field aria-invalid/disabled rules must follow FIELD_FOCUS in cascade");
-  assert.ok(base.indexOf(":is(.mw-input-group,.mw-number) .mw-input") > base.indexOf('&[aria-invalid="true"]'),
+  assert.ok(base.indexOf(".mw-input-group .mw-input, .mw-number .mw-input") > base.indexOf('&[aria-invalid="true"]'),
     "nested input reset must follow field aria-invalid rules in cascade");
-  assert.ok(base.lastIndexOf(".mw-choice, .mw-pagination__page):focus-visible") > base.indexOf(".mw-choice {"),
+  assert.ok(base.lastIndexOf(".mw-pagination__page, .mw-choice, .mw-calendar__day, .mw-dir-row):focus-visible") > base.indexOf(".mw-choice {"),
     ".mw-choice:focus-visible must follow .mw-choice selected rules in cascade");
 });

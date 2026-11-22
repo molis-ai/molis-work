@@ -2,7 +2,7 @@
  * it draws: a microtask ran between every change of one click and measured the page each time. */
 export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
   let entries=[...strip.querySelectorAll('[data-side-context-owner]')];
-  let epoch=0,signature='',context=null,source=null,lastTool=null,queued=false,target=null,sendPending=false;
+  let epoch=0,signature='',context=null,lastTool=null,queued=false,target=null,sendPending=false;
   const watched=new WeakMap();
   const visible=node=>!!node&&!node.hidden&&node.getClientRects().length>0&&getComputedStyle(node).visibility!=='hidden';
   const send=()=>{
@@ -39,14 +39,14 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
     queued=false;
     const pane=document.querySelector('[data-tab-pane].is-focused');
     const paneId=pane?.dataset.tabPane||'';
-    let next=null,owner=null;
+    let next=null;
     if(pane&&visible(pane)){
       const strip=pane.querySelector('[data-tab-strip]:not([hidden])')||document.querySelector('[data-titlebar-tabs]');
       next=inspect(pane,paneId,strip?.querySelector('[data-tab-id][aria-current="page"]')?.dataset.tabId||'');
     }
     const key=JSON.stringify(next);
-    if(key===signature&&owner===source){if(sendPending)send();return;}
-    signature=key;context=next;source=owner;epoch++;
+    if(key===signature){if(sendPending)send();return;}
+    signature=key;context=next;epoch++;
     if(next?.object_ref.id!==target?.value?.page_id)target=null;
     const active=current();
     if(active&&!entries.some(entry=>entry.dataset.sideTab===active))lastTool=active;
@@ -85,10 +85,9 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
     if(data?.type!=='molis:side-context-result'||data.object_id!==context?.object_ref.id)return;
     for(const entry of entries)if(!entry.hidden)panel.querySelector('[data-side-body="'+entry.dataset.sideTab+'"] iframe')?.contentWindow?.postMessage(data,location.origin);
   };
-  document.addEventListener('molis:side-context-result',event=>{if(!source)result(event.detail);});
+  document.addEventListener('molis:side-context-result',event=>{result(event.detail);});
   addEventListener('message',event=>{
     if(event.origin!==location.origin)return;
-    if(source?.contentWindow===event.source){result(event.data);return;}
     const entry=entries.find(entry=>panel.querySelector('[data-side-body="'+entry.dataset.sideTab+'"] iframe')?.contentWindow===event.source);
     if(!entry)return;
     if(event.data?.type==='molis:side-ready')publish();
@@ -97,8 +96,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
     // view hears so, to ask again under the context it is about to receive, rather than wait for an answer that never comes.
     if(event.data.context_epoch!==epoch){event.source.postMessage({type:'molis:side-context-result',request_id:event.data.command?.request_id,object_id:context.object_ref.id,stale:true},location.origin);return;}
     const message={type:'molis:side-context-command',context_epoch:epoch,context,command:event.data.command};
-    if(source&&visible(source))source.contentWindow.postMessage(message,location.origin);
-    else document.dispatchEvent(new CustomEvent('molis:side-context-command',{detail:message}));
+    document.dispatchEvent(new CustomEvent('molis:side-context-command',{detail:message}));
   });
   watch(document);schedule();
 }`;

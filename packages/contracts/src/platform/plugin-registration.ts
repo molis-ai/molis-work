@@ -24,6 +24,20 @@ export interface PluginBoardSpecimenPorts {
   readonly sample: "zh" | "en" | "mixed";
 }
 
+/** Named shared feature stylesheets a framed plugin may declare in `workbench.frameStyleFeatures` (PEQ, 102-1). */
+export type PluginFrameStyleFeature =
+  | "coding-basics"
+  | "coding-companions"
+  | "composer"
+  | "context-toolbar"
+  | "detail-reading"
+  | "input-receipts"
+  | "interaction"
+  | "keep-edits"
+  | "presentation-form"
+  | "settings-document"
+  | "source-ladder";
+
 /** What the workbench shell loads for one plugin: its views, styles and browser client. */
 export interface PluginWorkbenchRegistration {
   /** Exact existing HTTP routes for pages whose backend is registered outside Plugin Runtime. This grants no Runtime services. */
@@ -32,6 +46,11 @@ export interface PluginWorkbenchRegistration {
   readonly order: number;
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
+  /**
+   * Optional specialized platform feature stylesheets prepended into this framed plugin's served on-demand sheet.
+   * Core SDK primitives live in `molis-work-plugin-base.css`; only specialized feature sheets are opted in here.
+   */
+  readonly frameStyleFeatures?: readonly PluginFrameStyleFeature[];
   /**
    * Where the shared workbench sheet puts what it holds of `stylesheet`: "over-shell" (the default) after the shell's own
    * layers, so the plugin's rules win ties with them; "beneath-shell" before those layers (the canvas, density, primitives and

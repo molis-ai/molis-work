@@ -70,3 +70,8 @@ test("PEQ-03 H4 Workbench source names no hardcoded io.molis.work.goals plugin I
   const found = sources(workbench).filter(path => /io\.molis\.work\.goals/u.test(text(path)));
   assert.deepEqual(found, [], `Workbench hardcodes io.molis.work.goals again: ${where(found)}`);
 });
+
+test("PEQ-03 Host demo-seed is plugin-neutral and carries no Goals plugin ID, Goals actions, or demo Goal data", () => {
+  const demoSeed = text(join(HOST, "demo-seed.ts"));
+  assert.doesNotMatch(demoSeed, /io\.molis\.work\.goals|"goals\.|DEMO_GOALS/u, "apps/local-host/src/demo-seed.ts hardcodes Goals again");
+});

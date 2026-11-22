@@ -108,13 +108,13 @@
     "reason": "上游 uv 的发行版本号，决定下载哪个包，由上游制定，不是自有版本。"
   },
   {
-    "file": "apps/local-host/src/demo-seed.ts",
+    "file": "plugins/native/goals/src/demo-seed.ts",
     "name": "version",
     "values": { "1": 2, "2": 1 },
     "reason": "演示项目的种子数据：记录修订号、要求版本与事件类型的样例值，换值不改变任何合同。"
   },
   {
-    "file": "apps/local-host/src/demo-seed.ts",
+    "file": "plugins/native/goals/src/demo-seed.ts",
     "name": "type_version",
     "values": { "1": 2 },
     "reason": "演示项目的种子数据：记录修订号和事件类型的样例值，换值不改变任何合同。"
@@ -854,7 +854,7 @@
     "reason": "示例项目的固定 id，写进示例数据后不变；名字里的 v1 不被比较，也不会升。"
   },
   {
-    "file": "apps/local-host/src/demo-seed.ts",
+    "file": "plugins/native/goals/src/demo-seed.ts",
     "name": "demo-v1",
     "values": { "demo-v1": 2 },
     "reason": "示例数据写入时用的幂等键前缀，只在种子数据里出现，不是版本。"

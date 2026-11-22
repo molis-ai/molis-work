@@ -575,6 +575,7 @@
     "action.goals.deliverables.list": 1,
     "action.goals.deliverables.pin": 1,
     "action.goals.deliverables.remove": 1,
+    "action.goals.demo.seed": 1,
     "action.goals.directory.read": 1,
     "action.goals.document.read": 1,
     "action.goals.events.acknowledge": 1,

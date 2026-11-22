@@ -2,6 +2,7 @@ import { goalSectionsDeclaration, goalSectionsTracking } from "./sync-sections.j
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, PROJECT_JOURNAL_PERMISSION, type PluginManifest, type PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
+import { goalsDemoSeedAction } from "./demo-seed.js";
 import { goalsWorkPromptAction } from "./work-prompt.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
@@ -80,7 +81,8 @@ export const goalsManifest: PluginManifest = {
   ],
   // A Goal's requirements are the platform's (contract-design §10.3): Goals reads them, and hangs a new Goal's, as the subject's provider.
   capabilities: { provides: [], consumes: [acceptanceActions.read.capability_id, acceptanceActions.set.capability_id] },
-  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, ...goalsPresentationActions],
+  demo_seed: { capability_id: goalsDemoSeedAction.capability_id, version: goalsDemoSeedAction.version },
+  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, goalsDemoSeedAction, ...goalsPresentationActions],
   presentation: goalsPresentation,
   work_terminals: [{ subject_kind: "goal", prompt_action: goalsWorkPromptAction.capability_id }],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).

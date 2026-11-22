@@ -306,7 +306,7 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
-    this.plugins = { host: this.host, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
+    this.plugins = { host: this.host, localHost: this, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),

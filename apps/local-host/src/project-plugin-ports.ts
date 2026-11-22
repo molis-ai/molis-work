@@ -13,6 +13,7 @@ import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
+import { acceptDemoProjectRequirements } from "./plugin-demo-seed.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import type { ProjectPackageControl } from "./plugin-install-service.js";
@@ -28,6 +29,7 @@ import { runningPluginTextIn } from "./running-plugin-text.js";
  */
 export interface ProjectPluginHost {
   readonly host: LocalHost<MolisWorkProjectRuntime>;
+  readonly localHost?: MolisWorkLocalHost;
   readonly options: MolisWorkLocalHostOptions;
   agents(): AgentHostComposition | undefined;
   ownerClosing?(): boolean;
@@ -292,6 +294,7 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
   return host.withRuntime(reference, runtime => ensureProjectPlugins({
     store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
+    ...(source.localHost ? { acceptDemoRequirements: items => acceptDemoProjectRequirements(source.localHost!, reference, items) } : {}),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: reference.project_id },
     ...(agents() ? { observeReviewSettlements: listener => observeReviewSettlements(agents()!.agentHost.reviews, runtime.project_id, listener,
       agentWritePlaces(source, runtime.project_id)), observeContinuations: listener => agentContinuationStarts(agents()!.agentHost).observeProject(runtime.project_id, listener) } : {}),

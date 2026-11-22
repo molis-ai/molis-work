@@ -5,6 +5,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
+import type { DemoAcceptanceRequest } from "./plugin-demo-seed.js";
 import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
 import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -38,6 +39,8 @@ export interface ProjectPluginPorts {
   homeDirectory?: string;
   /** Definitions a test installs into this platform by hand, which its Runtime then admits to the process (S-75 ⑥); none in production. */
   installedByHand?: ReadonlySet<PluginDefinition>;
+  /** Protected Host review seam for a plugin's `demo_seed` when its sample needs accepted requirements. */
+  acceptDemoRequirements?: (items: readonly DemoAcceptanceRequest[]) => Promise<void>;
 }
 
 export interface ProjectPluginState {
@@ -184,6 +187,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       capturePrivateData: installId => storage.snapshotInstallationData(installId),
       restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
       ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
+      ...(ports.acceptDemoRequirements ? { acceptDemoRequirements: ports.acceptDemoRequirements } : {}),
       actions: ports.actions,
       home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     });

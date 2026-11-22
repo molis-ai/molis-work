@@ -31,17 +31,20 @@ test("RAC-400 a project without Goals opens on its home, offers no Goals and ope
   assert.match(page.tile ?? "", /is-available/, "Goals is one to add, not one the project has");
   assert.equal(page.open, 0, "the link opened no dialog");
   assert.equal(page.goalNodes, 0, "an absent owner supplies no Goal data, canvas or dialogs");
-  // PEQ-07 (First Screen A): Project Home empty state offers primary "添加插件" opening the + picker and assistant hint, with zero Goal words.
-  await b.waitFor("Boolean(document.querySelector('[data-home-control=\"picker\"]'))");
-  const homeStart = await b.evaluate<{ text: string; primary: boolean; hint: string }>(`(() => {
+  // PEQ-07 (as the user changed it on 2026-11-22, specs/screen-polish §八之二「新项目」): the empty Project Home says so in one line and
+  // gives three places to begin (bring material, start a piece of work, add a plugin), the first one primary, with zero Goal words.
+  await b.waitFor("Boolean(document.querySelector('[data-home-group=\"start\"] [data-home-control=\"picker\"]'))");
+  const homeStart = await b.evaluate<{ text: string; entries: string[]; primary: string[] }>(`(() => {
     const start = document.querySelector('[data-home-group="start"]');
-    const btn = start?.querySelector('[data-home-control="picker"]');
-    return { text: start?.textContent || '', primary: Boolean(btn?.classList.contains('mw-btn--primary')), hint: start?.querySelector('.home-start__hint')?.textContent || '' };
+    const steps = [...start.querySelectorAll('.mw-first-page__step')].map(step => step.querySelector('a,button'));
+    const name = node => node?.getAttribute('data-home-start') || node?.getAttribute('data-home-control') || '';
+    return { text: start?.textContent || '', entries: steps.map(name), primary: steps.filter(node => node?.classList.contains('mw-btn--primary')).map(name) };
   })()`);
-  assert.equal(homeStart.primary, true, "PEQ-07: primary indigo 添加插件 button");
-  assert.ok(homeStart.hint.length > 0, "PEQ-07: quiet assistant hint beside the primary button");
+  assert.deepEqual(homeStart.entries, ["bring", "write", "picker"], "PEQ-07: three places to begin");
+  assert.deepEqual(homeStart.primary, ["bring"], "PEQ-07: one primary button, the first entry");
   assert.doesNotMatch(homeStart.text, /goal|目标/i, "PEQ-07: zero Goal wording on Project Home when Goals is absent");
-  await b.click('[data-home-control="picker"]');
+  assert.equal(await b.evaluate("document.querySelectorAll('[data-home-group^=\"outline:\"]').length"), 0, "POLISH-78: no progress section without a plugin that declares one");
+  await b.click('[data-home-group="start"] [data-home-control="picker"]');
   await b.waitFor("document.querySelector('[data-plugin-picker-popover]')?.hidden === false");
   await b.click('[data-plugin-picker-toggle]');
   assert.equal((await b.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project.project_id)!.plugins.includes("goals"), false);

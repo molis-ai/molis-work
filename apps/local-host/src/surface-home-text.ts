@@ -42,7 +42,9 @@ function shownSources(sample: HomeReadSample, display: SurfaceHomeDisplay): Sour
     ownedKeys(shown, owner, source.keys);
   };
   for (const group of display.groups) {
-    if (group.kind === "plugin" && group.owner_plugin_id) add(group.owner_plugin_id, cardSource(sample, group.owner_plugin_id), "group:" + group.owner_plugin_id, group);
+    // A plugin's card and its outline both show words of its one overview answer (the outline's heading among them).
+    if ((group.kind === "plugin" || group.kind === "outline") && group.owner_plugin_id)
+      add(group.owner_plugin_id, cardSource(sample, group.owner_plugin_id), (group.kind === "outline" ? "outline:" : "group:") + group.owner_plugin_id, group);
   }
   for (const row of display.display.rows) {
     add(row.owner, row.installation, "row:" + JSON.stringify([row.owner, row.subject.kind, row.subject.id]), row);

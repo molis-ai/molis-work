@@ -1,8 +1,8 @@
 import type { ActionDefinition } from "../platform/actions.js";
 import { inputSchemaFor } from "../platform/action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "../platform/action-subjects.js";
-import { PRESENTATION_FIELD_ROLES, PRESENTATION_FORM_KINDS, PRESENTATION_LIMITS, PRESENTATION_VALUE_STATES, SURFACE_SLOT_KINDS, type FieldRole, type FormKind,
-  type PresentationStartForm, type PresentationValueState, type SurfaceSlotKind } from "../platform/presentation.js";
+import { PRESENTATION_FIELD_ROLES, PRESENTATION_FORM_KINDS, PRESENTATION_LEDE_SENTENCES_SCHEMA, PRESENTATION_LIMITS, PRESENTATION_OUTLINE_NODE_SCHEMA, PRESENTATION_VALUE_STATES, SURFACE_SLOT_KINDS, type FieldRole, type FormKind,
+  type PresentationLedeSentence, type PresentationStartForm, type PresentationValueState, type SurfaceSlotKind } from "../platform/presentation.js";
 import { OWNED_TEXT_REF_SCHEMA, type OwnedTextRef } from "../platform/ui-text.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import { CONTEXT_RELATION_TYPES, type ContextRelationType } from "../modules/context-ledger.js";
@@ -116,12 +116,23 @@ export interface SurfacePluginCard {
   start?: SurfaceHomeStart[];
   open?: { kind: "stage"; installation: SurfaceInstallationRef; view_id: string };
   enable?: SurfaceHomeEnable;
+  /**
+   * The plugin's overview `lede`: a few sentences for the head of the first page, with the label of the writing they are from. The
+   * sentences are the plugin's stored words; the label and the invitation are bound to it like every other word of the card.
+   */
+  lede?: SurfaceLede;
+}
+export interface SurfaceLede {
+  label: OwnedTextRef;
+  as_of?: string;
+  sentences: PresentationLedeSentence[];
+  invite?: { text: OwnedTextRef; action: OwnedTextRef };
 }
 
 /** Every word here is an `OwnedTextRef`: the service binds its owner from the plugin directory, so a page finds the words without asking. */
 export interface SurfaceGroup {
-  kind: "attention" | "continue" | "plugin" | "slot" | "lead";
-  /** Only in a `plugin` or `lead` group. */
+  kind: "attention" | "continue" | "plugin" | "slot" | "lead" | "outline";
+  /** Only in a `plugin`, `lead` or `outline` group. */
   owner_plugin_id?: string;
   /** `disabled` and `undeclared` only in a `plugin` group. */
   state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared";
@@ -140,7 +151,20 @@ export interface SurfaceGroup {
    */
   lead?: { installation: SurfaceInstallationRef; view_id: string };
   title?: OwnedTextRef;
+  /**
+   * Only in an `outline` group, on the home after the plugin groups: how far one plugin's own work has come, from its overview's
+   * `outline`, in the owner's order. A node names an object shown on this surface: an item of this group, or of the group that
+   * already shows it (an object is on a surface once). An object the caller cannot read has no node.
+   */
+  outline?: SurfaceOutlineNode[];
   items: SurfaceItem[];
+}
+
+/** Where an `outline` group's item stands in the tree, and the owner's real count for it. */
+export interface SurfaceOutlineNode {
+  subject: ActionSubject;
+  depth: 0 | 1;
+  progress?: { done: number; total: number };
 }
 
 export interface SurfaceDescription {
@@ -230,19 +254,24 @@ const PLUGIN_CARD_SCHEMA = { type: "object", additionalProperties: false, proper
   open: { type: "object", additionalProperties: false, required: ["kind", "installation", "view_id"],
     properties: { kind: { const: "stage" }, installation: INSTALLATION, view_id: text(PRESENTATION_LIMITS.start_view_id) } },
   enable: ENABLE_SCHEMA,
+  lede: { type: "object", additionalProperties: false, required: ["label", "sentences"], properties: {
+    label: OWNED_TEXT_REF_SCHEMA, as_of: { type: "string", format: "date-time" }, sentences: PRESENTATION_LEDE_SENTENCES_SCHEMA,
+    invite: { type: "object", additionalProperties: false, required: ["text", "action"], properties: { text: OWNED_TEXT_REF_SCHEMA, action: OWNED_TEXT_REF_SCHEMA } } } },
 } };
 const LEAD_SCHEMA = { type: "object", additionalProperties: false, required: ["installation", "view_id"],
   properties: { installation: INSTALLATION, view_id: text(PRESENTATION_LIMITS.start_view_id) } };
 const GROUP_SCHEMA = { type: "object", additionalProperties: false, required: ["kind", "state", "items"], properties: {
-  kind: { enum: ["attention", "continue", "plugin", "slot", "lead"] }, owner_plugin_id: text(200), state: { enum: ["ok", "unreadable", "stale", "disabled", "undeclared"] },
+  kind: { enum: ["attention", "continue", "plugin", "slot", "lead", "outline"] }, owner_plugin_id: text(200), state: { enum: ["ok", "unreadable", "stale", "disabled", "undeclared"] },
   read_at: { type: "string", format: "date-time" }, excluded: { type: "array", items: EXCLUSION_SCHEMA },
   hidden_above: { type: "object", additionalProperties: false, required: ["count", "label"], properties: { count: { type: "integer", minimum: 1 }, label: OWNED_TEXT_REF_SCHEMA } },
   overflow: { type: "object", additionalProperties: false, required: ["count"], properties: { count: { type: "integer", minimum: 1 }, label: OWNED_TEXT_REF_SCHEMA } },
-  plugin_card: PLUGIN_CARD_SCHEMA, lead: LEAD_SCHEMA, title: OWNED_TEXT_REF_SCHEMA, items: { type: "array", items: ITEM_SCHEMA } },
+  plugin_card: PLUGIN_CARD_SCHEMA, lead: LEAD_SCHEMA, title: OWNED_TEXT_REF_SCHEMA, items: { type: "array", items: ITEM_SCHEMA },
+  outline: { type: "array", maxItems: PRESENTATION_LIMITS.outline_nodes, items: PRESENTATION_OUTLINE_NODE_SCHEMA } },
   allOf: [
     { if: { properties: { kind: { const: "plugin" } } }, then: {}, else: { not: { required: ["plugin_card"] } } },
     { if: { properties: { kind: { const: "lead" } } }, then: { required: ["lead", "owner_plugin_id"], properties: { state: { const: "ok" }, items: { maxItems: 0 } } },
       else: { not: { required: ["lead"] } } },
+    { if: { properties: { kind: { const: "outline" } } }, then: { required: ["outline", "owner_plugin_id", "title"] }, else: { not: { required: ["outline"] } } },
   ] };
 const DESCRIPTION_SCHEMA = { type: "object", additionalProperties: false, required: ["composed_by", "revision", "corrections_revision", "groups"], properties: {
   composed_by: { enum: ["rules", "assistant"] }, revision: REVISION, corrections_revision: REVISION, groups: { type: "array", items: GROUP_SCHEMA }, reason: OWNED_TEXT_REF_SCHEMA } };
@@ -264,7 +293,7 @@ export const surfaceCompositionActions = {
     capability_id: "surfaces.compose",
     version: /* @version action.surfaces.compose */ 1,
     operation: "query",
-    action: { title: "组合操作面", description: "按调用方、位置和对象排出该显示哪些东西、各用什么形态、显示哪些字段、带哪些操作；不含对象字段的值或预备输入；不调用模型",
+    action: { title: "组合操作面", description: "按调用方、位置和对象排出该显示哪些东西、各用什么形态、显示哪些字段、带哪些操作；不含对象字段的值或预备输入（首页上插件在概况里交的开头几句话照原样带上）；不调用模型",
       kind: "query", scope: "project", effect: "read", scheduling: "concurrent", audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<SurfaceRequest>()(REQUEST_SCHEMA), output_schema: DESCRIPTION_SCHEMA, output_type: "surfaces.description" },
   } as ActionDefinition<SurfaceRequest, SurfaceDescription>,

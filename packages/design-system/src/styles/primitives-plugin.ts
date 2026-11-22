@@ -315,7 +315,7 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
     background: var(--choice-surface, var(--paper)); color: var(--ink); text-decoration: none; cursor: pointer;
     box-shadow: var(--lift-1);
     font: inherit; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.2; text-align: left;
-    transition: background-color 250ms var(--ease-quint), color 250ms var(--ease-quint), box-shadow 250ms var(--ease-quint), transform 130ms var(--ease-spring);
+    transition: background-color 250ms var(--ease-quint), color 250ms var(--ease-quint), box-shadow 250ms var(--ease-quint), transform 130ms var(--ease-quint);
     &:hover:not([aria-pressed="true"]):not([aria-current="true"]) { background: color-mix(in srgb, var(--ink) 3%, var(--choice-surface, var(--paper))); box-shadow: var(--lift-1); }
     &:active { transform: scale(.97); }
     &:is([aria-pressed="true"], [aria-current="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); .mw-choice__check { opacity: 1; transform: none; } }

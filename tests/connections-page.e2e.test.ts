@@ -265,11 +265,17 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
     const item = document.querySelector('[data-connector-item="notion"]');
     const fold = item.querySelector(':scope > .settings-connection-item__fold'), clip = fold.querySelector('.settings-connection-item__clip');
     const mark = item.querySelector('.settings-connection-item__toggle svg');
+    // Under automation the page holds still (no transition takes any time); here it moves as it does for a person.
+    document.documentElement.removeAttribute('data-craft-still');
+    void getComputedStyle(fold).blockSize;
     // Pressed here, so the transitions are held on their first frame, before any time has passed.
     item.querySelector('[data-connection-toggle]').click();
     const moving = (node, names) => node.getAnimations().find(motion => names.includes(motion.transitionProperty));
     const height = moving(fold, ['block-size', 'height']), turn = moving(mark, ['transform']);
-    if (!height || !turn) return { missing: [Boolean(height), Boolean(turn)], clocks: [], move: 0, end: 0, frames: [] };
+    if (!height || !turn) {
+      document.documentElement.setAttribute('data-craft-still', '');
+      return { missing: [Boolean(height), Boolean(turn)], clocks: [], move: 0, end: 0, frames: [] };
+    }
     height.pause();
     turn.pause();
     const clock = motion => ({ duration: Number(motion.effect.getComputedTiming().duration), delay: Number(motion.effect.getComputedTiming().delay), easing: motion.effect.getTiming().easing });
@@ -281,6 +287,7 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
     });
     height.finish();
     turn.finish();
+    document.documentElement.setAttribute('data-craft-still', '');
     return { clocks, move: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-move')), end: fold.getBoundingClientRect().height, frames };
   })()`);
   assert.equal(walk.missing, undefined, `the fold's height and the chevron both move when a row opens: ${walk.missing}`);

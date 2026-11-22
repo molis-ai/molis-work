@@ -30,7 +30,7 @@ export const BUTTON_STYLES = `
       border-color var(--dur-hover, 130ms) var(--ease-quint),
       box-shadow var(--dur-hover, 130ms) var(--ease-quint),
       opacity var(--dur-hover, 130ms) var(--ease-quint),
-      transform var(--dur-hover, 130ms) var(--ease-spring);
+      transform var(--dur-hover, 130ms) var(--ease-quint);
   }
   body .mw-btn:active { filter: none; }
   .mw-btn:active:not(:disabled) { transform: scale(.985); }

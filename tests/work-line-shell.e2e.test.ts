@@ -115,7 +115,7 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
   }
 });
 
-test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
+test("WLN-04 WLN-06 POLISH-34: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
   // The event is a todo planned for today; the task that stops is another plugin's, done for it (its `serves`).
   let served = { kind: "todo_item", id: "" }, waiting = false, ask = false, changes: Array<{ label: string; value: string }> = [];
   const task = () => ({ subject: { kind: "homebg_task", id: "t1" }, title: "核对报价单", state: waiting ? "answer" : "running", details: [], waiting,
@@ -135,6 +135,10 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   store.close();
   served = { kind: "todo_item", id: item.id };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // POLISH-34: the shared "your turn" ring is counted where the page receives it. The motion helpers are frozen once set, so the
+  // count goes in as they are set; under automation the ring itself draws nothing, and the call is what is counted.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { let craft; window.__rings = 0; Object.defineProperty(window, 'molisCraft', { configurable: true, get: () => craft,
+    set(next) { craft = Object.freeze({ ...next, ask(node) { window.__rings += 1; window.__rang = node?.hasAttribute?.('data-work-stack') ?? false; return next.ask(node); } }); } }); })();` }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const EVENT = `document.querySelector('[data-work-line] [data-work-event*="todo-planned:${item.id}"]')`;
@@ -168,6 +172,8 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   const count = `(${head} && !${head}.hidden ? Number(${head}.textContent) : 0)`;
   const before = await evaluate<number>(count);
   assert.notEqual(await evaluate(`${EVENT}.dataset.state`), "wait");
+  // POLISH-34: nothing has rung yet; the event coming to wait for the person says so once.
+  assert.equal(await evaluate("window.__rings"), 0);
   waiting = true;
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   // POLISH-40: what waits for you leaves the three lists and is a card of the stack, which says 该你 in words, not by colour alone.
@@ -185,12 +191,15 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROW}.textContent.includes('核对报价单') && ${ROW}.querySelector('[data-waiting-go]')?.textContent.includes('去处理')`, 10_000);
   assert.equal(await evaluate(`${ROWS}.length`), 1, "one row for the task and its decision");
   assert.equal(await evaluate(`document.activeElement === ${INPUT}`), true, "the row takes no focus");
+  assert.deepEqual(await evaluate("[window.__rings, window.__rang]"), [1, true], "POLISH-34: the card stack rang once as the event came to wait, and the reads since, with it still waiting, rang nothing");
   waiting = false;
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor(`${ROW}?.dataset.waiting === 'settled' && !${ROW}.querySelector('[data-waiting-go]')`, 20_000);
   waiting = true;
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROWS}.length === 1`, 20_000);
+  await waitFor("window.__rings === 2", 10_000);
+  assert.equal(await evaluate("window.__rings"), 2, "POLISH-34: settled and waiting again is a second coming, and rings once more, not more");
   await evaluate(`${ROW}.querySelector('[data-waiting-go]').click()`);
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-head-title]').textContent === '报价单'", 10_000);
   // POLISH-43: the event in front is answered in the information column, so it is no card of the stack while its conversation

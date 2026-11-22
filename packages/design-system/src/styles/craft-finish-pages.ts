@@ -139,7 +139,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     transition:
       background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint),
       border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint),
-      transform var(--dur-move) var(--ease-spring), opacity var(--dur-hover) var(--ease-quint);
+      transform var(--dur-move) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint);
     will-change: auto;
   }
   ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {

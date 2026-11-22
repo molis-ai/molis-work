@@ -458,7 +458,7 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
 // would change — with 同意／改一下／拒绝; an answer names that question of that task only. The task table here is the real one with
 // the question written onto the task's row on its way to the page (no model runs in this fixture, so no step is really held);
 // that the service runs only what the owner still asks is tests/mainline-background-tasks.test.ts.
-test("WLN-10 POLISH-34: a waiting task's question heads the event's card with what would change; 同意 and 「改一下」 with its words answer that question only", { timeout: 150_000 }, async t => {
+test("WLN-10: a waiting task's question heads the event's card with what would change; 同意 and 「改一下」 with its words answer that question only", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
@@ -499,11 +499,8 @@ test("WLN-10 POLISH-34: a waiting task's question heads the event's card with wh
 
   // The task stops on two questions: both head the card, above what the owner shows and 「在办」, the first with the one primary button.
   const again = "document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))";
-  // POLISH-34: the event coming to wait for the person says so once, through the shared "your turn" ring; every call is counted here.
-  await evaluate("(() => { const craft = window.molisCraft, real = craft.ask; window.__rings = 0; craft.ask = node => { window.__rings += 1; return real(node); }; })()");
   await evaluate(`window.__asks = ['q1', 'q2']; ${again}`);
   await waitFor(`${CARD} && ${ASKS}.length === 2`, 15_000);
-  await waitFor("window.__rings === 1", 15_000);
   assert.deepEqual(await evaluate(`${ASKS}.map(part => ({ ask: part.querySelector('.work-decision-ask').textContent, why: part.querySelector('.work-decision-why').textContent,
     changes: [...part.querySelectorAll('.work-decision-changes > li')].map(line => line.querySelector('b').textContent + '：' + line.querySelector('span').textContent.slice(line.querySelector('b').textContent.length).trim()),
     answers: [...part.querySelectorAll('[data-decision-answer]')].map(button => button.textContent.trim() + (button.classList.contains('mw-btn--primary') ? '*' : '')) }))`), [
@@ -532,7 +529,6 @@ test("WLN-10 POLISH-34: a waiting task's question heads the event's card with wh
   // 同意 on the next one: that question, and only it.
   await evaluate(`${CARD}.querySelector('[data-task-decision="q2"] [data-decision-answer="approve"]').click()`);
   await waitFor(`window.__decided.length === 2 && ${ASKS}.length === 1`, 15_000);
-  assert.equal(await evaluate("window.__rings"), 1, "POLISH-34: a third question, new reads and two answers later it still waits, and the ring is not repeated");
   const decided = await evaluate<Array<{ subject: { kind: string }; decision: string; role: string; note?: string; source: { capability_id: string } }>>("window.__decided");
   assert.deepEqual(decided.map(one => [one.subject.kind, one.source.capability_id, one.decision, one.role, one.note]), [["assistant_work", "assistant.background.tasks", "q1", "revise", "改到下午四点"], ["assistant_work", "assistant.background.tasks", "q2", "approve", undefined]]);
 

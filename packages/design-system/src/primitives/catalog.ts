@@ -141,7 +141,7 @@ function craftSection(): string {
     ["--dur-stagger", "60ms", "错开：几张卡片一起到达时，微弱流动节奏（至多四张）"],
   ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("") +
     // The curves' values are read from the baseline, the one place they are written (POLISH-33).
-    [["ease-quint", "到达、移动、展开、离开——除按下回弹外的一切"], ["ease-spring", "只用于按下后的回弹与勾选落定"]]
+    [["ease-quint", "到达、移动、展开、离开——除按下回弹外的一切"], ["ease-spring", "只用于 32px 以内的小东西：小键回弹、勾选落定、开关滑块"]]
       .map(([name, role]) => `<tr><td><code>--${name}</code></td><td>${escape(baselineToken(name!).replace(/^[^:]*:\s*|;\s*$/gu, ""))}</td><td>${role}</td></tr>`).join("");
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
     .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<span>${escape(name)}</span></span>`).join("");

@@ -298,9 +298,9 @@ test('CLEAN-1 explicit production Home purge removes its publisher metadata and 
     webServiceManager: new MolisWorkWebServiceManager({ homeDirectory: home, userHomeDirectory: user, platform: 'linux' }) });
   const plan = await service.prepare({ purge_user_data: true }); assert.equal(plan.status, 'ready', plan.conflicts.join('\n'));
   assert.ok(plan.changes.some(change => change.target === identityPath(home)));
-  assert.ok(plan.changes.some(change => change.target === join(home, 'feed')));
+  assert.ok(plan.changes.some(change => change.target === join(home, 'security')));
   const result = await service.confirm({ plan_id: plan.plan_id, decision: 'confirmed', purge_confirmation: { home_directory: home, user_project_count: 0 } });
-  assert.equal(result.status, 'purged'); assert.equal(existsSync(identityPath(home)), false); assert.equal(existsSync(join(home, 'feed')), false);
+  assert.equal(result.status, 'purged'); assert.equal(existsSync(identityPath(home)), false); assert.equal(existsSync(join(home, 'security')), false);
   assert.equal(metadata(other).key_id, keyB); laterRevision(b);
   assert.equal((await b.publish()).distribution!.publisher_key_id, keyB);
 });

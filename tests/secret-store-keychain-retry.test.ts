@@ -37,7 +37,7 @@ async function withKeychainFixture(run: (fixture: { home: string; root: string; 
       await host.close();
     }
     runWithMolisWorkHome(home, () => createFileSecretStore().put("fixture", "original credential"));
-    const file = join(home, "feed", "secrets.json");
+    const file = join(home, "security", "secrets.json");
     const persisted = JSON.parse(readFileSync(file, "utf8"));
     persisted.backend = "keychain+aes-gcm";
     writeFileSync(file, JSON.stringify(persisted));
@@ -63,13 +63,13 @@ for (const [reason, behavior] of [
 ] as const) {
   test(`Keychain ${reason} stops repeated access without modifying credentials and recovers in a fresh process`,
     { skip: process.platform !== "darwin" }, () => withKeychainFixture(({ home, calls, allow }) => {
-      const file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+      const file = join(home, "security", "secrets.json"), before = readFileSync(file);
       for (let i = 0; i < 8; i++) {
         assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /Automatic retries are stopped.*restart Molis Work/u);
       }
       assert.deepEqual(calls(), ["find-generic-password"]);
       assert.deepEqual(readFileSync(file), before);
-      assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+      assert.equal(existsSync(join(home, "security", "secrets.key")), false);
       allow();
       assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /Automatic retries are stopped/u,
         "even later requests do not silently reopen an authorization dialog");
@@ -90,7 +90,7 @@ test("S-12 RAC-104-B2b-01: an empty Keychain vault keeps its original backend fo
   { skip: process.platform !== "darwin" }, () => withKeychainFixture(({ home, root, allow }) => {
     allow();
     runWithMolisWorkHome(home, () => createFileSecretStore().delete("fixture"));
-    const file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+    const file = join(home, "security", "secrets.json"), before = readFileSync(file);
     assert.deepEqual(JSON.parse(before.toString()).entries, {});
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     resetSecretStoreCache();
@@ -98,7 +98,7 @@ test("S-12 RAC-104-B2b-01: an empty Keychain vault keeps its original backend fo
     const sealed = sealExistingHomePayload(home, "original-owner", "private owner contents");
     assert.equal(openExistingHomePayload(home, "original-owner", sealed), "private owner contents");
     assert.equal(sealed.backend, "keychain+aes-gcm");
-    assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+    assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "security", "secrets.key")), false);
     // The only PATH directory now has no security executable: neither a system lookup nor a replacement key is possible.
     rmSync(join(root, "bin", "security")); resetSecretStoreCache();
     // S-12 RAC-104-B2b-07: a fresh environment value cannot replace the vault's recorded Keychain backend.
@@ -106,7 +106,7 @@ test("S-12 RAC-104-B2b-01: an empty Keychain vault keeps its original backend fo
     assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /Keychain/u);
     assert.throws(() => runWithMolisWorkHome(home, createFileSecretStore), /original Keychain item.*HOME-DATA\.md/u);
     assert.throws(() => openExistingHomePayload(home, "original-owner", sealed), { code: "storage.secrets_snapshot.key_unavailable" });
-    assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+    assert.deepEqual(readFileSync(file), before); assert.equal(existsSync(join(home, "security", "secrets.key")), false);
   }, "exit 36"));
 
 test("Keychain failure does not block another Home or cache ordinary environment-key failures", { skip: process.platform !== "darwin" }, async () => {
@@ -134,7 +134,7 @@ test("Keychain failure does not block another Home or cache ordinary environment
 test("lazy credentials preserve their Home and only unlock an existing credential", { skip: process.platform !== "darwin" }, () =>
   withKeychainFixture(({ home, root, calls, allow }) => {
     const lazy = runWithMolisWorkHome(home, createLazyFileSecretStore);
-    const file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+    const file = join(home, "security", "secrets.json"), before = readFileSync(file);
     assert.equal(lazy.get("not-configured"), null);
     assert.deepEqual(calls(), []);
     allow();
@@ -159,7 +159,7 @@ test("lazy credentials preserve their Home and only unlock an existing credentia
 
 test("QEA-88 Functions local reads work with locked Keychain across Host, HTTP and fresh MCP processes; invocation still requires credentials",
   { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls }) => {
-    const file = join(home, "feed", "secrets.json");
+    const file = join(home, "security", "secrets.json");
     const sealed = JSON.parse(readFileSync(file, "utf8"));
     // A TypeSafe connection bound for Functions, written without unlocking anything: its key is the sealed fixture.
     const typeSafe = { id: "22222222-2222-4222-8222-222222222222", ref: "connector-connection:22222222-2222-4222-8222-222222222222:token" };
@@ -247,7 +247,7 @@ test("QEA-88 Functions local reads work with locked Keychain across Host, HTTP a
       assert.match(JSON.stringify(await actions.invoke(functionsActions.describe, { function_key: live.function_key })), /lazy_keychain/u);
       assert.equal((await fetch(origin + "/api/functions")).status, 200, "local work remains available after authentication fails");
       assert.deepEqual(readFileSync(file), before);
-      assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+      assert.equal(existsSync(join(home, "security", "secrets.key")), false);
     } finally {
       if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
       await actionHost.close();
@@ -257,7 +257,7 @@ test("QEA-88 Functions local reads work with locked Keychain across Host, HTTP a
 
 test("ASR-02 installation first login refuses locked Keychain without anonymous fallback or repeated unlock prompts",
   { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls }) => {
-    const file=join(home,"feed","secrets.json"),before=readFileSync(file),token="keychain-first-login-control-0123456789";
+    const file=join(home,"security","secrets.json"),before=readFileSync(file),token="keychain-first-login-control-0123456789";
     const config={MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify({...trialAccountConfig("https://auth.example.test","http://127.0.0.1:4173"),environmentKind:"TEST"})};
     const previous=Object.fromEntries(Object.keys(config).map(key=>[key,process.env[key]]));Object.assign(process.env,config);
     const server=createMolisWorkWebServer({homeDirectory:home,controlToken:token});
@@ -268,7 +268,7 @@ test("ASR-02 installation first login refuses locked Keychain without anonymous 
         assert.equal(response.status,503,"credential failure remains a failed real installation login");assert.match((await response.json()).error,/登录会话暂时不可用/);
       }
       assert.equal((await fetch(origin+"/api/functions")).status,401,"credential failure never selects an anonymous editable Home");
-      assert.deepEqual(calls(),["find-generic-password"]);assert.deepEqual(readFileSync(file),before);assert.equal(existsSync(join(home,"feed","secrets.key")),false);
+      assert.deepEqual(calls(),["find-generic-password"]);assert.deepEqual(readFileSync(file),before);assert.equal(existsSync(join(home,"security","secrets.key")),false);
     }finally{
       if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));for(const[key,value]of Object.entries(previous))if(value===undefined)delete process.env[key];else process.env[key]=value;
     }
@@ -305,7 +305,7 @@ test("a fresh Home never deletes or replaces an existing Keychain item it cannot
       assert.equal(store.backend().kind, "aes-gcm-file");
       store.put("fixture", "fresh credential");
       assert.equal(store.get("fixture"), "fresh credential");
-      assert.equal(existsSync(join(home, "feed", "secrets.key")), true);
+      assert.equal(existsSync(join(home, "security", "secrets.key")), true);
       assert.deepEqual(calls().map(line => line.split(" ")[0]), ["find-generic-password", "find-generic-password"]);
     }));
 
@@ -319,20 +319,20 @@ test("a fresh Home creates the missing Keychain item add-only and trusted for th
       assert.match(added[0]!, / -T \/usr\/bin\/security$/);
       assert.doesNotMatch(added[0]!, / -U\b/, "an existing item is never overwritten");
       assert.equal(calls().some(line => line.startsWith("delete-generic-password")), false);
-      assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+      assert.equal(existsSync(join(home, "security", "secrets.key")), false);
     }));
 
 test("QEA-89 passive Keychain access uses the original cache and does not poison a later explicit unlock", { skip: process.platform !== "darwin" }, () => withKeychainFixture(({ home, root, calls, allow }) => {
-  const file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+  const file = join(home, "security", "secrets.json"), before = readFileSync(file);
   const passive = createLazyFileSecretStore(home, { keychain: "cached" }), explicit = createLazyFileSecretStore(home);
   assert.throws(() => passive.get("fixture"), /explicit credential operation/u);
   assert.throws(() => passive.createIfAbsent("observation-test", "automatic record"), /explicit credential operation/u);
   assert.deepEqual(calls(), []); assert.deepEqual(readFileSync(file), before);
-  assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+  assert.equal(existsSync(join(home, "security", "secrets.key")), false);
   const fresh = join(root, "fresh-passive-home"), freshStore = createLazyFileSecretStore(fresh, { keychain: "cached" });
   assert.throws(() => freshStore.createIfAbsent("automatic", "body"), /explicit credential operation/u);
-  assert.equal(existsSync(join(fresh, "feed", "secrets.json")), false);
-  assert.equal(existsSync(join(fresh, "feed", "secrets.key")), false, "passive access never changes a new Home's backend selection");
+  assert.equal(existsSync(join(fresh, "security", "secrets.json")), false);
+  assert.equal(existsSync(join(fresh, "security", "secrets.key")), false, "passive access never changes a new Home's backend selection");
   assert.deepEqual(calls(), []);
   allow();
   assert.equal(explicit.get("fixture"), "original credential", "the passive refusal did not populate keychainFailures");
@@ -399,11 +399,11 @@ for (const backend of ["env", "file"] as const) test(`QEA-89 passive credential 
     resetSecretStoreCache();
     const store = createLazyFileSecretStore(home, { keychain: "cached" });
     assert.equal(store.createIfAbsent("sample", "original value"), true);
-    const bytes = readFileSync(join(home, "feed", "secrets.json"));
+    const bytes = readFileSync(join(home, "security", "secrets.json"));
     resetSecretStoreCache();
     assert.equal(store.get("sample"), "original value");
     assert.equal(store.backend().kind, backend === "env" ? "env-key+aes-gcm" : "aes-gcm-file");
-    assert.deepEqual(readFileSync(join(home, "feed", "secrets.json")), bytes);
+    assert.deepEqual(readFileSync(join(home, "security", "secrets.json")), bytes);
   } finally {
     resetSecretStoreCache();
     for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }

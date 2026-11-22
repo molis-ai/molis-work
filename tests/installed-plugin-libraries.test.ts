@@ -156,7 +156,7 @@ test("RAC-317 the publisher of an install cannot be changed: an upgrade to anoth
 test("RAC-318 an installed plugin is not given a name that is already taken: a shipped store, the ledger's own, another plugin's library, or a directory the Home has that no ledger row made — nothing is made, nothing is changed", withDirectory(async directory => {
   const item = platformIn(directory);
   try {
-    for (const name of ["todo", "images", "feed", "config", "projects", "plugin-libraries"]) {
+    for (const name of ["todo", "images", "security", "config", "projects", "plugin-libraries"]) {
       const taker = probe({ name: `taker-${name}`, library: { store_name: name } });
       assert.equal(await refused(item, taker.definition), "plugin.home_database.object_taken", name);
       assert.equal(taker.started.length, 0, `${name}: the plugin's code never ran`);
@@ -249,8 +249,8 @@ test("RAC-321 uninstall --purge-user-data removes the libraries installed plugin
 
   // A row is a name the Host wrote, but it becomes a path that is deleted: a tampered name is never followed. The purge reads the
   // same strict ledger as the Home snapshot (W5-16), so one such row stops it, naming the ledger, rather than deleting around it.
-  mkdirSync(join(directory, "feed"), { recursive: true });
-  for (const name of ["feed", "../outside", "a/b", "Upper"]) {
+  mkdirSync(join(directory, "security"), { recursive: true });
+  for (const name of ["security", "../outside", "a/b", "Upper"]) {
     const db = new DatabaseSync(join(directory, LEDGER));
     db.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, '2026-10-24T00:00:00.000Z')").run(`tampered.${name}`, "x", name, "0".repeat(64));
     db.close();
@@ -263,7 +263,7 @@ test("RAC-321 uninstall --purge-user-data removes the libraries installed plugin
     fix.close();
   }
   const after = await targets();
-  assert.equal(after.filter(target => target === join(directory, "feed")).length, 1, "a registered store is listed once, by its own entry");
+  assert.equal(after.filter(target => target === join(directory, "security")).length, 1, "a registered store is listed once, by its own entry");
   assert.ok(after.includes(library));
 
   writeFileSync(join(directory, LEDGER), "not a database\n");

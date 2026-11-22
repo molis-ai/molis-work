@@ -68,14 +68,14 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     rowsEl.replaceChildren();
     records.forEach((rec) => {
       const item = document.createElement("article");
-      item.className = "feed-stage-item";
+      item.className = "mw-stage-item";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "feed-stage-entry directory-list-row" + (sel?.id === rec.id ? " is-selected" : "");
+      row.className = "mw-stage-entry directory-list-row" + (sel?.id === rec.id ? " is-selected" : "");
       row.dataset.functionId = rec.id;
       row.setAttribute("aria-selected", String(sel?.id === rec.id));
       const leading = document.createElement("span");
-      leading.className = "feed-stage-leading";
+      leading.className = "mw-stage-leading";
       const title = document.createElement("strong");
       title.title = rec.name;
       title.textContent = rec.name;
@@ -83,7 +83,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
       const primitive = rec.primitive === "noul" ? globalThis.t.text("workbench.client-records.yes-no") : rec.primitive === "score" ? globalThis.t.text("workbench.client-records.rating") : globalThis.t.text("workbench.client-records.choice");
       const published = rec.status === "published";
       const status = document.createElement("span");
-      status.className = "mw-status mw-status--" + (published ? "done" : "quiet") + " feed-entry-status";
+      status.className = "mw-status mw-status--" + (published ? "done" : "quiet") + " mw-entry-status";
       status.dataset.mwState = published ? "ready" : "draft"; status.textContent = published ? "v" + (rec.version || 1) : globalThis.t.text("workbench.client-records.draft");
       row.append(
         leading,

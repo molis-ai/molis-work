@@ -77,7 +77,7 @@ export function renderPptWorkbench(_model: PptUiModel): string {
     label: "PPT",
     dataset: "ppt",
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-ppt="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-ppt="directory">
       <header class="plugin-stage-chrome ppt-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-ppt-new>${icon("plus")}<span>${uiText("ppt.action.new")}</span></button>
       </header>

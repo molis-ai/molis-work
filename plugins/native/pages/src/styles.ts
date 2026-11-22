@@ -29,9 +29,9 @@ export const PAGES_STYLES = `
   [data-pages-stage-workspace] { background: var(--content-paper, var(--paper)); }
   [data-pages="directory"] :is(.pages-search, [data-pages-empty], [data-pages-rows], [data-pages-search-empty]) { max-width: 36rem; }
   [data-pages="directory"] .pages-search { width: min(36rem, 100%); margin: 0 0 16px; box-sizing: border-box; }
-  body.immersive-workbench [data-pages="directory"] .feed-stage-entry,
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] [data-pages="directory"] .feed-stage-entry,
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] [data-pages="directory"] .feed-stage-entry:has(.plugin-stage-kind) {
+  body.immersive-workbench [data-pages="directory"] .mw-stage-entry,
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] [data-pages="directory"] .mw-stage-entry,
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] [data-pages="directory"] .mw-stage-entry:has(.plugin-stage-kind) {
     grid-template-columns: minmax(0, 1fr) max-content;
   }
   [data-pages="directory"] .plugin-stage-meta { font-variant-numeric: tabular-nums; color: var(--faint); }
@@ -129,7 +129,7 @@ export const PAGES_STYLES = `
     border-radius: 2px;
     box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent);
   }
-  body.immersive-workbench [data-pages="directory"] .feed-stage-entry:focus-visible {
+  body.immersive-workbench [data-pages="directory"] .mw-stage-entry:focus-visible {
     outline: none; background: var(--nav-hover);
   }
   .pages-editor-host .ProseMirror p { margin: 0 0 0.55em; }
@@ -329,27 +329,27 @@ export const PAGES_STYLES = `
     transition: background-color 130ms var(--ease-quint),
       box-shadow 130ms var(--ease-quint);
   }
-  .pages-doc-row > .feed-stage-entry { flex: 1; min-width: 0; padding-right: 56px; background: transparent; }
+  .pages-doc-row > .mw-stage-entry { flex: 1; min-width: 0; padding-right: 56px; background: transparent; }
   body.immersive-workbench [data-pages="directory"] .pages-doc-row:hover {
     background: var(--nav-hover);
     box-shadow: var(--lift-1);
   }
   body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-selected,
-  body.immersive-workbench [data-pages="directory"] .pages-doc-row:has(.feed-stage-entry.is-selected) {
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row:has(.mw-stage-entry.is-selected) {
     background: var(--nav-active);
     box-shadow: none;
   }
   /* Picked together with ⌘ / Ctrl for the context actions (compare, combine): marked apart from the open one. */
   body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked,
-  body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked:has(.feed-stage-entry.is-selected) {
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked:has(.mw-stage-entry.is-selected) {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
     box-shadow: inset 2px 0 0 var(--accent);
   }
-  body.immersive-workbench [data-pages="directory"] .pages-doc-row .feed-stage-entry:is(.is-selected, [aria-selected="true"]),
-  body.immersive-workbench [data-pages="directory"] .pages-doc-row:hover .feed-stage-entry {
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row .mw-stage-entry:is(.is-selected, [aria-selected="true"]),
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row:hover .mw-stage-entry {
     background: transparent;
   }
-  [data-pages="directory"] .feed-stage-leading {
+  [data-pages="directory"] .mw-stage-leading {
     display: flex; align-items: center; gap: 8px; min-width: 0;
   }
   .pages-doc-mark {
@@ -358,7 +358,7 @@ export const PAGES_STYLES = `
   .pages-doc-mark svg { width: 14px; height: 14px; }
   .pages-doc-row.is-dragging { opacity: .45; }
   .pages-doc-row.creative-artifact-row { display: flex; align-items: center; }
-  body.immersive-workbench .pages-doc-row.creative-artifact-row > .feed-stage-entry { flex: 1 1 auto; min-width: 0; width: auto; padding-right: 8px; }
+  body.immersive-workbench .pages-doc-row.creative-artifact-row > .mw-stage-entry { flex: 1 1 auto; min-width: 0; width: auto; padding-right: 8px; }
   .creative-artifact-act {
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;

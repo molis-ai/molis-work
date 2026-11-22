@@ -37,7 +37,7 @@
 | `{ kind: "plugin", plugin_id }` | 一个插件（在某个项目里，或 Home 级） | 插件的表、插件的 Home 库 |
 | `{ kind: "setting", page }` | 设置里的一页（`appearance`、`models`、`mcp`、`browser`、`computer`、`assistant`） | 外观、模型偏好、MCP 工具偏好、侧栏浏览器站点、电脑操作、助理 |
 | `{ kind: "shelf" }` | Shelf | Shelf 目录 |
-| `{ kind: "home" }` | 整个 Home 都受影响（密钥文件、引导记录） | `feed/secrets.json`、`onboarding.json`、`project-arrival.json` |
+| `{ kind: "home" }` | 整个 Home 都受影响（密钥文件、引导记录） | `security/secrets.json`、`onboarding.json`、`project-arrival.json` |
 
 它和 `owner` 同写在 `platform-upgrade-stores.ts` 的一行里，再加一种库只改这一行。`home` 是少数：密钥文件读不了，所有连接都用不了，只能整体说明（§2.4）。
 

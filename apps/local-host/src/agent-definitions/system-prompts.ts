@@ -21,13 +21,6 @@ export const ONBOARDING_PROPOSAL = defineInstructionPrompt({
   ...promptBody("onboarding.proposal"),
 });
 
-/** The information helper proposes one confirmable action over Feed and Inbox. */
-export const INFORMATION_PLANNER = defineInstructionPrompt({
-  owner_id: "system:information", prompt_id: "information.plan", version: /* @version prompt.information.plan */ 2, title: "信息处理方案",
-  purpose: "根据用户请求，为 Feed 来源起草筛选规则，或为 Inbox 条目填写写作要求；只提出一个待确认的动作", used_by: ["信息助手"],
-  ...promptBody("information.plan"),
-});
-
 /** Settings › 能力包 › 新建技能: one sentence becomes the form's fields for the person to change (batch 41, 定样 B). It only proposes. */
 export const SKILL_DRAFT = defineInstructionPrompt({
   owner_id: "system:skills", prompt_id: "skills.draft", version: /* @version prompt.skills.draft */ 2, title: "起草技能",

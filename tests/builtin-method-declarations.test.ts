@@ -3,7 +3,7 @@
 // new built-in method cannot be added without them, and so none claims Coding while its tools are the business ones Coding does not have.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { isSkillAppliesTo, SKILL_LIMITS, SKILL_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { issuesManifest } from "@molis-ai/molis-work-plugin-issues";
@@ -21,7 +21,7 @@ test("builtin-methods: every method says when to use it and who may pick it, wit
   for (const { plugin_id, method } of methods) {
     const where = `${plugin_id} / ${method.skill_id}`;
     assert.ok(method.description && [...method.description].length <= SKILL_LIMITS.descriptionChars, `${where}: description`);
-    assert.ok((SKILL_APPLIES_TO as readonly unknown[]).includes(method.applies_to), `${where}: applies_to`);
+    assert.ok(isSkillAppliesTo(method.applies_to), `${where}: applies_to`);
     for (const key of ["when_to_use", "when_not_to_use"] as const) {
       const text = method[key];
       assert.ok(text === undefined || (text.trim() && [...text].length <= SKILL_LIMITS.whenChars), `${where}: ${key}`);
@@ -55,4 +55,11 @@ test("builtin-methods: the Manifests still parse with the new fields", () => {
     const parsed = parsePluginManifest(JSON.parse(JSON.stringify(manifest)));
     assert.deepEqual(parsed.methods?.map(method => method.applies_to), manifest.methods?.map(method => method.applies_to));
   }
+});
+
+// BL-b44-coding-scene-enum: a Manifest's `memory_scene` is the plugin's own scene name, or "common"; the platform's words are refused.
+test("BL-b44-coding-scene-enum a Manifest declares its memory scene by name", () => {
+  const withScene = (memory_scene: unknown) => () => parsePluginManifest({ ...JSON.parse(JSON.stringify(todoManifest)), memory_scene });
+  for (const scene of ["common", "notes", "coding", "a-1"]) assert.equal(withScene(scene)().memory_scene, scene);
+  for (const scene of ["assistant", "agent", "both", "Notes", "1notes", "", "x".repeat(41), 7]) assert.throws(withScene(scene), /memory_scene/, String(scene));
 });

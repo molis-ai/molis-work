@@ -18,8 +18,8 @@ function fixture(t: TestContext) {
   mkdirSync(home);
   const secret = randomBytes(32).toString("hex");
   storage.createLazyFileSecretStore(home).put("snapshot-test", secret);
-  rmSync(join(home, "feed", "secrets.lock.sqlite"), { force: true });
-  const file = join(home, "feed", "secrets.json"), key = join(home, "feed", "secrets.key");
+  rmSync(join(home, "security", "secrets.lock.sqlite"), { force: true });
+  const file = join(home, "security", "secrets.json"), key = join(home, "security", "secrets.key");
   return { home, secret, file, key, contents: readFileSync(file, "utf8") };
 }
 
@@ -32,7 +32,7 @@ function unchanged(home: string) {
 
 test("S-12 RAC-104: sealed snapshot validation uses the original Home key and never modifies that Home", t => {
   const f = fixture(t), inspect = inspector(), before = unchanged(f.home), result = inspect(f.home, f.contents);
-  assert.deepEqual(result, { version: 1, backend: "aes-gcm-file", entries: 1, key_reference: { location: "home:feed/secrets.key",
+  assert.deepEqual(result, { version: 1, backend: "aes-gcm-file", entries: 1, key_reference: { location: "home:security/secrets.key",
     sha256: createHash("sha256").update(Buffer.from(readFileSync(f.key, "utf8").trim(), "base64")).digest("hex") } });
   assert.deepEqual(unchanged(f.home), before);
   assert.equal(JSON.stringify(result).includes(f.secret), false);
@@ -68,13 +68,13 @@ test("S-12 RAC-104: empty plaintext is authenticated data; missing ciphertext, i
 });
 
 test("S-12 RAC-104: a missing or wrong key and invalid snapshots fail before any directory, lock or replacement key is written", t => {
-  for (const fault of ["missing-key", "wrong-key", "hardlink-key", "symlink-key", "symlink-feed", "version", "backend", "ciphertext"]) {
+  for (const fault of ["missing-key", "wrong-key", "hardlink-key", "symlink-key", "symlink-security", "version", "backend", "ciphertext"]) {
     const f = fixture(t), inspect = inspector(), parsed = JSON.parse(f.contents);
     if (fault === "missing-key") unlinkSync(f.key);
     if (fault === "wrong-key") writeFileSync(f.key, randomBytes(32).toString("base64"));
     if (fault === "hardlink-key") linkSync(f.key, f.key + ".extra");
     if (fault === "symlink-key") { renameSync(f.key, f.key + ".original"); symlinkSync(f.key + ".original", f.key); }
-    if (fault === "symlink-feed") { renameSync(join(f.home, "feed"), join(f.home, "feed-original")); symlinkSync(join(f.home, "feed-original"), join(f.home, "feed")); }
+    if (fault === "symlink-security") { renameSync(join(f.home, "security"), join(f.home, "security-original")); symlinkSync(join(f.home, "security-original"), join(f.home, "security")); }
     if (fault === "version") parsed.version = 3;
     if (fault === "backend") parsed.backend = "unregistered";
     if (fault === "ciphertext") parsed.entries["snapshot-test"] = Buffer.from('{"v":1,"alg":"aes-256-gcm","ct":"altered"}').toString("base64");

@@ -53,9 +53,9 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.ok(workbench.includes("plugin-market-list { display: grid;"));
   assert.doesNotMatch(workbench, /plugin-market-grid article \{ padding: 24px;/);
   assert.match(withPlugins, /\.feed-workbench\.plugin-stage-shell\[data-feed-stage-shell\] \{[^}]*padding: 0;[^}]*overflow: hidden;/);
-  assert.match(withPlugins, /> \.feed-column > \.feed-stage-list \{[^}]*overflow: auto; overscroll-behavior: contain;/);
-  assert.match(withPlugins, /feed-stage-list .goal-collection-fold > summary/);
-  assert.match(withPlugins, /plugin-stage-list \.goal-collection-fold \.feed-stage-entry \{ padding-left: 24px; \}/);
+  assert.match(withPlugins, /> \.feed-column > \.mw-stage-list \{[^}]*overflow: auto; overscroll-behavior: contain;/);
+  assert.match(withPlugins, /mw-stage-list .goal-collection-fold > summary/);
+  assert.match(withPlugins, /plugin-stage-list \.goal-collection-fold \.mw-stage-entry \{ padding-left: 24px; \}/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
   assert.match(withPlugins, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
   assert.doesNotMatch(withPlugins, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
@@ -63,10 +63,12 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.doesNotMatch(withPlugins, /\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
-  assert.match(withPlugins, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
+  assert.match(withPlugins, /mw-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
   // No region draws a scrollbar; one design-system rule hides them all (tests/scrollbars-hidden.test.ts).
   assert.ok(workbench.includes("@media not (forced-colors:active){*{scrollbar-width:none}*::-webkit-scrollbar{display:none;width:0;height:0}}"));
-  assert.ok(withPlugins.includes(":is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  // The shell lays out its own tree; Feed's source list is laid out by Feed's stylesheet (BL-b44-feed-home-dir-and-styles).
+  assert.ok(workbench.includes(".immersive-workspace .tree-scroll { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  assert.ok(withPlugins.includes(".immersive-workspace .source-list { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
   // Project home (DESIGN.md → Home): the home column scrolls in its own box under fixed chrome; it has no shortcut margin any more.
   assert.match(workbench, /\.immersive-home \.home-scroll \{ flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;/);
@@ -107,7 +109,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   // (spec → 第三轮 · 间距与形状): 20px → 24px, -6px → -8px, 10px → 12px. The bars are still pinned the same way.
   assert.match(workbench, /\.plugin-stage-detail-bar \{[\s\S]*padding: 8px 16px 8px 24px;/);
   assert.match(workbench, /\.plugin-stage-detail-bar\[data-stage-back-only\] \{[\s\S]*position: absolute;/);
-  assert.match(withPlugins, /\.plugin-stage-detail-bar > \.feed-detail-kicker \{[\s\S]*margin: 0;/);
+  assert.match(withPlugins, /\.plugin-stage-detail-bar > \.mw-detail-kicker \{[\s\S]*margin: 0;/);
   assert.match(workbench, /\.plugin-stage-detail-bar > h1 \{[\s\S]*font-size: 13px;/);
   assert.match(workbench, /\.plugin-stage-back \{[\s\S]*margin-left: -8px;/);
   assert.match(withPlugins, /body\.immersive-workbench \.goal-node-toolbar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);

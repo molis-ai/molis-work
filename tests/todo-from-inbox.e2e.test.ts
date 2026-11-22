@@ -68,7 +68,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await screenshot("inbox-todo");
   await todo.click(`[data-todo-sources] [data-workbench-item-plugin=inbox][data-workbench-item-id="${entry.entry_id}"]`);
   await waitFor("document.body.dataset.desktopSurface === 'inbox'");
-  await inbox.waitFor(visible(`${detail} .feed-detail-header`));
+  await inbox.waitFor(visible(`${detail} .mw-detail-header`));
 
   // 灵光: what is on screen, including words not saved yet, becomes the todo; the spark stays where it is.
   await load("", "lingguang");

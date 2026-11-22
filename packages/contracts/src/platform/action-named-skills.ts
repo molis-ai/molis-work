@@ -16,8 +16,12 @@ export interface ActionNamedSkills {
 
 /** Who a round's Skill reads are for (`ActionCallContext.skill_round`). */
 export interface ActionSkillRound {
-  /** Who the round's Skill reads are for; omitted on the person's own protected settings preview (`audience: "user"`), which sees every Skill in one snapshot without listing first. */
-  readonly consumer?: "assistant" | "coding" | "agent";
+  /**
+   * Who the round's Skill reads are for: `assistant`, a plugin's declared scene (Coding's `coding`), or `agent` for a plugin Agent
+   * round with none (BL-b44-coding-scene-enum). Omitted on the person's own protected settings preview (`audience: "user"`), which
+   * sees every Skill in one snapshot without listing first.
+   */
+  readonly consumer?: string;
   /** The round's frozen list of Skills the person named: a `manual` Skill outside it is `not_named`. */
   readonly named: readonly SkillRef[];
   /** `local`: a local Agent engine runs the round, so a `native_only` Skill may be read. */

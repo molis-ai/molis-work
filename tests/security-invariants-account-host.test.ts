@@ -260,7 +260,7 @@ test("S-unified-account-session WUA-06: default encrypted Home storage restores 
   } }));
   await adopt(f.host, account);
   assertAuthenticated(await f.account(), account);
-  const vaultPath = join(f.home, "feed", "secrets.json"), vault = await readFile(vaultPath, "utf8");
+  const vaultPath = join(f.home, "security", "secrets.json"), vault = await readFile(vaultPath, "utf8");
   for (const hidden of [account.tokens.accessToken, account.tokens.refreshToken, account.user.userId, "accessToken", "refreshToken"])
     assert.ok(!vault.includes(hidden), "credentials and cached identity must be encrypted at rest");
   assert.equal((await stat(vaultPath)).mode & 0o777, 0o600);

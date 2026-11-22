@@ -6,7 +6,7 @@ import { configuredAccountEnvironment, localAccountGeneration } from "./active-r
 import type { AccountEnvironmentConfig, AccountCallControl, AccountView, UserView } from "@molis-ai/molis-work-contracts/services/account";
 
 /**
- * Where the account's credentials are kept, and the question asked before anything is sent: can `feed/secrets.json` take this login's
+ * Where the account's credentials are kept, and the question asked before anything is sent: can `security/secrets.json` take this login's
  * write. A login whose credentials could not be kept does not start a transaction or spend an authorization code.
  */
 export interface AccountSecrets extends Pick<SecretStore,'get'|'put'|'delete'> { assertWritable(): void }

@@ -70,7 +70,7 @@ function tabGroups() {
 
 /** A plugin's own page with one record row in a list; the row is spelled the way the catalog declares it. */
 function listedRow(plugin: string, attrs: Record<string, string>, title: string, list: Record<string, string>) {
-  const row = new Node("button", { class: "feed-stage-entry directory-list-row", role: "option", ...attrs }).add(new Node("strong", {}, title));
+  const row = new Node("button", { class: "mw-stage-entry directory-list-row", role: "option", ...attrs }).add(new Node("strong", {}, title));
   const box = new Node("div", list).add(new Node("article", { role: "none" }).add(row));
   const page = new Node("section", { "data-work-surface": plugin }).add(box);
   const selector = ROWS.find(([id]) => id === plugin)![1]!;

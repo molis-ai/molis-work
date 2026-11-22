@@ -41,7 +41,7 @@ const DATA = `## 3. SQLite 权威库
 | \`shelf/catalog.json\`、\`shelf/files/<item>/\` | x | y | 必备份 | purge |
 | \`context-onboarding/journeys/<id>/{files,texts}/<sha256>\` | x | y | 不必备份（采用前的暂存） | purge |
 `;
-const DESIGN = ["storage-space.json", "plugin-packages/x.json", "spaces", "feed/secrets.json", "config/installation.json", "agent-runtime/storage.key"];
+const DESIGN = ["storage-space.json", "plugin-packages/x.json", "spaces", "security/secrets.json", "config/installation.json", "agent-runtime/storage.key"];
 const HELD = ["memory/memory.db", "todo/todo.db", "shelf/catalog.json", "shelf/files/one/a.txt", ...DESIGN];
 const COVERAGE = { uncovered: [], writes: { "memory/memory.db": { cases: ["memory.ts"] }, "todo/todo.db": { none: "这个库没有写入动作的理由写在这里" } }, other_writes: { "extra.ts": "写的是设置文件，不是哪一个库" } };
 const MANIFEST = { third_party: "a", home_library: "b", node: "v24.15.0", homes: [{ path: "" }, { path: "spaces/one" }], stores: HELD.filter(file => file.endsWith(".db")).map(file => ({ path: file })), files: HELD.filter(file => !file.endsWith(".db")).map(file => ({ path: file })), directories: [] };
@@ -58,7 +58,7 @@ test("UPG2-04 the document's rows that must be backed up are read, and no others
   assert.deepEqual(requiredRows(DATA), [{ paths: ["memory/memory.db"], library: true }, { paths: ["todo/todo.db"], library: true }, { paths: ["shelf/catalog.json", "shelf/files/<item>/"], library: false }]);
   assert.equal(pathMatcher("projects/<project_id>/molis-work.db")("projects/p1/molis-work.db"), true);
   assert.equal(pathMatcher("projects/<project_id>/molis-work.db")("projects/p1/x/molis-work.db"), false);
-  assert.equal(pathMatcher("feed/evidence/blobs/**")("feed/evidence/blobs/a/b"), true);
+  assert.equal(pathMatcher("security/evidence/blobs/**")("security/evidence/blobs/a/b"), true);
   assert.equal(pathMatcher("shelf/files/<item>/")("shelf/files/one/a.txt"), true);
   assert.equal(pathMatcher("plugin-builder/<p>/{design,runs}/")("plugin-builder/x/runs/a"), true);
   assert.equal(pathMatcher("plugin-builder/<p>/{design,runs}/")("plugin-builder/x/other/a"), false);
@@ -81,6 +81,13 @@ test("UPG2-04 a row that must be backed up and is not in the latest golden fails
   const texts = tree({ goldens: ["1.0.0", "1.1.0-dev.1"] }), read = texts.read;
   assert.match(goldenHomeProblems({ ...texts, read: (file: string) => file.includes("1.1.0-dev.1") ? JSON.stringify(without("todo/todo.db")) : read(file) }).join("\n"), /todo\/todo\.db must be backed up/u);
   assert.match(goldenHomeProblems({ ...tree(), files: tree().files.filter(file => !file.startsWith("tests/fixtures/golden-homes/")) }).join("\n"), /holds no golden Home/u);
+});
+
+test("UPG2-04 a golden made before the platform renamed feed/ to security/ still covers the renamed paths: the replay upgrades it there", () => {
+  const before = { ...MANIFEST, files: MANIFEST.files.map(entry => entry.path === "security/secrets.json" ? { path: "feed/secrets.json" } : entry) };
+  assert.deepEqual(goldenHomeProblems(tree({ manifest: before })), []);
+  const elsewhere = { ...MANIFEST, files: MANIFEST.files.map(entry => entry.path === "security/secrets.json" ? { path: "feeds/secrets.json" } : entry) };
+  assert.match(goldenHomeProblems(tree({ manifest: elsewhere })).join("\n"), /security\/secrets\.json must be backed up/u, "only the renamed directory itself counts");
 });
 
 test("UPG2-04 an uncovered path needs a reason, and an entry that is no longer true fails so the list cannot go stale", () => {

@@ -21,7 +21,7 @@ function isolatedHome(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-bl1065-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const home = join(directory, "home"), secrets = createLazyFileSecretStore(home);
-  const feedRoot = join(home, "feed", "evidence");
+  const feedRoot = join(home, "security", "evidence");
   // The research root is where the Host puts it: the project's Alchemist directory (`alchemist-paths.ts`) plus Storage's name.
   const researchRoot = (project: string) => join(home, "alchemist", "projects", project, RESEARCH_EVIDENCE_DIRECTORY);
   const feed = () => createEvidenceContentStore({ secretStore: secrets, rootDirectory: feedRoot });

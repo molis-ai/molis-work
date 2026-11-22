@@ -64,7 +64,7 @@ test("模型设置经正式 HTTP 保存、验证、重开与隔离，凭据不�
     const html = await (await fetch(origin + "/settings/models")).text();
     assert.ok(html.includes("data-model-save") && html.includes("重新命名"));
     assert.equal(html.includes(secret), false);
-    assert.equal((await readFile(path.join(root, "a/feed/secrets.json"), "utf8")).includes(secret), false);
+    assert.equal((await readFile(path.join(root, "a/security/secrets.json"), "utf8")).includes(secret), false);
     await new Promise<void>((resolve) => servers[0]!.close(() => resolve()));
     origin = await start("a");
     const reopened = await (await fetch(origin + "/api/settings/models")).json();

@@ -1,9 +1,11 @@
-import { MEMORY_CONSUMERS, MEMORY_FORMAL_KINDS, MEMORY_KINDS, MEMORY_LIFECYCLES, MEMORY_SCENES,
+import { MEMORY_CONSUMERS, MEMORY_FORMAL_KINDS, MEMORY_KINDS, MEMORY_LIFECYCLES,
   isCompleteMemoryPrefs, type MemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
 import type { SandboxJson, SandboxSchema } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { memoryErrors } from "./errors.js";
 
 const flag: SandboxSchema = { type: "boolean" };
+/** A scene name; which names are scenes is checked when the value is read (`isCompleteMemoryPrefs`), the platform naming no plugin. */
+const sceneName: SandboxSchema = { type: "string", minLength: 1, maxLength: 40 };
 const options = (values: readonly string[]): SandboxSchema => ({ type: "string", enum: [...values] });
 const object = (properties: Record<string, SandboxSchema>, required = Object.keys(properties)): SandboxSchema =>
   ({ type: "object", properties, required, additionalProperties: false });
@@ -15,7 +17,7 @@ export const preferenceSettingSchema = object({
   plugins: { type: "array", items: object({ plugin_id: { type: "string", minLength: 1 }, allowed: flag,
     kinds: { type: "array", items: options(MEMORY_KINDS) } }) },
   class_restrictions: { type: "array", items: object({
-    selector: object({ consumer: options(MEMORY_CONSUMERS), current_scene: options(MEMORY_SCENES), scene: options(MEMORY_SCENES),
+    selector: object({ consumer: options(MEMORY_CONSUMERS), current_scene: sceneName, scene: sceneName,
       kind: options(MEMORY_FORMAL_KINDS), lifecycle: options(MEMORY_LIFECYCLES) }, ["consumer", "current_scene"]),
     read: options(["inherit", "explicit-only", "off"]), form: options(["inherit", "off"]),
   }) },

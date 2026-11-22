@@ -1,6 +1,6 @@
 import { dirname, join, relative, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { readStorageSpace, homeSqlitePartitionDirectory, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
+import { HOME_SECURITY_DIRNAME, readStorageSpace, homeSqlitePartitionDirectory, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import type { HomeRestoreArchive } from "./home-restore-archive.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
@@ -83,12 +83,12 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
   }
   if (!incomingPaths.has("projects/catalog.db") && [...incomingPaths].some(path => /^projects\/[^/]+\/molis-work\.db$/u.test(path))) throw invalidRestore();
   inspectPartitionReferences(home, inputs, projectIds);
-  const vaultPath = "feed/secrets.json", vault = files.has(vaultPath) ? readSnapshotFile(join(archive.root, "data", vaultPath), 32 * 1024 * 1024).toString("utf8") : undefined;
+  const vaultPath = `${HOME_SECURITY_DIRNAME}/secrets.json`, vault = files.has(vaultPath) ? readSnapshotFile(join(archive.root, "data", vaultPath), 32 * 1024 * 1024).toString("utf8") : undefined;
   if (vault !== undefined) {
     const inspected = inspectSealedSecretsSnapshot(home, vault);
     if (inspected.key_reference) masterDependencies.push({ kind: "master-key", ...inspected.key_reference });
   }
-  if (inputs.stores.get("feed")?.state === "captured") inspectEvidenceContentSnapshot(home, join(archive.root, "data", "feed"), vault);
+  if (inputs.stores.get(HOME_SECURITY_DIRNAME)?.state === "captured") inspectEvidenceContentSnapshot(home, join(archive.root, "data", HOME_SECURITY_DIRNAME), vault);
   for (const file of inputs.archiveFiles.filter(item => item.store.path === "runtime-config-backups")) {
     const matched = /^([^/]+)\/([A-Za-z0-9_-]{1,128})\.bak$/u.exec(file.relative), runtime = matched && SUPPORTED_RUNTIME_IDS.find(id => id === matched[1]);
     if (!matched || !runtime || vault === undefined) throw invalidRestore();

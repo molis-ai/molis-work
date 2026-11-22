@@ -31,7 +31,7 @@ backend:store.backend().kind, encryptionKeyEmpty:process.env.MOLIS_WORK_ENCRYPTI
     assert.equal(result.encryptionKeyEmpty, true); assert.equal(result.roundtrip, "fixture credential");
     assert.equal(await readFile(join(home, "sentinel"), "utf8"), "unchanged");
     await assert.rejects(access(join(root, "keychain-called")));
-    await assert.rejects(access(join(home, "feed")));
+    await assert.rejects(access(join(home, "security")));
     await assert.rejects(access(result.home), "runner cleans up its own temporary Home");
   } finally { await rm(root, { recursive: true, force: true }); }
 });

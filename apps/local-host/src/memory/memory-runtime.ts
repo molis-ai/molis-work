@@ -8,6 +8,7 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { memoryHostFor } from "./memory-host.js";
 import { memoryRuntimePolicy } from "./memory-runtime-policy.js";
+import { memorySceneTaxonomy } from "./memory-plugin-scene.js";
 import { memorySources } from "./memory-sources.js";
 import { memoryExtractor } from "./memory-extractor.js";
 
@@ -36,7 +37,7 @@ export function memoryRuntime(localHost: MolisWorkLocalHost, home: string, adapt
     return memory;
   };
   return {
-    ...memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy, memoryExtractor(home)),
+    ...memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy, memoryExtractor(home), memorySceneTaxonomy(home)),
     sources: memorySources(home, () => {
       const memory = memoryHostFor(localHost);
       if (!memory?.policy.alive()) return undefined;

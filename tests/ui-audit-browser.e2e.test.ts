@@ -9,6 +9,14 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
+// Split panes live in the one workbench document (no nested pane iframes since batch 102-1); the content a pane shows
+// carries its pane key ("plugin:<id>").
+const PANE_STATE = `[...document.querySelectorAll('[data-tab-pane]')].map(pane => ({
+  surface: [...pane.querySelectorAll('[data-pane-key]')].filter(node => node.checkVisibility({visibilityProperty:true}) && !node.parentElement?.closest('[data-pane-key]'))
+    .map(node => node.dataset.paneKey.replace(/^plugin:/, '')).join(','),
+  homeHidden: pane.querySelector('[data-work-surface=home]')?.hidden ?? null
+}))`;
+const TWO_PANES = "document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0";
 const TOKEN = "goals-risk-test-control-token-0123456789";
 
 test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async (t) => {
@@ -76,62 +84,30 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click("[data-layout-open]");
   await click('[data-layout-split="right"]');
-  await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
-  let paneState = "";
-  const paneDeadline = Date.now() + 15_000;
-  while (Date.now() < paneDeadline) {
-    paneState = await evaluate<string>(`JSON.stringify([...document.querySelectorAll('iframe.tab-content-frame')].map(frame => ({
-      plugin: new URL(frame.src).searchParams.get('panePlugin'),
-      ready: frame.contentDocument?.readyState || '',
-      surface: frame.contentDocument?.body?.dataset.desktopSurface || '',
-      embedded: frame.contentDocument?.body?.dataset.paneEmbedded || ''
-    })))`);
-    const panes = JSON.parse(paneState) as { surface: string }[];
-    if (panes.length === 2 && panes.every((pane) => pane.surface === "goals")) break;
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-  assert.match(paneState, /"surface":"goals".*"surface":"goals"/, paneState);
-  const panes = await evaluate<{ plugin: string | null; surface: string | undefined; homeHidden: boolean | undefined }[]>(`[...document.querySelectorAll('iframe.tab-content-frame')].map(frame => ({
-    plugin: new URL(frame.src).searchParams.get('panePlugin'),
-    surface: frame.contentDocument?.body?.dataset.desktopSurface,
-    homeHidden: frame.contentDocument?.querySelector('[data-work-surface=home]')?.hidden,
-  }))`);
-  assert.deepEqual(panes.map((pane) => pane.plugin), ["goals", "goals"]);
-  assert.deepEqual(panes.map((pane) => pane.surface), ["goals", "goals"]);
-  assert.ok(panes.every((pane) => pane.homeHidden !== false));
+  await waitFor(`${TWO_PANES} && ${PANE_STATE}.every(pane => pane.surface === 'goals')`, 15_000);
+  const panes = await evaluate<{ surface: string; homeHidden: boolean | null }[]>(PANE_STATE);
+  assert.deepEqual(panes.map((pane) => pane.surface), ["goals", "goals"], JSON.stringify(panes));
+  assert.ok(panes.every((pane) => pane.homeHidden !== false), JSON.stringify(panes));
   await shot("01-goals-split-1280x800.png");
   await click("[data-layout-open]");
   await click('[data-layout-action="close"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1", 10_000);
-  const afterClose = await evaluate<{ surface: string; frameSurfaces: string[] }>(`({
+  const afterClose = await evaluate<{ surface: string; paneSurfaces: string[] }>(`({
     surface: document.body.dataset.desktopSurface,
-    frameSurfaces: [...document.querySelectorAll('iframe.tab-content-frame')].filter(frame => !frame.hidden).map(frame => frame.contentDocument?.body?.dataset.desktopSurface || '')
+    paneSurfaces: ${PANE_STATE}.map(pane => pane.surface)
   })`);
   assert.equal(afterClose.surface, "goals");
-  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goals"), JSON.stringify(afterClose));
+  assert.deepEqual(afterClose.paneSurfaces, ["goals"], JSON.stringify(afterClose));
 
   const splitPlugin = async (plugin: string, surface: string, file: string) => {
     await click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
     await waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(surface)}`, 10_000);
     await click("[data-layout-open]");
     await click('[data-layout-split="right"]');
-    await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
-    let state = "";
-    const deadline = Date.now() + 15_000;
-    while (Date.now() < deadline) {
-      state = await evaluate<string>(`JSON.stringify([...document.querySelectorAll('iframe.tab-content-frame')].map(frame => ({
-        plugin: new URL(frame.src).searchParams.get('panePlugin'),
-        surface: frame.contentDocument?.body?.dataset.desktopSurface || '',
-        homeHidden: frame.contentDocument?.querySelector('[data-work-surface=home]')?.hidden ?? null
-      })))`);
-      const frames = JSON.parse(state) as { plugin: string; surface: string; homeHidden: boolean | null }[];
-      if (frames.length === 2 && frames.every((frame) => frame.surface === surface && frame.plugin === plugin && frame.homeHidden !== false)) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    const frames = JSON.parse(state) as { plugin: string; surface: string; homeHidden: boolean | null }[];
-    assert.deepEqual(frames.map((frame) => frame.plugin), [plugin, plugin], state);
-    assert.deepEqual(frames.map((frame) => frame.surface), [surface, surface], state);
-    assert.ok(frames.every((frame) => frame.homeHidden !== false), state);
+    await waitFor(`${TWO_PANES} && ${PANE_STATE}.every(pane => pane.surface === ${JSON.stringify(surface)})`, 15_000);
+    const state = await evaluate<{ surface: string; homeHidden: boolean | null }[]>(PANE_STATE);
+    assert.deepEqual(state.map((pane) => pane.surface), [surface, surface], JSON.stringify(state));
+    assert.ok(state.every((pane) => pane.homeHidden !== false), JSON.stringify(state));
     await shot(file);
     await click("[data-layout-open]");
     await click('[data-layout-action="close"]');
@@ -164,13 +140,14 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await inboxView.waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
   // An active entry's visible title is Inbox's own presentation chip; the h1 keeps the same words for screen readers only.
   // VISIBLE_TITLE picks the chip's tag when there is one, else the h1; TITLE_TEXT is the element holding the words.
+  // "header" is the header's content width: the title should take the whole line inside its padding, not a narrow strip.
   const VISIBLE_TITLE = "(h1 => h1.closest('.feed-detail-header').querySelector('.inbox-object-title .mw-presentation__tag') ?? h1)";
   const TITLE_TEXT = "(shown => shown.querySelector(':scope > strong') ?? shown)";
   const title = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; spoken: boolean }>(`(() => {
     const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
     const header = h1.closest('.feed-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
     const box = shown.getBoundingClientRect();
-    return { h1: box.width, header: header.getBoundingClientRect().width, maxWidth: getComputedStyle(shown).maxWidth, overflow: text.scrollWidth > text.clientWidth + 1,
+    return { h1: box.width, header: header.clientWidth - parseFloat(getComputedStyle(header).paddingLeft) - parseFloat(getComputedStyle(header).paddingRight), maxWidth: getComputedStyle(shown).maxWidth, overflow: text.scrollWidth > text.clientWidth + 1,
       spoken: h1.textContent.trim() === text.textContent.trim() };
   })()`);
   assert.ok(title.spoken, "the heading carries the shown title");
@@ -188,7 +165,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
       const style = getComputedStyle(text);
       return {
         h1: shown.getBoundingClientRect().width,
-        header: header.getBoundingClientRect().width,
+        header: header.clientWidth - parseFloat(getComputedStyle(header).paddingLeft) - parseFloat(getComputedStyle(header).paddingRight),
         maxWidth: getComputedStyle(shown).maxWidth,
         overflow: text.scrollWidth > text.clientWidth + 1,
         lines: Math.round(text.getBoundingClientRect().height / parseFloat(style.lineHeight))

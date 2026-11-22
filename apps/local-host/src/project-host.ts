@@ -436,6 +436,10 @@ export class MolisWorkLocalHost {
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
 
+  inspectOneActionMetadata(caller: ActionCallContext, action: ActionReference, reference?: LocalHostProjectReference) {
+    return this.host.inspectOneActionMetadata(caller, action, reference);
+  }
+
   prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference, related?: ExactActionReference) { return this.host.prepareActionReview(caller, view, input, project, related); }
 
   /** A directory has already prepared these providers. Observe the same installation owner without reactivating plugins. */
@@ -506,6 +510,12 @@ export class MolisWorkLocalHost {
   async inspectPreparedActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
     await this.prepareInspection(caller, reference);
     return this.host.inspectActionMetadata(caller, reference);
+  }
+
+  /** O(1) metadata lookup for one action after preparing providers, without evaluating availability. */
+  async inspectPreparedOneActionMetadata(caller: ActionCallContext, action: ActionReference, reference?: LocalHostProjectReference) {
+    await this.prepareInspection(caller, reference);
+    return this.host.inspectOneActionMetadata(caller, action, reference);
   }
 
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference) {

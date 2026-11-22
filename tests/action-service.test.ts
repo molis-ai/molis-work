@@ -539,3 +539,34 @@ test("QEA-90 a fixed-result scene executes without asking unrelated providers an
   enabled = true; during = undefined;
   assert.deepEqual(await service.runScene(context, scene, binding.binding_id, { text: "retry" }), { accepted: 2 });
 });
+
+test("ActionService.targets resolves the requested judgment via discoverOne without full directory discovery", async t => {
+  const service = new ActionService();
+  let unrelatedAvailability = 0;
+  service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }] });
+  const unrelated: ActionDefinition = { ...judgment, capability_id: "unrelated.targets.check" };
+  service.registerProvider({ provider: { provider_id: "unrelated", title: "Unrelated", kind: "system" }, definitions: [unrelated],
+    handlers: [{ ...unrelated, availability: () => { unrelatedAvailability++; return { available: true }; }, handle: () => ({ follow_up: false }) }] });
+  service.registerProvider({ provider: { provider_id: "feedback", title: "反馈", kind: "system" }, definitions: [], handlers: [],
+    scenes: [{ ...scene, configuration_permissions: [] }],
+    scene_handlers: [{ ...consumer(new Map(), () => null),
+      targets: () => [{ binding_id: "slot-1", title: "规则位", href: "/rules", revision: null }] }] });
+  let discoverCalls = 0, discoverOneCalls = 0;
+  const origDiscover = service.discover.bind(service), origDiscoverOne = service.discoverOne.bind(service);
+  t.mock.method(service, "discover", (...args: Parameters<ActionService["discover"]>) => { discoverCalls++; return origDiscover(...args); });
+  t.mock.method(service, "discoverOne", (...args: Parameters<ActionService["discoverOne"]>) => { discoverOneCalls++; return origDiscoverOne(...args); });
+
+  const exact = await service.targets(context, { ...judgment, provider_id: provider.provider_id });
+  assert.equal(exact.length, 1);
+  assert.equal(exact[0]!.availability.available, true);
+  assert.equal(discoverCalls, 0);
+  assert.ok(discoverOneCalls >= 1);
+  assert.equal(unrelatedAvailability, 0);
+
+  const mismatched = await service.targets(context, { ...judgment, provider_id: "wrong-provider" });
+  assert.equal(mismatched.length, 1);
+  assert.equal(mismatched[0]!.availability.available, false);
+  assert.equal(mismatched[0]!.availability.code, "actions.scene_incompatible");
+  assert.equal(discoverCalls, 0);
+  assert.equal(unrelatedAvailability, 0);
+});

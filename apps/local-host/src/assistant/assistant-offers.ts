@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ActionSubjectContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { exactBoundActionView, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
@@ -141,8 +141,9 @@ export class AssistantOffers {
     if (work.executor.kind === "plugin") throw this.ports.fail("assistant.unsupported", "执行方插件负责的工作不放操作卡，请交给助理或新开一项工作");
     const client = await (await this.ports.authority(work)).actions?.(RUNTIME);
     if (!client) throw this.ports.fail("assistant.unsupported", "这里没有助理能用的能力");
+    const targetView = await exactBoundActionView(client, card.reference);
     const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,
-      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) }, await client.discover(),
+      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) }, targetView ? [targetView] : [],
       { from: source, ...(card.source_object ? { source_object: card.source_object } : {}), ...(card.materials ? { materials: card.materials } : {}) });
     if (card.source_object) {
       const version = card.source_object.version;
@@ -174,9 +175,10 @@ export class AssistantOffers {
       this.ports.store.setSetting(this.ports.actorId, setting, work.work_id);
     }
     const actions = await this.ports.personActions(work);
+    const targetView = await exactBoundActionView(actions, card.reference);
     const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,
       ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) },
-      await actions.discover(), { from: input.source, runs_as: "person" }, () => {
+      targetView ? [targetView] : [], { from: input.source, runs_as: "person" }, () => {
         caller.assertBeforeStart?.();
         for (const old of this.ports.store.cards(work.work_id)) {
           if (old.runs_as === "person" && old.from?.surface === input.source.surface) dismissActionCard(old, this.store);
@@ -218,7 +220,7 @@ export class AssistantOffers {
       const actions = this.ports.personActions ? await this.ports.personActions(work, currentDecision) : null;
       if (!actions) throw this.ports.fail("assistant.unsupported", "现在不能执行这张卡");
       return cardView(await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
-        authority: async () => ({ discover: () => actions.discover(),
+        authority: async () => ({ discover: () => actions.discover(), ...(actions.discoverOne ? { discoverOne: actions.discoverOne } : {}),
           check: (view, prepared) => { assertActionInput(view.action.input_schema, prepared); checked = view; },
           invoke: (reference, prepared) => actions.invoke(reference, prepared) }),
         started: async (view, output, claimed) => { this.ports.personRan?.(work, view, claimed.input, output); return false; } }));
@@ -228,7 +230,7 @@ export class AssistantOffers {
         const authority = await this.ports.authority(work);
         if (!authority.actions) throw this.ports.fail("assistant.unsupported", "当前没有可用的业务能力");
         const client = await authority.actions(RUNTIME);
-        return { discover: () => client.discover(), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => client.invoke(reference, prepared) };
+        return { discover: () => client.discover(), ...(client.discoverOne ? { discoverOne: client.discoverOne } : {}), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => client.invoke(reference, prepared) };
       },
       started: async (view, output, claimed) => { job = await this.ports.jobs.follow(work, view, output); return job !== null && this.ports.jobs.claimForCard(claimed, job); } });
     // Shown running for its job: linked now, so the job's end (even one that came first) settles it.

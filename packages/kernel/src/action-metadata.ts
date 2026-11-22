@@ -1,4 +1,4 @@
-import { ActionError, actionReachesAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProvider, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionReachesAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProvider, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CapabilityRegistry } from "./index.js";
 
@@ -28,6 +28,22 @@ export function registeredActionMetadata(registry: Pick<CapabilityRegistry<Actio
   };
   return registry.descriptors(listed).map(definition => ({ capability_id: definition.capability_id, version: definition.version,
     operation: definition.operation as ActionView["operation"], action: definition.action!, provider: definition.action_provider! }));
+}
+
+/** O(1) metadata lookup for one registered action under the same visibility rules as `registeredActionMetadata`. */
+export function registeredOneActionMetadata(
+  registry: Pick<CapabilityRegistry<ActionCallContext>, "descriptor">,
+  context: ActionCallContext,
+  reference: ActionReference,
+  also?: (definition: ActionDefinition, provider: ActionProvider) => boolean,
+): RegisteredActionMetadata | undefined {
+  const descriptor = registry.descriptor(reference, context.project_id), provider = descriptor?.action_provider;
+  if (!descriptor?.action || !provider || !context.actor_id || (provider.project_id && provider.project_id !== context.project_id)
+    || !actionReachesAudience(descriptor.action, descriptor.capability_id, context.audience)
+    || (reference.provider_id && provider.provider_id !== reference.provider_id)
+    || (also && !also(descriptor as ActionDefinition, provider))) return undefined;
+  return { capability_id: descriptor.capability_id, version: descriptor.version,
+    operation: descriptor.operation as ActionView["operation"], action: descriptor.action, provider };
 }
 
 /** Bind original tokens before any availability callback can change the directory. Ordinary discovery carries no tokens or guards. */

@@ -2,7 +2,7 @@ import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { CheckRequest, CheckerResult, ConditionCheckers, HeldWait, Runtime } from "@prologue/sdk";
-import { actionEffect, platformErrorKind, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, exactBoundActionView, platformErrorKind, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import { ownedConditionChecks, type OwnedConditionChecker } from "./prologue-owned-checkers.js";
@@ -159,18 +159,14 @@ const PARAMS = new Map<string, Readonly<Record<string, unknown>>>([
   }],
 ]);
 
-const sameRef = (view: Pick<ActionView, "capability_id" | "version" | "provider">, ref: ExactActionReference) =>
-  view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id;
-
 /** The action behind one of the round's tool names, as the round may call it now: found through the action service, a read-only query. */
 async function readableAction(round: Remembered, tool: string): Promise<{ view: ActionView; ref: ExactActionReference } | { refused: CheckerResult } | { unknown: CheckerResult }> {
   if (!round.actions) return { refused: refused(REFUSED, "这一轮没有可调用的动作") };
   const ref = (await round.tools?.catch(() => undefined))?.get(tool);
   if (!ref) return { refused: refused(REFUSED, "这个动作不在这一轮可调用的动作里：tool 写这一轮动作工具的名字本身（molis-action- 开头，find-tools 的说明里列着）") };
-  let views: readonly ActionView[];
-  try { views = await round.actions.client.discover(); }
+  let view: ActionView | undefined;
+  try { view = await exactBoundActionView(round.actions.client, ref); }
   catch (error) { if (notAllowed(error)) return { refused: refused(codeOf(error, REFUSED), "这一轮现在不能再查动作") }; throw error; }
-  const view = views.find(one => sameRef(one, ref));
   if (!view || !view.action.audiences.includes("agent")) return { refused: refused(REFUSED, "这一轮现在不能调用这个动作") };
   // A judgment asks a model (it is a command), a navigation opens something: only a plain query that reads is looked at again and again.
   if (view.operation !== "query" || view.action.kind !== "query" || actionEffect(view.action, view.capability_id) !== "read") {

@@ -46,14 +46,14 @@ async function fixture(t: TestContext, defaultOpen = false) {
   });
   let acceptedCallId: string | undefined;
   const host = new class extends MolisWorkLocalHost {
-    override async inspectActions(...args: Parameters<MolisWorkLocalHost["inspectActions"]>) {
+    override async inspectPreparedActionMetadata(...args: Parameters<MolisWorkLocalHost["inspectPreparedActionMetadata"]>) {
       // The query may exhaust its indexing budget before both settings requests finish.
       // Hold only this accepted invocation's real authority recheck; settings have no call_id.
       if (acceptedCallId && args[0].call_id === acceptedCallId) {
         authorityWaiting.resolve();
         await authorityReleased.promise;
       }
-      return super.inspectActions(...args);
+      return super.inspectPreparedActionMetadata(...args);
     }
   }({ homeDirectory: directory, completeText: null });
   closeHost = () => host.close();

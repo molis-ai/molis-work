@@ -1,6 +1,6 @@
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, exactBoundActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { connectorSetupChecker, type ConnectorSetupCheckScope } from "../connector-setup-checker.js";
@@ -9,7 +9,6 @@ import { assistantAuthority } from "./assistant-authority.js";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { connectorReadyChecker } from "../connector-ready-checker.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, type StoredWork } from "./assistant-store.js";
-import { exactBoundActionView } from "../exact-action-view.js";
 
 /** Restores only permission to read this session's own setup state, never an old round's general action grant. */
 async function withConnectionActions<T>(home: string, localHost: MolisWorkLocalHost, scope: ConnectorSetupCheckScope, required: typeof connectorManagementActions.authorization, read: (actions: AgentActionClient, work: StoredWork) => Promise<T>): Promise<T> {

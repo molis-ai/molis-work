@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { UiLanguageTag } from "../platform/ui-text.js";
-import type { ActionCallOrigin, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
+import type { ActionCallOrigin, ActionReference, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { CharacterRoleSnapshot, CharacterTaskSelection } from "../modules/characters.js";
@@ -476,6 +476,8 @@ export interface AgentActionReviewAuthority extends AgentActionReviewControl {
 
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Point-lookup of one action without listing the full directory. */
+  discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
   /** Who reads this round's replies: absent, the person; `work`, the work that handed this one over (a delegated work reports to it). */
   reader?: "work";
   /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */

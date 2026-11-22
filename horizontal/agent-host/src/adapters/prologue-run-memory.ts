@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { AgentMemoryControl, MemoryRecallReference } from "@prologue/sdk";
-import { ActionError, requireSynchronous, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, exactBoundActionView, requireSynchronous, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentFrozenRole, AgentRecalledMemory, AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MEMORY_PROVIDER_ID, memoryActions, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { isEnded, type RunRecord } from "./prologue-run-store.js";
@@ -62,7 +62,7 @@ export class RunMemoryBinding {
           ? [memoryActions.list, memoryActions.recall].find(one => one.capability_id === reference.capability_id && one.version === reference.version) : undefined;
         if (!definition) return client.invoke(reference, input, signal, memorySelection, review);
         await this.#current(signal);
-        const current = (await client.discover()).find(view => sameIdentity(view, reference));
+        const current = await exactBoundActionView(client, reference);
         const original = frozen?.find(view => sameIdentity(view, reference)) ?? current;
         if (!current || !original || !current.availability.available || current.operation !== "query"
           || !isDeepStrictEqual(current.action, definition.action) || !isDeepStrictEqual(current.action, original.action))

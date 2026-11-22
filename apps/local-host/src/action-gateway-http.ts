@@ -4,7 +4,7 @@ import { withCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { recordedCallIdField } from "./call-id-response.js";
-import { authorizeMcpActions } from "./mcp-action-client.js";
+import { authorizeMcpAction, authorizeMcpActions } from "./mcp-action-client.js";
 import { actionClientAudience } from "./mcp-action-grants.js";
 import { authenticateMcpClientProof } from "./mcp-client-credentials.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -32,8 +32,11 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
     const identity = authenticateMcpClientProof(credentialHome, home, host.instanceId, request.headers["x-molis-work-client-proof"], body.operation === "invoke");
     const clientId = identity.clientId;
     const fields = ["operation", "home_id", "project_id", "instance_id", "capability", "input", "runtime_session_id", "call_id"];
-    if (Object.keys(body).some(key => !fields.includes(key)) || !["discover", "invoke"].includes(String(body.operation))
-      || !(body.project_id === null || typeof body.project_id === "string" && body.project_id.trim())) throw new ActionError("actions.input_invalid", "动作传输参数无效");
+    if (Object.keys(body).some(key => !fields.includes(key)) || !["discover", "discoverOne", "invoke"].includes(String(body.operation))
+      || !(body.project_id === null || typeof body.project_id === "string" && body.project_id.trim())
+      || (body.instance_id !== undefined && typeof body.instance_id !== "string")
+      || (body.operation !== "invoke" && body.input !== undefined)
+      || (body.operation === "discover" && body.capability !== undefined)) throw new ActionError("actions.input_invalid", "动作传输参数无效");
     if (body.runtime_session_id !== undefined && (typeof body.runtime_session_id !== "string" || !body.runtime_session_id.trim()
       || !clientId.startsWith("runtime:"))) throw new ActionError("actions.input_invalid", "Runtime 会话元数据无效");
     // Grants are matched by client id alone, and `agent:` ids are the Host's own runtimes (the built-in Agent, later a task's grant
@@ -44,7 +47,9 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
     const serve = async () => {
       try {
         const instance = host.instanceId;
-        if (body.operation === "invoke" && body.instance_id !== instance) throw new ActionError("actions.host_replaced", "系统服务已重启，请重新发现能力");
+        if (body.operation === "invoke" ? body.instance_id !== instance : body.instance_id !== undefined && body.instance_id !== instance) {
+          throw new ActionError("actions.host_replaced", "系统服务已重启，请重新发现能力");
+        }
         const projectId = body.project_id as string | null;
         const project = projectId ? await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId)) : null;
         const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : undefined;
@@ -59,16 +64,18 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
           ...(body.operation === "invoke" ? { call_id: body.call_id as string } : {}),
           ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${clientId}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
         await runBackgroundWork(locale, async () => {
+          if (body.operation === "discoverOne") {
+            const capability = parseGatewayCapability(body.capability);
+            const { context, service } = await authorizeMcpAction(host, caller, capability, home, reference, checkTransport, checkTransport);
+            sendJson(response, 200, { instance_id: instance, action: await service.discoverOne(context, capability) ?? null });
+            return;
+          }
+          const capability = body.operation === "invoke" ? parseGatewayCapability(body.capability) : undefined;
           const { context, service } = await authorizeMcpActions(host, caller, home, reference, checkTransport, checkTransport, () => {
             if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
           });
           if (body.operation === "discover") { sendJson(response, 200, { instance_id: instance, actions: await service.discover(context) }); return; }
-          const capability = body.capability as ActionReference | undefined;
-          if (!capability || typeof capability !== "object" || Array.isArray(capability)
-            || Object.keys(capability).some(key => !["capability_id", "version", "provider_id"].includes(key))
-            || typeof capability.capability_id !== "string" || !Number.isSafeInteger(capability.version) || capability.version < 1
-            || (capability.provider_id !== undefined && typeof capability.provider_id !== "string")) throw new ActionError("actions.input_invalid", "能力引用无效");
-          const result = await service.invoke(context, capability, body.input);
+          const result = await service.invoke(context, capability!, body.input);
           // The forwarding process reads no response header (`postToResidentHost`): the number joins the body when a row was written for it.
           sendJson(response, 200, { instance_id: instance, result, ...recordedCallIdField() });
         });
@@ -79,6 +86,18 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
   } catch (error) { fail(error); }
   finally { response.off("close", disconnected); }
   return true;
+}
+
+function parseGatewayCapability(value: unknown): ActionReference {
+  const capability = value as ActionReference | undefined;
+  if (!capability || typeof capability !== "object" || Array.isArray(capability)
+    || Object.keys(capability).some(key => !["capability_id", "version", "provider_id"].includes(key))
+    || typeof capability.capability_id !== "string" || !capability.capability_id.trim()
+    || !Number.isSafeInteger(capability.version) || capability.version < 1
+    || (capability.provider_id !== undefined && (typeof capability.provider_id !== "string" || !capability.provider_id.trim()))) {
+    throw new ActionError("actions.input_invalid", "能力引用无效");
+  }
+  return capability;
 }
 
 function readGatewayBody(request: IncomingMessage): Promise<Record<string, unknown>> {

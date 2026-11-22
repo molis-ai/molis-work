@@ -185,16 +185,20 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   assert.deepEqual(splitPluginStylesheet(owned + unrelated, "feed", [], ["text-"]), { scoped: owned, shared: unrelated },
     "the production splitter claims text-stats at the complete hyphen boundary");
   assert.deepEqual(catalogProblems(withPrefix("text-")), ["feed: stylesheet prefix text- repeats a plugin's id"]);
-  for (const prefix of ["tex-", "stats-", "textstats-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
+  assert.deepEqual(catalogProblems(withPrefix("stats-")), ["feed and text-stats both claim stylesheet prefix stats-"],
+    "text-stats already claims stats-, so another plugin cannot claim it");
+  for (const prefix of ["tex-", "brief-", "textstats-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
   const feedEntry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "feed")!;
-  const middleOnly = { ...feedEntry, project_plugin_id: "text-stats-extra", catalog_order: NEXT_POSITION,
+  const middleOnly = { ...feedEntry, project_plugin_id: "text-middle-extra", catalog_order: NEXT_POSITION,
     manifest: { ...feedEntry.manifest, plugin_id: "io.molis.work.prefix-control" } };
-  const otherNamespace = ".text-stats-extra-card{color:green}";
-  assert.deepEqual(splitPluginStylesheet(otherNamespace, "feed", [], ["stats-"]), { scoped: "", shared: otherNamespace });
-  assert.deepEqual(catalogProblems([...withPrefix("stats-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
+  const otherNamespace = ".text-middle-extra-card{color:green}";
+  assert.deepEqual(splitPluginStylesheet(otherNamespace, "feed", [], ["middle-"]), { scoped: "", shared: otherNamespace });
+  assert.deepEqual(catalogProblems([...withPrefix("middle-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
   const studio = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
   for (const prefix of ["as-", "pb-"]) assert.ok(studio.workbench.stylesheetPrefixes?.includes(prefix));
-  assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), [], "the existing studio prefixes stay valid");
+  const textStats = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "text-stats")!;
+  assert.ok(textStats.workbench.stylesheetPrefixes?.includes("stats-"));
+  assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), [], "the existing studio and text-stats prefixes stay valid");
 });
 
 test("W5-02-REG-02: loading the Host rejects an invalid catalog before the module becomes available", () => {

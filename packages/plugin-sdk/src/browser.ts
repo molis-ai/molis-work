@@ -293,3 +293,18 @@ export function setContentHtml(target: Element, markup: string): void {
 export function contentHtml(markup: string, ownerDocument: Document = document): string {
   const target = ownerDocument.createElement("div"); setContentHtml(target, markup); return target.innerHTML;
 }
+
+/**
+ * The page's motion tokens for script that animates (DESIGN.md Motion): curves are written once, in the design-system baseline, and a
+ * page reads them. A duration comes back in milliseconds whichever way the stylesheet spells it: a plugin frame's sheet is minified,
+ * so its `250ms` reads `.25s`.
+ */
+const motionToken = (name: string) => typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+export function motionCurve(name = "--ease-quint", fallback = "ease-out"): string { return motionToken(name) || fallback; }
+export function motionDuration(name = "--dur-move", fallback = 250): number { return durationMs(motionToken(name), fallback); }
+/** A CSS time as milliseconds: `250ms`, `.25s` and a bare number of milliseconds; anything else is the fallback. */
+export function durationMs(raw: string, fallback: number): number {
+  const text = raw.trim().toLowerCase(), value = parseFloat(text);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return text.endsWith("ms") ? value : text.endsWith("s") ? value * 1000 : value;
+}

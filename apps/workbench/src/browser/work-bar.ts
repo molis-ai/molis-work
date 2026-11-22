@@ -421,7 +421,9 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const counts = line?.querySelector<HTMLElement>("[data-work-counts]"), stack = line?.querySelector<HTMLElement>("[data-work-stack]");
   const dialog = document.querySelector<HTMLElement>("[data-assistant-panel]"), column = dialog?.querySelector<HTMLElement>("[data-assistant-side]"), tabs = column?.querySelector<HTMLElement>("[data-info-tabs]");
   const lists = column?.querySelector<HTMLElement>("[data-work-lists]"), body = lists?.querySelector<HTMLElement>("[data-work-lists-body]"), sources = lists?.querySelector<HTMLElement>("[data-work-lists-sources]") ?? null, heading = lists?.querySelector<HTMLElement>("[data-work-lists-title]");
-  const { molisWorkRequest: request, molisCraft: craft } = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest; molisCraft?: { ask?(node: Element | null): void; carry?(from: Element, change: () => unknown): unknown } };
+  const { molisWorkRequest: request } = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest };
+  // The shared motion (DESIGN.md Motion) is set once the page has loaded, after this bar is mounted: it is read when it is used.
+  const craft = () => (globalThis as typeof globalThis & { molisCraft?: { ask?(node: Element | null): void; carry?(from: Element, change: () => unknown): unknown } }).molisCraft;
   if (!bar || !line || !counts || !stack || !dialog || !column || !tabs || !lists || !body || !heading || !request) return undefined;
   installWorkLineLayout(bar);
   const hue = hues();
@@ -479,7 +481,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       if (open && dialog.hidden) host.dialog?.(true);
       return !dialog.hidden;
     },
-    closeFloat: () => tasks.close(), parkedChanged: () => cards.sideChanged(), carry: craft?.carry,
+    closeFloat: () => tasks.close(), parkedChanged: () => cards.sideChanged(), carry: (from, change) => (craft()?.carry ?? ((_from: Element, run: () => unknown) => run()))(from, change),
   });
   // What waits for the person, in the stack's order: the events (the ones beside now first), the tasks that belong to no event,
   // then the Assistant's main conversation when it waits for a confirmation and is not the one in front.
@@ -567,7 +569,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const arrived = first ? [] : result.events.filter(event => asksYou(event) && (!before.get(event.id) || !asksYou(before.get(event.id)!)));
     cardStack.paint(arrived[0]?.id);
     // An event that came to wait for the person since the last read says so once (the shared "your turn" ring) on the stack.
-    if (arrived.length) craft?.ask?.(stack);
+    if (arrived.length) craft()?.ask?.(stack);
     return true;
   };
 

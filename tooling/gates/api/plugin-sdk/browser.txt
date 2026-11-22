@@ -32,6 +32,8 @@ export declare const codeOf: (error: unknown) => string | undefined;
 
 export declare function contentHtml(markup: string, ownerDocument?: Document): string;
 
+export declare function durationMs(raw: string, fallback: number): number;
+
 export declare function followScroll(panel: Element, run: () => void): () => void;
 
 export declare const isAbort: (error: unknown) => boolean;
@@ -39,6 +41,10 @@ export declare const isAbort: (error: unknown) => boolean;
 export declare const jsonComparisonText: (value: unknown) => string | undefined;
 
 export declare const messageOf: (error: unknown) => string;
+
+export declare function motionCurve(name?: string, fallback?: string): string;
+
+export declare function motionDuration(name?: string, fallback?: number): number;
 
 export declare function pick(preferred: number, alternate: number, preferredFits: boolean, alternateFits: boolean, preferredRoom: number, alternateRoom: number): number;
 // exported from this entry as "pickSide"

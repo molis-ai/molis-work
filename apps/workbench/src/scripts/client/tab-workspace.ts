@@ -8,7 +8,7 @@ import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { OPENED_PLUGIN_RECORD_SCRIPT } from "./plugin-open-record.js";
 import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
 import { TAB_SASH_FACTORY } from "./tab-sash.js";
-import { TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
+import { TAB_REORDER_MS } from "../../tab-reorder.js";
 import { TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
 import { TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
 import { TAB_WORKSPACE_PANES_PART } from "./tab-workspace-panes.js";
@@ -82,7 +82,8 @@ ${TAB_WORKSPACE_DRAG_PART}
   const TAB_SASH_INSET = ${TAB_SASH_INSET};
   const TAB_SASH_HALF = ${TAB_SASH_HALF};
   const TAB_REORDER_MS = ${TAB_REORDER_MS};
-  const TAB_REORDER_EASE = ${JSON.stringify(TAB_REORDER_EASE)};
+  // The product's one curve for things that move, as the page's tokens have it (DESIGN.md Motion; POLISH-33).
+  const TAB_REORDER_EASE = getComputedStyle(document.documentElement).getPropertyValue("--ease-quint").trim() || "ease-out";
   const TAB_SHARE_MAX = ${TAB_SHARE_MAX};
   const TAB_SHARE_MIN = ${TAB_SHARE_MIN};
   const TAB_SHARE_MIN_TOUCH = ${TAB_SHARE_MIN_TOUCH};

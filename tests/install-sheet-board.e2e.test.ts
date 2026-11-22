@@ -27,6 +27,12 @@ const MEASURE = `(() => {
       if (button.scrollWidth > button.clientWidth + 0.5) problems.push(button.textContent + ' is cut');
       if (own.width < 480 && box(button).height < 43.5) problems.push(button.textContent + ' is under 44px');
     }
+    // The steps row holds its three names on one line each and cuts none of them (行不折行; review J-1).
+    for (const steps of card.querySelectorAll('.install-steps')) if (steps.scrollWidth > steps.clientWidth + 0.5 || steps.scrollHeight > steps.clientHeight + 0.5) problems.push('the steps are cut');
+    for (const name of card.querySelectorAll('.install-steps li>span')) {
+      const range = document.createRange(); range.selectNodeContents(name);
+      if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1) problems.push(name.textContent + ' wraps');
+    }
     const tiles = [...card.querySelectorAll('.install-tile')].map(tile => Math.round(box(tile).height));
     if (new Set(tiles).size > 1) problems.push('tiles differ in height: ' + tiles.join());
     const head = card.querySelector('[data-framed-area-head]'), foot = card.querySelector('[data-framed-area-foot]');

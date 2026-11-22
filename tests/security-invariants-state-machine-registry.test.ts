@@ -16,6 +16,7 @@ import {
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PACKAGE_PLUGIN_ID, packageFiles, payloadOf } from "./fixtures/sandbox-package.js";
 
 /**
@@ -142,7 +143,7 @@ function registryFixture() {
     const handler = from.handlers.find(one => one.capability_id === capability)!;
     return handler.handle({ ...caller, beforeEffect: async () => {} } as Parameters<typeof handler.handle>[0], input) as Promise<T>;
   };
-  return { db, runtime, repository, install, invoke, starts, builtin, counts: () => ({ opened, closed }) };
+  return { db, runtime, repository, install, invoke, provider, person, starts, builtin, counts: () => ({ opened, closed }) };
 }
 
 test("SMP-08 SMP-13 the registry reads stopped, switched-off and never-started installations from their stored release and says unknown instead of guessing", async () => {
@@ -230,6 +231,16 @@ test("SMP-07 SMP-08 S-state-machine-registry-metadata stored declarations are da
     }
     // The project is the caller's own: neither query takes one in its input, so a caller cannot read another project's registry.
     for (const definition of [stateMachineActions.list, stateMachineActions.get]) assert.equal(Object.hasOwn(definition.action.input_schema.properties as object, "project_id"), false);
+    // Through the action service, naming another project is an input the queries do not take: refused before the handler, no entries leave.
+    const service = new ActionService();
+    service.registerProvider(f.provider);
+    for (const [definition, input] of [[stateMachineActions.list, { project_id: "another-project" }],
+      [stateMachineActions.get, { machine_id: "platform.plugin-runtime.lifecycle", project_id: "another-project" }]] as const) {
+      let leaked: unknown;
+      await assert.rejects(service.invoke(f.person, { capability_id: definition.capability_id, version: definition.version }, input).then(result => { leaked = result; }),
+        { code: "actions.input_invalid" }, definition.capability_id);
+      assert.equal(leaked, undefined, "a refused read returns nothing");
+    }
     await assert.rejects(f.invoke("state_machines.list", {}, { ...agent, signal: AbortSignal.abort() }), { name: "AbortError" });
   } finally { f.db.close(); }
 });

@@ -8,7 +8,10 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
 import { alwaysOnPluginStamp } from "./always-on-plugins.js";
 
 type ReachEntry = PluginRegistration | { readonly personal: true; readonly project_plugin_id: string; readonly runtime?: never };
-type ReachCatalog = Pick<MolisWorkProjectCatalog, "projectPluginMembership"> & { readonly catalogDataStamp?: () => string | null };
+type ReachCatalog = Pick<MolisWorkProjectCatalog, "projectPluginMembership"> & {
+  readonly catalogDataStamp?: () => string | null;
+  readonly homeDirectory?: string;
+};
 
 const projectReachCache = new WeakMap<object, Map<string, { readonly stamp: string; readonly reachable: ReadonlySet<string> | null }>>();
 
@@ -24,7 +27,8 @@ export function projectReachStamp(
   if (typeof catalog.catalogDataStamp !== "function") return null;
   const catalogStamp = catalog.catalogDataStamp();
   if (catalogStamp === null) return null;
-  const alwaysOn = homeDirectory ? alwaysOnPluginStamp(homeDirectory) : "none";
+  const effectiveHome = homeDirectory ?? catalog.homeDirectory;
+  const alwaysOn = effectiveHome ? alwaysOnPluginStamp(effectiveHome) : "none";
   return `${catalogStamp}|${alwaysOn}|${outsideBuild.join("\0")}`;
 }
 

@@ -371,7 +371,7 @@ test("B103-02 RAR-02 another connection's commit, space change, or structure cha
     if (sql === "PRAGMA user_version") versionChecks += 1;
     return originalPrepare.call(this, sql);
   });
-  // Keep an RW connection open so the WAL store is active (not closed-WAL), verifying 1 RO open on first read and 0 on reuse.
+  // Verify 1 RO open on first read (no double preflight open on non-closed-WAL store) and 0 on reuse.
   const activeWriter = heldHomeSqlite(home, "notes", baseline);
   versionChecks = 0;
   const reboundReader = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true })!;
@@ -381,12 +381,45 @@ test("B103-02 RAR-02 another connection's commit, space change, or structure cha
   assert.equal(versionChecks, 1, "repeated existingOnly reads reuse the held RO handle with zero extra opens");
   spy.mock.restore();
   assert.ok(activeWriter.isOpen);
+  // Switch to WAL so an external writer can commit while an outer RO transaction holds a snapshot.
+  activeWriter.exec("PRAGMA journal_mode = WAL");
+  const walReader = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true })!;
+  // A nested existingOnly read during an outer RO transaction must never close the outer RO handle even after an external commit.
+  withHeldHomeSqlite(home, "notes", baseline, outerDb => {
+    assert.equal(outerDb, walReader);
+    outerDb.exec("BEGIN");
+    try {
+      const beforeRows = (outerDb.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n;
+      assert.equal(beforeRows, 2);
+      const externalDuringRoTx = new DatabaseSync(file);
+      try {
+        externalDuringRoTx.prepare("INSERT INTO notes VALUES ('c')").run();
+      } finally {
+        externalDuringRoTx.close();
+      }
+      const nested = withHeldHomeSqlite(home, "notes", baseline, (nestedDb, nestedStamp) => {
+        assert.notEqual(nestedDb, outerDb, "nested RO read uses its own short-lived connection");
+        assert.throws(() => nestedDb.prepare("INSERT INTO notes VALUES ('bad')").run(), /readonly/iu);
+        return { db: nestedDb, stamp: nestedStamp, rows: (nestedDb.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n };
+      }, { existingOnly: true })!;
+      assert.equal(nested.rows, 3, "nested RO connection sees the newly committed external write");
+      assert.equal(nested.db.isOpen, false, "nested short-lived RO connection is closed on return");
+      assert.equal(outerDb.isOpen, true, "outer held RO handle stays open for its active transaction");
+      assert.equal(outerDb.isTransaction, true, "outer held RO transaction remains active");
+      assert.equal((outerDb.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2, "outer RO snapshot stays intact");
+    } finally {
+      outerDb.exec("COMMIT");
+    }
+  }, { existingOnly: true });
+  const afterRoTx = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true })!;
+  assert.notEqual(afterRoTx, walReader, "once the outer RO transaction finishes, the next RO read detects the external commit and reopens");
+  assert.equal(walReader.isOpen, false, "previous RO handle is closed once idle and replaced");
   // Another connection drops the space binding: a read refuses the store and leaves it unbound, as a read that opened it did.
   const unbind = new DatabaseSync(file);
   unbind.exec("DROP TABLE molis_storage_space");
   unbind.close();
   assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
-  assert.equal(reboundReader.isOpen, false);
+  assert.equal(afterRoTx.isOpen, false);
   const after = new DatabaseSync(file, { readOnly: true });
   assert.equal(after.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'molis_storage_space'").get()!.n, 0, "the read wrote no binding");
   after.close();

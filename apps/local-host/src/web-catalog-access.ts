@@ -13,10 +13,20 @@ export function createWebCatalogAccess(
   let opening: Promise<MolisWorkProjectCatalog> | undefined;
   let current: MolisWorkProjectCatalog | undefined;
   let ready = false, closing = false, active = 0, projectCount = 0;
+  let projectCountStamp: string | null = null;
   const idle = new Set<() => void>();
   let retry: ReturnType<typeof setTimeout> | undefined;
+  const refreshProjectCount = (catalog: MolisWorkProjectCatalog): void => {
+    const before = catalog.catalogDataStamp();
+    projectCount = catalog.listProjects().length;
+    projectCountStamp = before !== null && catalog.catalogDataStamp() === before ? before : null;
+  };
   const prepare = () => opening ??= open({ homeDirectory }).then(catalog => {
-    try { projectCount = catalog.listProjects().length; current = catalog; ready = true; }
+    try {
+      refreshProjectCount(catalog);
+      current = catalog;
+      ready = true;
+    }
     catch (error) { catalog.close(); throw error; }
     return catalog;
   }).catch(error => {
@@ -38,12 +48,17 @@ export function createWebCatalogAccess(
     try {
       const catalog = await prepare();
       catalog.assertCurrentSchema();
-      const before = catalog.catalogDataStamp();
       try { return await operation(catalog); }
       finally {
-        if (!ready || before === null || catalog.catalogDataStamp() !== before) {
-          try { projectCount = catalog.listProjects().length; }
-          catch { ready = false; }
+        const after = catalog.catalogDataStamp();
+        if (!ready || after === null || after !== projectCountStamp) {
+          try {
+            refreshProjectCount(catalog);
+          }
+          catch {
+            projectCountStamp = null;
+            ready = false;
+          }
         }
       }
     } finally {
@@ -70,7 +85,10 @@ export function createWebCatalogAccess(
       return shutdown ??= (async () => {
         if (active) await new Promise<void>(resolve => idle.add(resolve));
         const catalog = await opening?.catch(() => undefined);
-        catalog?.close(); current = undefined; ready = false;
+        catalog?.close();
+        current = undefined;
+        projectCountStamp = null;
+        ready = false;
       })().catch(error => { shutdown = undefined; throw error; });
     },
   };

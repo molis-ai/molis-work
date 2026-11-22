@@ -590,7 +590,7 @@ function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBase
   if (!stat || stat.size === 0) {
     const slots = held.get(file);
     if (slots) {
-      dropSlot(slots, "ro");
+      if (slots.ro && (!slots.ro.db.isOpen || !slots.ro.db.isTransaction)) dropSlot(slots, "ro");
       if (slots.rw && (!slots.rw.db.isOpen || !slots.rw.db.isTransaction)) dropSlot(slots, "rw");
     }
     return undefined;
@@ -652,10 +652,9 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
 export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
   { prepare, existingOnly = false }: { prepare?: (db: DatabaseSync) => void; existingOnly?: boolean }): T | undefined {
   const homeRoot = canonicalPath(home), file = resolve(homeSqlitePath(homeRoot, storeName));
+  const slots = held.get(file);
   if (existingOnly) {
-    const entry = heldReadOnlyEntry(home, storeName, baseline, prepare);
-    if (!entry) return undefined;
-    if (entry.db.isTransaction) {
+    if (slots?.ro?.db.isOpen && slots.ro.db.isTransaction) {
       const own = openExistingBaselineHomeSqlite(home, storeName, baseline);
       if (!own) return undefined;
       try {
@@ -663,11 +662,14 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
         const opened = identity(file), seen = versions(own);
         const stamp = opened ? `${++nextSlotGeneration}:${opened.dev}:${opened.ino}:${seen.data}:${seen.schema}:${spaceFileIdentity(homeRoot)}` : `${++nextSlotGeneration}`;
         return work(own, stamp);
-      } finally { own.close(); }
+      } finally {
+        own.close();
+      }
     }
+    const entry = heldReadOnlyEntry(home, storeName, baseline, prepare);
+    if (!entry) return undefined;
     return work(entry.db, entry.stamp);
   }
-  const slots = held.get(file);
   if (slots?.rw?.db.isOpen && slots.rw.db.isTransaction) {
     const own = openBaselineHomeSqlite(home, storeName, baseline);
     try {

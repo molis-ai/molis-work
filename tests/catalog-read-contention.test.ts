@@ -228,5 +228,21 @@ test("live-stamped projectActionAvailability and web-catalog-access reuse snapsh
   // Creating another project via withCatalog refreshes projectCount immediately.
   await access.withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "第二个项目", actor_id: "user" }));
   assert.equal(access.projectCount, 2, "mutating withCatalog refreshes projectCount");
-  assert.equal(projectListReads > 0, true);
+  const countAfterSecond = projectListReads;
+  assert.equal(countAfterSecond > 0, true);
+  // An unchanged pure-read turn skips listProjects, while an external catalog commit between turns refreshes projectCount on the next pure read.
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id));
+  assert.equal(projectListReads, countAfterSecond, "unchanged pure read after mutation skips redundant listProjects");
+  const externalCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner });
+  try {
+    await externalCatalog.createProject({ display_name: "外部新增项目", actor_id: "user" });
+  } finally {
+    externalCatalog.close();
+  }
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id));
+  assert.equal(access.projectCount, 3, "a pure-read withCatalog turn refreshes projectCount after an external commit between turns");
+  const countAfterExternal = projectListReads;
+  assert.equal(countAfterExternal, countAfterSecond + 1);
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id));
+  assert.equal(projectListReads, countAfterExternal, "subsequent unchanged pure reads skip listProjects again");
 });

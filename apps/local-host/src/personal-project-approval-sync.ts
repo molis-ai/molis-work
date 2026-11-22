@@ -45,10 +45,10 @@ export function createAcceptanceSyncRegistration(home: string, spaceId: string, 
  * One platform collection kept in each project's library under the person's selection of it: one key per project
  * (`[project, journal, project]`), or, with `keyLength`, one per object of a project (`[project, journal, …]`).
  */
-function projectPlatformSyncRegistration(owner: {
+export function projectPlatformSyncRegistration(owner: {
   readonly owner: PlatformSyncCollection["owner"]; readonly journal: string; readonly denied: string; locate(projectId: string): string;
   readonly keyLength?: number; readonly dependencies?: readonly SyncSelection[];
-  replica(db: ReplicaDatabase, projectId: string, spaceId: string, authorize: () => void): SqliteReplica;
+  replica(db: ReplicaDatabase, projectId: string, spaceId: string, authorize: () => void, title: string): SqliteReplica;
 }, home: string, spaceId: string, check: () => void, withCatalog: LocalWebCatalogRunner, readCatalog: SyncCatalogReader | undefined,
   selected: Selected): SyncRegistration {
   const denied = () => new ActionError("actions.forbidden", owner.denied);
@@ -99,7 +99,7 @@ function projectPlatformSyncRegistration(owner: {
           const store = new LocalProjectDatabase(before.database_path, { existingOnly: true });
           try {
             if (readDatabaseSpace(store.db)?.spaceId !== spaceId) throw denied();
-            return operation(owner.replica(store.replicationDatabase, id, spaceId, authorize));
+            return operation(owner.replica(store.replicationDatabase, id, spaceId, authorize, before.display_name));
           } finally { store.close(); }
         },
       }));

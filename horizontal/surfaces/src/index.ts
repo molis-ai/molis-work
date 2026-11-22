@@ -3,6 +3,7 @@ export {
   type SurfaceCorrections, type SurfaceCorrectionsDatabase, type SurfaceCorrectionsSnapshot,
 } from "./corrections.js";
 export { SURFACE_CORRECTIONS_SCHEMA_SQL } from "./schema.js";
+export { SURFACE_CONFIG_JOURNAL, surfaceConfigJournal, surfaceConfigOwner } from './replication.js';
 export { SurfaceCompositionService } from "./composition.js";
 export type { SurfaceActionDirectory, SurfaceComposePorts, SurfaceCorrectPorts, SurfaceHomePlugin, SurfaceHomePorts, SurfacePlugin, SurfaceRelation } from "./ports.js";
 

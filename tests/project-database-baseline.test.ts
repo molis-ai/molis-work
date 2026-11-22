@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, isSqliteVersionRefusal, runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, pluginSyncDatabaseDeclaration, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
@@ -16,7 +16,7 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
 const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return describeSqliteSchema(db); } finally { db.close(); } };
 
 test("PCSYNC-12 a project database at a newer version refuses before WAL or ownership writes and keeps every original byte", t => {
-  for (const ahead of [2, 8, 15]) {
+  for (const ahead of [PROJECT_DATABASE_BASELINE.version + 1, 8, 15]) {
     const directory = mkdtempSync(join(tmpdir(), `project-v${ahead}-refusal-`)); t.after(() => rmSync(directory, { recursive: true, force: true }));
     const path = join(directory, "old.db"), db = new DatabaseSync(path);
     db.exec(`${PROJECT_DATABASE_BASELINE.schema}; PRAGMA user_version = ${ahead};`); db.close();
@@ -38,21 +38,47 @@ const ROOTED = ["acceptance_subjects", "coding_sessions", "events", "feed_items"
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-test("RAC-2360 APR-19 the project database baseline is version 1 and includes approvals, runtime settings, guidance and acceptance", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 1);
+test("RAC-2360 APR-19 the project database baseline is version 2 and includes approvals, runtime settings, guidance and acceptance", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 2);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")
     + fixture("project-runtime-settings-schema.sql") + fixture("project-guidance-schema.sql") + fixture("project-acceptance-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 1", () => {
+test("RAC-2360 an existing empty file initializes the complete current library at 2", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 1); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 2); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('M1-B2 replays the checked-in v1 project golden and preserves old project and plugin rows while registering saved corrections', t => {
+  const home = mkdtempSync(join(tmpdir(), 'project-m1-b2-golden-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const file = join(home, 'molis-work.db');
+  const db = new DatabaseSync(file);
+  try {
+    db.exec(fixture('golden-homes/0.1.0/stores/projects/goalboard-v1-demo/molis-work.db.sql'));
+    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 1);
+    const root = db.prepare('SELECT * FROM project_root').all();
+    const plugins = db.prepare('SELECT * FROM plugin_project_databases ORDER BY plugin_id').all();
+    db.prepare(`INSERT INTO surface_corrections(actor_id,slot_key,subject_kind,subject_id,correction,form,position,revision,recorded_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run('owner', '["home",null,null]', 'goal', 'kept', 'pin', null, 2, 1, '2026-11-21T00:00:00.000Z');
+    const before = db.prepare('SELECT * FROM surface_corrections').all();
+    assert.throws(() => new LocalProjectDatabase(file), { code: 'storage.upgrade_pending' });
+    assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 1, to: 2 });
+    assert.deepEqual(db.prepare('SELECT * FROM project_root').all(), root);
+    assert.deepEqual(db.prepare('SELECT * FROM plugin_project_databases ORDER BY plugin_id').all(), plugins);
+    assert.deepEqual(db.prepare('SELECT * FROM surface_corrections').all(), before);
+    assert.equal(db.prepare('SELECT count(*) AS total FROM surface_corrections_replica_changes').get()!.total, 1);
+    assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 2, to: 2 });
+    assert.equal(db.prepare('SELECT count(*) AS total FROM surface_corrections_replica_changes').get()!.total, 1);
+  } finally { db.close(); }
+  const reopened = new LocalProjectDatabase(file, { existingOnly: true });
+  reopened.close();
 });
 test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped ids is refused without rewriting its schema or rows", () => {
   const home = mkdtempSync(join(tmpdir(), "attention-version-refusal-")), file = join(home, "project.db");

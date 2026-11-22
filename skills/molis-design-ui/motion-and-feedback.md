@@ -30,17 +30,18 @@
 
 ## 2. 确定性行为反馈闭环（0ms → 250ms → 回执 / 回滚）
 
-1. **按下即回应（0ms）**：所有 `.mw-btn` 具备 `scale(.985)` 轻按压（回来不冲过头）；底栏与 Coding 发送在非 IME 组合态 `<16ms` 乐观上屏（失败无损恢复草稿与修订号）。
-2. **`250ms` 静默阈值与 `window.molisBusy(btn, work, opts?)`**：
+1. **按下即回应（0ms）**：所有 `.mw-btn` 具备 `scale(.985)` 轻按压（回来不冲过头）；底栏与 Coding 发送在非 IME 组合态 `<16ms` 乐观上屏（失败无损恢复草稿与修订号），并在统一输入框落齐 **WebKit / Tauri macOS `500ms` 合成后卫**（`isComposing || keyCode === 229` 之外，记录 `compositionend.timeStamp` 拦截尾随假回车与伴随 `beforeinput` 换行）。
+2. **悬浮揭示「100ms 意图延迟 + 慢进快出」**：消息操作条（复制/重试等）悬停进场配独立 `transition-delay: 100ms` + `var(--dur-hover)`（过滤过路鼠标防闪烁），离开用 `var(--dur-stagger)`（`60ms`）零延迟快出（不留残影，严禁手写非令牌毫秒数），键盘 `:focus-visible` 零延迟、`@media (hover: none)` 常显，严守 `--ease-quint`（`POLISH-35`）；富交互胶囊 Hover 详情卡走 `600ms` 首次 / `0ms` 热切 / `200ms` 移入桥接 / 点击升级 `pinned` `role="dialog"` + `fixed` body portal 首帧隐藏守卫。
+3. **`250ms` 静默阈值与 `window.molisBusy(btn, work, opts?)`**：
    - 任何耗时 `< 250ms` 的请求**不闪骨架、不闪转圈**；超过 `250ms` 才淡入 `.mw-spinner` 并设 `data-loading` + `aria-busy="true"` + 防连点锁，有图标时原位等宽替换不抖动，弹窗内自动拦截 `Esc` 并在 `finally` 释放。
    - **禁止**手写 `button.disabled = true` 灰死僵住、**禁止**整页 `workspace.inert = true` 无声冻屏、**禁止**绕开 `250ms` 立刻渲染 `.mw-loading`。
-3. **唯一宿主 Toast（`host.showToast` / `window.molisToast(message, options?)`）**：
+4. **唯一宿主 Toast（`host.showToast` / `window.molisToast(message, options?)`）**：
    - 全产品只走这一条队列，底距统一 `calc(var(--helm-h, 74px) + 14px)` 避让底栏与控件，每次触发清前序定时器。
    - 三档规范时长：`short: 2600ms`（纯确认，`role="status"`）；`normal: 4200ms`（警告/信息）；`long: 7000ms`（带 `undo` / `action` 按钮或错误提示，鼠标悬停或键盘焦点自动暂停倒计时，离开后平滑续跑，用于高频可逆操作替代多余阻塞确认框）。
-4. **统一五态自动保存（`window.molisAutosave(el, save, opts?)`）**：
+5. **统一五态自动保存（`window.molisAutosave(el, save, opts?)`）**：
    - `idle`（静默隐退，常态不刷绿也不占位）→ `dirty`（中性灰「未保存」）→ `saving`（超 `250ms` 显微环「保存中…」）→ `saved`（轻亮后 `2.2s` 淡隐）→ `error`（红字常驻 + 保留草稿 + `retry()`）。
-5. **乐观开关回滚（`window.molisOptimisticToggle(control, work, opts?)`）**：切换立即生效，请求失败自动弹回原值、恢复交互并经 `molisToast` 报错。
-6. **危险确认与日期增强**：不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式、可清除按钮与 `Escape` 行为。
+6. **乐观开关回滚（`window.molisOptimisticToggle(control, work, opts?)`）**：切换立即生效，请求失败自动弹回原值、恢复交互并经 `molisToast` 报错。
+7. **危险确认与日期增强**：不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式、可清除按钮与 `Escape` 行为。
 
 ---
 
@@ -48,7 +49,7 @@
 
 | AI 时刻 | 唯一视觉与交互表达 | 严禁 |
 | --- | --- | --- |
-| **1. 正在干活** | 恒定 `20px` 状态环（`.mw-state-ring--fixed`）原地切换 `[data-mw-state]`（不销毁 DOM、不归零相位）；`molisStreamText` v2 仅对**当前变更节点**执行 `finishDirect()`，不打断前段正在完成的光影浸润波浪 `.mw-fresh`（`blur(2px)` 90ms 快速渐显，收尾时立即收齐）；代码块原地生长；思考流独立轻量折行（用户点开后不自动合上 `VUX-13`）；`molisFollow` 真人交互走柔和微阻尼追底、用户滚轮/触控首帧让权（减动效与自动化单帧直达） | `500ms` 轮询顿挫；掐断前段在途淡入导致闪字；把 20px 状态环硬换成 13px 图标造成 7px 横跳；劫持用户向上滚动 |
+| **1. 正在干活** | 恒定 `20px` 状态环（`.mw-state-ring--fixed`）原地切换 `[data-mw-state]`（不销毁 DOM、不归零相位），旁侧状态短语配零高 `flex: 1` 稳位座防右侧耗时横跳；`molisStreamText` v2 仅对**当前变更节点**执行 `finishDirect()`，不打断前段正在完成的光影浸润波浪 `.mw-fresh`（`blur(2px)` 90ms 快速渐显，收尾时立即收齐）；代码块原地生长；思考流独立轻量折行（用户点开或 `⌘F` `beforematch` 展开后标 `data-user-toggled` 不自动合上，守 `VUX-13`）；嵌套步骤用 `:not(:where([data-mw-step] *))` 隔离悬停/聚焦；`molisFollow` 真人交互走柔和微阻尼追底、用户滚轮/触控首帧让权（减动效与自动化单帧直达） | `500ms` 轮询顿挫；掐断前段在途淡入导致闪字；把 20px 状态环硬换成 13px 图标造成 7px 横跳；劫持用户向上滚动；对大容器挂 `:has()` 做嵌套悬停；循环文字扫光（违 `only loading indicators loop` 门禁） |
 | **2. 等你拍板** | 统一进入右下角「该你」卡叠（并关联信息栏与原位上下文）；唯一琥珀色 + 一次 `molisCraft.ask`；卡片写清影响与具体动词按钮 | 在 4 处同时画 4 种不同长相的审批弹窗；二次确认套娃 |
 | **3. 结果不确定** | 琥珀提示「结果暂不确定 · 请先核对」+ 跳转核对记录入口（对齐 Prologue `reconcile-required / unknown` 合同） | 假装成功，或提供「再点一次」自动盲重放外部副作用 |
 | **4. 失败 / 阻断** | 红色明确白话原因 + **原样保留草稿、输入与已附材料** + 下一步动作（缺模型走 `host.returns.go`、普通错误原位重试、可复制诊断号） | 静默关闭弹窗/吞错；把 `401`/`MODEL_CONTEXT_OVERFLOW` 等裸错误码甩给普通用户 |

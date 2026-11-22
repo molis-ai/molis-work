@@ -42,9 +42,10 @@ export async function waitWork(browser: SendBrowser, id: string, ready: (view: A
 }
 export async function openWork(browser: SendBrowser, id: string) {
   await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: '${id}' } }))`);
-  // The receiver tag of a work carries the cross that starts a new one; a main conversation's has none (36A-3).
-  const main = Boolean((await readWork(browser, id)).work.main);
-  await browser.waitFor(`${CURRENT_WORK} === '${id}' && Boolean(document.querySelector('[data-assistant-composer] .mw-composer__to${main ? "" : " [data-tag-remove]"}'))`);
+  // The receiver tag of a work carries the cross that starts a new one; a main conversation's has none (36A-3), and its head
+  // says so. Read from the page as drawn, not by asking the Host again: a test may be holding that very answer.
+  await browser.waitFor(`${CURRENT_WORK} === '${id}' && (() => { const to = document.querySelector('[data-assistant-composer] .mw-composer__to');
+    return Boolean(to) && (document.querySelector('[data-assistant-head]')?.dataset.about === 'main' || Boolean(to.querySelector('[data-tag-remove]'))); })()`);
 }
 /** A work's details (path, sub-tasks, results, changes, usage) are behind 更多 › 详情 (36A-3); this opens them once. */
 export async function openDetails(browser: Pick<SendBrowser, "evaluate" | "waitFor">) {

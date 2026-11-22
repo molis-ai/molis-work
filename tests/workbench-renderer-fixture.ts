@@ -21,7 +21,7 @@ export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
 installHostUiText();
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
-export const { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderMolisWorkOnboarding, renderMolisWorkProjectSettingsHub, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings, renderMolisWorkWorkbenchStylesheet, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript } = renderer;
+export const { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderMolisWorkOnboarding, renderMolisWorkProjectSettingsHub, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings, renderMolisWorkWorkbenchStylesheet, renderMolisWorkPluginBaseStylesheet, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript } = renderer;
 
 /** Legacy test fixtures supply facts directly; only the owners convert these into UI models or HTML. */
 function ownerStageFacts(view: MolisWorkWebView & { feed?: FeedSnapshot; feed_source_catalog?: FeedStageData["source_catalog"]; feed_connector_auth?: FeedStageData["connector_auth"] }): MolisWorkWebView {

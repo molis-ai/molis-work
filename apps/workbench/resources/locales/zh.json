@@ -2203,6 +2203,7 @@
     "workbench.attention.tasks-incomplete": "后台任务列表暂时不完整。",
     "workbench.attention.no-background-tasks-right-now": "现在没有后台任务",
     "workbench.attention.stop": "停止",
+    "workbench.attention.project-resting": "{project} · 休息中",
     "workbench.board-plugin-rows.container": "容器",
     "workbench.board-plugin-rows.drawn-each-plugin-s-own-row-renderer-data": "插件自己的行渲染器画出的样例：数据是固定样例，行就是插件页面画的那一行。目录里的行按一栏的宽度排，主区的视图占满。",
     "workbench.board-plugin-rows.language": "界面语言",

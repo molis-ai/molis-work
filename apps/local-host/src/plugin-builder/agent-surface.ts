@@ -390,6 +390,11 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   } finally { request.removeListener('aborted', disconnect); response.removeListener('close', disconnect); }
 }
 
+/** Whether the project's Agent studio is open: its workflow and runners stop when the project closes, so it is not put to sleep. */
+export function agentStudioOpen(store: LocalProjectDatabase, projectId: string): boolean {
+  return !!studios.get(store)?.has(projectId);
+}
+
 export async function releaseAgentStudio(store: LocalProjectDatabase, projectId: string) {
   const boards = studios.get(store), pending = boards?.get(projectId);
   if (!pending) return;

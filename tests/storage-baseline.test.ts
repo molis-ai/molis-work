@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, isSqliteVersionRefusal, heldHomeSqlite, releaseHeldHomeSqlite, withHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 
 test('binding a new Home store before first use does not masquerade as an old business schema', t => {
   const home = mkdtempSync(join(tmpdir(), 'molis-bound-baseline-'));
@@ -280,6 +280,74 @@ test("D0276 existing-only reads neither create a store nor initialize an empty f
   const reader = openExistingBaselineHomeSqlite(home, "notes", baseline)!;
   try { assert.equal(reader.prepare("SELECT id FROM notes").get()?.id, "kept"); assert.throws(() => reader.prepare("INSERT INTO notes VALUES (?)").run("refused")); }
   finally { reader.close(); }
+});
+
+test("B103-02 a Home store is opened once per process and borrowed after; a replaced file, a nested write and a release get a fresh connection", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-held-store-"));
+  t.after(() => { releaseHeldHomeSqlite(home); rmSync(home, { recursive: true, force: true }); });
+  const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY)" };
+  let prepared = 0;
+  const prepare = () => { prepared += 1; };
+  assert.equal(withHeldHomeSqlite(home, "notes", baseline, () => "read", { prepare, existingOnly: true }), undefined, "a read does not create the store");
+  assert.equal(existsSync(homeSqlitePath(home, "notes")), false);
+  const first = heldHomeSqlite(home, "notes", baseline, prepare);
+  first.prepare("INSERT INTO notes VALUES ('a')").run();
+  assert.equal(heldHomeSqlite(home, "notes", baseline, prepare), first, "the next borrower gets the same connection");
+  assert.equal(withHeldHomeSqlite(home, "notes", baseline, db => db, { prepare, existingOnly: true }), first);
+  assert.equal(prepared, 1, "checked and prepared once");
+  // A call made inside another call's write gets its own connection: it neither joins nor breaks the transaction around it.
+  first.exec("BEGIN IMMEDIATE");
+  first.prepare("INSERT INTO notes VALUES ('b')").run();
+  const inside = withHeldHomeSqlite(home, "notes", baseline, db => ({ db, rows: (db.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n }), { prepare });
+  assert.notEqual(inside.db, first);
+  assert.equal(inside.rows, 1, "it reads what was committed, not the open write");
+  assert.equal(inside.db.isOpen, false, "and is closed after");
+  first.exec("COMMIT");
+  // The file is replaced under the process (a restore, a Home made again at the same path): the next borrower opens the new file.
+  const file = homeSqlitePath(home, "notes");
+  rmSync(file);
+  const replaced = heldHomeSqlite(home, "notes", baseline, prepare);
+  assert.notEqual(replaced, first);
+  assert.equal(first.isOpen, false, "the connection to the old file is closed");
+  assert.equal((replaced.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 0);
+  releaseHeldHomeSqlite(home);
+  assert.equal(replaced.isOpen, false, "released with the Home");
+  assert.notEqual(heldHomeSqlite(home, "notes", baseline, prepare), replaced, "a later borrower opens again");
+});
+
+test("B103-02 RAR-02 another connection's commit or structure change makes the next borrow check the store again; a read never binds a store it reopens", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-held-recheck-"));
+  t.after(() => { releaseHeldHomeSqlite(home); rmSync(home, { recursive: true, force: true }); });
+  const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY)" };
+  const file = homeSqlitePath(home, "notes");
+  const first = heldHomeSqlite(home, "notes", baseline);
+  first.prepare("INSERT INTO notes VALUES ('a')").run();
+  assert.equal(heldHomeSqlite(home, "notes", baseline), first, "its own writes keep the connection");
+  // Another connection commits: the next borrower gets a connection checked again, and the old one is closed.
+  const other = new DatabaseSync(file);
+  other.prepare("INSERT INTO notes VALUES ('b')").run();
+  other.close();
+  const rechecked = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true });
+  assert.ok(rechecked, "the store exists, so a read gets a connection");
+  assert.notEqual(rechecked, first);
+  assert.equal(first.isOpen, false, "the connection checked before the outside write is closed");
+  assert.equal((rechecked.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2);
+  // Another connection drops the space binding: a read refuses the store and leaves it unbound, as a read that opened it did.
+  const unbind = new DatabaseSync(file);
+  unbind.exec("DROP TABLE molis_storage_space");
+  unbind.close();
+  assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
+  assert.equal(rechecked.isOpen, false);
+  const after = new DatabaseSync(file, { readOnly: true });
+  assert.equal(after.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'molis_storage_space'").get()!.n, 0, "the read wrote no binding");
+  after.close();
+  // Another connection changes the structure: the next borrow is refused at the structure check.
+  const reshape = new DatabaseSync(file);
+  reshape.exec("ALTER TABLE notes ADD COLUMN extra TEXT");
+  reshape.close();
+  const columns = () => { const db = new DatabaseSync(file, { readOnly: true }); try { return db.prepare("PRAGMA table_info(notes)").all().length; } finally { db.close(); } };
+  assert.throws(() => heldHomeSqlite(home, "notes", baseline), (error: ActionError) => error.code === "storage.schema_structure_mismatch");
+  assert.equal(columns(), 2, "the refused store is left as it was");
 });
 
 test("RAC-427 platform env prefix, project database filename and security directory path stay on Molis Work names", async (t) => {

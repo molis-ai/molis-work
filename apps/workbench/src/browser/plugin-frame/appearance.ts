@@ -39,7 +39,8 @@ export function frameEnvironment(port: MessagePort, scope: FrameScope, root: HTM
     observeState(state: () => void) {
       scope.observe(new MutationObserver(state), document.documentElement, { attributes: true,
         attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
-      scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
+      const workspace = document.querySelector("[data-tab-workspace]");
+      if (workspace) scope.observe(new MutationObserver(state), workspace, { attributes: true, attributeFilter: ["data-exclusive"] });
       scope.observe(new MutationObserver(state), frame, { attributes: true, attributeFilter: ["hidden"] });
     },
   };

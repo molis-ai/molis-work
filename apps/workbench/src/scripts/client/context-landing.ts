@@ -54,7 +54,7 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
           frame.contentWindow.postMessage({ type: "workbench-context-attach-chosen", token, chosen, offer }, location.origin);
           return;
         }
-        const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: { ...chosen, prepare: async () => offer, run } });
+        const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: { ...chosen, ...(this.element ? { _surface: this.element } : {}), prepare: async () => offer, run } });
         window.dispatchEvent(event);
         if (event.detail.handled) void event.detail.handled.then(taken => { if (!taken) gone(); });
         else if (!event.defaultPrevented) gone();
@@ -78,13 +78,15 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
   document.addEventListener("molis:surface-landing", (event) => {
     const element = event.target instanceof Element ? event.target : null;
     const { screen, ...value } = event.detail && typeof event.detail === "object" ? event.detail : {};
-    if (value.object) { landing.value = { ...value, pane_id: value.pane_id || ownPane }; landing.element = element; }
+    const paneId = element?.closest?.("[data-tab-pane]")?.dataset.tabPane || value.pane_id || ownPane;
+    if (value.object) { landing.value = { ...value, pane_id: paneId }; landing.element = element; }
     else if (!landing.element || landing.element === element) { landing.value = null; landing.element = null; }
   });
   document.addEventListener("molis:surface-focus", (event) => {
     const element = event.target instanceof Element ? event.target : null;
     const focus = event.detail && typeof event.detail === "object" ? { ...event.detail, ...landing.place(element) } : null;
-    bus.report({ pane: ownPane, element, frame: null }, focus);
+    const paneId = element?.closest?.("[data-tab-pane]")?.dataset.tabPane || ownPane;
+    bus.report({ pane: paneId, element, frame: null }, focus);
   });`;
 
 /**

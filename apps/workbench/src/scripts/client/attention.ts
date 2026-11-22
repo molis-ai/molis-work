@@ -62,7 +62,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
       detail.append(node("span", [task.step, ...task.details].filter(Boolean).map(phrase => phrase.text).join(" · ")));
-      if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
+      if (task.project_id !== projectId) detail.append(node("span", task.resting ? globalThis.t.text("workbench.attention.project-resting", { project: task.project_name }) : task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {
         if (task.project_id !== projectId || event.metaKey || event.ctrlKey || event.shiftKey) return;

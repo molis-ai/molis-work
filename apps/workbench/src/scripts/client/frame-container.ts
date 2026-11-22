@@ -37,7 +37,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const frameOf = (goalId) => {
     if (!loadedFrames.has(goalId)) {
       loadedFrames.add(goalId);
-      try { const saved = localStorage.getItem(frameKey(goalId)); if (saved) frames[goalId] = JSON.parse(saved); } catch {}
+      try { const saved = localStorage.getItem(frameKey(goalId)); if (saved) frames[goalId] = JSON.parse(saved); } catch { /* Ignore corrupt or unavailable persisted frame state. */ }
       savedFrames.set(goalId, JSON.stringify(frames[goalId]));
     }
     if (!frames[goalId]) frames[goalId] = { camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" };
@@ -47,16 +47,18 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (typeof frame.expanded !== "string") frame.expanded = "";
     return frame;
   };
-  const persist = () => {
-    if (!ready) return;
-    if (!boardTab(curTab)) {
-      const serialized = JSON.stringify(frameOf(curTab));
-      if (serialized !== savedFrames.get(curTab)) {
-        try { localStorage.setItem(frameKey(curTab), serialized); savedFrames.set(curTab, serialized); } catch {}
-      }
+  const persistGoal = (goalId) => {
+    if (!ready || !goalId || boardTab(goalId)) return;
+    const serialized = JSON.stringify(frameOf(goalId));
+    if (serialized !== savedFrames.get(goalId)) {
+      try { localStorage.setItem(frameKey(goalId), serialized); savedFrames.set(goalId, serialized); } catch { /* Ignore localStorage write failure when saving frame state. */ }
     }
+  };
+  const persist = (goalId = curTab) => {
+    if (!ready) return;
+    persistGoal(goalId);
     if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
-    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames:openIds, activeTab:curTab, lastBoardView:lastBoard, frames })); } catch {}
+    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames:openIds, activeTab:curTab, lastBoardView:lastBoard, frames })); } catch { /* Ignore localStorage write failure when saving frame tabs. */ }
   };
   const prune = () => {
     const known = knownIds();
@@ -71,29 +73,37 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     Object.keys(frames).forEach((id) => { if (!known.has(id)) delete frames[id]; });
     if (!boardTab(curTab) && !openIds.includes(curTab)) curTab = lastBoard;
   };
+  const ensureAssets = () => {
+    if (assetServiceStarted) return;
+    assetServiceStarted = true;
+    queueMicrotask(() => { void host.frameAssets().catch(() => { /* The explicit picker can retry the shared bridge. */ }); });
+  };
+  const allFrameSurfaces = () => [...new Set([surfaceEl, ...document.querySelectorAll("[data-tab-panes] [data-goal-frame-surface]")])].filter(Boolean);
   const applySurface = () => {
+    const multiPane = document.querySelectorAll("[data-tab-pane]").length > 1;
     const onGoal = getSurface() === "goals";
     const showFrame = onGoal && !boardTab(curTab);
     const receiving = showFrame ? curTab : "";
     if (receivingKey !== receiving) { receivingKey = receiving; receivingVersion++; }
-    shell.hidden = !onGoal || showFrame;
+    if (!multiPane) {
+      shell.hidden = !onGoal || showFrame;
+      surfaceEl.hidden = !showFrame;
+    }
     const tabRoot = document.querySelector("[data-tab-workspace]");
     if (tabRoot) tabRoot.hidden = false;
-    surfaceEl.hidden = !showFrame;
     if (onGoal && !showFrame) shell.dataset.boardView = boardTab(curTab) ? curTab : LIST_TAB;
     if (showFrame) {
-      drawFrame();
-      if (!assetServiceStarted) {
-        assetServiceStarted = true;
-        queueMicrotask(() => { void host.frameAssets().catch(() => { /* The explicit picker can retry the shared bridge. */ }); });
-      }
+      drawFrame(surfaceEl, curTab);
+      ensureAssets();
     }
   };
-  const setCamera = () => {
-    if (boardTab(curTab)) return;
-    const camera = frameOf(curTab).camera;
-    worldEl.style.transform = "translate(" + camera.x + "px," + camera.y + "px) scale(" + camera.z + ")";
-    if (zoomValue) zoomValue.textContent = Math.round(camera.z * 100) + "%";
+  const setCamera = (target = surfaceEl, goalId = target?.dataset.frameGoal || curTab) => {
+    if (!target || !goalId || boardTab(goalId)) return;
+    const camera = frameOf(goalId).camera;
+    const world = target.querySelector("[data-frame-world]");
+    const zoom = target.querySelector("[data-frame-zoom-value]");
+    if (world) world.style.transform = "translate(" + camera.x + "px," + camera.y + "px) scale(" + camera.z + ")";
+    if (zoom) zoom.textContent = Math.round(camera.z * 100) + "%";
   };
   const liveAssetRow = (block) => [...document.querySelectorAll("[data-frame-asset]")].find((row) => row.dataset.frameAsset === block.kind && row.dataset.frameAssetId === block.itemId);
   const showBlockError = (body, error) => {
@@ -244,30 +254,38 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     try {
       const previous = frames[goalId], incoming = JSON.parse(event.newValue);
       frames[goalId] = incoming; savedFrames.set(goalId, event.newValue); loadedFrames.add(goalId);
-      if (curTab === goalId && isFrameTabActive()) {
-        if (previous?.expanded === incoming.expanded && JSON.stringify(previous?.blocks) === JSON.stringify(incoming.blocks)) setCamera();
-        else drawFrame();
-      }
-    } catch {}
+      const cameraOnly = previous?.expanded === incoming.expanded && JSON.stringify(previous?.blocks) === JSON.stringify(incoming.blocks);
+      allFrameSurfaces().forEach((el) => {
+        if (el.dataset.frameGoal === goalId && !el.hidden) {
+          if (cameraOnly) setCamera(el, goalId);
+          else drawFrame(el, goalId);
+        }
+      });
+    } catch { /* Ignore malformed cross-tab frame storage update. */ }
   });
-  const drawFrame = () => {
-    if (boardTab(curTab)) return;
-    const frame = frameOf(curTab);
-    const item = visibleGoals().find((entry) => entry.goal.goal_id === curTab);
-    surfaceEl.dataset.frameGoal = curTab;
-    const put = (selector, text) => { const el = surfaceEl.querySelector(selector); if (el.textContent !== text) el.textContent = text; };
-    put('[data-frame-goal-title]', goalTitle(curTab));
+  const drawFrame = (target = surfaceEl, goalId = target?.dataset.frameGoal || curTab) => {
+    if (!target || !goalId || boardTab(goalId)) return;
+    const frame = frameOf(goalId);
+    const item = visibleGoals().find((entry) => entry.goal.goal_id === goalId);
+    target.dataset.frameGoal = goalId;
+    const put = (selector, text) => { const el = target.querySelector(selector); if (el && el.textContent !== text) el.textContent = text; };
+    put('[data-frame-goal-title]', goalTitle(goalId));
     const status = item?.display_status || item?.status || "";
-    const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
-    const source = document.querySelector('[data-goal-id="' + CSS.escape(curTab) + '"] .goal-status');
-    statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
-    if (source) statusEl.innerHTML = source.innerHTML;
-    else statusEl.textContent = item?.status_label || status;
-    statusEl.dataset.status = status;
+    const statusEl = target.querySelector('[data-frame-goal-status]');
+    const source = document.querySelector('[data-goal-id="' + CSS.escape(goalId) + '"] .goal-status');
+    if (statusEl) {
+      statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
+      if (source) statusEl.innerHTML = source.innerHTML;
+      else statusEl.textContent = item?.status_label || status;
+      statusEl.dataset.status = status;
+    }
     put('[data-frame-goal-outcome]', item?.goal.outcome || globalThis.t.text("workbench.frame-container.no-expected-result-written-yet-can-add-one"));
-    surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
-    setCamera();
-    worldEl.replaceChildren();
+    const emptyEl = target.querySelector('[data-frame-empty]');
+    if (emptyEl) emptyEl.hidden = frame.blocks.length > 0;
+    setCamera(target, goalId);
+    const world = target.querySelector("[data-frame-world]");
+    if (!world) return;
+    world.replaceChildren();
     frame.blocks.forEach((block) => {
       const article = document.createElement("article");
       article.className = "frame-block" + (frame.expanded === block.id ? " is-expanded" : "");
@@ -295,12 +313,13 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const body = document.createElement("div");
       body.dataset.frameBlockBody = "";
       article.append(caption, handle, stamp, body);
-      worldEl.append(article);
+      world.append(article);
       if (frame.expanded === block.id) void fillBody(article, block);
     });
   };
-  surfaceEl.querySelector('[data-frame-goal-work]')?.addEventListener('click', () => host.openGoalWork?.());
-  surfaceEl.querySelector('[data-frame-goal-locate]')?.addEventListener('click', () => locateGoal(curTab));
+  const drawGoalFrames = (goalId) => {
+    allFrameSurfaces().forEach((el) => { if (el.dataset.frameGoal === goalId && !el.hidden) drawFrame(el, goalId); });
+  };
   const sync = () => {
     renderTabs();
     applySurface();
@@ -321,11 +340,18 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const showKanban = () => showBoard(KANBAN_TAB);
   const openFrame = (goalId) => host.openGoalTab?.(goalId);
   // Answers false for a Goal the board does not list, so the caller reads it instead (it may be gone: 07-1 S3).
-  const showGoalFrame = (goalId) => {
+  const showGoalFrame = (goalId, target = surfaceEl) => {
     if (!enabled() || !goalId) return;
     if (!knownIds().has(goalId)) return false;
     frameOf(goalId);
     if (!openIds.includes(goalId)) openIds.push(goalId);
+    if (target && (target !== surfaceEl || document.querySelectorAll("[data-tab-pane]").length > 1)) {
+      bindFrameSurface(target);
+      target.dataset.frameGoal = goalId;
+      drawFrame(target, goalId);
+      ensureAssets();
+      return true;
+    }
     curTab = goalId;
     setWorkSurface("goals");
     setWorkspaceMode("graph");
@@ -379,9 +405,9 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     window.setTimeout(() => viewport?.classList.remove("is-reject"), 420);
     showToast(globalThis.t.text("workbench.frame-container.goal-canvas-only-holds-goals-open-frame-first"));
   };
-  const rejectGoal = () => {
-    canvasEl.classList.add("is-reject");
-    window.setTimeout(() => canvasEl.classList.remove("is-reject"), 420);
+  const rejectGoal = (targetCanvas = canvasEl) => {
+    targetCanvas?.classList.add("is-reject");
+    window.setTimeout(() => targetCanvas?.classList.remove("is-reject"), 420);
     showToast(globalThis.t.text("workbench.frame-container.goals-stay-main-canvas-frame-only-holds-work"));
   };
   const readAsset = (target) => {
@@ -410,10 +436,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   };
-  const addBlock = (asset, clientX, clientY) => {
-    if (!asset?.id || asset.kind === "goal") { rejectGoal(); return; }
-    const frame = frameOf(curTab);
-    const rect = canvasEl.getBoundingClientRect();
+  const addBlock = (asset, clientX, clientY, targetSurface = surfaceEl, goalId = targetSurface?.dataset.frameGoal || curTab) => {
+    const targetCanvas = targetSurface?.querySelector("[data-frame-canvas]") || canvasEl;
+    if (!asset?.id || asset.kind === "goal") { rejectGoal(targetCanvas); return; }
+    if (!goalId || boardTab(goalId)) return;
+    const frame = frameOf(goalId);
+    const rect = targetCanvas.getBoundingClientRect();
     const n = frame.blocks.length;
     const x = clientX == null ? 48 + (n % 3) * 260 : (clientX - rect.left - frame.camera.x) / frame.camera.z - 40;
     const y = clientY == null ? 48 + Math.floor(n / 3) * 140 : (clientY - rect.top - frame.camera.y) / frame.camera.z - 24;
@@ -429,14 +457,14 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       x: Math.max(16, x),
       y: Math.max(16, y),
     });
-    drawFrame();
-    persist();
+    drawGoalFrames(goalId);
+    persist(goalId);
   };
   const picker = surfaceEl.querySelector("[data-frame-picker]");
   const pickQuery = picker.querySelector("[data-frame-picker-search]");
   const pickerKind = picker.querySelector("[data-frame-picker-kind]");
   const pickerList = picker.querySelector("[data-frame-picker-list]");
-  let pickItems = [], pickerOpener = null;
+  let pickItems = [], pickerOpener = null, pickerSurface = surfaceEl, pickerGoal = "";
   const drawPicker = () => {
     const query = pickQuery.value.trim().toLocaleLowerCase();
     const matches = pickItems.filter((asset) => (pickerKind.value === "all" || asset.kind === pickerKind.value) && (asset.title + " " + asset.caption).toLocaleLowerCase().includes(query));
@@ -447,6 +475,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       empty.textContent = pickItems.length ? globalThis.t.text("workbench.frame-container.no-matches-try-another-search-source") : globalThis.t.text("workbench.frame-container.project-has-no-content-add-yet");
       pickerList.append(empty);
     }
+    const targetSurface = pickerSurface || surfaceEl;
+    const targetGoal = pickerGoal || targetSurface.dataset.frameGoal || curTab;
+    const targetCanvas = targetSurface.querySelector("[data-frame-canvas]") || canvasEl;
+    const targetWorld = targetSurface.querySelector("[data-frame-world]") || worldEl;
     for (const asset of matches) {
       const button = document.createElement("button");
       button.type = "button";
@@ -454,14 +486,14 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const title = document.createElement("strong"), caption = document.createElement("small"), state = document.createElement("span");
       title.textContent = asset.title;
       caption.textContent = [kindLabel(asset.kind), asset.caption].filter(Boolean).join(" · ");
-      button.disabled = frameOf(curTab).blocks.some((block) => block.kind === asset.kind && block.itemId === asset.id);
+      button.disabled = frameOf(targetGoal).blocks.some((block) => block.kind === asset.kind && block.itemId === asset.id);
       state.textContent = button.disabled ? globalThis.t.text("workbench.frame-container.added") : "+";
       state.setAttribute("aria-hidden", "true");
       button.append(title, caption, state);
       button.addEventListener("click", async event => {
         if (asset.source && !event.isTrusted) return;
-        const rect = canvasEl.getBoundingClientRect();
-        const accept = captureAsset(rect.left + rect.width / 2 - 70, rect.top + Math.min(rect.height / 2, 120));
+        const rect = targetCanvas.getBoundingClientRect();
+        const accept = captureAsset(rect.left + rect.width / 2 - 70, rect.top + Math.min(rect.height / 2, 120), targetSurface, targetGoal);
         if (!accept) return;
         button.disabled = true;
         try {
@@ -469,17 +501,18 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
           if (!fresh || !accept(fresh)) { button.remove(); return; }
           picker.close();
         } catch { button.remove(); return; }
-        requestAnimationFrame(() => worldEl.lastElementChild?.focus({ preventScroll: true }));
+        requestAnimationFrame(() => targetWorld.lastElementChild?.focus({ preventScroll: true }));
       });
       pickerList.append(button);
     }
   };
   let pickerRead = null;
-  surfaceEl.querySelectorAll("[data-frame-add-content]").forEach((button) => button.addEventListener("click", async () => {
-    if (!isFrameTabActive()) return;
+  const openPickerFor = async (targetSurface, button) => {
+    const goalId = targetSurface.dataset.frameGoal || curTab;
+    if (!goalId || boardTab(goalId) || !targetSurface.checkVisibility({ visibilityProperty: true })) return;
     pickerRead?.abort(); pickerRead = new AbortController();
-    const signal = pickerRead.signal, target = curTab, version = receivingVersion;
-    pickerOpener = button;
+    const signal = pickerRead.signal, version = receivingVersion;
+    pickerOpener = button; pickerSurface = targetSurface; pickerGoal = goalId;
     const assets = new Map();
     document.querySelectorAll("[data-frame-asset]").forEach((row) => {
       const asset = readAsset(row);
@@ -487,34 +520,29 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     });
     try { for (const asset of await (await host.frameAssets()).list(signal)) assets.set(asset.kind + ":" + asset.id, asset); }
     catch { if (!signal.aborted) showToast(globalThis.t.text("workbench.frame-container.drop-content-unreadable"), true); return; }
-    if (signal.aborted || !isFrameTabActive() || curTab !== target || version !== receivingVersion) return;
+    if (signal.aborted || !targetSurface.checkVisibility({ visibilityProperty: true }) || (targetSurface.dataset.frameGoal || curTab) !== goalId || version !== receivingVersion) return;
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";
     drawPicker(); picker.showModal();
-  }));
+  };
   pickQuery.addEventListener("input", drawPicker);
   pickerKind.addEventListener("change", drawPicker);
   picker.querySelectorAll("[data-frame-picker-close]").forEach((button) => button.addEventListener("click", () => picker.close()));
   picker.addEventListener("close", () => { pickerRead?.abort(); pickerOpener?.focus({ preventScroll: true }); });
-  canvasEl.addEventListener("keydown", (event) => {
-    if (!["Enter", " "].includes(event.key) || !event.target.matches("[data-frame-block]")) return;
-    event.preventDefault(); event.target.click();
-    worldEl.querySelector('[data-frame-block="' + CSS.escape(event.target.dataset.frameBlock) + '"]')?.focus({ preventScroll: true });
-  });
-  const routeAsset = (asset, clientX, clientY) => {
+  const routeAsset = (asset, clientX, clientY, targetSurface = surfaceEl, goalId = targetSurface?.dataset.frameGoal || curTab) => {
     if (!asset?.kind) return false;
     if (asset.kind === "goal") { locateGoal(asset.id); return true; }
-    if (boardTab(curTab)) { rejectCanvas(); return true; }
-    addBlock(asset, clientX, clientY);
+    if (!goalId || boardTab(goalId)) { rejectCanvas(); return true; }
+    addBlock(asset, clientX, clientY, targetSurface, goalId);
     return true;
   };
-  const captureAsset = (x, y) => {
-    const current = () => isFrameTabActive() && surfaceEl.checkVisibility({ visibilityProperty: true }) && host.visible?.() !== false;
+  const captureAsset = (x, y, targetSurface = surfaceEl, targetGoal = targetSurface?.dataset.frameGoal || curTab) => {
+    const current = () => Boolean(targetGoal) && !boardTab(targetGoal) && targetSurface.isConnected && targetSurface.checkVisibility({ visibilityProperty: true }) && host.visible?.() !== false;
     if (!current()) return null;
-    const target = curTab, version = receivingVersion;
+    const version = receivingVersion;
     return asset => {
-      if (!current() || curTab !== target || version !== receivingVersion || !knownIds().has(target)) return false;
-      return routeAsset(asset, x, y);
+      if (!current() || (targetSurface.dataset.frameGoal || curTab) !== targetGoal || version !== receivingVersion || !knownIds().has(targetGoal)) return false;
+      return routeAsset(asset, x, y, targetSurface, targetGoal);
     };
   };
   const restore = () => {
@@ -527,8 +555,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
         frames = stored.frames && typeof stored.frames === "object" ? stored.frames : {};
       }
     } catch { openIds = []; curTab = LIST_TAB; lastBoard = LIST_TAB; frames = {}; }
-    // A split pane's Goals page has no item in its URL. The project-level Frame selection
-    // may be a Goal open in another pane; its saved board view is the page's view.
     const paneParams = new URLSearchParams(location.search);
     if (window.parent !== window && paneParams.has("workbenchPane") && paneParams.get("panePlugin") === "goals" && !paneParams.has("paneItem")) curTab = lastBoard;
     prune();
@@ -556,8 +582,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("click", (event) => {
     if (!isFrameTabActive()) return;
     const asset = readAsset(event.target);
-    if (!asset?.kind) return;
-    if (asset.kind === "goal") return;
+    if (!asset?.kind || asset.kind === "goal") return;
     event.preventDefault();
     event.stopPropagation();
     routeAsset(asset);
@@ -585,137 +610,126 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (asset.kind === "goal") locateGoal(asset.id);
     else rejectCanvas();
   });
-  canvasEl.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    canvasEl.classList.add("is-drop");
-  });
-  canvasEl.addEventListener("dragleave", (event) => {
-    if (!canvasEl.contains(event.relatedTarget)) canvasEl.classList.remove("is-drop");
-  });
-  canvasEl.addEventListener("drop", (event) => {
-    event.preventDefault();
-    canvasEl.classList.remove("is-drop");
-    const asset = readTransfer(event) || dragAsset;
-    if (!asset) return;
-    if (asset.handle) {
-      if (!event.isTrusted) return;
-      const accept = captureAsset(event.clientX, event.clientY);
-      if (accept) void host.frameAssets().then(service => service.drag(asset)).then(fresh => { if (fresh) accept(fresh); }).catch(() => { /* An old source cannot add a block. */ });
-      return;
-    }
-    if (["feed", "inbox"].includes(asset.kind)) return;
-    if (asset.kind === "goal") { rejectGoal(); return; }
-    routeAsset(asset, event.clientX, event.clientY);
-  });
-  let pan = null;
-  canvasEl.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || boardTab(curTab)) return;
-    if (event.target.closest("[data-frame-add-content], [data-frame-block-close], [data-frame-block-retry], [data-frame-block-body] a, [data-frame-block-body] button")) return;
-    if (event.target.closest("[data-frame-block-body]")) return;
-    const block = event.target.closest("[data-frame-block]");
-    const frame = frameOf(curTab);
-    pan = {
-      id: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      block,
-      origin: block
-        ? { ...frame.blocks.find((item) => item.id === block.dataset.frameBlock) }
-        : { ...frame.camera },
-      moved: false,
-    };
-    event.preventDefault();
-    try { (block || canvasEl).setPointerCapture(event.pointerId); } catch {}
-  });
-  canvasEl.addEventListener("pointermove", (event) => {
-    if (!pan || pan.id !== event.pointerId) return;
-    const dx = event.clientX - pan.x, dy = event.clientY - pan.y;
-    if (!pan.moved && Math.hypot(dx, dy) < 5) return;
-    pan.moved = true;
-    const frame = frameOf(curTab);
-    if (pan.block) {
-      const block = frame.blocks.find((item) => item.id === pan.block.dataset.frameBlock);
-      if (block) {
-        block.x = pan.origin.x + dx / frame.camera.z;
-        block.y = pan.origin.y + dy / frame.camera.z;
-        pan.block.style.transform = "translate(" + block.x + "px," + block.y + "px)";
+  const boundSurfaces = new WeakSet();
+  const bindFrameSurface = (target) => {
+    if (!target || boundSurfaces.has(target)) return;
+    boundSurfaces.add(target);
+    const canvas = target.querySelector("[data-frame-canvas]");
+    const world = target.querySelector("[data-frame-world]");
+    if (!canvas || !world) return;
+    const goalOf = () => target.dataset.frameGoal || curTab;
+    target.querySelector("[data-frame-goal-work]")?.addEventListener("click", () => host.openGoalWork?.(target.closest("[data-tab-pane]")?.dataset.tabPane));
+    target.querySelector("[data-frame-goal-locate]")?.addEventListener("click", () => locateGoal(goalOf()));
+    target.querySelectorAll("[data-frame-add-content]").forEach((button) => button.addEventListener("click", () => void openPickerFor(target, button)));
+    canvas.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key) || !event.target.matches("[data-frame-block]")) return;
+      event.preventDefault(); event.target.click();
+      world.querySelector('[data-frame-block="' + CSS.escape(event.target.dataset.frameBlock) + '"]')?.focus({ preventScroll: true });
+    });
+    canvas.addEventListener("dragover", (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; canvas.classList.add("is-drop"); });
+    canvas.addEventListener("dragleave", (event) => { if (!canvas.contains(event.relatedTarget)) canvas.classList.remove("is-drop"); });
+    canvas.addEventListener("drop", (event) => {
+      event.preventDefault(); canvas.classList.remove("is-drop");
+      const asset = readTransfer(event) || dragAsset;
+      if (!asset) return;
+      const goalId = goalOf();
+      if (asset.handle) {
+        if (!event.isTrusted) return;
+        const accept = captureAsset(event.clientX, event.clientY, target, goalId);
+        if (accept) void host.frameAssets().then(service => service.drag(asset)).then(fresh => { if (fresh) accept(fresh); }).catch(() => { /* An old source cannot add a block. */ });
+        return;
       }
-    } else {
-      frame.camera.x = pan.origin.x + dx;
-      frame.camera.y = pan.origin.y + dy;
-      setCamera();
-    }
-    canvasEl.classList.add("is-panning");
-  });
-  const finishPan = (event) => {
-    if (!pan || pan.id !== event.pointerId) return;
-    ignoreClick = pan.moved;
-    const captured = pan.block || canvasEl;
-    pan = null;
-    if (captured.hasPointerCapture?.(event.pointerId)) captured.releasePointerCapture(event.pointerId);
-    canvasEl.classList.remove("is-panning");
-    persist();
-    setTimeout(() => { ignoreClick = false; }, 0);
+      if (["feed", "inbox"].includes(asset.kind)) return;
+      if (asset.kind === "goal") { rejectGoal(canvas); return; }
+      routeAsset(asset, event.clientX, event.clientY, target, goalId);
+    });
+    let pan = null;
+    canvas.addEventListener("pointerdown", (event) => {
+      const goalId = goalOf();
+      if (event.button !== 0 || !goalId || boardTab(goalId)) return;
+      if (event.target.closest("[data-frame-add-content], [data-frame-block-close], [data-frame-block-retry], [data-frame-block-body]")) return;
+      const block = event.target.closest("[data-frame-block]");
+      const frame = frameOf(goalId);
+      pan = { id: event.pointerId, x: event.clientX, y: event.clientY, block, goalId, origin: block ? { ...frame.blocks.find((item) => item.id === block.dataset.frameBlock) } : { ...frame.camera }, moved: false };
+      event.preventDefault();
+      try { (block || canvas).setPointerCapture(event.pointerId); } catch { /* Pointer capture may be unavailable for synthetic or released pointers. */ }
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!pan || pan.id !== event.pointerId) return;
+      const dx = event.clientX - pan.x, dy = event.clientY - pan.y;
+      if (!pan.moved && Math.hypot(dx, dy) < 5) return;
+      pan.moved = true;
+      const frame = frameOf(pan.goalId);
+      if (pan.block) {
+        const block = frame.blocks.find((item) => item.id === pan.block.dataset.frameBlock);
+        if (block) {
+          block.x = pan.origin.x + dx / frame.camera.z; block.y = pan.origin.y + dy / frame.camera.z;
+          pan.block.style.transform = "translate(" + block.x + "px," + block.y + "px)";
+        }
+      } else {
+        frame.camera.x = pan.origin.x + dx; frame.camera.y = pan.origin.y + dy;
+        setCamera(target, pan.goalId);
+      }
+      canvas.classList.add("is-panning");
+    });
+    const finishPan = (event) => {
+      if (!pan || pan.id !== event.pointerId) return;
+      const goalId = pan.goalId; ignoreClick = pan.moved;
+      const captured = pan.block || canvas; pan = null;
+      if (captured.hasPointerCapture?.(event.pointerId)) captured.releasePointerCapture(event.pointerId);
+      canvas.classList.remove("is-panning");
+      persist(goalId);
+      setTimeout(() => { ignoreClick = false; }, 0);
+    };
+    canvas.addEventListener("pointerup", finishPan);
+    canvas.addEventListener("pointercancel", finishPan);
+    canvas.addEventListener("click", (event) => {
+      if (ignoreClick) { event.preventDefault(); event.stopPropagation(); return; }
+      const goalId = goalOf();
+      const close = event.target.closest("[data-frame-block-close]");
+      if (close) { event.preventDefault(); event.stopPropagation(); frameOf(goalId).expanded = ""; drawGoalFrames(goalId); persist(goalId); return; }
+      const retry = event.target.closest("[data-frame-block-retry]");
+      if (retry) {
+        event.preventDefault();
+        const article = retry.closest("[data-frame-block]");
+        const block = frameOf(goalId).blocks.find((item) => item.id === article?.dataset.frameBlock);
+        if (article && block) void fillBody(article, block, true);
+        return;
+      }
+      if (event.target.closest("[data-frame-block-body] a, [data-frame-block-body] button, [data-feed-action], [data-inbox-action]")) return;
+      const article = event.target.closest("[data-frame-block]");
+      if (!article || !goalId || boardTab(goalId)) return;
+      const frame = frameOf(goalId);
+      if (frame.expanded === article.dataset.frameBlock) return;
+      frame.expanded = article.dataset.frameBlock;
+      drawGoalFrames(goalId); persist(goalId);
+    });
+    canvas.addEventListener("wheel", (event) => {
+      const goalId = goalOf();
+      if (!goalId || boardTab(goalId) || event.target.closest("[data-frame-block-body]")) return;
+      event.preventDefault();
+      const frame = frameOf(goalId);
+      if (event.ctrlKey || event.metaKey) {
+        const rect = canvas.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
+        const next = Math.min(1.6, Math.max(0.4, frame.camera.z * Math.exp(-event.deltaY * .008)));
+        frame.camera.x = x - (x - frame.camera.x) * next / frame.camera.z;
+        frame.camera.y = y - (y - frame.camera.y) * next / frame.camera.z;
+        frame.camera.z = next;
+      } else {
+        frame.camera.x -= event.deltaX || (event.shiftKey ? event.deltaY : 0);
+        frame.camera.y -= event.shiftKey ? 0 : event.deltaY;
+      }
+      setCamera(target, goalId); persist(goalId);
+    }, { passive: false });
+    target.addEventListener("click", (event) => {
+      const zoom = event.target.closest("[data-frame-zoom]"), goalId = goalOf();
+      if (!zoom || !goalId || boardTab(goalId)) return;
+      const frame = frameOf(goalId);
+      frame.camera.z = Math.min(1.6, Math.max(0.4, frame.camera.z * (zoom.dataset.frameZoom === "in" ? 1.15 : .85)));
+      setCamera(target, goalId); persist(goalId);
+    });
   };
-  canvasEl.addEventListener("pointerup", finishPan);
-  canvasEl.addEventListener("pointercancel", finishPan);
-  canvasEl.addEventListener("click", (event) => {
-    if (ignoreClick) { event.preventDefault(); event.stopPropagation(); return; }
-    const close = event.target.closest("[data-frame-block-close]");
-    if (close) {
-      event.preventDefault();
-      event.stopPropagation();
-      const frame = frameOf(curTab);
-      frame.expanded = "";
-      drawFrame();
-      persist();
-      return;
-    }
-    const retry = event.target.closest("[data-frame-block-retry]");
-    if (retry) {
-      event.preventDefault();
-      const article = retry.closest("[data-frame-block]");
-      const block = frameOf(curTab).blocks.find((item) => item.id === article?.dataset.frameBlock);
-      if (article && block) void fillBody(article, block, true);
-      return;
-    }
-    if (event.target.closest("[data-frame-block-body] a, [data-frame-block-body] button, [data-feed-action], [data-inbox-action]")) return;
-    const article = event.target.closest("[data-frame-block]");
-    if (!article || boardTab(curTab)) return;
-    const frame = frameOf(curTab);
-    if (frame.expanded === article.dataset.frameBlock) return;
-    frame.expanded = article.dataset.frameBlock;
-    drawFrame();
-    persist();
-  });
-  canvasEl.addEventListener("wheel", (event) => {
-    if (boardTab(curTab)) return;
-    if (event.target.closest("[data-frame-block-body]")) return;
-    event.preventDefault();
-    const frame = frameOf(curTab);
-    if (event.ctrlKey || event.metaKey) {
-      const rect = canvasEl.getBoundingClientRect();
-      const x = event.clientX - rect.left, y = event.clientY - rect.top;
-      const next = Math.min(1.6, Math.max(0.4, frame.camera.z * Math.exp(-event.deltaY * .008)));
-      frame.camera.x = x - (x - frame.camera.x) * next / frame.camera.z;
-      frame.camera.y = y - (y - frame.camera.y) * next / frame.camera.z;
-      frame.camera.z = next;
-    } else {
-      frame.camera.x -= event.deltaX || (event.shiftKey ? event.deltaY : 0);
-      frame.camera.y -= event.shiftKey ? 0 : event.deltaY;
-    }
-    setCamera();
-    persist();
-  }, { passive: false });
-  surfaceEl.addEventListener("click", (event) => {
-    const zoom = event.target.closest("[data-frame-zoom]");
-    if (!zoom || boardTab(curTab)) return;
-    const frame = frameOf(curTab);
-    frame.camera.z = Math.min(1.6, Math.max(0.4, frame.camera.z * (zoom.dataset.frameZoom === "in" ? 1.15 : .85)));
-    setCamera();
-    persist();
-  });
+  bindFrameSurface(surfaceEl);
   restore();
-  return { isFrameTabActive, isKanbanTabActive, openFrame, showGoalFrame, locateGoal, showList, showCanvas, showKanban, restoreBoard, closeFrame, releaseFrame, restore, sync };
+  return { isFrameTabActive, isKanbanTabActive, openFrame, showGoalFrame, bindFrameSurface, locateGoal, showList, showCanvas, showKanban, restoreBoard, closeFrame, releaseFrame, restore, sync };
 }`;

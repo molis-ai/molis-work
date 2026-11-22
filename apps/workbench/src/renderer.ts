@@ -4,6 +4,7 @@ import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
   renderMolisWorkArrivalStylesheet as renderArrivalCss,
+  renderMolisWorkPluginBaseStylesheet as renderPluginBaseCss,
   renderMolisWorkSettingsStylesheet as renderSettingsCss,
   renderMolisWorkWorkbenchClientScript as renderWorkbenchClient,
   renderMolisWorkWorkbenchStylesheet as renderWorkbenchCss,
@@ -86,6 +87,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     renderMolisWorkProjectSettings,
     renderMolisWorkProjectGuidanceSettings,
     renderMolisWorkWorkbenchStylesheet: (): string => renderWorkbenchCss(),
+    renderMolisWorkPluginBaseStylesheet: (): string => renderPluginBaseCss(),
     renderMolisWorkArrivalStylesheet: (): string => renderArrivalCss(),
     renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),

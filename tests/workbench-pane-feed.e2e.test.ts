@@ -17,8 +17,8 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   const main = await pluginFrameBrowser(t, browser, "feed");
-  const firstPane = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-pane-index="0"]');
-  const secondPane = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-pane-index="1"]');
+  const firstPane = await pluginFrameBrowser(t, browser, "feed", undefined, '[data-tab-pane][data-t403-pane-index="0"] iframe[data-plugin-frame="feed"]');
+  const secondPane = await pluginFrameBrowser(t, browser, "feed", undefined, '[data-tab-pane][data-t403-pane-index="1"] iframe[data-plugin-frame="feed"]');
   await addProjectPlugin(browser.web, projectId!, "feed");
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
@@ -51,23 +51,25 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.ok(widths.length >= 1 && widths.every((width) => width > 0 && width <= 172), "unpinned tabs hug or share at or below 172px: " + JSON.stringify(widths));
   await click('[data-layout-open]');
   await click('[data-layout-split=right]');
-  await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
-  // RAC-2687: a source choice belongs to its actual iframe, even after focus moved to its neighbour.
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0 && [...document.querySelectorAll('[data-tab-pane]')].every(pane => pane.querySelector('[data-work-surface=feed]:not([hidden]) iframe[data-plugin-frame=feed]'))");
+  // RAC-2687: a source choice belongs to its actual pane, even after focus moved to its neighbour.
   const layoutKey = "molis-work-tab-workspace:" + projectId;
   const focusedBefore = await evaluate<string>(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).focusedPaneId`);
-  await evaluate(`(() => { const frames=[...document.querySelectorAll('iframe.tab-content-frame')]; frames.forEach((frame,index)=>frame.dataset.t403PaneIndex=String(index)); window.pr2FirstPane=frames[0].dataset.paneOwner; })()`);
+  await evaluate(`(() => { const panes=[...document.querySelectorAll('[data-tab-pane]')]; panes.forEach((pane,index)=>pane.dataset.t403PaneIndex=String(index)); window.pr2FirstPane=panes[0].dataset.tabPane; })()`);
   await firstPane.waitFor("document.querySelector('[data-feed-task]')");
   // T405-17B5-UI-02: HTML arrives before the opaque client's factory installs its click listener.
-  await waitFor("(()=>{const frame=document.querySelector('iframe[data-t403-pane-index=\"0\"]');return frame?.isConnected && !frame.hidden && frame.contentDocument?.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready';})()");
+  await waitFor("(()=>{const pane=document.querySelector('[data-tab-pane][data-t403-pane-index=\"0\"]');return pane?.isConnected && pane.querySelector('[data-work-surface=feed]:not([hidden])')?.dataset.uiClientState==='ready';})()");
   await firstPane.evaluate(`document.querySelector('[data-feed-task="${source}"]').click()`);
   await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.find(p=>p.id===window.pr2FirstPane).tabs.some(t=>t.plugin==='feed'&&t.kind==='plugin'&&t.view===${JSON.stringify(source)})`);
   assert.equal(await evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).focusedPaneId`), focusedBefore);
   assert.equal(await secondPane.evaluate("document.querySelector('[data-feed-workbench]').dataset.selectedSource"), "all");
   const storedViews = await evaluate<string>(`localStorage.getItem(${JSON.stringify(layoutKey)})`);
-  await evaluate(`(() => { const frame=document.querySelector('iframe.tab-content-frame'),data={type:'workbench-pane-view',view:'forged',paneId:${JSON.stringify(focusedBefore)}};
+  await evaluate(`(() => { const forged=document.createElement('iframe'); forged.dataset.paneOwner=${JSON.stringify(focusedBefore)}; document.body.append(forged); const data={type:'workbench-pane-view',view:'forged',paneId:${JSON.stringify(focusedBefore)}};
     dispatchEvent(new MessageEvent('message',{origin:location.origin,source:window,data}));
-    dispatchEvent(new MessageEvent('message',{origin:'https://example.com',source:frame.contentWindow,data})); })()`);
-  assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(layoutKey)})`), storedViews, "S-30 refuses the wrong window and origin before changing any pane view");
+    dispatchEvent(new MessageEvent('message',{origin:location.origin,source:forged.contentWindow,data}));
+    dispatchEvent(new MessageEvent('message',{origin:'https://example.com',source:forged.contentWindow,data}));
+    forged.remove(); })()`);
+  assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(layoutKey)})`), storedViews, "S-30 refuses non-side windows and foreign origins before changing any pane view");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden)"), true);
   const unfilteredCount = await secondPane.evaluate<string>("document.querySelector('[data-feed-result-count]').textContent");
@@ -81,7 +83,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source", "splitting a neighbour must preserve existing content state");
   const sash = await evaluate<{x:number;y:number;hit:boolean}>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),r=node.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/4;window.t403SashNode=node;window.t403SashTrace=[];const record=event=>{t403SashTrace.push({type:event.type,trusted:event.isTrusted,pointerId:event.pointerId,buttons:event.buttons,x:event.clientX,y:event.clientY,at:event.timeStamp,connected:node.isConnected,captured:node.hasPointerCapture(event.pointerId),target:event.target.outerHTML?.slice(0,120)});t403SashTrace.splice(0,Math.max(0,t403SashTrace.length-12))};const types=['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture','mousedown','mousemove','mouseup'];types.forEach(type=>document.addEventListener(type,record,true));window.t403StopSash=()=>types.forEach(type=>document.removeEventListener(type,record,true));return {x,y,hit:node.contains(document.elementFromPoint(x,y))}})()");
   assert.equal(sash.hit,true,'the real sash is the hit target before the press');
-  const sizing = () => evaluate<{ ratio: string; captured: boolean; iframeGuard: string[]; trace: Array<{ type: string; trusted: boolean; buttons: number }> }>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,node:{connected:t403SashNode.isConnected,same:node===t403SashNode,rect:node.getBoundingClientRect().toJSON()},viewport:[innerWidth,innerHeight],visibility:document.visibilityState,focus:document.hasFocus(),ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
+  const sizing = () => evaluate<{ ratio: string; captured: boolean; iframeGuard: string[]; trace: Array<{ type: string; trusted: boolean; buttons: number }> }>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,node:{connected:t403SashNode.isConnected,same:node===t403SashNode,rect:node.getBoundingClientRect().toJSON()},viewport:[innerWidth,innerHeight],visibility:document.visibilityState,focus:document.hasFocus(),ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe[data-plugin-frame]')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
   const resizeStages: unknown[] = [];
   const dispatch = async (params: Record<string, unknown>) => {
     const sent = { phase: 'CDP sent', params, at: Date.now() }; resizeStages.push(sent);
@@ -138,7 +140,7 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
     document.addEventListener('click',event=>{const node=event.target.closest?.('[data-feed-add-toggle]');if(node){state.clicks.push({trusted:event.isTrusted,connected:node.isConnected,mount:host.mount?.surface,at:performance.now()});if(state.clicks.length>8)state.clicks.shift();}},true);
     return factory(host);
   }:factory;return true;}});`);
-  const child = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-draft-frame]');
+  const child = await pluginFrameBrowser(t, browser, "feed", undefined, '[data-tab-pane][data-t403-draft-pane] iframe[data-plugin-frame="feed"]');
   await addProjectPlugin(browser.web, projectId!, "feed");
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
@@ -146,21 +148,22 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   await click('[data-layout-open]');
   await click('[data-layout-split=right]');
   await click('[data-plugin-id="feed"]');
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
+  await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 0 && [...document.querySelectorAll('[data-tab-pane]')].some(p => p.querySelector('[data-work-surface=feed]:not([hidden]) iframe[data-plugin-frame=feed]'))");
   await evaluate(`(() => {
-    window.draftFrame = [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].find(f=>f.contentDocument.body.dataset.desktopSurface==='feed');
-    window.draftDocument = draftFrame.contentDocument;
-    draftFrame.dataset.t403DraftFrame = "true";
+    window.draftPane = [...document.querySelectorAll('[data-tab-pane]')].find(p => p.querySelector('[data-work-surface=feed]:not([hidden])'));
+    window.draftSurface = draftPane.querySelector('[data-work-surface=feed]:not([hidden])');
+    window.draftFrame = draftSurface.querySelector('iframe[data-plugin-frame=feed]');
+    draftPane.dataset.t403DraftPane = "true";
   })()`);
   await child.waitFor("document.querySelector('[data-feed-rail-toggle]')");
   // T405-FULL-03: server HTML exists before the opaque client's factory has installed its handlers.
-  await waitFor("(()=>{const root=document.querySelector('iframe[data-t403-draft-frame]')?.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"]');return root?.dataset.uiClientState==='ready' && !root.inert;})()");
+  await waitFor("(()=>{const root=document.querySelector('[data-tab-pane][data-t403-draft-pane] [data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"]');return root?.dataset.uiClientState==='ready' && !root.inert;})()");
   await child.evaluate("document.querySelector('[data-feed-source-menu]').open=true;document.querySelector('[data-feed-source-rail] header [data-feed-add-toggle]').click()");
   try { await child.waitFor("document.querySelector('[data-feed-sources-dialog]')?.hidden === false && document.querySelector('[data-feed-workbench]')?.dataset.feedView === 'add'"); }
   catch (error) {
     const observations = await Promise.allSettled([
       observePaneFailure(() => child.evaluate("(()=>{const state=window.t405Feed,dialog=document.querySelector('[data-feed-sources-dialog]');return {url:location.href,mount:state?.host.mount,scope:state?{alive:state.host.scope.alive,visible:state.host.scope.visible}:null,clicks:state?.clicks,opens:state?.opens,dialog:dialog?{hidden:dialog.hidden,connected:dialog.isConnected}:null,view:document.querySelector('[data-feed-workbench]')?.dataset.feedView}})()", 1500)),
-      command('Runtime.evaluate', { expression: "(()=>({frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,roots:[...f.contentDocument?.querySelectorAll('[data-plugin-owner]')||[]].map(r=>({...r.dataset}))}))}))()", returnByValue: true }, sessionId, 1500),
+      command('Runtime.evaluate', { expression: "(()=>({panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,roots:[...p.querySelectorAll('[data-plugin-owner]')].map(r=>({hidden:r.hidden,...r.dataset}))}))}))()", returnByValue: true }, sessionId, 1500),
     ]);
     t.diagnostic('T405 Feed choose/setup failed ' + JSON.stringify(observations.map(value => value.status === 'fulfilled' ? value.value : { unavailable: String(value.reason) })));
     throw error;
@@ -174,12 +177,12 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
     document.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click();
 
   })()`);
-  await evaluate("window.sourcePane=draftFrame.dataset.paneOwner;window.targetPane=[...document.querySelectorAll('[data-tab-pane]')].find(p=>p.dataset.tabPane!==sourcePane).dataset.tabPane");
+  await evaluate("window.sourcePane=draftPane.dataset.tabPane;window.targetPane=[...document.querySelectorAll('[data-tab-pane]')].find(p=>p.dataset.tabPane!==sourcePane).dataset.tabPane");
   // Feed overview is a pane view, not a draggable item tab. Merge the neighbouring
-  // pane and keep the real Feed document, including its unfinished source form.
+  // pane and keep the live Feed plugin frame untouched (zero reparenting/reloading), including its unfinished source form.
   await evaluate("document.querySelector('[data-tab-pane=\"'+targetPane+'\"] [data-tab-pane-close]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===1");
-  assert.equal(await evaluate("draftFrame.contentDocument===draftDocument && !draftFrame.hidden"), true, "merge must retain the surviving content document");
+  assert.equal(await evaluate("draftFrame.isConnected && !draftFrame.hidden && !draftSurface.hidden && document.querySelector('[data-tab-pane] iframe[data-plugin-frame=feed]')===draftFrame"), true, "merge must retain the live surviving Feed frame without reparenting");
   await child.evaluate(`(() => {
     const railToggle = document.querySelector('[data-feed-rail-toggle]');
     if (railToggle.getBoundingClientRect().width && railToggle.getAttribute('aria-expanded') !== 'true') railToggle.click();
@@ -190,7 +193,7 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   assert.equal(await child.evaluate("document.querySelector('[data-feed-search]').value"), "保留检索");
   await child.evaluate("document.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click()");
   assert.equal(await child.evaluate("document.querySelector('[data-feed-add-form] [data-feed-source-value=custom_rss]').value"), "https://example.com/draft.xml");
-  // Focus messages still resolve the surviving Feed pane.
+  // Focus still resolves the surviving Feed pane.
   await child.evaluate("document.querySelector('[data-feed-search]').focus()");
   assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===sourcePane"), true);
 });
@@ -212,38 +215,33 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView==='CORE'");
   await click('[data-layout-open]');
   await click('[data-layout-split=right]');
-  // Each pane is a page of its own: both load the whole workbench (about five seconds on a development Mac, over twice that on the
-  // Linux CI runner, whose busy main thread also delays the page's own deadline) before showing the Goal.
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && f.contentDocument.querySelector('[data-goal-node-workspace]')?.hidden===false)", 30_000);
-  await evaluate("window.t403RelatedOpen=[];window.t403RelatedListener=event=>{if(event.data?.type!=='workbench-pane-open')return;const owner=[...document.querySelectorAll('iframe.tab-content-frame')].find(frame=>frame.contentWindow===event.source);t403RelatedOpen.push({trusted:event.isTrusted,origin:event.origin,pane:owner?.dataset.paneOwner,tab:owner?.dataset.paneTab,plugin:event.data.plugin,itemId:event.data.itemId});t403RelatedOpen.splice(0,Math.max(0,t403RelatedOpen.length-8))};addEventListener('message',t403RelatedListener)");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe.tab-content-frame').length===0 && [...document.querySelectorAll('[data-tab-pane]')].every(p=>p.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && p.querySelector('[data-goal-node-workspace]')?.hidden===false)", 15_000);
   const relatedId = await evaluate<string>(`(() => {
-    const paneId = document.querySelector('.tab-pane.is-focused').dataset.tabPane;
-    window.originalFrame = document.querySelector('iframe[data-pane-owner="'+paneId+'"]:not([hidden])');
-    window.originalDocument = originalFrame.contentDocument;
-    originalDocument.querySelector('[data-frame-goal-work]').click();
-    const toggle = originalDocument.querySelector('[data-goal-details-toggle]');
+    const pane = document.querySelector('.tab-pane.is-focused');
+    window.originalPaneId = pane.dataset.tabPane;
+    window.originalShell = pane.querySelector('[data-goal-canvas-shell]:not([hidden])');
+    window.originalTabId = pane.querySelector('.tab-item[aria-current]')?.dataset.tabId || '';
+    const toggle = pane.querySelector('[data-goal-details-toggle]');
     if(toggle?.getAttribute('aria-expanded')==='false') toggle.click();
-    originalDocument.querySelector('[data-goal-info]:not([open]) > summary')?.click();
-    originalDocument.querySelector('[data-event-reader=description]').click();
-    const link=originalDocument.querySelector('.event-reader .relation-row[data-select-goal]') || [...originalDocument.querySelectorAll('.relation-row[data-select-goal]')].find(x=>x.getBoundingClientRect().width);
+    pane.querySelector('[data-goal-info]:not([open]) > summary')?.click();
+    pane.querySelector('[data-event-reader=description]')?.click();
+    const link=pane.querySelector('.event-reader .relation-row[data-select-goal]') || [...pane.querySelectorAll('.relation-row[data-select-goal]')].find(x=>x.getBoundingClientRect().width);
     if (!link || !link.getBoundingClientRect().width) throw new Error('related Goal must be available in the content panel');
     link.click();
     return link.dataset.selectGoal;
   })()`);
-  const relatedState = () => evaluate(`({messages:t403RelatedOpen,saved:JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>({src:frame.src,hidden:frame.hidden,pane:frame.dataset.paneOwner,tab:frame.dataset.paneTab,readyState:frame.contentDocument?.readyState,goal:frame.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal,errors:frame.contentWindow?.t403RelatedErrors}))})`);
+  const relatedState = () => evaluate(`({saved:JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,frameGoal:p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal,workGoal:p.querySelector('[data-goal-view]')?.dataset.goalView,errors:window.t403RelatedErrors}))})`);
   const relatedDiagnostic = async (phase: string) => {
     try { t.diagnostic('T405 related Goal ' + phase + ' ' + JSON.stringify(await observePaneFailure(relatedState))); }
     catch (observation) { t.diagnostic('T405 related Goal ' + phase + ' diagnostic unavailable: ' + String(observation)); }
   };
-  try { await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000); }
+  try { await waitFor(`[...document.querySelectorAll('[data-tab-pane]')].some(p=>p.dataset.tabPane===originalPaneId && p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000); }
   catch(error){await relatedDiagnostic('business wait failed');throw error;}
-  const adopted = await evaluate<{core:boolean;active:string}>(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),pane=state.panes.find(pane=>pane.id===originalFrame.dataset.paneOwner);return {core:pane.tabs.some(tab=>tab.kind==='item'&&tab.plugin==='goals'&&tab.itemId==='CORE'),active:pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId}})()`);
+  const adopted = await evaluate<{core:boolean;active:string}>(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),pane=state.panes.find(pane=>pane.id===originalPaneId);return {core:pane.tabs.some(tab=>tab.kind==='item'&&tab.plugin==='goals'&&tab.itemId==='CORE'),active:pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId}})()`);
   assert.equal(adopted.core,true);assert.equal(adopted.active,relatedId);
-  await evaluate("document.querySelector('[data-tab-id=\"'+originalFrame.dataset.paneTab+'\"] .tab-item-trigger').click()");
-  await waitFor("!originalFrame.hidden");
-  assert.equal(await evaluate("originalFrame.contentDocument===originalDocument"), true);
-  assert.equal(await evaluate("originalDocument.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
-  await evaluate("removeEventListener('message',t403RelatedListener)");
+  await evaluate("document.querySelector('[data-tab-pane=\"'+originalPaneId+'\"] [data-tab-id=\"'+originalTabId+'\"] .tab-item-trigger').click()");
+  await waitFor("!originalShell.hidden");
+  assert.equal(await evaluate("originalShell.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
 });
 
 test("a background refresh keeps the titlebar tabs hidden while panes are split, and shown once they merge (RAC-1220, RAC-1221)", { timeout: 90_000 }, async (t) => {
@@ -269,7 +267,7 @@ test("a background refresh keeps the titlebar tabs hidden while panes are split,
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready'");
   await click('[data-layout-open]');
   await click('[data-layout-split=right]');
-  await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0 && [...document.querySelectorAll('[data-tab-pane]')].every(p=>p.querySelector('[data-work-surface=feed]:not([hidden])')?.dataset.uiClientState==='ready')");
   await refreshAfterWrite("background-refresh-split", "分屏之后的后台刷新");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true, "RAC-1220: a background refresh must not bring the titlebar tabs back while panes are split");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden && Boolean(strip.querySelector('.tab-item-trigger')?.getBoundingClientRect().width))"), true, "RAC-1220: every pane keeps its own visible, usable tab strip");

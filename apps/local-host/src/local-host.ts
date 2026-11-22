@@ -18,7 +18,7 @@ import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
 import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-caller.js";
-import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
+import { ProjectLine, normalizeReference, runsBesideLine } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
 import type { HostActionClient, HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
@@ -63,7 +63,7 @@ export class LocalHost<Runtime> {
       assertRunning: () => this.assertRunning(),
       assertProjectAvailable: projectId => options.assertProjectAvailable?.(projectId),
       running: () => this.state === "running",
-      concurrent: capability => this.capabilities.descriptor(capability, capability.action_provider?.project_id)?.action?.scheduling === "concurrent",
+      concurrent: capability => runsBesideLine(this.capabilities.descriptor(capability, capability.action_provider?.project_id)),
     });
     this.availability = new HostAvailability(this.actionService, this.capabilities, options);
     this.sceneHost = {
@@ -313,6 +313,8 @@ export class LocalHost<Runtime> {
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
+    const sleeping = this.line.awake(reference);
+    if (sleeping) await sleeping;
     const registered = this.capabilities.descriptor(capability, reference.project_id);
     const caller = projectCallCaller(reference.project_id, () => callSignal(registered ?? {}, () => this.line.ensureEntry(reference), options?.signal), options);
     // The definition may omit the activation scope; only the bound Host supplies it. The call is the action service's (host
@@ -352,10 +354,25 @@ export class LocalHost<Runtime> {
     return this.line.isBusy(storageKey);
   }
 
+  /** Runs `work` without it counting as use of the projects it reads (`ProjectLine.quietly`). */
+  quietly<T>(work: () => T): T {
+    return this.line.quietly(work);
+  }
+
+  /** Whether the project is open, asleep, closed on purpose or not opened yet, and when it was last used (`ProjectLine.rest`). */
+  projectRest(storageKey: string): ReturnType<ProjectLine<Runtime>["rest"]> {
+    return this.line.rest(storageKey);
+  }
+
+  /** Closes the project if it has been idle for `idleMs` and nothing of it is running (`ProjectLine.sleepIfIdle`). */
+  sleepIfIdle(storageKey: string, idleMs: number, hasLiveWork: () => Promise<boolean>): Promise<boolean> {
+    return this.line.sleepIfIdle(storageKey, idleMs, hasLiveWork);
+  }
+
   async close(): Promise<void> {
     if (this.state === "closed") return;
     this.state = "closing";
-    await Promise.all([this.homeLine.settled(), this.line.closeAll()]);
+    await Promise.all([this.homeLine.settled(), this.line.closeAll(), this.line.quietSettled()]);
     for (const dispose of this.globalActionDisposers) dispose();
     this.state = "closed";
   }

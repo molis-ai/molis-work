@@ -702,10 +702,14 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   // The pill names what the page on show would bring, so it follows the page: another object, another surface.
   let materialsFrame = 0;
   const repaintMaterials = () => { if (!materialsFrame) materialsFrame = requestAnimationFrame(() => { materialsFrame = 0; paintMats(); }); };
+  document.addEventListener("molis-work:place-changed", repaintMaterials);
   if ("MutationObserver" in window) {
-    const watcher = new MutationObserver((records) => { if (records.some((record) => !island.contains(record.target))) repaintMaterials(); });
-    watcher.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden"] });
-    watchers.push(watcher);
+    const targets = [document.querySelector("[data-tab-panes]"), document.getElementById("side-panel"), document.querySelector(".chooser")].filter(Boolean);
+    for (const target of targets) {
+      const watcher = new MutationObserver((records) => { if (records.some((record) => !island.contains(record.target))) repaintMaterials(); });
+      watcher.observe(target, { subtree: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden"] });
+      watchers.push(watcher);
+    }
   }
 
   openTab(curId); render(); paintLayout(); repaintMaterials();

@@ -95,8 +95,9 @@ test("ONB-22 the model picker reads each catalog once for a provider with many m
     assert.deepEqual(result.map(row => row.model_id), models.filter(row => row.enabled).map(row => row.model_id));
     assert.ok(result.every(row => row.provider_id === "many-models"));
     assert.deepEqual({ providersRead, connectionsRead, originsRead }, { providersRead: 1, connectionsRead: 1, originsRead: 1 });
-    // The storage owner uses one read-only handle to verify schema/ownership, then one handle for the registry queries.
-    assert.equal(registryHandles.size - registryReaders.size, 1);
+    // The Home keeps one connection to the registry (B103-02): checked when it opened, it serves these queries, and no handle is
+    // opened for them while nothing else has changed the store.
+    assert.equal(registryHandles.size, 1);
     assert.equal(registryReaders.size, 1);
     withConnectorConnections(path.join(root, "home"), store => store.setEnabled(connection.connection_id, false));
     assert.deepEqual(await read(), []);

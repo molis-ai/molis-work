@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-skill-settings-installed-plugin-scenes | 已完成并删除 | 2026-11-22（技能与能力包负责人，`system.skills` / `horizontal/kit` / 技能设置页）：技能设置与能力包场景候选改读宿主运行时当前作用域有效登记（内置插件 + 已安装且运行中、健康、未撤权的签名第三方插件），停用／卸载／撤权即时移除并拒绝新绑定，沙箱清单校验（`sandboxPluginManifest` / `readSandboxPackage`）同步承接 `memory_scene`，公开 API／动作快照／路由表快照与 `OBSERVATION_COVERAGE_PLAN` 已同步；真实签名第三方沙箱包生产路径集成与浏览器测试见 `tests/skill-catalog-runtime.test.ts`、`tests/security-invariants-skill-import.test.ts`、`tests/security-invariants-kit-catalog.test.ts`、`tests/skill-settings.e2e.test.ts`。 |
 | BL-1062 | 已完成并删除 | 2026-11-22：第 36A 批动效项（36A-7）给连接页的折叠补了逐帧断言：高度与箭头同一时钟（同时长、同延迟、同曲线，时长等于 `--dur-move`），五个时刻上裁切层与折叠同高、高度进度与箭头进度一致且单调（`tests/connections-page.e2e.test.ts`）。 |
 | BL-b44-coding-scene-enum | 已完成并删除 | 2026-11-21，[#2209](https://github.com/molis-ai/molis-work/pull/2209)（用户经弹窗定）：合同不再写 `"coding"`，场景是插件在 Manifest `memory_scene` 申报的名字，平台只有 `assistant`、`common`、`agent`、`both`；Coding 申报 `coding`，已存取值不变、不升库版本；名单在 Host 启动时从内置插件与留存包读，运行中新装的新场景重启后生效、安装预览会说。合同改动记在 `docs/system/CONTRACT-CHANGES.md` 第 8 节 |
 | BL-b44-information-plan-to-feed | 已完成并删除 | 2026-11-21，[#2209](https://github.com/molis-ai/molis-work/pull/2209)：动作改为 Feed 的 `feed.information.plan@1`，提示词键改到 Feed 名下，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（`CONTRACT-CHANGES.md`「当前保留机制」） |

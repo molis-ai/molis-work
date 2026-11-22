@@ -31,4 +31,6 @@ test("CPK-09 CPK-10 the kit's system reporters are the contract's provider ids, 
   assert.equal(PLUGIN_INSTALL_PROVIDER_ID, "plugin-install");
   assert.deepEqual(KIT_SYSTEM_REPORTERS[CONNECTOR_PROVIDER_ID], { kinds: ["mcp"], sources: ["mcp_server"], packs: ["plugin", "system:builtin"] });
   assert.deepEqual(KIT_SYSTEM_REPORTERS[PLUGIN_INSTALL_PROVIDER_ID], { kinds: [], sources: [], packs: [], headers: true });
+  assert.deepEqual(KIT_SYSTEM_REPORTERS[SKILLS_PROVIDER_ID], { kinds: ["skill"], sources: ["plugin"], packs: ["plugin"], scenes: true });
+  assert.deepEqual(Object.entries(KIT_SYSTEM_REPORTERS).filter(([, rule]) => rule.scenes).map(([provider]) => provider), [SKILLS_PROVIDER_ID]);
 });

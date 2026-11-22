@@ -1,5 +1,3 @@
-import { SKILL_SCENES } from "./skill-scenes.js";
-
 /**
  * 08's Skill parts (docs/design/skill-packs): the three states, the facts, a package's Skills in an install review, choosing their states
  * after installing, importing from a local Agent, and one Skill's detail. The 「能力包」 page (settings-kit.ts) draws a Skill with
@@ -11,9 +9,11 @@ const readText = globalThis.t.text, el = (tag, cls, text) => { const n = documen
 const button = (text, fn, variant = "secondary") => { const n = el("button", "mw-btn mw-btn--" + variant + " mw-btn--sm", readText(text)); n.type = "button"; n.addEventListener("click", fn); return n; };
 const api = (project, path, body = {}) => molisWorkRequest((project ? "/projects/" + encodeURIComponent(project) : "") + "/api/skills/" + path, { body });
 const installApi = (project, path, body = {}) => molisWorkRequest("/projects/" + encodeURIComponent(project || "personal") + "/api/plugin-trust/" + path, { body });
-const STATES = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" }, SCENES = ${JSON.stringify(SKILL_SCENES)};
-const forText = value => value === "assistant" ? readText("workbench.common.assistant") : value === "agent" ? readText("workbench.settings-skills.agent")
-  : value === "both" ? readText("workbench.settings-skills.assistant-and-plugins", { list: SCENES.map(row => row.name).join(readText("common.list.separator")) }) : SCENES.find(row => row.scene === value)?.name || value;
+const STATES = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" };
+let scenes = [];
+const setScenes = next => { scenes = Array.isArray(next) ? next.slice() : []; };
+const forText = (value, list = scenes) => value === "assistant" ? readText("workbench.common.assistant") : value === "agent" ? readText("workbench.settings-skills.agent")
+  : value === "both" ? readText("workbench.settings-skills.assistant-and-plugins", { list: list.map(row => row.name).join(readText("common.list.separator")) }) : list.find(row => row.scene === value)?.name || value;
 const WHY = { plugin_disabled: "workbench.settings-skills.the-plugin-is-disabled-your-settings-will-apply", publisher_revoked: "workbench.catalog-skill-packs.retracted", resource_invalid: "workbench.settings-skills.the-skill-or-its-files-are-missing-reinstall", requires_unmet: "workbench.settings-skills.a-required-capability-is-unavailable", connection_missing: "workbench.settings-skills.connect-the-required-service-first", native_only: "workbench.settings-skills.this-skill-requires-a-local-agent", not_applicable: "workbench.settings-skills.not-applicable-to-the-current-execution-mode" };
 const LOCKED = new Set(["plugin_disabled", "publisher_revoked", "resource_invalid"]);
 const key = s => s.ref.install_id + "/" + s.ref.skill_id;
@@ -26,27 +26,29 @@ const label = el("label", "mw-check-row"), radio = el("input"); radio.type = "ra
 label.append(radio, el("span", "", readText(STATES[state]))); if (!compact) label.append(el("small", "settings-muted", readText(state === "off" ? "workbench.settings-skills.never-use-this-skill" : state === "auto" ? "workbench.settings-skills.let-ai-choose-when-it-applies" : "workbench.settings-skills.use-only-when-you-name-it")));
 radio.addEventListener("change", async () => { const was = skill.state; group.disabled = true;
 try { const next = await api(project, "set", { scope: project ? "project" : "home", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id, state, expected_revision: skill.settings_revision }); Object.assign(skill, next); changed(next, was, true); }
-catch (cause) { radio.checked = false; group.querySelector('input[value="' + was + '"]').checked = true; failure(new Error(readText("workbench.settings-skills.nothing-changed") + (cause && cause.message ? " " + cause.message : "")), async () => { if (cause.code === "skills.settings_conflict") { try { const current = (await api(project, "list")).skills.find(value => key(value) === key(skill)); if (!current) throw new Error(readText("workbench.settings-skills.this-skill-was-removed-refresh-the-list")); Object.assign(skill, current); changed(current, was); } catch (refreshError) { failure(refreshError); } } else radio.click(); }); }
+catch (cause) { radio.checked = false; group.querySelector('input[value="' + was + '"]').checked = true; failure(new Error(readText("workbench.settings-skills.nothing-changed") + (cause && cause.message ? " " + cause.message : "")), async () => { if (cause.code === "skills.settings_conflict") { try { const data = await api(project, "list"); if (Array.isArray(data.scenes)) setScenes(data.scenes); const current = data.skills.find(value => key(value) === key(skill)); if (!current) throw new Error(readText("workbench.settings-skills.this-skill-was-removed-refresh-the-list")); Object.assign(skill, current); changed(current, was); } catch (refreshError) { failure(refreshError); } } else radio.click(); }); }
 finally { group.disabled = !skill.availability.available && LOCKED.has(skill.availability.reason); }
 }); group.append(label);
 } return group;
 };
-const facts = skill => {
+const facts = (skill, list = scenes) => {
 const dl = el("dl", "mw-facts"), fact = (label, text) => { if (text) dl.append(el("dt", "", readText(label)), el("dd", "", text)); };
-fact("workbench.settings-skills.for", forText(skill.applies_to)); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
+fact("workbench.settings-skills.for", forText(skill.applies_to, list)); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
 fact("workbench.settings-skills.connector-categories", (skill.connector_categories || []).join(readText("common.list.separator")));
 fact("workbench.settings-skills.included-files", skill.resources.map(r => r.path + " · " + r.bytes + " B" + (r.role === "script" ? " · " + readText("workbench.settings-skills.runs-code") : "")).join("\n") || readText("workbench.catalog-skill-packs.no-included-files"));
 fact("workbench.catalog-skill-packs.start-of-the-text", skill.excerpt); return dl;
 };
-const preview = (panel, skills) => { if (!skills?.length) return;
+const preview = (panel, skills, previewScenes) => { if (!skills?.length) return;
+const listScenes = Array.isArray(previewScenes) ? previewScenes : scenes;
 panel.append(el("h3", "", readText("workbench.settings-skills.skills-in-this-package"))); const list = el("ul", "mw-items");
-for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", forText(s.applies_to)));
+for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", forText(s.applies_to, listScenes)));
 const CHANGE = { added: "workbench.settings.add", body_changed: "workbench.settings-skills.body-changed", resources_changed: "workbench.settings-skills.files-changed", removed: "workbench.settings-skills.will-be-removed" };
 if (s.runs_scripts) text.append(el("small", "", readText("workbench.settings-skills.runs-code"))); if (s.connector_categories?.length) text.append(el("small", "", s.connector_categories.join(readText("common.list.separator")))); if (s.change) text.append(el("small", "", readText(CHANGE[s.change]))); if (s.state === "manual" && s.change !== "removed") text.append(el("small", "", readText("workbench.settings-skills.manual-setting-is-kept")));
-const detail = el("details", "mw-item__more"), summary = el("summary", "", readText("workbench.catalog-skill-packs.details")); detail.append(summary, facts(s)); row.append(detail); list.append(row); } panel.append(list);
+const detail = el("details", "mw-item__more"), summary = el("summary", "", readText("workbench.catalog-skill-packs.details")); detail.append(summary, facts(s, listScenes)); row.append(detail); list.append(row); } panel.append(list);
 };
 const enable = async (panel, project, pluginId, done) => {
-const skills = (await api(project, "list")).skills.filter(s => s.pack.plugin_id === pluginId); if (!skills.length) { done(); return; }
+const data = await api(project, "list"); if (Array.isArray(data.scenes)) setScenes(data.scenes);
+const skills = data.skills.filter(s => s.pack.plugin_id === pluginId); if (!skills.length) { done(); return; }
 panel.hidden = false; panel.replaceChildren(el("h3", "", readText(project ? "workbench.settings-skills.choose-skills-for-this-project" : "workbench.settings-skills.choose-skills-for-your-personal-space")), el("p", "settings-muted", readText("workbench.settings-skills.off-never-use-auto-let-ai-choose-manual")));
 for (const s of skills) { const row = el("div", "skill-enable-row"), fail = el("div"); fail.hidden = true; row.append(el("strong", "", s.name), el("p", "settings-muted", s.description), stateControls(s, project, () => { fail.hidden = true; }, (cause, retry) => error(fail, cause, retry), true), fail); panel.append(row); }
 const footer = el("div", "skill-toolbar"); footer.append(button("workbench.settings-skills.later", done, "ghost"), button("workbench.computer-record.completed", done, "primary")); panel.append(footer);
@@ -60,8 +62,10 @@ const scan = button("workbench.settings-skills.find-skills", async () => { scan.
 try { const found = await installApi(project, "skills/import/preview", { source: { kind: "runtime", runtime_id: source.value } }); stage.replaceChildren();
 if (!found.candidates.length) { stage.append(el("p", "", readText("workbench.settings-skills.no-skills-found-in-this-source"))); return; }
 stage.append(el("p", "settings-muted", readText("workbench.settings-skills.import-a-snapshot-later-changes-to-the-source")));
-const allFor = el("select", "mw-select"); allFor.setAttribute("aria-label", readText("workbench.settings-skills.for")); const addOptions = (select, selected) => { for (const value of ["assistant", ...SCENES.map(row => row.scene), "both"]) { const option = el("option", "", forText(value)); option.value = value; option.selected = value === selected; select.append(option); } }; addOptions(allFor, found.applies_to); stage.append(allFor);
-const choices = []; for (const c of found.candidates) { const row = el("div", "skill-import-row"), label = el("label", "mw-check-row"), check = el("input"); check.type = "checkbox"; check.checked = c.importable; check.disabled = !c.importable; label.append(check, el("strong", "", c.name)); row.append(label, el("p", "settings-muted", c.description)); const who = el("select", "mw-select"); who.setAttribute("aria-label", c.name + " · " + readText("workbench.settings-skills.for")); addOptions(who, c.applies_to || found.applies_to); who.disabled = c.applies_to_from === "file" || !c.importable; row.append(who); if (c.reason) row.append(el("p", "settings-muted", c.reason)); if (c.runs_scripts) row.append(el("small", "", readText("workbench.settings-skills.runs-code"))); stage.append(row); choices.push({ c, check, who }); }
+const list = (Array.isArray(found.scenes) ? found.scenes : scenes).filter(row => project || row.scope !== "project");
+const values = ["assistant", ...list.map(row => row.scene), "both"];
+const allFor = el("select", "mw-select"); allFor.setAttribute("aria-label", readText("workbench.settings-skills.for")); const addOptions = (select, selected, allowUnknown = false) => { for (const value of values) { const option = el("option", "", forText(value, list)); option.value = value; option.selected = value === selected; select.append(option); } if (allowUnknown && selected && !values.includes(selected)) { const extra = el("option", "", forText(selected, list)); extra.value = selected; extra.selected = true; extra.disabled = true; select.append(extra); } }; addOptions(allFor, found.applies_to); stage.append(allFor);
+const choices = []; for (const c of found.candidates) { const row = el("div", "skill-import-row"), label = el("label", "mw-check-row"), check = el("input"); check.type = "checkbox"; check.checked = c.importable; check.disabled = !c.importable; label.append(check, el("strong", "", c.name)); row.append(label, el("p", "settings-muted", c.description)); const who = el("select", "mw-select"); who.setAttribute("aria-label", c.name + " · " + readText("workbench.settings-skills.for")); addOptions(who, c.applies_to || found.applies_to, c.applies_to_from === "file"); who.disabled = c.applies_to_from === "file" || !c.importable; row.append(who); if (c.reason) row.append(el("p", "settings-muted", c.reason)); if (c.runs_scripts) row.append(el("small", "", readText("workbench.settings-skills.runs-code"))); stage.append(row); choices.push({ c, check, who }); }
 allFor.addEventListener("change", () => choices.forEach(({ who }) => { if (!who.disabled) who.value = allFor.value; }));
 const confirm = button("workbench.settings-skills.agree-and-import", async () => { confirm.disabled = true; fail.hidden = true;
 try { const chosen = choices.filter(x => x.check.checked); const result = await installApi(project, "skills/import/confirm", { preview_id: found.preview_id, skill_ids: chosen.map(x => x.c.skill_id), scope: project ? "project" : "home", applies_to: chosen.filter(x => x.c.applies_to_from !== "file").map(x => ({ skill_id: x.c.skill_id, applies_to: x.who.value })) }); await reload(); await enable(panel, project, result.plugin_id, close); }
@@ -92,6 +96,6 @@ const nextStep = { plugin_disabled: "workbench.home-plugin-page.enable-plugin", 
 const link = el("a", "mw-btn mw-btn--link", readText(nextStep[skill.availability.reason] || "workbench.settings-skills.manage-package")); link.href = "/projects/" + encodeURIComponent(project || "personal") + "/settings/plugins"; box.append(link);
 return title;
 };
-globalThis.molisSkillUI = { preview, enable, importPanel, detail };
+globalThis.molisSkillUI = { setScenes, preview, enable, importPanel, detail };
 })();
 `;

@@ -67,7 +67,7 @@ function recordingBinder(answer: (capabilityId: string) => unknown) {
   const bound: string[] = [];
   const bind = (action: ActionDefinition): BoundActionClient => {
     bound.push(`${action.capability_id}@${action.version}`);
-    return { discover: async () => [], invoke: async definition => answer(definition.capability_id) as never };
+    return { discoverOne: async () => undefined, discover: async () => [], invoke: async definition => answer(definition.capability_id) as never };
   };
   return { bound, bind };
 }

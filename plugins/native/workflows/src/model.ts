@@ -313,10 +313,10 @@ export function insertStation(chain: WorkflowChain, gap: number, station: Workfl
   const at = Math.max(0, Math.min(gap, stations.length));
   stations.splice(at, 0, station);
   if (stations.length === 1) return { stations, links: [] };
-  if (at === 0) links.unshift(manualLink());
-  else if (at === stations.length - 1) links.push(manualLink());
-  // The handoff that used to reach the old next station now reaches the new one; the new station hands on by hand.
-  else links.splice(at, 0, manualLink());
+  if (at === 0) links.unshift(directHandoffLink());
+  else if (at === stations.length - 1) links.push(directHandoffLink());
+  // The handoff that used to reach the old next station now reaches the new one; the new station defaults to direct pass-through (PF-A13).
+  else links.splice(at, 0, directHandoffLink());
   return { stations, links };
 }
 

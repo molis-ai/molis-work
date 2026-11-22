@@ -179,7 +179,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
       mountPluginClient, interaction, receipts, scope: pageLifetime, translate: readText, projectId: () => project.project_id,
       projectTitle: () => project.display_name, api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
-      openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
+      openPlugin: (...args) => tabWorkspace?.openPlugin(...args), focusPane: (paneId) => tabWorkspace?.focusPane?.(paneId), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     document.addEventListener("click", (event) => { const btn = event.target?.closest?.("[data-sessions-open-scope]"); if (btn) void deferredClients.loadBundle("sessions").then(() => globalThis.molisOpenSessionsScope?.(btn.dataset.sessionsOpenScope === "project_ai_read" ? "project_ai_read" : "tools", { overlay: !btn.closest('[data-work-surface="sessions"]') })); });
@@ -267,7 +267,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
           : "";
         sessionStorage.setItem(storageKey, JSON.stringify(stored));
       }
-    } catch {}
+    } catch { /* Fall back to default view when persisted UI state is unreadable. */ }
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
       pages.forEach((page) => page.fresh?.());

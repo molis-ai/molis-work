@@ -92,7 +92,7 @@ function fixture(t: TestContext, options: { relations?: RelationOwner[]; tools?:
   const put = ledger.commands.put.bind(ledger.commands), remove = ledger.commands.remove.bind(ledger.commands);
   ledger.commands.put = (...args) => { ledgerWrites += 1; return put(...args); };
   ledger.commands.remove = (...args) => { ledgerWrites += 1; return remove(...args); };
-  const client = { discover: actions.discover.bind(actions), invoke: async (context: ActionCallContext, reference: ActionReference, input: unknown) => {
+  const client = { discover: actions.discover.bind(actions), discoverOne: actions.discoverOne.bind(actions), invoke: async (context: ActionCallContext, reference: ActionReference, input: unknown) => {
     calls.push(reference); return actions.invoke(context, reference, input);
   } };
   const service = new PlacementService({ ledger, beforeEffect: options.beforeEffect,

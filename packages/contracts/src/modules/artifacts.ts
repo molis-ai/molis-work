@@ -1,3 +1,4 @@
+import type { ArtifactReference } from "./artifact-reference.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { TextRef } from "../platform/ui-text.js";
 
@@ -22,10 +23,7 @@ export type ArtifactScope = "personal" | "team_project";
 export type ArtifactAvailability = "available" | "unavailable";
 export type ArtifactLifecycleState = "active" | "archived";
 
-export interface ArtifactReference {
-  artifact_id: string;
-  version: number;
-}
+export type { ArtifactReference } from "./artifact-reference.js";
 
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 

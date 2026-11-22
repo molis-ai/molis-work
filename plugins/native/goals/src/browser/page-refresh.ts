@@ -34,6 +34,8 @@ export interface RefreshParts {
   selectTreeGoal(goalId: string): void;
   updateAllRelationFormPreviews(): void;
   bindGoalEventDocument(): void;
+  /** Binds the event controls of a split pane's copy of a Goal document again after its content was replaced (102-1). */
+  bindCopiedEventDocument(pane: HTMLElement): void;
   openEventReader(name: string): void;
   setGoalFactor(factor: string, persist?: boolean, updateHash?: boolean): boolean;
 }
@@ -96,8 +98,41 @@ export function pageRefresh(context: RefreshContext) {
     for (let view: Window = window; view.frameElement; view = view.parent) if (!shown(view.frameElement)) return false;
     return true;
   };
-  const goalDocumentVisible = () => goalRegionVisible([documentPane.querySelector('[data-work-surface="goals"]')]);
-  const goalStageVisible = () => goalRegionVisible([document.querySelector("[data-goal-canvas-shell]"), document.querySelector("[data-goal-frame-surface]"), documentPane.querySelector('[data-work-surface="goals"]')]);
+  // A split pane may show its own copy of a Goal document (102-1); each copy keeps the cursor it was last drawn at.
+  const goalSurfaceOf = (pane: Element) => pane.querySelector('[data-work-surface="goals"]');
+  const allGoalDocumentPanes = () => [documentPane, ...document.querySelectorAll<HTMLElement>("[data-tab-panes] [data-document-pane][data-pane-clone]")];
+  const visibleGoalDocumentPanes = () => allGoalDocumentPanes().filter((pane) => goalRegionVisible([goalSurfaceOf(pane)]));
+  const primaryDocumentVisible = () => goalRegionVisible([goalSurfaceOf(documentPane)]);
+  const goalStageVisible = () => goalRegionVisible([
+    ...document.querySelectorAll("[data-goal-canvas-shell], [data-goal-frame-surface]"),
+    ...allGoalDocumentPanes().map(goalSurfaceOf),
+  ]);
+  const refreshCopiedGoalPanes = async (copies: readonly HTMLElement[], cursor: number, primaryGoalId: string, primaryParsed: Document | null, signal: AbortSignal | null) => {
+    if (!copies.length) return;
+    const read = new Map<string, Document>();
+    if (primaryGoalId && primaryParsed) read.set(primaryGoalId, primaryParsed);
+    for (const pane of copies) {
+      if (!goalRegionVisible([goalSurfaceOf(pane)])) continue;
+      const paneGoalId = pane.querySelector<HTMLElement>("[data-goal-view]")?.dataset.goalView || pane.dataset.paneGoalId || "";
+      if (!paneGoalId) continue;
+      let parsed = read.get(paneGoalId);
+      if (!parsed) {
+        const response = await molisWorkRequest<Response>(route("/api/board/refresh?view=" + documentCollection + "&goal_id=" + encodeURIComponent(paneGoalId)), { scope: lifetime(), signal: signal ?? undefined, as: "response" });
+        lifetime().assertCurrent(signal ?? undefined);
+        if (!response.ok) continue;
+        parsed = new DOMParser().parseFromString(await response.text(), "text/html");
+        read.set(paneGoalId, parsed);
+      }
+      if (!goalRegionVisible([goalSurfaceOf(pane)])) continue;
+      const next = parsed.querySelector('[data-document-pane] [data-work-surface="goals"]');
+      const current = goalSurfaceOf(pane);
+      if (current && next) {
+        current.replaceChildren(...next.cloneNode(true).childNodes);
+        parts().bindCopiedEventDocument(pane);
+        pane.dataset.boardCursor = String(cursor);
+      }
+    }
+  };
 
   const readPage = async (refreshGoalId: string, collectionOnly: boolean, signal: AbortSignal | null) => {
     const collectionPath = trashView ? "/trash" : archiveView ? "/archive" : "/";
@@ -144,13 +179,18 @@ export function pageRefresh(context: RefreshContext) {
       p.updateAllRelationFormPreviews();
       p.bindGoalEventDocument();
       page.documentCursor = cursor;
+      documentPane.dataset.boardCursor = String(cursor);
       requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
     }
-    goalData.boardCursor = cursor;
+    // Split panes showing the Goals list keep the same rows as the page's own list.
+    const primaryStageList = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone]) [data-goal-stage-list]");
+    if (primaryStageList) document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => { list.innerHTML = primaryStageList.innerHTML; });
   };
   const readBoard = async ({ force, signal, cursor: hint }: RefreshRequest): Promise<"reloading" | undefined> => {
     if (document.hidden || !lifetime().visible || signal?.aborted) return;
-    const collectionOnly = !force && !goalDocumentVisible();
+    const visiblePanes = visibleGoalDocumentPanes();
+    const primaryVisible = primaryDocumentVisible();
+    const collectionOnly = !force && !primaryVisible;
     if (!force && searchBusy()) {
       scheduleDeferredRefresh();
       return;
@@ -161,7 +201,13 @@ export function pageRefresh(context: RefreshContext) {
       lifetime().assertCurrent(signal ?? undefined);
       // The platform journal and the Goals plugin journal have independent sequence numbers.
       // Acknowledge the platform cursor only after its refresh was actually applied.
-      if (!force && cursor === (collectionOnly ? goalData.boardCursor : page.documentCursor)) return;
+      const staleCopies = visiblePanes.filter((pane) => pane !== documentPane && (force || pane.dataset.boardCursor !== String(cursor)));
+      const primaryStale = primaryVisible && (force || page.documentCursor !== cursor || documentPane.dataset.boardCursor !== String(cursor));
+      if (!force && cursor === goalData.boardCursor && !primaryStale && !staleCopies.length) return;
+      if (!force && cursor === goalData.boardCursor && !primaryStale) {
+        await refreshCopiedGoalPanes(staleCopies, cursor, "", null, signal);
+        return;
+      }
       if (!force && searchBusy()) {
         scheduleDeferredRefresh();
         return;
@@ -171,7 +217,7 @@ export function pageRefresh(context: RefreshContext) {
       const refreshGeneration = page.documentReplaceGeneration;
       const { parsed, collectionPath } = await readPage(refreshGoalId, collectionOnly, signal);
       lifetime().assertCurrent(signal ?? undefined);
-      const applyCollectionOnly = collectionOnly || (!force && !goalDocumentVisible());
+      const applyCollectionOnly = collectionOnly || (!force && !primaryDocumentVisible());
       if (!force && liveUiInteractionActive(applyCollectionOnly)) return;
       if (parsed.body.dataset.boardView !== document.body.dataset.boardView) {
         if (applyCollectionOnly) {
@@ -209,7 +255,10 @@ export function pageRefresh(context: RefreshContext) {
         location.replace(globalThis.molisWorkNavigationUrl(route(movedPath)));
         return "reloading";
       }
+      const snapshot = applyCollectionOnly ? null : parsed.cloneNode(true) as Document;
       applyRefresh(goalRefresh, nextState, applyCollectionOnly, cursor);
+      await refreshCopiedGoalPanes(staleCopies, cursor, applyCollectionOnly ? "" : refreshGoalId, snapshot, signal);
+      goalData.boardCursor = cursor;
     } catch (error) {
       // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped: the page's
       // lifetime reports it on its next poll (takeFailure).

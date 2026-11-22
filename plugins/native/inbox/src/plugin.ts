@@ -101,7 +101,7 @@ export function createInboxPlugin(): PluginDefinition {
     };
     const bindings = new InboxSceneBindings({ get: (statement, ...parameters) => database.get(statement, parameters as never[]) ?? undefined,
       run: () => { throw new ActionError("actions.execution_failed", "读取绑定不写入"); } });
-    const subjects: ActionClient = { discover: () => directory.discover(), invoke: (_caller, reference, input) => directory.invoke(reference, input) };
+    const subjects: ActionClient = { discover: () => directory.discover(), discoverOne: (_caller, reference) => directory.discoverOne(reference), invoke: (_caller, reference, input) => directory.invoke(reference, input) };
     const sceneRuntime = createInboxSceneRuntime({ projectId, scenes, judgments,
       bindings: {
         get: () => bindings.get(projectId, INBOX_NEXT_SCENE_ID),
@@ -178,7 +178,7 @@ export function createInboxPlugin(): PluginDefinition {
     }), ...createInboxContentHandlers(content), ...createInboxPresentationHandlers(content, sceneRuntime.ports.recommendations)];
     // The page's requests only adapt HTTP to the plugin's own actions, called as the person who made the request (their authority, not Inbox's).
     const routes = (inboxManifest.routes ?? []).map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
-      const handlers = createInboxRouteHandlers({ changed() {}, actions: { discover: async () => [], invoke: (definition, input) => own.invoke(definition, input, request.execution) } });
+      const handlers = createInboxRouteHandlers({ changed() {}, actions: { discover: async () => [], discoverOne: async () => undefined, invoke: (definition, input) => own.invoke(definition, input, request.execution) } });
       return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));

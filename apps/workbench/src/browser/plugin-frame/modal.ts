@@ -3,11 +3,44 @@ import type { FrameScope, FrameUp } from "./types.js";
 /** Says when a modal dialog opens or closes in the child (VUX-29): its frame alone cannot set aside the page around it. */
 export function childModal(port: MessagePort, scope: FrameScope): void {
   let open = false;
+  let disconnectWatch: MutationObserver | null = null;
+  const stopWatch = () => { disconnectWatch?.disconnect(); disconnectWatch = null; };
   const report = () => {
     const now = document.querySelector("dialog:modal") !== null;
-    if (now !== open) { open = now; port.postMessage({ type: "modal", open } satisfies FrameUp); }
+    if (now !== open) {
+      open = now;
+      port.postMessage({ type: "modal", open } satisfies FrameUp);
+      if (open && !disconnectWatch) {
+        // Temporary observer active ONLY while a modal dialog is open, to catch `dialog.remove()` without `.close()`.
+        disconnectWatch = new MutationObserver(report);
+        disconnectWatch.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
+      } else if (!open) {
+        stopWatch();
+      }
+    }
   };
-  scope.observe(new MutationObserver(report), document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
+  const scheduleReport = () => queueMicrotask(() => queueMicrotask(report));
+  const proto = HTMLDialogElement.prototype;
+  const nativeShowModal = proto.showModal;
+  const nativeClose = proto.close;
+  proto.showModal = function showModalPatched() {
+    nativeShowModal.call(this);
+    // Run after same-turn attribute MutationObservers (e.g. data-assistant-context) so context arrives before modal cover layout.
+    scheduleReport();
+  };
+  proto.close = function closePatched(returnValue?: string) {
+    if (arguments.length > 0) nativeClose.call(this, returnValue);
+    else nativeClose.call(this);
+    scheduleReport();
+  };
+  const onClose = () => queueMicrotask(report);
+  document.addEventListener("close", onClose, true);
+  scope.own(() => {
+    proto.showModal = nativeShowModal;
+    proto.close = nativeClose;
+    document.removeEventListener("close", onClose, true);
+    stopWatch();
+  });
 }
 
 /**

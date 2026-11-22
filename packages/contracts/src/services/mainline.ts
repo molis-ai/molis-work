@@ -36,7 +36,11 @@ export interface MainlineIssue { source: Required<ActionReference>; title: strin
 export interface BackgroundTasksReadResult { tasks: BackgroundTaskRow[]; issues: MainlineIssue[] }
 
 /** An unfinished task on Home, with the project whose provider owns it. */
-export interface HomeBackgroundTaskRow extends BackgroundTaskRow { project_id: string; project_name: string }
+export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
+  project_id: string; project_name: string;
+  /** The project is asleep: the row is what it said before it slept, and opening the project reads it again. */
+  resting?: true;
+}
 
 /** The open projects' tasks and the sources that could not be read; empty tasks alone does not mean no work. */
 export interface HomeBackgroundTasksReadResult {

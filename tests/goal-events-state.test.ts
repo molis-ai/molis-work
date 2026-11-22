@@ -1,3 +1,4 @@
+import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -2051,10 +2052,10 @@ const REPLACEMENT = "io.molis.work.example.goals-provider";
 
 test("the Goals management caller pins the owner and leaves protected decisions to the platform entry", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  const client: ActionClient = {
+  const client: ActionClient = fakeActionClient({
     discover: async () => { throw new Error("no directory read"); },
     invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; },
-  };
+  });
   const management = bindManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
   assert.equal(management.project_id, BOARD);
   await management.invoke(goalsActions.snapshot, {});

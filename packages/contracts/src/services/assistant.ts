@@ -58,7 +58,44 @@ export type AssistantWorkState =
   | "completed"
   | "failed"
   | "stopped"
-  | "needs-check";
+  | "needs-check"
+  /** The Host could not read the run's state this time (the runtime did not answer); not a check the person owes. */
+  | "unreadable";
+
+/**
+ * What each state means for the rest of the Host, in one place (the entries that hand over, follow up, archive, resume, notify and
+ * count a work read these instead of listing states each):
+ * - `round_open`: a round is still open: running, paused, or stopped on the person's answer or review.
+ * - `resumes`: the runtime takes the work up again when the Host restarts.
+ * - `waits_on_person`: nothing goes on until the person acts: an answer, a review, or a check of an interrupted round.
+ * - `unknown`: the state could not be read, so nothing may assume the round is over: hand-over, archive and a follow-up wait.
+ */
+export const ASSISTANT_WORK_STATE_TRAITS: Readonly<Record<AssistantWorkState, { readonly round_open: boolean; readonly resumes: boolean; readonly waits_on_person: boolean; readonly unknown: boolean }>> = Object.freeze({
+  idle: { round_open: false, resumes: false, waits_on_person: false, unknown: false },
+  running: { round_open: true, resumes: true, waits_on_person: false, unknown: false },
+  "waiting-input": { round_open: true, resumes: true, waits_on_person: true, unknown: false },
+  "waiting-review": { round_open: true, resumes: true, waits_on_person: true, unknown: false },
+  paused: { round_open: true, resumes: false, waits_on_person: false, unknown: false },
+  completed: { round_open: false, resumes: false, waits_on_person: false, unknown: false },
+  failed: { round_open: false, resumes: false, waits_on_person: false, unknown: false },
+  stopped: { round_open: false, resumes: false, waits_on_person: false, unknown: false },
+  "needs-check": { round_open: false, resumes: false, waits_on_person: true, unknown: false },
+  unreadable: { round_open: false, resumes: false, waits_on_person: false, unknown: true },
+});
+
+const traitsOf = (state: string | null | undefined) => state && Object.hasOwn(ASSISTANT_WORK_STATE_TRAITS, state) ? ASSISTANT_WORK_STATE_TRAITS[state as AssistantWorkState] : undefined;
+/** A round is still open (`round_open`); an unknown state is not. */
+export const assistantRoundOpen = (state: string | null | undefined): boolean => traitsOf(state)?.round_open === true;
+/** The runtime takes the work up again on restart (`resumes`). */
+export const assistantStateResumes = (state: string | null | undefined): boolean => traitsOf(state)?.resumes === true;
+/** Nothing goes on until the person acts (`waits_on_person`). */
+export const assistantWaitsOnPerson = (state: string | null | undefined): boolean => traitsOf(state)?.waits_on_person === true;
+/** The round stopped to ask the person something (an answer or a review): open and waiting on them. */
+export const assistantAsksPerson = (state: string | null | undefined): boolean => assistantRoundOpen(state) && assistantWaitsOnPerson(state);
+/** The state could not be read (`unknown`): nothing may treat the work as settled. */
+export const assistantStateUnknown = (state: string | null | undefined): boolean => traitsOf(state)?.unknown === true;
+/** Under way: a round is open, the person still has to act on it, or its state could not be read. Such a work is not settled. */
+export const assistantUnderWay = (state: string | null | undefined): boolean => assistantRoundOpen(state) || assistantWaitsOnPerson(state) || assistantStateUnknown(state);
 
 /** The surface a work, message or material came from. Data about the screen, never an instruction. */
 export interface AssistantSurfaceRef {

@@ -1,4 +1,4 @@
-export { renderMolisWorkArrivalStylesheet, workbenchClientSource } from "./page-assets.js";
+export { renderMolisWorkArrivalStylesheet, renderMolisWorkPluginBaseStylesheet, workbenchClientSource } from "./page-assets.js";
 export { renderUpgradeOpeningPage } from "./arrival/upgrade-opening.js";
 export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
@@ -47,7 +47,7 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
 export { readAssistantReviewWords } from "./assistant-review-html.js";
-export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, sidePlaces, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageOpeningView, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
@@ -70,7 +70,7 @@ export {
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
 
-export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
+export { deferredSurfaceClients, pluginFrameServedStylesheet, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { pluginPageClientScript, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
 // The return trips' checks and their one writer (specs/draft-and-return §2), for the unit tests of S-return-trip-*.

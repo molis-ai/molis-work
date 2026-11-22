@@ -20,7 +20,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const owned = (root = document) => new Set(tiles(root).filter((tile) => !tile.classList.contains('is-available')).map((tile) => tile.dataset.pluginTile));
   let rendered = owned(), revision = document.body.dataset.projectPluginRevision;
   const nameOf = (id) => tileOf(id)?.querySelector('.plugin-rail-item > span')?.textContent || id;
-  const reload = () => { try { saveUiState?.(); } catch {} location.reload(); };
+  const reload = () => { try { saveUiState?.(); } catch { /* Best-effort UI snapshot before reload. */ } location.reload(); };
   const RETAINED_KEY = projectId ? 'molis-work:plugin-retained:' + projectId : '';
   const TOAST_KEY = projectId ? 'molis-work:plugin-toast:' + projectId : '';
   const readRetained = () => {
@@ -220,7 +220,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     // What the page has must now be what the server renders; if it is not, no half-way: load it again.
     if (!same(owned(), after) || unfollowed(document) !== unfollowed(next) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reloadAfter(); return; }
     rendered = after; revision = next.body.dataset.projectPluginRevision;
-    try { saveUiState?.(); } catch {}
+    try { saveUiState?.(); } catch { /* Best-effort UI snapshot before membership refresh. */ }
     showReceipt(receipt);
   };
 

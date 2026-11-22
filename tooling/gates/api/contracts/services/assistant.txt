@@ -23,6 +23,13 @@ export declare const ASSISTANT_RELATIONS: {
 
 export declare const ASSISTANT_SURFACE_CHANGED_EVENT = "molis:assistant-surface-changed";
 
+export declare const ASSISTANT_WORK_STATE_TRAITS: Readonly<Record<AssistantWorkState, {
+    readonly round_open: boolean;
+    readonly resumes: boolean;
+    readonly waits_on_person: boolean;
+    readonly unknown: boolean;
+}>>;
+
 export interface AssistantActivity {
     call_id: string;
     verb: string;
@@ -879,7 +886,7 @@ export interface AssistantWorkObject {
     };
 }
 
-export type AssistantWorkState = "idle" | "running" | "waiting-input" | "waiting-review" | "paused" | "completed" | "failed" | "stopped" | "needs-check";
+export type AssistantWorkState = "idle" | "running" | "waiting-input" | "waiting-review" | "paused" | "completed" | "failed" | "stopped" | "needs-check" | "unreadable";
 
 export interface AssistantWorkSurroundings {
     environment: {
@@ -964,6 +971,18 @@ export interface AssistantWorkView {
     };
     queued_inputs?: AgentQueuedInput[];
 }
+
+export declare const assistantAsksPerson: (state: string | null | undefined) => boolean;
+
+export declare const assistantRoundOpen: (state: string | null | undefined) => boolean;
+
+export declare const assistantStateResumes: (state: string | null | undefined) => boolean;
+
+export declare const assistantStateUnknown: (state: string | null | undefined) => boolean;
+
+export declare const assistantUnderWay: (state: string | null | undefined) => boolean;
+
+export declare const assistantWaitsOnPerson: (state: string | null | undefined) => boolean;
 
 export declare const servicesAssistantContract: {
     readonly contractId: "io.molis.work.service.assistant.v1";

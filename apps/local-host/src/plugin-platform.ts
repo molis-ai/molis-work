@@ -151,6 +151,8 @@ export interface PluginPlatform {
   closeCoordination(): Promise<void>;
   /** Cancel this project's activation jobs and wait for their actual cleanup before storage is released. */
   stopProjectJobs(projectId: string): Promise<void>;
+  /** Whether a plugin of this project has work running that closing the project would end. */
+  hasProjectWork(projectId: string): boolean;
   /**
    * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
    * or `null` when it has none: then nothing is agreed to and no default binds.
@@ -300,6 +302,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     runtime, invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
     supervisor, events, hostEvents, wiring, invalidateView, viewRevision, waitForView,
     stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
+    hasProjectWork: projectId => executor.hasProjectWork(projectId),
     async closeCoordination() {
       closed = true; views.close(); installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.(); detachActivation();

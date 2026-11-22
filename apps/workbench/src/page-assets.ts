@@ -28,8 +28,20 @@ import { PLUGIN_TRUST_SETTINGS_STYLES } from "./styles/settings-plugins.js";
 import {
   CONTEXT_TOOLBAR_STYLES,
   COSS_CONTROL_STYLES,
+  PLUGIN_COSS_CONTROL_STYLES,
+  PLUGIN_FOUNDATION_STYLES,
   CRAFT_FINISH_STYLES,
   DIFF_VIEW_STYLES,
+  FOLLOW_STYLES,
+  HIDDEN_SCROLLBAR_STYLES,
+  COPY_FEEDBACK_STYLES,
+  FIELD_FIT_STYLES,
+  MEDIA_ZOOM_STYLES,
+  MOTION_STYLES,
+  NUMBER_STYLES,
+  OVERFLOW_FADE_STYLES,
+  SHOW_MORE_STYLES,
+  STREAM_TEXT_STYLES,
   INTERACTION_DATE_STYLES,
   DROP_ZONE_CLIENT_SCRIPT, COMPOSER_LOADER_CLIENT_SCRIPT, COMPOSER_SWEEP_CLIENT_SCRIPT, COMPOSER_STYLES, SUBTASK_CONVERSATION_STYLES,
   INTERACTION_NUMBER_STYLES,
@@ -45,6 +57,7 @@ import {
   SOURCE_LADDER_STYLES,
   MICRO_INTERACTION_STYLES,
   PRIMITIVE_STYLES,
+  PRIMITIVE_PLUGIN_STYLES,
   SESSION_SOURCE_STYLES,
   WHO_STYLES,
   APPEARANCE_PARTS_STYLES,
@@ -76,12 +89,12 @@ import { WORK_BAR_CLIENT_SCRIPT } from "./scripts/work-bar-client.js";
 import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
 import { APPEARANCE_RECOVERY_STYLES } from "./styles/settings.js";
 import { FOCUS_SECTION_STYLES } from "./styles/focus-sections.js";
-import { PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
+import { PLUGIN_STAGE_FINISH_STYLES, PLUGIN_STAGE_LAYER_STYLES, PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
 import { IMMERSIVE_DIRECTORY_STYLES } from "./styles/immersive-directory.js";
 import { ARRIVAL_STYLES } from "./styles/arrival.js";
 import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
 import { GLOBAL_SEARCH_CONTENT_STYLES } from "./styles/global-search-content.js";
-import { PLACEMENT_STYLES } from "./styles/placement.js";
+import { PLACEMENT_SLOT_STYLES, PLACEMENT_STYLES } from "./styles/placement.js";
 import { LINEAR_DENSITY_STYLES } from "./styles/linear-density.js";
 import { PROJECT_HOME_STYLES } from "./styles/project-home.js";
 import { PROJECT_SETTINGS_PAGE_STYLES } from "./styles/project-settings-page.js";
@@ -138,6 +151,65 @@ export function renderMolisWorkArrivalStylesheet(): string {
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
   return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${SKILL_SETTINGS_STYLES}${LOCAL_DIRECTORY_SETTINGS_STYLES}${WEB_SEARCH_SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${KNOWLEDGE_SETTINGS_STYLES}${ITEM_ROW_STYLES}${TASK_GRANTS_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${pluginSettingsStyles()}${VISUAL_FOUNDATION_PAGE_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${PROJECT_DIRECTORIES_STYLES}${INTERACTION_OPTION_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${KEEP_EDITS_TAIL}${TYPEFACE_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
+}
+
+const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLLOW_STYLES}${OVERFLOW_FADE_STYLES}${FIELD_FIT_STYLES}${COPY_FEEDBACK_STYLES}${NUMBER_STYLES}${STREAM_TEXT_STYLES}${HIDDEN_SCROLLBAR_STYLES}`;
+
+/**
+ * Dedicated lightweight (<80 KB minified) base stylesheet for opaque plugin `srcdoc` frames (102-1).
+ * Uses CSS Cascade Layers (`@layer`) for reset, tokens, and foundation defaults while keeping stage,
+ * shared primitives, stage finish, and platform control invariants unlayered so specificity resolves
+ * identically against unlayered plugin stylesheets without breaking `:where()` resets, stage overrides,
+ * or focus contrast.
+ */
+export function renderMolisWorkPluginBaseStylesheet(): string {
+  const foundation = PLUGIN_FOUNDATION_STYLES.replace(/button, input, textarea, select \{ font-family: var\(--font\); \}\n?/, "");
+  let sheet = `@layer reset, tokens, foundation;
+@layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
+@layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
+@layer foundation { ${foundation} }
+${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES}${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
+.appearance-notice.mw-toast{position:fixed;inset-inline:0;margin-inline:auto;bottom:22px;z-index:31;max-width:min(38em,calc(100vw - 24px))}
+html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important}
+html[data-craft-still] :is(dialog[open],.mw-check,.mw-radio,[data-craft-new],[data-just-opened],[data-just-opened]>*,.is-arriving,.is-arriving *){animation:none!important}
+body .mw-toggle-group{display:inline-flex;gap:4px;padding:4px;border:0;border-radius:12px;background:var(--control-fill);box-shadow:none;&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control,500);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--shadow-soft),inset 0 1px 0 var(--edge-highlight)}}
+body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+@media (max-width:760px){body.immersive-workbench{--control-h:44px;.plugin-stage-back{width:44px;height:44px;min-height:44px}}}`;
+  const lightTokens = sheet.match(/:root,\s*\[data-ui-skin="[^"]+"\]\s*\{([^}]*)\}/);
+  const darkTokens = sheet.match(/(:root\[data-resolved-theme="dark"\][^{]*)\{([^}]*)\}/);
+  if (lightTokens && darkTokens) {
+    const lightProps = new Map(lightTokens[1].split(";").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+      const split = entry.indexOf(":");
+      return [entry.slice(0, split).trim(), entry.slice(split + 1).trim()];
+    }));
+    const darkKept = darkTokens[2].split(";").map((entry) => entry.trim()).filter(Boolean).filter((entry) => {
+      const split = entry.indexOf(":");
+      return split < 0 || lightProps.get(entry.slice(0, split).trim()) !== entry.slice(split + 1).trim();
+    });
+    const darkSelector = darkTokens[1].replace(/,\s*:root\[data-resolved-theme="dark"\][^{]*/, "").trim();
+    sheet = sheet.replace(darkTokens[0], `${darkSelector}{${darkKept.join(";")}}`);
+  }
+  return sheet
+    .replace(/\.feed-stage-leading strong \{ font-size: 13px; \}/, "")
+    .replace(/  \.mw-toggle-group \{ display: inline-flex; gap: 4px; padding: 4px; border: 0; border-radius: 12px; background: var\(--control-fill\); \}\n?/, "")
+    .replace(
+      /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}\s*\.mw-btn--primary\[aria-pressed="true"\]:not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\); border-color: var\(--action-hover, var\(--action\)\);\s*\}/,
+      `.mw-btn--primary:is(:active,[aria-expanded="true"],[aria-pressed="true"]):not(:disabled){background:var(--action-hover,var(--action));border-color:var(--action-hover,var(--action))}`,
+    )
+    .replace(
+      /\.mw-input-group \.mw-input, \.mw-number \.mw-input \{[\s\S]*?\.mw-number \.mw-input:is\(:hover, :focus, :focus-visible, \[aria-invalid="true"\]\) \{\s*border: 0; outline: 0; background: transparent; box-shadow: none;\s*\}/,
+      `:is(.mw-input-group,.mw-number) .mw-input{border:0;outline:0;min-height:26px;padding:0;min-width:0;background:transparent;box-shadow:none;border-radius:0;&:is(:hover,:focus,:focus-visible,[aria-invalid="true"]){border:0;outline:0;background:transparent;box-shadow:none}}`,
+    )
+    .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`)
+    .replace(/var\((--[\w-]+),\s+/g, "var($1,")
+    .replace(/color-mix\(in srgb,\s+/g, "color-mix(in srgb,")
+    .replace(/,\s+transparent\)/g, ",transparent)")
+    .replace(/,\s+var\(/g, ",var(")
+    .replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3\b/g, "#$1$2$3")
+    .replace(/\b130ms\b/g, ".13s")
+    .replace(/\b250ms\b/g, ".25s")
+    .replace(/\b0\.(\d)/g, ".$1")
+    .replace(/\s*-webkit-appearance:\s*none;/g, "");
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

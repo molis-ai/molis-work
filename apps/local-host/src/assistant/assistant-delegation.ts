@@ -19,7 +19,10 @@ import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.
 import { identity } from "./assistant-relations.js";
 import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
 import { promptTitle } from "./assistant-work-title.js";
+import { repeatingFailure } from "../host-log.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
+
+const continueFailures = repeatingFailure("assistant", "hand_back_round_failed");
 
 /**
  * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `active` sub-tasks
@@ -346,7 +349,7 @@ export class AssistantDelegations {
     if (work.delegated_by) { this.ports.subtaskReports?.kick(work.work_id); return; }
     if (!work.graph_id) return;
     const graphs = await this.#graphs();
-    graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continue(ready).catch(() => undefined); })();
+    graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continued(ready); })();
   }
 
   /** A hand-back round of the work is being prepared: a stop may withdraw it. */
@@ -366,8 +369,13 @@ export class AssistantDelegations {
   /** The Host started: works whose parts all came back while it was away go on now (the SDK kept their continuations). */
   async attach(): Promise<void> { this.#listen(await this.#graphs()); this.ports.subtaskReports?.attach(); }
 
+  /** A hand-back round that could not start leaves the work waiting: said once per work graph until one of its rounds starts again. */
+  #continued(ready: { graph_id: string; request_key: string }): Promise<void> {
+    return this.#continue(ready).then(() => continueFailures.worked(ready.graph_id), (error: unknown) => continueFailures.failed(ready.graph_id, error));
+  }
+
   #listen(graphs: AgentWorkGraphPort): void {
-    this.#listening ??= graphs.onReady(ready => void this.#continue(ready).catch(() => undefined));
+    this.#listening ??= graphs.onReady(ready => void this.#continued(ready));
   }
 
   /** Parts not taken back that ended since the work's latest round began (none left open), how each ended, and its last step. */

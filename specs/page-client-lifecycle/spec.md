@@ -36,6 +36,7 @@
 | 输入 | `click(target, event)`、`clickAfter(target)`、`keydown(event)`、`popstate(event)`、`anchor(id)`、`reveal(target)`、`searchActivity()` | 页面事件。返回真值表示已处理，外壳不再往下传 |
 | 搜索 | `createCommand()`、`searchRoot`、`openSearchHit(id, title)` | 命令面板与全局搜索 |
 | 标签 | `tabRoot(tab)`、`showTab(tab, keepFrame)`、`showDefault()`、`itemTitle(id, fallback)`、`itemView(view)`、`declare(tab)`、`focusItem(id)`、`withItem(id, run)`、`topLevel()`、`selected()` | 标签工作区切到它的条目、取标题 |
+| 分屏 | `paneRoot(tab)`、`paneTemplates()`、`showPaneView(node)`；`showTab` 的第三个参数 `{ node, isClone, isSplit, isFocused, paneId }` | 分屏时外壳按 `paneRoot` 给出的页面与匹配规则找或复制本插件的页（复制件从 `paneTemplates()` 取，标 `data-pane-clone`），再交 `showTab` 在那一格里画条目，`showPaneView` 画没有条目的复制件；插件经 `tabs().setItemView(plugin, view, paneId)`、`tabs().focusPane(paneId)` 改某一格（102-1） |
 | 地址 | `addressed()`、`ownsAddress()`、`addressItem()` | 按地址打开条目 |
 | 启动 | `fresh()`、`arrive(context)`、`receipts()`、`settle()`、`afterTabs(restored)`、`run()` | 外壳还原完版面以后，插件做自己的还原、回执与轮询 |
 

@@ -12,14 +12,15 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
 
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true, intent = "open") => {
       if (!desktopWorkSurfaces.length) return false;
-      const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
+      const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface && candidate.isConnected)
+        || [...document.querySelectorAll('[data-work-surface="' + surface + '"]')].find((candidate) => !candidate.closest("[data-surface-host]"));
       if (!nextSurface) {
         pageFor(surface)?.open?.();
         return false;
       }
       const surfaceChanged = activeDesktopSurface !== surface;
-      // Passive restore must not retry the current failed client.
-      if (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed") void deferredClients?.prepare(nextSurface);
+      // Passive restore must not retry the current failed client, and pooled surfaces mount only once placed in a pane or cover.
+      if ((!tabWorkspace || !nextSurface.closest("[data-tab-workspace-pool]")) && (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed")) void deferredClients?.prepare(nextSurface);
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = scrollPaneOf(activeDesktopSurface)?.scrollTop || 0;
         pageFor(activeDesktopSurface)?.hidden?.();

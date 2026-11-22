@@ -40,7 +40,7 @@ const STILL_RESET = `
   html[data-craft-still] dialog[open]::backdrop,
   html[data-craft-still] :is(.goal-canvas-node, [data-graph-node], [data-kanban-card]) *::after { animation: none !important; }
   html[data-craft-still] [data-assistant-island] :is(*, *::before, *::after) { animation: none !important; }
-  html[data-craft-still] :is(dialog, dialog::backdrop, iframe.tab-content-frame, [data-just-opened], [data-just-opened] > *, .is-arriving, .is-arriving *) { transition: none !important; animation: none !important; }
+  html[data-craft-still] :is(dialog, dialog::backdrop, [data-just-opened], [data-just-opened] > *, .is-arriving, .is-arriving *) { transition: none !important; animation: none !important; }
   /* Under automation nothing eases either, so a reading taken right after a change sees the settled value. */
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
@@ -127,7 +127,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     const remember = (id) => {
       const list = readRecent();
       if (list[0] === id) return;
-      try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...list.filter((item) => item !== id)].slice(0, 8))); } catch {}
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...list.filter((item) => item !== id)].slice(0, 8))); } catch { /* Ignore localStorage write failure for recent plugin list. */ }
       paintRecent();
     };
     const toggle = railList.querySelector("[data-rail-tools-toggle]");

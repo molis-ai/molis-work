@@ -135,8 +135,28 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
         refreshHome: () => projectHome?.sync(),
+        mountHomeClone: (surface) => globalThis.molisWorkHomeView?.mountHome({
+          root: surface,
+          read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
+          navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
+          market: () => tabWorkspace?.setExclusive("market"),
+          picker: () => {
+            const toggle = document.querySelector("[data-plugin-picker-toggle]");
+            const popover = document.querySelector("[data-plugin-picker-popover]");
+            if (toggle) { if (popover?.hidden !== false) toggle.click(); }
+            else tabWorkspace?.setExclusive("market");
+          },
+          lead: { adopt: () => null, release: () => {} },
+          offers: () => ({ refresh() {}, clear() {} }),
+          projectKey: project.project_id || "",
+          translate: readText,
+          receipt: showToast,
+          changed: () => { projectHome?.sync(); projectPositions?.invalidate(); },
+          offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
+          words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
+        }),
         discussionObjects: frame => projectPositions?.discussion(frame, (path, body, signal) => molisWorkRequest(path, { body, signal })),
-        showToast, paneMessages,
+        showToast, paneMessages, route,
         translate: readText,
         getSurface: () => activeDesktopSurface,
         setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -145,6 +165,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setMobileView: (...args) => setMobileView(...args),
         getProjectId: () => project.project_id,
         pageClient: (plugin) => pageFor(plugin),
+        pageClients: () => pages,
         declareTab: (tab) => pages.forEach((page) => page.declare?.(tab)),
         openEntry: (plugin, origin) => openSurfaceEntry(plugin, origin),
       });

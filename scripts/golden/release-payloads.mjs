@@ -30,18 +30,41 @@ function closingQuote(text, from) {
 const fromSql = text => text.replaceAll("''", "'");
 const toSql = text => text.replaceAll("'", "''");
 
-/** One row: the row writes its Manifest just before its code, so the Manifest is what lies between the two names. */
+/** Where the JSON object starting at `from` (its `{`) ends, just after its `}`; strings may hold braces. */
+function objectEnd(text, from) {
+  if (text[from] !== "{") throw shapeFailure();
+  let depth = 0;
+  for (let at = from; at < text.length; at++) {
+    const char = text[at];
+    if (char === '"') at = closingQuote(text, at + 1);
+    else if (char === "{") depth++;
+    else if (char === "}" && --depth === 0) return at + 1;
+  }
+  throw shapeFailure();
+}
+
+/**
+ * One row: the row writes its Manifest just before its code. A built-in plugin's row has no code since batch 103-1 (the Host's build holds
+ * it), so its Manifest closes the row's JSON and only the Manifest is kept by digest.
+ */
 function strippedRow(line, { sources, manifests }) {
-  const manifestField = line.indexOf(MANIFEST_FIELD), sourceField = line.indexOf(SOURCE_FIELD);
-  if (manifestField < 0 || sourceField < manifestField) throw shapeFailure();
-  const manifestStart = manifestField + MANIFEST_FIELD.length, manifestEnd = sourceField - 1;
-  const sourceStart = sourceField + SOURCE_FIELD.length, sourceEnd = closingQuote(line, sourceStart);
-  if (line[manifestEnd] !== ",") throw shapeFailure();
-  const manifest = fromSql(line.slice(manifestStart, manifestEnd)), source = JSON.parse(`"${fromSql(line.slice(sourceStart, sourceEnd))}"`);
-  const manifestDigest = sha256(manifest), sourceDigest = sha256(source);
+  const manifestField = line.indexOf(MANIFEST_FIELD);
+  if (manifestField < 0) throw shapeFailure();
+  const manifestStart = manifestField + MANIFEST_FIELD.length, manifestEnd = objectEnd(line, manifestStart);
+  const manifest = fromSql(line.slice(manifestStart, manifestEnd)), manifestDigest = sha256(manifest);
+  const withManifest = `${line.slice(0, manifestStart)}"sha256:${manifestDigest}"`;
+  if (line[manifestEnd] === "}") {
+    // Code anywhere else in the row would stay written out in full.
+    if (line.includes(SOURCE_FIELD)) throw shapeFailure();
+    manifests.set(manifestDigest, manifest);
+    return withManifest + line.slice(manifestEnd);
+  }
+  if (!line.startsWith("," + SOURCE_FIELD, manifestEnd)) throw shapeFailure();
+  const sourceStart = manifestEnd + 1 + SOURCE_FIELD.length, sourceEnd = closingQuote(line, sourceStart);
+  const source = JSON.parse(`"${fromSql(line.slice(sourceStart, sourceEnd))}"`), sourceDigest = sha256(source);
   manifests.set(manifestDigest, manifest);
   sources.set(sourceDigest, source);
-  return `${line.slice(0, manifestStart)}"sha256:${manifestDigest}"${line.slice(manifestEnd, sourceStart)}sha256:${sourceDigest}${line.slice(sourceEnd)}`;
+  return `${withManifest}${line.slice(manifestEnd, sourceStart)}sha256:${sourceDigest}${line.slice(sourceEnd)}`;
 }
 
 /** The dump's rows with digests in place of the Manifest and the code, which land in `payloads` by digest, once however many rows hold them. */
@@ -54,10 +77,10 @@ export function withReleasePayloads(sql, read) {
   return sql.split("\n").map(line => {
     if (!line.startsWith(ROW)) return line;
     const manifest = MANIFEST_DIGEST.exec(line), source = SOURCE_DIGEST.exec(line);
-    if (!manifest || !source) throw shapeFailure();
-    return line
-      .replace(MANIFEST_DIGEST, () => `${MANIFEST_FIELD}${toSql(read(RELEASE_MANIFESTS_DIRECTORY, manifest[1]))}`)
-      .replace(SOURCE_DIGEST, () => `"module_source":${toSql(JSON.stringify(read(MODULE_SOURCES_DIRECTORY, source[1])))}`);
+    // A row holds code by digest, or none at all (a built-in plugin's): never code written out in full.
+    if (!manifest || (!source && line.includes(SOURCE_FIELD))) throw shapeFailure();
+    const restored = line.replace(MANIFEST_DIGEST, () => `${MANIFEST_FIELD}${toSql(read(RELEASE_MANIFESTS_DIRECTORY, manifest[1]))}`);
+    return source ? restored.replace(SOURCE_DIGEST, () => `"module_source":${toSql(JSON.stringify(read(MODULE_SOURCES_DIRECTORY, source[1])))}`) : restored;
   }).join("\n");
 }
 

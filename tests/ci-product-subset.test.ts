@@ -521,7 +521,7 @@ test("MR19-06 workflows: shared dist build artifacts are passed via build job ou
   for (const [file, prefix, expectedDownloads] of [
     ["ci.yml", "ci-dist", 5],
     ["full-suite.yml", "full-suite-dist", 1],
-    ["visual-audit.yml", "visual-audit-dist", 1],
+    ["visual-audit.yml", "visual-audit-dist", 2],
   ] as const) {
     const text = readFileSync(path.join(repoRoot, ".github/workflows", file), "utf8");
     assert.match(text, /^    outputs:\n(?:      #.*\n)*      dist-artifact: \$\{\{ steps\.pack\.outputs\.artifact-name \}\}$/m, `${file}: build exports dist-artifact output`);

@@ -74,7 +74,7 @@ test('memory is closed to generated plugins: the board offers none of it and lis
 test('a composition that hands the studio no metadata inspection still gets the directory the caller can discover, never an empty board', async () => {
   const { actions, unregister } = project();
   // As the workbench page once did: registry and a client that can only discover (no inspect anywhere).
-  const client = { discover: (caller: Parameters<typeof actions.client.discover>[0]) => actions.client.discover(caller), invoke: actions.client.invoke.bind(actions.client) };
+  const client = { discover: (caller: Parameters<typeof actions.client.discover>[0]) => actions.client.discover(caller), discoverOne: actions.client.discoverOne.bind(actions.client), invoke: actions.client.invoke.bind(actions.client) };
   const catalog = await capabilityCatalog({ registry: actions.registry, client, project_id: actions.project_id }, 'web-user');
   assert.ok(catalog.some(entry => entry.id === 'model.generate' && entry.offered), JSON.stringify(catalog.map(entry => entry.id)));
   unregister();

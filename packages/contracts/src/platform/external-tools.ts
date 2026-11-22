@@ -94,7 +94,11 @@ const KIMI_SESSIONS = { base: "home", segments: [".kimi-code", "sessions"] } as 
 const MINIMAX_HOME = { base: "home", segments: [".minimax"] } as const;
 const GEMINI_CHATS = { base: "home", segments: [".gemini", "tmp"] } as const;
 
-export const EXTERNAL_TOOLS = [
+/**
+ * The register's rows with their literal values, kept inside this module (batch 103-2): the public API is the entry shape and the types
+ * derived from it, so the 3,600-line literal no longer stands in every caller's API snapshot.
+ */
+const REGISTER = [
   // These six stay first, in this order: SUPPORTED_RUNTIME_IDS, TERMINAL_RUNTIMES and CHARACTER_IMPORT_RUNTIMES take their order from here.
   { id: "codex", display_name: "Codex", vendor: "OpenAI", surface: "cli", region: "global", detect: { commands: ["codex"], ...VERSION_PROBE }, data_root: CODEX_HOME,
     mcp_integration: true, terminal: { command: "codex" }, character_import: { config_root: CODEX_HOME },
@@ -275,15 +279,61 @@ export const EXTERNAL_TOOLS = [
     sessions: { ...ALL_PENDING, resume: pending("有 `codearts run`，会话命令未查到") }, checked: CHECKED },
 ] as const satisfies readonly ExternalToolEntry[];
 
-export type ExternalToolId = (typeof EXTERNAL_TOOLS)[number]["id"];
+type RegisterRow = (typeof REGISTER)[number];
+
+/**
+ * Every id, in register order. Written out (and the runtime lists below) so the public shape names ids, not the whole register; the
+ * checks under them fail to compile when a row is added, removed or gains or loses one of these fields without them (batch 103-2).
+ */
+export type ExternalToolId = "codex" | "claude-code" | "cursor" | "opencode" | "pi-agent" | "grok-build" | "codex-ide" | "codex-desktop"
+  | "codex-cloud" | "claude-code-desktop" | "claude-code-ide" | "claude-code-web" | "gemini-cli" | "antigravity-cli" | "antigravity-desktop"
+  | "copilot-cli" | "copilot-ide" | "copilot-coding-agent" | "cursor-editor" | "cursor-cloud" | "kiro-cli" | "kiro-ide" | "devin-cloud"
+  | "devin-desktop" | "windsurf-cascade" | "junie-cli" | "junie-ide" | "droid" | "amp" | "amp-web" | "qwen-code" | "lingma" | "qoder"
+  | "qoder-ide" | "qoder-cn" | "qoder-cn-ide" | "codebuddy" | "codebuddy-cn" | "codebuddy-ide" | "trae" | "trae-cn" | "solo" | "solo-cn"
+  | "kimi-code" | "zcode" | "minimax-code" | "minimax-agent" | "comate" | "zulu" | "codearts-agent";
+
+/** The ids of the rows that have each optional field a runtime list or a caller relies on. */
+interface ExternalToolIdsByField {
+  detect: "codex" | "claude-code" | "cursor" | "opencode" | "grok-build" | "gemini-cli" | "copilot-cli" | "copilot-coding-agent" | "kiro-cli"
+    | "droid" | "amp" | "qwen-code" | "qoder" | "qoder-cn" | "codebuddy" | "kimi-code" | "minimax-code";
+  terminal: "codex" | "claude-code" | "opencode" | "pi-agent" | "grok-build";
+  character_import: "codex" | "claude-code" | "cursor" | "opencode" | "grok-build";
+  mcp_integration: "codex" | "claude-code" | "opencode" | "pi-agent" | "grok-build";
+}
+type ExternalToolField = keyof ExternalToolIdsByField;
+
+/** A row that reaches its resume by a command: every row with a terminal does (checked below). */
+type ResumedByCommand = { sessions: { resume: Extract<ExternalToolAccess, { via: "command" }> } };
+
+/** One row as callers see it: the fields every id of `Id` is known to have are not optional. */
+export type ExternalToolRow<Id extends ExternalToolId = ExternalToolId> = ExternalToolEntry & { id: Id }
+  & { [Field in ExternalToolField as [Id] extends [ExternalToolIdsByField[Field]] ? Field : never]-?: NonNullable<ExternalToolEntry[Field]> }
+  & ([Id] extends [ExternalToolIdsByField["terminal"]] ? ResumedByCommand : unknown);
 
 /** The rows that have a field, which is what makes a row a member of a runtime list. */
-export type ExternalToolWith<Key extends string> = Extract<(typeof EXTERNAL_TOOLS)[number], Record<Key, unknown>>;
+export type ExternalToolWith<Key extends string> = ExternalToolRow<Key extends ExternalToolField ? ExternalToolIdsByField[Key] : never>;
+
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type IdsWith<Field extends string> = Extract<RegisterRow, Record<Field, unknown>>["id"];
+// The written-out ids and lists are the register's own: these fail to compile when they drift apart.
+const REGISTER_IDS_MATCH: Same<ExternalToolId, RegisterRow["id"]> = true;
+const REGISTER_FIELDS_MATCH: { [Field in ExternalToolField]: Same<ExternalToolIdsByField[Field], IdsWith<Field>> } =
+  { detect: true, terminal: true, character_import: true, mcp_integration: true };
+const TERMINALS_RESUME_BY_COMMAND: Same<Extract<RegisterRow, { terminal: unknown }>["sessions"]["resume"]["via"], "command"> = true;
+void [REGISTER_IDS_MATCH, REGISTER_FIELDS_MATCH, TERMINALS_RESUME_BY_COMMAND];
+
+/** Every row, in register order (the order is a contract, see above). */
+export const EXTERNAL_TOOLS: readonly ExternalToolRow[] = REGISTER;
 
 /** The ids of the rows that have `key`, in register order. Every runtime list is one of these. */
-export const externalToolIdsWith = <Key extends string>(key: Key): readonly ExternalToolWith<Key>["id"][] =>
-  EXTERNAL_TOOLS.filter(tool => key in tool).map(tool => tool.id) as ExternalToolWith<Key>["id"][];
+export const externalToolIdsWith = <Key extends ExternalToolField>(key: Key): readonly ExternalToolIdsByField[Key][] =>
+  REGISTER.filter(tool => key in tool).map(tool => tool.id) as ExternalToolIdsByField[Key][];
 
-/** One row by id. */
-export const externalTool = <Id extends ExternalToolId>(id: Id): Extract<(typeof EXTERNAL_TOOLS)[number], { id: Id }> =>
-  EXTERNAL_TOOLS.find(tool => tool.id === id) as Extract<(typeof EXTERNAL_TOOLS)[number], { id: Id }>;
+/**
+ * One row by id; the fields its id is known to have come typed as present (the checks above hold them to the register). An id that is not
+ * in the register (a runtime named in a grant or a stored row, read as an id) finds nothing, as before: callers holding such a string check.
+ */
+export function externalTool<Id extends ExternalToolId>(id: Id): ExternalToolRow<Id>;
+export function externalTool(id: ExternalToolId): ExternalToolEntry | undefined {
+  return EXTERNAL_TOOLS.find(tool => tool.id === id);
+}

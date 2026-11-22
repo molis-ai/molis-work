@@ -141,7 +141,7 @@ export function createHomeShelfPlugin(): PluginDefinition {
         } }).find(binding => binding.capability_id === definition.capability_id)!.handle(caller, input);
       } })),
     ], routes: SHELF_HOME_ROUTES.map(({ route_id }) => ({ route_id, async handle(request) {
-      const bound: BoundActionClient = { discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) };
+      const bound: BoundActionClient = { discover: async () => [], discoverOne: async () => undefined, invoke: (definition, input) => actions.invoke(definition, input, request.execution) };
       const handlers = createShelfRouteHandlers({ actions: bound, ...(request.execution?.project_id ? {
         project: { title: request.execution.project_title ?? request.execution.project_id, actions: bound },
       } : {}) });

@@ -237,20 +237,20 @@ test("SCS-11: a reply from the Home in an older focused split cannot open Goals 
   await b.click('[data-layout-split="right"]');
   await b.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   await b.click('[data-corner-home]');
-  const frame = "document.querySelector('iframe[data-pane-key=\"plugin:home\"]:not([hidden])')";
-  await b.waitFor(`${frame}?.contentDocument?.querySelector(${JSON.stringify(start)})`);
-  const from = await b.evaluate<string>(`${frame}.dataset.paneOwner`);
+  const homePane = "[...document.querySelectorAll('[data-tab-pane]')].find(p=>p.querySelector('[data-work-surface=home]:not([hidden])'))";
+  await b.waitFor(`${homePane}?.querySelector(${JSON.stringify(start)})`);
+  const from = await b.evaluate<string>(`${homePane}.dataset.tabPane`);
   const other = await b.evaluate<string>(`[...document.querySelectorAll('[data-tab-pane]')].find(pane=>pane.dataset.tabPane!==${JSON.stringify(from)}).dataset.tabPane`);
   const otherTab = '[data-tab-pane="' + other + '"] [data-tab-id][data-plugin="goals"]';
   await b.evaluate(`(() => {
-    const win=${frame}.contentWindow, previous=win.fetch;
+    const previous=window.fetch;
     const held=new Promise(resolve=>{window.releaseOldHomeClick=resolve});
-    win.fetch=async (url, options)=>{
+    window.fetch=async (url, options)=>{
       const response=await previous(url, options);
       if(String(url).endsWith(${JSON.stringify(endpoint + "/click")})){ window.oldHomeClick=await response.clone().json(); await held; }
       return response;
     };
-    win.document.querySelector(${JSON.stringify(start)}).click();
+    (${homePane}).querySelector(${JSON.stringify(start)}).click();
   })()`);
   try {
     await b.waitFor("window.oldHomeClick?.selection?.panel === 'create-dialog'");
@@ -258,8 +258,8 @@ test("SCS-11: a reply from the Home in an older focused split cannot open Goals 
     await b.waitFor(`document.querySelector('[data-tab-pane="${other}"]').classList.contains('is-focused')`);
   } finally { await b.evaluate("releaseOldHomeClick()"); }
   await b.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-  assert.equal(await b.evaluate(`${frame}?.dataset.paneOwner`), from, "the stale reply did not navigate its own Home pane either");
-  assert.equal(await b.evaluate("![document,...[...document.querySelectorAll('iframe[data-pane-tab]:not([hidden])')].map(frame=>frame.contentDocument)].some(doc=>doc?.querySelector('[data-create-dialog]')?.open)"), true);
+  assert.equal(await b.evaluate(`${homePane}?.dataset.tabPane`), from, "the stale reply did not navigate its own Home pane either");
+  assert.equal(await b.evaluate("!document.querySelector('[data-create-dialog]')?.open"), true);
 });
 
 test("WBR-21: the retired website shortcut entry does not delete its saved data", { timeout: 45_000 }, async t => {

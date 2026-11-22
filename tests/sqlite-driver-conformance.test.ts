@@ -34,7 +34,7 @@ test(`SQLD-01 a connection reads as it always has`, t => {
   assert.equal(db.pragma("busy_timeout", { simple: true }), 5000);
   assert.equal(db.pragma("foreign_keys", { simple: true }), 1);
   db.prepare("SELECT 1").get();
-  assert.equal(db.pragma("cache_size", { simple: true }), -16000);
+  assert.equal(db.pragma("cache_size", { simple: true }), -4000);
   assert.throws(() => db.prepare('SELECT "not a column"').get(), /no such column/, "double quotes never read as a string");
   assert.throws(() => db.prepare("UPDATE sqlite_master SET sql = 'x'").run(), /may not be modified/, "defensive");
   assert.equal(db.close(), db, "close returns the connection");
@@ -332,7 +332,7 @@ test(`SQLD-04 sizing the cache: an open does not touch the file, a failure of it
   assert.equal(waiting.pragma("busy_timeout", { simple: true }), 400, "and the connection's timeout is back");
   holder.exec("ROLLBACK");
   assert.deepEqual(waiting.prepare("SELECT v FROM t").all(), []);
-  assert.equal(waiting.pragma("cache_size", { simple: true }), -16000, "the next statement tried again");
+  assert.equal(waiting.pragma("cache_size", { simple: true }), -4000, "the next statement tried again");
 });
 
 test("SQLD-04 sqliteErrorName reads what SQLite raised, and nothing else", () => {

@@ -10,7 +10,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // own landing) and also when the way is an entry in the bar's 「更多」 menu. A pane takes the ask only from the page around it
 // (S-30); the keys the menu holds show the landing but are not kept in their slot like the bar's.
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
-const PANE = "[...document.querySelectorAll('iframe[data-pane-owner]')].find(frame => frame.contentDocument?.querySelector('iframe[data-plugin-frame=pages]'))";
+const PANE = "document.querySelector('[data-tab-pane].is-focused')";
 const paneText = "(document.querySelector('[data-pages-editor] .ProseMirror')?.textContent ?? '')";
 const OFFER = "插入到光标处";
 
@@ -18,7 +18,9 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
-  const child=await pluginFrameBrowser(t,browser,"pages"), paneView=await pluginFrameBrowser(t,browser,"pages","iframe[data-pane-owner]:not([hidden])");
+  const child = await pluginFrameBrowser(t, browser, "pages");
+  const paneView = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane].is-focused iframe[data-plugin-frame="pages"]');
+  const otherView = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane]:not(.is-focused) iframe[data-plugin-frame="pages"]');
   const store = openPagesStore(homeDirectory);
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
@@ -28,44 +30,34 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
   await click("[data-layout-open]");
   await click("[data-layout-split=right]");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelectorAll('iframe.tab-content-frame').length === 0", 15_000);
   await paneView.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
+  await otherView.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 
-  // What is asked of each document, and every flash line Pages draws in the pane.
-  await evaluate(`(() => {
-    window.flashAsked = 0; document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);
-  })()`);
+  // Every flash line Pages draws in the focused split pane vs the sibling pane.
   await paneView.evaluate(`(() => {
-    const pane=window; pane.flashAsked=0;pane.flashLines=0;
+    const pane = window; pane.flashAsked = 0; pane.flashLines = 0;
     pane.document.addEventListener('molis:surface-landing-flash', () => { pane.flashAsked += 1; }, true);
     pane.document.addEventListener('molis:surface-landing', (event) => { pane.lastLanding = event.detail; }, true);
     new pane.MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) pane.flashLines += 1; })
       .observe(pane.document.body, { childList: true, subtree: true });
   })()`);
+  await otherView.evaluate(`(() => {
+    window.flashLines = 0;
+    new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
+      .observe(document.body, { childList: true, subtree: true });
+  })()`);
   const pane = <T>(expression: string) => paneView.evaluate<T>(`(() => { const pane = window; return ${expression}; })()`);
 
-  // The person leaves the cursor after 「先完成」 in the pane: that is the landing.
+  // The person leaves the cursor after 「先完成」 in the focused split pane: that is the landing.
+  await paneView.click("[data-pages-editor] .ProseMirror p");
   await paneView.evaluate(`(() => {
     const doc = document, editor = doc.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = doc.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range);
   })()`);
-  await paneView.waitFor(`(() => { const pane = window; return pane.lastLanding?.position === 'cursor'; })()`, 10_000);
-
-  // PANE-FLASH-02: the pane asking itself, and a frame inside the pane that is not the page around it, flash nothing.
-  await evaluate(`(async () => {
-    const pane=${PANE}.contentWindow;
-    // Posted by scripts running in the pane and in a frame inside it, so their windows are the messages' sources.
-    const own = pane.document.createElement('script');
-    own.textContent = "postMessage({ type: 'workbench-surface-landing-flash' }, location.origin)";
-    pane.document.body.append(own);
-    const stray = pane.document.createElement('iframe'); pane.document.body.append(stray);
-    const script = stray.contentDocument.createElement('script');
-    script.textContent = "parent.postMessage({ type: 'workbench-surface-landing-flash' }, parent.location.origin)";
-    stray.contentDocument.body.append(script);
-    await new Promise(resolve => setTimeout(resolve, 300)); stray.remove();
-  })()`);
-  assert.deepEqual(await pane<[number, number]>("[pane.flashAsked, pane.flashLines]"), [0, 0], "a flash not asked by the page around the pane is dropped");
+  await paneView.waitFor(`(() => { const pane = window; return pane.lastLanding?.position === 'cursor' && pane.lastLanding?.targets?.[0]?.anchor === 4; })()`, 10_000);
 
   // A passage in hand from the right panel's file preview.
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files', target: { subject: { kind: 'pages_document', id: ${JSON.stringify(right.id)} } } } }))`);
@@ -88,11 +80,11 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
   };
   const away = () => command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1430, y: 950 }, sessionId);
 
-  // PANE-FLASH-01: hovering the offer on the bar asks the pane, which flashes its own landing; the top document raises nothing.
+  // PANE-FLASH-01: hovering the offer on the bar flashes the owning split pane's landing; neither the sibling pane nor top document draws it.
   await moveTo(onBar);
   await paneView.waitFor(`(() => { const pane = window; return pane.flashAsked === 1 && pane.flashLines === 1; })()`, 5_000);
-  assert.equal(await evaluate<number>("window.flashAsked"), 0, "the top document raises nothing for a landing in a pane");
-  assert.equal(await evaluate<boolean>("document.querySelector('.pages-landing-flash') === null"), true, "the flash is drawn in the pane");
+  assert.equal(await otherView.evaluate<number>("window.flashLines"), 0, "the sibling pane flashes nothing");
+  assert.equal(await evaluate<boolean>("document.querySelector('.pages-landing-flash') === null"), true, "the flash is drawn inside the pane's Pages frame");
   await paneView.waitFor(`document.querySelector('.pages-landing-flash') === null`, 5_000);
   await away();
 
@@ -104,13 +96,39 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
   const asked = await pane<number>("pane.flashAsked");
   await moveTo(inMenu);
   await paneView.waitFor(`(() => { const pane = window; return pane.flashAsked === ${asked + 1} && pane.flashLines === 2; })()`, 5_000);
-  assert.equal(await evaluate<number>("window.flashAsked"), 0);
+  assert.equal(await otherView.evaluate<number>("window.flashLines"), 0);
   await paneView.waitFor(`document.querySelector('.pages-landing-flash') === null`, 5_000);
   assert.equal(await paneView.evaluate<string>(paneText), "先完成核心体验。再安排发布。", "a flash writes nothing");
 
+  // PANE-FLASH-02 (S-30): an embedded pane document (such as a tab moved to the right side) flashes only when the page around it asks;
+  // asking itself or a stray child iframe inside it flashes nothing.
+  await away();
+  const sidePaneView = await pluginFrameBrowser(t, browser, "pages", '#side-panel iframe[data-pane-owner="side"]');
+  await evaluate(`(() => { const tab = (${PANE}).querySelector('.tab-item[aria-current]'); tab.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 20 })); })()`);
+  await waitFor("document.querySelector('[data-tab-menu-action=to-side]')?.checkVisibility()");
+  await click("[data-tab-menu-action=to-side]");
+  await sidePaneView.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
+  await sidePaneView.evaluate(`(() => {
+    window.sideFlashAsked = 0; window.sideFlashLines = 0;
+    document.addEventListener('molis:surface-landing-flash', () => { window.sideFlashAsked += 1; }, true);
+    new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.sideFlashLines += 1; })
+      .observe(document.body, { childList: true, subtree: true });
+  })()`);
+  await evaluate(`(async () => {
+    const pane = document.querySelector('#side-panel iframe[data-pane-owner="side"]').contentWindow;
+    const own = pane.document.createElement('script');
+    own.textContent = "postMessage({ type: 'workbench-surface-landing-flash' }, location.origin)";
+    pane.document.body.append(own);
+    const stray = pane.document.createElement('iframe'); pane.document.body.append(stray);
+    const script = stray.contentDocument.createElement('script');
+    script.textContent = "parent.postMessage({ type: 'workbench-surface-landing-flash' }, parent.location.origin)";
+    stray.contentDocument.body.append(script);
+    await new Promise(resolve => setTimeout(resolve, 300)); stray.remove();
+  })()`);
+  assert.deepEqual(await sidePaneView.evaluate<[number, number]>("[window.sideFlashAsked, window.sideFlashLines]"), [0, 0], "a flash not asked by the page around the embedded pane is dropped");
+
   // MENU-FLASH-01: the toolbar itself. A key under the pointer in the menu is in hand for the flash (pointed), but not among
   // the keys the bar keeps in their slot (pinned, which goes to the Host with the next judgment).
-  await away();
   await evaluate(`(() => {
     const make = Function("return (" + ${JSON.stringify(CONTEXT_TOOLBAR_CLIENT_SCRIPT)} + ")")(), parent = document.createElement('div');
     parent.setAttribute('data-test-toolbar', ''); document.body.append(parent);

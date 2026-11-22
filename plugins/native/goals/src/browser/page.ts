@@ -187,7 +187,8 @@ export function goalsPageClient(host: PageHost) {
     showError: (message) => showToast(message, true),
     afterReplace: () => {
       page.documentReplaceGeneration += 1;
-      page.documentCursor = undefined;
+      page.documentCursor = goalData.boardCursor;
+      documentPane.dataset.boardCursor = page.documentCursor == null ? "" : String(page.documentCursor);
       relation.updateAllRelationFormPreviews();
       bindGoalEventDocument(pendingEventRestore);
       pendingEventRestore = null;
@@ -195,6 +196,40 @@ export function goalsPageClient(host: PageHost) {
       setGoalFactor(goalFactorFromHash() || "relations", false);
     },
   });
+  // A split pane's copy of a Goal document loads and binds its own events, apart from the page's document (102-1).
+  const copiedDocuments = new WeakMap<HTMLElement, { events: ReturnType<typeof eventDocumentClient>; load: (goalId: string, restore?: EventRestore | null) => Promise<boolean | null> }>();
+  const loadGoalDocumentInto = (targetPane: HTMLElement, goalId: string): Promise<boolean | null> => {
+    if (targetPane === documentPane) return loadGoalDocument(goalId);
+    let entry = copiedDocuments.get(targetPane);
+    if (!entry) {
+      let pendingRestore: EventRestore | null = null;
+      const events = eventDocumentClient({
+        documentPane: targetPane, route, isAbortError,
+        showError: (message) => showToast(message, true),
+        showStatus: (message) => showToast(message, false),
+        reloadDocument: (id, restore) => entry!.load(id, restore),
+      });
+      const loader = documentClient({
+        documentPane: targetPane, documentCollection, route, isAbortError,
+        showError: (message) => showToast(message, true),
+        afterReplace: () => {
+          targetPane.dataset.boardCursor = goalData.boardCursor == null ? "" : String(goalData.boardCursor);
+          events.bindGoalEventDocument(pendingRestore);
+          pendingRestore = null;
+        },
+      });
+      const created = {
+        events,
+        load: (id: string, restore?: EventRestore | null) => {
+          pendingRestore = restore || null;
+          return loader.loadGoalDocument(id);
+        },
+      };
+      copiedDocuments.set(targetPane, created);
+      entry = created;
+    }
+    return entry.load(goalId);
+  };
   const navigation = navigationClient({
     trashView, archiveView, documentPane,
     getSelected: () => page.selected,
@@ -211,6 +246,7 @@ export function goalsPageClient(host: PageHost) {
       restoreTreeCollapsed: tree.restoreTreeCollapsed, syncGoalCollectionFolds: tree.syncGoalCollectionFolds,
       setSelectedStatuses: tree.setSelectedStatuses, filterTree: tree.filterTree, selectTreeGoal: tree.selectTreeGoal,
       updateAllRelationFormPreviews: relation.updateAllRelationFormPreviews, bindGoalEventDocument: () => bindGoalEventDocument(),
+      bindCopiedEventDocument: (pane: HTMLElement) => copiedDocuments.get(pane)?.events.bindGoalEventDocument(),
       openEventReader, setGoalFactor,
     }),
   });
@@ -268,7 +304,8 @@ export function goalsPageClient(host: PageHost) {
   });
   // The collapse button on a Goal's frame takes its tab back to the board.
   document.addEventListener("click", (event) => {
-    if (elementOf(event)?.closest("[data-goal-collapse]")) tabs()?.setItemView("goals", undefined);
+    const collapse = elementOf(event)?.closest("[data-goal-collapse]");
+    if (collapse) tabs()?.setItemView("goals", undefined, collapse.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane);
   });
 
   if (document.body.classList.contains("immersive-workbench")) workFrame = workFrameClient({
@@ -289,7 +326,7 @@ export function goalsPageClient(host: PageHost) {
     getProjectId: () => projectId,
     route,
     openGoalTab: (id) => tabs()?.openItem("goals", id, undefined, "frame"),
-    openGoalWork: () => tabs()?.setItemView("goals", "work"),
+    openGoalWork: (paneId) => tabs()?.setItemView("goals", "work", paneId),
     activateGoalsMother: () => {
       const current = tabs()?.state?.();
       const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
@@ -300,7 +337,7 @@ export function goalsPageClient(host: PageHost) {
   });
   return pageHooks({
     host, page, goalData, documentPane, treeScroll, collectionView, documentCollection, directGoalRequested, storageKey, goalMoveReceiptKey,
-    frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument,
+    frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument, loadGoalDocumentInto,
     announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh,
   });
 }

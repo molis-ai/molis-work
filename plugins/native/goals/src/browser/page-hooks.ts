@@ -7,7 +7,7 @@ import type { frameContainerClient } from "./frame-container.js";
 import type { momentumClient } from "./momentum.js";
 import type { CanvasView } from "./momentum-viewport.js";
 import type { navigationClient } from "./navigation.js";
-import type { PageHost, SavedUi, WorkbenchTab } from "./page-host.js";
+import type { PageHost, PaneRoot, PaneShowing, SavedUi, WorkbenchTab } from "./page-host.js";
 import type { GoalDataElement, PageState, pageRefresh } from "./page-refresh.js";
 import type { panelsClient } from "./panels.js";
 import type { relationClient } from "./relation.js";
@@ -35,6 +35,7 @@ export interface HookParts {
   readonly activateFocusSection: (trigger: Element | null | undefined) => boolean;
   readonly revealFocusTarget: (target: Element | null | undefined) => boolean;
   readonly loadGoalDocument: (goalId: string) => Promise<boolean | null>;
+  readonly loadGoalDocumentInto: (targetPane: HTMLElement, goalId: string) => Promise<unknown>;
   readonly announceSelection: (goalId: string, item: GoalListItem | undefined, tui: HTMLElement | null) => void;
   readonly eventDocument: ReturnType<typeof eventDocumentClient>;
   readonly panels: ReturnType<typeof panelsClient>;
@@ -55,7 +56,7 @@ const FOCUS_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "
 export function pageHooks(parts: HookParts) {
   const { host, page, goalData, documentPane, treeScroll, collectionView, documentCollection, directGoalRequested, storageKey, goalMoveReceiptKey,
     frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument,
-    announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh } = parts;
+    loadGoalDocumentInto, announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh } = parts;
   const { workspace, directoryPane: treePane, terminalPane: tuiPane, showToast, lifetime, getSurface, setWorkSurface, setDirectory, setWorkspaceMode,
     setMobileView, applyMobilePanePresence, tabs, queueSave, saveUiState, localPathname, openEntryItem, surfaceScroll } = host;
   const { bindGoalEventDocument, openEventReader } = eventDocument;
@@ -68,13 +69,15 @@ export function pageHooks(parts: HookParts) {
   // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
   // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
   const titleForGoal = (goalId: string, fallback?: string) => visibleGoals().find((item) => item.goal.goal_id === goalId)?.goal.title || fallback || goalId;
-  const declareGoal = (goalId: string | null | undefined, fallback?: string) => {
+  const declareGoal = (goalId: string | null | undefined, fallback?: string, targetNode?: Element | null) => {
     const title = goalId ? titleForGoal(goalId, fallback) : "";
     const surface = q('[data-work-surface="goals"]'), tui = q("[data-tui-pane]");
     const pluginId = tui?.dataset.tuiPluginId || GOALS_PLUGIN_ID;
     const subjectKind = tui?.dataset.tuiSubjectKind || "goal";
     const surfaceTitle = surface?.dataset.workSurfaceLabel || "";
-    document.querySelectorAll("[data-goal-frame-surface], [data-document-pane]").forEach((node) => {
+    // A pane names its own Goal (102-1); otherwise the page's frame and document name the open one.
+    const nodes = targetNode ? [targetNode] : document.querySelectorAll("[data-goal-frame-surface]:not([data-pane-clone]), [data-document-pane]:not([data-pane-clone])");
+    nodes.forEach((node) => {
       if (goalId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: pluginId, surface_title: surfaceTitle,
         object: { kind: subjectKind, id: goalId, ...(title ? { title } : {}) },
         belongs_to: { plugin_id: pluginId, kind: subjectKind, id: goalId, title: title || "" } }));
@@ -128,6 +131,9 @@ export function pageHooks(parts: HookParts) {
     const goalLink = target.closest<HTMLElement>("[data-select-goal]");
     if (goalLink) {
       const goalId = goalLink.dataset.selectGoal || "";
+      // A Goal picked inside one pane of a split makes that pane the focused one (102-1).
+      const clickedPaneId = goalLink.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane;
+      if (clickedPaneId) tabs()?.focusPane?.(clickedPaneId);
       if (goalLink.closest("[data-goal-stage-list]")) {
         if (stageList.timer) {
           clearTimeout(stageList.timer);
@@ -171,15 +177,72 @@ export function pageHooks(parts: HookParts) {
     dialogs.handleGoalDialogEscape(event);
     return false;
   };
-  const showTab = (tab: WorkbenchTab, keepFrame: boolean) => {
+  const frameTab = (tab: WorkbenchTab | null | undefined) => document.body.dataset.boardView === "current" && tab?.kind === "item" && tab.view !== "work";
+  /** A pane copy of the canvas shell showing one Goal's work: its title, status and its own document. */
+  const prepareWorkCopy = (shellNode: HTMLElement, goalId: string) => {
+    shellNode.dataset.expanded = "true";
+    shellNode.querySelectorAll<HTMLElement>(":scope > [data-goal-stage-list], :scope > [data-goal-momentum], :scope > [data-goal-kanban], :scope > [data-goal-stage-chrome]").forEach((child) => { child.hidden = true; });
+    const work = shellNode.querySelector<HTMLElement>("[data-goal-node-workspace]");
+    const docPane = shellNode.querySelector<HTMLElement>("[data-document-pane]");
+    if (work) {
+      work.hidden = false;
+      if (!work.dataset.detailsOpen) work.dataset.detailsOpen = "true";
+      const titleEl = work.querySelector("[data-workspace-goal-title]");
+      if (titleEl) titleEl.textContent = titleForGoal(goalId);
+      const statusEl = work.querySelector("[data-workspace-goal-status]");
+      const source = document.querySelector('[data-goal-id="' + CSS.escape(goalId) + '"] .goal-status');
+      if (statusEl && source) {
+        statusEl.className = source.className;
+        statusEl.innerHTML = source.innerHTML;
+      }
+      work.querySelector("[data-goal-details-toggle]")?.setAttribute("aria-expanded", String(work.dataset.detailsOpen === "true"));
+    }
+    if (docPane) {
+      docPane.hidden = work ? work.dataset.detailsOpen !== "true" : false;
+      docPane.dataset.paneGoalId = goalId;
+      docPane.setAttribute("data-pane-clone", "true");
+      const shown = docPane.querySelector<HTMLElement>("[data-goal-view]")?.dataset.goalView;
+      if (shown !== goalId && docPane.dataset.loadingGoalId !== goalId) {
+        docPane.dataset.loadingGoalId = goalId;
+        void loadGoalDocumentInto(docPane, goalId).finally(() => {
+          if (docPane.dataset.loadingGoalId === goalId) delete docPane.dataset.loadingGoalId;
+        });
+      }
+    }
+  };
+  /** A pane copy of the canvas shell showing the Goal list. */
+  const prepareCanvasCopy = (shellNode: HTMLElement) => {
+    shellNode.dataset.expanded = "false";
+    shellNode.dataset.boardView = "list";
+    const work = shellNode.querySelector<HTMLElement>("[data-goal-node-workspace]");
+    if (work) work.hidden = true;
+    const primaryList = q("[data-goal-canvas-shell]:not([data-pane-clone]) [data-goal-stage-list]");
+    const copyList = shellNode.querySelector<HTMLElement>("[data-goal-stage-list]");
+    if (primaryList && copyList) {
+      copyList.hidden = false;
+      copyList.innerHTML = primaryList.innerHTML;
+    }
+    shellNode.querySelectorAll<HTMLElement>(":scope > [data-goal-momentum], :scope > [data-goal-kanban], :scope > [data-goal-stage-chrome]").forEach((child) => { child.hidden = true; });
+  };
+  const showTab = (tab: WorkbenchTab, keepFrame: boolean, pane?: PaneShowing) => {
+    const node = pane?.node, isClone = Boolean(pane?.isClone), isSplit = Boolean(pane?.isSplit), isFocused = pane ? pane.isFocused : true;
     if (tab.kind === "item" && tab.itemId) {
       const itemId = tab.itemId;
-      if (document.body.dataset.boardView === "current" && tab.view !== "work") {
-        applySelection(itemId, false);
-        if (frameContainer?.showGoalFrame(itemId) !== false) return true;
+      if (frameTab(tab)) {
+        declareGoal(itemId, tab.title, node);
+        if (isFocused) applySelection(itemId, false);
+        if (frameContainer?.showGoalFrame(itemId, node && (isClone || isSplit) ? node : undefined) !== false) return true;
+      }
+      if (node && isClone) {
+        prepareWorkCopy(node, itemId);
+        declareGoal(itemId, tab.title, node.querySelector("[data-document-pane]"));
+        return true;
       }
       frameContainer?.releaseFrame();
+      declareGoal(itemId, tab.title, node?.querySelector("[data-document-pane]"));
       applySelection(itemId, false);
+      const work = (node || workspace).querySelector<HTMLElement>("[data-goal-node-workspace]");
+      if (work) work.hidden = false;
       const documentGoalId = documentPane.querySelector<HTMLElement>("[data-goal-view]")?.dataset.goalView;
       if ((documentGoalId !== itemId || loadingGoalId) && loadingGoalId !== itemId) {
         loadingGoalId = itemId;
@@ -191,17 +254,51 @@ export function pageHooks(parts: HookParts) {
         }).finally(() => { if (loadingGoalId === itemId) loadingGoalId = null; });
       }
       setWorkspaceMode("focus", false, true);
+      if (node) node.hidden = false;
       labelCollapse("goals.chrome.back-goal-canvas")?.setAttribute("title", globalThis.t.text("goals.chrome.back-goal-canvas"));
       return true;
     }
+    if (node && isClone) {
+      prepareCanvasCopy(node);
+      return true;
+    }
+    if (isFocused) declareGoal(null);
+    frameContainer?.releaseFrame();
+    const work = (node || workspace).querySelector<HTMLElement>("[data-goal-node-workspace]");
+    if (work && node) work.hidden = true;
     labelCollapse("goals.page-client.collapse-goal-return-canvas");
-    if (keepFrame) {
-      setWorkSurface("goals");
-      setWorkspaceMode("graph", false, true);
+    if (keepFrame || isSplit) {
+      if (node) node.dataset.expanded = "false";
+      if (isFocused) {
+        setWorkSurface("goals", false, false, "restore");
+        setWorkspaceMode("graph", false, true);
+      }
+      if (node) node.hidden = false;
       return true;
     }
     frameContainer?.restoreBoard();
     return true;
+  };
+  const paneRoot = (tab: WorkbenchTab | null): PaneRoot => frameTab(tab)
+    ? { template: "frame", primary: q("[data-goal-frame-surface]:not([data-pane-clone])"), matches: "[data-goal-frame-surface]" }
+    : {
+      template: "shell",
+      primary: q("[data-goal-canvas-shell]:not([data-pane-clone])") || q("[data-document-pane]:not([data-pane-clone])"),
+      matches: "[data-goal-canvas-shell]",
+      perTab: true,
+      ...(tab?.kind === "item" ? { mark: { goalWorkClone: "true" } } : {}),
+    };
+  const paneTemplates = () => {
+    const templates: Record<string, Element> = {};
+    const frame = q("[data-goal-frame-surface]:not([data-pane-clone])");
+    if (frame) {
+      const copy = frame.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-frame-picker]")?.remove();
+      templates.frame = copy;
+    }
+    const shell = q("[data-goal-canvas-shell]:not([data-pane-clone])");
+    if (shell) templates.shell = shell.cloneNode(true) as HTMLElement;
+    return templates;
   };
   const showReceipts = () => {
     try {
@@ -246,6 +343,13 @@ export function pageHooks(parts: HookParts) {
     const refreshVisibleGoal = () => { if (refresh.goalStageVisible()) void refresh.refreshBoard(); };
     scope.listen(document, "molis-work:place-changed", () => requestAnimationFrame(refreshVisibleGoal));
     scope.listen(window, "resize", refreshVisibleGoal);
+    // Splitting, unsplitting or narrowing the workspace changes which Goal panes show (102-1).
+    const tabWorkspaceRoot = q("[data-tab-workspace]");
+    if (tabWorkspaceRoot) {
+      const observer = new MutationObserver(() => requestAnimationFrame(refreshVisibleGoal));
+      observer.observe(tabWorkspaceRoot, { attributes: true, attributeFilter: ["data-solo", "data-split-narrow", "data-exclusive"] });
+      scope.own(() => observer.disconnect());
+    }
     scope.own(() => clearTimeout(page.deferredRefreshTimer));
   };
 
@@ -337,12 +441,15 @@ export function pageHooks(parts: HookParts) {
       requestAnimationFrame(() => q('[data-tree-item][data-goal-id="' + CSS.escape(id) + '"]')?.scrollIntoView({ block: "nearest" }));
       return true;
     },
-    tabRoot: (tab: WorkbenchTab) => document.body.dataset.boardView === "current" && tab.kind === "item" && tab.view !== "work"
-      ? q("[data-goal-frame-surface]") : undefined,
-    topLevel: () => q("[data-goal-canvas-shell]") || q("[data-document-pane]"),
+    tabRoot: (tab: WorkbenchTab) => frameTab(tab) ? q("[data-goal-frame-surface]:not([data-pane-clone])") : undefined,
+    topLevel: () => q("[data-goal-canvas-shell]:not([data-pane-clone])") || q("[data-document-pane]:not([data-pane-clone])"),
+    paneRoot,
+    paneTemplates,
+    showPaneView: (node: HTMLElement) => prepareCanvasCopy(node),
     itemTitle: (itemId: string, fallback?: string) => titleForGoal(itemId, fallback),
     itemView: (view: string | undefined) => view === "frame" ? undefined : view,
-    declare: (tab: WorkbenchTab | null | undefined) => declareGoal(tab?.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab?.title),
+    // Goals tabs name their Goal when shown (showTab); any other focused tab clears the page's naming.
+    declare: (tab: WorkbenchTab | null | undefined) => { if (tab?.plugin !== "goals") declareGoal(null); },
     focusItem: (itemId: string) => applySelection(itemId, false),
     withItem: (itemId: string, act: () => void) => {
       const loading = loadingGoalId;

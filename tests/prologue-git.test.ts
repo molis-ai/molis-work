@@ -6,7 +6,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { AgentReviewQueue, createPrologueNodeAdapter, reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
-import { createPrologueGitReviews } from "../horizontal/agent-host/dist/adapters/prologue-git.js";
+import { createPrologueGitReviews, GIT_REVIEW_RULE } from "../horizontal/agent-host/dist/adapters/prologue-git.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
@@ -65,7 +65,7 @@ async function restoredGitDecision(t: import("node:test").TestContext, freeReade
     finally { try { await runtime?.shutdown(); } finally { await rm(root, { recursive: true, force: true }); } }
   });
   const sdk: GitReviewPorts["runtime"] = await createRuntime({ app: { appId: "molis.git.receiver", appVersion: "1.0.0" },
-    host: createNodeHost({ storageRoot: path.join(root, "sdk") }), preset: "local-agent", posture: { sandbox: "workspace-write" } });
+    host: createNodeHost({ storageRoot: path.join(root, "sdk") }), preset: "local-agent", posture: { sandbox: "workspace-write" }, rules: [GIT_REVIEW_RULE] });
   runtime = sdk;
   const ports = new StoredGitReviewPorts(sdk, new AgentReviewQueue());
   reviews = createPrologueGitReviews(ports);
@@ -146,7 +146,7 @@ const held = { plugin_id: "io.molis.work.git", install_id: "fixture", holds: () 
 async function liveGitDecision(t: import("node:test").TestContext) {
   const root = await mkdtemp(path.join(tmpdir(), "git-decision-lifecycle-"));
   const sdk: GitReviewPorts["runtime"] = await createRuntime({ app: { appId: "molis.git.lifecycle", appVersion: "1.0.0" },
-    host: createNodeHost({ storageRoot: path.join(root, "sdk") }), preset: "local-agent", posture: { sandbox: "workspace-write" } });
+    host: createNodeHost({ storageRoot: path.join(root, "sdk") }), preset: "local-agent", posture: { sandbox: "workspace-write" }, rules: [GIT_REVIEW_RULE] });
   const ports = new StoredGitReviewPorts(sdk, new AgentReviewQueue()), reviews = createPrologueGitReviews(ports);
   t.after(async () => { try { await reviews.close(); await sdk.shutdown(); } finally { ports.queue.close(); await rm(root, { recursive: true, force: true }); } });
   const prepare = (operation_id: string, execute: () => Promise<void> = async () => { assert.fail("unapproved operation ran"); }) =>

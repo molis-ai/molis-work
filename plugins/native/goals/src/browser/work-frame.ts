@@ -146,7 +146,18 @@ export function workFrameClient(host: WorkFrameHost) {
       setView(viewTab.dataset.goalViewTab || "", true);
       return;
     }
-    if (frame && target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
+    const detailsToggle = target.closest<HTMLElement>("[data-goal-details-toggle]");
+    if (detailsToggle) {
+      // A Goal's copy in another split pane keeps its own details rail; only the page's own frame is remembered (102-1).
+      const targetFrame = detailsToggle.closest<HTMLElement>("[data-goal-node-workspace]");
+      if (targetFrame && targetFrame !== frame) {
+        const nextOpen = targetFrame.dataset.detailsOpen !== "true";
+        targetFrame.dataset.detailsOpen = String(nextOpen);
+        const cloneDocument = targetFrame.querySelector<HTMLElement>("[data-document-pane]");
+        if (cloneDocument) cloneDocument.hidden = !nextOpen;
+        detailsToggle.setAttribute("aria-expanded", String(nextOpen));
+      } else if (frame) setDetails(frame.dataset.detailsOpen !== "true", true);
+    }
     if (target.closest("[data-select-goal]")) {
       if (narrow()) setMobileView("document");
       syncShell(false);

@@ -1,18 +1,13 @@
-import { openExistingBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { openConnectorsStore, CONNECTORS_BASELINE, CONNECTORS_HOME_STORE } from "./connectors-store.js";
+import { withConnectorsStore } from "./connectors-store.js";
 import { ConnectorProtocolStore } from "@molis-ai/molis-work-service-connector-host";
 export { ConnectorProtocolStore, CONNECTOR_AUTH_TTL_MS, type ConnectorProtocolConfiguration, type ConnectorAuthorizationSession } from "@molis-ai/molis-work-service-connector-host";
 
 export function withConnectorProtocols<T>(home: string, operation: (store: ConnectorProtocolStore) => T): T;
 export function withConnectorProtocols<T>(home: string, operation: (store: ConnectorProtocolStore) => T, existingOnly: true): T | undefined;
 export function withConnectorProtocols<T>(home: string, operation: (store: ConnectorProtocolStore) => T, existingOnly = false): T | undefined {
-  const db = existingOnly ? openExistingBaselineHomeSqlite(home, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE) : openConnectorsStore(home);
-  if (!db) return undefined;
-  try {
-    db.exec("PRAGMA busy_timeout = 5000");
-    return operation(new ConnectorProtocolStore(db, sessionId => connectorProtocolSecrets(home, sessionId).clear()));
-  } finally { db.close(); }
+  const run = (db: Parameters<Parameters<typeof withConnectorsStore>[1]>[0]) => operation(new ConnectorProtocolStore(db, sessionId => connectorProtocolSecrets(home, sessionId).clear()));
+  return existingOnly ? withConnectorsStore(home, run, true) : withConnectorsStore(home, run);
 }
 
 /** These values never enter protocol JSON or HTTP responses. */

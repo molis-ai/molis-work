@@ -21,7 +21,9 @@ export interface TabWorkspace {
   isEmbedded(): boolean;
   openItem(plugin: string, itemId: string, title?: string, view?: string, mode?: string): void;
   openPlugin(plugin: string): void;
-  setItemView(plugin: string, view: string | undefined): void;
+  /** Sets the view of the item tab shown in a pane (the focused one unless named). */
+  setItemView(plugin: string, view: string | undefined, paneId?: string): void;
+  focusPane?(paneId: string): void;
 }
 
 /** The page's lifetime (packages/ui-host): reads tied to it stop when the page goes. */
@@ -47,7 +49,7 @@ export interface PageHost {
   readonly requireFormFacts: (form: HTMLFormElement, errorBox: HTMLElement | null) => boolean;
   readonly lifetime: () => PageLifetime;
   readonly getSurface: () => string;
-  readonly setWorkSurface: (surface: string, persist?: boolean, focus?: boolean) => void;
+  readonly setWorkSurface: (surface: string, persist?: boolean, focus?: boolean, intent?: string) => void;
   readonly setDirectory: (directory: string, persist?: boolean, focus?: boolean) => void;
   readonly setWorkspaceMode: SetWorkspaceMode;
   readonly setMobileView: (view: string) => void;
@@ -69,4 +71,27 @@ export interface PageHost {
   readonly navigationVersion: number;
   readonly openEntryItem: (plugin: string, itemId: string | undefined, title: string | undefined, event: Event) => void;
   readonly surfaceScroll: (surface: string) => unknown;
+}
+
+/** The pane a tab is shown in when the shell splits the work area (102-1): the page itself, or this pane's copy of it. */
+export interface PaneShowing {
+  readonly node: HTMLElement;
+  readonly isClone: boolean;
+  readonly isSplit: boolean;
+  readonly isFocused: boolean;
+  readonly paneId: string;
+}
+
+/** Which of its pages a pane shows for a tab, and how the shell copies it for a second pane. */
+export interface PaneRoot {
+  /** The key of the copy in `paneTemplates()`. */
+  readonly template: string;
+  /** The page itself, when no other pane holds it. */
+  readonly primary: Element | null;
+  /** Matches the page and its copies. */
+  readonly matches: string;
+  /** One copy per tab (rather than one page reused while a single pane shows it). */
+  readonly perTab?: boolean;
+  /** Data attributes set on a new copy. */
+  readonly mark?: Readonly<Record<string, string>>;
 }

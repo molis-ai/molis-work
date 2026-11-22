@@ -151,7 +151,16 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins, view.dynamic_plugin_settings))}
-    <div class="settings-content">${withSettingsHelp(capabilities && view.section !== "connectors" && view.section !== "mcp" ? "capabilities" : view.section, content)}</div>
+    <div class="settings-content">${withSettingsHelp(
+      view.capabilities?.rules
+        ? "judgment-rules"
+        : view.capabilities?.section === "history"
+          ? "call-history"
+          : capabilities && view.section !== "connectors" && view.section !== "mcp"
+            ? "capabilities"
+            : view.section,
+      content,
+    )}</div>
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(primitives.environmentName?.())}

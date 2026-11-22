@@ -8,7 +8,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
       try {
         sessionStorage.setItem(storageKey, JSON.stringify(readUiState()));
-      } catch {}
+      } catch { /* Ignore sessionStorage write failure while saving UI state. */ }
     };
 
     const noteSearchActivity = (delay = 900) => {

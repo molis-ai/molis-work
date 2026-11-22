@@ -18,6 +18,7 @@ export const registration: PluginRegistration = {
     clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     clientMounts: "surfaces",
     stylesheet: CODING_STYLES,
+    frameStyleFeatures: ["composer", "coding-basics", "coding-companions", "settings-document", "input-receipts", "interaction"],
     settingsClient: CODING_SETTINGS_CLIENT_SCRIPT,
     // The attributes the Characters import page and the shared diff view read or set.
     stylesheetShared: ["data-coding-workbench", "data-coding-line"],

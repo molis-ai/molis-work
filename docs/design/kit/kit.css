@@ -1253,8 +1253,7 @@
 
     /* Light location states stay embedded in their rail. Paper and elevation
        remain reserved for content surfaces and overlays. */
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected,
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .feed-list-item.is-selected {
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected {
       background: color-mix(in srgb, var(--blue) 8%, transparent) !important;
       box-shadow: none;
     }
@@ -1299,15 +1298,6 @@
   @media (max-width: 760px) {
     body[data-desktop-shell="true"] .tui-focus-return { display: none !important; }
 
-    body[data-desktop-shell="true"] .feed-directory-tools { padding: 8px 12px; }
-    body[data-desktop-shell="true"] .feed-directory-toolbar {
-      min-width: 0;
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 44px;
-      align-items: center;
-      gap: 8px;
-    }
 
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .workspace { grid-row: 3; }
   }
@@ -1589,7 +1579,6 @@
   }
 
   .form-disclosure summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: 400; padding: 8px 0; }
-  [data-feed-task] { position: relative; }
   .form-disclosure { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
   .form-disclosure[open] > summary { margin-bottom: 12px; }
   .event-form-body > :is(label,fieldset) { margin: 0; }
@@ -1598,7 +1587,7 @@
   .event-form :is(input,textarea,select):focus-visible:not([class^="mw-"]) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .event-form-status:not([hidden]), .event-field-error:not([hidden]) { padding: 12px 12px; border-left: 2px solid currentColor; margin-block: 12px; font-size: 13px; line-height: 1.6; }
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; border: 0; border-radius: 8px; background: var(--red-soft); }
-  body.immersive-workbench .feed-stage-leading strong { font-size: 13px; }
+  body.immersive-workbench .mw-stage-leading strong { font-size: 13px; }
 
   /* Motion communicates focus and feedback; moving panes remain under the pointer. */
   :where(button:not(:disabled), summary):active { filter: brightness(.94); }
@@ -2166,7 +2155,7 @@
   @media (prefers-reduced-motion: reduce) { .mw-choice, .mw-choice__check { transition: none; } }
   .mw-collapsible { padding-top: 4px; summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: var(--weight-control, 500); padding: 12px 0; &:hover { color: var(--ink); } } }
   /* One disclosure grammar: a rotating chevron instead of the OS triangle. Summaries that bring their own mark keep it. */
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .feed-task-extra, .coding-material, .coding-checkpoints) {
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .coding-material, .coding-checkpoints) {
     > summary:not(:has(svg)) {
       display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
       &::-webkit-details-marker { display: none; }
@@ -4383,12 +4372,12 @@
   .craft-tip kbd { margin-left: 8px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--tip-ink) 16%, transparent); color: inherit; font: inherit; font-size: 11px; opacity: .8; }
 
   /* ─── Directory: rows on the desk; the selected one takes the neutral selection fill ── */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item) {
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node) {
     border-radius: var(--r-row);
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item):active:not(:disabled) { background: var(--nav-press); }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .source-list-item.is-selected) {
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected) {
     background: var(--nav-active); box-shadow: none; color: var(--ink);
   }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .tree-pane .mw-dir-row-wrap:has(:is(.is-selected, [aria-current="page"])) { background: var(--nav-active); box-shadow: none; border-radius: var(--r-row); }
@@ -4480,25 +4469,25 @@
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   body.immersive-workbench .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu) { transform-origin: top left; }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu):is(:popover-open, [open], .is-open, :not([hidden])):where(:not(details > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]))) { animation: craft-drop var(--dur-move) var(--ease-quint); }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu.tui-menu) { transform-origin: top left; }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu.tui-menu):is(:popover-open, [open], .is-open, :not([hidden])):where(:not(details > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu):not([popover]))) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[open] > .navigator-project-menu-popover { transform-origin: top left; }
   /* Closing plays the opening backwards on the short clock and a closing menu keeps its box, takes no pointer. Only closing holds the content (held on opening, an opening menu was undrawn and unclickable). The hold is a custom property on the menu's details, read by the closed-details rule at zero specificity so a disclosure's own transition wins: a :has() on a ::details-content subject cost every node put in the page 30 ms of style (VUX-36). */
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details:has(> :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu)) { --exit-hold: var(--dur-hover); }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details:has(> :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu)) { --exit-hold: var(--dur-hover); }
   :where(details:not([open]))::details-content { transition: content-visibility var(--exit-hold, 0s) allow-discrete; }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(details:not([open]) > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu), :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu)[hidden], :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu)[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(details:not([open]) > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu), :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu)[hidden], :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu)[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
   /* A details menu reverses its current transition; a still-running entry keyframe would otherwise finish over its exit. */
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]) { animation: none; }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[open] > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]) { transition-duration: var(--dur-move); }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details:not([open]) > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]) { transform: translateY(var(--menu-from-y, -4px)) scale(.97); }
-  @starting-style { body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[open] > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]) { opacity: 0; transform: translateY(var(--menu-from-y, -4px)) scale(.97); } }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu):not([popover]) { animation: none; }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[open] > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu):not([popover]) { transition-duration: var(--dur-move); }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) details:not([open]) > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu):not([popover]) { transform: translateY(var(--menu-from-y, -4px)) scale(.97); }
+  @starting-style { body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[open] > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu):not([popover]) { opacity: 0; transform: translateY(var(--menu-from-y, -4px)) scale(.97); } }
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-sheet); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 6%, transparent), var(--lift-3); }
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
   html[data-resolved-theme="dark"] body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
-    .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu,
-    [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, :is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet),
+    .tree-filter, .tui-menu,
+    [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, :is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet),
     dialog.mw-sheet, .assistant-panel) { background-color: var(--popover); }
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
@@ -4551,7 +4540,7 @@
   body.immersive-workbench .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
   /* ─── Lists and rows ─── */
-  body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow) {
+  body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   body.immersive-workbench .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
@@ -4669,16 +4658,16 @@
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list:has(> .plugin-stage-chrome .tree-create) .mw-empty .mw-btn--primary { border-color: transparent; background: var(--control-fill); color: var(--ink); }
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list:has(> .plugin-stage-chrome .tree-create) .mw-empty .mw-btn--primary:hover:not(:disabled) { background: var(--nav-hover); }
     /* Rows: one comfortable line with a wash on hover; groups read as quiet section labels. */
-    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .feed-stage-entry {
+    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .mw-stage-entry {
       height: auto; min-height: 44px; grid-template-rows: auto; padding: 8px 12px; border-radius: 8px;
     }
-    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .feed-stage-item { min-height: 0; }
-    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .feed-stage-entry .feed-stage-leading strong { font-size: 13px; line-height: 20px; }
-    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list :is(.feed-entry-source, .plugin-stage-fact, .plugin-stage-meta, .feed-stage-entry > time) { font-size: 12px; }
+    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .mw-stage-item { min-height: 0; }
+    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .mw-stage-entry .mw-stage-leading strong { font-size: 13px; line-height: 20px; }
+    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list :is(.mw-entry-source, .plugin-stage-fact, .plugin-stage-meta, .mw-stage-entry > time) { font-size: 12px; }
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .goal-collection-fold { margin: 0 0 16px; }
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .goal-collection-fold > summary { height: 34px; min-height: 34px; padding: 0 8px; color: var(--muted); }
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .goal-collection-fold > summary strong { font-size: 12px; color: var(--ink-soft); }
-    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .goal-collection-fold .feed-stage-entry { padding-left: 32px; }
+    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .goal-collection-fold .mw-stage-entry { padding-left: 32px; }
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list > .mw-empty,
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list > div:only-child > .mw-empty:only-child { min-height: calc(100% - 84px); }
     /* A plugin that wraps its empty state in its own list still gets the calm centred invitation. */
@@ -4705,7 +4694,7 @@
     body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list > :is(.plugin-stage-chrome, .shelf-stage-chrome)::after {
       content: var(--stage-desc, "") / ""; order: -1; flex: 1 0 100%; margin: -4px 0 4px; font-size: 13px; line-height: 1.5; color: var(--muted);
     }
-    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .feed-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
+    body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface="jelly"])[data-expanded="false"] > .plugin-stage-list .mw-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
   }
 
   /* ─── Plugin market ─── */
@@ -4895,7 +4884,7 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>summa
 body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{margin:2px 0 0}
 
   html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
-    dialog[open], :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu), details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
+    dialog[open], :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .tui-menu.tui-menu), details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
   html[data-craft-still] dialog[open]::backdrop,
@@ -4977,7 +4966,7 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 }
 @media (prefers-reduced-motion:reduce) { .mw-diff .mw-diff-files li { transition:none; } }
 
-.mw-collapsible::details-content{display:grid;grid-template-rows:0fr;overflow:clip;transition:grid-template-rows var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete}.mw-collapsible[open]::details-content{grid-template-rows:1fr}.mw-collapsible>.mw-collapsible__body{min-height:0;overflow:clip}@media (prefers-reduced-motion:reduce){.mw-collapsible::details-content,.mw-collapsible>*{transition:none}}.mw-collapsible>.mw-collapsible__body{padding:0 0 12px}@supports (interpolate-size:allow-keywords){:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.feed-task-extra,.artifact-raw,.coding-checkpoints,.mw-object-row__fold){interpolate-size:allow-keywords}:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.feed-task-extra,.artifact-raw,.coding-checkpoints,.mw-object-row__fold)::details-content{block-size:0;overflow:clip;transition:block-size var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete}:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.feed-task-extra,.artifact-raw,.coding-checkpoints,.mw-object-row__fold)[open]::details-content{block-size:auto}@media (prefers-reduced-motion:reduce){:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.feed-task-extra,.artifact-raw,.coding-checkpoints,.mw-object-row__fold)::details-content{transition:none}}}
+.mw-collapsible::details-content{display:grid;grid-template-rows:0fr;overflow:clip;transition:grid-template-rows var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete}.mw-collapsible[open]::details-content{grid-template-rows:1fr}.mw-collapsible>.mw-collapsible__body{min-height:0;overflow:clip}@media (prefers-reduced-motion:reduce){.mw-collapsible::details-content,.mw-collapsible>*{transition:none}}.mw-collapsible>.mw-collapsible__body{padding:0 0 12px}@supports (interpolate-size:allow-keywords){:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.artifact-raw,.coding-checkpoints,.mw-object-row__fold){interpolate-size:allow-keywords}:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.artifact-raw,.coding-checkpoints,.mw-object-row__fold)::details-content{block-size:0;overflow:clip;transition:block-size var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete}:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.artifact-raw,.coding-checkpoints,.mw-object-row__fold)[open]::details-content{block-size:auto}@media (prefers-reduced-motion:reduce){:is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.form-export-panel,.characters-location,.artifact-raw,.coding-checkpoints,.mw-object-row__fold)::details-content{transition:none}}}
 
 .mw-ix-card { container: mw-ix / inline-size; display: grid; gap: 12px; padding: 14px 16px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-align: left; }
 .mw-ix-question { grid-template-columns: minmax(0, 1fr); }

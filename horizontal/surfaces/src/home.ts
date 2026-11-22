@@ -27,12 +27,13 @@ interface OverviewAnswer {
   answer: PresentationOverview;
 }
 
-/** The overview's lede with its words bound to their owner; a lede whose label is not the owner's word is not shown. */
+/** The overview's lede with its words bound to their owner; a lede whose label is not the owner's word is not shown, and a time
+ *  that does not read as one is left out, so one plugin's odd answer never costs the whole surface. */
 function ledeOf(answer: PresentationOverview, owner: string): SurfaceLede | undefined {
   const lede = answer.lede, label = lede && tryOwnedTextRef(lede.label, owner);
   if (!lede || !label) return undefined;
   const text = lede.invite && tryOwnedTextRef(lede.invite.text, owner), action = lede.invite && tryOwnedTextRef(lede.invite.action, owner);
-  return { label, ...(lede.as_of ? { as_of: lede.as_of } : {}), sentences: lede.sentences.map(({ text, sources, mark }) => ({ text, ...(sources?.length ? { sources: [...sources] } : {}), ...(mark ? { mark } : {}) })),
+  return { label, ...(lede.as_of && !Number.isNaN(Date.parse(lede.as_of)) ? { as_of: lede.as_of } : {}), sentences: lede.sentences.map(({ text, sources, mark }) => ({ text, ...(sources?.length ? { sources: [...sources] } : {}), ...(mark ? { mark } : {}) })),
     ...(text && action ? { invite: { text, action } } : {}) };
 }
 

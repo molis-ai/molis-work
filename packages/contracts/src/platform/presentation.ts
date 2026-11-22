@@ -175,7 +175,7 @@ export const PRESENTATION_OVERVIEW_OUTPUT_SCHEMA = { type: "object", additionalP
 export function definePresentationOverviewAction(capabilityId: string, version: number, title: string, permissions: readonly string[],
   scope: "project" | "home" = "project"): ActionDefinition<Record<string, never>, PresentationOverview> {
   return { capability_id: capabilityId, version, operation: "query", action: { title, kind: "query", scope, effect: "read", audiences: ["user", "workflow"],
-    description: "这个插件现在怎么样：一句概况、前几个对象和开始的入口；只读，不调用模型。", permissions: [...permissions], subject_kinds: [],
+    description: "这个插件现在怎么样：一句概况、前几个对象和开始的入口，还可以带一棵进展树和它存下的开头几句话；只读，不调用模型。", permissions: [...permissions], subject_kinds: [],
     ...(scope === "home" ? { project_reach: "person" as const } : {}), execution: { cost: "none" }, output_type: PRESENTATION_OVERVIEW_OUTPUT_TYPE,
     input_schema: PRESENTATION_OVERVIEW_INPUT_SCHEMA, output_schema: PRESENTATION_OVERVIEW_OUTPUT_SCHEMA } };
 }

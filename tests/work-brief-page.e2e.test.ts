@@ -51,6 +51,12 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
     attention: [{ subject: cite, why: "要决定是否换备选供应商" }],
     next: [{ text: "记一笔：已联系备选供应商", why: "让风险记录跟上进展", subject: cite, act: { kind: "action", reference: exact(riskActions.addNote), input: { risk_id: supplier.risk_id, text: "已联系备选供应商" } } },
       { text: "起草备选供应商的对比", why: "还没有可比的方案", act: { kind: "assistant" } }] });
+  // POLISH-82: installed and nothing written yet — one dashed box that says so, with the button to write one; nothing starts by itself.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  const ASK = '[data-work-surface="home"] [data-home-lede="empty"]';
+  await browser.waitFor(shown(ASK + " .mw-btn"), 30_000);
+  assert.deepEqual(await browser.evaluate(`(() => { const box = document.querySelector(${JSON.stringify(ASK)}); return [box.querySelector('.mw-btn').textContent.trim(), getComputedStyle(box).borderTopStyle,
+    document.querySelectorAll(${JSON.stringify(LEDE)}).length]; })()`), ["写一份简报", "dashed", 0]);
   const first = await call<BriefSaved>(workBriefActions.save, { request_id: `first-${width}`, draft: draft("交付有延期风险，关键部件可能晚两周。") }, assistant);
   assert.equal(first.version!.version, 1);
 
@@ -71,6 +77,9 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   // Both cited sentences stand on Risk, the margin's first source; the one the person said has no number. What waits for the person is marked.
   assert.deepEqual(sentences.map(sentence => [sentence.cites, sentence.mark]), [["1", "yours"], ["1", "yours"], ["", null]]);
   assert.match(await browser.evaluate<string>("document.querySelector('[data-home-sources] [data-home-card] sup').textContent"), /^1$/u);
+  // What waits for the person is underlined; nothing is washed as new on a visit with no earlier one to compare with.
+  assert.deepEqual(await browser.evaluate(`[...document.querySelectorAll(${JSON.stringify(LEDE + " > span")})].map(node => [getComputedStyle(node).textDecorationLine, node.classList.contains('is-new')])`),
+    [["underline", false], ["underline", false], ["none", false]]);
   assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CHIP)}).textContent`), /1/u, "the label says which writing this is");
   assert.ok(await browser.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "首页不应横向滚动");
   await screenshot("home");

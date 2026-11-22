@@ -259,6 +259,12 @@ function checkedPluginCard(value: SurfacePluginCard, owner: string | undefined, 
   return value;
 }
 
+const codePoints = (value: string) => {
+  let count = 0;
+  for (const _ of value) count += 1;
+  return count;
+};
+
 /** A card's lede: the owner's own label (and invitation), and a few stored sentences, each standing on a few named sources. */
 function checkCardLede(value: unknown, owner: string, at: string): void {
   const lede = closed(value, at, ["label", "as_of", "sentences", "invite"]);
@@ -267,9 +273,10 @@ function checkCardLede(value: unknown, owner: string, at: string): void {
   if (!Array.isArray(lede.sentences) || lede.sentences.length > PRESENTATION_LIMITS.lede_sentences) throw malformed(`${at}.sentences`);
   lede.sentences.forEach((entry, index) => {
     const path = `${at}.sentences[${index}]`, sentence = closed(entry, path, ["text", "sources", "mark"]);
-    if (typeof sentence.text !== "string" || !sentence.text.trim() || sentence.text.length > PRESENTATION_LIMITS.lede_sentence) throw malformed(`${path}.text`);
+    // Lengths are counted as the overview's schema counts them (code points), so what the owner's answer passed is not refused here.
+    if (typeof sentence.text !== "string" || !sentence.text.trim() || codePoints(sentence.text) > PRESENTATION_LIMITS.lede_sentence) throw malformed(`${path}.text`);
     if (sentence.sources !== undefined && (!Array.isArray(sentence.sources) || sentence.sources.length > PRESENTATION_LIMITS.lede_sources
-      || new Set(sentence.sources).size !== sentence.sources.length || sentence.sources.some(source => typeof source !== "string" || !source || source.length > 200))) throw malformed(`${path}.sources`);
+      || new Set(sentence.sources).size !== sentence.sources.length || sentence.sources.some(source => typeof source !== "string" || !source || codePoints(source) > 200))) throw malformed(`${path}.sources`);
     if (sentence.mark !== undefined) oneOf(sentence.mark, ["yours", "changed", "gap"], `${path}.mark`);
   });
   if (lede.invite !== undefined) {

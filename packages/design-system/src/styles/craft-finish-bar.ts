@@ -418,7 +418,7 @@ export const CRAFT_BAR_STYLES = `
   /* The two buttons are the floor's size (--control-h: 32px, 28px compact; 44px on touch, in touch-targets.ts), and the row gives up their room. */
   .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 2 + 16px); }
   /* A plugin that lets a person begin something carries that button first (project-start-entries.ts): the row gives up its room too. */
-  .plugin-picker-popover .plugin-rail-tile:has(> .plugin-rail-ops > .rail-start) { --tile-yield: calc(var(--ops-btn) * 3 + 20px); }
+  .plugin-picker-popover .plugin-rail-tile:has(> .plugin-rail-ops > .rail-start) { --tile-yield: calc(var(--ops-btn) * (2 + var(--rail-starts, 1)) + 16px + 4px * var(--rail-starts, 1)); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn {
     width: var(--ops-btn); min-width: var(--ops-btn); min-height: var(--ops-btn);
     opacity: 0; transform: translateX(8px) scale(.92);

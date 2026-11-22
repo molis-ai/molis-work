@@ -17,9 +17,11 @@ const title = row + ' .mw-presentation__row-title';
 const endpoint = "/api/host/surface-home";
 // 项目主页 from the start page: the browser's window is under 760px, where the strip's ⌂ shows only while the home is the
 // current page (specs/screen-polish §3 方案 C, POLISH-07), and the start page lists it at every width.
+/** A plugin's own "start" on its row of the start page under ＋ (POLISH-83). */
+const START = '[data-plugin-picker-popover] .plugin-rail-tile[data-plugin-tile="goals"] [data-rail-start]';
 const HOME_ENTRY = '[data-plugin-strip] [data-plugin-id="home"]';
 
-test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 IUI-26 SCS-11 WBR-21: the project's first page says where it stands from what its plugins declare, at twelve settings", { timeout: 180_000 }, async t => {
+test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 RAC-603 IUI-26 SCS-11 WBR-21: the project's first page says where it stands from what its plugins declare, at twelve settings", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const project = await createProject(b.web, "Home journey"), prefix = "/projects/" + project.project_id;
@@ -57,11 +59,36 @@ test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 
 
   // The owner's own tree: a parent with two parts, one of them done. The page learns it from the overview, not from Goals' tables.
   const create = (body: Record<string, unknown>) => b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/" + GOALS + "/goals", body);
-  const parent = await create({ title: "Homepage object · a long title with real values", idempotency_key: "home-parent" });
+  // The first Goal is begun where work is begun: Goals' own "start" on its row of the start page (POLISH-83). RAC-603: the key
+  // says what it starts. Opening and cancelling the owner's real form writes nothing; one submit writes one Goal.
+  const begin_ = async () => {
+    await b.click('[data-plugin-picker-toggle]');
+    await b.waitFor(`document.querySelector(${JSON.stringify(START)})?.checkVisibility()`, 15_000);
+    assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(START)}).getAttribute('aria-label')`), /^在 .+ 里新建$/u);
+    await b.click(START);
+    await b.waitFor("document.querySelector('[data-create-dialog]')?.open", 15_000);
+  };
+  await begin_();
+  await b.click('[data-create-dialog] [data-close-create]');
+  await b.waitFor("!document.querySelector('[data-create-dialog]').open");
+  assert.equal((await rows()).length, 0, "opening and cancelling the real form write no Goal");
+  await begin_();
+  await b.evaluate(`(() => {
+    const form = document.querySelector('[data-create-form]');
+    form.elements.title.value = 'Homepage object · a long title with real values';
+    form.elements.title.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await b.navigate(() => b.click('[data-create-form] [type="submit"]'));
+  assert.match(await b.evaluate<string>("location.pathname"), /\/goals\//u);
+  const made = await rows();
+  assert.equal(made.length, 1, "one submit creates one Goal");
+  const parent = { goal: { goal_id: made[0]!.subject.id } };
   await create({ title: "First part of the homepage object", parent_goal_id: parent.goal.goal_id, idempotency_key: "home-part-1" });
   await create({ title: "Second part of the homepage object", parent_goal_id: parent.goal.goal_id, idempotency_key: "home-part-2" });
   assert.equal((await rows()).length, 3);
+  // The project opens where it was left, on the Goal just made: the first page is one press away on the strip.
   await go();
+  await b.click(HOME_ENTRY);
   await shown(row);
   const page = await b.evaluate<{ groups: string[]; depths: string[]; progress: string; nextPrimary: number[]; steps: number; source: string; keys: string[] }>(`(() => {
     const box = document.querySelector(${JSON.stringify(home)});
@@ -81,6 +108,41 @@ test("POLISH-76 POLISH-78 POLISH-79 POLISH-80 POLISH-81 POLISH-83 PEQ-07 IUI-21 
   assert.ok(page.steps > 0 && page.steps <= 3, "at most three next steps");
   assert.deepEqual(page.nextPrimary, [1, ...Array(page.steps - 1).fill(0)], "only the first next step is primary");
   assert.match(page.source, /正常|No change|有变化|Changed/u);
+  // POLISH-82: with no plugin that writes the opening sentences, the head of the page is one line of figures.
+  assert.deepEqual(await b.evaluate(`[document.querySelectorAll(${JSON.stringify(home + " [data-home-lede]")}).length, Boolean(document.querySelector(${JSON.stringify(home + " .mw-first-page__facts")})?.textContent.trim())]`), [0, true]);
+  // POLISH-80: the sources with nothing new are one sentence with their number, not a row each.
+  const quiet = (await b.web.post<SurfaceHomeDisplay>(prefix + endpoint, {})).groups.filter(group => group.kind === "plugin" && group.owner_plugin_id && group.state !== "disabled" && group.state !== "unreadable" && group.owner_plugin_id !== GOALS).length;
+  const rest = await b.evaluate<string>(`document.querySelector(${JSON.stringify(home + " [data-home-sources] .mw-first-page__rest")})?.textContent ?? ''`);
+  assert.ok(quiet > 0, "the project has plugins with nothing to say");
+  assert.equal(rest, `另有 ${quiet} 个没有新内容`);
+
+  // POLISH-79: while the assistant's conversation is open its send key is the screen's one ink-blue button, and the page's first
+  // step is a plain one; closed, the step has it back.
+  const stepPrimaries = () => b.evaluate<number[]>(`[...document.querySelectorAll(${JSON.stringify(home + " " + next + " .mw-first-page__step")})].map(step => step.querySelectorAll('.mw-btn--primary').length)`);
+  await b.click('[data-dialog-open]');
+  await b.waitFor("document.querySelector('[data-assistant-panel]')?.hidden === false", 15_000);
+  await b.waitFor(`document.querySelectorAll(${JSON.stringify(home + " " + next + " .mw-btn--primary")}).length === 0`, 10_000);
+  await b.evaluate("document.querySelector('[data-assistant-panel-close]').click()");
+  await b.waitFor("document.querySelector('[data-assistant-panel]').hidden === true", 10_000);
+  await b.waitFor(`document.querySelectorAll(${JSON.stringify(home + " " + next + " .mw-btn--primary")}).length === 1`, 10_000);
+  assert.deepEqual(await stepPrimaries(), page.nextPrimary, "the first step has the ink-blue button back");
+
+  // POLISH-80: a source that could not be read says so on its own line, with 再读一次 beside it; the press reads the page again.
+  const spoil = await b.command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { const real = window.fetch; let spoil = true; window.fetch = async function (input, init) {
+    const response = await real.apply(this, arguments);
+    const url = typeof input === 'string' ? input : input.url;
+    if (!spoil || !String(url).endsWith(${JSON.stringify(endpoint)}) || /release_text/.test(String(init?.body ?? ''))) return response;
+    spoil = false;
+    const body = await response.clone().json();
+    for (const group of body.groups ?? []) if (group.kind === 'plugin' && group.owner_plugin_id === ${JSON.stringify(GOALS)}) group.state = 'unreadable';
+    return new Response(JSON.stringify(body), { status: response.status, headers: { 'content-type': 'application/json' } });
+  }; })();` }, b.sessionId);
+  await go();
+  await shown(source + '[data-home-state="unreadable"]');
+  assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(source)}).textContent`), /读不到.*再读一次/u);
+  await b.command("Page.removeScriptToEvaluateOnNewDocument", { identifier: spoil.identifier }, b.sessionId);
+  await b.click(source + ' [data-home-control="refresh"]');
+  await shown(source + '[data-home-state="ok"]');
 
   // Take the actual Tab stop, then use the real browser keyboard, not a direct DOM click or focus on the dialog.
   await b.evaluate(`document.querySelector(${JSON.stringify(outline + ' h2')}).setAttribute('tabindex','-1');document.querySelector(${JSON.stringify(outline + ' h2')}).focus()`);

@@ -293,7 +293,7 @@ export const surfaceCompositionActions = {
     capability_id: "surfaces.compose",
     version: /* @version action.surfaces.compose */ 1,
     operation: "query",
-    action: { title: "组合操作面", description: "按调用方、位置和对象排出该显示哪些东西、各用什么形态、显示哪些字段、带哪些操作；不含对象字段的值或预备输入；不调用模型",
+    action: { title: "组合操作面", description: "按调用方、位置和对象排出该显示哪些东西、各用什么形态、显示哪些字段、带哪些操作；不含对象字段的值或预备输入（首页上插件在概况里交的开头几句话照原样带上）；不调用模型",
       kind: "query", scope: "project", effect: "read", scheduling: "concurrent", audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<SurfaceRequest>()(REQUEST_SCHEMA), output_schema: DESCRIPTION_SCHEMA, output_type: "surfaces.description" },
   } as ActionDefinition<SurfaceRequest, SurfaceDescription>,

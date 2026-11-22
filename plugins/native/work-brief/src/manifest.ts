@@ -65,7 +65,7 @@ export const workBriefManifest: PluginManifest = {
     },
     contributions: [WORK_BRIEF_UI_CONTRIBUTION_ID],
     views: [
-      // The project's brief. The home shows this view whole while the plugin runs (`presentation.overview.lead`).
+      // The project's brief: its versions and its editing. The home draws the brief's opening sentences itself (the overview's `lede`).
       { view_id: WORK_BRIEF_VIEW_ID, slot: "navigator", title: "简报", title_text: { key: "work-brief.view.brief" }, contribution_id: WORK_BRIEF_UI_CONTRIBUTION_ID,
         icon: "activity", hue: "indigo", order: 3, accepts_objects: true },
     ],

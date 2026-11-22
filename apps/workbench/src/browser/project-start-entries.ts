@@ -24,7 +24,10 @@ export function mountStartEntries(host: StartHost) {
   const root = host.root, controls = new Map<string, HomeControl>();
   let reading: AbortController | null = null, clicking: AbortController | null = null;
   const clear = () => {
-    root.querySelectorAll("[data-rail-start]").forEach(node => node.remove());
+    root.querySelectorAll("[data-rail-start]").forEach(node => {
+      node.closest<HTMLElement>(".plugin-rail-tile")?.style.removeProperty("--rail-starts");
+      node.remove();
+    });
     controls.clear();
   };
   const release = (result: SurfaceHomeDisplay) => {
@@ -41,6 +44,8 @@ export function mountStartEntries(host: StartHost) {
       const ops = root.querySelector<HTMLElement>('.plugin-rail-tile[data-plugin-tile="' + CSS.escape(shell) + '"]:not(.is-available) > .plugin-rail-ops');
       if (!ops) continue;
       const name = result.display.owners[owner]?.name ?? "";
+      // The row gives up room for as many buttons as it gained.
+      ops.closest<HTMLElement>(".plugin-rail-tile")?.style.setProperty("--rail-starts", String(starts.length));
       starts.forEach((target, index) => {
         const key = owner + ":start:" + index;
         controls.set(key, { owner_plugin_id: owner, target });

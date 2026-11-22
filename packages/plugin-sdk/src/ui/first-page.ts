@@ -4,11 +4,9 @@ import { icon, type PluginIconName } from "./icon.js";
 
 /**
  * The parts of a project's first page (specs/screen-polish §八之二): one column to read and a margin of sources beside it. The
- * platform's home is written in these, and so is a plugin's page that stands in for it (Work Brief's), so the two read alike.
+ * platform's home is written in these. The frame itself (`mw-first-page` > `__grid` > `__column`, then the margin, and the quiet
+ * `__meta` line over the title) is three elements the page's server template writes; `FIRST_PAGE_STYLES` lays them out.
  *
- * - `renderFirstPage`: the column and the margin on one grid; the margin goes under the column when the page is narrow. A page
- *   whose frame the server draws writes the same three elements itself (`mw-first-page` > `__grid` > `__column`, then the margin).
- * - `renderFirstPageMeta`: the quiet line over the title that says which page this is, with the page's few controls at its end.
  * - `renderFirstPageSection`: a small ruled heading and whatever is under it. Rows under it are the platform's presentation rows
  *   (`renderPresentationForm` with `compactTime`), which `FIRST_PAGE_STYLES` lays out as time, owner, name and state on one line.
  * - `renderFirstPageNext`: at most three next steps side by side, each with one button; the caller makes one of them primary.
@@ -20,14 +18,6 @@ import { icon, type PluginIconName } from "./icon.js";
  */
 
 type Attrs = Record<string, AttrValue>;
-
-export function renderFirstPage(options: { column: string; margin: string; className?: string; attrs?: Attrs }): string {
-  return `<div class="${cx("mw-first-page", options.className)}"${renderAttrs(options.attrs)}><div class="mw-first-page__grid"><div class="mw-first-page__column">${options.column}</div>${options.margin}</div></div>`;
-}
-
-export function renderFirstPageMeta(options: { place: string; actions?: string }): string {
-  return `<div class="mw-first-page__meta"><span>${escapeHtml(options.place)}</span><span class="mw-first-page__grow"></span>${options.actions ?? ""}</div>`;
-}
 
 export function renderFirstPageSection(options: { title: string; note?: string; body: string; attrs?: Attrs }): string {
   return `<section class="mw-first-page__section"${renderAttrs(options.attrs)}><h2>${escapeHtml(options.title)}${options.note ? `<small>${escapeHtml(options.note)}</small>` : ""}</h2>${options.body}</section>`;
@@ -77,12 +67,12 @@ export const FIRST_PAGE_STYLES = `
 @media (hover:hover) and (pointer:fine){.mw-first-page__version:hover{color:var(--ink)}}
 .mw-first-page h1{margin:2px 0 0;font-size:30px;font-weight:600;line-height:1.25;letter-spacing:-.01em;overflow-wrap:anywhere;text-wrap:balance}
 .mw-first-page__lede{margin:14px 0 0;font-size:17px;line-height:1.8;text-wrap:pretty;overflow-wrap:anywhere}
-.mw-first-page__lede sup,.mw-first-page__source sup{font-size:10px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
+.mw-first-page__lede sup,.mw-first-page__source sup{font-size:11px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
 .mw-first-page__lede sup{margin-inline-start:1px;vertical-align:.5em;line-height:0}
 .mw-first-page__lede .is-yours{text-decoration:underline;text-decoration-color:var(--amber);text-decoration-thickness:2px;text-underline-offset:5px}
 .mw-first-page__lede .is-new{background:color-mix(in srgb,var(--accent) 14%,transparent);border-radius:4px;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}
 .mw-first-page__lede .is-gap{color:var(--muted);border-block-end:1px dashed var(--line-strong)}
-.mw-first-page__facts{margin:12px 0 0;font-size:14px;line-height:1.6;color:var(--ink-soft);overflow-wrap:anywhere}
+.mw-first-page__facts{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--ink-soft);overflow-wrap:anywhere}
 .mw-first-page__ask{display:flex;align-items:center;gap:16px;margin:14px 0 0;padding:14px 16px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--ink-soft)}
 .mw-first-page__ask>span{flex:1;min-inline-size:0}
 .mw-first-page__ask .mw-btn{flex:none}
@@ -158,7 +148,7 @@ button.mw-first-page__source-name{appearance:none;border:0;padding:0;background:
 }
 @container (max-width:560px){
   .mw-first-page h1{font-size:24px}
-  .mw-first-page__lede{font-size:16px}
+  .mw-first-page__lede{font-size:15px}
   .mw-first-page__next{grid-template-columns:minmax(0,1fr);gap:14px}
   .mw-first-page__row:not([data-first-page-depth]) .mw-presentation--row .mw-item{grid-template-columns:14px minmax(0,1fr) auto auto;grid-template-areas:"owner name time end";gap:8px}
   .mw-first-page__row:not([data-first-page-depth]) .mw-status>span{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)}

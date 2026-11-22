@@ -20,6 +20,10 @@ export function hostSurfaceByManifestId(pluginId: string): (HostSurfaceRegistrat
   return HOST_SURFACE_REGISTRATIONS.find(surface => surface.manifest.plugin_id === pluginId);
 }
 
+export function hostSurfaceByProjectKey(key: string): (HostSurfaceRegistration & { readonly package_name: string }) | undefined {
+  return HOST_SURFACE_REGISTRATIONS.find(surface => surface.project_plugin_id === key);
+}
+
 /** The shipped declaration an owner id names: a built-in plugin's, or one of the platform's own surfaces'. */
 export function shippedOwnerManifest(ownerId: string): PluginManifest | undefined {
   return builtinPluginByManifestId(ownerId)?.manifest ?? hostSurfaceByManifestId(ownerId)?.manifest;

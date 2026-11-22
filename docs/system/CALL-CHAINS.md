@@ -346,7 +346,7 @@
 
 **首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的四个 POST 路径都经现行 `system.home` 动作。动作选项与准备分别调用 `home.actions.choices`、`home.actions.prepare` 查询。公开的 `home.events.read/open` 继续供 MCP 等动作调用者使用，旧 Events HTTP 转发已移除。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
 
-B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组属于用户批过的构建期例外，随 BL-377 重做。
+B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组是平台自带的创作台自己的页面路由（`apps/local-host/src/plugin-builder/agent-surface.ts`，47-1 C 起不再是插件，也不在构建期例外名单上），写入改走动作仍随 BL-377。
 
 ## 11. 横切链（2026-11-11 补）
 

@@ -5,8 +5,7 @@ import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { renderMaterialsStage } from "./materials-stage.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import { pluginSurfaceClients, deferredSurfaceClients, pluginShellStyleLinks } from "./plugin-workbench.js";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
+import { HOST_FRAMED_SURFACES, WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -56,7 +55,7 @@ function deferredSurfaces(enabledPlugins: readonly string[], view: WorkbenchShel
     if (!match || !deferredIds.has(match[3]!)) return html;
     if (view.pane_plugin && view.pane_plugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
     if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
-    const id = match[3]!, entry = BUILTIN_PLUGIN_CATALOG.find(plugin => plugin.project_plugin_id === id);
+    const id = match[3]!, entry = WORKBENCH_SURFACE_CATALOG.find(plugin => plugin.project_plugin_id === id);
     const source = stagedFrameSource(view, id), settings = listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === id);
     return renderPluginFrameSurface(html, id, (titles[id] ?? entry?.manifest.name ?? id), true, settings, id, source?.mount, entry?.manifest.plugin_id, source?.producer, Boolean(source));
   };
@@ -180,7 +179,7 @@ function renderMolisWorkWeb(
   const hosted = HOST_FRAMED_SURFACES;
   const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory), ...hosted.map(surface => ({ id: surface.project_plugin_id }))];
   const contributions = requested ? [view.plugin_stage_views?.[`home:${requested}`], view.plugin_stage_views?.[`project:${requested}`],
-    ...[...BUILTIN_PLUGIN_CATALOG, ...hosted].filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
+    ...WORKBENCH_SURFACE_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
   const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(places.side, requested)
     && !(view.unavailable_plugin_stages ?? []).some(stage => stage.surface === requested)
     && contributions.some(contribution => contribution?.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"

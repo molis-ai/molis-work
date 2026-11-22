@@ -120,6 +120,7 @@ export {
   BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
   availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, shownProjectPlugins, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
+export { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";

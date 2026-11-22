@@ -7,7 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
-import { catalogProblems } from "@molis-ai/molis-work-app-local-host";
+import { HOST_SURFACE_REGISTRATIONS, catalogProblems } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_FILE, PLATFORM_FILE, PLUGIN_DEPENDENCY_MANIFESTS, pluginDependencyManifests, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 import { assemblyMetrics } from "../scripts/gates/assembly.mjs";
@@ -199,6 +199,10 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES]), [], "the existing studio prefixes stay valid");
   assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, { ...studio, workbench: { ...studio.workbench, stylesheetPrefixes: ["text-"] } }]),
     ["plugin-builder: stylesheet prefix text- repeats a plugin's id"], "a platform surface cannot claim a plugin's namespace");
+  // The Host's list and the shell's are the same declarations, so the shell never frames a surface the Host gives no requests or words.
+  assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]),
+    HOST_FRAMED_SURFACES.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]), "the two platform surface lists agree");
+  assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => entry.package_name), ["@molis-ai/molis-work-plugin-studio"]);
 });
 
 test("W5-02-REG-02: loading the Host rejects an invalid catalog before the module becomes available", () => {

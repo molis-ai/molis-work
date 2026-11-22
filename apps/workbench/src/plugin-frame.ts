@@ -3,7 +3,7 @@ import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { readFileSync } from "node:fs";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { INSTALLED_PLUGIN_BUNDLE } from "./installed-plugin/client-asset.js";
 import type { UiClientMount, UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -24,7 +24,7 @@ export function renderPluginFrameSurface(html: string, id: string, title: string
   const directory = mount?.target_slot_id === "workbench.directory";
   const metadata = mount ? ` data-plugin-client="${escapeHtml(bundle)}" data-plugin-owner="${escapeHtml(pluginId ?? "")}" data-plugin-contribution="${escapeHtml(mount.contribution_id)}" data-plugin-surface="${escapeHtml(mount.surface)}" data-plugin-slot="${escapeHtml(mount.target_slot_id)}"${producer ? ` data-plugin-producer="${escapeHtml(producer)}"` : ""}` : "";
   const installedSource = installed ? ` id="installed-plugin-stage-${escapeHtml(id)}" data-installed-plugin="${escapeHtml(installed.owner)}" data-plugin-page-source="${escapeHtml(installed.page)}"${installed.icon ? ` data-installed-plugin-icon="${escapeHtml(installed.icon)}"` : ""}` : "";
-  const resolvedHelp = help ?? (!directory && !installed ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === bundle || (pluginId && entry.manifest.plugin_id === pluginId))?.manifest.ui.help : undefined);
+  const resolvedHelp = help ?? (!directory && !installed ? WORKBENCH_SURFACE_CATALOG.find(entry => entry.project_plugin_id === bundle || (pluginId && entry.manifest.plugin_id === pluginId))?.manifest.ui.help : undefined);
   const helpNode = resolvedHelp ? `<script type="application/json" data-plugin-help>${JSON.stringify(resolvedHelp).replaceAll("<", "\\u003c")}</script>` : "";
   const content = mount && !integrated ? html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1 data-ui-client-root") : html;
   return `<section class="${directory ? "desktop-directory-panel" : "desktop-work-surface"} plugin-stage-shell" ${directory ? "data-directory-panel" : "data-work-surface"}="${escapeHtml(id)}" data-work-surface-label="${escapeHtml(title)}"${metadata}${installedSource}${integrated ? " data-plugin-integrated" : ""}${directory ? ' style="position:relative;height:100%;overflow:hidden"' : ""}${settings ? ` data-settings-page="${escapeHtml(id)}"` : ""} data-deferred-surface${hidden ? " hidden" : ""}><script type="application/json" data-plugin-document>${JSON.stringify(sheetLinks(bundle) + content).replaceAll("<", "\\u003c")}</script>${helpNode}</section>`;

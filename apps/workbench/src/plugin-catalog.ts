@@ -161,6 +161,16 @@ function hostSurfacePlacement(): PluginDirectory {
 const hostSurfaceTabs = (surfaces: PluginDirectory, artifactLabel: string, sessionsLabel: string): RailEntry[] =>
   navigationEntries(surfaces.map(entry => entry.id), surfaces, artifactLabel, sessionsLabel).filter(entry => surfaces.some(surface => surface.id === entry.id));
 
+/**
+ * The platform's own surfaces' navigation entries in the page's language: their name, glyph and place as their declarations give them.
+ * They come from this build's static list, never from a directory a page or Host supplied, so their declared extend place is believed
+ * (`railEntry` believes it only for a chosen entry); the directory the page carries still marks them unchosen, so they are no rail tile.
+ */
+export function hostSurfaceEntries(): RailEntry[] {
+  const shipped = hostSurfaceDirectory().map(entry => ({ ...entry, chosen: true }));
+  return hostSurfaceTabs(shipped, artifactNavigationLabel(), sessionsNavigationLabel());
+}
+
 /** Placement-only consumers run before there is a request and never read the language tools. */
 function builtinPlacementDirectory(): PluginDirectory {
   return buildDirectory(manifest => projectDirectoryWords(manifest));

@@ -34,10 +34,10 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   assert.ok(BACKBONE.length > 0, "the Manifests declare a backbone");
   for (const id of BACKBONE) assert.ok(bright.includes(id), `${id} is the backbone and stays bright`);
   for (const id of bright) assert.ok(enabled.has(id), `${id} is bright because the sample project has it enabled`);
-  // The plugin studio is a personal plugin, so the sample project has it enabled — but the rail draws it as the switcher's
-  // own 创作台 button (renderPickerExtend), not as a tile: the mechanism a real new project uses, not a hand-written name.
+  // The plugin studio is the platform's framed surface (47-1 C), in every project: the rail never draws it as a tile, and the
+  // switcher's head carries it as its own 创作台 button (renderPickerExtend), read from its declaration.
   assert.ok(!tiles(html).includes("plugin-builder"), "the plugin studio is not a rail tile");
-  assert.match(html, /class="[^"]*plugin-picker-extend-btn[^"]*"[^>]*data-plugin-id="plugin-builder"/, "the enabled studio is the picker's 创作台 button");
+  assert.match(html, /class="[^"]*plugin-picker-extend-btn[^"]*"[^>]*data-plugin-id="plugin-builder"/, "the studio is the picker's 创作台 button");
   for (const id of enabled) if (directory.includes(id) && id !== "plugin-builder") assert.ok(bright.includes(id), `${id} is an enabled directory plugin and is drawn bright`);
   assert.deepEqual(grey.slice().sort(), directory.filter(id => !enabled.has(id)).sort(),
     "the grey cells are exactly the directory's plugins the sample project has not added");
@@ -129,6 +129,10 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
     { owner: "io.molis.work.generated.demo", page: "/projects/p/plugins/io.molis.work.generated.demo?frame=workbench" },
   );
   assert.doesNotMatch(installedHtml, /data-plugin-help|data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
+  // 47-1 C: the studio is the platform's framed surface, not a catalog plugin, and its own frame still carries the help its Manifest declares.
+  const studioHtml = renderPluginFrameSurface('<main class="as-page"></main>', "plugin-builder", "Plugin Studio", true, false, "plugin-builder");
+  assert.match(studioHtml, /<script type="application\/json" data-plugin-help>/u, "the studio frame carries its declared help");
+  assert.ok(studioHtml.includes(JSON.stringify(HOST_FRAMED_SURFACES[0]!.manifest.ui.help).replaceAll("<", "\\u003c")), "the help is the studio Manifest's own");
 
   const thirdPartyManifest: PluginManifest = {
     ...BUILTIN_PLUGIN_CATALOG[0]!.manifest,

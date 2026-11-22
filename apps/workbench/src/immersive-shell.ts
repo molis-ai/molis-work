@@ -1,7 +1,7 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, hostSurfaceEntries, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderWorkLine } from "./work-line-parts.js";
@@ -206,10 +206,11 @@ export function renderPickerExtend(_primitives: ImmersiveShellPrimitives, enable
       attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
     return html.replace(/<\/button>$/, `${suffix}</button>`);
   };
-  const extend = directoryPlugins(builtinPluginDirectory(), enabled).filter(plugin => plugin.rail === "extend").map(plugin => button(plugin)).join("");
-  // The plugin studio is the platform's (47-1 C): in every project, beside the market, not a plugin anyone turns on.
-  const studio = hostSurfaces ? button({ id: "plugin-builder", surface: "plugin-builder", label: uiText.text("workbench.immersive-shell.plugin-studio"), glyph: "wand" }) : "";
-  const builder = extend + studio;
+  // The platform's own surfaces with an extend place (the plugin studio, 47-1 C) are in every project, beside the market, read from
+  // their declarations like a plugin's; nobody turns them on.
+  const hosted = hostSurfaces ? hostSurfaceEntries().filter(entry => entry.rail === "extend") : [];
+  const builder = [...directoryPlugins(builtinPluginDirectory(), enabled).filter(plugin => plugin.rail === "extend"), ...hosted]
+    .map(plugin => button({ ...plugin, glyph: plugin.glyph as PluginIconName })).join("");
   const market = button({ id: "market", surface: "market", label: uiText.text("workbench.immersive-shell.plugin-market"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `<div class="plugin-picker-extend" data-global-menu role="group" aria-label="${uiText("workbench.immersive-shell.get-build-plugins")}">${market}${builder}</div>`;

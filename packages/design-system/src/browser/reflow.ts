@@ -38,7 +38,7 @@ const reflow = (list: Element, change: () => void) => {
     }
   }
   const duration = parseDurationMs(token("--dur-move", "250ms"), 250);
-  const easing = token("--ease-quint", "cubic-bezier(.22, 1, .36, 1)");
+  const easing = token("--ease-quint", "ease-out");
   if (Math.abs(afterHeight - beforeHeight) > 2 && beforeHeight > 0 && afterHeight > 0) {
     for (const motion of el.getAnimations()) {
       if (motion.id === `${ID}-box`) {

@@ -8,9 +8,13 @@ import type { ShelfPage } from "./types.js";
 /** Slides the neighbours into place after one moved, unless the person asked for less motion. */
 function slide(nodes: HTMLElement[], before: Map<HTMLElement, number>): void {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  // The move clock and curve are the page's tokens (DESIGN.md Motion; POLISH-33).
+  const tokens = getComputedStyle(document.documentElement);
+  const easing = tokens.getPropertyValue("--ease-quint").trim() || "ease-out";
+  const duration = parseFloat(tokens.getPropertyValue("--dur-move")) || 250;
   for (const node of nodes) {
     const dx = (before.get(node) ?? 0) - node.getBoundingClientRect().left;
-    if (dx) node.animate([{ transform: "translateX(" + dx + "px)" }, { transform: "translateX(0)" }], { duration: 220, easing: "cubic-bezier(.16,1,.3,1)" });
+    if (dx) node.animate([{ transform: "translateX(" + dx + "px)" }, { transform: "translateX(0)" }], { duration, easing });
   }
 }
 

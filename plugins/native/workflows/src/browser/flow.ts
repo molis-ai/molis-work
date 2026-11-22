@@ -1,6 +1,6 @@
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { EASE_SETTLE, MOD, arrive, calm, ico, kindName, motion, required, settle, when } from "./dom.js";
+import { MOD, arrive, calm, ico, kindName, motion, required, settle, when } from "./dom.js";
 import { emitCtx } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
 import { pipsHtml, runStatus } from "./run.js";
@@ -158,7 +158,7 @@ function patchChain(page: WorkflowsPage, chainEl: HTMLElement) {
     const was = before.get(node.dataset.stationId!);
     if (!was) {
       arrived = node;
-      motion(node, [{ opacity: 0, transform: "scale(.88)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: EASE_SETTLE });
+      motion(node, [{ opacity: 0, transform: "scale(.88)" }, { opacity: 1, transform: "none" }], { duration: 250 });
       continue;
     }
     const dx = was.left - node.getBoundingClientRect().left;
@@ -168,7 +168,7 @@ function patchChain(page: WorkflowsPage, chainEl: HTMLElement) {
     const was = links.get(node.dataset.linkKey!);
     const now = node.dataset.kind + ":" + node.dataset.ready;
     if (was === undefined) motion(node, [{ opacity: 0 }, { opacity: 1 }], { duration: 190, delay: 60, fill: "backwards" });
-    else if (was !== now) motion(node.querySelector(".wf-link__pill"), [{ transform: "scale(.86)", opacity: 0.4 }, { transform: "none", opacity: 1 }], { duration: 220, easing: EASE_SETTLE });
+    else if (was !== now) motion(node.querySelector(".wf-link__pill"), [{ transform: "scale(.86)", opacity: 0.4 }, { transform: "none", opacity: 1 }], { duration: 250 });
   }
   if (arrived) (arrived as HTMLElement).scrollIntoView({ block: "nearest", inline: "nearest", behavior: calm() ? "auto" : "smooth" });
   if (focusId) chainEl.querySelector<HTMLElement>(`[data-station-id="${focusId}"]`)?.focus({ preventScroll: true });

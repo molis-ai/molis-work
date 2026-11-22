@@ -140,6 +140,12 @@ test("PWA-144 APR-14 each requirement shows what was checked, on which version, 
 
   await assert.rejects(service.report(agent(), { subject: SUBJECT, reports: [report("nope", "v3")] }, world.ports(agent())), code("acceptance.requirement_unknown"));
   await assert.rejects(service.report(agent(), { subject: { ...SUBJECT, subject: { kind: "assistant.work", id: "w2" } }, reports: [report("r1", "v3")] }, world.ports(agent())), code("acceptance.subject_unknown"));
+
+  // EVD-16 / MR21-09: several requirements citing the same commands of the same round ask the platform once in one report.
+  const before = world.asked.length;
+  const twice = await service.report(agent(), { subject: SUBJECT, reports: [report("r1", "v3", { evidence: [receipt("c1")] }), report("r3", "v3", { evidence: [receipt("c1")] })] }, world.ports(agent()));
+  assert.deepEqual([item(twice, "r1").check?.tier, item(twice, "r3").check?.tier], ["machine_checked", "machine_checked"]);
+  assert.equal(world.asked.length - before, 1);
 });
 
 test("PWA-145 that the work ran, what was verified and what the person accepted are three separate readings; engineering evidence and trying the product stand apart; the person is asked only where it was agreed or where the check has a gap; only the person decides", async t => {
@@ -179,7 +185,7 @@ test("PWA-145 that the work ran, what was verified and what the person accepted 
   const tried = await service.report(agent(), { subject, reports: [report("a", "build-12", { kind: "hands_on", verdict: "contradicts", method: "点了构建产物", observed: "白屏" })] }, ports);
   assert.deepEqual([item(tried, "a").verified, item(tried, "a").gap, item(tried, "a").satisfied, item(tried, "b").satisfied], [false, "contradicted", false, true]);
 
-  // Readable non-command evidence: the maker session and an unbound session stay self_reported; a different platform session yields peer_reviewed (contract-design §10.9 Q2).
+  // EVD-13: readable non-command evidence: the maker session and an unbound session stay self_reported; a different platform session yields peer_reviewed (contract-design §10.9 Q2).
   const readableArtifact = { kind: "artifact_version" as const, artifact_id: "art-c", version: 1 };
   const selfArtifact = await service.report(agent("s-maker"), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "自查文案" })] }, ports);
   assert.deepEqual([item(selfArtifact, "c").check?.tier, item(selfArtifact, "c").verified], ["self_reported", false]);

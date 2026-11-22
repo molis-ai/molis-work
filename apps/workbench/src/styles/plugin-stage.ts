@@ -29,7 +29,7 @@ export const PLUGIN_STAGE_STYLES = `
       &.is-attention { color: var(--tone-attention, var(--amber)); }
     }
     .goal-collection-empty { margin: 0; padding: 8px 8px 12px 24px; font-size: 12px; color: var(--muted); }
-    a:is(.feed-stage-entry, .directory-list-row) { color: inherit; text-decoration: none; }
+    a:is(.mw-stage-entry, .directory-list-row) { color: inherit; text-decoration: none; }
     .mw-empty {
       padding: 24px 8px 16px; max-width: min(100%, 38em);
       > strong { font-size: 17px; font-weight: 500; line-height: 1.4; letter-spacing: -.02em; }
@@ -46,19 +46,19 @@ export const PLUGIN_STAGE_STYLES = `
   }
   .plugin-stage-chrome .tree-create,
   body.immersive-workbench .plugin-stage-chrome .tree-create { flex: none; width: auto; }
-  body.immersive-workbench .plugin-stage-list .goal-collection-fold .feed-stage-entry { padding-left: 24px; }
+  body.immersive-workbench .plugin-stage-list .goal-collection-fold .mw-stage-entry { padding-left: 24px; }
   body.immersive-workbench .plugin-stage-list .goal-collection-fold > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; }
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has(.is-selected)::before,
   body.immersive-workbench .plugin-stage-list :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .mw-dir-row-wrap:has([aria-current="page"]))::before {
     content: none; display: none; width: 0;
   }
   body.immersive-workbench .plugin-stage-list {
-    :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .feed-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
+    :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .mw-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
       background: var(--nav-active); color: var(--ink);
     }
     .mw-dir-row-wrap:has(:is(.is-selected, [aria-current="page"])) { background: var(--nav-active); }
-    .feed-stage-entry:has(.plugin-stage-kind) { grid-template-columns: minmax(12rem, 1.2fr) 4.75rem 7.5rem minmax(10rem, 1fr) 4.5rem; }
-    .feed-stage-entry:has(.plugin-stage-kind) .feed-entry-status { justify-self: start; max-width: 100%; min-height: 0; padding: 0; background: transparent; border-radius: 0; }
+    .mw-stage-entry:has(.plugin-stage-kind) { grid-template-columns: minmax(12rem, 1.2fr) 4.75rem 7.5rem minmax(10rem, 1fr) 4.5rem; }
+    .mw-stage-entry:has(.plugin-stage-kind) .mw-entry-status { justify-self: start; max-width: 100%; min-height: 0; padding: 0; background: transparent; border-radius: 0; }
   }
   .plugin-stage-kind, .plugin-stage-fact, .plugin-stage-meta { justify-self: start; max-width: 100%; }
   /* A kind is not a state: kind chips stay neutral, the words tell them apart. */
@@ -71,7 +71,7 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-meta { color: var(--muted); }
   .plugin-stage-workspace {
     position: relative; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; background: var(--paper);
-    > :is(.feed-stage-detail, .feed-detail, .inbox-reference-detail, .shelf-stage) { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    > :is(.mw-detail, .inbox-reference-detail, .shelf-stage) { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   }
   .plugin-stage-workspace > .artifact-detail,
   .plugin-stage-workspace > [data-artifact-detail] { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -88,7 +88,7 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-detail-bar {
     display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: nowrap;
     min-height: 48px; padding: 8px 16px 8px 24px;
-    > .feed-detail-kicker { margin: 0; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    > .mw-detail-kicker { margin: 0; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     > span { flex: none; color: var(--muted); font-size: 12px; }
     > .form-tabs { margin-left: auto; }
     > .mw-btn:not(.plugin-stage-back) { flex: none; }
@@ -109,24 +109,18 @@ export const PLUGIN_STAGE_STYLES = `
     .plugin-stage-back { pointer-events: auto; }
   }
   .artifact-detail > .plugin-stage-detail-bar { border-bottom: 1px solid var(--line); }
-  body.immersive-workbench .plugin-stage-detail-bar > .feed-detail-kicker { margin: 0; }
-  .feed-stage-detail, .inbox-reference-detail { position: relative; }
-  .feed-stage-detail > .plugin-stage-detail-bar[data-stage-back-only] + .feed-stage-item-detail {
-    .feed-detail-header { padding-top: 4px; }
-    /* The kicker shares the back button's row, so it starts after the button like a breadcrumb. */
-    .feed-detail-kicker { margin-left: 16px; }
-  }
+  body.immersive-workbench .plugin-stage-detail-bar > .mw-detail-kicker { margin: 0; }
+  .inbox-reference-detail { position: relative; }
   @media (max-width: 760px) {
     .plugin-stage-list { padding-top: 72px; }
     .plugin-stage-shell {
-      :is(.feed-stage-search, .feed-stage-count) { display: none; }
       &[data-expanded="true"] {
         :is(.plugin-stage-chrome, .plugin-stage-list) { display: none !important; }
         .plugin-stage-workspace { position: absolute; inset: 0; display: flex; flex-direction: column; }
       }
     }
     body.immersive-workbench .plugin-stage-list {
-      .feed-stage-entry:has(.plugin-stage-kind) { grid-template-columns: minmax(0, 1fr) max-content max-content; }
+      .mw-stage-entry:has(.plugin-stage-kind) { grid-template-columns: minmax(0, 1fr) max-content max-content; }
       :is(.plugin-stage-fact, .plugin-stage-meta) { display: none; }
     }
   }
@@ -157,9 +151,9 @@ export const PLUGIN_STAGE_STYLES = `
   }
 `;
 
-const FEED_STAGE_ENTRY_LAYER_STYLES = `
-  .feed-stage-item{width:100%;min-width:0;&.is-open>.feed-stage-item-line .feed-stage-entry{background:var(--nav-active)}}
-  .feed-stage-entry{
+const STAGE_ENTRY_LAYER_STYLES = `
+  .mw-stage-item{width:100%;min-width:0}
+  .mw-stage-entry{
     display:grid;grid-template-columns:minmax(0,1fr) minmax(7rem,12rem) max-content max-content;grid-template-rows:28px;column-gap:12px;align-items:center;
     width:100%;min-width:0;height:28px;min-height:28px;padding:0 8px;
     border:0;border-radius:6px;background:transparent;color:var(--ink);text-align:left;cursor:pointer;
@@ -167,21 +161,21 @@ const FEED_STAGE_ENTRY_LAYER_STYLES = `
     &:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset)}
     &:is(.is-selected,.is-open,[aria-expanded="true"]){background:var(--nav-active)}
     >time{font-variant-numeric:tabular-nums}
-    .feed-entry-status{flex:none;min-width:0;justify-self:end;>span{overflow:visible;text-overflow:clip}}
+    .mw-entry-status{flex:none;min-width:0;justify-self:end;>span{overflow:visible;text-overflow:clip}}
   }
-  .feed-stage-leading{display:flex;align-items:center;gap:8px;min-width:0;grid-column:1;overflow:hidden;strong{flex:1;min-width:0;font-size:13px;font-weight:var(--weight-control,500);line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-  .feed-entry-source,.feed-stage-entry>time{min-width:0;color:var(--muted);font-size:11px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mw-stage-leading{display:flex;align-items:center;gap:8px;min-width:0;grid-column:1;overflow:hidden;strong{flex:1;min-width:0;font-size:13px;font-weight:var(--weight-control,500);line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+  .mw-entry-source,.mw-stage-entry>time{min-width:0;color:var(--muted);font-size:11px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 `;
 
-/** Layered plugin-frame stage rules: drops outer-shell prefixes and shell-only artifact-detail rules while preserving [hidden], .feed-stage-entry rows, and narrow-stage list visibility guards (102-1). */
-export const PLUGIN_STAGE_LAYER_STYLES = FEED_STAGE_ENTRY_LAYER_STYLES + PLUGIN_STAGE_STYLES
+/** Layered plugin-frame stage rules: drops outer-shell prefixes and shell-only artifact-detail rules while preserving [hidden], .mw-stage-entry rows, and narrow-stage list visibility guards (102-1). */
+export const PLUGIN_STAGE_LAYER_STYLES = STAGE_ENTRY_LAYER_STYLES + PLUGIN_STAGE_STYLES
   .replace(".immersive-plugin-stage > .plugin-stage-shell,\n  .tab-pane-body > .plugin-stage-shell {", "body > .plugin-stage-shell {")
   .replaceAll("body.immersive-workbench ", "")
   .replace("  .plugin-stage-chrome .tree-create,\n  .plugin-stage-chrome .tree-create { flex: none; width: auto; }\n", "")
   .replace(".tree-create svg { width: 14px; height: 14px; }", ".tree-create { flex: none; width: auto; svg { width: 14px; height: 14px; } }")
   .replace(
-    "  .plugin-stage-list .goal-collection-fold .feed-stage-entry { padding-left: 24px; }\n  .plugin-stage-list .goal-collection-fold > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; }",
-    "  .plugin-stage-list .goal-collection-fold { .feed-stage-entry, > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; } }",
+    "  .plugin-stage-list .goal-collection-fold .mw-stage-entry { padding-left: 24px; }\n  .plugin-stage-list .goal-collection-fold > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; }",
+    "  .plugin-stage-list .goal-collection-fold { .mw-stage-entry, > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; } }",
   )
   .replace(
     ".plugin-stage-list .mw-dir-row-wrap:has(.is-selected)::before,\n  .plugin-stage-list :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current=\"page\"], .directory-list-row.is-selected, .mw-dir-row-wrap:has([aria-current=\"page\"]))::before",
@@ -192,13 +186,13 @@ export const PLUGIN_STAGE_LAYER_STYLES = FEED_STAGE_ENTRY_LAYER_STYLES + PLUGIN_
     "",
   )
   .replace(
-    "> .feed-detail-kicker { margin: 0; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }",
-    "> .feed-detail-kicker { margin: 0; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n    > h1 { margin: 0; flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n    &[data-stage-back-only] { position: absolute; top: 0; left: 0; right: 0; z-index: 4; min-height: 32px; height: 32px; pointer-events: none; background: transparent; .plugin-stage-back { pointer-events: auto; } }",
+    "> .mw-detail-kicker { margin: 0; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }",
+    "> .mw-detail-kicker { margin: 0; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n    > h1 { margin: 0; flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n    &[data-stage-back-only] { position: absolute; top: 0; left: 0; right: 0; z-index: 4; min-height: 32px; height: 32px; pointer-events: none; background: transparent; .plugin-stage-back { pointer-events: auto; } }",
   )
-  .replace("  .plugin-stage-detail-bar > .feed-detail-kicker { margin: 0; }\n", "")
+  .replace("  .plugin-stage-detail-bar > .mw-detail-kicker { margin: 0; }\n", "")
   .replace(
     "@media (max-width: 760px) {",
-    "@media (max-width: 760px) {\n    .feed-stage-entry { height: auto; min-height: 44px; padding: 8px 12px; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: auto; }\n    .feed-entry-source, .feed-stage-entry > time { display: none; }",
+    "@media (max-width: 760px) {\n    .mw-stage-entry { height: auto; min-height: 44px; padding: 8px 12px; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: auto; }\n    .mw-entry-source, .mw-stage-entry > time { display: none; }",
   )
   .replace(" box-sizing: border-box;", "")
   .replace(/    \.mw-empty \{[\s\S]*?    \}\n/, "")
@@ -241,7 +235,7 @@ export const PLUGIN_STAGE_FINISH_STYLES = `
         &::before { content: var(--stage-title, "") / ""; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink); }
         &::after { content: var(--stage-desc, "") / ""; font-size: 13px; line-height: 1.5; color: var(--muted); }
       }
-      .feed-stage-entry { height: auto; grid-template-rows: auto; }
+      .mw-stage-entry { height: auto; grid-template-rows: auto; }
       @media (min-width: 761px) {
         padding: 32px max(32px, calc((100% - 960px) / 2)) 56px;
         > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
@@ -265,13 +259,13 @@ export const PLUGIN_STAGE_FINISH_STYLES = `
           border-color: transparent; background: var(--control-fill); color: var(--ink);
           &:hover:not(:disabled) { background: var(--nav-hover); }
         }
-        .feed-stage-entry { min-height: 44px; padding: 8px 12px; border-radius: 8px; .feed-stage-leading strong { font-size: 13px; line-height: 20px; } }
-        .feed-stage-item { min-height: 0; }
-        :is(.feed-entry-source, .plugin-stage-fact, .plugin-stage-meta, .feed-stage-entry > time) { font-size: 12px; }
+        .mw-stage-entry { min-height: 44px; padding: 8px 12px; border-radius: 8px; .mw-stage-leading strong { font-size: 13px; line-height: 20px; } }
+        .mw-stage-item { min-height: 0; }
+        :is(.mw-entry-source, .plugin-stage-fact, .plugin-stage-meta, .mw-stage-entry > time) { font-size: 12px; }
         .goal-collection-fold {
           margin: 0 0 16px;
           > summary { height: 34px; min-height: 34px; padding: 0 8px; color: var(--muted); strong { font-size: 12px; color: var(--ink-soft); } }
-          .feed-stage-entry { padding-left: 32px; }
+          .mw-stage-entry { padding-left: 32px; }
         }
         > .mw-empty, > div:only-child > .mw-empty:only-child { min-height: calc(100% - 84px); }
         > div:not(:only-child) > .mw-empty:only-child {
@@ -287,7 +281,7 @@ export const PLUGIN_STAGE_FINISH_STYLES = `
           &::before { order: -2; flex: 1 0 100%; font-size: 20px; }
           &::after { order: -1; flex: 1 0 100%; margin: -4px 0 4px; }
         }
-        .feed-stage-entry { min-height: 48px; }
+        .mw-stage-entry { min-height: 48px; }
       }
     }
     @media (min-width: 761px) { &[data-expanded="true"] > .plugin-stage-list { background: var(--surface-soft); } }

@@ -283,12 +283,18 @@ export class MainlineStore {
     this.transaction(() => this.insertHold(itemId, subject));
   }
 
-  private insertHold(itemId: string, subject: ActionSubject): void {
+  /** Throws what putting `subject` into `itemId` would throw, without writing; true when it is already there. */
+  checkHold(itemId: string, subject: ActionSubject): boolean {
     if (subject.kind === WORK_ITEM_KIND) throw new ActionError("actions.input_invalid", "事项不能装进事项");
     if (!this.item(itemId)) throw missing();
-    if (this.holding(subject).includes(itemId)) return;
+    if (this.holding(subject).includes(itemId)) return true;
     const count = (this.db.prepare("SELECT COUNT(*) AS n FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").get(this.actorId, this.projectId, itemId) as { n: number }).n;
     if (count >= MAINLINE_LIMITS.held) throw mainlineErrors.limit(`一件事项最多装 ${MAINLINE_LIMITS.held} 个对象`);
+    return false;
+  }
+
+  private insertHold(itemId: string, subject: ActionSubject): void {
+    if (this.checkHold(itemId, subject)) return;
     this.db.prepare("INSERT INTO mainline_holds (owner_actor_id, project_id, item_id, subject_kind, subject_id, added_at) VALUES (?, ?, ?, ?, ?, ?)")
       .run(this.actorId, this.projectId, itemId, subject.kind, subject.id, this.now());
   }

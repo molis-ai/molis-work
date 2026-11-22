@@ -19,7 +19,7 @@ import type { InstalledRelease } from './installed-release.js';
 const missingOr = (error: unknown, said: string) => (error as { code?: unknown } | null)?.code === 'ENOENT' ? pluginErrors.package_missing(said) : pluginErrors.package_invalid(said);
 
 
-const BUNDLE_FILE = 'bundle.json';
+export const BUNDLE_FILE = 'bundle.json';
 export const sandboxEditionKey = (pluginId: string, keyId: string, version: string) =>
   createHash('sha256').update(JSON.stringify([pluginId, keyId, version])).digest('hex').slice(0, 32);
 

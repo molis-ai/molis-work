@@ -6,6 +6,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 import { memoryPageAction } from "./memory-queries.js";
 import { memorySessionActions, memorySessionOperationSchemas } from "./memory-session.js";
+import { isMemoryScene, MEMORY_SCENE_SCHEMA, type MemoryScene } from "./memory-scene.js";
 export type { MemorySessionTarget, MemorySessionBinding, MemorySessionClearPreview, MemorySessionClearItem, MemorySessionClearResult, MemorySessionPendingOperation } from "./memory-session.js";
 export type { MemorySessionPurgeSelection, MemorySessionPurgeTarget, MemorySessionPurgePage } from "./memory-session.js";
 export type { MemoryManagementKind, MemoryManagementItem, MemoryPageFilter, MemoryPageRequest, MemoryPageResponse } from "./memory-queries.js";
@@ -46,14 +47,12 @@ export type MemoryConsumer = "assistant" | "agent" | "ui" | "plugin" | "mcp";
 export const MEMORY_KINDS: readonly MemoryKind[] = ["preference", "convention", "fact", "experience"];
 export const MEMORY_SOURCES: readonly MemorySource[] = ["said", "accepted", "auto", "imported", "manual", "plugin"];
 export const MEMORY_CONSUMERS: readonly MemoryConsumer[] = ["assistant", "agent", "ui", "plugin", "mcp"];
-export const MEMORY_SCENES = ["coding", "assistant", "common"] as const;
-export type MemoryScene = (typeof MEMORY_SCENES)[number];
 export const MEMORY_LIFECYCLES = ["session", "short-term", "long-term"] as const;
 /** Memory scene classification and session-binding role protocol helpers (PEQ-09). */
 export * from "./memory-scene.js";
 /** Restrictions only: matching never grants access beyond existing permissions. */
 export interface MemoryClassRestriction {
-  selector: { consumer: MemoryConsumer; current_scene: typeof MEMORY_SCENES[number]; scene?: typeof MEMORY_SCENES[number]; kind?: MemoryFormalKind; lifecycle?: typeof MEMORY_LIFECYCLES[number] };
+  selector: { consumer: MemoryConsumer; current_scene: MemoryScene; scene?: MemoryScene; kind?: MemoryFormalKind; lifecycle?: typeof MEMORY_LIFECYCLES[number] };
   read: "inherit" | "explicit-only" | "off";
   form: "inherit" | "off";
 }
@@ -369,8 +368,8 @@ function isMemoryClassRestriction(value: unknown): value is MemoryClassRestricti
   const fields = selector as Record<string, unknown>;
   return Object.keys(fields).every(key => ["consumer", "current_scene", "scene", "kind", "lifecycle"].includes(key))
     && Object.hasOwn(fields, "consumer") && MEMORY_CONSUMERS.includes(fields.consumer as MemoryConsumer)
-    && Object.hasOwn(fields, "current_scene") && MEMORY_SCENES.includes(fields.current_scene as typeof MEMORY_SCENES[number])
-    && (!Object.hasOwn(fields, "scene") || MEMORY_SCENES.includes(fields.scene as typeof MEMORY_SCENES[number]))
+    && Object.hasOwn(fields, "current_scene") && isMemoryScene(fields.current_scene)
+    && (!Object.hasOwn(fields, "scene") || isMemoryScene(fields.scene))
     && (!Object.hasOwn(fields, "kind") || MEMORY_FORMAL_KINDS.includes(fields.kind as MemoryFormalKind))
     && (!Object.hasOwn(fields, "lifecycle") || MEMORY_LIFECYCLES.includes(fields.lifecycle as typeof MEMORY_LIFECYCLES[number]));
 }
@@ -467,7 +466,7 @@ const text = { type: "string" };
 const nullableText = { type: ["string", "null"] };
 const scopeSchema = { enum: ["personal", "project", "character"] };
 const formalKindSchema = { enum: [...MEMORY_FORMAL_KINDS] };
-const classificationSchema = { type: "object", properties: { scenes: { type: "array", minItems: 1, maxItems: 3, uniqueItems: true, items: { enum: ["coding", "assistant", "common"] } }, lifecycle: { enum: ["long-term", "short-term", "session"] } }, required: ["scenes", "lifecycle"], additionalProperties: false };
+const classificationSchema = { type: "object", properties: { scenes: { type: "array", minItems: 1, maxItems: 3, uniqueItems: true, items: MEMORY_SCENE_SCHEMA }, lifecycle: { enum: ["long-term", "short-term", "session"] } }, required: ["scenes", "lifecycle"], additionalProperties: false };
 const kindSchema = { enum: [...MEMORY_KINDS] };
 const sourceSchema = { enum: [...MEMORY_SOURCES] };
 const consumerSchema = { enum: [...MEMORY_CONSUMERS] };
@@ -506,8 +505,8 @@ const changeSchema = { type: "object", properties: {
   trigger_evidence: { type: "array", items: evidenceSchema }, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] }, moved_to: { enum: ["personal", "project"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
 export const memoryClassRestrictionsSchema = { type: "array", items: { type: "object", properties: {
-  selector: { type: "object", properties: { consumer: { enum: [...MEMORY_CONSUMERS] }, current_scene: { enum: [...MEMORY_SCENES] },
-    scene: { enum: [...MEMORY_SCENES] }, kind: formalKindSchema, lifecycle: { enum: [...MEMORY_LIFECYCLES] } },
+  selector: { type: "object", properties: { consumer: { enum: [...MEMORY_CONSUMERS] }, current_scene: MEMORY_SCENE_SCHEMA,
+    scene: MEMORY_SCENE_SCHEMA, kind: formalKindSchema, lifecycle: { enum: [...MEMORY_LIFECYCLES] } },
     required: ["consumer", "current_scene"], additionalProperties: false },
   read: { enum: ["inherit", "explicit-only", "off"] }, form: { enum: ["inherit", "off"] } },
   required: ["selector", "read", "form"], additionalProperties: false } };

@@ -1,7 +1,6 @@
 import {createHash} from 'node:crypto';
-import {join} from 'node:path';
 import type {ProjectReplicaDefinition,SyncBlobReference,SyncContentCodec} from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import {createEvidenceContentStore,createLazyFileSecretStore,PROJECT_SECTIONS_INLINE_ENCODING,validateProjectReplicaRows} from '@molis-ai/molis-work-storage';
+import {createEvidenceContentStore,createLazyFileSecretStore,PROJECT_SECTIONS_INLINE_ENCODING,runWithMolisWorkHome,validateProjectReplicaRows} from '@molis-ai/molis-work-storage';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {replicaError} from './project-replication-errors.js';
 
@@ -11,7 +10,8 @@ function object(value:unknown):Record<string,unknown>{if(!value||typeof value!==
 function exact(value:Record<string,unknown>,keys:readonly string[]):void{if(Object.keys(value).length!==keys.length||keys.some(k=>!Object.hasOwn(value,k)))throw replicaError('replica_invalid');}
 /** Explicit owner references only. Plain bytes travel; encryption keys and device paths never do. */
 export function createProjectEvidenceContent(home:string,definitions:readonly ProjectReplicaDefinition[],kind:string,spaceId:string,authorize:()=>void):SyncContentCodec{
- const store=createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'feed','evidence')});
+ // The evidence bodies sit where storage keeps them for this Home (`security/evidence`, BL-b44-feed-home-dir-and-styles).
+ const store=runWithMolisWorkHome(home,()=>createEvidenceContentStore({secretStore:createLazyFileSecretStore(home)}));
  const inspect=(key:string,input:unknown)=>{
   authorize();const parts:unknown=JSON.parse(key),wire=object(input),project=object(wire.project),facts=object(wire.facts);
   if(!Array.isArray(parts)||parts.length!==3||parts[1]!==kind||parts[0]!==parts[2]||typeof parts[0]!=='string'||!parts[0]||parts[0].length>80||wire.format!==PROJECT_SECTIONS_INLINE_ENCODING.format||wire.spaceId!==spaceId||project.id!==parts[0]||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)throw replicaError('replica_scope_mismatch');

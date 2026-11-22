@@ -451,7 +451,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 - 助理一侧：做到三层。每轮只列「自动」技能的名字、说明和 `when_to_use`（至多 20 条，`assistant-round-materials.ts`），用到时才读正文；本人点名的那条直接随轮带上。附带文件（`references/` 等）按路径经 `skills.resource.read@1` 读。（2026-11-10 核对，第 09 批）
 - Coding 一侧：不分层，本人为这一轮选，开轮时整段正文内联，附带文件不随正文带上。正文至多 20,000 个 UTF-16 单元（合同与 Prologue 的上限是同一个数，`prologue-methods.ts` 里编译期比对）。2026-11-10 前的「工作区里安装的方法」与按会话存的方法选择已删（第 09 批 9-4）。
 - 仓库开发 Skill：frontmatter 只有 `name`、`description`，开发工具按描述加载。资源层的样子看 `skills/molis-plugin-dev/`：`SKILL.md` 很短，按情形指向同目录下的分册。
-- 帮助选择的字段：技能声明有 `description`（什么时候用，必填）、`when_to_use`、`when_not_to_use`、`applies_to`（给助理、Coding 还是两边）。模型自己选时看的是名字、说明和 `when_to_use`：把「什么时候用」写进说明，容易和别的 Skill 混的情形写进 `when_not_to_use`。
+- 帮助选择的字段：技能声明有 `description`（什么时候用，必填）、`when_to_use`、`when_not_to_use`、`applies_to`（给助理、某个插件申报的场景如 Coding，还是全部）。模型自己选时看的是名字、说明和 `when_to_use`：把「什么时候用」写进说明，容易和别的 Skill 混的情形写进 `when_not_to_use`。
 
 **写法。** 摘要（`summary`）一句话说清适合什么、产出什么：Agent 靠它判断用不用，它也是唯一常驻在上下文里的部分。正文依次是：适用场景、工作方法、判断线索、需要的资料、工具怎样用、什么算好。`coding-review-change` 是可参考的形状：先确认要评审的范围和完成条件、读实现及相关调用和测试、只报告有依据的问题，「没有发现问题时说明已覆盖范围与未验证项，不制造问题凑数」。
 

@@ -173,7 +173,7 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.doesNotMatch(html, /window\.confirm/);
   const contents = pluginDocuments(owner).join("\n");
   const lingguang = contents.slice(contents.indexOf('data-lingguang="workbench"'), contents.indexOf("data-lingguang-confirm"));
-  assert.match(lingguang, /plugin-stage-list feed-stage-list feed-stage-tree/);
+  assert.match(lingguang, /plugin-stage-list mw-stage-list mw-stage-tree/);
   assert.match(lingguang, /tree-create/);
   assert.match(lingguang, /class="mw-empty"/);
   assert.match(lingguang, /mw-empty__mark[\s\S]*#icon-idea/);
@@ -185,7 +185,7 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /data-assistant-composer/);
   assert.doesNotMatch(saveFunctionSource(), /fillEditor/, "保存不重绘编辑器");
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /mw-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /openai|anthropic|api\.openai/i);
   assert.match(browserSource("page.ts"), /showNote\(text: string/, "failures are said in the page's note");

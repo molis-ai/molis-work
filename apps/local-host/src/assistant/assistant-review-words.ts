@@ -3,6 +3,7 @@ import type { AgentReviewRequest, AgentReviewDecisions } from "@molis-ai/molis-w
 import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { reviewPresentation, reviewText, type ReviewWords } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantReviewDisplay, AssistantReviewField } from "@molis-ai/molis-work-ui-host";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 type Document = AgentReviewRequest["document"];
 type RawReview = { summary: string; fields: Array<{ label: string; value: string }> };
@@ -22,7 +23,7 @@ function changedMiddle(before: string | null, after: string) {
   const prefix = head ? "@@ 第 " + (head + 1) + " 行起" : "", lines = [...removed, ...added].join("\n");
   const text = prefix ? prefix + (lines ? "\n" + lines : "") : lines, clipped = text.length > 6000;
   return { head, body: lines.slice(0, prefix ? 5999 - prefix.length : 6000), clipped,
-    raw: clipped ? text.slice(0, 6000) + "\n…（其余改动见 Coding 页面）" : text || "（内容没有变化）" };
+    raw: clipped ? cutHead(text, 6000) + "\n…（其余改动见 Coding 页面）" : text || "（内容没有变化）" };
 }
 
 /** The original review words the Host reports back to the runtime and keeps on its existing response. */
@@ -36,7 +37,7 @@ export function describeReview(document: Document, change = document.kind === "t
         ...(document.grants ? [{ label: "另要访问", value: [...document.grants.paths.map(grant => (grant.access === "write" ? "读写" : "读取") + " " + grant.path), ...(document.grants.network ? ["联网"] : [])].join("；") }] : [])] };
     case "mcp": return { summary: "MCP · " + document.server + " · " + document.tool, fields: [{ label: "参数", value: document.arguments_json }] };
     case "rewind": return { summary: "回退到检查点", fields: document.files.map(file => ({ label: { restore: "恢复", delete: "删除", create: "新建" }[file.change], value: file.path })) };
-    default: return { summary: "需要你确认的操作", fields: [{ label: "内容", value: JSON.stringify(document, null, 2).slice(0, 4000) }] };
+    default: return { summary: "需要你确认的操作", fields: [{ label: "内容", value: cutHead(JSON.stringify(document, null, 2), 4000) }] };
   }
 }
 

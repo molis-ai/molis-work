@@ -59,12 +59,12 @@
       "owner": "apps/local-host",
       "mode": 384,
       "payload": "stores/agent-definitions/agent-definitions.db.sql",
-      "schema_version": 1,
+      "schema_version": 2,
       "tables": {
         "molis_storage_space": 1,
-        "prompt_history": 1,
-        "prompt_overrides": 1,
-        "prompt_uses": 7,
+        "prompt_history": 3,
+        "prompt_overrides": 2,
+        "prompt_uses": 8,
         "skill_cases": 0,
         "skill_drafts": 0,
         "skill_lineage": 0,
@@ -73,7 +73,7 @@
         "skill_uses": 0,
         "sqlite_sequence": 0
       },
-      "sha256": "565bbdc276dc0fa5fb5bd36fcdfa193d3590ae3c3ece4528dadb9fdcdd840f83"
+      "sha256": "1f322616046e9f5206d21ef0ef186bdbc8936a0bbb48889526020f03ddb21847"
     },
     {
       "path": "agent-runtime/records.sqlite",

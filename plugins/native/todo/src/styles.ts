@@ -55,7 +55,7 @@ export const TODO_STYLES = `
   .todo-done:hover, .todo-done:focus-visible { color: var(--ink); background: var(--nav-hover); }
   .todo-done svg { width: 16px; height: 16px; }
   .todo-done.is-done { color: var(--tone-done, var(--ink)); }
-  body.immersive-workbench .plugin-stage-list .todo-row > .todo-entry.feed-stage-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title trail" "meta trail"; align-items: center; gap: 2px 10px; width: auto; min-width: 0; height: auto; min-height: 44px; padding: 7px 8px; text-align: left; }
+  body.immersive-workbench .plugin-stage-list .todo-row > .todo-entry.mw-stage-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title trail" "meta trail"; align-items: center; gap: 2px 10px; width: auto; min-width: 0; height: auto; min-height: 44px; padding: 7px 8px; text-align: left; }
   .todo-title { grid-area: title; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 400; color: var(--ink); }
   .todo-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; font-size: 12px; color: var(--muted); }
   .todo-meta:empty { display: none; }
@@ -332,7 +332,7 @@ export const TODO_STYLES = `
     .todo-row { grid-template-columns: 32px 44px minmax(0, 1fr); }
     .todo-pick { opacity: 1; }
     .todo-done { width: 44px; height: 44px; }
-    body.immersive-workbench .plugin-stage-list .todo-row > .todo-entry.feed-stage-entry { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "trail"; }
+    body.immersive-workbench .plugin-stage-list .todo-row > .todo-entry.mw-stage-entry { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "trail"; }
     .todo-trail { justify-content: flex-start; }
     .todo-quick-meta .mw-btn--primary { width: 100%; justify-content: center; }
   }

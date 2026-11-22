@@ -7,6 +7,7 @@ import { WorkExecutor } from "./assistant-executor.js";
 import { agentActions } from "./assistant-directory.js";
 import type { AssistantServicePorts } from "./assistant-service.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 const RUNTIME = "prologue";
 /** One answer serves the panel's redraws for this long, while the work stays at the same revision. */
@@ -43,7 +44,7 @@ export function assistantSurroundings(store: AssistantStore, ports: Surroundings
   };
 }
 
-const why = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 200);
+const why = (error: unknown) => cutHead((error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim(), 200);
 
 type ExecutorSetup = Awaited<ReturnType<WorkExecutor["setup"]>> & { actions: BoundActionClient };
 

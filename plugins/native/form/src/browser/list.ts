@@ -11,7 +11,7 @@ const uiText = globalThis.t;
 /** The list of forms and which one is open in the editor. */
 // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
 const fixedCell = (_L: Translate, record: FormRecord) => {
-  const node = make("span", "mw-status mw-status--plain feed-entry-status");
+  const node = make("span", "mw-status mw-status--plain mw-entry-status");
   if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = uiText.text("form.fixed.unfinished"); }
   else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = uiText.text("form.fixed.label") + " v" + record.artifact_version; }
   else node.setAttribute("aria-hidden", "true");
@@ -22,19 +22,19 @@ const artifactLabel = (_L: Translate, record: FormRecord | null) => record?.publ
 
 const listRow = (page: FormPage, record: FormRecord) => {
   const { readText, sel } = page;
-  const item = make("article", "feed-stage-item creative-artifact-row");
+  const item = make("article", "mw-stage-item creative-artifact-row");
   const row = document.createElement("button");
   row.type = "button";
-  row.className = "feed-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
+  row.className = "mw-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
   row.dataset.formId = record.id;
   row.setAttribute("aria-selected", String(sel?.id === record.id));
-  const leading = make("span", "feed-stage-leading");
+  const leading = make("span", "mw-stage-leading");
   const title = make("strong", "", record.title);
   title.title = record.title;
   leading.append(title);
   const published = record.status === "published";
   const status = document.createElement("span");
-  status.className = "mw-status mw-status--plain mw-status--" + (published ? "progress" : "quiet") + " feed-entry-status";
+  status.className = "mw-status mw-status--plain mw-status--" + (published ? "progress" : "quiet") + " mw-entry-status";
   status.dataset.mwState = published ? "doing" : record.status === "closed" ? "stopped" : "idle"; status.textContent = published ? uiText.text("form.list.collecting") : record.status === "closed" ? uiText.text("form.collect.stopped") : uiText.text("form.collect.off");
   row.append(
     leading,

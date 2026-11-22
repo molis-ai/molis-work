@@ -411,8 +411,9 @@ export class AgentHost implements AgentHostApi {
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.
     // The round's Skills, in one catalog read (§3.4); who reads them is the round's consumer, set by its role's workspace (§2.3).
+    const skillConsumer = workspace === "required" ? authority.skillCatalog?.workspaceConsumer ?? "agent" : "agent";
     const skills = await freezeRoundSkills({ selected: request.skills ?? [], manifest: authority.manifest, own: authority.skills ?? [],
-      locale: authority.reply_language?.locale, source: authority.skill_source, catalog: authority.skillCatalog, consumer: workspace === "required" ? "coding" : "agent", hostTools,
+      locale: authority.reply_language?.locale, source: authority.skill_source, catalog: authority.skillCatalog, consumer: skillConsumer, hostTools,
       unsupported: adapter.descriptor.capabilities.skills === "unsupported" });
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
@@ -420,7 +421,7 @@ export class AgentHost implements AgentHostApi {
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { character_id: character.character_id, title: character.title } } : {}).catch(() => null) : null;
     // What the round's own tool calls to `system.skills` read as: the frozen consumer and named list (§2.3). Only the Host's calls carry it,
     // and only where the composition asks for `system.skills`; a tool call into any other plugin's action never does (§2.6, S-skill-delegation).
-    const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []),
+    const skillRound: ActionSkillRound = { consumer: skillConsumer, named: structuredClone(authority.skillCatalog?.named ?? []),
       // This round's number for the catalog's count of its own picks (SKL-02), and the person's 「这次不用技能」 when they asked for it.
       round: randomUUID(), ...(request.auto_skills === false ? { auto: false as const } : {}) };
     const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, skillRound, memory };

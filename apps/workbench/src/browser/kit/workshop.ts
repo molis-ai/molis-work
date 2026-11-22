@@ -1,3 +1,4 @@
+import { bothWord, sceneWord } from "./scenes.js";
 import type { SkillDraft, SkillDraftSummary, SkillTrialCell, SkillTrialConsumer, SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderAdoptBar, renderAskRow, renderPlaceholderList, renderReplayGrid, type ReplayCell } from "@molis-ai/molis-work-design-system/capability-pack";
 import { renderTabs, renderToggleGroup } from "@molis-ai/molis-work-design-system/navigation";
@@ -23,7 +24,7 @@ export const diffOf = (before: string, after: string) => `<div class="sk-diff">$
 export const textOf = (fields: Pick<Fields, "name" | "description" | "body"> & { when_not_to_use?: string }) =>
   [fields.name, fields.description, fields.when_not_to_use ?? "", "", fields.body].join("\n");
 
-const entryWord = (consumer: SkillTrialConsumer) => improve(consumer === "coding" ? "entry-coding" : "entry-assistant");
+const entryWord = (consumer: SkillTrialConsumer) => sceneWord(consumer);
 const sideWord = (w: Workshop, side: "base" | "draft") => side === "draft" ? improve("col-draft")
   : improve(w.draft.target.kind === "custom" ? "col-source" : "col-current", { v: w.draft.base?.version ?? 0 });
 const origin = (draft: SkillDraft) => improve(draft.origin.by === "assistant" ? "from-assistant" : "from-person");
@@ -76,7 +77,7 @@ function grid(w: Workshop): string {
   const consumers = [...new Set(trial.cells.map(cell => cell.consumer))];
   const known = w.draft.cases.find(item => item.case_id === trial.case_id);
   const stale = replayedNow(w) ? "" : `<p class="sk-note">${icon("refresh")}<span>${esc(improve("replay-stale"))}</span></p>`;
-  const rows = consumers.map(consumer => ({ entry: entryWord(consumer), icon: consumer === "coding" ? "code" as const : "message" as const, cells: sides.map((side): ReplayCell => {
+  const rows = consumers.map(consumer => ({ entry: entryWord(consumer), icon: consumer === "assistant" ? "message" as const : "package" as const, cells: sides.map((side): ReplayCell => {
     const cell = trial.cells.find(item => item.consumer === consumer && item.side === side);
     return { column: sideWord(w, side), verdict: cell?.verdict ?? "none", mark: verdictMark(cell), differences: cell?.differences ?? [],
       ...(cell ? { action: button(improve("see-result"), { variant: "link", attrs: act("sk-out", `${consumer}:${side}`) }) } : {}) };
@@ -117,7 +118,7 @@ function tryPanel(w: Workshop): string {
 function comparePanel(w: Workshop): string {
   if (w.compare === "draft" && w.save.kind === "conflict") {
     const text = (fields: SkillDraft["fields"], replacements: Record<string, string>) => [
-      fields.name, fields.applies_to === "both" ? readText("workbench.settings-skills.assistant-and-coding") : entryWord(fields.applies_to),
+      fields.name, fields.applies_to === "both" ? bothWord() : entryWord(fields.applies_to),
       fields.description, fields.when_not_to_use ?? "", fields.argument_hint ?? "", "", fields.body,
       ...Object.entries(replacements).sort(([left], [right]) => left.localeCompare(right)).map(([name, replacement]) => `${name}: ${replacement}`),
     ].join("\n");

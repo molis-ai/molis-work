@@ -3,7 +3,7 @@
  * The page script calls this factory once per bound page and keeps the list, paging, commands and batch work itself; values the
  * page changes while it runs (busy, the current reader, an in-flight removal, the scope) are read through getters.
  */
-export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, run, ask, fail, api, mutation, day, appliesText, CLASS, KIND, FORMAL_KIND, sessionMode, params,
+export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, run, ask, fail, api, mutation, day, appliesText, CLASS, sceneText, pluginScenes, KIND, FORMAL_KIND, sessionMode, params,
   scope, busy, reader, removing }) => {
   function textEditor(text, save, done) {
     const form = el("form", "memory-editor");
@@ -19,20 +19,21 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
   }
 
   const classificationText = classification => classification
-    ? classification.scenes.map(scene => globalThis.t.text(CLASS[scene] || scene)).concat(globalThis.t.text(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : globalThis.t.text("workbench.settings-memory.unclassified");
+    ? classification.scenes.map(sceneText).concat(globalThis.t.text(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : globalThis.t.text("workbench.settings-memory.unclassified");
   const expiryText = expires => expires === undefined ? globalThis.t.text("workbench.settings-memory.not-yet-decided") : expires ? new Date(expires).toLocaleString() : globalThis.t.text("workbench.settings-memory.no-fixed-expiry");
 
   function classificationFields(item) {
     const host = el("details", "memory-origin"), scenes = el("div", "memory-editor-fields");
     host.append(el("summary", "", globalThis.t.text("workbench.settings-memory.classification-expiry")), el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-classification") + globalThis.t.text("common.punctuation.label-separator") + classificationText(item.classification)));
-    const sceneNames = ["coding", "assistant", "common"];
+    // The Host's plugin scenes, and any scene this memory is already in, so a correction never drops a box the person did not untick.
+    const sceneNames = [...new Set([...pluginScenes().map(row => row.scene), ...(item.classification?.scenes || []).filter(scene => scene !== "assistant" && scene !== "common"), "assistant", "common"])];
     const initialScenes = sceneNames.filter(scene => item.classification?.scenes.includes(scene));
     scenes.setAttribute("role", "group"); scenes.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.applies-2"));
     host.append(el("strong", "settings-muted", globalThis.t.text("workbench.settings-memory.applies-2")), scenes);
     for (const scene of sceneNames) {
       const label = el("label", "settings-check"), box = el("input"); box.type = "checkbox"; box.value = scene;
       box.dataset.memoryScene = ""; box.checked = Boolean(item.classification?.scenes.includes(scene));
-      label.append(box, document.createTextNode(" " + globalThis.t.text(CLASS[scene]))); scenes.append(label);
+      label.append(box, document.createTextNode(" " + sceneText(scene))); scenes.append(label);
     }
     const fields = el("div", "memory-editor-fields"), lifecycle = el("select", "mw-select");
     lifecycle.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.retention")); lifecycle.dataset.memoryLifecycle = "";

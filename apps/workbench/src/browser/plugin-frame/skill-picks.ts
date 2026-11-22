@@ -11,8 +11,10 @@ const shaped = (value: unknown): value is SkillPick => {
   catch { return false; }
 };
 const number = (value: unknown) => typeof value === "number" && Number.isFinite(value);
-// The three audiences a Skill line belongs to; kept local so the frame bundle does not pull the whole Skill contract.
-const pickConsumer = (value: unknown): value is "assistant" | "coding" | "agent" => value === "assistant" || value === "coding" || value === "agent";
+// Who a Skill line belongs to: the Assistant, plugin work, or a plugin's declared scene (`isSkillPickConsumer`); kept local so the
+// frame bundle does not pull the whole Skill contract.
+const pickConsumer = (value: unknown): value is string => value === "assistant" || value === "agent"
+  || typeof value === "string" && /^[a-z][a-z0-9-]{0,39}$/.test(value) && value !== "common" && value !== "both";
 
 /**
  * The 「依据」 panel for a plugin frame (specs/prologue-strategies/skill.md §10). The frame asks with the same `molis:skill-pick-open`

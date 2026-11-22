@@ -37,7 +37,10 @@ CREATE TABLE skill_uses (
 );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
 INSERT INTO "prompt_history"("key","revision","action","body","base_version","at","actor_id","default_ref") VALUES('io.molis.work.assistant/assistant-thread',1,'save','金样提示词 seed',2,'2026-01-15T09:00:00.000Z','web-user',NULL);
+INSERT INTO "prompt_history"("key","revision","action","body","base_version","at","actor_id","default_ref") VALUES('io.molis.work.feed/feed.information-plan',1,'save','r1',2,'2026-11-20T00:00:00.000Z','me',NULL);
+INSERT INTO "prompt_history"("key","revision","action","body","base_version","at","actor_id","default_ref") VALUES('io.molis.work.feed/feed.information-plan',2,'save','r2',2,'2026-11-20T00:00:00.000Z','me',NULL);
 INSERT INTO "prompt_overrides"("key","revision","base_version","body","updated_at","actor_id","default_ref") VALUES('io.molis.work.assistant/assistant-thread',1,2,'金样提示词 seed','2026-01-15T09:00:00.000Z','web-user',NULL);
+INSERT INTO "prompt_overrides"("key","revision","base_version","body","updated_at","actor_id","default_ref") VALUES('io.molis.work.feed/feed.information-plan',2,2,'edited system:information/information.plan','2026-11-20T00:00:00.000Z','me',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-base','2026-01-15T09:00:00.000Z',5,NULL,'agent:io.molis.work.assistant',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-compaction','2026-01-15T09:00:00.000Z',1,NULL,'agent:io.molis.work.assistant',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-delegated','2026-01-15T09:00:00.000Z',2,NULL,'agent:io.molis.work.assistant',NULL);
@@ -45,11 +48,12 @@ INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-main','2026-01-15T09:00:00.000Z',1,NULL,'agent:io.molis.work.assistant',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-thread','2026-01-15T09:00:00.000Z',2,1,'agent:io.molis.work.assistant',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-work','2026-01-15T09:00:00.000Z',4,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.feed/feed.information-plan','2026-11-20T00:00:00.000Z',2,2,'plan',NULL);
 DELETE FROM sqlite_sequence;
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);
 CREATE INDEX skill_cases_by_owner ON skill_cases(owner_ref, created_at);
 CREATE INDEX skill_drafts_by_scope ON skill_drafts(scope_ref, discarded_at);
 CREATE INDEX skill_trials_by_draft ON skill_trials(draft_id, ran_at);
 CREATE INDEX skill_uses_by_skill ON skill_uses(install_id, skill_id, at);
-PRAGMA user_version=1;
+PRAGMA user_version=2;
 COMMIT;

@@ -72,7 +72,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts` 的 `agentDefinitionsFor` 打开，`AGENT_DEFINITIONS_BASELINE` 定义基线，构造器套用 | SQLite 带版本 · 2，含本人提示词改写的同步日志 | 必备份（用户改过的提示词、技能设置与用量历史，以及技能草稿/已知答案/回放/来源） | purge |
 | `agent-declarations/agent-declarations.db` | 宿主；`apps/local-host/src/agent-definitions/agent-declarations.ts` 的 `AgentDeclarations`（基线 `AGENT_DECLARATIONS_BASELINE`，表 `install_declarations`），由 `agentDeclarationsFor` 打开。每个安装最近一次登记的 Agent 声明（角色、Prompt、指令、方法），整份替换；Host 启动时按「未运行」恢复进登记册，只供设置里显示和本人先改，方法不给别的 Agent；卸载时删（PG-051 Q1 b） | SQLite 带版本 · 1 | 可重建（插件下次启动时重新登记），随 `agent-definitions` 一起备份 | purge |
-| `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 1 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
+| `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 1 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `security/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `web-search/web-search.db` | 宿主；`apps/local-host/src/web-search-store.ts` 的 `WEB_SEARCH_BASELINE`（第 61 批，§13.7） | SQLite 带版本 · 1 | 必备份。保存用户选的默认来源及最近一次搜索来源，密钥归连接 owner | purge（`web-search` 已登记；不按项目清，Home 级设置） |
 | `blueprints/blueprints.db` | `horizontal/blueprints/src/store.ts` 的 `AdoptionStore` 经 `openBaselineHomeSqlite` 打开，基线 `horizontal/blueprints/src/schema.ts` 的 `BLUEPRINTS_BASELINE`（`BLUEPRINTS_HOME_STORE`），由 `apps/local-host/src/blueprint-host.ts` 装配；保存场景草稿、采用预览、逐项进度与撤销回执，设置值仍归声明它的主人 | SQLite 带版本 · `user_version` = 2，含个人草稿的同步日志 | 必备份 | purge（`blueprints` 已登记；删项目时经 `AdoptionStore.clearProject` 清理该项目草稿与采用记录并解除来源关联） |
@@ -222,11 +222,13 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `search/search.db` | `packages/storage/src/adapters/text-search-index.ts:128-146` | SQLite 自带版本 · WAL · `search_meta` 的 `schema` = "1"（`:22`）。缺失、损坏或版本不符时清空重建，这是唯一不拒绝的库 | 可重建 | purge（`search` 已登记） |
 | `agent-runtime/.molis-runtime-owner.db` | `horizontal/agent-host/src/adapters/prologue-storage-owner.ts:8`：宿主持有 `BEGIN EXCLUSIVE` 来证明自己是 `agent-runtime/` 的唯一执行者 | 锁库，0 字节 | 临时 | purge |
 | `images/runners/<uuid>.db`，旁边 `-journal` | `plugins/native/images/src/store.ts:53`：每个 Images 进程一个锁文件，用来判断“运行中”的任务属于已死进程。进程正常关闭时两个文件都没了（关闭锁连接时 SQLite 回滚并删掉 journal，`releaseLocks` 再删 `.db`）；被杀掉的留下它们，下一次启动时 `reclaimRunnerFiles`（`:88`）把所有能加上独占锁的遗留文件连同 `-journal` 清掉（别的进程持有的、30 秒内新建的、名字不是 `<uuid>.db` 的不动） | 锁库 | 临时 | purge（`images` 目录） |
-| `feed/secrets.lock.sqlite` | `packages/storage/src/adapters/file-secret-store.ts:86`：跨进程互斥用，从不存密钥 | 锁库 | 临时 | purge |
+| `security/secrets.lock.sqlite` | `packages/storage/src/adapters/file-secret-store.ts:86`：跨进程互斥用，从不存密钥 | 锁库 | 临时 | purge |
 
 ## 6. 非 SQLite 状态
 
 ### 6.1 Agent 运行时、凭据与证据
+
+`security/` 是平台的凭据与证据目录（`HOME_SECURITY_DIRNAME`，`packages/storage/src/adapters/local-security-paths.ts`）。它原来叫 `feed/`，名字是 Feed 的，内容却归平台（BL-b44-feed-home-dir-and-styles，用户 2026-11-21 定）：还留着 `feed/` 的 Home 在下次启动时由升级过程整目录改名一次（`HOME_LAYOUT_MOVES`，`apps/local-host/src/home-upgrade.ts`），一个 `rename`、不复制，所以不会多出一份密文；`feed/` 不是普通目录，或两个名字同时在，升级停下、什么都不动。Keychain 条目的服务名 `com.molis.work.feed.secretstore` 与证据正文的引用前缀 `molis-work-feed/` 是存下来的值，不随目录改名。用旧文件密钥（`aes-gcm-file`）的 Home 在改名前做的快照记的是 `home:feed/secrets.key`，新构建不认，不能用来恢复；真实 Home 用 Keychain，不受影响。
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
@@ -236,9 +238,9 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `agent-runtime/storage.key` | SDK `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`（`KEY_FILE`，`:6`）：32 字节，首次以 `wx` 创建，0600 | 密钥文件 | 密钥：丢了 `records/` 里的加密正文读不出 | purge |
 | `agent-runtime/image-intake/` | `horizontal/agent-host/src/adapters/prologue-documents.ts:33` | 目录 | 临时 | purge |
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
-| `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
-| `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
-| `feed/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>`；与下一行研究正文同 Home 共用一把钥匙 | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:feed:evidence-content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本；缺钥时这把钥匙下任一目录（本行与每个项目的 `search-content`）还有正文，就保留旧文件、暂停新写入（Feed 同步与研究搜索先停下说明缺钥），全部为空才在首次保存时建钥（BL-1065）。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
+| `security/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
+| `security/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
+| `security/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>`；与下一行研究正文同 Home 共用一把钥匙 | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:feed:evidence-content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本；缺钥时这把钥匙下任一目录（本行与每个项目的 `search-content`）还有正文，就保留旧文件、暂停新写入（Feed 同步与研究搜索先停下说明缺钥），全部为空才在首次保存时建钥（BL-1065）。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
 | `alchemist/projects/<id>/search-content/` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储与同一把钥匙，根目录换了；共用这把钥匙的目录只在 `evidence-content.ts` 的 `keySharingRoots` 列一处 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
 
 ### 6.2 文件型状态
@@ -280,7 +282,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `config/automation-offers.json`、`config/automation-recommendations.json` | `horizontal/automation-recommender` 的 `offers.ts` 与 `preferences.ts` 按用户与项目身份保存已推荐记录、主动建议开关、采用的技能修订与建议偏好；助理工作的撤销入口存于 `assistant/assistant.db` | JSON · 第 1 版（`schema_version` = 1），Host 升级登记 `apps/local-host/src/platform-upgrade-stores.ts` | 必备份（排除同名 `.lock.sqlite` 写锁）。采用记录和工作的撤销入口以同一时点备份 | 删项目时清对应项目行，purge 清除 |
 | `interface/state.json` | `horizontal/appearance/src/state.ts`：Home 的精确外观选择、修订、恢复组合及应用／撤销回执 | JSON · `schema_version` = 2 | 必备份，选择、回执与个人同步日志同次提交 | purge（`interface` 已登记） |
 | `config/ui-locale.json` | `horizontal/appearance/src/locale-memory.ts`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1（`format.ui.last-locale`）；低版本由升级过程升（`platform-upgrade-stores.ts`），高版本或读不了时按没有记录读取且不覆盖（升级链扫描仍会把读不了/更高版本/缺版本记为 unreadable/too_new/unversioned：不阻止打开，但这次不写当前标记、下次启动再扫） | 必备份（很小） | purge |
-| `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 feed 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |
+| `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 security 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |
 | `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 1 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |
 | `config/external-mcp-actions.json`、`config/connector-mcp-actions.json` | `apps/local-host/src/external-mcp-actions.ts:11`、`apps/local-host/src/connector-mcp-actions.ts:18`：工具的动作版本簿，保存的引用靠它不悄悄换成另一个工具 | JSON · 无版本 | 必备份 | purge |
@@ -312,17 +314,17 @@ B2b 的 owner 接口目前在内存中生成完整结果：所有安装合计最
 
 ### Original key recovery
 
-现行 `feed/secrets.json` 存在时，正常重开只认它记录的原后端。即使条目为空，CLI 密封状态也可能仍依赖原钥匙；改变偏好或提供一把新钥匙不能恢复旧密文。先保持旧 vault、原钥匙及快照不变，按记录的后端找回对应原值：
+现行 `security/secrets.json` 存在时，正常重开只认它记录的原后端。即使条目为空，CLI 密封状态也可能仍依赖原钥匙；改变偏好或提供一把新钥匙不能恢复旧密文。先保持旧 vault、原钥匙及快照不变，按记录的后端找回对应原值：
 
 | 已记录的后端 | 必须找回的原依赖 | 恢复边界 |
 | --- | --- | --- |
-| `aes-gcm-file` | 这个 Home 的原 `feed/secrets.key`，普通单链接文件、原字节 | 从本人保留的原文件恢复到同一 Home 的原位置；不能新生成一份，也不能用设置环境密钥代替 |
+| `aes-gcm-file` | 这个 Home 的原 `security/secrets.key`，普通单链接文件、原字节 | 从本人保留的原文件恢复到同一 Home 的原位置；不能新生成一份，也不能用设置环境密钥代替 |
 | `env-key+aes-gcm` | 最初用于该 Home 的 `MOLIS_WORK_ENCRYPTION_KEY` 值 | 为应用或对应 MCP 进程重新提供原值；任意新值无法解开旧 vault/快照，不能改成文件或 Keychain 后端绕过绑定 |
 | `keychain+aes-gcm` | Keychain 的原条目：service `com.molis.work.feed.secretstore`、account `install-master-key`，以及对该原条目的访问 | 找回或恢复访问原条目，不能用新条目值覆盖；设置环境密钥或文件偏好不会替代 vault 已记录的 Keychain 后端 |
 
 恢复原依赖后重启 Molis Work 或受影响的 MCP 连接再试。Keychain 的拒绝、超时或无效读取会在当前进程内停止自动重试，恢复权限后持续刷新并不能解除这个进程内状态。不会自动换后端、生成替代 key 或重写旧密文。格式正确但不同的 key 仍不能通过旧密文认证或 payload 的原 key 引用；空 vault 本身没有正文可用来识别一把格式正确但不同的 key，不能以“空库能打开”当作旧快照可恢复的证明。
 
-只有本人已明确放弃旧凭据及依赖它们的旧引用时，才在宿主、MCP 与受管连接进程全部停止后，人工将 `feed/secrets.json` 移到 Home 外保留原件，再按首次初始化路径建立新 vault。这是重新开始，不会自动恢复旧凭据、Runtime 原配置备份、证据或其他旧引用；本功能不会替人执行这一步。
+只有本人已明确放弃旧凭据及依赖它们的旧引用时，才在宿主、MCP 与受管连接进程全部停止后，人工将 `security/secrets.json` 移到 Home 外保留原件，再按首次初始化路径建立新 vault。这是重新开始，不会自动恢复旧凭据、Runtime 原配置备份、证据或其他旧引用；本功能不会替人执行这一步。
 
 单独移开 vault 不改写旧密文，也不会自动破坏仍持有完整原依赖的快照。B2b payload 的只读预检按其原 backend/key 引用独立读取，不依赖活 vault 完好；原 Home/安装/来源、后端位置及原 key 均仍匹配时才可解封。如果原 key 已丢失、被新值覆盖或无法找回，对应的旧 vault 与旧 payload 无法靠新 key 恢复。保留旧密文和仍持有的原钥匙，不将清空 vault 或换后端描述为恢复办法；真实 Home/Keychain 的维护仍需当次明确授权。
 
@@ -339,7 +341,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db` | 目录库（现为 v1）按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
 | B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | 退役目录不再登记、现行快照不读；旧Home整体搬开后保留，不改旧key、不删除 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
-| D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |
+| D 凭据 | `security/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `security/secrets.key`）、`security/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |
 | E 个人内容 | 10 个个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、Alchemist 工作室库、`characters/`、`mainline/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；当前 v1 库的邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/`、`external-sessions/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |
 | F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`ui-locale.json`、`mcp-tools.json`、`desktop.json`，`interface/state.json`、`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
 
@@ -351,7 +353,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 | 位置 | 内容 | 代码 |
 | --- | --- | --- |
-| macOS Keychain，服务 `com.molis.work.feed.secretstore`，账户 `install-master-key` | `feed/secrets.json` 的主密钥；环境变量 `MOLIS_WORK_ENCRYPTION_KEY` 或 `feed/secrets.key` 可代替 | `packages/storage/src/adapters/file-secret-store.ts:62-63`、`:134` |
+| macOS Keychain，服务 `com.molis.work.feed.secretstore`，账户 `install-master-key` | `security/secrets.json` 的主密钥；环境变量 `MOLIS_WORK_ENCRYPTION_KEY` 或 `security/secrets.key` 可代替 | `packages/storage/src/adapters/file-secret-store.ts:62-63`、`:134` |
 | `~/Library/LaunchAgents/com.molis.work.web.plist` | 常驻 Web 服务 | `apps/local-host/src/installer/web-service-platform.ts:35`，标签 `installer/web-service-contract.ts:2` |
 | 用户 Runtime 的配置与 Skill 链接：`~/.claude.json`、`~/.codex/config.toml`、`~/.config/opencode/opencode.json`、`~/.pi/agent/mcp.json`、`~/.grok/config.toml` | 经用户确认的 Runtime 接入写入。改名前写下的 MCP 条目指向 `bin/goalboard-mcp`；真实 Home 上 2026-10-07 已改指 `bin/molis-work-mcp`（第 10 节） | `apps/local-host/src/installer/runtime-config-adapters.ts:11-90` |
 | `~/.goalboard` | 指向 `~/.molis-work` 的符号链接，2026-09-13 建（改名前的 Home 路径）。当前 main 里没有任何代码引用 `.goalboard`；它让旧 Runtime 配置里的 `~/.goalboard/bin/goalboard-mcp` 还走得到 Home 里的启动脚本（第 10 节） | 无，旧安装留下的，不是当前代码建的 |
@@ -365,12 +367,12 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 ## 9. 卸载覆盖
 
-`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`web-search`、`context-onboarding`、`plugin-originals`、`conversation-attachments` 与 `alchemist/` 目录；模块的 `functions`、`characters`；主线服务的 `mainline`；横向与存储层的 `memory`、`observation`、`blueprints`、`evaluation`、`external-sessions`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
+`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`web-search`、`context-onboarding`、`plugin-originals`、`conversation-attachments` 与 `alchemist/` 目录；模块的 `functions`、`characters`；主线服务的 `mainline`；横向与存储层的 `memory`、`observation`、`blueprints`、`evaluation`、`external-sessions`、`search`、`security/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
 
 测试覆盖到哪里：
 
 - `tests/uninstall.test.ts` 的 purge 用例写死 10 个目录（`images`、`jelly`、`pages`、`form`、`dataset`、`ppt`、`lingguang`、`todo`、`alchemist`、`functions`），另放一份 `server/server.sqlite` 加 `-wal`、`-shm`。它断言：这些条目和 `runtime-config-backups/` 在 purge 计划里；确认数不对时被拒绝、项目库文件和讨论库还在；确认后讨论库没了、状态是 `purged`、Home 目录整个没了。同文件的普通卸载用例断言 `server/` 不在计划里、确认后讨论库还在。
-- 同一个 purge 用例还往本表登记的其余条目（宿主的四个库、`agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/`、`config/` 里属于人的五个文件）各放一份内容，断言它们都在计划里，并以 Home 目录整个没了证明一件不留。
+- 同一个 purge 用例还往本表登记的其余条目（宿主的四个库、`agent-runtime/`、`security/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/`、`config/` 里属于人的五个文件）各放一份内容，断言它们都在计划里，并以 Home 目录整个没了证明一件不留。
 - 登记的每一项由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts` 用 `deepEqual` 钉死登记的路径，再按登记往每一项写内容（库写库文件，`.json` 写文件，其余目录里放一个文件），断言每一项都在 purge 计划里、确认后都被删。新的条目只要登记，就进清除与这条用例；钉死的名单要在同一个 PR 里改。
 - 讨论库的登记另有一条用例：`tests/im-local-project.test.ts` 启动本机的讨论挂载（`apps/local-host/src/im-server.ts`），断言它在 Home 里只写出 `server/server.sqlite`，且 `server` 已登记；挂载以后改写到别的目录，这条用例会红。
 

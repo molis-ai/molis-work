@@ -138,11 +138,11 @@ test("SKC-10 S-skill-import the preview lists every Skill found, each that canno
     assert.match(by.get("hinted")!.reason!, /argument-hint 要写成 argument_hint/u);
     assert.match(by.get("loose")!.reason!, /reference\.md：不在 references\/、scripts\/、assets\/ 下/u);
     // A SKILL.md without `applies_to` is importable, for whom the person chooses; one without `description` still is not.
-    assert.deepEqual([by.get("unscoped")!.applies_to, by.get("unscoped")!.applies_to_from, by.get("unscoped")!.reason], ["coding", "suggested", undefined]);
+    assert.deepEqual([by.get("unscoped")!.applies_to, by.get("unscoped")!.applies_to_from, by.get("unscoped")!.reason], ["both", "suggested", undefined]);
     assert.deepEqual([by.get("notes")!.applies_to, by.get("notes")!.applies_to_from], ["both", "file"]);
     assert.match(by.get("undescribed")!.reason!, /description/u);
     assert.deepEqual([by.get("multi")!.applies_to, by.get("multi")!.applies_to_from], [undefined, undefined], "a Skill that cannot be imported says no 「给谁用」");
-    assert.equal(preview.applies_to, "coding", "a coding tool's Skills folder pre-selects coding");
+    assert.equal(preview.applies_to, "both", "the platform names no plugin's scene: an unscoped Skill pre-selects everyone (BL-b44-coding-scene-enum)");
     assert.match(by.get("linked")!.reason!, /符号链接/u);
     assert.equal(by.get("leaky")!.file_count, 1, "a resource linking out of its Skill is not read");
     assert.equal(by.get("leaky")!.compatibility, "native-only", "and the Skill says it is incomplete");
@@ -226,8 +226,8 @@ test("SKC-10 S-skill-import 给谁用: a SKILL.md without applies_to imports wit
     await writeSkill(h.skills, "plain", skillMd(["name: plain", "description: 用户要整理时使用。"]));
     const source = { kind: "runtime" as const, runtime_id: "claude-code" as const }, preview = () => h.service.preview({ source }, who);
     const first = await preview(), by = new Map(first.candidates.map(item => [item.skill_id, item]));
-    assert.equal(first.applies_to, "coding");
-    assert.deepEqual([by.get("plain")!.applies_to, by.get("plain")!.applies_to_from], ["coding", "suggested"], "suggested, not yet chosen");
+    assert.equal(first.applies_to, "both");
+    assert.deepEqual([by.get("plain")!.applies_to, by.get("plain")!.applies_to_from], ["both", "suggested"], "suggested, not yet chosen");
     assert.deepEqual([by.get("notes")!.applies_to, by.get("notes")!.applies_to_from], ["assistant", "file"]);
 
     // The suggestion alone does not count: a confirmation that names no choice for `plain` is refused, and nothing is written.
@@ -252,8 +252,8 @@ test("SKC-10 S-skill-import 给谁用: a SKILL.md without applies_to imports wit
     await h.service.confirm({ preview_id: (await preview()).preview_id, skill_ids: ["notes", "plain"], scope: "project", applies_to: [{ skill_id: "plain", applies_to: "both" }] }, who);
     assert.deepEqual(h.kept()[0]!.manifest.methods!.map(method => [method.skill_id, method.applies_to, method.version]), [["notes", "assistant", 1], ["plain", "both", 2]]);
 
-    // The pre-selection follows the source: every local Agent the import reads is a coding tool; any other source suggests both.
-    for (const runtime_id of CHARACTER_IMPORT_RUNTIMES) assert.equal(suggestedAppliesTo({ kind: "runtime", runtime_id }), "coding", runtime_id);
+    // The platform names no plugin scene (BL-b44-coding-scene-enum): every source pre-selects both, the Assistant and every plugin scene.
+    for (const runtime_id of CHARACTER_IMPORT_RUNTIMES) assert.equal(suggestedAppliesTo({ kind: "runtime", runtime_id }), "both", runtime_id);
     assert.equal(suggestedAppliesTo({ kind: "project_directory", directory_id: "any" }), "both");
     // A project directory is not a source in this batch (spec §9, 2026-11-08 用户定; BACKLOG): refused before anything is read.
     await assert.rejects(h.service.preview({ source: { kind: "project_directory", directory_id: "any" } }, who), refused("skills.import_source_unavailable"));
@@ -326,7 +326,7 @@ for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-im
       const preview = await h.client.invoke(person, ref(skillImportActions.preview), input) as
         { preview_id: string; applies_to: string; candidates: Array<{ skill_id: string; importable: boolean; applies_to_from: string }> };
       assert.deepEqual(preview.candidates.map(item => [item.skill_id, item.importable, item.applies_to_from]).sort(), [["notes", true, "file"], ["plain", true, "suggested"]]);
-      assert.equal(preview.applies_to, "coding");
+      assert.equal(preview.applies_to, "both");
       const selected = { skill_ids: ["notes", "plain"], scope, applies_to: [{ skill_id: "plain", applies_to: "coding" }] };
       const result = await h.client.invoke(person, confirming, { preview_id: preview.preview_id, ...selected }) as { plugin_id: string; version: string; publisher_key_id: string };
       const listed = await h.client.invoke(h.person, scope === "home" ? pluginInstallActions.homeInstalled : pluginInstallActions.installed, {}) as

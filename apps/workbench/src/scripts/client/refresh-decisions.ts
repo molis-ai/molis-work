@@ -394,7 +394,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         link.textContent = context.goalTitle ? globalThis.t.text("workbench.refresh-decisions.return-title", { title: context.goalTitle }) : globalThis.t.text("workbench.refresh-decisions.return-goal");
         receipt.append(link);
       }
-      const receiptAnchor = receiptHost.querySelector(".feed-detail-header, .goal-workspace-hero");
+      const receiptAnchor = receiptHost.querySelector(".mw-detail-header, .goal-workspace-hero");
       if (receiptAnchor) receiptAnchor.after(receipt);
       else receiptHost.prepend(receipt);
       receipt.focus({ preventScroll: true });

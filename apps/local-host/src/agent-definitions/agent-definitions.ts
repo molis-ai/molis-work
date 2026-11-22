@@ -27,12 +27,15 @@ export const AGENT_DEFINITIONS_STORE = "agent-definitions";
 export const PROMPT_USES_KEPT = 200;
 
 /**
- * The agent definitions store's one current schema (repository-anti-corruption §4.1), with the Skill settings and uses (specs/skill-packs/
- * contract-design.md §7, §8), and the drafts, known answers, replays and copies' sources of Skills (batch 42, authoring-path-design §3).
- * 1 → 2 only creates the first two tables, empty (user 2026-11-06, spec §9 item 6); 2 → 3 only creates the other four, empty (user
- * 2026-11-16, spec §9).
+ * 1 → 2 (BL-b44-information-plan-to-feed, user 2026-11-21): the information plan's instruction moved from the Host's `system:information`
+ * to Feed, so the person's edit, its history and its uses move to the key Feed's instruction is read by. Only the keys change; the
+ * bodies, revisions and the version an edit was based on stay as they were. The literal names are what the stores hold, not a reference
+ * to Feed's package.
  */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 2, schema: `
+const MOVED_PROMPT_KEYS: ReadonlyArray<readonly [from: string, to: string]> = [["system:information/information.plan", "io.molis.work.feed/feed.information-plan"]];
+
+/** The current schema covers prompt definitions, Skill settings and activity, and the prompt override sync journal. */
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 3, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -44,7 +47,12 @@ CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL, source_ref TEXT
 );
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}` + promptConfigJournal.schema,
-  upgrades: [{ from: 1, sql: promptConfigJournal.upgrade }] };
+  upgrades: [
+    { from: 1, run: db => {
+      for (const [from, to] of MOVED_PROMPT_KEYS) for (const table of ["prompt_overrides", "prompt_history", "prompt_uses"]) db.prepare(`UPDATE ${table} SET key = ? WHERE key = ?`).run(to, from);
+    } },
+    { from: 2, sql: promptConfigJournal.upgrade },
+  ] };
 
 export const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 

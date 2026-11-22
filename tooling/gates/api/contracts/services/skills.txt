@@ -38,8 +38,6 @@ export declare const SKILL_EXCERPT_CHARS = 200;
 
 export declare const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema;
 
-export declare const SKILL_PICK_CONSUMERS: readonly ["assistant", "coding", "agent"];
-
 export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named", "over_limit"];
 
 export declare const SKILL_REF_SCHEMA: ActionSchema;
@@ -176,14 +174,10 @@ export interface SkillCatalogEntry {
     availability: SkillAvailability;
     last_used?: {
         at: string;
-        caller: "assistant" | "coding" | "agent";
+        caller: SkillPickConsumer;
         run_ref?: string;
     };
-    recent_uses?: {
-        assistant?: number;
-        coding?: number;
-        agent?: number;
-    };
+    recent_uses?: Readonly<Record<SkillPickConsumer, number>>;
     based_on?: {
         source: SkillSourceRef;
         newer_version?: number;
@@ -194,7 +188,7 @@ export interface SkillCatalogEntry {
 }
 
 export interface SkillCatalogListRequest {
-    applies_to?: Exclude<SkillAppliesTo, "both">;
+    applies_to?: string;
     states?: SkillState[];
 }
 
@@ -406,7 +400,7 @@ export interface SkillPick {
     picked: "named" | "auto";
 }
 
-export type SkillPickConsumer = (typeof SKILL_PICK_CONSUMERS)[number];
+export type SkillPickConsumer = string;
 
 export type SkillReadRefusal = (typeof SKILL_READ_REFUSALS)[number];
 
@@ -469,7 +463,7 @@ export interface SkillTrialCell {
     differences: string[];
 }
 
-export type SkillTrialConsumer = Exclude<SkillAppliesTo, "both">;
+export type SkillTrialConsumer = string;
 
 export interface SkillTrialRunRequest {
     draft_id: string;

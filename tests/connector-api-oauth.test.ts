@@ -69,7 +69,7 @@ test("S-upgrade-too-new-untouched: an entry in the vault that is not sealed stop
     await completeApiOAuth(directory, callback(a.authorization_url), transport("account-a"));
     const b = await startApiOAuth(directory, { serviceId: "asana", displayName: "B", clientId: "app-b", clientSecret: "secret-b", origin });
     // Version and structure are fine; one entry of another owner's is not a current envelope, which only the check `put` makes finds.
-    const vault = join(directory, "feed", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
+    const vault = join(directory, "security", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
     writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));
     const before = readFileSync(vault, "utf8");
     await assert.rejects(completeApiOAuth(directory, callback(b.authorization_url), counted(transport("account-b"))), /not AES-GCM sealed/u);

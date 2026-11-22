@@ -1,6 +1,6 @@
 import { MCP_CLIENT_CREDENTIAL_DIRECTORY } from "./mcp-client-credentials.js";
 import { basename, dirname, join } from "node:path";
-import { readStorageSpace } from "@molis-ai/molis-work-storage";
+import { HOME_SECURITY_DIRNAME, readStorageSpace } from "@molis-ai/molis-work-storage";
 import { installedSnapshotOptions } from "./installed-library-snapshot.js";
 import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
 import { APPEARANCE_STATE_PATH, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
@@ -38,7 +38,7 @@ import type { HomeStoreSnapshotExclusion } from "@molis-ai/molis-work-contracts/
 import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
-import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, feedSnapshot, managedToolsSnapshot, alchemistSnapshot, builderSnapshot,
+import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, alchemistSnapshot, builderSnapshot,
   browserSnapshot, directoryAccessSnapshot, runtimeBackupSnapshot, excluded, type HomeStoreSnapshotPolicy, type HomeSnapshotStore, type HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 
 type Declaration = HomeStoreDeclaration & { readonly snapshot?: HomeStoreSnapshotPolicy };
@@ -94,7 +94,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE,
       { ...MEMORY_FORGETTING_HOME_STORE, snapshot: { inspect: async copiedFile => { inspectMemoryForgetting(dirname(copiedFile)); } } },
       { ...TEXT_SEARCH_HOME_STORE, snapshot: omittedSnapshot("Rebuildable full-text index", "reset") },
-      KNOWLEDGE_CARDS_HOME_STORE, { path: "feed", snapshot: feedSnapshot }),
+      KNOWLEDGE_CARDS_HOME_STORE, { path: HOME_SECURITY_DIRNAME, snapshot: securitySnapshot }),
     ...owned("server", DISCUSSION_HOME_STORE),
     ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
       const declared = entry.manifest.databases?.home;

@@ -3,6 +3,7 @@ import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
 import { CHARACTER_TASK_SELECTION_SCHEMA } from "../modules/character-role-scope.js";
 import { CONVERSATION_ATTACHMENT_LIMITS } from "./materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
+import { MEMORY_SCENE_SCHEMA } from "./memory-scene.js";
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.js";
 import type { AgentSubagentCommand, AgentSubagentConversation, AgentSubagentRequestResult } from "./agent-host-ports.js";
 import type { AgentMcpServerInput, AgentMcpServerView, AgentCheckpoint, AgentRecoveryReport, AgentSubagentView } from "./agent-host-ports.js";
@@ -154,7 +155,7 @@ const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "tu
   step_board: stepBoardOutput, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: frozenOutput, turns: list(turnOutput), activity: list(activityOutput),
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
   class_restrictions: shape(["policy_version", "taxonomy_version", "personal", "project"], { policy_version: { const: CLASS_POLICY_VERSION }, taxonomy_version: { const: CLASS_TAXONOMY_VERSION },
-    personal: memoryClassRestrictionsSchema, project: memoryClassRestrictionsSchema }), memory_scene: { enum: ["coding", "assistant", "common"] },
+    personal: memoryClassRestrictionsSchema, project: memoryClassRestrictionsSchema }), memory_scene: MEMORY_SCENE_SCHEMA,
   usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, stop_reason_code: { enum: ["person", "host"] }, original_input: object,
   memory_recalled: shape(["method", "omitted", "unavailable"], { method: { enum: ["pinned", "recall"] }, omitted: list(memoryRef), unavailable: strings }),
   todo: list(shape(["id", "text", "state"], { id: string, text: string, state: { enum: ["pending", "in-progress", "done", "abandoned"] } })),

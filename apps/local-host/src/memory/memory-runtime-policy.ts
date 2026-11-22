@@ -5,7 +5,8 @@ import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } f
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope, type MemorySessionPurgeTarget } from "@molis-ai/molis-work-contracts/services/memory";
 import { characterOwner, consumerAccess, formationAllowed, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
 import type { MemoryForgettingPhase } from "@molis-ai/molis-work-service-memory";
-import { pluginMemoryScene } from "./memory-plugin-scene.js";
+import { builtinMemoryScenes, pluginMemoryScene } from "./memory-plugin-scene.js";
+import { isPluginSceneName } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 type Request = Parameters<Options["authorize"]>[1][number];
@@ -38,25 +39,26 @@ function forgettingBatch(owner: MemoryRuntimePolicyOwner) {
     close: () => { if (uses > 1) phase!.assertCurrent(); } };
 }
 
-const SCENES = ["coding", "assistant", "common"] as const;
 const ACTIONS = ["save", "propose", "accept", "promote", "read", "manage-read", "delete"] as const;
 
-/** The App's declared classification, intersected below with the person's live scope switches. */
-const POLICY: Options["policy"] = {
+/** The App's declared classification over the Home's scene list (`memorySceneTaxonomy`), intersected below with the person's live scope switches. */
+function declaredPolicy(scenes: readonly string[]): Options["policy"] {
+  return {
   version: /* @version policy.memory.config */ 1, preset: "manual",
   taxonomy: { version: /* @version policy.memory.taxonomy */ 1,
-    scenes: { values: SCENES.map(id => ({ id, label: id })) },
+    scenes: { values: scenes.map(id => ({ id, label: id })) },
     kinds: { values: ["preference", "convention", "fact", "experience", "habit", "project-decision"].map(id => ({ id, label: id })) },
     lifecycles: { values: [{ id: "long-term", label: "长期", retention: "persistent" },
       { id: "short-term", label: "短期", retention: "expiry" }, { id: "session", label: "会话", retention: "session" }] },
   },
   matrix: { default: { actions: ["manage-read", "delete"], formation: [] },
-    rows: SCENES.map(scene => ({ id: scene, selector: { scenes: [scene], consumers: [...MEMORY_CONSUMERS] },
+    rows: scenes.map(scene => ({ id: scene, selector: { scenes: [scene], consumers: [...MEMORY_CONSUMERS] },
       actions: ACTIONS, formation: [], read: { modes: ["explicit", "task", "resident"], unclassifiedModes: ["explicit", "task"], visible: { scenes: scene === "common" ? ["common"] : [scene, "common"] } },
-      write: { approval: "person-or-policy", classes: { scenes: [...SCENES] } },
+      write: { approval: "person-or-policy", classes: { scenes: [...scenes] } },
     })),
   },
-};
+  };
+}
 
 function scoped(caller: AgentMemoryCaller, target: Pick<Target, "scope" | "owner">, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) {
     if (target.scope === "user") return !state.deletion && target.owner === caller.actor_id;
@@ -114,11 +116,14 @@ function preferences(caller: AgentMemoryCaller, target: Target, owner: MemoryRun
 }
 
 /** SDK authority sees only trusted caller bindings and current owner facts, never model-supplied permissions. */
-export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined, extractor?: AgentMemoryExtractor): Options {
+export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined, extractor?: AgentMemoryExtractor,
+  scenes: readonly string[] = builtinMemoryScenes()): Options {
+  const POLICY = declaredPolicy(scenes);
   const callerAllowed = (caller: AgentMemoryCaller) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
-    && MEMORY_CONSUMERS.some(value => value === caller.consumer) && SCENES.some(scene => scene === caller.current_scene)
+    && MEMORY_CONSUMERS.some(value => value === caller.consumer) && scenes.some(scene => scene === caller.current_scene)
     && (caller.consumer !== "plugin" || !!caller.plugin_id)
-    && (caller.current_scene !== "coding" || pluginMemoryScene(caller.plugin_id, undefined, caller.project_id) === "coding" || caller.person === true)
+    // A plugin scene is its own plugins': another plugin cannot read or write in it, the person can (BL-b44-coding-scene-enum).
+    && (!isPluginSceneName(caller.current_scene) || pluginMemoryScene(caller.plugin_id, undefined, caller.project_id) === caller.current_scene || caller.person === true)
     && (caller.current_scene !== "assistant" || caller.consumer === "assistant" || caller.person === true);
 
   const currentFacts = (caller: AgentMemoryCaller) => {

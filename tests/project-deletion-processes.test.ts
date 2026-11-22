@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { existsSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
@@ -480,26 +480,18 @@ for (const boundary of ["before", "after"]) test(`ARF-1 crash ${boundary} stagin
   });
 });
 
-test("ARF-1 a confirmed retry recovers a unique old stage only after checking the project's library", async t => {
+test("ARF-1/MR21-06 a stage with no receipt is never claimed: deleting a project whose directory is gone keeps the stage and the project", async t => {
   const home = await mkdtemp(join(tmpdir(), "stranded-project-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const project = await catalog.createProject({ display_name: "Stranded", actor_id: "test" });
-    const kept = await catalog.createProject({ display_name: "Kept", actor_id: "test" });
     const root = dirname(dirname(project.database_path)), id = project.project_id;
+    // The receipt is written before anything moves, so only something else could have left this stage.
     const stage = join(root, `.deleting-${id}-${crypto.randomUUID()}`);
-    const parked = join(root, "parked-for-test");
-    const input = { project_id: id, actor_id: "test", delete_confirmed: true, idempotency_key: "recover" };
-    renameSync(dirname(project.database_path), parked);
-    renameSync(dirname(kept.database_path), stage);
-    await assert.rejects(catalog.deleteProject(input), { code: "catalog.project_storage_invalid" });
-    assert.equal(catalog.listProjects().length, 2);
+    renameSync(dirname(project.database_path), stage);
+    await assert.rejects(catalog.deleteProject({ project_id: id, actor_id: "test", delete_confirmed: true, idempotency_key: "recover" }), { code: "ENOENT" });
+    assert.equal(catalog.listProjects().length, 1);
     assert.deepEqual(catalog.listProjectDeletions(), []);
-    renameSync(stage, dirname(kept.database_path));
-    renameSync(parked, stage);
-    const result = await catalog.deleteProject(input);
-    assert.ok(result.deletion.owner_steps.some(step => step.owner_id === "project-directory" && step.state === "complete"));
-    assert.equal(existsSync(stage), false);
-    assert.equal(existsSync(kept.database_path), true);
+    assert.equal(existsSync(join(stage, basename(project.database_path))), true);
   });
 });

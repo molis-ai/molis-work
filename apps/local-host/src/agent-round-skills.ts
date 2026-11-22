@@ -33,6 +33,8 @@ export interface RoundSkillReaders {
   /** The Host's delegation that started this call named these: they are read as the delegating person (§3.1, the one exception). */
   delegated?: { person: ActionCallContext; refs: readonly SkillRef[] };
   named: readonly SkillRef[];
+  /** The starting plugin's declared scene, or `agent` (`AgentRoundSkillCatalog.workspaceConsumer`). */
+  workspaceConsumer: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export function roundSkillCatalog(readers: RoundSkillReaders): AgentRoundSkillCa
   const read = { capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version };
   return {
     named: readers.named,
+    workspaceConsumer: readers.workspaceConsumer,
     list: async (consumer, refs) => (await Promise.all(groups(refs).map(async group =>
       (await readers.client.invoke(reading(group.caller, consumer), list, {}) as { skills: SkillCatalogEntry[] }).skills))).flat(),
     readBodies: async (consumer, refs) => (await Promise.all(groups(refs).map(async group =>

@@ -49,7 +49,7 @@ test("Molis Work Feed secrets and retained content are AES-GCM sealed", () => {
       const written = content.write("# Private retained body\n\nfull text");
       assert.equal(content.read(written.contentRef), "# Private retained body\n\nfull text");
       const digest = written.contentRef.split("/").at(-1)!;
-      const blobPath = join(directory, "molis-work-home", "feed", "evidence", "blobs", digest.slice(0, 2), `${digest}.blob`);
+      const blobPath = join(directory, "molis-work-home", "security", "evidence", "blobs", digest.slice(0, 2), `${digest}.blob`);
       assert.equal(readFileSync(blobPath, "utf8").includes("Private retained body"), false);
       writeFileSync(blobPath, readFileSync(blobPath, "utf8").replace(/.$/u, "x"));
       assert.throws(() => content.read(written.contentRef), /integrity|unavailable/u);
@@ -67,15 +67,15 @@ test("N30 N36: a clean Home reopens one evidence key and directory without rewri
       const content = createEvidenceContentStore({ secretStore: secrets });
       const markdown = "# Retained feed body\n\nOriginal evidence stays sealed in one place.";
       const written = content.write(markdown);
-      const home = join(directory, "molis-work-home"), before = homeStorageTree(join(home, "feed"));
+      const home = join(directory, "molis-work-home"), before = homeStorageTree(join(home, "security"));
       resetSecretStoreCache();
       const reopened = createEvidenceContentStore({ secretStore: createFileSecretStore() });
       assert.equal(reopened.read(written.contentRef), markdown);
       assert.deepEqual(reopened.write(markdown), written);
-      assert.deepEqual(homeStorageTree(join(home, "feed")), before);
-      const vault = JSON.parse(readFileSync(join(home, "feed", "secrets.json"), "utf8"));
+      assert.deepEqual(homeStorageTree(join(home, "security")), before);
+      const vault = JSON.parse(readFileSync(join(home, "security", "secrets.json"), "utf8"));
       assert.deepEqual(Object.keys(vault.entries), ["system:feed:evidence-content-key:v1"]);
-      assert.deepEqual(readdirSync(join(home, "feed")).filter(name => name.startsWith("evidence")), ["evidence"]);
+      assert.deepEqual(readdirSync(join(home, "security")).filter(name => name.startsWith("evidence")), ["evidence"]);
     });
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -138,7 +138,7 @@ test("Storage reads deployed Feed ciphertext and two stores over one home keep t
       cipher.setAAD(Buffer.from(ref));
       const ct = Buffer.concat([cipher.update(markdown, "utf8"), cipher.final()]);
       const ciphertext = JSON.stringify({ v: 1, alg: "aes-256-gcm", iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ct.toString("base64") });
-      const bucket = join(directory, "molis-work-home", "feed", "evidence", "blobs", digest.slice(0, 2));
+      const bucket = join(directory, "molis-work-home", "security", "evidence", "blobs", digest.slice(0, 2));
       mkdirSync(bucket, { recursive: true });
       const filename = join(bucket, `${digest}.blob`);
       writeFileSync(filename, ciphertext);

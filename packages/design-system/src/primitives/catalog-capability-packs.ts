@@ -185,9 +185,9 @@ export function replayGridSection(say: Say): string {
   const current = improve(say, "col-current", { v: SAMPLE_SKILL.current }), draft = improve(say, "col-draft");
   const grouped = say("workbench.catalog-kit.sample-difference-grouping");
   const both = renderReplayGrid({ label: improve(say, "replay-results"), columns: [current, draft], rows: [
-    { entry: improve(say, "entry-assistant"), icon: "message", cells: [verdictCell(say, current, "differs", [grouped]), verdictCell(say, draft, "match")] },
-    { entry: improve(say, "entry-coding"), icon: "code", cells: [verdictCell(say, current, "unknown"), verdictCell(say, draft, "match")] } ] });
-  const fresh = renderReplayGrid({ label: improve(say, "replay-results"), columns: [draft], rows: [{ entry: improve(say, "entry-assistant"), icon: "message", cells: [verdictCell(say, draft, "differs", [grouped])] }] });
+    { entry: say("workbench.common.assistant"), icon: "message", cells: [verdictCell(say, current, "differs", [grouped]), verdictCell(say, draft, "match")] },
+    { entry: say("workbench.catalog-kit.sample-plugin-scene"), icon: "package", cells: [verdictCell(say, current, "unknown"), verdictCell(say, draft, "match")] } ] });
+  const fresh = renderReplayGrid({ label: improve(say, "replay-results"), columns: [draft], rows: [{ entry: say("workbench.common.assistant"), icon: "message", cells: [verdictCell(say, draft, "differs", [grouped])] }] });
   return section("replay-grid", say("workbench.catalog-kit.replay-grid"), `<div class="mw-catalog__specimens">
     ${specimen(say("workbench.catalog-kit.two-entries-two-versions"), both)}
     ${specimen(say("workbench.catalog-kit.a-new-skill-only-the-draft"), fresh)}

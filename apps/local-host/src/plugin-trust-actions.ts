@@ -1,4 +1,5 @@
 import { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
+import { sceneAfterRestart, skillAudienceDeclared } from './memory/memory-plugin-scene.js';
 import { hostLog } from "./host-log.js";
 import { homedir } from "node:os";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -124,7 +125,7 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
         return rows.find(({ record }) => record.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[scope] && record.state !== "uninstalled" && record.publisher_trust === "pinned")?.record.publisher_signature;
       } }),
     drafts: homeAgentDefinitions(home).skillDrafts,
-    draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills")),
+    draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills"), appliesTo => skillAudienceDeclared(appliesTo, home)),
     draftAvailability: () => textModelAvailability(model, "起草技能"),
   };
 }
@@ -140,7 +141,7 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 }
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
-  return new PluginInstallService({ skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
+  return new PluginInstallService({ sceneAfterRestart: scene => sceneAfterRestart(home, scene), skillAudienceDeclared: (appliesTo, own) => skillAudienceDeclared(appliesTo, home, own), skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
     installInProject: (projectId, release, check, complete) => installPackageInProject(source, projectId, release, check, complete),
     installInHome: (release, check, complete) => installPackageInHome(source, release, check, complete),
     presentationCatalog: projectId => installationPresentationCatalog(source, projectId),

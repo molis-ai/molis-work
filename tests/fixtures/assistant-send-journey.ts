@@ -3,7 +3,7 @@ import type { TestContext } from "node:test";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./goal-browser.js";
 import { issueModel } from "./issue-model.js";
-import { CURRENT_WORK } from "./assistant-current-work.js";
+import { CURRENT_WORK, OPEN_DETAILS } from "./assistant-current-work.js";
 
 export type SendBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 export async function sendBrowser(t: TestContext, modelAvailable = true) {
@@ -42,7 +42,14 @@ export async function waitWork(browser: SendBrowser, id: string, ready: (view: A
 }
 export async function openWork(browser: SendBrowser, id: string) {
   await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: '${id}' } }))`);
-  await browser.waitFor(`${CURRENT_WORK} === '${id}' && Boolean(document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]'))`);
+  // The receiver tag of a work carries the cross that starts a new one; a main conversation's has none (36A-3).
+  const main = Boolean((await readWork(browser, id)).work.main);
+  await browser.waitFor(`${CURRENT_WORK} === '${id}' && Boolean(document.querySelector('[data-assistant-composer] .mw-composer__to${main ? "" : " [data-tag-remove]"}'))`);
+}
+/** A work's details (path, sub-tasks, results, changes, usage) are behind 更多 › 详情 (36A-3); this opens them once. */
+export async function openDetails(browser: Pick<SendBrowser, "evaluate" | "waitFor">) {
+  await browser.evaluate(OPEN_DETAILS);
+  await browser.waitFor("document.querySelector('[data-info-details]').checkVisibility()");
 }
 export async function putInput(browser: SendBrowser, text: string, material?: string) {
   await browser.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.value = ${JSON.stringify(text)}; input.dispatchEvent(new Event('input', { bubbles: true }));

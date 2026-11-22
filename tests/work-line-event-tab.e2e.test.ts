@@ -222,7 +222,7 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns th
 test("WLN-18: at 390 the event's conversation is a layer above the one input and the three keys inside it, which stay in reach", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory);
   const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();
@@ -328,7 +328,7 @@ test("WLN-32: the reply that handed a task out says where it went; 「改」 ope
 test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the line's events; a Character chosen there is whom the conversation is with, with a draft of its own, and the next Send is its main conversation's", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory);
   const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();
@@ -461,7 +461,7 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
 test("WLN-10: a waiting task's question heads the event's card with what would change; 同意 and 「改一下」 with its words answer that question only", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory);
   const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();

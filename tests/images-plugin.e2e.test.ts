@@ -4,6 +4,10 @@ import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
+// The compose form is open over the whole Images page (36A-3: the history is the page behind it), so the services are
+// opened from its own bar; the history's own key is only there while no service is connected and nothing is open.
+const SERVICES = ".plugin-stage-detail-bar [data-images-connections]";
+
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
 
 test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败后复用、窄屏", {timeout: 90_000}, async (t) => {
@@ -31,7 +35,7 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   await browser.waitFor("document.body.dataset.desktopSurface === 'images'");
   await waitFor("document.querySelector('[data-images-new]')");
   await click('[data-images-new]');
-  await click('[data-images-connections]');
+  await click(SERVICES);
   await waitFor("document.querySelector('[data-images-dialog]').open");
   await click('[data-images-preset="custom"]');
   await evaluate(`(() => {
@@ -74,7 +78,7 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   await click('[data-images-delete-job]');
   await click('[data-page-dialog=confirm] button[type=submit]');
   await waitFor("document.querySelectorAll('.images-history-row').length === 0");
-  await click('[data-images-connections]');
+  await click(SERVICES);
   await click('[data-images-delete-connection]');
   await click('[data-page-dialog=confirm] button[type=submit]');
   await waitFor("document.querySelectorAll('[data-images-edit-connection]').length === 0");
@@ -108,7 +112,7 @@ test("RAC-143: accepted Images POST with malformed JSON keeps its pending key; r
   await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
   await waitFor("document.querySelector('[data-images-new]')");
   await click('[data-images-new]');
-  await click('[data-images-connections]');
+  await click(SERVICES);
   await click('[data-images-preset="custom"]');
   await evaluate(`(() => {
     document.querySelector('[data-images-connection-name]').value = '坏答复验证';

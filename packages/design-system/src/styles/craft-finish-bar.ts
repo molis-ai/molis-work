@@ -581,7 +581,7 @@ export const CRAFT_BAR_STYLES = `
   /* Too narrow for four names: only the chosen tab keeps its name; the others are their mark and count. */
   @container info-col (max-width: 300px) { ${ASSIST} .info-tab:not([aria-selected="true"]):not([data-info-tab="info"]) > span:not(.work-dg) { display: none; } }
   /* 信息: what is asked of you, how it stands, then what the words carry — in that order, always. */
-  ${ASSIST} .info-pane { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; margin: 0 -12px -12px; padding: 1px 12px 12px; }
+  ${ASSIST} .info-pane { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; margin: 0 -12px -12px; padding: 1px 12px 12px; }
   ${ASSIST} .info-pane > * { flex: none; }
   ${ASSIST} .assistant-side:is(:not([data-info="info"]), [data-details]) .info-pane { display: none; }
   ${ASSIST} .assistant-event-card[hidden] { display: none; }

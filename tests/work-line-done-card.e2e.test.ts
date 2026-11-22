@@ -116,7 +116,7 @@ test("POLISH-20 POLISH-21 QEA-198: closed, a reply is a dot on the expand key an
   // POLISH-21: a press in the work puts the conversation away whole; seen, the reply leaves no dot.
   const [first] = await evaluate<string[]>(`${replies}.map(reply => reply.dataset.replyId)`);
   assert.ok(first);
-  await evaluate("document.querySelector('[data-tab-workspace]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))");
+  await evaluate("(() => { const work = document.querySelector('[data-tab-workspace]'); for (const type of ['pointerdown', 'pointerup']) work.dispatchEvent(new PointerEvent(type, { bubbles: true })); })()");
   await waitFor(RESTING);
   assert.equal(await evaluate(`${DOT}.hidden`), true, "a reply that was read is not news");
   // A plugin's page tells the shell of a press inside it (molis:surface-interaction, plugin-frame/parent.ts).

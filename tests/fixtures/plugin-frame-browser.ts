@@ -215,6 +215,10 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
         const element=document.querySelector(${JSON.stringify(target)});if(!element)return null;
         const menu=element.closest('details:not([open])');
         if(menu&&!menu.querySelector(':scope > summary')?.contains(element))menu.querySelector(':scope > summary')?.click();
+        // An open record takes the whole plugin page and the list is the page behind it (36A-3): what is in the list is
+        // reached by going back first, as a person does.
+        const stage=element.closest('[data-expanded="true"]');
+        if(stage&&!element.getClientRects().length&&!element.closest('.plugin-stage-workspace'))[...stage.querySelectorAll('.plugin-stage-back')].find(key=>key.getClientRects().length)?.click();
         element.scrollIntoView({block:'center',behavior:'instant'});const box=element.getBoundingClientRect();
         return box.width&&box.height?{x:box.x+box.width/2,y:box.y+box.height/2}:null;
       })()`, remaining());

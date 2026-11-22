@@ -155,7 +155,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
 .work-lists-head>small{min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-lists-sources{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px 0}
 .work-lists-sources:empty{display:none}
-.work-lists-body{flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:none;padding:6px}
+.work-lists-body{flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:6px}
 .work-lists-foot{flex:none;margin:0;padding:8px 12px 10px;box-shadow:inset 0 1px 0 var(--line);color:var(--faint);font-size:12px;line-height:1.5}
 .work-lists-foot:empty{display:none}
 .work-list{display:flex;flex-direction:column;gap:1px}

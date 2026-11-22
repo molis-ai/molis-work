@@ -1,6 +1,6 @@
 # 共享视觉与控件原语
 
-产品 UI 的色、字、图标、控件和外壳都从这里出。插件返回 HTML 字符串，不迁 React。视觉意图见 [DESIGN.md](../../DESIGN.md)；这里只写怎么用、文件在哪、别另起一套。
+产品 UI 的色、字、图标、控件和外壳都从这里出。插件返回 HTML 字符串，不迁 React。视觉意图见 [DESIGN.md](../../DESIGN.md)，日常设计与开发执行手册见 [molis-design-ui Skill](../../skills/molis-design-ui/SKILL.md)；这里只写怎么用、文件在哪、别另起一套。
 
 包名：`@molis-ai/molis-work-design-system`。工作区内部包，页面由 Workbench 装配。
 
@@ -64,16 +64,16 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 - 栈保持 HTML Slot。新控件用 `render*` / `mw-*`，随共用令牌适应 Soft Workbench 与 Folio。
 - **token 只从基线文件来（`resources/`，经 `src/baseline.ts`）。** 组件规则里不写 hex，不在后面的层重新声明同名 token 换个数，不用 `!important` 或按插件覆盖去"压"前面的规则——改源头。后层绑的别名（`--desk`、`--lift-1/2/3`）留在结构样式里，规格标 `alias_of`，非基线皮肤写它会被拒。
-- **面：** 桌面 `--desk`（=`--page`、`--nav-bg`）承载标题栏和底栏；工作都在一张连续白色纸面 `--paper` 上（14px 圆角、`--sheet-shadow`）；插件目录列和内部块用 `--surface-soft`；局部分组、只读字段、次按钮静止态用 `--rail`。插件不要在纸面里再画外框卡片。
+- **面：** 桌面 `--desk`（=`--page`、`--nav-bg`）承载标题栏和底栏；工作都在一张连续白色纸面 `--paper` 上（14px 圆角、`--sheet-shadow`）；插件目录列和内部块用 `--surface-soft`；局部分组、只读字段与现役 `HEAD` 次按钮静止态用 `--rail` / `--control-fill`（`91-0b` 决定 60 将次按钮升级为 `--paper` + `1px solid var(--line-strong)` 纸面细边，见 `DESIGN.md` 与 `skills/molis-design-ui/`）。插件不要在纸面里再画外框卡片。
 - **色：** 墨蓝 `--action` 只给主操作和选中的选项；雾蓝 `--accent` 给焦点、链接、进行中和选中的小细节（`--blue*` / `--focus` 已指向雾蓝）。雾蓝不填按钮。其余颜色只表达状态（`--green` / `--amber` / `--red`）。插件没有身份色：画插件的地方 `--plugin-tint` 一律是 `--ink-soft`，规则不点任何插件的名字；标签条上一组的颜色是 Manifest 视图的 `hue`。选中行用 `--nav-active`，不加左侧色条。
 - **深度：** 普通内容靠留白、字重和少量发丝线分层；只有浮起来的东西投影：`--lift-1`（当前标签、分段滑块、当前 Dock 项、主按钮）、`--lift-2`（输入胶囊、内层面板）、`--lift-3`（菜单、对话框、边缘面板、提示）。浮层不再画描边。遮罩只变暗不模糊。渐变只用于引导页的环境光。
-- **字：** 系统字体栈 `FONT_STACK`；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
+- **字：** 现役 `HEAD` 默认系统字体栈 `FONT_STACK`（`91-0b` 决定 60 升级为 F1 `Inter Variable + Noto Sans SC` 真 `400 / 500 / 600` 分片与中文零负字距）；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
 - **尺寸：** 控件 32px（紧凑 28，手机/粗指针 44），`--control-h` 只在早层声明，好让密度和触控规则赢。圆角：tag 6、control 8、row 10、card 12、sheet 14、composer 15、dialog 16。
 - **焦点：** 只用 `--focus-stroke`（2px 雾蓝、偏移 1px）；字段是雾蓝边框加 3px 雾蓝光晕。不准用 ink 或浏览器默认蓝描焦点，不准去掉焦点。危险态用 `--red`。
 - **焦点组的局部更新（VUX-28、VUX-36）：** 向页面追加普通正文时，不能因变更的父节点是 `body` 就重新测量全页焦点组；这会把大段代码的布局成本带进无关的键盘维护。`roving-focus` 对子节点增删只标记父节点所属的组，新增子树和属性变化仍检查其中受影响的组；删除、重排、隐藏祖先、禁用与选择变化后仍保留一个有效 Tab 停靠点。本次只收紧已有 DOM 观察范围，不改代码着色、键盘语义或性能门槛。`tests/keyboard-groups.e2e.test.ts` 通过真实页面的几何读取计数验证普通内容变化不再测量无关组，并验证组内更新与原有键盘路径。
 - **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。入场只有四个关键帧（`src/styles/motion.ts`：到达 `craft-rise`、再显示 `craft-fade-in`、菜单 `craft-drop` / `craft-rise-from-bar`），页面与插件不另写；完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`（新到达的那一层底色是 `[data-craft-new]`）。轮到用户、前进与返回、同一个对象换了地方用 `molisCraft.ask` / `molisCraft.turn` / `molisCraft.carry`（`[data-craft-ask]`、`[data-craft-turn]`、视图转场名 `craft-carried`）；一种变化对应一种动效，对照表在 DESIGN「Motion」和组件板「动效标本」开头。`prefers-reduced-motion` 与自动化下控件入场动画静止。状态环刻的语义周期为 2.8–5.8 秒，由共享组件维护；减少动效时静止，浏览器回归可以显式验证正常运动。
 - **菜单关闭与流式成本（VUX-36、VUX-22）：** `styles/motion.ts` 拥有完整菜单生命周期样式与选择器，craft 层在原位置装配；`details` 菜单的入退场共用可中断的 opacity/transform 过渡（进入 250ms、退出 130ms；反向按进度缩短），入场中关闭也只能逐渐变淡。底栏导航保留朝触发点的方向。关闭立即禁止点击，并仅在 130ms 内保留内容盒；普通折叠、非 details 的 popover 和 Assistant 保留原路径。复用 #1042 的父菜单自定义属性与独立伪元素规则，继续按现有菜单子元素识别动态菜单，不再使用带 `:has()` 的 `::details-content` 选择器。`tests/menu-exit-motion.e2e.test.ts` 覆盖八种现役 host、正常和快速关闭、普通折叠、减少动态效果和自动化静止；`tests/has-anchors.e2e.test.ts` 保持长回复插入节点小于 3ms 的原门槛。短合同见 [visual-ui-experience](../../specs/visual-ui-experience/spec.md#bezier-timing)。
-- **不画滚动条。** `HIDDEN_SCROLLBAR_STYLES`（`src/styles/scrollbars.ts`）在每一页把滚动条藏起来，滚动照常；强制颜色下系统滚动条回来。别处不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`；不在共有样式表里的页面（胶囊、IM、接续页）自己带上这条。
+- **不画滚动条。** `HIDDEN_SCROLLBAR_STYLES`（`src/styles/scrollbars.ts`）在每一页把滚动条藏起来，滚动照常；强制颜色下系统滚动条回来。别处不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`；不在共有样式表里的页面（IM、接续页等）自己带上这条。
 - **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`；禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值，原生 `<dialog>` 只留行为。
 - 选项组用 `renderChoice` / `mw-choice`：选中是墨蓝底加对勾，不能只靠光影或颜色表达选中。
 - 图标从库取：`icon("name")` 或 `#icon-name`。不要第二套 emoji/Unicode 图标。

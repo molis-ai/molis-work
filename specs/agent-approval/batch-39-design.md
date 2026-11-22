@@ -69,7 +69,7 @@
 
 ## 5. 统一管理与调用成本
 
-用户已选 [B 原型](../../docs/design/authorization-review/README.md)。工作台现有设置入口汇总当前工作委托、持久授权和现有任务只读授权；展示执行者、范围、方式、结束条件、授权人及最近使用。收窄和撤销返回 owner 的新 revision 与状态，保存失败保留用户未保存的选择。
+用户已选 [B 原型](../../docs/design/archive/authorization-review/README.md)。工作台现有设置入口汇总当前工作委托、持久授权和现有任务只读授权；展示执行者、范围、方式、结束条件、授权人及最近使用。收窄和撤销返回 owner 的新 revision 与状态，保存失败保留用户未保存的选择。
 
 统一读取与修改的具体输入、输出、并发和事件规则见 [有限委托合同细化 §4](delegation-contract-design.md#4-统一管理的公开投影)。本节保留各 owner 的责任与调用预算，不复制业务授权存储。
 

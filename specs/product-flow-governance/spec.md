@@ -139,7 +139,7 @@
 
 #### 4.6.1 工作台导航的界面定样（第 07 批，2026-11-04）
 
-用户在[可点的定样](../../docs/design/workbench-navigation/README.md)上试过后定：
+用户在[可点的定样](../../docs/design/archive/workbench-navigation/README.md)上试过后定：
 
 | 题 | 决定 |
 | --- | --- |
@@ -314,7 +314,7 @@
 
 ## 9. 开工前检查（路线书第 40 批：产品治理与全产品文案落地）
 
-2026-11-21 按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md) §4、§4.1 作答。对应[第 40 批](../post-anticorruption-roadmap/reference/batches/40.md)两项交付（`40-1` 配置、工作交接与使用治理，`40-2` 全产品文案与按需帮助）；视觉与引导侧（[视觉体验](../visual-ui-experience/spec.md#batch-40-preflight)、[上手覆盖](../onboarding-coverage/spec.md#batch-40-preflight)）共用本表。定样结论：按需帮助复用第 03 批已批准方案 A（`docs/design/on-demand-help/`），先在本批分支上把 4 个 `组件板新增` 部件落成 `/__ui/catalog` 标本再接入产品代码；其余治理简化全部复用既有页面结构与组件板实件，不新增需要定样的新流或整页。
+2026-11-21 按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md) §4、§4.1 作答。对应[第 40 批](../post-anticorruption-roadmap/reference/batches/40.md)两项交付（`40-1` 配置、工作交接与使用治理，`40-2` 全产品文案与按需帮助）；视觉与引导侧（[视觉体验](../visual-ui-experience/spec.md#batch-40-preflight)、[上手覆盖](../onboarding-coverage/spec.md#batch-40-preflight)）共用本表。定样结论：按需帮助复用第 03 批已批准方案 A（`docs/design/archive/on-demand-help/`），先在本批分支上把 4 个 `组件板新增` 部件落成 `/__ui/catalog` 标本再接入产品代码；其余治理简化全部复用既有页面结构与组件板实件，不新增需要定样的新流或整页。
 
 | # | 结论 |
 | --- | --- |

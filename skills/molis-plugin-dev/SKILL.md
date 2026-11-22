@@ -23,7 +23,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 生成插件的 AI 边界（创作台直接挂载） | [generated-ai.md](generated-ai.md) |
 | 生成插件的代码怎么写 | [generated-code.md](generated-code.md) |
 | 字段词典 | [elements.md](elements.md) |
-| 画面、槽、客户端 | [ui.md](ui.md) |
+| 画面、槽、客户端 | [ui.md](ui.md)（视觉令牌、4 套皮肤、F1 字体、动效反馈与完整前端守则见 [molis-design-ui](../molis-design-ui/SKILL.md)） |
 | 界面文字、语言文件、颜色和字体变量；给模型的内容用哪种语言 | [text-and-appearance.md](text-and-appearance.md)（同一套语言文件和 SDK） |
 | 接到本仓库产品 | [host.md](host.md) |
 | 给持久对象定义状态、转换、家族和升级 | [state-machine.md](state-machine.md) |

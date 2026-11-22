@@ -190,7 +190,7 @@ UIV-18、UIV-19、UIV-21～UIV-23 已随第 11 批实现并有工程用例；UIV
 
 ### 10.1 第 10 批定样（用户 2026-11-04）
 
-用户看过可点定样 [`docs/design/unified-input/`](../../docs/design/unified-input/README.md) 后定下，七块都照推荐。前提是统筹 2026-11-04 定的五条（[第 10 批本批核账](../post-anticorruption-roadmap/reference/batches/10.md#batch-10-audit)「已定的点」）；现状盘点见[输入框盘点](input-inventory.md)。
+用户看过可点定样 [`docs/design/archive/unified-input/`](../../docs/design/archive/unified-input/README.md) 后定下，七块都照推荐。前提是统筹 2026-11-04 定的五条（[第 10 批本批核账](../post-anticorruption-roadmap/reference/batches/10.md#batch-10-audit)「已定的点」）；现状盘点见[输入框盘点](input-inventory.md)。
 
 | 块 | 定下的方案 |
 | --- | --- |

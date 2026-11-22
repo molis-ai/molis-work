@@ -116,6 +116,8 @@ components:
 
 # Design System: Molis 插件创作工作台
 
+> **规范收敛（2026-11-21，决定 60）**：颜色、圆角、字体、明暗对比度与控件全面迁回根目录 [`DESIGN.md`](../../../DESIGN.md) 与 [`skills/molis-design-ui/SKILL.md`](../../../skills/molis-design-ui/SKILL.md) 的共享 `mw-*` 原语（`.as-*` 历史方言在 `91B-3` 清退）；上方 frontmatter 与旁侧 `.impeccable/design.json` 仅保留作历史 sidecar 参考。
+
 ## Overview
 
 **Creative North Star: "可见的插件装配台"**

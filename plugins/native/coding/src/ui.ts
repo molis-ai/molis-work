@@ -208,13 +208,14 @@ function renderEmpty(p: CodingUiPrimitives): string {
 
 /**
  * 「本轮设置」 (screen-polish §6.7): the model's rows, then 「规则 N」 (batch12-design §3.7), whose way out when the output is the default location is the project's 输入与输出 settings.
- * The outer `coding-rules__body` is one item of the form body's grid that keeps its own height: the model's rows clip what
- * overflows them, so as a grid item of a body that is short of room they would be squeezed to nothing instead of the body scrolling.
+ * The model's rows are the SDK's settings section (composer-model.ts fills its rows). The outer `coding-rules__body` is one item
+ * of the form body's grid that keeps its own height: the rows clip what overflows them, so as a grid item of a body that is short
+ * of room they would be squeezed to nothing instead of the body scrolling.
  */
 function renderRulesDialog(p: CodingUiPrimitives, projectSettingsHref: string): string {
   return `<dialog class="mw-dialog mw-dialog--form coding-rules" data-coding-rules-dialog data-coding-rules-settings="${p.escape(projectSettingsHref)}" aria-labelledby="coding-rules-title"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2 id="coding-rules-title">${uiText("coding.round-settings.title")}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-rules-close":""}})}</header>
-      <section class="mw-form__body"><div class="coding-rules__body"><div class="mw-settings-section__rows" data-coding-round-model></div>
+      <section class="mw-form__body"><div class="coding-rules__body">${renderSettingsSection({ body: "", attrs: { "data-coding-round-model": "" } })}
         <h3 class="mw-settings-subhead" data-coding-rules-label>${uiText("coding.rules.label")}</h3><div class="coding-rules__body" data-coding-rules-body></div></div></section>
       <footer class="mw-form__footer coding-rules__foot"><p>${p.escape(uiText.text("coding.rules.foot"))}</p></footer>
     </div></dialog>`;

@@ -117,6 +117,8 @@
 
 ### 当前保留机制
 
+- **个人同步 M1-B2（用户已批准）**。项目库、Agent 定义库、蓝图库、Functions 库和外观文件各自保留一段 v1→v2 升级。四个库新增 owner 同步日志并登记已有可同步记录，外观保留选择和回执并加入同步状态。读取只认 v2，转换由既有独立升级入口执行。Attention 保留现有集合的 v1 标识和日志。
+
 以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
@@ -148,6 +150,11 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
+| `agent-definitions/agent-definitions.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
+| `blueprints/blueprints.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE#1→2` |
+| `functions/functions.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE#1→2` |
+| `interface/state.json` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION#1→2` |
 | `projects/<project_id>/molis-work.db#risk` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留风险、引用和历史 | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE#1→2` |
 | `work-brief/work-brief.db` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留简报与操作记录 | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
 | `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | `plugins/native/dataset/src/database.ts#DATASET_DATABASE#1→2` |

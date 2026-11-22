@@ -10,6 +10,7 @@ export { atomicWriteFileSync, syncPath } from "./adapters/atomic-write.js";
 export { parseMemoryForgetting, serializeMemoryForgetting, mergeMemoryForgetting, inspectMemoryForgetting,
   initializeMemoryForgetting, openMemoryForgetting, MEMORY_FORGETTING_HOME_STORE } from "./adapters/memory-forgetting.js";
 export { createAtomicFileDocument } from './adapters/file-document.js';
+export { assertPortableConfig, personalConfigJournal, personalConfigRecord, personalConfigReplica } from './personal-config-replica.js';
 export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
 export { snapshotFileStat, isSnapshotSqlite, readSnapshotFile, copySnapshotFile, snapshotFileDigest } from "./snapshot-files.js";
 export { backupSnapshotSqlite, inspectSnapshotSqlite, type SqliteSnapshotOptions, type SqliteSnapshotInfo } from "./snapshot-sqlite.js";

@@ -3,10 +3,11 @@ import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-c
 import type { UiAppearanceApplyInput, UiAppearanceReceipt, UiAppearanceSelection, UiAppearanceUndoInput, UiAppearanceView, UiEnvironmentProblem } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BASELINE_SPEC } from "@molis-ai/molis-work-design-system";
 import { resolveUiEnvironment, type UiEnvironmentInput } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
+import { atomicWriteFileSync, readStorageSpace } from "@molis-ai/molis-work-storage";
 import { builtinAppearance, type ResolvedAppearance } from "./builtins.js";
 import { appearanceErrors } from "./errors.js";
 import { createStateFile, findApplication, type AppearanceState } from "./state.js";
+import { appearanceDocument } from './replication.js';
 
 type Projection = { readonly selection: UiAppearanceSelection; readonly appearance: ResolvedAppearance; readonly problems: readonly UiEnvironmentProblem[] };
 type CurrentProjection = { readonly selection_revision: number | null; readonly projection: Projection };
@@ -44,6 +45,10 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
   let stateFile: ReturnType<typeof createStateFile> | undefined;
   let cached: CurrentProjection | undefined;
   const file = () => stateFile ??= createStateFile(home, builtinAppearance().baselineSelection);
+  const changedBySync = (revision: number) => {
+    cached = undefined;
+    changed(revision);
+  };
 
   function read() {
     assertOpen();
@@ -79,10 +84,20 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
     assertOpen();
 
     const before = stateFile.read();
-    const { receipt, state, effect } = update(stateFile.writable(before), catalog);
+    const previous = stateFile.writable(before);
+    const { receipt, state, effect } = update(previous, catalog);
     if (!state) return structuredClone(receipt);
+    const space = readStorageSpace(home);
     cached = undefined;
-    try { atomicWriteFileSync(stateFile.path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, durable: true }); }
+    try {
+      if (space?.kind === 'personal' && space.ownerUserId) {
+        appearanceDocument(home, stateFile, space.spaceId, space.ownerUserId, () => {
+          caller.assert_authority_current?.();
+          caller.signal?.throwIfAborted();
+          assertOpen();
+        }, () => {}).update(previous, state);
+      } else atomicWriteFileSync(stateFile.path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, durable: true });
+    }
     catch {
       // The error can be after rename. The exact actor, request and effect must have its receipt in the formal file.
       const after = stateFile.read();
@@ -100,6 +115,11 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
   }
 
   return {
+    replica: (spaceId: string, actor: string, authorize: () => void) =>
+      appearanceDocument(home, file(), spaceId, actor, () => {
+        assertOpen();
+        authorize();
+      }, changedBySync).replica,
     get(actor?: string, requestId?: string): UiAppearanceView {
       const { state, selection_revision, projection } = refresh();
       const found = state && actor !== undefined && requestId !== undefined ? findApplication(state, actor, requestId) : undefined;

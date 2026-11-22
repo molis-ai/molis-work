@@ -11,6 +11,7 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import { agentBodyIn, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import { cloneAgentRegistration, rememberComposedRoles } from "./display-words.js";
+import { promptConfigJournal } from './prompt-overrides-replica.js';
 import {
   AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
@@ -21,7 +22,7 @@ import {
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
-const AGENT_DEFINITIONS_STORE = "agent-definitions";
+export const AGENT_DEFINITIONS_STORE = "agent-definitions";
 /** Uses kept per prompt: the AI kit says its counts are of this many recent rows. */
 export const PROMPT_USES_KEPT = 200;
 
@@ -31,7 +32,7 @@ export const PROMPT_USES_KEPT = 200;
  * 1 → 2 only creates the first two tables, empty (user 2026-11-06, spec §9 item 6); 2 → 3 only creates the other four, empty (user
  * 2026-11-16, spec §9).
  */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 1, schema: `
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 2, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -42,8 +43,8 @@ CREATE TABLE prompt_history (
 CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL, source_ref TEXT
 );
-CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}`,
-  upgrades: [] };
+CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}` + promptConfigJournal.schema,
+  upgrades: [{ from: 1, sql: promptConfigJournal.upgrade }] };
 
 export const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 

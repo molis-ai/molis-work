@@ -10,6 +10,12 @@ export const PROJECT_ROOT_SCHEMA_SQL = `
     );
 `;
 
+/** Trusted project-wide triggers can address the current library's one root without owning its table. */
+export const SINGLE_PROJECT_ROOT_SQL = {
+  id: '(SELECT project_id FROM project_root)',
+  exists: '(SELECT count(*) FROM project_root)=1',
+} as const;
+
 export interface ProjectRootRow {
   readonly project_id: string;
   readonly created_at: string;

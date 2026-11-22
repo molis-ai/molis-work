@@ -136,8 +136,10 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
       return;
     }
     if (request.method === "GET" && /\btext\/html\b/u.test(request.headers.accept ?? "")) {
+      const desktopHeader = request.headers["x-molis-work-desktop"];
+      const desktopShell = desktopHeader === "1" || (Array.isArray(desktopHeader) && desktopHeader.includes("1")) || url.searchParams.get("desktop") === "1";
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "1", "content-security-policy": OPENING_CSP });
-      response.end(hostRecoveryPages.upgradeOpeningPage(htmlLang()));
+      response.end(hostRecoveryPages.upgradeOpeningPage(htmlLang(), undefined, desktopShell));
       return;
     }
     response.setHeader("retry-after", "1");

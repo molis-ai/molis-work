@@ -62,9 +62,9 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 要做就单独立场景、判断时机、已接线按钮。
 
-## Text stats：最小完整 app
+## 最小端口消费者（测试夹具）
 
-人盯着绑来的一份文本快照。`kind: "app"`，一个 `navigator` 入口加一个 `stage` 视图，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。默认连线把它接到平台资料服务（`system.materials`）的 `before` 快照（它的输入口声明 `default_source`）；新插件照抄时把 `default_source` 改成自己要读的来源，不写就不会自动接上。
+`tests/fixtures/snapshot-reader-plugin.ts`：`kind: "app"`，一个必选输入口、一个读取状态的动作，无界面、无存储、无事件、无输出口，也不声明搜索来源。它只给测试用（启动兑现、必选输入、默认连线、伴随插件推导），不进内置目录。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状，完整插件看 `examples/plugin-sample`。输入口声明 `default_source` 时默认连线把它接到那个来源（夹具接平台资料服务 `system.materials` 的 `before` 快照）；新插件照抄时把 `default_source` 改成自己要读的来源，不写就不会自动接上。
 
 ## Diff / Git
 

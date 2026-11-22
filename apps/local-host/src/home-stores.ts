@@ -1,5 +1,5 @@
 import { MCP_CLIENT_CREDENTIAL_DIRECTORY } from "./mcp-client-credentials.js";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { HOME_SECURITY_DIRNAME, readStorageSpace } from "@molis-ai/molis-work-storage";
 import { installedSnapshotOptions } from "./installed-library-snapshot.js";
 import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
@@ -108,7 +108,11 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
             ...library.partition ? { partition: library.partition } : {} } }] : [],
       ];
     }),
-    ...owned("horizontal/appearance", ...at(dirname(APPEARANCE_STATE_PATH), UI_LOCALE_RELATIVE_PATH)),
+    ...owned("horizontal/appearance", { path: dirname(APPEARANCE_STATE_PATH),
+      snapshot_exclusions: ["", "-wal", "-shm", "-journal"].map(suffix => ({
+        path: basename(APPEARANCE_STATE_PATH) + ".lock.sqlite" + suffix, reason: "Appearance write lock", restore: "reset",
+      })),
+    }, ...at(UI_LOCALE_RELATIVE_PATH)),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
     ...owned("horizontal/automation-recommender", ...at(AUTOMATION_PREFERENCES_PATH, AUTOMATION_OFFERS_PATH)),
     ...owned("horizontal/observation", OBSERVATION_HOME_STORE),

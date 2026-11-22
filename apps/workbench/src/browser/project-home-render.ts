@@ -22,10 +22,9 @@ const controlKey = (owner: string, suffix: string) => owner + ":" + suffix;
 export const homeButton = (key: string, label: string, primary = false) =>
   renderButton({ label, variant: primary ? "primary" : "secondary", attrs: { "data-home-control": key } });
 export const homeWord = (key: string) => home(key);
-/** The words of the bar over a plugin's page on the home; the name is the owner's display name. */
-export const homeLeadWord = (key: string, name: string): string => say.text({ owner: "workbench", key: "workbench.home." + key,
+/** A home word that names a plugin; the name is the owner's display name. */
+export const homeNamedWord = (key: string, name: string): string => say.text({ owner: "workbench", key: "workbench.home." + key,
   args: [{ name: "name", kind: "text", text: name }] });
-export const homeLeadName = (data: SurfaceHomeDisplay) => data.lead ? ownerOf(data, data.lead.owner_plugin_id).name : "";
 export const presentationWord = common;
 export { correctionText as surfaceCorrectionWord };
 
@@ -89,8 +88,8 @@ function rowList(data: SurfaceHomeDisplay, group: SurfaceGroup, controls: Map<st
 
 // ---- the first page (specs/screen-polish §八之二) ---------------------------------------------------------------------------------
 
-/** What the page knows besides the composed groups: when the person was last here, when this was read, a lead page that did not open. */
-export interface HomePageView { since: string | null; readAt: string; leadFailed?: string; settingsHref(section: string): string;
+/** What the page knows besides the composed groups: when the person was last here, when this was read. */
+export interface HomePageView { since: string | null; readAt: string; settingsHref(section: string): string;
   /** The person asked for every row of 「自你上次来」, past the few it opens with. */
   showAll?: boolean }
 /** How many rows 「自你上次来」 lists before it says how many more there are. */
@@ -292,7 +291,6 @@ export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeC
   fix?.controls.clear();
   const byKey = new Map(data.display.rows.map(row => [subjectKey(row.owner, row.subject), row]));
   const shown = shownObjects(data, byKey);
-  const failed = view.leadFailed ? `<p class="mw-first-page__quiet" data-home-lead-failed>${e(homeLeadWord("lead-failed", view.leadFailed))} <button type="button" class="mw-first-page__link" data-home-control="lead-retry">${e(home("retry"))}</button></p>` : ""
   const lede = pageLede(data), groups = new Set(data.groups.flatMap(group => group.kind === "plugin" && group.owner_plugin_id ? [group.owner_plugin_id] : []));
   const numbers = new Map(citedSources(lede?.lede).filter(source => groups.has(source)).map((source, index) => [source, index + 1]));
   const head = lede ? ledeHtml(lede, numbers, view, controls) : "";
@@ -305,7 +303,7 @@ export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeC
   // The label of the writing the sentences are from, with its version: it opens the plugin's own page, where the versions are.
   const version = lede?.lede.sentences.length && lede.open ? `<button type="button" class="mw-first-page__version" data-home-control="${e(openControl(lede.owner, lede.open, controls))}">${
     say(lede.lede.label)}${icon("chevron-down")}</button>` : "";
-  return { column: failed + correctionHeader(data, 0, fix && { ...fix, quiet: true }) + body, margin, version };
+  return { column: correctionHeader(data, 0, fix && { ...fix, quiet: true }) + body, margin, version };
 }
 
 export function renderHomePeek(data: SurfaceHomeDisplay, row: SurfaceHomeRowDisplay, controls: Map<string, HomeControl>, framed?: readonly FramedSurfaceControl[]) {

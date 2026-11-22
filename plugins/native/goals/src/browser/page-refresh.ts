@@ -185,7 +185,12 @@ export function pageRefresh(context: RefreshContext) {
     }
     // Split panes showing the Goals list keep the same rows as the page's own list.
     const primaryStageList = document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone]) [data-goal-stage-list]");
-    if (primaryStageList) document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => { list.innerHTML = primaryStageList.innerHTML; stripCopyIds(list); });
+    if (primaryStageList) {
+      document.querySelectorAll("[data-goal-canvas-shell][data-pane-clone] [data-goal-stage-list]").forEach((list) => {
+        list.innerHTML = primaryStageList.innerHTML;
+        stripCopyIds(list);
+      });
+    }
   };
   const readBoard = async ({ force, signal, cursor: hint }: RefreshRequest): Promise<"reloading" | undefined> => {
     if (document.hidden || !lifetime().visible || signal?.aborted) return;

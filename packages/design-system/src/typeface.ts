@@ -58,7 +58,7 @@ ${BASELINE_FONT_FACES}
   :where(strong, b, th, dt) { font-weight: var(--weight-control); }
   .mw-btn { font-family: var(--type-control-font, var(--font)); }
   :where(input, textarea, select, option) { font-weight: var(--weight-body); }
-  :where(code, kbd, samp, pre) { font-family: var(--font-mono); font-size: var(--type-code-size, 13px); line-height: var(--type-code-line-height, 1.45); letter-spacing: 0; }
+  :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
   :where(.mw-reading-text, .mw-look-proof__read) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }
   :where(time, data, .mw-num) { font-variant-numeric: tabular-nums; }
 `;

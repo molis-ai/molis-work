@@ -16,8 +16,8 @@ test("Characters keeps its tab-strip hue as the Host's data and a neutral tint o
   const light = renderPaletteTokens("light");
   const dark = renderPaletteTokens("dark");
   assert.doesNotMatch(light + dark, /--plugin-characters/);
-  assert.match(light, /--hue-purple: #7f5eb0;/);
-  assert.match(dark, /--hue-purple: #c0a0ea;/);
+  assert.match(light, /--hue-purple: #6b54a8;/);
+  assert.match(dark, /--hue-purple: #b59ee8;/);
 });
 
 test("Characters navigation and work surface receive the one neutral tint every plugin surface gets", () => {

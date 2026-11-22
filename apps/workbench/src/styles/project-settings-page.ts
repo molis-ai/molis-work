@@ -21,10 +21,8 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content { box-shadow: none; }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.settings-document, .appearance-document) { background: transparent; }
   :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
-  @keyframes mw-settings-loading-reveal { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes mw-settings-panel-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
-  :is(body.project-preferences-page, .settings-stage) .settings-content > p.mw-loading[data-settings-loading] { opacity: 0; animation: mw-settings-loading-reveal var(--dur-hover) var(--ease-quint) var(--dur-move) both; }
-  :root:not([data-craft-still]) :is(body.project-preferences-page, .settings-stage) .settings-content > [data-settings-panel] { animation: mw-settings-panel-in var(--dur-hover) var(--ease-quint); }
+  :is(body.project-preferences-page, .settings-stage) .settings-content > p.mw-loading[data-settings-loading] { opacity: 0; animation: mw-loading-in var(--dur-hover) var(--ease-quint) var(--dur-move) both; }
+  :root:not([data-craft-still]) :is(body.project-preferences-page, .settings-stage) .settings-content > [data-settings-panel] { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   html[data-resolved-theme="dark"] :is(.project-preferences-page, .settings-stage) :is(.settings-section:not(.mw-settings-section), .guidance-settings-list, .guidance-advanced-list, .diagnostics-summary, .launcher-section) { box-shadow: inset 0 1px 0 var(--edge-highlight); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading) + .mw-settings-section { margin-top: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-body { display: block; overflow: visible; min-height: 0; padding: 0; }

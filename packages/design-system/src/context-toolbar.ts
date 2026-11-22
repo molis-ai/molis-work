@@ -27,7 +27,7 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  */
 export const CONTEXT_TOOLBAR_STYLES = `
 .mw-ctx, .mw-ctx-menu, .mw-ctx-panel { position: fixed; max-width: calc(100vw - 16px); background: var(--popover, var(--paper)); }
-.mw-ctx { z-index: 50; display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--control-border); border-radius: 10px; box-shadow: var(--shadow-raised), inset 0 1px 0 var(--edge-highlight, transparent); }
+.mw-ctx { z-index: 50; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 10px; box-shadow: 0 0 0 1px var(--control-border), var(--shadow-raised), inset 0 1px 0 var(--edge-highlight, transparent); }
 .mw-ctx[hidden] { display: none; }
 .mw-ctx[data-away] { visibility: hidden; pointer-events: none; }
 @media (prefers-reduced-motion: no-preference) { .mw-ctx:not([data-away]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); } }

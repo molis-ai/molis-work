@@ -274,7 +274,7 @@ export const PRIMITIVE_PLUGIN_MENU = `
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
   .mw-menu__item--described {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 20px auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; line-height: 20px;
     > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
     > [data-slot="menu-item-label"] { display: contents; overflow: visible; > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
     .mw-menu__shortcut { grid-area: 1 / 3; }

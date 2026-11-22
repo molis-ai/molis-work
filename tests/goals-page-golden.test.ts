@@ -42,6 +42,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // `data-side-help-body` attribute, and adds Scheme A Help triggers/declarations on Goals stage, Project Home, Artifacts, and Sessions
 // (shifting all 8 `page-current*` records uniformly by +3801 zh / +3289 en and all 8 `page-{archive,trash}*` records by +2800 zh / +2284 en;
 // all 24 `refresh-*`, `momentum-*`, and `document-*` records remain byte-for-byte identical).
+// Batch 91-0b (#2222, Decision 60) adds the global↔project scope switch (`settings-scope-switch`) and real-time sidebar filter
+// (`[data-settings-nav-filter]` / `[data-settings-nav-empty]`) in standalone & drawer settings navigation (shifting all 8 `page-*.zh`
+// records uniformly by +1246, all 8 `page-*.en` by +1360, all 3 standalone `settings-*.zh` by +496, and all 3 standalone `settings-*.en`
+// by +553; all 24 `refresh-*`, `momentum-*`, and `document-*` records and all 6 `settings-*-embedded.*` records remain byte-for-byte identical).
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

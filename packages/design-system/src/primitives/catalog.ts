@@ -298,12 +298,12 @@ function platformFeedbackSection(): string {
       <span class="mw-badge mw-badge--neutral" data-fb-autosave-status>已同步</span>
       ${renderButton({ label: "重试", variant: "ghost", size: "sm", attrs: { "data-fb-autosave-retry": "", hidden: true } })}
     </div>`)}
-    ${specimen("molisOptimisticToggle · 即时切换与失败回滚", `<div class="mw-catalog__row">
-      <label class="mw-check-row"><span class="mw-switch"><input type="checkbox" data-fb-opt-ok><span class="mw-switch__track"></span></span><span>正常切换（成功保持）</span></label>
-      <label class="mw-check-row"><span class="mw-switch"><input type="checkbox" data-fb-opt-fail><span class="mw-switch__track"></span></span><span>模拟失败（自动回滚 + Toast）</span></label>
+    ${specimen("molisOptimisticToggle · 即时切换与失败回滚", `<div class="mw-catalog__row" style="gap:20px 24px">
+      <label class="mw-check-row" style="min-height:44px;align-items:center"><span class="mw-switch"><input type="checkbox" data-fb-opt-ok><span class="mw-switch__track"></span></span><span>正常切换（成功保持）</span></label>
+      <label class="mw-check-row" style="min-height:44px;align-items:center"><span class="mw-switch"><input type="checkbox" data-fb-opt-fail><span class="mw-switch__track"></span></span><span>模拟失败（自动回滚 + Toast）</span></label>
     </div>`)}
-    ${specimen("恒定 20px 状态环原位流转 & 危险确认框 & 日期/时间增强器", `<div class="mw-catalog__row">
-      <span class="mw-catalog__row" style="gap:6px"><svg class="mw-state-ring mw-state-ring--fixed" data-mw-state="running" data-fb-ring-demo aria-hidden="true"></svg><span data-fb-ring-label>running</span></span>
+    ${specimen("状态环原位流转 & 危险确认框 & 日期/时间增强器", `<div class="mw-catalog__row">
+      <span class="mw-catalog__row" style="gap:6px"><svg class="mw-state-ring" data-mw-state="running" data-fb-ring-demo aria-hidden="true"></svg><span data-fb-ring-label>running</span></span>
       ${renderButton({ label: "切换状态", variant: "secondary", size: "sm", attrs: { "data-fb-ring-next": "" } })}
       ${renderButton({ label: "危险确认 (tone: danger)", variant: "danger", size: "sm", attrs: { "data-fb-confirm-danger": "" } })}
       <input type="date" data-mw-date value="2026-11-21" style="width:156px" aria-label="日期示例">

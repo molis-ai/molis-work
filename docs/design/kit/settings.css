@@ -1167,134 +1167,6 @@
   .plugin-trust-settings .plugin-trust-kept > li > svg { grid-row: span 2; width: 16px; height: 16px; margin-top: 2px; color: var(--muted); }
   .plugin-trust-settings .plugin-trust-kept > li > strong { font-size: 13px; font-weight: 500; color: var(--ink); }
   .plugin-trust-settings .plugin-trust-kept > li > span { font-size: 12px; line-height: 18px; color: var(--muted); }
-.settings-connection-item{border-bottom:1px solid var(--line)}.settings-connection-item > .settings-connection-row,[data-connectors-settings] .settings-connection-item > .settings-connection-row{grid-template-columns:40px minmax(0,1fr) auto auto;border-width:0;margin-inline:-8px;padding-inline:8px;border-radius:var(--r-row);cursor:pointer;transition:background-color var(--dur-press) var(--ease-quint)}.settings-connection-item > .settings-connection-row:hover{background:var(--nav-hover)}.settings-connection-item__toggle svg{transition:transform var(--dur-move) var(--ease-quint)}.settings-connection-item[data-open=true] .settings-connection-item__toggle svg{transform:rotate(180deg)}@media (pointer:coarse){.settings-connection-item__toggle.mw-btn{min-width:44px;min-height:44px}}.settings-connection-item__fold{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:block-size var(--dur-move) var(--ease-quint),opacity var(--dur-move) var(--ease-quint),visibility 0s var(--ease-quint) var(--dur-move)}.settings-connection-item[data-open=true]>.settings-connection-item__fold{grid-template-rows:1fr;opacity:1;visibility:visible;transition:block-size var(--dur-move) var(--ease-quint),opacity var(--dur-move) var(--ease-quint),visibility 0s}@supports (interpolate-size:allow-keywords){.settings-connection-item__fold{interpolate-size:allow-keywords}.settings-connection-item:not([data-open=true])>.settings-connection-item__fold{grid-template-rows:1fr;block-size:0}}.settings-connection-item__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.settings-connection-item[data-open=true] .settings-connection-item__clip{overflow:visible;transition:overflow 0s var(--dur-move) allow-discrete}.settings-connection-item__body{padding:4px 0 24px 52px}@media (prefers-reduced-motion:reduce){:is(.settings-connection-item__fold,.settings-connection-item__toggle svg){transition:none}}@media (max-width:760px){.settings-connection-item > .settings-connection-row,[data-connectors-settings] .settings-connection-item > .settings-connection-row{grid-template-columns:40px minmax(0,1fr) auto}.settings-connection-item > .settings-connection-row>.settings-connection-item__toggle{grid-column:3;grid-row:1}[data-connectors-settings] .settings-connection-item > .settings-connection-row>.settings-state,.settings-connection-item > .settings-connection-row>.mw-status{grid-column:2;grid-row:2;justify-self:start}.settings-connection-item__body{padding-left:0}}.connection-uses__table:focus-visible{outline:var(--focus-stroke);outline-offset:1px}.connection-uses .mw-table{min-width:100%}.connection-uses .mw-table :is(th,td){white-space:nowrap}.connection-uses .mw-table tbody th{font-weight:500;color:var(--ink)}.connection-uses__service{display:inline-flex;align-items:center;gap:10px}.connection-uses__service>.settings-connector-mark,.connection-uses__item>.settings-connector-mark{flex:none;width:28px;height:28px;padding:5px;border-radius:6px}.connection-uses__none{color:var(--faint)}.connection-uses__go{color:inherit;text-decoration:none;border-radius:var(--r-row)}.connection-uses__go:hover .mw-status{color:var(--ink)}.connection-uses__go:focus-visible{outline:var(--focus-stroke);outline-offset:1px}.connection-uses__lists{display:none}.connection-uses__group+.connection-uses__group{margin-top:24px}.connection-uses__group h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink)}.connection-uses__group ul{margin:0;padding:0;list-style:none;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper)}.connection-uses__item{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:44px;padding:8px 12px}.connection-uses__item+.connection-uses__item{border-top:1px solid var(--line)}.connection-uses__item strong{min-width:0;overflow-wrap:anywhere;font-weight:500}.connection-uses__empty{padding:12px;color:var(--muted)}@media (max-width:720px){.connection-uses__table{display:none}.connection-uses__lists{display:block}}
-  .settings-connector-tools { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 16px; }
-  .settings-connector-tools > .settings-connector-search { flex: 1 1 240px; }
-  .settings-connector-tools > .settings-connector-view { margin-inline-start: auto; }
-  .settings-connector-uses { display: grid; gap: 12px; min-width: 0; }
-  .settings-connector-uses__lead { margin: 0; color: var(--muted); font-size: 13px; }
-  [data-connectors-settings] [hidden] { display: none !important; }
-  [data-connectors-settings] { --connector-width: 760px; }
-  [data-connectors-settings] .settings-heading { padding-bottom: 24px; }
-  [data-connectors-settings] .settings-connector-catalog { display: grid; gap: 32px; padding-top: 0; max-width: var(--connector-width); }
-  .settings-connector-search { max-width: 360px; }
-  .settings-connector-empty { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--muted); font-size: 13px; }
-  [data-connectors-settings] .mw-input { min-width: 0; width: 100%; min-height: 42px; }
-  [data-connectors-settings] .mw-btn { min-height: 40px; max-width: 100%; white-space: normal; }
-  [data-connectors-settings] a { text-underline-offset: 3px; }
-  [data-connectors-settings] :is(button, a, input, select, textarea, summary):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  [data-connectors-settings] .settings-state { line-height: 1.5; }
-  [data-connectors-settings] .settings-connector-subgroup h3 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 4px; }
-  /* A service row says its name, what it is for and one state, each on one line: what does not fit ends in an ellipsis. */
-  [data-connectors-settings] .settings-connection-item > .settings-connection-row { padding-block: 14px; }
-  [data-connectors-settings] .settings-connection-item > .settings-connection-row .settings-connection-row__identity :is(strong, small) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
-  [data-connectors-settings] .settings-connection-item > .settings-connection-row .settings-connection-row__identity small { font-size: 12px; }
-  [data-connectors-settings] .settings-connection-item > .settings-connection-row > :is(.settings-state, .mw-status) { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  [data-connectors-settings] .settings-connection-item > .settings-connection-row > .mw-status > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-  .settings-connector-panel { display: grid; gap: 16px; min-width: 0; }
-  .settings-connector-source { margin: 0; }
-  .settings-connector-source small { color: var(--muted); font-size: 12px; }
-  /* One account: its four rows in a card, its actions under them, what an action answered in its own box. */
-  .settings-connection-account, .settings-connection-manage { display: grid; gap: 12px; min-width: 0; }
-  .mw-card.connection-facts { width: auto; max-width: 100%; container: connection-facts / inline-size; }
-  .connection-facts .mw-card__panel { padding: 0 16px; }
-  /* Four setting rows (settings-rows.ts) whose control is a fact: each stays on one line, the fact cut short before its name is. */
-  .connection-facts .mw-setting-row { flex-wrap: nowrap; padding: 10px 0; gap: 16px; }
-  .connection-facts .mw-setting-row:last-child { border-bottom: 0; }
-  .connection-facts .mw-setting-row__copy { flex: 1 1 auto; }
-  .connection-facts .mw-setting-row__copy > strong { white-space: nowrap; }
-  .connection-facts .mw-setting-row__copy > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .connection-facts .mw-setting-row__control { flex: 0 1 auto; min-width: 0; max-width: 60%; flex-wrap: nowrap; color: var(--ink); }
-  .connection-facts .mw-setting-row__control > :is(strong, span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .connection-facts .mw-setting-row__control > strong { font-weight: 500; }
-  .connection-facts .mw-setting-row__control > [data-connection-state], .connection-facts [data-connection-retry-at] { display: flex; }
-  .connection-facts .mw-setting-row__control .mw-status { max-width: 100%; min-width: 0; }
-  .connection-facts .mw-status > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .connection-facts small { color: var(--muted); font-size: 12px; }
-  [data-connectors-settings] :is(.settings-connection-account, .settings-connection-manage, .settings-connection-switch) .settings-connection-row__actions { grid-column: auto; border-top: 0; padding-top: 0; }
-  .settings-connection-switch { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line-strong); border-radius: 10px; min-width: 0; }
-  .settings-connection-switch label { min-width: 0; overflow-wrap: anywhere; }
-  /* Each choice's mark sits on the centre of its words' first line (visual-order mark-offset): a 20px line, the 16px mark 2px down. */
-  .settings-connection-switch .mw-check-row { line-height: 20px; }
-  .settings-connection-switch .mw-check-row > .mw-radio { margin-top: 2px; }
-  .settings-connection-switch .mw-field__hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  /* 高级: each account's own settings in a box, then the other ways to connect. */
-  .settings-connector-advanced { border-top: 1px solid var(--line); }
-  .settings-connector-advanced > .mw-collapsible__body { gap: 16px; padding-top: 4px; }
-  .settings-connection-manage { padding: 16px; border: 1px solid var(--line); border-radius: 10px; }
-  .settings-connection-manage > h4 { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  [data-connectors-settings] form.settings-connection-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin: 0; color: inherit; font-size: 13px; }
-  form.settings-connection-inline > .settings-connector-field { flex: 1 1 200px; }
-  form.settings-connection-inline > .mw-btn { flex: none; }
-  /* A key the check refused says so on its own line under the field and its button. */
-  form.settings-connection-inline > .mw-field__error { flex: 1 0 100%; }
-  .settings-connection-scopes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
-  .settings-connector-add.mw-collapsible { border-top: 1px solid var(--line); }
-  .settings-connector-draft { display: grid; gap: 8px; }
-  [data-connectors-settings] .settings-connector-method { padding: 0; border: 0; }
-  .settings-connector-flow { display: grid; gap: 16px; min-width: 0; }
-  [data-connectors-settings] .settings-connector-flow p, .settings-connector-help p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; max-width: 70ch; }
-  .settings-connector-flow > .mw-btn, .settings-connector-auth > .mw-btn { justify-self: start; }
-  [data-connectors-settings] .settings-connector-auth { gap: 16px; }
-  [data-connectors-settings] .settings-connector-steps { display: grid; gap: 24px; padding: 0; margin: 0; list-style: none; counter-reset: connect-step; }
-  [data-connectors-settings] .settings-connector-steps > li { display: grid; gap: 12px; padding-left: 32px; position: relative; counter-increment: connect-step; }
-  [data-connectors-settings] .settings-connector-steps > li::before { content: counter(connect-step); position: absolute; top: 0; left: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; line-height: 22px; }
-  [data-connectors-settings] .settings-connector-steps > li:only-child { padding-left: 0; }
-  [data-connectors-settings] .settings-connector-steps > li:only-child::before { content: none; }
-  .settings-connector-steps > li > strong { font-size: 15px; font-weight: 500; line-height: 22px; }
-  [data-connectors-settings] .settings-connector-field { font-size: 13px; gap: 8px; }
-  .settings-connector-links { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  [data-connectors-settings] .settings-connector-links a { min-height: 36px; width: auto; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; color: var(--blue-dark); overflow-wrap: anywhere; }
-  .settings-connector-links svg { width: 14px; height: 14px; flex: none; }
-  .settings-connector-copy { display: flex; align-items: center; gap: 12px; padding: 12px 12px; border-radius: 8px; background: var(--rail); }
-  .settings-connector-copy code { overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono, monospace); min-width: 0; flex: 1; }
-  .settings-connector-copy button { flex: none; }
-  .settings-connector-help { border-top: 1px solid var(--line); padding-top: 12px; }
-  [data-connectors-settings] summary { cursor: pointer; min-height: 40px; align-content: center; font-size: 13px; color: var(--ink-soft); }
-  .settings-connector-help[open] > :not(summary) { margin-top: 12px; }
-  .settings-connector-pending { display: grid; gap: 8px; }
-  .settings-connector-alternative { border-top: 1px solid var(--line); padding: 8px 0; }
-  .settings-connector-alternative > summary { font-weight: 500; }
-  .settings-connector-alternative > summary small { margin-left: 12px; color: var(--muted); font-weight: 400; }
-  .settings-connector-alternative[open] .settings-connector-method { padding: 12px 0 16px; }
-  .settings-connector-next { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
-  /* With a way back open, 连好以后 gives way to the return bar: once connected the person goes back (specs/draft-and-return §4). */
-  [data-work-surface]:has(> [data-settings-return-bar]:not([data-return-bar-state="gone"])) [data-connector-next] { display: none; }
-  .settings-connector-next h3 { font-size: 13px; font-weight: 600; margin: 0; }
-  .settings-connector-next__step { display: grid; justify-items: start; gap: 8px; }
-  .settings-connector-next p { color: var(--ink-soft); font-size: 13px; line-height: 1.65; margin: 0; max-width: 65ch; }
-  /* What an action or a connection answered sits in a box of its own, so it reads apart from the controls around it. */
-  .settings-connector-feedback, [data-protocol-result], [data-connectors-settings] .settings-connection-result { padding: 12px 16px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--rail); overflow-wrap: anywhere; min-width: 0; }
-  .settings-connector-feedback:focus { outline: none; }
-  [data-connectors-settings] [data-tone=error] { border-color: var(--red); }
-  [data-connectors-settings] [data-tone=error] > p { color: var(--red); }
-  [data-connectors-settings] :is([data-protocol-result], .settings-connector-feedback, .settings-connection-result) > p { font-size: 13px; line-height: 1.6; margin: 0 0 8px; }
-  [data-connectors-settings] :is([data-protocol-result], .settings-connector-feedback, .settings-connection-result) > :last-child { margin-bottom: 0; }
-  [data-connectors-settings] .settings-connection-result > ul { display: grid; gap: 8px; padding-left: 16px; font-size: 13px; }
-  [data-connectors-settings] .settings-connection-result:focus { outline: none; }
-  [data-connectors-settings] .settings-connection-row { background: transparent; padding: 16px 0; border-radius: 0; border-width: 0 0 1px; }
-  [data-connectors-settings] .settings-connection-row__identity strong { font-size: 15px; white-space: normal; overflow-wrap: anywhere; }
-  [data-connectors-settings] .settings-connection-row__identity small { font-size: 12px; overflow-wrap: anywhere; }
-  [data-connectors-settings] .settings-connection-row__actions { border-top: 0; padding-top: 4px; }
-  @media (max-width: 760px) {
-    [data-connectors-settings] .mw-btn, [data-connectors-settings] summary { min-height: 44px; }
-    .settings-connector-search { max-width: none; }
-    .settings-connector-copy { align-items: start; flex-direction: column; }
-    .settings-connector-alternative > summary small { display: block; margin: 4px 0 8px 16px; }
-    [data-connectors-settings] .settings-connector-steps > li { padding-left: 24px; }
-    [data-connectors-settings] .settings-connection-row:not(.settings-connection-item > *) { grid-template-columns: 40px minmax(0, 1fr); }
-    [data-connectors-settings] .settings-connection-row:not(.settings-connection-item > *) > .settings-state { grid-column: 2; justify-self: start; }
-    [data-connectors-settings] .settings-connection-item > .settings-connection-row > :is(.settings-state, .mw-status) { max-width: 100%; }
-    .connection-facts .mw-card__panel { padding: 0 12px; }
-    .settings-connection-switch, .settings-connection-manage { padding: 12px; }
-  }
-  /* Narrow content (a phone, or a window whose content area is narrow beside the sidebar): each fact's value goes under its label,
-     flush left with it, still one line each. The card's own width decides, not the window's. */
-  @container connection-facts (max-width: 600px) {
-    [data-connectors-settings] .connection-facts .mw-setting-row { flex-direction: column; align-items: stretch; gap: 4px; }
-    .connection-facts .mw-setting-row__copy { flex: none; }
-    .connection-facts .mw-setting-row__control { max-width: 100%; justify-content: flex-start; text-align: start; }
-  }
 
   .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
   .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--r-row); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
@@ -3547,10 +3419,8 @@
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content { box-shadow: none; }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.settings-document, .appearance-document) { background: transparent; }
   :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
-  @keyframes mw-settings-loading-reveal { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes mw-settings-panel-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
-  :is(body.project-preferences-page, .settings-stage) .settings-content > p.mw-loading[data-settings-loading] { opacity: 0; animation: mw-settings-loading-reveal var(--dur-hover) var(--ease-quint) var(--dur-move) both; }
-  :root:not([data-craft-still]) :is(body.project-preferences-page, .settings-stage) .settings-content > [data-settings-panel] { animation: mw-settings-panel-in var(--dur-hover) var(--ease-quint); }
+  :is(body.project-preferences-page, .settings-stage) .settings-content > p.mw-loading[data-settings-loading] { opacity: 0; animation: mw-loading-in var(--dur-hover) var(--ease-quint) var(--dur-move) both; }
+  :root:not([data-craft-still]) :is(body.project-preferences-page, .settings-stage) .settings-content > [data-settings-panel] { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   html[data-resolved-theme="dark"] :is(.project-preferences-page, .settings-stage) :is(.settings-section:not(.mw-settings-section), .guidance-settings-list, .guidance-advanced-list, .diagnostics-summary, .launcher-section) { box-shadow: inset 0 1px 0 var(--edge-highlight); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading) + .mw-settings-section { margin-top: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-body { display: block; overflow: visible; min-height: 0; padding: 0; }
@@ -4866,7 +4736,7 @@
     .mw-btn[data-molis-call-id] { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); color: inherit; text-decoration: underline; }
     @media (prefers-reduced-motion: reduce) { &, &.is-error { animation: none; } }
   }
-  .mw-toast--host { position: fixed; inset-inline: 0; bottom: calc(var(--dock-h, var(--helm-h, 74px)) + 14px); margin-inline: auto; z-index: 90; pointer-events: auto; }
+  .mw-toast--host { position: fixed; inset-inline: 0; bottom: calc(var(--dock-h, var(--helm-h, 74px)) + 14px); margin-inline: auto; z-index: 90; pointer-events: none; }
   .mw-date-input { font-variant-numeric: tabular-nums; }
   .mw-date-wrap { position: relative; display: inline-flex; align-items: center; max-width: 100%; > .mw-date-input { padding-inline-end: 28px; } }
   .mw-date-clear { position: absolute; right: 4px; display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; &:hover { background: var(--nav-hover); color: var(--ink); } &[hidden] { display: none; } }
@@ -4961,7 +4831,7 @@
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
   .mw-menu__item--described {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 20px auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; line-height: 20px;
     > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
     > [data-slot="menu-item-label"] { display: contents; overflow: visible; > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
     .mw-menu__shortcut { grid-area: 1 / 3; }
@@ -6174,7 +6044,7 @@
   :where(strong, b, th, dt) { font-weight: var(--weight-control); }
   .mw-btn { font-family: var(--type-control-font, var(--font)); }
   :where(input, textarea, select, option) { font-weight: var(--weight-body); }
-  :where(code, kbd, samp, pre) { font-family: var(--font-mono); font-size: var(--type-code-size, 13px); line-height: var(--type-code-line-height, 1.45); letter-spacing: 0; }
+  :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
   :where(.mw-reading-text, .mw-look-proof__read) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }
   :where(time, data, .mw-num) { font-variant-numeric: tabular-nums; }
 
@@ -6279,7 +6149,6 @@
   }
   @container plugin-stage (max-width: 560px) {
     .plugin-stage-detail-bar { padding: 8px 12px 8px 16px; gap: 6px; }
-    .plugin-stage-detail-bar > span { display: none; }
   }
   .plugin-stage-detail-bar > h1 { margin: 0; flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .plugin-stage-detail-bar[data-stage-back-only] {

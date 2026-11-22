@@ -101,7 +101,6 @@ export const PLUGIN_STAGE_STYLES = `
   }
   @container plugin-stage (max-width: 560px) {
     .plugin-stage-detail-bar { padding: 8px 12px 8px 16px; gap: 6px; }
-    .plugin-stage-detail-bar > span { display: none; }
   }
   .plugin-stage-detail-bar > h1 { margin: 0; flex: 1; min-width: 0; font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .plugin-stage-detail-bar[data-stage-back-only] {

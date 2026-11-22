@@ -8,7 +8,6 @@ export const DIFF_VIEW_STYLES = `
 /* What is compared sits in one box: the earlier side marked in the removal colour, the later in the addition colour, and where
    the content is held as a tag under them. */
 .mw-diff {
-  container-type: inline-size;
   .mw-diff-sides {
     display:grid; gap:4px; margin:0 0 12px; padding:10px 12px; border-radius:var(--radius-item,10px); background:var(--paper); box-shadow:0 0 0 1px var(--line); font-size:12px; overflow-wrap:anywhere;
     > span { position:relative; padding-left:14px; }
@@ -74,10 +73,6 @@ export const DIFF_VIEW_STYLES = `
     }
     svg { width:12px; height:12px; }
   }
-}
-@container (max-width: 600px) {
-  .mw-diff .mw-diff-split li { grid-template-columns:var(--diff-num) minmax(0,1fr); }
-  .mw-diff .mw-diff-split .mw-diff-after { border-left:0; border-top:1px solid var(--line); }
 }
 @media (prefers-reduced-motion:reduce) { .mw-diff .mw-diff-files li { transition:none; } }
 `;

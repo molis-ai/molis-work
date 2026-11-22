@@ -284,7 +284,7 @@ function molisToast(message: string, options: boolean | MolisToastOptions = {}):
     node.append(btn);
   }
   node.hidden = false;
-  node.style.pointerEvents = "auto";
+  node.style.pointerEvents = actionSpec ? "auto" : "none";
   node.classList.add("is-visible");
   hostToastRemaining = resolveToastDuration(opts);
   hostToastStartedAt = Date.now();

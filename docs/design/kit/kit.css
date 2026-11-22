@@ -2023,7 +2023,7 @@
     .mw-btn[data-molis-call-id] { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); color: inherit; text-decoration: underline; }
     @media (prefers-reduced-motion: reduce) { &, &.is-error { animation: none; } }
   }
-  .mw-toast--host { position: fixed; inset-inline: 0; bottom: calc(var(--dock-h, var(--helm-h, 74px)) + 14px); margin-inline: auto; z-index: 90; pointer-events: auto; }
+  .mw-toast--host { position: fixed; inset-inline: 0; bottom: calc(var(--dock-h, var(--helm-h, 74px)) + 14px); margin-inline: auto; z-index: 90; pointer-events: none; }
   .mw-date-input { font-variant-numeric: tabular-nums; }
   .mw-date-wrap { position: relative; display: inline-flex; align-items: center; max-width: 100%; > .mw-date-input { padding-inline-end: 28px; } }
   .mw-date-clear { position: absolute; right: 4px; display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; &:hover { background: var(--nav-hover); color: var(--ink); } &[hidden] { display: none; } }
@@ -2118,7 +2118,7 @@
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
   .mw-menu__item--described {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 20px auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; line-height: 20px;
     > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
     > [data-slot="menu-item-label"] { display: contents; overflow: visible; > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
     .mw-menu__shortcut { grid-area: 1 / 3; }
@@ -4888,7 +4888,6 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 /* What is compared sits in one box: the earlier side marked in the removal colour, the later in the addition colour, and where
    the content is held as a tag under them. */
 .mw-diff {
-  container-type: inline-size;
   .mw-diff-sides {
     display:grid; gap:4px; margin:0 0 12px; padding:10px 12px; border-radius:var(--radius-item,10px); background:var(--paper); box-shadow:0 0 0 1px var(--line); font-size:12px; overflow-wrap:anywhere;
     > span { position:relative; padding-left:14px; }
@@ -4954,10 +4953,6 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
     }
     svg { width:12px; height:12px; }
   }
-}
-@container (max-width: 600px) {
-  .mw-diff .mw-diff-split li { grid-template-columns:var(--diff-num) minmax(0,1fr); }
-  .mw-diff .mw-diff-split .mw-diff-after { border-left:0; border-top:1px solid var(--line); }
 }
 @media (prefers-reduced-motion:reduce) { .mw-diff .mw-diff-files li { transition:none; } }
 

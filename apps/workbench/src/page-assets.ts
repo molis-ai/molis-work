@@ -150,7 +150,7 @@ export function renderMolisWorkArrivalStylesheet(): string {
 
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${SKILL_SETTINGS_STYLES}${LOCAL_DIRECTORY_SETTINGS_STYLES}${WEB_SEARCH_SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${KNOWLEDGE_SETTINGS_STYLES}${KNOWLEDGE_PICKER_STYLES}${PLUGIN_TRUST_SETTINGS_STYLES}${CONNECTOR_EXPERIENCE_STYLES}${ITEM_ROW_STYLES}${TASK_GRANTS_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${pluginSettingsStyles()}${VISUAL_FOUNDATION_PAGE_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${PROJECT_DIRECTORIES_STYLES}${INTERACTION_OPTION_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${KEEP_EDITS_TAIL}${TYPEFACE_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${SKILL_SETTINGS_STYLES}${LOCAL_DIRECTORY_SETTINGS_STYLES}${WEB_SEARCH_SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${KNOWLEDGE_SETTINGS_STYLES}${KNOWLEDGE_PICKER_STYLES}${PLUGIN_TRUST_SETTINGS_STYLES}${ITEM_ROW_STYLES}${TASK_GRANTS_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${pluginSettingsStyles()}${VISUAL_FOUNDATION_PAGE_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${PROJECT_DIRECTORIES_STYLES}${INTERACTION_OPTION_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${KEEP_EDITS_TAIL}${TYPEFACE_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
 }
 
 const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLLOW_STYLES}${OVERFLOW_FADE_STYLES}${FIELD_FIT_STYLES}${COPY_FEEDBACK_STYLES}${NUMBER_STYLES}${STREAM_TEXT_STYLES}${HIDDEN_SCROLLBAR_STYLES}`;
@@ -165,7 +165,7 @@ const PLUGIN_BASE_OMITTED_TOKENS = new Set([
   "--hue-yellow-fill", "--hue-green-fill", "--hue-green-soft", "--hue-mint", "--hue-mint-fill", "--hue-mint-soft",
   "--hue-cyan-fill", "--hue-blue-fill", "--hue-blue-soft", "--hue-indigo", "--hue-indigo-fill", "--hue-indigo-soft",
   "--hue-purple-fill", "--hue-purple-soft", "--hue-pink-fill", "--hue-pink-soft", "--hue-red-fill", "--hue-red-soft",
-  "--hue-steel", "--hue-steel-fill", "--hue-steel-soft", "--hue-slate", "--hue-slate-fill", "--hue-slate-soft",
+  "--hue-steel", "--hue-steel-fill", "--hue-steel-soft", "--hue-slate-fill", "--hue-slate-soft",
   "--mark-slate-fill", "--mark-blue-fill", "--mark-ochre-fill", "--mark-plum-fill", "--mark-clay-fill",
 ]);
 
@@ -189,14 +189,14 @@ html[data-craft-still] :is(dialog[open],.mw-check,.mw-radio,[data-craft-new],[da
 body .mw-toggle-group{display:inline-flex;gap:3px;padding:3px;border:0;border-radius:11px;background:var(--control-fill);box-shadow:inset 0 0 0 1px var(--line);&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--lift-1),inset 0 1px 0 var(--edge-highlight)}}
 body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
 @media (max-width:760px){body.immersive-workbench{--control-h:44px;.plugin-stage-back{width:44px;height:44px;min-height:44px}}}`;
-  const lightTokens = sheet.match(/:root,\s*\[data-ui-skin="[^"]+"\]\s*\{([^}]*)\}/);
+  const lightTokens = sheet.match(/(:root,\s*\[data-ui-skin="[^"]+"\])\s*\{([^}]*)\}/);
   const darkTokens = sheet.match(/(:root\[data-resolved-theme="dark"\][^{]*)\{([^}]*)\}/);
   if (lightTokens && darkTokens) {
     const parseEntries = (block: string) => block.split(";").map((entry) => entry.trim()).filter(Boolean).filter((entry) => {
       const split = entry.indexOf(":");
       return split < 0 || !PLUGIN_BASE_OMITTED_TOKENS.has(entry.slice(0, split).trim());
     });
-    const lightKept = parseEntries(lightTokens[1]);
+    const lightKept = parseEntries(lightTokens[2]);
     const lightProps = new Map(lightKept.map((entry) => {
       const split = entry.indexOf(":");
       return [entry.slice(0, split).trim(), entry.slice(split + 1).trim()];
@@ -205,9 +205,10 @@ body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;b
       const split = entry.indexOf(":");
       return split < 0 || lightProps.get(entry.slice(0, split).trim()) !== entry.slice(split + 1).trim();
     });
+    const lightSelector = lightTokens[1].replace(/\s+/g, "");
     const darkSelector = darkTokens[1].replace(/,\s*:root\[data-resolved-theme="dark"\][^{]*/, "").trim();
     sheet = sheet
-      .replace(lightTokens[0], `:root,[data-ui-skin="soft-workbench@1"]{${lightKept.join(";")}}`)
+      .replace(lightTokens[0], `${lightSelector}{${lightKept.join(";")}}`)
       .replace(darkTokens[0], `${darkSelector}{${darkKept.join(";")}}`);
   }
   const rootVars = new Set<string>();

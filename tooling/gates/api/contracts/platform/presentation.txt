@@ -477,9 +477,6 @@ export interface PresentationOverviewDeclaration {
         readonly capability_id: string;
         readonly version: number;
     }[];
-    readonly lead?: {
-        readonly view_id: string;
-    };
 }
 
 export interface PresentationStartForm {

@@ -110,7 +110,7 @@ test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritt
   assert.throws(() => assertSurfaceDescription({ ...picked, groups: [{ ...attention, plugin_card: null }, group] }, candidate), { code: "actions.output_invalid" });
   // No group stands a plugin's page in for the home: the kind and its field are gone from the contract.
   for (const lead of [{ kind: "lead", owner_plugin_id: owner, state: "ok", items: [], lead: { installation: release, view_id: "stage" } }, { ...group, lead: { installation: release, view_id: "stage" } }]) {
-    const led = description([lead as unknown as SurfaceGroup]);
+    const wire: SurfaceGroup = JSON.parse(JSON.stringify(lead)), led = description([wire]);
     assert.throws(() => assertSurfaceDescription(led, led), { code: "actions.output_invalid" });
   }
   const forged = description([{ ...group, plugin_card: { ...card, summary: { owner: "other", key: "notes.home.empty" } } }]);

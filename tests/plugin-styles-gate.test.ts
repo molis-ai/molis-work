@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
-import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.mjs";
+import { countRules, findSharedStylePluginSelectors, rulesInSharedSheet } from "../scripts/gates/plugin-styles.mjs";
 import { pluginStylesBuildFixture } from "./fixtures/plugin-styles-build.ts";
 
 // PG-070 (RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts, per plugin, the rule
@@ -359,6 +359,21 @@ test("RAC-769 this repository's own build freezes the few declared-shared leftov
   assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
   assert.deepEqual(report.budgetPrefixes?.["text-stats"], ["stats-"], "Text Stats' prefix stays remembered so its rules cannot fall back to the shared sheet");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);
+  assert.deepEqual(findSharedStylePluginSelectors(repoRoot), [], "PEQ-08: platform shared stylesheets contain zero plugin-owned class/attribute/token selectors");
   const passed = run(repoRoot);
   assert.equal(passed.code, 0, passed.out);
+});
+
+test("PEQ-08 plugin-named selector added to platform shared stylesheets fails the gate", () => {
+  branch("shared-style-plugin-leak", () => {
+    put("apps/workbench/src/styles/leak.ts", 'export const LEAK = `.goal-special { color: red; } [data-feed-special] { display: block; } [data-work-surface="jelly"] { padding: 0; }`;\n');
+    put("packages/design-system/src/styles/leak.ts", "export const DS_LEAK = `.inbox-special { margin: 0; } .mw-object-status { --goal-status-tone: red; }`;\n");
+  });
+  const caught = gate("--base", "main");
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /apps\/workbench\/src\/styles\/leak\.ts:1 names plugin selector\/token "\.goal-special"/);
+  assert.match(caught.out, /apps\/workbench\/src\/styles\/leak\.ts:1 names plugin selector\/token "\[data-feed-special"/);
+  assert.match(caught.out, /apps\/workbench\/src\/styles\/leak\.ts:1 names plugin selector\/token "\[data-work-surface=\\"jelly\\"\]"/);
+  assert.match(caught.out, /packages\/design-system\/src\/styles\/leak\.ts:1 names plugin selector\/token "\.inbox-special"/);
+  assert.match(caught.out, /packages\/design-system\/src\/styles\/leak\.ts:1 names plugin selector\/token "--goal-status-tone"/);
 });

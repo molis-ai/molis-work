@@ -143,7 +143,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .plugin-stage-detail-bar { min-height: 32px; padding: 4px 12px; gap: 8px; }
   body.immersive-workbench .plugin-stage-back { height: 26px; width: 26px; }
   body.immersive-workbench .plugin-stage-detail-bar > h1 { font-size: 13px; line-height: 1.3; }
-  body.immersive-workbench .inbox-reference-detail > .plugin-stage-detail-bar { min-height: 32px; }
+  body.immersive-workbench .mw-reference-detail > .plugin-stage-detail-bar { min-height: 32px; }
   body.immersive-workbench .plugin-stage-detail-bar[data-stage-back-only] { min-height: 32px; height: 32px; padding: 4px 12px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { padding: 8px 16px; }
   body.immersive-workbench :is(.form-actions, .event-form-actions) { --control-h: 32px; }
@@ -184,7 +184,6 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .tree-pane .tree-toggle,
     body.immersive-workbench .tree-pane .mw-dir-row { height: 44px; min-height: 44px; }
     body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row { height: 44px; min-height: 44px; }
-    body.immersive-workbench .frame-goal-actions button { min-height: 44px; }
     body.immersive-workbench .plugin-stage-back { width: 44px; height: 44px; min-height: 44px; }
     body.immersive-workbench .mw-stage-entry {
       height: auto; min-height: 44px;

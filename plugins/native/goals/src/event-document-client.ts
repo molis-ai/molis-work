@@ -91,7 +91,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       article.querySelectorAll("[data-event-form]").forEach((form) => { form.hidden = true; });
       const sheet = q(article, "[data-event-sheet]");
       if (sheet) sheet.hidden = !reading.item;
-      article.classList.remove("is-editing-goal");
+      article.classList.remove("is-editing-goal", "is-editing-record");
       syncPanelPresence();
       if (restoreFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
         if (root() !== article || article.classList.contains("is-editing-goal")) return;
@@ -175,7 +175,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         reading.reader = "";
       }
       hidePanels();
-      article.classList.add("is-editing-goal");
+      article.classList.add("is-editing-goal", "is-editing-record");
       syncPanelPresence();
       const sheet = q(article, "[data-event-sheet]");
       if (sheet) sheet.hidden = true;

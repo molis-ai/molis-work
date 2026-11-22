@@ -220,7 +220,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
   html[data-resolved-theme="dark"] ${PAGES} :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
     .tree-filter, .tui-menu,
-    [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, ${CENTRED_DIALOG},
+    [data-plugin-picker-popover], .account-global-popover, ${CENTRED_DIALOG},
     dialog.mw-sheet, .assistant-panel) { background-color: var(--popover); }
   ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
@@ -241,22 +241,22 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   }
   /* Empty states draw one picture everywhere: the plugin's glyph on a sheet of paper lying across another,
      the Home card's papers in miniature. No plugin draws its own illustration. */
-  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark) {
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark) {
     position: relative; isolation: isolate; display: grid; place-items: center; box-sizing: border-box; flex: none;
     width: 56px; height: 56px; margin: 0 0 16px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink-soft);
   }
-  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::before,
-  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::after {
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark)::before,
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark)::after {
     content: ""; position: absolute; left: 9px; top: 4px; width: 36px; height: 46px; border-radius: 6px;
   }
-  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::after {
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark)::after {
     z-index: 0; background: var(--surface-soft); box-shadow: 0 0 0 1px var(--line); transform: translate(8px, 2px) rotate(9deg);
   }
-  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::before {
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark)::before {
     z-index: 1; transform: rotate(-4deg); box-shadow: 0 0 0 1px var(--line), var(--lift-1);
     background: linear-gradient(var(--line) 0 0) 8px 30px / 18px 2px no-repeat, linear-gradient(var(--line) 0 0) 8px 36px / 12px 2px no-repeat, var(--popover);
   }
-  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark) > svg {
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark) > svg {
     position: relative; z-index: 2; width: 20px; height: 20px; stroke-width: 1.6; transform: translate(-1px, -8px) rotate(-4deg); color: var(--ink-soft);
   }
   /* A list that could not be read uses the same picture, marked in the error colour, and always offers Retry. */
@@ -308,8 +308,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* Writing gets the whole height of a short window: while a record form is open the bar steps aside, and it
      returns when the form closes. Phones held sideways or with the keyboard up are short windows too. */
   @media (max-height: 560px) {
-    ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; --dock-min: 0px; }
-    ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
+    ${SHELL} .immersive-workspace:has(.is-editing-record) { --dock-h: 0px; --dock-min: 0px; }
+    ${SHELL} .immersive-workspace:has(.is-editing-record) > .workbench-bar { display: none; }
   }
 
   /* ─── Board ─── */
@@ -356,22 +356,21 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
       padding: 32px max(32px, calc((100% - 960px) / 2)) 56px;
     }
     /* One header on every page: the title and one sentence on the left, the page's actions on the right, on the title's line. */
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
+    ${STAGE_LIST} > .plugin-stage-chrome {
       position: relative; inset: auto; z-index: 5; display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1fr);
       grid-auto-columns: auto; grid-template-rows: auto auto; align-items: center; column-gap: 8px; row-gap: 4px;
       width: auto; max-width: none; height: auto; min-height: 40px; flex: none; margin: 0 0 24px; padding: 0;
     }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) > * { grid-row: 1; }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::before {
+    ${STAGE_LIST} > .plugin-stage-chrome > * { grid-row: 1; }
+    ${STAGE_LIST} > .plugin-stage-chrome::before {
       content: var(--stage-title, "") / ""; grid-row: 1; grid-column: 1; min-width: 0;
       font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::after {
+    ${STAGE_LIST} > .plugin-stage-chrome::after {
       content: var(--stage-desc, "") / ""; grid-row: 2; grid-column: 1; min-width: 0;
       font-size: 13px; line-height: 1.5; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    ${STAGE_LIST} > .shelf-stage-chrome > .shelf-search { min-width: min(360px, 40vw); }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create { min-height: var(--control-h, 32px); padding: 0 12px; border-radius: 8px; font-size: 13px; }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type { background: var(--action); color: var(--action-ink); }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type svg { color: currentColor; }
@@ -386,10 +385,10 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${STAGE_LIST} .mw-stage-item { min-height: 0; }
     ${STAGE_LIST} .mw-stage-entry .mw-stage-leading strong { font-size: 13px; line-height: 20px; }
     ${STAGE_LIST} :is(.mw-entry-source, .plugin-stage-fact, .plugin-stage-meta, .mw-stage-entry > time) { font-size: 12px; }
-    ${STAGE_LIST} .goal-collection-fold { margin: 0 0 16px; }
-    ${STAGE_LIST} .goal-collection-fold > summary { height: 34px; min-height: 34px; padding: 0 8px; color: var(--muted); }
-    ${STAGE_LIST} .goal-collection-fold > summary strong { font-size: 12px; color: var(--ink-soft); }
-    ${STAGE_LIST} .goal-collection-fold .mw-stage-entry { padding-left: 32px; }
+    ${STAGE_LIST} .mw-collection-fold { margin: 0 0 16px; }
+    ${STAGE_LIST} .mw-collection-fold > summary { height: 34px; min-height: 34px; padding: 0 8px; color: var(--muted); }
+    ${STAGE_LIST} .mw-collection-fold > summary strong { font-size: 12px; color: var(--ink-soft); }
+    ${STAGE_LIST} .mw-collection-fold .mw-stage-entry { padding-left: 32px; }
     ${STAGE_LIST} > .mw-empty,
     ${STAGE_LIST} > div:only-child > .mw-empty:only-child { min-height: calc(100% - 84px); }
     /* A plugin that wraps its empty state in its own list still gets the calm centred invitation. */
@@ -405,15 +404,15 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* Phones keep the stacked header: the title and its sentence above the actions. */
   @media (max-width: 760px) {
     ${STAGE_LIST} { padding-top: 16px; }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
+    ${STAGE_LIST} > .plugin-stage-chrome {
       position: relative; inset: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
       width: auto; max-width: none; height: auto; min-height: 0; flex: none; margin: 0 0 16px; padding: 0;
     }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::before {
+    ${STAGE_LIST} > .plugin-stage-chrome::before {
       content: var(--stage-title, "") / ""; order: -2; flex: 1 0 100%;
       font-size: 20px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink);
     }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::after {
+    ${STAGE_LIST} > .plugin-stage-chrome::after {
       content: var(--stage-desc, "") / ""; order: -1; flex: 1 0 100%; margin: -4px 0 4px; font-size: 13px; line-height: 1.5; color: var(--muted);
     }
     ${STAGE_LIST} .mw-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
@@ -439,13 +438,13 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* ─── Drag and drop ─── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
   ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 130ms var(--ease-quint); }
-  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop) {
+  body[data-craft-dragging] :is([data-frame-canvas], .tab-strip, [data-drop-target]) {
     transition: box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint);
   }
-  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas]) { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
+  body[data-craft-dragging] [data-frame-canvas] { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
   body[data-craft-dragging] :is([data-drop-target], .tab-strip):hover { background-color: color-mix(in srgb, var(--focus) 6%, transparent); }
 
-  /* ─── A Goal that just finished ─── */
+  /* ─── An object that just finished ─── */
   .craft-burst { position: fixed; z-index: 2147482000; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
   .craft-burst i {
     position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 2px; background: var(--c, var(--celebrate-a));
@@ -463,8 +462,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   }
   @keyframes craft-ring { from { transform: scale(.3); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
   /* The pill carries a word and is wider than 32px (POLISH-35): only its small mark springs. */
-  ${PAGES} [data-craft-celebrate] .goal-status--completed { animation: craft-done 640ms var(--ease-quint); }
-  ${PAGES} [data-craft-celebrate] .goal-status--completed svg { animation: craft-done-mark 640ms var(--ease-spring); }
+  ${PAGES} [data-craft-celebrate] .mw-object-status--completed { animation: craft-done 640ms var(--ease-quint); }
+  ${PAGES} [data-craft-celebrate] .mw-object-status--completed svg { animation: craft-done-mark 640ms var(--ease-spring); }
   @keyframes craft-done { 0% { transform: scale(.8); } 45% { transform: scale(1.12); } 100% { transform: none; } }
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
 

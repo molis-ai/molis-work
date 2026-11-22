@@ -78,7 +78,7 @@ export function renderDatasetWorkbench(_model: DatasetUiModel): string {
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-csv>${uiText("dataset.action.export-csv")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-json>${uiText("dataset.action.export-json")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-reload>${uiText("dataset.action.reload")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-delete>${uiText("dataset.action.delete")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-delete data-stage-danger>${uiText("dataset.action.delete")}</button>
           </div>
         </details>
       </div>

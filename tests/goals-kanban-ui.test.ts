@@ -103,7 +103,7 @@ test("kanban CSS shares status columns on desktop and stacks groups when the pan
   assert.match(GOAL_CANVAS_STYLES, /grid-column: 3; grid-row: 1;/);
   assert.match(GOAL_CANVAS_STYLES, /grid-column: 4; grid-row: 1;/);
   assert.match(GOAL_CANVAS_STYLES, /goal-kanban-chevron/);
-  assert.match(GOAL_CANVAS_STYLES, /goal-collection-mark/);
+  assert.match(GOAL_CANVAS_STYLES, /mw-collection-mark/);
   assert.match(GOAL_CANVAS_STYLES, /\.goal-stage-list \.goal-status svg \{ display: block/);
   assert.doesNotMatch(GOAL_CANVAS_STYLES, /\.goal-stage-list \.goal-status svg \{ display: none/);
   assert.match(GOAL_CANVAS_STYLES, /details > summary \{ display: flex; width: 100%/);

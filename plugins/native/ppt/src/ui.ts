@@ -111,7 +111,7 @@ export function renderPptWorkbench(_model: PptUiModel): string {
           <summary class="mw-btn mw-btn--ghost" aria-label="${uiText("ppt.more.aria")}">${icon("more")}<span>${uiText("ppt.more.label")}</span></summary>
           <div class="plugin-stage-more-actions">
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-reload>${uiText("ppt.action.reload")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete>${uiText("ppt.action.delete")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete data-stage-danger>${uiText("ppt.action.delete")}</button>
           </div>
         </details>
       </div>

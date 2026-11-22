@@ -38,7 +38,7 @@ export const WORKSPACE_PANES_STYLES = `
   .tui-owner-binding i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
   .tui-owner-binding b { font-weight: var(--weight-control, 500); }
   .tui-owner-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
-  .tui-owner-actions > .goal-status { flex: 0 0 auto; }
+  .tui-owner-actions > .mw-object-status { flex: 0 0 auto; }
   .tui-focus-return {
     min-height: 28px;
     padding: 0 8px;
@@ -123,7 +123,7 @@ export const WORKSPACE_PANES_STYLES = `
   html[data-resolved-theme="dark"] a.tree-tool,
   html[data-resolved-theme="dark"] .tree-footer,
   html[data-resolved-theme="dark"] .tree-dep-copy strong { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not([data-feed-search]):not([data-inline-title]),
+  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not([data-mw-plain-input]):not([data-inline-title]),
   html[data-resolved-theme="dark"] textarea:not(.mw-textarea),
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,

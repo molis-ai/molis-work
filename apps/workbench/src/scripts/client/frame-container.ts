@@ -274,10 +274,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const statusEl = target.querySelector('[data-frame-goal-status]');
     const source = document.querySelector('[data-goal-id="' + CSS.escape(goalId) + '"] .goal-status');
     if (statusEl) {
-      statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
+      statusEl.className = source?.className || ("mw-object-status goal-status" + (status ? " mw-object-status--" + status + " goal-status--" + status : ""));
       if (source) statusEl.innerHTML = source.innerHTML;
       else statusEl.textContent = item?.status_label || status;
       statusEl.dataset.status = status;
+      statusEl.dataset.craftFocal = "frame:" + goalId;
     }
     put('[data-frame-goal-outcome]', item?.goal.outcome || globalThis.t.text("workbench.frame-container.no-expected-result-written-yet-can-add-one"));
     const emptyEl = target.querySelector('[data-frame-empty]');

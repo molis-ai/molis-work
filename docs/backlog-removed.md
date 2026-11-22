@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-b44-shared-styles-plugin-names | 已完成并删除 | 2026-11-22 第 44 批复核阶段 5 结清（PEQ-08）：平台共用样式（`packages/design-system/src/`、`apps/workbench/src/styles/`）中的 `.goal-*` / `.inbox-*` / `.shelf-*` / `.coding-*` / `.git-*` / `.form-tabs` / `[data-feed-*]` 等插件点名全部泛化为平台中性名（`.mw-object-status`、`.mw-collection-*`、`.mw-tree`、`.mw-reference-*`、`.mw-detail-context`、`.mw-stage-tabs`、`[data-stage-custom-layout]`、`[data-stage-danger]`、`[data-mw-plain-input]`、`[data-craft-land]`、`[data-craft-focal]`、`[data-record-owner]`）或迁回所属插件样式表；`scripts/gates/plugin-styles.mjs` 新增 `findSharedStylePluginSelectors` 永久门禁并在 `tests/plugin-styles-gate.test.ts` 补齐变异测试 |
 | BL-project-arrival-goals-direct-read | 已完成并删除 | 2026-11-22 第 44 批复核结清：`goalsHostActions` 已删除；`apps/local-host/src/project-arrival-http.ts` 改为经动作目录发现通用 `isResumeSummaryAction` 并读平台项目指导 `pinnedProjectGuidanceRead`（第 44 批 #2155 / #2187 / #2192） |
 | BL-memory-session-kinds | 已完成并删除 | 2026-11-22 第 44 批复核结清：`packages/contracts/src/services/memory-session.ts` 已改用通用 `MemoryScene`/`MEMORY_SESSION_SCENE_SCHEMA`，`apps/local-host/src/memory/memory-session-binding.ts` 与 `memory-learning.ts` 已按 `isMemorySessionBindingAction` + `pluginMemoryScene` 泛化发现（第 44 批 44-5 与 #2209） |
 | BL-637 | 已由平台通用工作终端替代并删除 | 2026-11-22 第 44 批复核结清：第 44 批 44-4（PEQ-17）已删除 `startGoalTerminalClient`，改为平台通用对象工作终端 `startWorkTerminalClient()`（`apps/workbench/src/terminal-client.ts`，任何声明 `work_terminals` 的插件共用）；`/desktop/pty-client.js` 按需加载仍由 [BL-first-screen-pty-client](../specs/backlog/BL-first-screen-pty-client.md) 跟踪 |

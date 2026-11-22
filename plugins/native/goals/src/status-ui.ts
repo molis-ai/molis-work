@@ -19,11 +19,11 @@ function createStatusRenderer(primitives: GoalsStatusPrimitives) {
     const { goalDisplayStatusLabel } = createGoalActionPresenter(translate);
     function renderStatus(status: GoalPresentationState, attributes = "", labelAttributes = ""): string {
         const explanation = explainWorkState(status);
-        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(explanation.meaning)}">${renderStateRing({ state: STATUS_MARKS[status] })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(explanation.label)}</span></span>`;
+        return `<span class="mw-object-status mw-object-status--${status} goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(explanation.meaning)}">${renderStateRing({ state: STATUS_MARKS[status] })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(explanation.label)}</span></span>`;
     }
     function renderActionStatus(status: GoalDisplayStatus, attributes = "", labelAttributes = ""): string {
         const label = goalDisplayStatusLabel(status);
-        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state: DISPLAY_STATUS_MARKS[status] })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
+        return `<span class="mw-object-status mw-object-status--${status} goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state: DISPLAY_STATUS_MARKS[status] })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
     }
     function renderVisibleGoalStatus(item: Pick<GoalsTreeItem, "status" | "display_status"> & { status_label?: string }, attributes = "", labelAttributes = ""): string {
         const status = visibleGoalStatus(item);
@@ -32,7 +32,7 @@ function createStatusRenderer(primitives: GoalsStatusPrimitives) {
         }
         const label = item.status_label ?? goalDisplayStatusLabel(status as GoalDisplayStatus);
         const state = item.status === "executing" && status === "in_progress" ? "running" : DISPLAY_STATUS_MARKS[status as GoalDisplayStatus];
-        return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
+        return `<span class="mw-object-status mw-object-status--${status} goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
     }
     function visibleGoalStatusIcon(item: Pick<GoalsTreeItem, "status" | "display_status">): string {
         const status = visibleGoalStatus(item);

@@ -140,7 +140,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .directory-content-scroll {
     display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-right: 4px;
   }
-  body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-goal-directory:not([hidden]),
+  body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-tree-directory:not([hidden]),
   body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; }
   body.immersive-workbench .immersive-workspace .desktop-directory-heading { display: none !important; }
   body.immersive-workbench .desktop-module-list { display: grid; gap: 4px; }
@@ -152,7 +152,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .desktop-module-item small { display: block; font-size: 11px; line-height: 1.5; color: var(--muted); margin-top: 4px; }
   body.immersive-workbench .desktop-module-item.is-current { background: var(--nav-active); }
   body.immersive-workbench .immersive-workspace .tree-chrome,
-  body.immersive-workbench[data-desktop-shell="true"] .desktop-goal-directory .tree-chrome {
+  body.immersive-workbench[data-desktop-shell="true"] .desktop-tree-directory .tree-chrome {
     position: static; padding: 0; background: transparent; border: 0; display: flex; justify-content: flex-start; flex-wrap: wrap; min-height: 0;
   }
   body.immersive-workbench .navigator-view-switch { display: none; }
@@ -178,9 +178,9 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-workspace .tree-scroll { flex: none; height: auto; min-height: 0; overflow: visible; padding: 0; background: transparent; }
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 4px; padding: 4px 0; margin: 0; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry.is-selected { background: var(--nav-active); }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry .tree-title-line strong { color: var(--ink); }
+  body.immersive-workbench .immersive-workspace .desktop-tree-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
+  body.immersive-workbench .immersive-workspace .desktop-tree-directory .tree-entry.is-selected { background: var(--nav-active); }
+  body.immersive-workbench .immersive-workspace .desktop-tree-directory .tree-entry .tree-title-line strong { color: var(--ink); }
   body.immersive-workbench .tree-node { flex: 1; min-width: 0; min-height: 31px; padding: 8px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); }
   body.immersive-workbench .tree-node.is-selected { background: transparent; }
   body.immersive-workbench .tree-title-line strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 20px; white-space: nowrap; display: block; overflow: hidden; text-overflow: ellipsis; }

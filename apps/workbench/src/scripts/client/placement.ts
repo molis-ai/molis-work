@@ -369,7 +369,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   // A Goal takes an input one of two ways (specs/artifact-positioning 五.1, one entry): following the object as it changes, or
   // a version fixed now in the 成果库. A version that is already in the 成果库 is fixed by nature.
   const inputMode = () => {
-    const set = node("fieldset", undefined, "placement-goal-mode"); set.append(node("legend", readText("workbench.placement.which-version-goal-uses")),
+    const set = node("fieldset", undefined, "placement-linked-mode"); set.append(node("legend", readText("workbench.placement.which-version-goal-uses")),
       choice("mode", "live", readText("workbench.placement.follow-original"), readText("workbench.placement.goal-sees-now"), true), choice("mode", "fixed", readText("workbench.placement.fix-version"), readText("workbench.placement.save-version-now-later-edits-original-don-t"), false));
     return set;
   };
@@ -508,7 +508,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const paintMaterials = () => {
     document.querySelectorAll("[data-placement-material]:not([data-placement-filled])").forEach((row) => {
       row.dataset.placementFilled = "1";
-      const state = row.querySelector("[data-placement-material-state]"), actions = row.querySelector(".placement-goal-material-actions");
+      const state = row.querySelector("[data-placement-material-state]"), actions = row.querySelector(".placement-linked-material-actions");
       const object = { kind: row.dataset.placementKind, id: row.dataset.placementId, project_id: here() };
       void describe(object, false).then((view) => {
         const where = view.location ? view.location.title : "";
@@ -631,14 +631,14 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     try {
       const result = await api("create", { station, project_id: here(), attach_to: attachTo, request_id: crypto.randomUUID(), title: readText("workbench.placement.untitled") + kind });
       invalidate();
-      const section = button.closest("[data-placement-goal-materials]");
+      const section = button.closest("[data-placement-linked-materials]");
       if (section && result.attached_key) {
         const parts = JSON.parse(result.attached_key);
-        const row = node("article", undefined, "placement-goal-material");
+        const row = node("article", undefined, "placement-linked-material");
         row.dataset.placementMaterial = ""; row.dataset.placementKind = result.object.kind; row.dataset.placementId = result.object.id;
         row.dataset.placementTargetKind = parts[2]; row.dataset.placementTargetId = parts[3];
         const text = node("div"); text.append(node("strong", result.title)); const state = node("small", readText("workbench.placement.loading")); state.dataset.placementMaterialState = ""; text.append(state);
-        row.append(text, node("span", undefined, "placement-goal-material-actions"));
+        row.append(text, node("span", undefined, "placement-linked-material-actions"));
         let list = section.querySelector(".bound-list");
         if (!list) { list = node("div", undefined, "bound-list"); section.querySelector(".empty-row")?.replaceWith(list); }
         list.prepend(row); paintMaterials();

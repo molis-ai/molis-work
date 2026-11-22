@@ -97,6 +97,8 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
   const a = await seedWork(browser, "工作 A"), b = await seedWork(browser, "工作 B");
   await openWork(browser, b); await openWork(browser, a);
   await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('工作 A')");
+  // POLISH-19: the conversation has no tab row; a work comes in front as 全部工作 opens it, without waiting for its read.
+  const turnTo = (id: string) => browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: '${id}' } }))`);
   await browser.command("Network.enable", {}, browser.sessionId);
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
@@ -104,7 +106,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     await browser.click("[data-assistant-composer] [data-composer-send]");
     const sent = await barrier.next();
     await putInput(browser, "A 等回执期间写下的 X");
-    await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
+    await turnTo(b);
     await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('工作 B')");
     await putInput(browser, "B 自己的 Y");
     await waitWork(browser, a, view => view.work.draft === "A 等回执期间写下的 X");
@@ -123,7 +125,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
       });
     });
     try {
-      await browser.click("[data-assistant-works-toggle]");
+      await browser.click("[data-assistant-more]"); await browser.click("[data-assistant-works-toggle]");
       await reread;
       await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     } finally { clearTimeout(timer); stopResponse(); stopFinished(); }
@@ -142,13 +144,13 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     await openWork(browser, b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "B 自己的 Y");
     // B's later edit alone is not an edit of A: returning without typing in A must still clear only A's sent text.
-    await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
+    await turnTo(a);
     await putInput(browser, "A 下一次发送的文字");
     await browser.click("[data-assistant-composer] [data-composer-send]");
     const nextSend = await barrier.next();
-    await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
+    await turnTo(b);
     await putInput(browser, "B 再写的 Y2");
-    await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
+    await turnTo(a);
     await barrier.release(nextSend);
     await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === ''");
     const finalA = await waitWork(browser, a, view => view.work.state === "completed"); assert.equal(finalA.work.draft, ""); assert.equal(finalA.rounds.length, 3);
@@ -166,7 +168,7 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
   try {
     await putInput(browser, "留在旧工作里的草稿");
     const draft = await barrier.next();
-    await browser.click("[data-assistant-new]");
+    await browser.click("[data-assistant-more]"); await browser.click("[data-assistant-new]");
     await putInput(browser, "项目 A 的新工作", "项目 A 的材料");
     await browser.click("[data-assistant-composer] [data-composer-send]");
     await browser.click("[data-assistant-panel-close]");
@@ -530,7 +532,7 @@ for (const sameText of [false, true]) test(`B10-R3: a stale page draft keeps its
   await browser.evaluate(`(async () => { for (const draft of ${JSON.stringify(sameText ? ["", "X"] : ["Y"])}) { const res = await fetch('/api/assistant/works/${a}/draft', { method:'POST', headers:molisWorkControlHeaders(), body:JSON.stringify({draft}) }); if (!res.ok) throw new Error('save failed'); } })()`);
   // Both view rendering and list refresh must keep the old draft paired with its old version.
   await openWork(browser, a);
-  await browser.click('[data-assistant-works-toggle]');
+  await browser.click("[data-assistant-more]"); await browser.click('[data-assistant-works-toggle]');
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
     await browser.click('[data-assistant-composer] [data-composer-send]'); const receipt = await barrier.next();

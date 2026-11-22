@@ -85,29 +85,40 @@ test("QEA-17 W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and
   const browser = await openAuditBrowser(t); if (!browser) return;
   const command = await backgroundCommand(browser, t);
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  // The background tasks open from the glyph by the Assistant's dialog (specs/work-line §4.5); its count is the tasks under way.
-  const stop = "[data-task-panel] [data-task-control=stop]", toast = "[data-toast]", panel = "document.querySelector('[data-task-panel]')";
-  await browser.waitFor("document.querySelector('[data-reply-mini] [data-task-mark] [data-background-tasks-count]')", 15_000);
-  await browser.click("[data-reply-mini] [data-task-mark]");
-  await browser.waitFor(`document.querySelector('${stop}')`);
+  // POLISH-17, POLISH-40: there is no task panel. The task's row stands under its event, and the event stands where its owner's
+  // state puts it: a list of the information column or — once Coding says the session wants checking — a card of the stack,
+  // which opens the event with its tasks in that column. The row opens the task's card, and 停止 is always there (a row that
+  // asks for the person offers 去处理 instead). \`reach\` goes to that card wherever the row stands now.
+  const stop = "[data-task-card] [data-task-control=stop]", toast = "[data-toast]";
+  const REACH = `(() => {
+    if (document.querySelector('${stop}')) return true;
+    const rows = [...document.querySelectorAll('[data-assistant-side] [data-task-open]')].filter(row => row.textContent.includes('Audit background process'));
+    const seen = rows.find(row => row.getClientRects().length), list = rows[0]?.closest('[data-work-list-rows]');
+    if (seen) seen.click();
+    else if (list) document.querySelector('[data-work-counts] [data-work-list="' + list.dataset.workListRows + '"]').click();
+    else (document.querySelector('[data-work-stack-card][aria-label="Audit background process"] [data-work-stack-open]') ?? document.querySelector('[data-work-stack-next]'))?.click();
+    return false;
+  })()`;
+  const reach = () => browser.waitFor(REACH, 20_000);
+  await reach();
   await armResponse(browser, "stop-refused", "/api/mainline/tasks/command", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-refused");
-  await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await browser.waitFor(`!!${panel}.querySelector('.work-task-row [data-mw-state=paused]')`);
+  await command.pause();
+  for (const until = Date.now() + 10_000; (await command.readProjection()).state !== "paused" && Date.now() < until;) await delay(100);
+  await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await browser.waitFor(`${REACH} && Boolean(document.querySelector('[data-task-card] [data-mw-state=paused]'))`, 20_000);
   assert.equal(await browser.evaluate(`document.querySelector('${stop}').disabled`), true, "QEA-17: a new owner projection must keep the pending stop disabled");
   await browser.click(stop, { allowDisabled: true });
   assert.equal(command.attempts(), 1, "QEA-17: repainting cannot submit the same pending stop twice");
-  await browser.click("[data-task-panel] [data-task-open]");
-  await browser.waitFor("document.querySelector('[data-task-card]')");
-  assert.equal(await browser.evaluate("document.querySelector('[data-task-card] [data-task-control=stop]').disabled"), true, "the task card shares the pending attempt");
-  await browser.click("[data-task-panel-list]");
+  assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-assistant-side] [data-task-control=stop]')].every(key => key.disabled)"), true, "a row that offers 停止 shares the pending attempt");
   await releaseResponse(browser, "stop-refused");
-  await browser.waitFor(`document.querySelector('${toast}')?.textContent.includes('The fixture Runtime refused this stop') && document.querySelector('${stop}')?.disabled === false`);
+  await browser.waitFor(`document.querySelector('${toast}')?.textContent.includes('The fixture Runtime refused this stop')`);
+  await browser.waitFor(`${REACH} && document.querySelector('${stop}').disabled === false`, 20_000);
   assert.equal(command.ended(), false); assert.equal(command.attempts(), 1);
   assert.match(await browser.evaluate<string>(`document.querySelector('${toast} [data-molis-call-id]')?.dataset.molisCallId || ''`), /^[a-f0-9-]{36}$/);
   command.allow();
   const lost = await sendBarrier(browser, [{urlPattern:"*/api/mainline/tasks/command",requestStage:"Response"}]);
-  await browser.click(stop);
+  await reach(); await browser.click(stop);
   const stopped = await lost.next(); assert.equal(stopped.responseStatusCode, 200);
   await lost.drop(stopped); await lost.close();
   await browser.waitFor(`document.querySelector('${toast}')?.textContent.includes('不知道这次操作有没有完成')`);
@@ -118,13 +129,13 @@ test("QEA-17 W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and
   assert.equal(afterUnknown.commands.length, 0);
   await command.start();
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await browser.waitFor(`!!document.querySelector('${stop}')`, 15_000);
+  await reach();
   await armResponse(browser, "stop-success", "/api/mainline/tasks/command", "POST");
-  await browser.click(stop); await waitHeld(browser, "stop-success");
+  await reach(); await browser.click(stop); await waitHeld(browser, "stop-success");
   assert.equal(command.ended(), true); assert.equal(command.attempts(), 3);
   // Wait for Coding's real observation job before the held success response prompts the page to read its projection.
   await command.waitForObservation(); await releaseResponse(browser, "stop-success");
-  await browser.waitFor(`!document.querySelector('${stop}')`);
+  await browser.waitFor("!document.querySelector('[data-task-control=stop]')");
   const final = await command.readProjection();
   assert.equal(final.commands.length, 0);
 });

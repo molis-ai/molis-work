@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 import { issueModel } from "./fixtures/issue-model.js";
 
 // W3-A3b (specs/context-program §21.2 item 6; 统筹 10-17): a result the work made is picked up from its card in the Assistant's
@@ -55,6 +56,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
     body: JSON.stringify({ object: { kind: 'pages_document', id: ${JSON.stringify(made.id)} }, source: { title: 'Pages' } }) }).then((r) => r.status)`);
   assert.equal(handed, 200);
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: ${JSON.stringify(workId)} } }))`);
+  await evaluate(OPEN_DETAILS);
   await waitFor(`document.querySelector(${JSON.stringify(CARD)})?.checkVisibility() === true`, 15_000);
   assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).getAttribute('aria-label')`), "拿起：访谈纪要");
 
@@ -193,6 +195,7 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
     body: JSON.stringify({ object: { kind: 'pages_document', id: ${JSON.stringify(made.id)} }, source: { title: 'Pages' } }) }).then((r) => r.status)`);
   assert.equal(handed, 200);
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: ${JSON.stringify(workId)} } }))`);
+  await evaluate(OPEN_DETAILS);
   await waitFor(`document.querySelector(${JSON.stringify(CARD)})?.checkVisibility() === true`, 15_000);
   const mouse = (type: string, x: number, y: number, buttons: number) => command("Input.dispatchMouseEvent", { type, x, y, ...(type === "mouseMoved" && !buttons ? {} : { button: "left" }), buttons, clickCount: 1 }, sessionId);
   const held = (name: string) => evaluate<number | unknown[]>(`window.${name}`);

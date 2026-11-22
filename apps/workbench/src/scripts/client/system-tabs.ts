@@ -1,4 +1,5 @@
-/** System-owned views share the tab layout without pretending to be installed plugins. */
+/** System-owned views share the tab layout without pretending to be installed plugins: the owner named by a
+ * `[data-system-view-owner]` element draws into the root when `molis-work:system-view-changed` says it is open. */
 export const SYSTEM_TABS_FACTORY = String.raw`({getState,ops,apply,persist,close,embedded})=>{
   const roots=new Map();
   const registered=owner=>typeof owner==='string'&&document.querySelector('[data-system-view-owner="'+CSS.escape(owner)+'"]');
@@ -6,10 +7,7 @@ export const SYSTEM_TABS_FACTORY = String.raw`({getState,ops,apply,persist,close
     if(!registered(tab.owner))return null;
     let node=roots.get(tab.id);
     if(!node){node=document.createElement('section');node.className='system-work-surface';node.dataset.systemTab=tab.id;
-      node.dataset.systemOwner=tab.owner;node.dataset.systemItem=tab.itemId;
-      const focus=document.createElement('button');focus.type='button';focus.className='system-view-focus';focus.textContent=tab.title;
-      focus.addEventListener('click',()=>document.dispatchEvent(new CustomEvent('molis-work:system-view-open',{detail:{owner:tab.owner,id:tab.itemId,title:tab.title},cancelable:true})));
-      node.append(focus);roots.set(tab.id,node);}
+      node.dataset.systemOwner=tab.owner;node.dataset.systemItem=tab.itemId;roots.set(tab.id,node);}
     return node;
   };
   const sync=()=>{

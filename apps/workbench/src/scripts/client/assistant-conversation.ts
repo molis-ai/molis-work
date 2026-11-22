@@ -250,14 +250,14 @@ ${ASSISTANT_REVIEW_PART}
           const had = bubble.dataset.text !== undefined; bubble.dataset.text = turn.text; // Only a reply still being written, seen arriving, shows its new words come in: never a reopen, a hidden page or the last update.
           if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden, grow: growCode }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
-        // The Skills this round used, one line above its first reply (SKL-11); drawn by the Host, opened by the shell's panel.
+        put(bubble); receipts.line(thread, node, put, turn, round);
+        // The Skills this round used, one line under its first reply (SKL-11; POLISH-19: none used, no line); drawn by the Host, opened by the shell's panel.
         if (kind === "assistant" && round.skills_html && !skillsPut) {
           skillsPut = true;
           const line = keyed(node, "data-entry", "skills", () => el("div", "assistant-round-skills"));
           if (line.dataset.html !== round.skills_html) { line.dataset.html = round.skills_html; line.innerHTML = round.skills_html; }
           put(line);
         }
-        put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
             const btnEl = el("button", "assistant-copy", globalThis.t.text("common.control.copy")); btnEl.type = "button";

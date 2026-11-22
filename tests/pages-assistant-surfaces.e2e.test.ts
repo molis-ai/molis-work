@@ -317,20 +317,28 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('这是输入与展示回归的固定回答。')", 15000);
   const draft = await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value");
   await evaluate("window.originalComposer=document.querySelector('[data-assistant-composer] .mw-composer__input')");
+  // POLISH-60 (PAS-03 as the 13th foot has it): maximise grows the conversation in place. No tab is opened for it, the work and
+  // the side give way without being unmounted, and the input is the same node, with its draft, where it was.
+  const TABS = "[...document.querySelectorAll('.tab-item')].map(tab => tab.textContent.trim() + ':' + tab.classList.contains('is-active'))";
+  const BOX = "(() => { const box = document.querySelector('[data-assistant-composer] .mw-composer__box').getBoundingClientRect(); return [Math.round(box.left), Math.round(box.right), Math.round(box.bottom)]; })()";
+  const tabsBefore = await evaluate<string[]>(TABS), boxBefore = await evaluate<number[]>(BOX);
   await click('[data-assistant-expand]');
-  await waitFor("document.querySelector('[data-system-tab] [data-assistant-composer] .mw-composer__input')");
+  await waitFor("document.body.hasAttribute('data-assistant-max') && !document.querySelector('[data-assistant-retract]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), draft);
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-composer] .mw-composer__input').length"), 1);
-  for (const width of [1440, 390]) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await waitFor("document.querySelector('[data-assistant-panel]').dataset.layout === (innerWidth >= 1240 ? 'split' : 'drawer')");
-    assert.equal(await evaluate("(() => {const surface=document.querySelector('[data-system-tab]').getBoundingClientRect(),panel=document.querySelector('[data-assistant-panel]').getBoundingClientRect();return panel.left>=surface.left-1&&panel.right<=surface.right+1;})()"), true, 'PAS-03 PAS-06: main Assistant panel does not inherit dock offsets or clip its content');
-  }
+  assert.deepEqual(await evaluate(BOX), boxBefore, "POLISH-60: the input does not move");
+  assert.deepEqual(await evaluate(TABS), tabsBefore, "POLISH-60: no tab is opened for the maximised conversation");
+  assert.equal(await evaluate("(() => { const panel = document.querySelector('[data-assistant-panel]').getBoundingClientRect(), strip = document.querySelector('.immersive-titlebar').getBoundingClientRect(); return panel.top >= strip.bottom - 1 && panel.top <= strip.bottom + 24 && panel.left >= 0 && panel.right <= innerWidth + 1; })()"), true, "POLISH-60: the conversation reaches up to the tab strip, inside the window");
   await checkAssistantStage(browser);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // The stage check ends at a phone's width; the key is pressed once the conversation is laid out for this width again.
+  await waitFor("innerWidth === 1440 && document.querySelector('[data-assistant-panel]').dataset.layout === 'split' && document.querySelector('[data-assistant-retract]').checkVisibility({ visibilityProperty: true })");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await click('[data-assistant-retract]');
-  await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input') && !document.querySelector('.tab-item[data-tab-kind=system]')");
+  await waitFor("!document.body.hasAttribute('data-assistant-max') && document.querySelector('[data-plugin-stage]').checkVisibility({ visibilityProperty: true })");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);
+  assert.deepEqual(await evaluate(TABS), tabsBefore, "POLISH-60: restored, the tabs are as they were");
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(a.id, projectId!).body), /在侧栏保存的备注/);assert.equal(saved.comments.list(a.id, projectId!).length, 2);assert.equal(saved.comments.list(b.id, projectId!).length, 0); }
   finally { saved.close(); }

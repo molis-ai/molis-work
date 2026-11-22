@@ -22,7 +22,7 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   const frame = "document.querySelector('[data-asst-frame]')";
   const inFrame = <T>(body: string) => evaluate<T>(`(async () => { const d = ${frame}.contentDocument, w = d.defaultView; ${body} })()`);
   const ready = (work: string) => `(() => { const d = ${frame}.contentDocument; const p = d?.querySelector('[data-assistant-panel]'); return d?.readyState === 'complete' && p && !p.hidden
-    && d.querySelector('[data-assistant-tab][data-current], .assistant-tab[data-current]')?.dataset.tab === '${work}' && (${work === "new"} || !d.querySelector('[data-assistant-block=tools]').hidden); })()`;
+    && d.querySelector('[data-assistant-head]')?.dataset.about === '${work}' && (${work === "new"} || !d.querySelector('[data-assistant-block=tools]').hidden); })()`;
   const choose = async (name: string, value: string, work: string) => {
     await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="${name}"][data-cond-value="${value}"]').click()`);
     if (name !== "width") await waitFor(`${frame}.contentWindow.location.search.includes('${name}=${value}') && ${ready(work)}`, 20_000);
@@ -38,15 +38,13 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   assert.match(await inFrame<string>("return d.querySelector('[data-asst-note]').textContent;"), /^模拟：/);
   assert.equal(await inFrame<boolean>("return !!d.querySelector('.workbench-bar [data-assistant-island] [data-assistant-composer]');"), true, "the island stands in the bar the workbench composes");
 
-  // Several works, each in its own state: the tabs and the list of all works, grouped as the person looks for them.
-  const works = await inFrame<{ tabs: string[]; groups: string[]; states: string[] }>(`
+  // Several works, each in its own state: the list of all works, grouped as the person looks for them (POLISH-19: no tab row).
+  const works = await inFrame<{ tabs: number; groups: string[]; states: string[] }>(`
     d.querySelector('[data-assistant-works-toggle]').click();
-    const out = { tabs: [...d.querySelectorAll('.assistant-tab-title')].map((n) => n.textContent), groups: [...d.querySelectorAll('.assistant-works-group')].map((n) => n.textContent),
+    const out = { tabs: d.querySelectorAll('.assistant-tab').length, groups: [...d.querySelectorAll('.assistant-works-group')].map((n) => n.textContent),
       states: [...d.querySelectorAll('.assistant-works-meta')].map((n) => n.textContent.split(' · ')[0]) };
     d.querySelector('[data-assistant-works-toggle]').click(); return out;`);
-  // The main conversation leads (specs/work-line §4.2), then six works at most.
-  assert.deepEqual(works.tabs, ["主对话", "登录兼容旧的 session cookie", "安排试用复盘", "给王一骏回邮件", "整理上周的 Feed 摘要", "检查依赖更新", "写本周周报"],
-    "the main conversation and six works at most; the work cut off and the two sub-tasks are in the list");
+  assert.equal(works.tabs, 0, "POLISH-19: the conversation has no tab row; every work is in the list");
   assert.deepEqual(works.groups, ["等你", "进行中", "最近"]);
   assert.deepEqual([...works.states].sort(), ["已停止", "已完成", "没有完成", "等你回答", "等你确认", "进行中", "需要核对", "进行中", "已完成"].sort(),
     "running, waiting on an answer and a confirmation, failed, stopped, done, cut off and to be checked, and the plan's running and finished sub-tasks");
@@ -106,7 +104,7 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   assert.equal(await inFrame("return d.querySelector('[data-assistant-composer] .mw-composer__input').value;"), "顺便把三楼的会议室也订上");
 
   // About code: each work keeps its own draft; Coding's surroundings are its directory, repository and its own tools.
-  await inFrame("d.querySelector('[data-tab=\"board-coding\"] .assistant-tab-main').click(); return null;");
+  await inFrame("d.dispatchEvent(new w.CustomEvent('molis:assistant-open', { detail: { work_id: 'board-coding' } })); return null;");
   await waitFor(ready("board-coding"), 15_000);
   await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-block=environment]').textContent.includes('molis-auth')`, 15_000);
   const coding = await blocks();
@@ -136,9 +134,9 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   await choose("work", "new", "new");
   const fresh = await inFrame<{ title: string; target: string; scope: string[] }>(`return { title: d.querySelector('[data-assistant-work-title]').textContent, target: d.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent,
     scope: [...d.querySelectorAll('[data-assistant-meta] [aria-label="新工作放在"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')) };`);
-  // K3 (UIV-12): the receiver row says who the Send goes to and, for a new work, where it is put (BL-1076: 「示例项目 · 助理」);
+  // K3 (UIV-12): the receiver row says who the Send goes to and, for a new work, who alone when it is put in this page's own place (POLISH-11: 「助理」; a place is named only when it is another one);
   // the pane's 新工作放在 chooses that place.
-  assert.deepEqual(fresh, { title: "新工作", target: "示例项目 · 助理", scope: ["示例项目*", "个人"] });
+  assert.deepEqual(fresh, { title: "新工作", target: "助理", scope: ["示例项目*", "个人"] });
   assert.deepEqual(await inFrame<[string, string[]]>("d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')[1].click(); return [d.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent, [...d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : ''))];"), ["个人 · 助理", ["示例项目", "个人*"]]);
 
   // The interface in English: the island's own words, the groups' titles and the states, with no Chinese of the product's.
@@ -150,9 +148,10 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   assert.equal(Object.values(english).some(([title, badge]) => CJK.test(title + badge)), false);
   assert.equal(await inFrame<string>("return d.documentElement.lang;"), "en");
 
-  // The container: a wide window keeps the side pane beside the conversation, a split pane's width makes it a drawer, a phone's runs out nowhere.
+  // The container: the information column stands inside the conversation from 541px up (底栏第十三版), a phone's width makes it a
+  // drawer, and nothing runs out sideways.
   assert.equal(await inFrame<string>("return d.querySelector('[data-assistant-panel]').dataset.layout;"), "split");
-  for (const [width, layout] of [["760", "drawer"], ["390", "drawer"]] as const) {
+  for (const [width, layout] of [["760", "split"], ["390", "drawer"]] as const) {
     await choose("width", width, "board-plan");
     await waitFor(`${frame}.contentWindow.innerWidth === ${width} && ${frame}.contentDocument.querySelector('[data-assistant-panel]').dataset.layout === '${layout}'`, 15_000);
     assert.equal(await inFrame<boolean>("return d.scrollingElement.scrollWidth <= d.scrollingElement.clientWidth;"), true, `nothing runs out sideways at ${width}px`);
@@ -163,10 +162,16 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   await choose("width", "1280", "board-plan");
   await choose("lang", "zh", "board-plan");
   const tops: Record<string, { state: string; heights: number[]; overlap: boolean }> = {};
-  for (const tab of await inFrame<string[]>("return [...d.querySelectorAll('[data-assistant-tab][data-tab], .assistant-tab[data-tab]')].map((n) => n.dataset.tab);")) {
-    await inFrame(`d.querySelector('[data-tab="${tab}"] .assistant-tab-main').click();`);
-    await waitFor(`${frame}.contentDocument.querySelector('[data-tab="${tab}"]').hasAttribute('data-current')`, 10_000);
-    const top = await inFrame<{ state: string; heights: number[]; overlap: boolean } | null>(`const top = d.querySelector('[data-assistant-panel] .assistant-summary-top');
+  const listed = await inFrame<string[]>(`const nav = d.querySelector('[data-assistant-works]'), toggle = d.querySelector('[data-assistant-works-toggle]'); if (nav.hidden) toggle.click();
+    const ids = [...new Set([...nav.querySelectorAll('.assistant-works-item[data-work-id]')].map((n) => n.dataset.workId))].filter((id) => id !== 'new');
+    if (!nav.hidden) toggle.click(); return ids;`);
+  for (const tab of listed) {
+    await inFrame(`d.dispatchEvent(new w.CustomEvent('molis:assistant-open', { detail: { work_id: '${tab}' } }));`);
+    await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-head]').dataset.about === '${tab}'`, 10_000);
+    // The summary is in the work's details, opened from 更多 › 详情 over the information column (36A-3).
+    const top = await inFrame<{ state: string; heights: number[]; overlap: boolean } | null>(`if (d.querySelector('[data-info-details]').hidden) d.querySelector('[data-info-details-open]').click();
+      await new Promise((resolve) => w.requestAnimationFrame(() => w.requestAnimationFrame(resolve)));
+      const top = d.querySelector('[data-assistant-panel] .assistant-summary-top');
       if (!top || !top.getClientRects().length) return null;
       const parts = [top.querySelector('.assistant-state'), ...top.querySelectorAll('.assistant-control:not([hidden])')].filter((n) => n && n.getClientRects().length);
       const boxes = parts.map((n) => n.getBoundingClientRect());
@@ -174,9 +179,11 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
         overlap: boxes.some((a, i) => boxes.some((b, j) => j > i && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5)) };`);
     if (top) tops[tab] = top;
   }
-  assert.equal(Object.keys(tops).length, 6, "every work's summary has its top line");
+  await inFrame("if (!d.querySelector('[data-info-details]').hidden) d.querySelector('[data-info-details-close]').click(); return null;");
+  assert.ok(listed.length >= 6 && Object.keys(tops).length === listed.length, `every work's summary has its top line (${Object.keys(tops).length} of ${listed.length})`);
   for (const [tab, top] of Object.entries(tops)) {
-    assert.equal(top.heights.every((height) => height <= 24), true, `${tab} (${top.state}): the state and each control stay on one line (before, 等你回答 broke onto two, 38px)`);
+    // A control is on the compact floor, 28px (BL-127, closed with 36A-3); a state broken onto two lines would be 38px.
+    assert.equal(top.heights.every((height) => height <= 28), true, `${tab} (${top.state}): the state and each control stay on one line (${top.heights}; before, 等你回答 broke onto two, 38px)`);
     assert.equal(top.overlap, false, `${tab}: nothing on the top line overlaps`);
   }
 
@@ -184,8 +191,8 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   // reads the mode's own word, says what it chooses, and stays inside the composer clear of the input. On a narrow box it
   // folds behind 更多 with the other controls; while the side pane is shown the mode is chosen there, not in the bar.
   await choose("lang", "en", "board-plan");
-  await inFrame("d.querySelector('[data-tab=\"board-coding\"] .assistant-tab-main').click(); return null;");
-  await waitFor(`${frame}.contentDocument.querySelector('[data-tab="board-coding"]').hasAttribute('data-current')`, 10_000);
+  await inFrame("d.dispatchEvent(new w.CustomEvent('molis:assistant-open', { detail: { work_id: 'board-coding' } })); return null;");
+  await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-head]').dataset.about === 'board-coding'`, 10_000);
   for (const width of ["1280", "760", "390"]) {
     await choose("width", width, "board-coding");
     await waitFor(`${frame}.contentWindow.innerWidth === ${width}`, 15_000);
@@ -213,7 +220,9 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   }
   await choose("width", "1280", "board-coding");
   await waitFor(`${frame}.contentWindow.innerWidth === 1280 && ${frame}.contentDocument.querySelector('[data-assistant-panel]').dataset.layout === 'split'`);
-  await inFrame(`if (!d.querySelector('[data-assistant-island]').hasAttribute('data-side-shown')) d.querySelector('[data-assistant-side-toggle]').click();`);
+  // Who does the work and its mode are in the work's details (更多 › 详情, over the information column).
+  await inFrame(`if (!d.querySelector('[data-assistant-island]').hasAttribute('data-side-shown')) d.querySelector('[data-assistant-side-toggle]').click();
+    if (d.querySelector('[data-info-details]').hidden) d.querySelector('[data-info-details-open]').click();`);
   await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-mode=execute]')?.checkVisibility()`);
   await evaluate("document.querySelector('[data-board-lang=en]').click()");
   await waitFor("document.documentElement.lang === 'en'");
@@ -238,7 +247,7 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
     await waitFor(`${frame}.contentDocument.documentElement.dataset.uiLanguageTag === ${JSON.stringify(tag)}
       && ${frame}.contentDocument.querySelector('[data-assistant-mode=execute]')?.textContent === ${JSON.stringify(label)}`);
     assert.deepEqual(await inFrame(`return [d.activeElement.dataset.assistantMode, d.activeElement.getAttribute('aria-pressed'),
-      d.querySelector('.assistant-tab[data-current]')?.dataset.tab, d.querySelector('[data-assistant-composer] textarea') === w.modeSwitchDraft, w.modeSwitchDraft.value];`),
+      d.querySelector('[data-assistant-head]')?.dataset.about, d.querySelector('[data-assistant-composer] textarea') === w.modeSwitchDraft, w.modeSwitchDraft.value];`),
       ["execute", "true", "board-coding", true, "换语言前的草稿"], "the board retitles the open mode without losing focus, work or draft");
   }
 });
@@ -287,36 +296,37 @@ test("VUX-39 QEA-173 the board's Assistant shows delegated sub-tasks, the bell's
   await waitFor(inside("d.querySelector('[data-work-task-float] [data-subtask-head] strong')?.textContent === '汇总试用访谈'"), 10_000);
   assert.equal(await inFrame<string>("return d.querySelector('[data-subtask-context] [data-subtask-back]').textContent;"), "安排试用复盘");
   assert.match(await inFrame<string>("return d.querySelector('[data-subtask-intro]').textContent;"), /列出首次导入卡住最久的三处/);
-  assert.equal(await inFrame<string>("return d.querySelector('.assistant-tab[data-current]').dataset.tab;"), "board-plan");
+  assert.equal(await inFrame<string>("return d.querySelector('[data-assistant-head]')?.dataset.about;"), "board-plan");
   await inFrame("d.querySelector('[data-subtask-context] [data-subtask-back]').click();");
   await waitFor(inside("!d.querySelector('[data-work-task-float]')"), 10_000);
   t.diagnostic("delegated: " + subtasks.join("; "));
 
   // The bell: the decision on the open work counts as seen; a failure and a reminder wait; news and a held one fold below.
   // Since batch 15 the popover lists the waiting owner objects first and the notices in their own list below them.
-  await waitFor(inside("!d.querySelector('[data-assistant-attention]').hidden"), 10_000);
+  // At this width the notices open from the account bar's 通知 key, which says how many want a hand (底栏第十三版; the bell beside the
+  // input is for under 960px, where the account bar is not drawn).
+  await waitFor(inside("d.querySelector('[data-bar-notices] [data-bar-notices-count]')?.hidden === false"), 10_000);
   const bell = async () => inFrame<{ count: string; rows: string[]; folds: string[] }>(`
-    const pop = d.querySelector('[data-assistant-notices]'); if (pop.hidden) d.querySelector('[data-assistant-attention]').click();
+    const pop = d.querySelector('[data-assistant-notices]'); if (pop.hidden) d.querySelector('[data-bar-notices]').click();
     await new Promise((r) => setTimeout(r, 200));
-    return { count: d.querySelector('[data-assistant-attention-count]').textContent,
+    return { count: d.querySelector('[data-bar-notices-count]').textContent,
       rows: [...pop.querySelectorAll('.assistant-notice-list > .assistant-notice .assistant-notice-text')].map((n) => n.textContent),
       folds: [...pop.querySelectorAll('.assistant-notice-list > details > summary')].map((n) => n.textContent) };`);
   const first = await bell();
   t.diagnostic("bell: " + JSON.stringify(first));
   assert.deepEqual(first.rows, ["「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"], "the open work's decision is already seen; only the failure and reminder still wait");
   assert.deepEqual(first.folds, ["有 1 条新结果", "按你的规则暂缓 1 条"]);
-  // The count is the work line's head (WLN-39; user 2026-11-15): nothing waits on this frame's line, so the bell has no number
-  // of its own and stays in reach for what its list holds.
-  assert.equal(first.count, "");
+  // The key counts the notices that want a hand: the failure and the reminder (news and held ones are not counted).
+  assert.equal(first.count, "2");
   // 知道了 on the reminder settles it; the count follows.
   await inFrame("d.querySelector('[data-notice-id=n-room][data-notice-action=dismiss]').click();");
-  await waitFor(inside("!d.querySelector('[data-notice-id=n-room]') && !d.querySelector('[data-assistant-attention]').hidden"), 10_000);
+  await waitFor(inside("!d.querySelector('[data-notice-id=n-room]') && d.querySelector('[data-bar-notices-count]').textContent === '1'"), 10_000);
   // 打开 on the failure opens its work.
   await inFrame("d.querySelector('[data-notice-id=n-digest][data-notice-action=open]').click();");
   await waitFor(inside("d.querySelector('[data-assistant-thread]').textContent.includes('Feed 里和试用有关的整理成摘要')"), 10_000);
 
   // A question answered: the card goes, the round runs on to its end and says what it made.
-  await inFrame("[...d.querySelectorAll('.assistant-tab-title')].find((n) => n.textContent === '给王一骏回邮件').click();");
+  await inFrame("if (d.querySelector('[data-assistant-works]').hidden) d.querySelector('[data-assistant-works-toggle]').click(); [...d.querySelectorAll('.assistant-works-item')].find((n) => n.textContent.includes('给王一骏回邮件')).click();");
   await waitFor(inside("!!d.querySelector('[data-question] [type=submit]')"), 10_000);
   // The question is a questionnaire now (VUX-39: one choice, several, other words); the recommended language and one arrangement.
   await inFrame(`const card = d.querySelector('[data-question]'); card.querySelector('[data-ix-field=q1] [data-ix-option="1"]').click();

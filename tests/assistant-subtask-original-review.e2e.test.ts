@@ -4,6 +4,7 @@ import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-wor
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 test("SAI-06/08/09: taking back the original Work child before its float approval reaches the owner prevents the effect", { timeout: 120_000 }, async t => {
   let parentCalls = 0, childCalls = 0;
@@ -36,7 +37,8 @@ test("SAI-06/08/09: taking back the original Work child before its float approva
   assert.ok(child?.reviews.length, JSON.stringify(child));
   await b.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:${JSON.stringify(sent.work.work_id)}}}))`);
   await b.waitFor("document.querySelector('.assistant-subtask-name')");
-  if (!await b.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width>0")) await b.click("[data-assistant-side-toggle]");
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await b.evaluate(OPEN_DETAILS);
   await b.click(".assistant-subtask-name");
   const approve = "[data-work-task-float] [data-assistant-decision=approve]";
   await b.waitFor(`document.querySelector(${JSON.stringify(approve)})`);

@@ -48,7 +48,12 @@ test("QEA-87 PWA-144 PWA-145 PWA-146: the event's card sums up its requirements 
       await waitFor(`(() => { const list = document.querySelector('[data-work-lists]').getBoundingClientRect(), at = document.querySelector(${JSON.stringify(PRESS)}).getBoundingClientRect(); return at.width > 0 && at.left >= list.left - 1 && at.right <= list.right + 1; })()`);
     }
     await click(PRESS);
+    // A press on a row leaves its list in the information column; what is known about the event is the column's 信息.
+    await evaluate(`(() => { const info = document.querySelector('[data-info-tab="info"]'); if (info?.getClientRects().length && info.getAttribute('aria-selected') !== 'true') info.click(); })()`);
     await waitFor("window.__acceptance.some(one => one.door === 'read')", 15_000);
+    // On a phone the information column is a drawer of the conversation: its key at the head opens it.
+    await evaluate(`(() => { const panel = document.querySelector('[data-assistant-panel]'), key = document.querySelector('[data-assistant-side-toggle]');
+      if (panel && !panel.hidden && panel.dataset.layout === 'drawer' && panel.dataset.side !== 'open' && key?.getClientRects().length) key.click(); })()`);
   };
   const shot = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
   await mkdir(shot, { recursive: true });

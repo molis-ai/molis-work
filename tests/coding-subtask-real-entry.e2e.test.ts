@@ -113,10 +113,13 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
     await main.click(entrySelector);
     await child.waitFor("document.querySelector('.mw-subtask textarea')");
     await b.click(CODING_BOX);
-    await b.waitFor("!document.querySelector('[data-work-task-float]')");
-    assert.equal(await b.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(CODING_BOX)})`), true, "clicking the main input closes the float without stealing focus back to the plugin");
+    // WLN-36 (36A-3): the task's card stands in the info column's place and the conversation beside it does not change, so
+    // the main input takes the words with the card still there; the card is put away by its own key.
+    assert.equal(await b.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(CODING_BOX)})`), true, "clicking the main input takes focus there, not stolen back to the plugin");
     await b.command("Input.insertText", { text: "x" }, b.sessionId);
     assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYSx");
+    assert.equal(await b.evaluate("Boolean(document.querySelector('[data-work-task-float]'))"), true, "the card stays beside the conversation while the person types");
+    await child.click("[data-subtask-close]"); await b.waitFor("!document.querySelector('[data-work-task-float]')");
     if (entry === "card") {
       // B59-FIX-01/02: the same frame can reopen after a close during draft CAS, retry the budget command and continue.
       const extend = "[data-subtask-action=extend-budget]";

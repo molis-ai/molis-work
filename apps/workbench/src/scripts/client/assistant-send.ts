@@ -23,7 +23,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const cached = works[index];
     if (cached && (cached.draft_revision > work.draft_revision || writing.has(work.work_id))) work = { ...work, draft: cached.draft, draft_revision: cached.draft_revision };
     if (index >= 0) works[index] = work; else works.unshift(work);
-    paintList(); drawTabs();
+    paintList(); drawHead();
   };
   // 「请 AI 重新问」 on a closed question: the page names only the question; the Host writes the round and reads the draft (D5).
   const reaskQuestion = (work, round, question) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
@@ -38,7 +38,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const visible = sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
       retainSent(res.work); takeMaterials(intent, visible);
       if (visible) {
-        if (!intent.work) handedOver = true; fresh = false; curId = res.work.work_id; remember(); if (!curEvent) openTab(curId);
+        if (!intent.work) { handedOver = true; askedIn = res.work.work_id; } fresh = false; curId = res.work.work_id; remember();
         if (pendingChar === intent.character) pendingChar = undefined;
         if (nextChar === intent.character) nextChar = undefined;
         await reload();
@@ -118,7 +118,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const consumed = intent.target === target && intent.route === route;
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     // The work a new work's Send made is where the words are now: the composer moves to it without writing them anywhere else.
-    const chooseSent = (work) => { if (!intent.work) handedOver = true; fresh = false; curId = work.work_id; remember(); if (!curEvent) openTab(curId); };
+    const chooseSent = (work) => { if (!intent.work) { handedOver = true; askedIn = work.work_id; } fresh = false; curId = work.work_id; remember(); };
     // A refused draft save has not submitted anything and must not discard an older uncertain request key.
     if (extra.before) { const revision = await extra.before; if (!again && typeof revision === "number") intent.body.draft_revision = revision; }
     problem = null; setPanel(true); scrollOwner()?.toLatest();

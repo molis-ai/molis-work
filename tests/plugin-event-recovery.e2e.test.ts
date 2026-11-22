@@ -7,6 +7,7 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-plugin-coding";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { NOTICES_REST, NOTICES_WAIT, PRESS_NOTICES } from "./fixtures/attention-ways.js";
 
 test("event recovery uses real project HTTP and SQLite, preserves failed confirmations, and requires an explicit browser decision", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
@@ -17,8 +18,8 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await waitFor("Boolean(globalThis.molisWorkControlHeaders)");
   const initial = await evaluate<{ status: number }>(`fetch(${JSON.stringify(endpoint)}).then(response=>({status:response.status}))`);
   assert.equal(initial.status, 200);
-  // What waits on the person shows in the dock's one bell; nothing waits yet.
-  assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "no bell while nothing waits");
+  // What a plugin left to check is a notice, on the account bar's 通知 key; nothing waits yet.
+  assert.equal(await evaluate(NOTICES_REST), true, "no count on the notices key while nothing waits");
   assert.equal(await evaluate("document.querySelector('[data-plugin-notifications]')"), null, "the title bar has no bell of its own");
   const db = openTestSqlite(databasePath), repository = new SqlitePluginEventsRepository(db);
   t.after(() => db.close());
@@ -48,11 +49,11 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   // project page its number is the first place's alone (WLN-39; the line's head became the first place's amber count, POLISH-15, user decision 2026-11-15 in specs/work-line): nothing waits on
   // the line here, so the bell shows without a number, and the plugin's item is in the list behind it.
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await waitFor("document.querySelector('[data-assistant-attention]').hidden === false");
+  await waitFor(NOTICES_WAIT);
   assert.ok(await evaluate("Boolean(document.querySelector('[data-top-corner-toggle]'))"), "a project page draws the first place, whose count the bell reads");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-attention-count]').textContent"), "");
+  assert.equal(await evaluate("document.querySelector('[data-bar-notices-count]').textContent"), "1", "the key counts the plugin's one item; what waits on the line is the first place's and the stack's");
   const openFromBell = async () => {
-    if (await evaluate("document.querySelector('[data-assistant-notices]').hidden")) await click('[data-assistant-attention]');
+    if (await evaluate("document.querySelector('[data-assistant-notices]').hidden")) await evaluate(PRESS_NOTICES);
     await waitFor("document.querySelector('[data-assistant-notices] [data-notice-id=\"plugin-events\"]')?.getClientRects().length > 0");
     assert.match(String(await evaluate("document.querySelector('[data-assistant-notices]').textContent")), /插件通知：1 条待核对/);
     await click('[data-assistant-notices] [data-notice-id="plugin-events"]');
@@ -128,7 +129,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   }
   await click('[data-plugin-event-decision="skip"]');
   await waitFor("!document.querySelector('[data-plugin-event-dialog]').open && document.querySelector('[data-plugin-events-status]').textContent==='没有待核对的通知。'");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "the list's read clears the bell at once");
+  assert.equal(await evaluate(NOTICES_REST), true, "the list's read clears the key's count at once");
   const history = repository.resolutions(projectId!);
   assert.equal(history.length, 1); assert.equal(history[0]!.decision, "skip");
   assert.equal(history[0]!.actor_id, "web-user"); assert.equal(history[0]!.event_id, event.event_id);

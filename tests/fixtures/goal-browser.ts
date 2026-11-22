@@ -221,6 +221,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         // An event is a row of 办完, 在办 or 接下来, opened from its count inside the input (§4「底栏第十三版」第 4 条).
         const rows = element.closest('[data-work-list-rows]');
         if (rows && rows.hidden) document.querySelector('[data-work-list="' + rows.dataset.workListRows + '"]')?.click();
+        // An entry of the conversation's 「…」 is reached by opening that menu (36A-3: 另起一件、全部工作、详情 moved into it).
+        const moreMenu = element.closest('[data-assistant-more-menu]');
+        if (moreMenu && moreMenu.hidden) document.querySelector('[data-assistant-more]')?.click();
         const sidePanel = element.closest('[data-side-panel]');
         // The side opens from its switch at the right end of the top strip (specs/screen-polish §3 方案 C, POLISH-05).
         const sideSwitch = document.querySelector('[data-side-toggle]');

@@ -15,7 +15,7 @@ export const PPT_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .ppt-stage-chrome { pointer-events: auto; }
   [data-ppt=workbench] { --plugin-tint: var(--ink-soft); }
-  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; }
   [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 24px 16px; }
   .ppt-workspace > * { flex-shrink: 0; }
   .ppt-workspace {

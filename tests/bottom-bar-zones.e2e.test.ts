@@ -93,9 +93,9 @@ test("PFG-22 WLN-18 POLISH-07 on a phone the strip is one row of whole 44px targ
       small: targets.filter((node, index) => boxes[index].height < 44 || boxes[index].width < 44).map((node) => node.className),
       overlap: boxes.some((one, index) => boxes.slice(index + 1).some((other) => Math.min(one.right, other.right) - Math.max(one.left, other.left) > 0.5 && Math.min(one.bottom, other.bottom) - Math.max(one.top, other.top) > 0.5)),
       // One row (POLISH-07): the way back, the first place, ＋, the side's switch and the project.
-      // With the dialog closed, the task mark and the button that opens it stand in the input's top right, beside 在办 (底栏第十三版第 3 条): over nothing of the work.
+      // With the conversation closed, the three keys and the key that opens it stand inside the input (底栏第十三版第 3 条): over nothing of the work.
       rows: new Set(boxes.map((one) => Math.round(one.top))).size, tall: Math.round(strip.getBoundingClientRect().height),
-      mini: (() => { const mini = document.querySelector('[data-reply-mini]')?.getBoundingClientRect(), slot = document.querySelector('[data-work-line-slot]')?.getBoundingClientRect(); return !!mini && !!slot && mini.top >= slot.top && mini.bottom <= slot.bottom && mini.left >= slot.left && mini.right <= slot.right && mini.right <= innerWidth; })(),
+      mini: (() => { const mini = document.querySelector('[data-work-counts]')?.getBoundingClientRect(), slot = document.querySelector('[data-work-line-slot]')?.getBoundingClientRect(); return !!mini && !!slot && mini.top >= slot.top && mini.bottom <= slot.bottom && mini.left >= slot.left && mini.right <= slot.right && mini.right <= innerWidth; })(),
       dock: shown('[data-dock-pins]'),
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin], [data-top-corner])').length };
   })()`);

@@ -42,8 +42,10 @@ test("VUX-12/VUX-20: a stopped round's line settles after Stop, though the Host'
   });
   t.after(off);
   await command("Fetch.enable", { patterns: [{ urlPattern: `*/api/assistant/works/${id}/control`, requestStage: "Response" }] }, sessionId);
-  await evaluate(`[...document.querySelectorAll('[data-assistant-control="stop"]:not([data-keep-connections])')].find((b) => b.offsetParent).click()`);
-  await waitFor(`document.querySelector('[data-assistant-control="stop"]:not([data-keep-connections])')?.offsetParent === null`, 10_000);
+  // With the info column beside the conversation, Stop is the input's own key (36A-3); the summary's is among the work's details.
+  await waitFor("document.querySelector('[data-assistant-composer] [data-composer-stop]')?.getClientRects().length > 0", 10_000);
+  await evaluate("document.querySelector('[data-assistant-composer] [data-composer-stop]').click()");
+  await waitFor("!document.querySelector('[data-assistant-composer] [data-composer-stop]')", 10_000);
   assert.equal(rewritten, 1, "the page took the control answer with the round still ending");
   await command("Fetch.disable", {}, sessionId);
   release();

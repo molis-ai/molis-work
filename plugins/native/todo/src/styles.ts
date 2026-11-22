@@ -132,14 +132,6 @@ export const TODO_STYLES = `
   .todo-history time { color: var(--faint); font-variant-numeric: tabular-nums; }
   .todo-history li.is-reverted span { color: var(--muted); }
 
-  /* With a todo open beside it, the list column is navigation: views and rows, no entry form. */
-  @media (min-width: 761px) {
-    body.immersive-workbench .plugin-stage-shell[data-todo=workbench][data-expanded="true"] > .todo-list.plugin-stage-list { padding: 12px 8px 20px; }
-    [data-todo=workbench][data-expanded="true"] :is(.todo-quick, .todo-chrome-tools, .todo-summary, .todo-reminder-actions) { display: none; }
-    body.immersive-workbench [data-todo=workbench][data-expanded="true"] .plugin-stage-list .todo-row > .todo-entry.mw-stage-entry { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "trail"; }
-    [data-todo=workbench][data-expanded="true"] .todo-trail { justify-content: flex-start; }
-    [data-todo=workbench][data-expanded="true"] .todo-trail:empty { display: none; }
-  }
   @media (max-width: 720px), (pointer: coarse) {
     .todo-chrome { flex-direction: column; align-items: stretch; }
     .todo-search { width: auto; flex: 1; }

@@ -110,7 +110,7 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   assert.match(await evaluate<string>(`document.querySelector('${coding} [data-coding-status]').textContent`), /没有标注「fixture-plain」可调思考力度/);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${coding} [data-coding-model-note]').textContent`), /已请求改用/);
   await fill(CODING_MODEL, large);
-  await waitFor(`!!document.querySelector('${CODING_MODEL_SWITCH}') && document.querySelector('${coding} [data-coding-round-model]').textContent.includes('这一轮改用 fixture-large')`);
+  await waitFor(`!!document.querySelector('${CODING_MODEL_SWITCH}') && document.querySelector('${coding} [data-coding-round-model]').textContent.replace(/\\s+/g,' ').match(/这一轮改用 .*fixture-large/)`);
   const shot = async (name: string) => {
     const directory = join(process.cwd(), ".impeccable/qa/review/prologue-adoption"); await mkdir(directory, { recursive: true });
     const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);

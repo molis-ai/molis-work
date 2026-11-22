@@ -75,7 +75,7 @@ coding.artifacts.list	1	io.molis.work.coding	io.molis.work.coding	query	query	pr
 coding.artifacts.preview	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 coding.background.stop	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,storage:private	coding_session	-	-	0f7d69110b59	a2c799262a3c	-
 coding.background.tasks	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	artifact:read	coding_session	molis.background-tasks.query.v1	molis.background-tasks.collection.v1	99334726611c	51e4add90236	c54c2003ed18
-coding.changesets.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	251a5e9a8685	a2c799262a3c	-
+coding.changesets.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	d59dbc4a46c1	a2c799262a3c	-
 coding.changesets.save	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,artifact:write	coding_session	-	-	993e3b323156	a2c799262a3c	-
 coding.events	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifact:read	coding_session	molis.work-events.window.v1	molis.work-events.collection.v1	88db02166b7c	1d2773da740c	-
 coding.executor.run.control	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	-	coding_session	molis.work-executor.run.control.input.v1	molis.work-executor.run.control.output.v1	c7820da7ec31	abb291be5077	-

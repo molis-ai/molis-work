@@ -85,13 +85,13 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   } };
 }
 
-test("VUX-16: the box and send stay put through a round; pause and stop join send on one row; a shortened setting reads whole on hover", { timeout: 180_000 }, async (t) => {
-  // The case needs a bar that is one row yet too short for everything it holds. The composer is wider than 480px here (below
-  // that its settings fold behind 更多, the case below), and narrower than what the bar's items want, so the model's name has to
-  // be cut. Since one input (unified-input-voice §10.3) Coding's composer is the bar's, at most 680px over the page's column: at
-  // 1100 it fits whole and nothing gives way; at 900 it is about 520px.
+test("VUX-16 POLISH-28: the box and send stay put through a round; pause and stop join send on one row; the way of working names the model in its tip", { timeout: 180_000 }, async (t) => {
+  // The case needs a bar that is one row with a round's controls beside send. The composer is wider than 480px here (below that
+  // its settings fold behind 更多, the case below). Since one input (unified-input-voice §10.3) Coding's composer is the bar's, at
+  // most 680px over the page's column; at 900 it is about 520px. Until POLISH-28 the model's name sat in this row and was cut
+  // here; it is in 「本轮设置」 now, so the row holds everything whole.
   const round = await oneRound(t, 900, "zh"); if (!round) return;
-  const { browser: { evaluate, waitFor, command, sessionId }, ready, running } = round;
+  const { browser: { evaluate, waitFor }, ready, running } = round;
   const shell = await evaluate<number>(`document.querySelector('${CODING_COMPOSER} .mw-composer').getBoundingClientRect().width`);
   assert.ok(shell > 480, `the composer is wide enough to keep one row, so the bar is crowded rather than wrapped: ${shell}px`);
   assert.equal(ready.rows, 1); assert.equal(running.rows, 1, `running, the bar is one row: ${running.controls.join(" | ")}`);
@@ -100,10 +100,6 @@ test("VUX-16: the box and send stay put through a round; pause and stop join sen
   // POLISH-28: the model left the bar's bottom row (it is in 「本轮设置」), so nothing there names it and nothing has to give way.
   assert.ok(![...running.controls, ...running.cut].some((text) => text.includes("fixture-model")), `the model is not a control of the bar: ${JSON.stringify(running.controls)}`);
   assert.ok(!running.cut.some((text) => text === "讨论"), "the way of working stays whole");
-  // POLISH-28: the model in use reads under the pointer on the way of working, through the page's one tip.
-  const at = await evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector('${CODING_COMPOSER} .mw-select-picker:has([data-composer-control=intent]) .mw-select-picker__trigger').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
-  await command("Input.dispatchMouseEvent", {type:"mouseMoved", ...at}, sessionId);
-  await waitFor("document.querySelector('.craft-tip[data-shown]')?.textContent.includes('fixture-model')", 5_000);
   // As in the Assistant's (K3 below): while the round runs the composer says so on its one status line under the words, and the bar
   // grows upward by it; the words keep their column and size, and 补充 and ▾ keep send's corner. When the round ends and the box is
   // empty again, it is back at its rest row, where it started.
@@ -119,6 +115,12 @@ test("VUX-16: the box and send stay put through a round; pause and stop join sen
   // The tag beside ＋ now names the session by its task, so the words may start further in; their row, right edge and send are where they began.
   const row = (one: Geometry) => [one.task[1], one.task[3], right(one.task), one.send];
   assert.deepEqual(row(ended), row(round.rest), `the round over, the box is back at its rest row: ${JSON.stringify({ rest: round.rest, ended })}`);
+  // POLISH-28: the model in use is named where the pointer rests on the way of working: its tip (the control's `title`, as every
+  // other named control of the bar; the cut-text tip of the design system is truncation-tip.e2e's). Nothing in the bar is cut now.
+  const named = await evaluate<{ tip: string; cut: boolean }>(`(() => { const trigger = document.querySelector('${CODING_COMPOSER} .mw-select-picker:has([data-composer-control=intent]) .mw-select-picker__trigger');
+    return { tip: trigger.getAttribute('title') || trigger.dataset.craftTitle || '', cut: trigger.scrollWidth > trigger.clientWidth + 1 }; })()`);
+  assert.match(named.tip, /^任务方式（模型：.*fixture-model）$/, "the way of working's tip names the model in use");
+  assert.equal(named.cut, false, "and the way of working itself is not cut");
 });
 
 test("VUX-16: a narrow composer folds its settings behind More, idle or running, and rests as one row when the round ends (English)", { timeout: 180_000 }, async (t) => {

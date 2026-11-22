@@ -66,7 +66,10 @@ function drawNextRound(page: Page) {
   row.hidden = !tags.length;
   row.replaceChildren(...tags.map(command => {
     const tag = document.createElement("button");
-    tag.type = "button"; tag.className = "mw-btn mw-btn--ghost mw-btn--sm"; tag.textContent = command.label; tag.disabled = command.enabled === false;
+    tag.type = "button";
+    tag.className = "mw-btn mw-btn--ghost mw-btn--sm";
+    tag.textContent = command.label;
+    tag.disabled = command.enabled === false;
     if (command.hint) tag.title = command.hint;
     tag.addEventListener("click", () => void command.run());
     return tag;

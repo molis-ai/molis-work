@@ -14,6 +14,7 @@ import {
   codingRouteActions,
 } from "@molis-ai/molis-work-plugin-coding";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { pageText, withPageText } from "./fixtures/page-text.js";
@@ -215,7 +216,7 @@ test("POLISH-24 方案乙：coding.changesets.read 可以只要行数（stats）
   for (const input of [round, { ...round, fixed: true }, { ...round, stats: true }]) assertActionInput(schema, input);
   assert.throws(() => assertActionInput(schema, { ...round, stats: "1" }), ActionError, "stats 是布尔值");
   assert.throws(() => assertActionInput(schema, { ...round, lines: true }), ActionError, "输入仍是封闭的");
-  const request = (query: Record<string, string>) => ({ method: "GET", params: { sessionId: "session-1", runId: "run-1" }, query, body: {} }) as Parameters<typeof read.toInput>[0];
+  const request = (query: Record<string, string>): PluginRouteRequest => ({ method: "GET", pathname: "/sessions/session-1/runs/run-1/changeset", params: { sessionId: "session-1", runId: "run-1" }, query, body: {}, actor_id: "web-user" });
   const asked = read.toInput(request({ stats: "1" }));
   assertActionInput(schema, asked);
   assert.equal((asked as { stats?: unknown }).stats, true, "页面路由带上 stats");

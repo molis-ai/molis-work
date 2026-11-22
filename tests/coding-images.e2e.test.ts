@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 import { openCoding } from "./fixtures/coding-browser.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_SEND, codingControl, CODING_MODEL } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_MODEL, CODING_SEND } from "./fixtures/coding-composer.js";
 
 // Coding A3 (docs/design/coding-daily-basics scheme A): pictures pasted into the bar while a Coding session is on show sit in the
 // composer's row of thumbnails with their size and 「已存一份」; one over 5 MB says so and the line above the box offers to shrink it;

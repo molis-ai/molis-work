@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-22 第 36A 批第 4 项后半（逐屏打磨方案乙）。Coding 的 `coding.changesets.read@1` 输入增加可选的 `stats: true`（页面路由 `?stats=1`）：只返回 `{ stats: { added_lines, removed_lines, files: [{ path, added_lines, removed_lines }] } | null }`，即每个文件落盘后的净增减行，不带文件内容、阅读器标记和成果引用，也不固定版本；有写入结果不明或同一文件多次写入之间被改过、行数说不准时返回 `stats: null`。不传该字段的调用方读到的仍是原来的完整变更，授权范围不变。按阶段一原位扩充并更新动作快照；无持久字段、状态机或兼容路径。仓内改用它的只有 Coding 页面的回合结束卡。见[逐屏打磨 P4 记录](../../specs/screen-polish/p4-coding.md)。
+
 2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
 
 2026-11-19 第 35 批复核修复。Coding 的 `coding.runs.start@1` 与 `coding.runs.control@1` 补充项接受可选的 `command_prompt: true`。工作台发送展开后的命令时使用该字段，保留参数首尾空白。普通任务和补充在派发前去掉首尾空白，可信原文按输入回执合同保存。这个字段只决定派发文本的格式。两项动作快照随实现更新。

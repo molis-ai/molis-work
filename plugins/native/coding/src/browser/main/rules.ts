@@ -1,36 +1,56 @@
-import type { ComposerControl } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { escapeHtml, fileKindExtension, format, icon, renderAlert, renderBadge, type MwButtonOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
 import type { RunView } from "./shapes.js";
 
 /**
- * 「规则 N」 at the foot of the composer and what it opens (specs/coding-harness-optimization/batch12-design.md §3.6, §3.7): the project's
- * own instructions and the repository's instruction files the latest round was given, each as that round recorded it. N counts the
- * files only. Why the files were not read, and the button that changes it, come from the project as it is now; a round never shows
- * files it did not record (an older round says it recorded none).
+ * 「本轮设置」 (screen-polish §6.7), opened from ＋: the model's rows (composer-model.ts) and, under 「规则 N」, what the latest round was
+ * given to follow (specs/coding-harness-optimization/batch12-design.md §3.6, §3.7): the project's own instructions and the
+ * repository's instruction files, each as that round recorded it. N counts the files only. Why the files were not read, and the
+ * button that changes it, come from the project as it is now; a round never shows files it did not record (an older round says it
+ * recorded none).
  */
 const round = (page: Page): RunView | null => page.s.current && page.s.sessionOnShow ? page.s.lastRun : null;
 
-export function rulesControl(page: Page): ComposerControl[] {
-  const { readText, s } = page;
-  if (!s.current || !s.sessionOnShow) return [];
-  const recorded = round(page)?.frozen.instructions;
-  const label = recorded?.trusted ? readText("coding.rules.count", { count: recorded.files.length }) : readText("coding.rules.label");
-  const title = !round(page) ? readText("coding.rules.title") : !recorded ? readText("coding.rules.unrecorded") : recorded.trusted ? readText("coding.rules.title") : readText("coding.rules.not-loaded");
-  return [{ kind: "button", id: "rules", label, title, run: () => openRules(page) }];
+/** 「规则 N」 as the dialog's heading and ＋ say it, and the one line saying where the rules stand. */
+function rulesWord(page: Page): { label: string; title: string } {
+  const { readText } = page, recorded = round(page)?.frozen.instructions;
+  return { label: recorded?.trusted ? readText("coding.rules.count", { count: recorded.files.length }) : readText("coding.rules.label"),
+    title: !round(page) ? readText("coding.rules.title") : !recorded ? readText("coding.rules.unrecorded") : recorded.trusted ? readText("coding.rules.title") : readText("coding.rules.not-loaded") };
 }
 
-export function openRules(page: Page): void {
+/** What ＋ says beside 「本轮设置」: the model chosen and the rules, so both are read without opening it. */
+export function roundSettingsHint(page: Page): string {
+  const model = page.refs.composerModels.summary();
+  return [model || page.readText("coding.model.none"), rulesWord(page).label].join(" · ");
+}
+
+/**
+ * Opens 「本轮设置」; `on` puts the focus on the model's choice (`/model`). It is opened from the bar's ＋ or `/`, which are the
+ * workbench's and outside this page, so closing it gives the focus back to the bar's box rather than leaving it in the page.
+ */
+export function openRoundSettings(page: Page, on?: "model"): void {
   const dialog = page.q<HTMLDialogElement>("[data-coding-rules-dialog]");
   drawRules(page);
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+    dialog.addEventListener("close", () => page.refs.composer?.focus(), { once: true });
+    dialog.showModal();
+  }
+  if (on) dialog.querySelector<HTMLElement>("[data-coding-model]")?.focus({ preventScroll: true });
+}
+
+/** 「规则 N」 over the rules, kept as the latest round stands (the composer's redraw calls it), so it is right the moment 「本轮设置」 opens. */
+export function drawRulesLabel(page: Page): void {
+  const word = rulesWord(page), label = page.q("[data-coding-rules-label]");
+  if (label.textContent !== word.label) label.textContent = word.label;
+  label.title = word.title;
 }
 
 /** The two groups: the project's own instructions, then the repository's files; the second says why none were read, when none were. */
 export function drawRules(page: Page): void {
   const { readText, q } = page, run = round(page);
   const body = q("[data-coding-rules-body]");
+  drawRulesLabel(page);
   const project = (run?.frozen.prompts ?? []).filter(prompt => prompt.layer === "project");
   const projectRows = project.map(prompt => row({ kind: "txt", name: readText("coding.rules.project-prompt"), size: readText("coding.rules.version", { version: prompt.user_revision ?? prompt.version }) }));
   body.innerHTML = group({ glyph: "book", title: readText("coding.rules.project"), count: project.length ? String(project.length) : "",

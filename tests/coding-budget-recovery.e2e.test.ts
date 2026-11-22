@@ -13,7 +13,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
 import { untilSetup } from "./fixtures/connector-assistant-model.js";
-import { CODING_OPEN, CODING_SEND, codingControl, codingType } from "./fixtures/coding-composer.js";
+import { CODING_OPEN, CODING_SEND, codingControl, codingType, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("QEA-48 · real exhausted subagents extend only their own budget from both Coding views, recover a failed write and retry with the original permission ceiling and frozen model", { timeout: 180_000 }, async t => {
@@ -57,7 +57,8 @@ test("QEA-48 · real exhausted subagents extend only their own budget from both 
   await frame.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
   const sid = await frame.evaluate<string>("document.querySelector('[data-coding-session].is-selected').dataset.codingSession");
   const choose = (id: string, value: string) => b.evaluate(`{ const node = document.querySelector(${JSON.stringify(codingControl(id))}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('change', { bubbles: true })); }`);
-  await choose("model", JSON.stringify(["fixture", "fixture-model"])); await choose("intent", "collaborate");
+  await frame.waitFor(CODING_MODELS_LISTED);
+  await frame.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["fixture", "fixture-model"]))); await choose("intent", "collaborate");
   await b.evaluate(codingType("派出两个只读子任务检查模块边界")); await b.click(CODING_SEND);
   const approve = "[data-host-review-slot] [data-agent-review-approve]";
   for (let index = 1; index <= 2; index++) {
@@ -122,7 +123,7 @@ test("QEA-48 · real exhausted subagents extend only their own budget from both 
       assert.equal(await frame.evaluate(`document.querySelector(${JSON.stringify(selector + " .mw-attempt__meter i")}).style.transform`), "scaleX(0.4)");
     }
   }
-  await choose("model", JSON.stringify(["fixture", "different-next-model"])); recover = true;
+  await frame.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["fixture", "different-next-model"]))); recover = true;
   await clickText(card(ids[0]!), "重试这个子任务");
   await untilSetup(async () => childCalls.length > callsBeforeExtension ? true : undefined, "explicit retry reaches model");
   const running = await readChild(ids[0]!); assert.equal(running.state, "running"); assert.equal(running.budget?.attempt, 3);

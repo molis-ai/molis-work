@@ -104,4 +104,6 @@ export const LINGGUANG_STYLES = `
   .lingguang-bar-group--quiet { margin-left: auto; }
   .lingguang-link-field { display: grid; gap: 6px; font-size: 13px; width: min(420px, 80vw); }
   .lingguang-reading-progress { width: 100%; accent-color: var(--accent); }
+  [data-lingguang-save-status] { color: var(--muted); font-size: 12px; &[data-failed=true] { color: var(--red); } }
+  @media (max-width: 600px) { [data-lingguang-save-status] { order: 2; flex-basis: 100%; } }
 `;

@@ -32,7 +32,7 @@ function watch(): void {
     // A cover over the panes (settings, the market) hides every page without touching one: the workspace says so on itself, and
     // the bar is the Assistant's while it stands.
     const workspace = panes.closest(".tab-workspace");
-    if (workspace) watching.observe(workspace, { attributes: true, attributeFilter: ["data-exclusive"] });
+    if (workspace) watching.observe(workspace, { attributes: true, attributeFilter: ["data-exclusive", "data-solo", "data-split-narrow"] });
   } else if (!receivers.size && watching) { watching.disconnect(); watching = null; }
 }
 

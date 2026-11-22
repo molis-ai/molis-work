@@ -261,7 +261,7 @@
 | [97](reference/batches/97.md) | [助理只汇报结果时，别占用继续干活的次数](reference/batches/97.md#batch-97-item-1) |
 |  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
 | [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
-| [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
+| [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1)（#2207 已合入） |
 | [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，#2186 已合入，[决定 58](reference/decisions.md#decision-58)） |
 |  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
 | [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，#2189 已合入，[决定 58](reference/decisions.md#decision-58)） |

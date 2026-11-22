@@ -121,13 +121,18 @@ test("DEL-01～06 DEL-08: the fixed change set lists what a confirmed integratio
     { path: "src/new.ts", before_text: null, after_text: "n\n" }], settled("child"), "writer-1");
   const rows = [edit, command, child,
     // DEL-02: a worktree the session ran in may hold several rounds and its integration brings all of them back, so even a
-    // confirmed one names no single round: nothing listed.
+    // confirmed one names no single round: nothing listed (including empty subagent_id).
     integration("worktree", [{ path: "old.cfg", before_text: "x=1\n", after_text: null }], settled("worktree")),
-    // DEL-03: unknown, failed, rejected and pending integrations remove nothing that can be shown.
+    integration("empty-child", [{ path: "empty-child.cfg", before_text: "x=1\n", after_text: null }], settled("empty-child"), ""),
+    // DEL-03: unknown, unconfirmed, save-error, failed, rejected, cancelled, expired and pending integrations remove nothing that can be shown.
     integration("unknown", [{ path: "maybe.ts", before_text: "m\n", after_text: null }], { ...settled("unknown"), effect_settled: false, effect_uncertain: "结果不确定" }, "writer-2"),
+    integration("unconfirmed", [{ path: "unconfirmed.ts", before_text: "u\n", after_text: null }], { ...settled("unconfirmed"), effect_settled: false }, "writer-2"),
+    integration("save-err", [{ path: "save-err.ts", before_text: "s\n", after_text: null }], { ...settled("save-err"), decision_save_error: "保存待核对" }, "writer-2"),
     integration("lost", [{ path: "lost.ts", before_text: "l\n", after_text: null }], { ...settled("lost"), delivery_error: "未送达" }, "writer-2"),
     integration("failed", [{ path: "fail.ts", before_text: "f\n", after_text: null }], { ...settled("failed"), effect_settled: false, effect_error: "写入失败" }, "writer-2"),
     integration("rejected", [{ path: "kept-by-person.ts", before_text: "k\n", after_text: null }], { ...settled("rejected"), status: "rejected", effect_settled: false }, "writer-2"),
+    integration("cancelled", [{ path: "cancelled.ts", before_text: "c\n", after_text: null }], { ...settled("cancelled"), status: "cancelled", effect_settled: false }, "writer-2"),
+    integration("expired", [{ path: "expired.ts", before_text: "e\n", after_text: null }], { ...settled("expired"), status: "expired", effect_settled: false }, "writer-2"),
     integration("pending", [{ path: "waiting.ts", before_text: "w\n", after_text: null }], { ...settled("pending"), status: "pending", effect_settled: false }, "writer-2"),
     // DEL-04: the same receipt read twice counts once.
     structuredClone(child)];
@@ -172,15 +177,17 @@ test("DEL-01～06 DEL-08: the fixed change set lists what a confirmed integratio
     // DEL-06: the reader, the copied patch, Diff and the shared text all say the file is gone.
     const gone = await request(prefix + "?fixed=1&change_index=1");
     assert.equal(gone.body.patch, "--- a/src/gone.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-was\n-here\n");
+    assert.match(gone.body.html, /这个文件被删除了/);
     assert.match(gone.body.html, /data-kind="delete"/); assert.doesNotMatch(gone.body.html, /data-kind="insert"/);
     // DEL-08: a file the subtask added reads as created from nothing.
     assert.match((await request(prefix + "?fixed=1&change_index=3")).body.patch, /^--- \/dev\/null\n\+\+\+ b\/src\/new\.ts\n/);
     const diff = await request(`/api/plugins/io.molis.work.diff/state?artifact_id=${encodeURIComponent(saved.body.reference.artifact_id)}&version=1&change_index=1`);
-    assert.equal(diff.status, 200); assert.equal(diff.body.view.files[1].kind, "deleted"); assert.deepEqual(diff.body.view.rows.map((row: { kind: string }) => row.kind), ["delete", "delete"]);
+    assert.equal(diff.status, 200); assert.equal(diff.body.view.files[1].kind, "deleted"); assert.equal(diff.body.view.removed, true);
+    assert.match(diff.body.html, /这个文件被删除了/); assert.deepEqual(diff.body.view.rows.map((row: { kind: string }) => row.kind), ["delete", "delete"]);
     { const output = await fetch(`http://127.0.0.1:${address.port}${prefix}/output`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expected_reference: null }) }); assert.equal(output.status, 200, await output.text()); }
     const shared = await request(`/api/plugins/io.molis.work.shelf/project-result?artifact_id=${encodeURIComponent(saved.body.reference.artifact_id)}&version=1`);
     assert.equal(shared.status, 200); assert.match(shared.body.text, /## 修改 2 · src\/gone\.ts[^#]*修改后：文件已删除/);
-    assert.doesNotMatch(shared.body.text, /maybe\.ts|lost\.ts|fail\.ts|kept-by-person\.ts|waiting\.ts|cmd\.ts|later\.ts|old\.cfg/);
+    assert.doesNotMatch(shared.body.text, /maybe\.ts|unconfirmed\.ts|save-err\.ts|lost\.ts|fail\.ts|kept-by-person\.ts|cancelled\.ts|expired\.ts|waiting\.ts|cmd\.ts|later\.ts|old\.cfg|empty-child\.cfg/);
     const catalog = await request(`/api/plugins/${CODING}/artifacts`); assert.equal(catalog.body.artifacts[0].file_count, 4);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

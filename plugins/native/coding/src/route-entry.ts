@@ -61,7 +61,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
   };
   /** What a route answers Coding's own page: the words and the change drawn (`rich-html.ts`), the cards and the next-step row (`interaction-html.ts`). */
   const page = (body: unknown, request: PluginRouteRequest, route_id: string, locale: ActionLocale | undefined) =>
-    codingInteractionHtml(codingPageHtml(body, { route_id, query: request.query }, locale), context.services?.interaction, locale);
+    codingInteractionHtml(codingPageHtml(body, { route_id, query: request.query }), context.services?.interaction, locale);
   const handlers = new Map<string, Handler>();
   const route = (route_id: string, handle: Handler): PluginRouteBinding => {
     handlers.set(route_id, handle);

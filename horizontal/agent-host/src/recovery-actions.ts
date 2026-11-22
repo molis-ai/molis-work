@@ -116,8 +116,10 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
       // workspace: those name the round as their source, not as their run, since a person starts them afterwards.
       const ofRound = (request: AgentReviewRequest) => request.run
         ? request.run.session_id === run.session_id && request.run.run_id === run.run_id
-        : request.document.kind === "git-integration" && request.document.source.session_id === run.session_id && request.document.source.run_id === run.run_id;
-      return queue.list(projectId).filter(request => ofRound(request) && request.plugin_id === view.owner.plugin_id)
+        : request.kind === "git-integration" && request.document.kind === "git-integration"
+          && request.document.source.session_id === run.session_id && request.document.source.run_id === run.run_id;
+      return queue.list(projectId).filter(request => ofRound(request)
+        && request.plugin_id === view.owner.plugin_id && request.reference.owner.install_id === view.owner.install_id)
         .map(request => ({ request, receipt: queue.receipt(request.review_id) }));
     }),
   ];

@@ -1,4 +1,3 @@
-import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { t, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
@@ -62,15 +61,16 @@ function changeView(change: CodingChangeSet, index: number, version: number): Di
  * offered only when it is exactly what happened), unified or side by side (`layout`), and the patch 复制补丁 copies (VUX-33),
  * written from the same rows.
  */
-function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Readonly<Record<string, string>>, _locale: ActionLocale | undefined): void {
+function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Readonly<Record<string, string>>): void {
   const change = body.change, changeIndex = Number(query.change_index ?? 0);
   const index = Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1, chosen = change.files[index];
   // A file written several times reads best as one net change, but only when that is exactly what happened.
   const requested = query.net, net = chosen && (requested === "1" || requested === "auto") ? codingNetChange(change, chosen.path) : null;
   const netFiles = net?.available ? (() => {
-    const first = change.files[net.indices[0]!]!, last = change.files[net.indices.at(-1)!]!;
-    // The net change keeps how the round began with the file and, when its last write removed it, that it is gone.
-    return [{ ...last, kind: last.kind === "deleted" ? last.kind : first.kind, review: { ...last.review, before_text: net.before_text } }];
+    const last = change.files[net.indices.at(-1)!]!;
+    // The net kind comes from the two ends of the round: gone if the last change removed it, new if it was absent before, otherwise modified.
+    const kind = last.kind === "deleted" ? "deleted" as const : net.before_text === null ? "added" as const : "modified" as const;
+    return [{ ...last, kind, review: { ...last.review, before_text: net.before_text } }];
   })() : null;
   const view = changeView(netFiles ? { ...change, files: netFiles } : change, netFiles ? 0 : index, body.reference?.version ?? 1);
   const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);
@@ -85,7 +85,7 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
 }
 
 /** A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies. */
-function drawIntegration(body: IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }, _locale: ActionLocale | undefined): void {
+function drawIntegration(body: IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }): void {
   for (const file of body.files) {
     if (file.before_text === undefined || file.after_text === undefined) continue;
     const side: DiffSide = { workspace_id: "integration", workspace_name: "integration", path: file.path.join("/"), source_plugin_id: CODING_PLUGIN_ID, content_version: 1 };
@@ -96,8 +96,8 @@ function drawIntegration(body: IntegrationBody & { files: NonNullable<Integratio
 }
 
 /** The change reader's and the integration preview's markup on a route's answer: `route_id` says which route answered. */
-export function codingChangeHtml(body: unknown, request: { route_id: string; query: Readonly<Record<string, string>> }, locale: ActionLocale | undefined): void {
+export function codingChangeHtml(body: unknown, request: { route_id: string; query: Readonly<Record<string, string>> }): void {
   const page = body as (ChangeBody & IntegrationBody) | undefined;
-  if (page?.change) drawChange(page as ChangeBody & { change: CodingChangeSet }, request.query, locale);
-  if ((request.route_id === "coding.read-integration" || request.route_id === "coding.read-worktree-integration") && Array.isArray(page?.files)) drawIntegration(page as IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }, locale);
+  if (page?.change) drawChange(page as ChangeBody & { change: CodingChangeSet }, request.query);
+  if ((request.route_id === "coding.read-integration" || request.route_id === "coding.read-worktree-integration") && Array.isArray(page?.files)) drawIntegration(page as IntegrationBody & { files: NonNullable<IntegrationBody["files"]> });
 }

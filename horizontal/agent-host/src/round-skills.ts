@@ -20,8 +20,8 @@ export interface AgentRoundSkillCatalog {
    * `agent` when it declares none. A round that does not work in a workspace reads as `agent` (BL-b44-coding-scene-enum).
    */
   readonly workspaceConsumer: string;
-  list(consumer: ActionSkillRound["consumer"], refs: readonly SkillRef[]): Promise<SkillCatalogEntry[]>;
-  readBodies(consumer: ActionSkillRound["consumer"], refs: readonly SkillRef[]): Promise<SkillBodyReadResult[]>;
+  list(consumer: NonNullable<ActionSkillRound["consumer"]>, refs: readonly SkillRef[]): Promise<SkillCatalogEntry[]>;
+  readBodies(consumer: NonNullable<ActionSkillRound["consumer"]>, refs: readonly SkillRef[]): Promise<SkillBodyReadResult[]>;
 }
 
 /** The parts of a `SkillRef` that name an installation: the starting plugin's own one, as the Host read it from the installation record. */
@@ -39,7 +39,7 @@ export interface RoundSkillsInput {
   locale?: string;
   source: AgentSkillSource | undefined;
   catalog: AgentRoundSkillCatalog | undefined;
-  consumer: ActionSkillRound["consumer"];
+  consumer: NonNullable<ActionSkillRound["consumer"]>;
   hostTools: readonly string[];
   /** The Runtime reports Skills as unsupported: no Skill can be frozen. */
   unsupported: boolean;

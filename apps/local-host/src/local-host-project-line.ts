@@ -14,6 +14,8 @@ const AWAKE_WAIT_MS = 5_000;
 export interface RuntimeEntry<Runtime> {
   reference: LocalHostProjectReference;
   runtime: Promise<Runtime>;
+  /** Populated once `runtime` resolves; allows synchronous inspection without opening asleep projects. */
+  opened?: Runtime;
   state: "opening" | "ready" | "closing";
   operationTail: Promise<void>;
   activeUses: number;
@@ -120,6 +122,15 @@ export class ProjectLine<Runtime> {
     return !!entry && (entry.state !== 'ready' || entry.activeUses > 0 || entry.queuedUses > 0);
   }
 
+  /** Synchronously lists currently opened (non-closing) project runtimes without waking asleep projects. */
+  openRuntimes(): Runtime[] {
+    const result: Runtime[] = [];
+    for (const entry of this.entries.values()) {
+      if (entry.state !== "closing" && entry.opened !== undefined) result.push(entry.opened);
+    }
+    return result;
+  }
+
   private used(entry: RuntimeEntry<Runtime>): void {
     if (!this.quiet.getStore()) entry.lastUsedAt = Date.now();
   }
@@ -197,7 +208,10 @@ export class ProjectLine<Runtime> {
     };
     this.entries.set(normalized.storage_key, entry);
     entry.runtime.then(
-      () => { if (entry.state === "opening") entry.state = "ready"; },
+      runtime => {
+        entry.opened = runtime;
+        if (entry.state === "opening") entry.state = "ready";
+      },
       () => {
         for (const dispose of entry.actionDisposers) dispose();
         if (this.entries.get(normalized.storage_key) === entry) this.entries.delete(normalized.storage_key);

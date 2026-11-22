@@ -242,6 +242,10 @@ export class HomePluginHost {
   hasProjectWork(projectId: string): boolean {
     return !!this.executor?.hasProjectWork(projectId);
   }
+  /** Synchronous count of active background executions and command-kept jobs across Home plugin instances. */
+  activeWorkCount(): number {
+    return this.executor?.activeWorkCount() ?? 0;
+  }
   close(): Promise<void> {
     this.closed = true; this.views.close();
     this.releaseRegistration();

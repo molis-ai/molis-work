@@ -6,7 +6,7 @@ import { actionGatewayHomeId } from "./action-gateway.js";
 import { createHomeSnapshot, createOnlineHomeSnapshot } from "./home-snapshot.js";
 import type { HomeSnapshotResult } from "./home-snapshot-contract.js";
 import { readHostEndpoint } from "./host-endpoint.js";
-import { probeMcpResident } from "./mcp-resident-health.js";
+import { probeMcpResident, probeMcpResidentReport } from "./mcp-resident-health.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
@@ -28,6 +28,16 @@ export async function handleHomeMaintenanceHttp(
   if (url.pathname !== HOME_MAINTENANCE_PATH) return false;
   if (request.method !== "POST") {
     sendJson(response, 405, { error: "只支持本机 POST 调用" });
+    return true;
+  }
+  // S-07 defense-in-depth: maintenance gateway accepts only local CLI/Host control-token callers, never browser page sessions.
+  if (
+    request.headers["x-molis-work-page-session"] !== undefined
+    || request.headers["sec-fetch-site"] !== undefined
+    || typeof request.headers["x-molis-work-control-token"] !== "string"
+    || !request.headers["x-molis-work-control-token"]
+  ) {
+    sendJson(response, 403, { error: "维护接口仅接受本机控制凭据调用" });
     return true;
   }
   const controller = new AbortController();
@@ -99,12 +109,21 @@ export async function requestResidentHomeSnapshot(options: {
   } catch (error) {
     // A personal space under `<root>/spaces/<spaceId>` may be logged out / inactive while the genuine
     // installation Host answers on `<root>/run/endpoint.json` using `<root>`'s token. Only if `<root>`
-    // itself passes HMAC verification may we treat this space as unmounted and proceed offline under `storage-owner`.
+    // itself passes HMAC verification as steady `ready` (no space transition/retirement in flight) may
+    // we treat this space as unmounted and proceed offline under `storage-owner`.
     if (installationRoot && error instanceof ActionError && error.code === "actions.transport_invalid") {
-      const rootHealth = await probeMcpResident(installationRoot, origin, probeSignal).catch(() => null);
-      if (rootHealth === "ready") return null;
-      if (rootHealth === "upgrading") {
+      const rootHealth = await probeMcpResidentReport(installationRoot, origin, probeSignal).catch(() => null);
+      if (rootHealth?.status === "ready") {
+        if (rootHealth.spaceTransitioning) {
+          throw new ActionError("actions.service_unavailable", "账号空间正在切换或尚未就绪，请稍后再试");
+        }
+        return null;
+      }
+      if (rootHealth?.status === "upgrading") {
         throw new ActionError("actions.service_unavailable", "Molis Work 正在升级这个 Home 的数据，请等待升级完成后再做快照");
+      }
+      if (rootHealth?.status === "starting" || rootHealth?.status === "pending") {
+        throw new ActionError("actions.service_unavailable", "当前 Home 的常驻服务正在启动或暂未就绪，请稍后再试");
       }
     }
     throw error;
@@ -126,7 +145,9 @@ export async function requestResidentHomeSnapshot(options: {
     retryHint: "请先确认目标快照目录是否已经生成，再决定是否换新目录重试",
     signal: options.signal,
   });
-  if (!answer) return null;
+  if (!answer) {
+    throw new ActionError("actions.service_unavailable", "常驻服务在快照请求发送前已不可达，未回退离线直开库，请稍后重试");
+  }
   if (!answer.ok) throw actionErrorFromResponse(answer.status, answer.body);
   const result = answer.body.result as Partial<HomeSnapshotResult> | undefined;
   if (

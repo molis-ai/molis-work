@@ -84,25 +84,36 @@ fn wait_for_web(
     }
 }
 
+fn adopt_proved_port(port: u16, answer: &Answer) {
+    crate::host_port::set_port(port);
+    if let Answer::Ready(health) = answer {
+        crate::web_identity::record_verified_process_id(port, health.process_id);
+    }
+}
+
 /// The wait, on this machine's port and clock. A service that does not come up in it is stopped,
-/// if this App started it; one that proves it is upgrading is left running.
+/// if this App started it; one that proves it is upgrading is left running. The port is adopted
+/// only after the Host on it proves knowledge of this Home's control key.
 fn wait_for_owned_web(
     service_state: &WebServiceState,
+    expected_port: u16,
     upgrade: Upgrade,
 ) -> Result<Started, String> {
     let home = molis_work_home();
     let waited = wait_for_web(
         upgrade,
         || {
-            if let Ok(answer) = crate::web_identity::answer() {
+            if let Ok(answer) = crate::web_identity::answer_at(expected_port) {
+                adopt_proved_port(expected_port, &answer);
                 return Some(answer);
             }
-            // If the spawned Host hit EADDRINUSE on 4173 and fell back to a spare port in 4174–4199,
-            // adopt its `run/endpoint.json` port once it proves itself with this Home's control key.
+            // If the spawned Host hit EADDRINUSE on `expected_port` and negotiated a spare port
+            // in 4173–4199, adopt its `run/endpoint.json` port once it proves itself with this
+            // Home's control key.
             if let Some(port) = crate::host_port::endpoint_port(&home) {
-                if port != crate::host_port::port() {
+                if port != expected_port {
                     if let Ok(answer) = crate::web_identity::answer_at(port) {
-                        crate::host_port::set_port(port);
+                        adopt_proved_port(port, &answer);
                         return Some(answer);
                     }
                 }
@@ -123,8 +134,7 @@ fn wait_for_owned_web(
         Wait::TimedOut => {
             stop_owned_web_service(service_state);
             Err(format!(
-                "Molis Work Web 已启动，但 {} 尚未就绪",
-                crate::host_port::host()
+                "Molis Work Web 已启动，但 127.0.0.1:{expected_port} 尚未就绪"
             ))
         }
     }
@@ -542,7 +552,7 @@ pub(crate) fn owned_web_service_alive(state: &WebServiceState) -> bool {
 }
 
 pub(crate) fn stop_owned_web_service(state: &WebServiceState) -> bool {
-    crate::web_identity::invalidate_health_lease();
+    crate::web_identity::clear_verified_process_id();
     let child = state
         .owned_child
         .lock()
@@ -571,7 +581,7 @@ pub(crate) fn ensure_molis_work_web(
 /// again from each such answer, up to `UPGRADE_WAIT`. It can take as long as the data does, so it
 /// is for a thread of its own.
 pub(crate) fn wait_for_upgrading_web(service_state: &WebServiceState) -> Result<(), String> {
-    wait_for_owned_web(service_state, Upgrade::WaitOut).map(|_| ())
+    wait_for_owned_web(service_state, crate::host_port::port(), Upgrade::WaitOut).map(|_| ())
 }
 
 /// Brings the service on 4173 up as far as the main thread may wait for it: a ready answer, or the
@@ -593,20 +603,26 @@ fn install_or_reuse_healthy(
 }
 
 /// The port this start looks at first: the one the Home's address file names, once the Host there
-/// proves it holds this Home's control key; otherwise 4173, as before. A file only points the way.
+/// proves it holds this Home's control key; otherwise 4173 if it answers as this Home's Host. A
+/// previously proved spare port is not clobbered while temporarily unreachable.
 fn adopt_endpoint_port(home: &Path) {
     // Proved first, then adopted: no other thread ever reads a port nobody has proved.
     if let Some(port) = crate::host_port::endpoint_port(home) {
-        if crate::web_identity::answer_at(port).is_ok() {
-            crate::host_port::set_port(port);
+        if let Ok(answer) = crate::web_identity::answer_at(port) {
+            adopt_proved_port(port, &answer);
             return;
         }
     }
-    crate::host_port::set_port(crate::host_port::DEFAULT_PORT);
+    if crate::host_port::port() != crate::host_port::DEFAULT_PORT {
+        if let Ok(answer) = crate::web_identity::answer_at(crate::host_port::DEFAULT_PORT) {
+            adopt_proved_port(crate::host_port::DEFAULT_PORT, &answer);
+        }
+    }
 }
 
-/// The `--port` for a Host this desktop starts: none while 4173 is free, a spare one while something
-/// else holds it, a refusal when 4174–4199 are all taken too.
+/// Checks whether the Host has a free loopback port before spawning `molis-work-web` (which itself
+/// negotiates 4173–4199 dynamically): `Ok(None)` while 4173 is free, `Ok(Some(port))` as a candidate
+/// spare port while something else holds 4173, and an error when 4173–4199 are all occupied.
 fn start_port(occupied: impl Fn(u16) -> bool) -> Result<Option<u16>, String> {
     if !occupied(crate::host_port::DEFAULT_PORT) {
         return Ok(None);
@@ -674,18 +690,23 @@ pub(crate) fn start_molis_work_web(
             bin.display()
         ));
     }
+    // Stop any existing hung desktop-owned child before probing ports or spawning a replacement,
+    // so it releases both its loopback port and its `storage-owner` lock cleanly.
+    if desktop_owns_web_service(service_state) {
+        stop_owned_web_service(service_state);
+    }
+    // Fail fast if every candidate port in 4173–4199 is held by another program. Do not pass
+    // `--port` to `molis-work-web` and do not mutate `host_port::PORT` until the spawned Host
+    // proves itself via HMAC: Node dynamically negotiates 4173–4199 with TOCTOU fallback and
+    // writes `run/endpoint.json`, which `wait_for_owned_web` verifies before adopting.
+    let expected_port =
+        start_port(crate::host_port::occupied)?.unwrap_or(crate::host_port::DEFAULT_PORT);
     let path = login_shell_path();
     let mut command = Command::new(&bin);
     command
         .args(["--home", home.to_str().unwrap_or_default()])
         .env("MOLIS_WORK_HOME", &home)
         .env("PATH", &path);
-    // 4173 answers, but not as this Home's Host: another program's port. This Host listens on a spare
-    // one and says so in its address file (resident-runtime-design §6).
-    if let Some(port) = start_port(crate::host_port::occupied)? {
-        crate::host_port::set_port(port);
-        command.args(["--port", &port.to_string()]);
-    }
     let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -694,7 +715,7 @@ pub(crate) fn start_molis_work_web(
         .spawn()
         .map_err(|error| format!("无法启动 Molis Work Web：{error}"))?;
     replace_owned_web_child(service_state, child)?;
-    wait_for_owned_web(service_state, Upgrade::HandOver)
+    wait_for_owned_web(service_state, expected_port, Upgrade::HandOver)
 }
 
 #[cfg(test)]

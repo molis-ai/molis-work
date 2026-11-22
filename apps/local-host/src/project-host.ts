@@ -69,7 +69,7 @@ import { admitProviderRules } from "./scene-rule-admission.js";
 import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { homeAggregatePorts } from "./home-aggregate.js";
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
-import { installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
+import { installedPluginsActiveWorkCount, installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -86,7 +86,7 @@ import { projectRuntimeSettingProvider } from "./project-runtime-setting-actions
 import { workTerminalActionProvider } from "./work-terminal-service.js";
 import { pluginDataActionProvider } from "./plugin-data-export.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
-import { projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
+import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -617,6 +617,16 @@ export class MolisWorkLocalHost {
 
   projects(): LocalHostStatus["projects"] {
     return this.host.projects();
+  }
+
+  /** Synchronous count of active plugin background executions and command-kept jobs across Home and open projects. */
+  activeWorkCount(): number {
+    let count = this.homePlugins?.activeWorkCount() ?? 0;
+    for (const runtime of this.host.openRuntimes()) {
+      count += projectPluginsActiveWorkCount(runtime.store, runtime.project_id)
+        + installedPluginsActiveWorkCount(runtime.store, runtime.project_id);
+    }
+    return count;
   }
 
   /** Does this project reach the plugin behind a provider? The one judgement actions use (`projectPluginJudge`), by the injected catalog. */

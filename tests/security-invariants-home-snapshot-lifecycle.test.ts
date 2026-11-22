@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { attachHostPresence, createHomeSnapshot, createMolisWorkLocalHost, HOME_MAINTENANCE_PATH, readHostEndpoint } from "@molis-ai/molis-work-app-local-host";
+import { attachHostPresence, createHomeSnapshot, createMolisWorkLocalHost, HOME_MAINTENANCE_PATH, readHostEndpoint, requestResidentHomeSnapshot, sendWebHealth, writeHostEndpoint } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
@@ -197,7 +197,25 @@ test("102-2 S-07: live resident Host serves online CLI home snapshot via control
     body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: "relative-snapshot" }),
   });
   assert.equal(relativeDest.status, 400);
-  for (const name of ["refused-1", "refused-2", "refused-3", "refused-4"]) assert.equal(fs.existsSync(join(f.area, name)), false);
+  const missingParent = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-missing-parent" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.area, "no-such-parent", "snap") }),
+  });
+  assert.equal(missingParent.status, 400);
+  const browserFetchSite = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "sec-fetch-site": "same-origin", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-sec-fetch" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.area, "refused-browser-site") }),
+  });
+  assert.equal(browserFetchSite.status, 403);
+  const pageSessionAttempt = await fetch(origin + HOME_MAINTENANCE_PATH, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-page-session": "browser-session", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "k-page-session" },
+    body: JSON.stringify({ action: "snapshot", home_id: homeId, destination: join(f.area, "refused-page-session") }),
+  });
+  assert.equal(pageSessionAttempt.status, 403);
+  for (const name of ["refused-1", "refused-2", "refused-3", "refused-4", "refused-browser-site", "refused-page-session"]) assert.equal(fs.existsSync(join(f.area, name)), false);
   assert.equal(fs.existsSync(join(f.home, "inside-snapshot")), false);
 
   const runCli = (args: string[], env: NodeJS.ProcessEnv) => new Promise<{ status: number | null; stdout: string; stderr: string }>((resolveRun, rejectRun) => {
@@ -274,4 +292,65 @@ test("102-2 S-07: production space-web-server serves root Home snapshots and let
   const spaceCli = await runCli(["home", "snapshot", "--home", inactiveSpace, "--to", spaceDest, "--json"], cliEnv);
   assert.equal(spaceCli.status, 0, spaceCli.stderr);
   assert.equal((JSON.parse(spaceCli.stdout) as { status: string }).status, "created");
+});
+
+test("102-2 S-07: requestResidentHomeSnapshot never falls back offline when Host vanishes after /health ready or reports space_transitioning", { timeout: 30_000 }, async t => {
+  const previousWebUrl = process.env.MOLIS_WORK_WEB_URL;
+  delete process.env.MOLIS_WORK_WEB_URL;
+  t.after(() => {
+    if (previousWebUrl === undefined) delete process.env.MOLIS_WORK_WEB_URL;
+    else process.env.MOLIS_WORK_WEB_URL = previousWebUrl;
+  });
+  const f = await smallSnapshotHome(t);
+  const rootToken = "root-transition-hmac-token-0123456789abcdef";
+  const spaceHome = join(f.home, "spaces", "space_switching_probe");
+  const spaceToken = "space-switching-hmac-token-0123456789abcdef";
+  fs.mkdirSync(join(f.home, "config"), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(join(f.home, "config", "web-control-token"), `${rootToken}\n`, { mode: 0o600 });
+  fs.mkdirSync(join(spaceHome, "config"), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(join(spaceHome, "config", "web-control-token"), `${spaceToken}\n`, { mode: 0o600 });
+
+  // Case 1: installation root proves HMAC ready with `space_transitioning: true`; personal space must fail closed, never return null.
+  const transitioningServer = createHttpServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (url.pathname === "/health") {
+      const scoped = req.headers["x-molis-work-home-id"] && req.headers["x-molis-work-home-id"] !== createHash("sha256").update(resolve(f.home)).digest("hex");
+      sendWebHealth(res, scoped ? 503 : 200, { status: scoped ? "starting" : "ok", process_id: process.pid, desktop_tui: true, space_transitioning: true }, rootToken, url.searchParams.get("challenge"));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise<void>(resolveListen => transitioningServer.listen(0, "127.0.0.1", resolveListen));
+  t.after(() => new Promise<void>(resolveClose => { transitioningServer.closeAllConnections(); transitioningServer.close(() => resolveClose()); }));
+  const transitioningAddr = transitioningServer.address();
+  assert.ok(transitioningAddr && typeof transitioningAddr === "object");
+  writeHostEndpoint(f.home, transitioningAddr.port);
+  await assert.rejects(
+    requestResidentHomeSnapshot({ homeDirectory: spaceHome, destination: join(f.area, "should-not-fallback-1") }),
+    { code: "actions.service_unavailable" },
+  );
+
+  // Case 2: resident Host answers `/health` ready, then closes its listener before the POST arrives; must fail closed, never return null.
+  const vanishingServer = createHttpServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (url.pathname === "/health") {
+      req.socket.once("close", () => {
+        vanishingServer.close();
+      });
+      sendWebHealth(res, 200, { status: "ok", process_id: process.pid, desktop_tui: true }, rootToken, url.searchParams.get("challenge"));
+      return;
+    }
+    res.writeHead(503);
+    res.end();
+  });
+  await new Promise<void>(resolveListen => vanishingServer.listen(0, "127.0.0.1", resolveListen));
+  t.after(() => new Promise<void>(resolveClose => { vanishingServer.closeAllConnections(); vanishingServer.close(() => resolveClose()); }));
+  const vanishingAddr = vanishingServer.address();
+  assert.ok(vanishingAddr && typeof vanishingAddr === "object");
+  writeHostEndpoint(f.home, vanishingAddr.port);
+  await assert.rejects(
+    requestResidentHomeSnapshot({ homeDirectory: f.home, destination: join(f.area, "should-not-fallback-2") }),
+    error => error instanceof Error && "code" in error && (error.code === "actions.service_unavailable" || error.code === "actions.delivery_unknown"),
+  );
 });

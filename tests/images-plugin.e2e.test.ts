@@ -63,7 +63,7 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   await click('.images-history-row');
   await waitFor("document.querySelector('[data-images-result]')?.textContent.includes('图片暂时无法读取')");
   await command('Network.setBlockedURLs', { urls: [] }, sessionId);
-  await click('[data-images-refresh]');
+  await click('.plugin-stage-detail-bar [data-images-refresh]');
   await waitFor("document.querySelector('[data-images-result] img')?.naturalWidth > 0");
   assert.equal(calls,1,"刷新或重新打开不会调用厂商");
   await click('[data-images-new]');

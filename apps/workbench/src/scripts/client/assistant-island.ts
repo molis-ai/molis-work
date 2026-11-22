@@ -277,8 +277,7 @@ ${ASSISTANT_STRIP_PART}
     const about = eventOf(), live = about ? host.lineEvent?.(about.subject) : null, name = live?.title || about?.title || "";
     return readText(live?.group === "you" ? "workbench.assistant-island.reply-to-event" : live?.group === "now" ? "workbench.assistant-island.add-to-event" : "workbench.assistant-island.say-to-event", { name });
   }
-  function paintContext(work) {
-    if (!contextCard) return;
+  function paintContext(work) { if (!contextCard) return;
     const offer = modeOffer(), mode = offer && offer.modes.length ? modeRows(offer).find((row) => row.id === ((work ? work.executor.mode : nextMode) || offer.default_mode)) : null;
     const leave = island.querySelector("[data-assistant-permission-summary]");
     const who = work ? (work.executor.kind === "plugin" ? work.executor.title : work.character?.title || readText("workbench.common.assistant"))
@@ -294,15 +293,12 @@ ${ASSISTANT_STRIP_PART}
   // 「⋯ › 详情」: everything else known about the work (its path, what was agreed, where it runs, what it used) and the
   // choices of a new one take the information column's place; the back key, or Esc, returns to what the column showed.
   const detailsPane = island.querySelector("[data-info-details]"), infoColumn = island.querySelector("[data-assistant-side]");
-  const setDetails = (open, back) => {
-    if (!detailsPane) return;
+  const setDetails = (open, back) => { if (!detailsPane) return;
     if (open && !spacious() && !drawerOpen) { drawerOpen = true; paintLayout(); } // a phone's width: asking for the details asks for the column
-    if (detailsPane.hidden === !open) return;
-    detailsPane.hidden = !open; infoColumn?.toggleAttribute("data-details", open);
+    if (detailsPane.hidden === !open) return; detailsPane.hidden = !open; infoColumn?.toggleAttribute("data-details", open);
     if (open) { setPanel(true); detailsPane.querySelector("[data-info-details-close]")?.focus(); } else if (back) island.querySelector("[data-assistant-more]")?.focus();
   };
-  island.querySelector("[data-info-details-open]")?.addEventListener("click", () => setDetails(true));
-  detailsPane?.querySelector("[data-info-details-close]")?.addEventListener("click", () => setDetails(false, true));
+  island.querySelector("[data-info-details-open]")?.addEventListener("click", () => setDetails(true)); detailsPane?.querySelector("[data-info-details-close]")?.addEventListener("click", () => setDetails(false, true));
   detailsPane?.addEventListener("keydown", (event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); setDetails(false, true); } });
   // The column was asked for something else (a tab, a list's key in the input, an event opened): the details give way.
   if (infoColumn && "MutationObserver" in window) new MutationObserver(() => setDetails(false)).observe(infoColumn, { attributes: true, attributeFilter: ["data-info"] });

@@ -475,8 +475,7 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
       && panel?.getClientRects().length && panel.dataset.settingsSource
       && new URL(panel.dataset.settingsSource, location.origin).pathname === ${JSON.stringify(`/projects/${projectId}/settings/guidance`)}; })()`);
   await waitFor(`document.querySelector(${JSON.stringify(guidancePanel)})?.textContent.includes(${JSON.stringify(rule)})`);
-  // Opening settings preserves the Assistant. The person explicitly minimizes it to read and edit the original page.
-  await click('[data-assistant-panel-close]');
+  // A settings page opened from the conversation takes the whole work area, and the conversation gets out of its way (POLISH-21).
   await waitFor(`(() => { const panel = document.querySelector('[data-assistant-panel]'); return panel.hidden && !panel.getClientRects().length; })()`);
   const unobscured = (selector: string) => `(() => { const node = document.querySelector(${JSON.stringify(selector)}); if (!node) return false;
     const rect = node.getBoundingClientRect(), style = getComputedStyle(node);

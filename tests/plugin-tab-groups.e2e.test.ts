@@ -442,7 +442,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   // frame it presses, to have a declared row under a real pointer while that frame's editor stays open.
   const pressRow = async (frame: typeof aRight, id: string) => {
     await frame.evaluate(`(()=>{if(document.getElementById('t405-list-beside'))return;const style=document.createElement('style');style.id='t405-list-beside';
-      style.textContent='html [data-expanded="true"] .plugin-stage-list{display:block!important;position:relative;z-index:5;width:280px;background:var(--paper)}';document.head.append(style);})()`);
+      style.textContent='html body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-list.plugin-stage-list{display:block!important;position:relative;z-index:5;width:280px;background:var(--paper)}';document.head.append(style);})()`);
     await frame.click(`button[data-page-id="${id}"]`);
   };
   await browser.setViewport(2200, 1000);

@@ -133,7 +133,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
     const positionOffers = (${HOME_OFFERS_FACTORY_SCRIPT});
     // What each plugin lets a person begin, on its row of the start page (specs/screen-polish §八之二): the home's own read and click.
     const startPopover = document.querySelector("[data-plugin-picker-popover]"), startToggle = document.querySelector("[data-plugin-picker-toggle]");
-    projectStarts = state.project && startPopover && startToggle ? globalThis.molisWorkHomeView?.mountStartEntries({
+    projectStarts = project.project_id && startPopover && startToggle ? globalThis.molisWorkHomeView?.mountStartEntries({
       root: startPopover,
       read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
       navigationFrom: () => tabWorkspace?.positionNavigationFrom(startToggle) ?? (() => false),

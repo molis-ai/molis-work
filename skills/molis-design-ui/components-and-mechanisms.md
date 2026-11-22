@@ -18,6 +18,7 @@
 - **连续白纸（主工作面）**：`--paper`，普通内容靠留白与字重分隔，不画卡套卡。
 - **凹槽区块（`.mw-section-well`）**：`--surface-soft` + `1px solid var(--line)` + `14px` 圆角 + `4px` 内垫，用来收拢相关控制条、工具组或状态摘要，内嵌纸卡自然取 `10px` 同心圆角。
 - **内嵌分组列表（`.mw-inset-group` + `.mw-inset-row`）**：外围一张 `--paper` 卡片（`12px` 圆角 + `1px solid var(--line)` + 深色 `--edge-highlight` 顶光），内部行间 `44px` 齐线分隔，单行支持原位展开详情抽屉（`.mw-inset-row__drawer`）。
+- **壳层与插件 iframe 同享**：`.mw-section-well`、`.mw-inset-group`、`.mw-inset-row*`、`.mw-tabs__list--underline`、`.mw-badge--chip`、`.mw-glyph-status`、`.mw-signal-dot` 与 `.mw-signal` 均已纳入 `PRIMITIVE_PLUGIN_STYLES`（随 `<80 KB` `molis-work-plugin-base.css` 下发），壳层页面与所有 framed 插件直接复用，不需自写样式。
 
 ### 三层标签栏体系（不混用）
 - **T1 页面级工作标签**：顶栏方案 C「纸上的页签耳」（`.tab-item`，当前页签与纸面相连 + `2px --accent` 顶冠）。
@@ -83,3 +84,4 @@
   - `--measure-stage: 960px`（对象目录、插件市场双列等高卡片）
   - `--measure-wide: 1152px`（Dataset 宽表、PPT 工作区、Goals 画布/看板、Workflows 链）
 - **详情顶栏 `.plugin-stage-detail-bar`**：锁死 `48px` 单行（返回 + 标题 + 最多 1 主 1 次 + `···` 更多菜单），**严禁设 `overflow-x: auto` 裁切弹层菜单**。
+- **代码对照 `.mw-diff`**：左右分栏模式（`.mw-diff-split`）故意保持同行对齐几何，不在 `@container` 下纵向折成单列，以守住代码行号与增删逐行对齐契约（`VUX-33`）。

@@ -23,7 +23,9 @@ export const BUTTON_STYLES = `
     text-decoration: none;
     white-space: nowrap;
     appearance: none;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint);
+    transition-property: background-color, color, border-color, box-shadow, opacity, transform;
+    transition-duration: var(--dur-hover);
+    transition-timing-function: var(--ease-quint);
     &:active:not(:disabled) { transform: scale(.985); }
     svg { width: 14px; height: 14px; flex: none; }
     /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.
@@ -65,7 +67,6 @@ export const BUTTON_STYLES = `
     &:hover:not(:disabled), &[aria-pressed="true"]:not(:disabled) {
       background: var(--action-hover);
       border-color: var(--action-hover);
-      color: var(--action-ink);
       box-shadow: var(--lift-1), inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
     }
   }

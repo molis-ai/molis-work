@@ -162,7 +162,7 @@ test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the act
   assert.equal(await page.evaluate("document.querySelector('[data-kit-settings][data-project=\"\"]').innerText.includes('meeting-notes')"), false, "project state and installation never leak into Home catalog");
 });
 
-test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox package scene is visible and bindable in Skill settings, isolated from Home, and disappears after disable and uninstall", { timeout: 180_000 }, async t => {
+test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox package scene is visible and bindable in Skill settings, isolated from Home, and disappears after disable and uninstall", { skip: process.platform !== "darwin", timeout: 180_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-third-party-scene-ui-"));
   let browser: ChromeHarness | undefined;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });

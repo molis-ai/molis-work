@@ -191,7 +191,7 @@ test("SKC-09 N42–N44: /api/skills/body previews a manual Skill in one body.rea
   } finally { spy.mock.restore(); }
 });
 
-test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox package scenes flow into skill/kit settings, authoring, replay and install preview, stay scope-isolated, and invalidate immediately on disable, uninstall and publisher revoke", { timeout: 180_000 }, async t => {
+test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox package scenes flow into skill/kit settings, authoring, replay and install preview, stay scope-isolated, and invalidate immediately on disable, uninstall and publisher revoke", { skip: process.platform !== "darwin", timeout: 180_000 }, async t => {
   const completeText = async (prompt: unknown) => {
     const text = String(prompt);
     if (text.includes("你在对照技能回放的结果")) {

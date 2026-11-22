@@ -709,8 +709,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         toast(clearStatus.textContent);
       } else {
         const count = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
-        showClear(readText("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + readText("workbench.settings-memory.deleted") + " " + done.removed
-          + " · " + readText("workbench.settings-memory.version-conflicts") + " " + count("conflict") + " · " + readText("workbench.settings-memory.outcome-unknown") + " " + count("unknown") + " · " + readText("workbench.settings-memory.not-run-yet") + " " + count("not-executed"));
+        showClear(readText("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + readText("workbench.settings-memory.deleted-n", { n: done.removed })
+          + " · " + readText("workbench.settings-memory.version-conflicts-n", { n: count("conflict") }) + " · " + readText("workbench.settings-memory.outcome-unknown-n", { n: count("unknown") }) + " · " + readText("workbench.settings-memory.not-run-yet-n", { n: count("not-executed") }));
       }
     };
     clearButton.addEventListener("click", () => run(async () => {

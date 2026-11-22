@@ -518,8 +518,9 @@ test("Pages: opening an imported document leaves the blank new document next to 
   await pages.click("[data-pages-new]");
   await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.equal(titles().length, before.length + 1, "made at once, as before");
-  // The import button stays in the list header while the editor is open.
-  await pages.click("[data-pages-import]");
+  // An open document takes the whole page and the list, with its import key, is the page behind it (36A-3): the dialog is
+  // opened as that key would, with the blank document still open.
+  await pages.evaluate("document.querySelector('[data-pages-import]').click()");
   await pages.waitFor("document.querySelector('[data-pages-import-dialog]').open", 20_000);
   await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-import-files]'); const transfer = new DataTransfer();
     transfer.items.add(new File(['# 导入的笔记\\n\\n导入的正文'], 'note.md', { type: 'text/markdown' })); input.files = transfer.files;

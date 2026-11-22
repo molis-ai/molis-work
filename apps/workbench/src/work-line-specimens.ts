@@ -2,18 +2,18 @@ import { escapeHtml, icon, renderButton, renderComposer, t as uiText } from "@mo
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import type { WebLocale } from "./i18n.js";
 import {
-  renderEventCard, renderLineEvent, renderLineHead, renderListEarlier, renderStackCard, renderStackEmpty, renderLineUnreadable, renderOwnerMark, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
-  renderReplyReturned, renderReplyWaiting, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderTaskSteps, renderWorkLine,
+  renderCardOwn, renderEventCard, renderEventPage, renderInfoLists, renderInfoTabs, renderLineEvent, renderLineUnreadable, renderListEarlier, renderListGroup, renderOwnerMark, renderPlaceCard, renderReplyCarried, renderReplyPlaced,
+  renderReplyReturned, renderReplyWaiting, renderStackCard, renderStackEmpty, renderStackLook, renderStackMain, renderTaskCard, renderTaskDecision, renderTaskRow, renderTaskSteps, renderWorkLine,
   type LineEventState, type LineEventView, type LineOwnerView, type TaskRowView,
 } from "./work-line-parts.js";
 
 /**
- * The component board's 事项线 section (32-3, scheme E of docs/design/work-line-32): the parts the work line adds, each in its
- * states, then the line and the Assistant's dialog composed from them, as they are and when something is wrong. The frame is
- * the 工作台导航 frame with `?sheet=work-line` (navigation-specimens.ts): a workbench page with the workbench sheet, so every
- * part is drawn by the rules the product loads (styles/work-line.ts) through the functions the product will call
- * (work-line-parts.ts). The dialog, its tabs and messages, the composer with its "send to" tag are the product's own markup.
- * The data is a sample; nothing is read from a Home.
+ * The component board's 事项线 section (specs/work-line §16, specs/screen-polish §4「底栏第十三版」): the parts of the foot and of
+ * the Assistant's conversation, each in its states, then the foot and the conversation composed from them, as they are and
+ * when something is wrong. The frame is the 工作台导航 frame with `?sheet=work-line` (navigation-specimens.ts): a workbench page
+ * with the workbench sheet, so every part is drawn by the rules the product loads (styles/work-line.ts, the design system's
+ * craft-finish-bar.ts) through the functions the product calls (work-line-parts.ts). The conversation's head and messages and
+ * the composer with its "send to" tag are the product's own markup. The data is a sample; nothing is read from a Home.
  */
 
 type Specimen = (id: string, n: string, caption: string, note: string, body: string) => string;
@@ -50,16 +50,13 @@ function events() {
 function tasks() {
   const e = events();
   return {
-    fix: { id: "t-fix", title: e.fix.title, ring: "running", step: say("step-running-tests"), serves: e.fix.title, control: "stop" } satisfies TaskRowView,
-    notes: { id: "t-notes", title: say("tidy-interview-notes"), ring: "queued", step: say("step-queued-one-ahead"), serves: null, control: "stop" } satisfies TaskRowView,
-    quote: { id: "t-quote", title: say("compare-three-quotes"), ring: "answer", step: say("step-waiting-pick-vendor"), serves: e.quote.title } satisfies TaskRowView,
-    talk: { id: "t-talk", title: say("write-talk-outline"), ring: "failed", step: say("step-failed-model-unreachable"), serves: e.talk.title, control: "retry" } satisfies TaskRowView,
-    plan: { id: "t-plan", title: say("revamp-plan-second-draft"), ring: "done", step: say("step-handed-back-5m"), serves: e.plan.title, done: true } satisfies TaskRowView,
+    fix: { id: "t-fix", title: e.fix.title, ring: "running", step: say("step-running-tests"), control: "stop" } satisfies TaskRowView,
+    notes: { id: "t-notes", title: say("tidy-interview-notes"), ring: "queued", step: say("step-queued-one-ahead"), control: "stop" } satisfies TaskRowView,
+    quote: { id: "t-quote", title: say("compare-three-quotes"), ring: "answer", step: say("step-waiting-pick-vendor") } satisfies TaskRowView,
+    talk: { id: "t-talk", title: say("write-talk-outline"), ring: "failed", step: say("step-failed-model-unreachable"), control: "retry" } satisfies TaskRowView,
+    plan: { id: "t-plan", title: say("revamp-plan-second-draft"), ring: "done", step: say("step-handed-back-5m"), done: true } satisfies TaskRowView,
   };
 }
-
-/** The four tasks that have not ended, in the list's order, and what the mark and the head's counts say about them. */
-const LIVE = { working: 2, needsYou: 1, failed: 1 } as const;
 
 const row = (body: string, end = false) => `<div class="mw-navs__row${end ? " mw-navs__row--end" : ""} mw-wls__row">${body}</div>`;
 const state = (key: string) => `<p class="mw-navs__state">${escapeHtml(say(key))}</p>`;
@@ -71,23 +68,19 @@ function composer(to: { readonly name: string; readonly character?: boolean }): 
 }
 
 const assistant = () => ({ name: uiText.text("workbench.assistant-dock.assistant") });
-const linxia = () => ({ name: say("linxia"), character: true });
 
-/** The foot as the page draws it before its script runs (specs/screen-polish §4「底栏第十三版」): with something waiting, the stack's front card. */
-function line(kind: "ok" | "wait" | "empty" | "unreadable", above = "", mini = ""): string {
-  const slot = `${above ? `<div class="mw-wls__above">${above}</div>` : ""}${composer(assistant())}`;
-  const foot = renderWorkLine({ slot, mini });
-  const e = events();
-  // A source that cannot be read (WLN-37): 办完 open above the stack, the source in its fixed strip above the rows, 更早 N at the end.
-  if (kind === "unreadable") return foot
-    .replace('data-work-list="done" data-zero aria-expanded="false"', 'data-work-list="done" aria-expanded="true"')
-    .replace(' data-work-lists aria-labelledby="work-lists-title" hidden>', ' data-work-lists aria-labelledby="work-lists-title">')
-    .replace("data-work-lists-title></strong>", `data-work-lists-title>${escapeHtml(uiText.text("workbench.work-line.list-done"))}</strong>`)
-    .replace("data-work-lists-sources></div>", `data-work-lists-sources>${renderLineUnreadable("Feed")}</div>`)
-    .replace("data-work-lists-body></div>", `data-work-lists-body><div class="work-list" data-work-list-rows="done">${[e.plan, e.weekly, e.exported].map(event => `<div class="work-list-item">${renderLineEvent(event)}</div>`).join("")}${renderListEarlier(5)}</div></div>`);
-  if (kind !== "wait") return foot;
-  return foot.replace(renderStackEmpty(), renderStackCard({ id: e.talk.id, title: e.talk.title, owner: e.talk.owner, more: 2, ask: e.talk.note || e.talk.stateLabel }));
+/** The foot as the page draws it before its script runs (specs/screen-polish §4「底栏第十三版」), with the counts and the stack a read would give it. */
+function line(kind: "ok" | "wait" | "main" | "empty"): string {
+  const e = events(), counted = (html: string, n: readonly [number, number, number]) => WORK_LIST_IDS.reduce((out, id, at) => out.replace(new RegExp(`(data-work-list="${id}")( data-zero)?([^>]*aria-label="[^"0-9]*)0([^>]*>.*?<span data-n>)0`), `$1$3${n[at]}$4${n[at]}`), html);
+  const foot = renderWorkLine({ slot: composer(assistant()) });
+  if (kind === "empty") return foot;
+  const filled = counted(foot, [3, 2, 4]);
+  if (kind === "wait") return filled.replace(renderStackEmpty(), renderStackCard({ id: e.talk.id, title: e.talk.title, owner: e.talk.owner, more: 2, ask: e.talk.note || e.talk.stateLabel }));
+  // The Assistant's main conversation waits for a confirmation: its card in the stack and the amber dot on the expand key.
+  if (kind === "main") return filled.replace(renderStackEmpty(), renderStackMain({ ask: say("main-ask"), more: 1 })).replace("data-work-expand-dot hidden", "data-work-expand-dot data-waits");
+  return filled;
 }
+const WORK_LIST_IDS = ["done", "now", "next"] as const;
 
 /** One round in the dialog's thread, in the product's markup: what the person said, then the reply with what stands above and under it. */
 function round(user: string, reply: string): string {
@@ -114,30 +107,31 @@ function replies(all = true): string {
   return all ? placed + more + returned + waiting + failed + waitingRow(true) : placed + returned + waiting;
 }
 
+/** A decision a task asks for, as 该你做的 shows it. */
+const decision = () => renderTaskDecision({ id: "d-quote", task: "t-quote", ask: say("which-vendor"), from: say("compare-three-quotes"), why: say("quote-three-vendors"), changes: [], answers: ["approve", "revise", "reject"], lead: true, revising: false, busy: false });
+/** The card with 该你做的 standing first: the part is served hidden and shown by the page once something asks. */
+const asking = (card: string, asks: string) => card.replace("data-card-ask hidden>", "data-card-ask>").replace("data-card-decisions hidden></div>", `data-card-decisions>${asks}</div>`);
+
+/** What is known about an event that waits for a decision: 该你做的, then 这件事现在怎样 with the task behind it. */
 function eventCard(): string {
   const t = tasks();
-  return renderEventCard({
+  return asking(renderEventCard({
     id: "quote", facts: say("registered-by-waiting", { plugin: OWNER.todo.name }),
-    body: `<div class="work-card-quote">${escapeHtml(say("quote-three-vendors"))}</div>`
-      + `<div class="work-card-section"><h4>${escapeHtml(say("tasks-behind"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`
-      + `<div class="work-card-actions">${button("primary", "pick-first")}${button("secondary", "pick-second")}${button("secondary", "ask-me-later")}</div>`,
-  });
+    body: `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`,
+  }), decision());
 }
 
-/** The card of work that was asked for and is being done: the person's own words, the tasks behind it, and the breakdown with who does each step. */
+/** Work that was asked for and is being done: the person's own words, then the task behind it with a sub-agent's step under it. */
 function liveCard(): string {
   const t = tasks();
   return renderEventCard({
     id: "fix", facts: say("registered-by-in-progress", { plugin: uiText.text("workbench.assistant-dock.assistant") }),
     body: `<div class="work-card-quote">${escapeHtml(say("user-ask-fix"))}</div>`
-      + `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.fix.id, title: t.fix.title, ring: t.fix.ring, step: t.fix.step })}</div>`
-      + `<div class="work-card-section"><h4>${escapeHtml(say("breakdown"))}</h4>${renderTaskSteps([{ name: say("read-code-reproduce"), at: "done", who: OWNER.coding.name }, { name: say("change-styles"), at: "done", who: OWNER.coding.name },
-        { name: say("run-tests"), at: "current", who: OWNER.coding.name }, { name: say("update-plan-screenshots"), at: "todo", who: assistant().name }])}</div>`
-      + `<div class="work-card-actions">${button("secondary", "pause")}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") })}</div>`,
+      + `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow(t.fix)}${renderTaskRow({ id: "s-shots", title: say("update-plan-screenshots"), ring: "running", step: assistant().name, level: 2, sub: "s-shots" })}</div>`,
   });
 }
 
-/** The card of a result handed back for acceptance: a preview, where it came from, each requirement with the version it was checked against, and what can be done with it. */
+/** A result handed back for acceptance: a preview, where it came from, each requirement with the version it was checked against, and what can be done with it. */
 function acceptanceCard(): string {
   return renderEventCard({
     id: "plan", facts: say("registered-by-to-accept", { plugin: OWNER.pages.name }),
@@ -148,6 +142,27 @@ function acceptanceCard(): string {
       + `<div class="work-card-actions">${button("primary", "accept")}${button("secondary", "revise")}${button("secondary", "review-item-by-item")}`
       + `${renderButton({ variant: "ghost", size: "sm", icon: "external", iconOnly: true, label: say("open-as-tab") })}${renderButton({ variant: "ghost", size: "sm", icon: "bookmark", iconOnly: true, label: say("put-on-shelf") })}</div>`,
   });
+}
+
+/** The page the platform draws for an event whose owner has no page: the owner's words and what is asked on the left, the three facts and the tasks on the right. */
+function eventPage(): string {
+  const e = events(), t = tasks();
+  return asking(renderEventPage({ id: "quote", place: nav("website-revamp") }), decision())
+    .replace("data-card-name></h2>", `data-card-name>${renderOwnerMark(e.quote.owner)}<strong>${escapeHtml(e.quote.title)}</strong></h2>`)
+    .replace("data-card-own hidden></div>", `data-card-own>${renderCardOwn({ words: say("quote-three-vendors"), facts: [[say("fact-due"), say("fact-due-friday")]] })}</div>`)
+    .replace("data-fact-owner></dd>", `data-fact-owner>${escapeHtml(OWNER.todo.name)}</dd>`).replace("data-fact-state></dd>", `data-fact-state data-wing="next">${escapeHtml(say("state-wait"))}</dd>`)
+    .replace("<div data-card-tasks hidden></div>", `<div class="work-card-section" data-card-tasks><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`);
+}
+
+/** The rows of one list, as the page draws them: an event, the tasks done for it under it, a sub-agent's step one level further in. */
+function listRows(id: (typeof WORK_LIST_IDS)[number], checking = false): string {
+  const e = events(), t = tasks(), item = (event: LineEventView, under = "", suggested = false) => `<div class="work-list-item"${suggested ? " data-suggested" : ""}>${renderLineEvent(event)}${under}</div>`;
+  const check = (row: TaskRowView): TaskRowView => checking ? { ...row, checking: true } : row;
+  if (id === "done") return [e.plan, e.weekly, e.exported].map(event => item(event)).join("") + renderListEarlier(5);
+  if (id === "next") return item(e.review) + item(e.upgrade) + item(e.brand, "", true);
+  return item({ ...e.fix, current: true }, renderTaskRow(check({ ...t.fix, level: 1 })) + renderTaskRow(check({ id: "s-shots", title: say("update-plan-screenshots"), ring: "running", step: assistant().name, level: 2, sub: "s-shots" })))
+    + item(e.goal, renderTaskRow(check({ ...t.talk, level: 1 })))
+    + renderListGroup(uiText.text("workbench.work-line.no-event")) + renderTaskRow(check(t.notes));
 }
 
 /** What goes with the next message, in the product's own strip above the composer (scripts/client/assistant-context-strip.ts): the hand adds to it, nothing new is drawn. */
@@ -167,60 +182,58 @@ function taskCard(): string {
   });
 }
 
-const panel = (id?: string, offline = false) => {
-  const t = tasks();
-  return renderTaskPanel({ ...(id ? { id } : {}), live: [t.quote, t.talk, t.fix, t.notes], returned: [t.plan], counts: LIVE, ...(offline ? { offlineSince: "14:32" } : {}) });
-};
-
-/** A tab of the dialog in the product's markup (scripts/client/assistant-tabs.ts): a main conversation with someone, or an event. */
-function dialogTab(o: { readonly title: string; readonly who?: { readonly name: string; readonly character?: boolean }; readonly owner?: LineOwnerView; readonly current?: boolean; readonly unread?: boolean }): string {
-  const lead = o.who ? renderReplyWho(o.who) : o.owner ? renderOwnerMark(o.owner) : "";
-  const close = o.who ? "" : `<button type="button" class="assistant-tab-close" tabindex="-1" aria-label="${escapeHtml(nav("close-tab"))}">×</button>`;
-  return `<div class="assistant-tab"${o.current ? ' data-current="true"' : ""}><button type="button" class="assistant-tab-main" role="tab" aria-selected="${Boolean(o.current)}" tabindex="${o.current ? 0 : -1}" title="${escapeHtml(o.title)}">${lead}<span class="assistant-tab-title">${escapeHtml(o.title)}</span>${o.unread ? renderTabUnread() : ""}</button>${close}</div>`;
-}
-
 /**
- * The dialog as the first slice leaves it: a tab per counterpart, events as tabs, the task mark at the top right, and the
- * task panel placed by the product's own rule (beside the dialog, or over its right side in a stage too narrow for both).
+ * The conversation in the product's markup (assistant-dock.ts): the conversation column — one line that names what is talked
+ * about and its three keys, then what was said — and the information column: its tabs, then what is known about the thing in
+ * front or one of the three lists. `takes`: a page takes the words itself, so the column says so instead of repeating them.
  */
-function dialog(kind: "main" | "narrow" | "event" | "offline"): string {
-  const e = events(), offline = kind === "offline", onEvent = kind === "event", id = `wl-dialog-${kind}`, panelId = `wl-panel-${kind}`;
-  const tabs = dialogTab({ title: assistant().name, who: assistant(), current: !onEvent }) + dialogTab({ title: say("linxia"), who: linxia(), unread: true })
-    + dialogTab({ title: e.quote.title, owner: e.quote.owner, current: onEvent }) + (onEvent ? "" : dialogTab({ title: e.fix.title, owner: e.fix.owner }));
-  const mark = renderTaskMark(offline ? { count: 4, offline: true, expanded: true, panel: panelId } : { count: 4, lead: "answer", needsYou: true, expanded: !onEvent, ...(onEvent ? {} : { panel: panelId }) });
-  const minimise = `<button type="button" class="dock-window-action" aria-label="${uiText("workbench.assistant-dock.minimize")}" title="${uiText("workbench.assistant-dock.minimize")}">${icon("chevron-down")}</button>`;
-  const thread = onEvent ? eventCard() + round(say("user-on-event"), p("assistant-on-event")) : replies(false);
-  return `<div class="mw-wls__stage" data-work-float-frame${kind === "narrow" ? " data-narrow" : ""}><section class="assistant-panel" id="${id}" data-side="closed" aria-label="${uiText("workbench.assistant-dock.assistant")}"><header class="assistant-tabbar"><div class="assistant-tabs" data-work-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}">${tabs}</div>`
-    + `<span class="assistant-tabbar-actions">${mark}${minimise}</span></header><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" role="log">${thread}</div></div></div></section>${onEvent ? "" : renderTaskFloat(id, panel(panelId, offline))}</div>`;
+function dialog(kind: "main" | "list" | "event" | "takes" | "offline"): string {
+  const e = events(), onEvent = kind === "event", list = kind === "list" || kind === "offline" ? "now" : "";
+  const key = (glyph: Parameters<typeof icon>[0], label: string) => `<button class="dock-window-action" type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(glyph)}</button>`;
+  const dock = (name: string) => uiText.text(`workbench.assistant-dock.${name}`);
+  const head = `<header class="assistant-head"><span class="assistant-head-mark" aria-hidden="true">${onEvent ? renderOwnerMark(e.quote.owner) : icon("sparkles")}</span><h2 class="assistant-head-title">${escapeHtml(onEvent ? e.quote.title : assistant().name)}</h2>`
+    + `<span class="assistant-head-note">${escapeHtml(onEvent ? OWNER.todo.name : uiText.text("workbench.assistant-head.main-in", { place: nav("website-revamp") }))}</span>`
+    + `<span class="assistant-head-actions">${key("maximize", dock("maximize"))}${key("more", dock("more"))}${key("chevron-down", dock("minimize"))}</span></header>`;
+  const takes = `<p class="assistant-page-takes"><span>${escapeHtml(dock("page-takes-words"))}</span>${renderButton({ variant: "secondary", size: "sm", label: dock("ask-assistant-instead") })}</p>`;
+  const thread = `<div class="assistant-thread" role="log">${onEvent ? round(say("user-on-event"), p("assistant-on-event")) : replies(false)}</div>`;
+  const tabs = renderInfoTabs().replace(/aria-selected="(true|false)" tabindex="-?\d" aria-controls="([a-z-]+)"/g, (_all, _was, controls: string) => `aria-selected="false" tabindex="-1" aria-controls="${controls}"`)
+    .replace(`data-info-tab="${list || "info"}" aria-selected="false" tabindex="-1"`, `data-info-tab="${list || "info"}" aria-selected="true" tabindex="0"`)
+    .replace(/(data-info-tab="done"[^>]*>.*?<em data-n>)0/, "$13").replace(/(data-info-tab="now"[^>]*>.*?<em data-n>)0/, "$12").replace(/(data-info-tab="next"[^>]*>.*?<em data-n>)0/, "$13");
+  const lists = list ? renderInfoLists().replace(" hidden>", ">").replace("data-work-lists-title></strong>", `data-work-lists-title>${escapeHtml(uiText.text(`workbench.work-line.list-${list}`))}</strong>`)
+    .replace("data-work-lists-sources></div>", `data-work-lists-sources>${kind === "offline" ? renderLineUnreadable("Feed") : ""}</div>`)
+    .replace("data-work-lists-body></div>", `data-work-lists-body><div class="work-list" data-work-list-rows="${list}">${listRows(list, kind === "offline")}</div></div>`) : "";
+  // With no event in front (the main conversation) 信息 says how the place stands; with one, what is known about it.
+  const place = `<div class="work-card work-place-card">${renderPlaceCard({ waiting: 2, counts: { done: 3, now: 2, next: 3 }, tasks: renderTaskRow(tasks().notes) })}</div>`;
+  const info = `<div class="info-pane">${kind === "main" ? place : `<div class="assistant-event-card">${onEvent ? eventCard() : liveCard()}</div>`}</div>`;
+  return `<div class="mw-wls__stage"><section class="assistant-panel" data-layout="split" data-side="open" aria-label="${uiText("workbench.assistant-dock.assistant")}"><div class="assistant-body">`
+    + `<div class="assistant-main"${kind === "takes" ? " data-page-takes" : ""}>${head}${kind === "takes" ? takes : ""}${thread}</div>`
+    + `<aside class="assistant-side" data-info="${list || "info"}" aria-label="${escapeHtml(dock("information"))}">${tabs}${info}${lists}</aside></div></section></div>`;
 }
 
 /** The frame's body when the navigation frame is asked for `sheet=work-line`. `specimen` is that frame's own scaffolding. */
 export function renderWorkLineSpecimens(specimen: Specimen): string {
-  const e = events(), t = tasks();
+  const e = events();
   const capsule = specimen("wl-event", "1", say("event-on-line"), say("event-on-line-note"),
     row(renderLineEvent(e.review) + renderLineEvent(e.upgrade) + renderLineEvent(e.fix) + renderLineEvent(e.goal) + renderLineEvent({ ...e.fix, id: "fix-current", current: true }) + renderLineEvent({ ...e.brand, id: "brand-fresh", fresh: true }))
     + row(renderLineEvent(e.quote) + renderLineEvent(e.talk) + renderLineEvent(e.exported) + renderLineEvent(e.merge))
     + row(renderLineEvent(e.plan) + renderLineEvent(e.weekly) + renderLineEvent(e.hidden) + renderLineUnreadable("Feed")));
-  const head = specimen("wl-head", "2", say("line-head"), say("line-head-note"), row(renderLineHead({ menu: "", name: nav("website-revamp"), waiting: 0 }) + renderLineHead({ menu: "", name: nav("homepage-revamp-new-first-screen"), waiting: 0, ring: "running" }) + renderLineHead({ menu: "", name: nav("homepage-revamp-new-first-screen"), waiting: 2, ring: "answer" })));
-  const mark = specimen("wl-task-mark", "3", say("task-mark"), say("task-mark-note"),
-    row(renderTaskMark({ count: 0 }) + renderTaskMark({ count: 2, lead: "running" }) + renderTaskMark({ count: 3, lead: "answer", needsYou: true }) + renderTaskMark({ count: 2, lead: "failed", failed: true })
-      + renderTaskMark({ count: 2, offline: true }) + renderTaskMark({ count: 2, lead: "running", expanded: true })));
-  const panels = specimen("wl-task-panel", "4", say("task-panel"), say("task-panel-note"),
-    `<div class="mw-wls__panels">${panel()}${taskCard()}${renderTaskPanel({ live: [], returned: [] })}${renderTaskPanel({ live: [t.fix, t.notes], returned: [], offlineSince: "14:32" })}</div>`);
+  const stack = specimen("wl-stack", "2", say("stack"), say("stack-note"),
+    `<div class="mw-wls__panels"><div class="work-stack">${renderStackCard({ id: e.quote.id, title: e.quote.title, owner: e.quote.owner, more: 0, ask: say("which-vendor"), decision: { id: "d-quote", task: "t-quote", answers: ["approve", "reject"], busy: false } })}</div>`
+    + `<div class="work-stack">${renderStackCard({ id: e.talk.id, title: e.talk.title, owner: e.talk.owner, more: 2, ask: e.talk.note || e.talk.stateLabel })}</div>`
+    + `<div class="work-stack">${renderStackMain({ ask: say("main-ask"), more: 0 })}</div><div class="work-stack">${renderStackLook({ n: 3, more: 0 })}</div><div class="work-stack">${renderStackEmpty()}</div></div>`);
+  const lists = specimen("wl-lists", "3", say("info-lists"), say("info-lists-note"),
+    `<div class="mw-wls__panels">${WORK_LIST_IDS.map(id => `<div class="mw-wls__column"><section class="work-lists"><header class="work-lists-head"><strong>${escapeHtml(uiText.text(`workbench.work-line.list-${id}`))}</strong></header><div class="work-lists-body"><div class="work-list">${listRows(id)}</div></div></section></div>`).join("")}</div>`);
+  const task = specimen("wl-task-panel", "4", say("task-panel"), say("task-panel-note"), `<div class="mw-wls__panels">${taskCard()}</div>`);
   const reply = specimen("wl-reply", "5", say("under-reply"), say("under-reply-note"), `<div class="mw-wls__thread assistant-thread">${replies()}</div>`);
   const card = specimen("wl-event-card", "6", say("event-card"), say("event-card-note"),
-    `${state("card-live")}<div class="mw-wls__thread assistant-thread">${liveCard()}</div>${state("card-decision")}<div class="mw-wls__thread assistant-thread">${eventCard()}</div>${state("card-acceptance")}<div class="mw-wls__thread assistant-thread">${acceptanceCard()}</div>`);
+    `<div class="mw-wls__panels"><div class="mw-wls__column">${state("card-live")}${liveCard()}</div><div class="mw-wls__column">${state("card-decision")}${eventCard()}</div><div class="mw-wls__column">${state("card-acceptance")}${acceptanceCard()}</div></div>`);
+  const page = specimen("wl-event-page", "7", say("event-page"), say("event-page-note"), `<div class="mw-wls__page"><div class="work-event-page-slot">${eventPage()}</div></div>`);
   const hand = specimen("wl-hand", "8", say("hand"), say("hand-note"), `<div class="mw-wls__slot"><div class="mw-wls__hand">${handStrip()}${composer(assistant())}</div></div>`);
-  const peek = specimen("wl-peek", "7", say("dialog-closed"), say("dialog-closed-note"),
-    `<div class="mw-wls__slot">${renderReplyPeek({ who: assistant(), returned: e.fix.title, body: p("peek-reply"), mark: renderTaskMark({ count: 2, lead: "running" }) })}</div>`
-    + `<div class="mw-wls__slot">${renderReplyPeek({ who: linxia(), body: p("peek-reply-character"), mark: renderTaskMark({ count: 3, lead: "answer", needsYou: true }) })}</div>`
-    + `<div class="mw-wls__slot">${renderReplyMini(renderTaskMark({ count: 2, lead: "running" }))}</div>`);
   const whole = specimen("wl-line", "", say("whole-line"), say("whole-line-note"),
-    `${state("ok")}${line("ok", "", renderReplyMini(renderTaskMark({ count: 2, lead: "running" })))}${state("something-needs-you")}${line("wait", renderReplyPeek({ who: assistant(), returned: say("compare-three-quotes"), body: p("needs-you-reply"), mark: renderTaskMark({ count: 4, lead: "answer", needsYou: true }) }))}`
-    + `${state("nothing-on-line-yet")}${line("empty")}${state("source-unreadable")}${line("unreadable")}`);
+    `${state("ok")}${line("ok")}${state("something-needs-you")}${line("wait")}${state("main-waits")}${line("main")}${state("nothing-on-line-yet")}${line("empty")}`);
   const dialogs = specimen("wl-dialog", "", say("dialog-composed"), say("dialog-composed-note"),
-    `${state("main-conversation-panel-open")}${dialog("main")}${state("panel-over-dialog")}${dialog("narrow")}${state("event-tab")}${dialog("event")}${state("disconnected")}${dialog("offline")}`);
-  return capsule + head + mark + panels + reply + card + peek + hand + whole + dialogs;
+    `${state("conversation-main")}${dialog("main")}${state("conversation-list")}${dialog("list")}${state("conversation-event")}${dialog("event")}${state("conversation-page-takes")}${dialog("takes")}${state("disconnected")}${dialog("offline")}`);
+  return capsule + stack + lists + task + reply + card + page + hand + whole + dialogs;
 }
 
 export const workLineSpecimenTitle = () => say("work-line");
@@ -229,24 +242,25 @@ export const workLineSpecimenTitle = () => say("work-line");
 export const renderWorkLineIndexLink = () => `<a href="#work-line" title="${escapeHtml(say("work-line"))}">${escapeHtml(say("work-line"))}</a>`;
 
 /**
- * Only the board's scaffolding for these specimens: rows that scroll instead of wrapping, the box that stands for the slot
- * above the composer, and the stage a dialog stands in. The product's dialog is fixed above the bar; here it stands in a
- * stage that frames it (`data-work-float-frame`), and the task panel is placed in that stage by the product's own rule.
+ * Only the board's scaffolding for these specimens: rows that scroll instead of wrapping, a column as wide as the information
+ * column, the box that stands for the slot above the composer, and the stage a conversation stands in. The product's
+ * conversation is placed against the foot; here it stands in a stage as one sheet, at the size it has over a 640px input.
  */
 export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:auto;padding:4px 2px}
-.mw-wls__panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,340px));align-items:start;gap:16px;padding:4px}
+.mw-wls__panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,400px));align-items:start;gap:16px;padding:4px}
+.mw-wls__column{display:flex;flex-direction:column;gap:8px;min-width:0}
+.mw-wls__column>.work-lists{flex:none;max-height:360px}
+.mw-wls__panels>.work-task-panel{width:auto}
 .mw-wls__thread{display:flex;flex-direction:column;gap:12px;max-width:560px;padding:4px!important;font-size:14px}
 .mw-wls__slot{display:flex;flex-direction:column;max-width:540px;padding:4px}
 .mw-wls__hand{position:relative;margin-top:44px}
 @media (max-width:760px){.mw-wls__hand{margin-top:56px}}
-.mw-wls__above{position:absolute;left:0;right:0;bottom:calc(100% + 8px);display:flex;flex-direction:column}
+.mw-wls__page{height:420px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .mw-navs .work-line{min-height:64px;padding:8px 0}
-.mw-navs .work-line-row:has(.mw-wls__above){margin-top:112px}
-.mw-wls__stage{position:relative;display:flex;align-items:flex-start;height:500px;min-width:0;padding:8px 4px;overflow:hidden;transform:translate(0)}
-.mw-wls__stage[data-narrow]{max-width:700px}
-html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 560px;min-width:0;width:auto;height:480px;animation:none}
-@container work-line (max-width:959px){.mw-navs .work-line-row:has(.mw-wls__above){margin-top:0}.mw-wls__above{position:static}}
-@media (max-width:760px){.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}}`;
+.mw-wls__stage{position:relative;display:flex;align-items:flex-start;height:500px;min-width:0;padding:8px 4px;overflow:hidden}
+html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 1052px;min-width:0;width:auto;height:480px;max-height:none;animation:none}
+html body.mw-navs-page .mw-wls__stage .assistant-body{grid-template-columns:minmax(0,1fr) min(412px,44%)}
+@media (max-width:760px){.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}html body.mw-navs-page .mw-wls__stage .assistant-body{grid-template-columns:minmax(0,1fr) 232px}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside. */
 export function renderWorkLineSection(lang: WebLocale): string {

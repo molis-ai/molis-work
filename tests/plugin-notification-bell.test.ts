@@ -31,7 +31,9 @@ test("waiting plugin notifications reach the dock bell, which opens the market o
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /addEventListener\("molis-work:plugin-events", \(event\) => \{ pluginHeldSince = performance\.now\(\); pluginWaiting = /);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new CustomEvent\("molis-work:plugin-events-open"\)/);
   // Batch 15: objects the owners mark as needing the person (the attention projection) count beside them.
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /\.length \+ pluginWaiting \+ attentionObjectsCount;/, "they count as something waiting for the person");
+  // 第 36A 批（screen-polish 第九节「等你的有哪几种」, 提醒铃）: with an account bar the count is on its notices key, and the
+  // objects that want a look are a card of the stack instead; only the bell of a page without that bar still counts them.
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /\.length \+ pluginWaiting, listed = wanted \+ \(barNotices \? 0 : attentionObjectsCount\);/, "they count as something waiting for the person");
   const english = pageText("en");
   assert.equal(english("workbench.assistant-notice.plugin-review", { count: 1 }), "1 plugin notification to check");
   assert.equal(english("workbench.assistant-notice.plugin-review", { count: 2 }), "2 plugin notifications to check");

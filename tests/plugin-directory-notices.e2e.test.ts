@@ -8,6 +8,7 @@ import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import type { AssistantNotice } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { PluginDirectoryReadRequest, PluginDirectoryReadResult } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { NOTICES_KEY, NOTICES_OPEN, PRESS_NOTICES } from "./fixtures/attention-ways.js";
 
 test("FSS-35 FSS-70 PG049-N01 PG049-N02 PG049-N03 saved directory outcomes switch in place as text", { timeout: 120_000 }, async t => {
   const probe = homeProbe("directorynotice");
@@ -58,7 +59,7 @@ test("FSS-35 FSS-70 PG049-N01 PG049-N02 PG049-N03 saved directory outcomes switc
   const directory = await mkdtemp(join(tmpdir(), "pg049-notice-browser-"));
   let browser: Awaited<ReturnType<typeof ChromeHarness.start>> = null;
   try {
-    browser = await ChromeHarness.start(directory, { describe: "JSON.stringify({url:location.href,ready:document.readyState,attention:document.querySelector('[data-assistant-attention]')?.outerHTML,pop:document.querySelector('[data-assistant-notices]')?.outerHTML})" });
+    browser = await ChromeHarness.start(directory, { describe: "JSON.stringify({url:location.href,ready:document.readyState,width:innerWidth,hidden:document.hidden,lang:document.documentElement.lang,shown:document.querySelector('[data-bar-notices]')?.getClientRects().length,attention:document.querySelector('[data-bar-notices]')?.outerHTML,pop:document.querySelector('[data-assistant-notices]')?.outerHTML})" });
     if (!browser) { t.skip("Chrome is required for directory notice UI"); return; }
     const page = await browser.page();
     await page.command("Page.enable");
@@ -76,11 +77,11 @@ test("FSS-35 FSS-70 PG049-N01 PG049-N02 PG049-N03 saved directory outcomes switc
         : page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(path) })]);
       // The bell reads only on a visible page, including after a reload.
       await page.command("Page.bringToFront");
-      await page.wait(`!document.hidden && document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}' && document.querySelector('[data-assistant-attention]')`);
-      await page.wait("document.querySelector('[data-assistant-attention]')?.hasAttribute('aria-label')");
+      await page.wait(`!document.hidden && document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}' && Boolean(${NOTICES_KEY})`);
+      await page.wait(`${NOTICES_KEY}?.hasAttribute('aria-label')`);
       // These notices keep their existing non-urgent grouping. Exercise its initialized open handler without changing reachability.
-      if (index !== 1) await page.evaluate("document.querySelector('[data-assistant-attention]').click()");
-      await page.wait("document.querySelector('[data-assistant-attention]').getAttribute('aria-expanded') === 'true'");
+      if (index !== 1) await page.evaluate(PRESS_NOTICES);
+      await page.wait(NOTICES_OPEN);
       await page.wait("document.querySelectorAll('[data-assistant-notices] [data-notice-action=dismiss]').length === 3");
       const rows = await page.evaluate<Array<{ id: string; text: string; open: string; dismiss: string; html: number }>>(`[...document.querySelectorAll('[data-assistant-notices] .assistant-notice')].map(item => ({
         id: item.querySelector('[data-notice-id]').dataset.noticeId,

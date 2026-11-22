@@ -42,8 +42,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "attention";
     readonly on: "document";
-    readonly detail: "none, or { reconnected: true } from the desktop shell once the Host answers again: the page then replaces its event stream before reading";
-    readonly summary: "Read what waits on the person again now: the person acted on a notice or on the work line, a work of the Assistant's changed state, or the desktop reconnected to the Host.";
+    readonly detail: "none";
+    readonly summary: "Read what waits on the person again now: the person acted on a notice or on the work line, or a work of the Assistant's changed state.";
 }, {
     readonly name: "molis-work:attention-unreachable";
     readonly kind: "announcement";
@@ -596,7 +596,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.";
     };
     readonly "task-float": {
-        readonly files: readonly ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-task-panel.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"];
+        readonly files: readonly ["apps/workbench/src/browser/task-float-content.ts", "apps/workbench/src/browser/work-tasks.ts", "apps/workbench/src/browser/plugin-frame/task-parent.ts", "apps/workbench/src/browser/assistant-subtasks.ts"];
         readonly state: "The existing task float and the lifetime of its trusted content mounts; task facts remain with their original service.";
     };
     readonly "context-toolbar": {

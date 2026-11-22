@@ -92,8 +92,11 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     const skill: CatalogSkill = { ref: { source: { kind: "plugin", plugin_id: "example.skills", plugin_version: "1.0.0", publisher_signature: "signature" }, install_id: "install", installation_generation: "generation-1", skill_id: "review", version: 1 },
       declaration: { skill_id: "review", version: 1, name: "Review v1", summary: "Review", description: "Review a document", applies_to: "both", tools: [] }, body: "Read it", pack: { plugin_id: "example.skills", title: "Reviews", version: "1.0.0", publisher_label: "Example", trust: "pinned", scope: "project" }, availability: { available: true },
       assertCurrent: () => { if (!current) throw new Error("Installation changed"); }, assertPublisher: () => undefined };
-    const catalog = new SkillCatalog({ definitions, withSkills: async (_caller, use) => use([skill]), resource: () => new Uint8Array(), publishers: () => new Map() });
+    const codingSkill: CatalogSkill = { ...skill, ref: { ...skill.ref, skill_id: "coding-review" },
+      declaration: { ...skill.declaration, skill_id: "coding-review", name: "Coding Review", applies_to: "coding" }, body: "Coding body" };
+    const catalog = new SkillCatalog({ definitions, withSkills: async (_caller, use) => use([skill, codingSkill]), resource: () => new Uint8Array(), publishers: () => new Map() });
     definitions.skills.set("project-a", "install", "review", "manual", 0, "person");
+    definitions.skills.set("project-a", "install", "coding-review", "manual", 0, "person");
     const caller: ActionExecutionContext = { actor_id: "person", project_id: "project-a", audience: "user", permissions: SKILLS_PERMISSIONS,
       signal: controller.signal, beforeEffect: async () => { controller.signal.throwIfAborted(); } };
     // The round's owner records uses on the Host's own call, which carries the round (`skill_round`, specs/capability-pack §2.3).
@@ -107,13 +110,15 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     // SKP-11 (batch 42): the person sees how often each entry really used it, from the uses the rounds recorded.
     await catalog.recordAcceptedUses({ ...caller, skill_round: { consumer: "coding", named: [skill.ref] } }, { accepted: true, refs: [skill.ref], run_ref: "run-2" });
     assert.deepEqual((await catalog.list(caller, {})).skills[0]?.recent_uses, { assistant: 1, coding: 1 });
-    // The person's protected preview names one Skill to read, frozen by the Host as that read's named list: a manual Skill opens. The view
-    // itself records no use: a record without the Host's round is refused like any other.
-    const pageRead = await catalog.readBodies({ ...caller, skill_round: { consumer: "assistant", named: [skill.ref] } }, [skill.ref]);
-    assert.equal(pageRead.results[0]!.ok, true, "the page view may show a manual Skill it named");
+    // The person's protected preview names one Skill to read, frozen by the Host as that read's named list (without a round consumer):
+    // any manual Skill opens for the person in one snapshot, non-user callers without a consumer remain restricted, and no use is recorded.
+    const pageRead = await catalog.readBodies({ ...caller, skill_round: { named: [codingSkill.ref] } }, [codingSkill.ref]);
+    assert.equal(pageRead.results[0]!.ok, true, "the page view may show a coding-only manual Skill it named without a round consumer");
+    assert.deepEqual((await catalog.readBodies({ ...caller, audience: "agent", skill_round: { named: [codingSkill.ref] } }, [codingSkill.ref])).results[0],
+      { ref: codingSkill.ref, ok: false, reason: "not_applicable" }, "an agent caller without a consumer cannot read a coding-only Skill");
     assert.equal((await catalog.readBodies(caller, [skill.ref])).results[0]!.ok, false, "without the Host's named list a manual Skill stays closed");
-    await catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref], run_ref: "page" });
-    assert.equal(definitions.skills.uses("install", "review").length, 2, "a page view is not a round and records no use");
+    await catalog.recordAcceptedUses({ ...caller, skill_round: { named: [skill.ref] } }, { accepted: true, refs: [skill.ref], run_ref: "page" });
+    assert.equal(definitions.skills.uses("install", "review").length, 2, "a page view without a round consumer records no use");
     controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 2);
     definitions.skills.forget("project-a", "install");
     assert.equal(definitions.skills.uses("install", "review")[0]?.name, "Review v1");

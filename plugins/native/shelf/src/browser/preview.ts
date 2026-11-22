@@ -89,6 +89,9 @@ function fillChildDoc(page: ShelfPage): void {
 export function expandShelfStage(page: ShelfPage, expanded: boolean): void {
   page.bench.dataset.expanded = expanded ? "true" : "false";
   if (page.stageWorkspace) page.stageWorkspace.hidden = !expanded;
+  // The open stage takes the whole page, so its strip, which holds the way back to the lists, is there even with nothing chosen.
+  const chrome = page.bench.querySelector<HTMLElement>("[data-shelf-chrome]");
+  if (chrome && expanded) chrome.hidden = false;
 }
 export const syncShelfStage = (page: ShelfPage): void => expandShelfStage(page, Boolean(page.selected || page.selClip || page.composingAction));
 
@@ -98,7 +101,7 @@ function syncChrome(page: ShelfPage): void {
   const chrome = bench.querySelector<HTMLElement>("[data-shelf-chrome]");
   const title = bench.querySelector("[data-shelf-chrome-title]");
   const tag = bench.querySelector("[data-shelf-chrome-tag]");
-  if (chrome) chrome.hidden = !(selected || selClip);
+  if (chrome) chrome.hidden = !(selected || selClip) && bench.dataset.expanded !== "true";
   if (title) title.textContent = selClip ? selClip.title : (selected ? selected.name : "");
   if (!tag) return;
   const group = selected?.group === "result" ? uiText.text("shelf.preview.result") : uiText.text("shelf.preview.material");

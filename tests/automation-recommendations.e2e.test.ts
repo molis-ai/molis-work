@@ -12,6 +12,7 @@ import { signedContentPackage } from "./fixtures/content-package.js";
 import { attachAutomationWorkspace } from "./fixtures/automation-workspace.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { openTestHome } from "./fixtures/test-home.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 // AUT-06, AUT-07 and AUT-08 are the three cases this e2e proves; AUT-01 is the scan citation.
 test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested Skill applies until it is turned off", { timeout: 95_000 }, async t => {
@@ -129,6 +130,8 @@ test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested 
   assert.ok(!JSON.stringify(model.requests.slice(beforeReopen)).includes(skillBody));
   assert.deepEqual(uses(), records, "Turning a Skill off preserves its original use without recording a new one");
 
+  // The work's summary, with the suggestions' entry, is among its details: 更多 › 详情 (36A-3).
+  await page.evaluate(OPEN_DETAILS);
   await page.wait("document.querySelector('[data-assistant-automation]')?.checkVisibility()");
   await page.click("[data-assistant-automation]");
   await loaded();

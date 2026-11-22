@@ -59,8 +59,8 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
   assert.match(withPlugins, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
   assert.doesNotMatch(withPlugins, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
-  // Shelf is the side panel's tab: from 640px of tab its 213px list stays beside the open file.
-  assert.match(withPlugins, /@container shelf \(min-width: 640px\) ?\{\s*\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
+  // An open file takes the whole stage: the directory is not kept beside it at any width.
+  assert.doesNotMatch(withPlugins, /\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
   assert.match(withPlugins, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
@@ -99,7 +99,9 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
   assert.match(withPlugins, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
-  assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  // An open record takes the whole stage (36A, 2026-11-21): its list is not kept beside it; the record's own bar has the way back.
+  assert.match(workbench, /body\.immersive-workbench \.plugin-stage-shell\[data-expanded="true"\] \{\s*display: block;[^{}]*:is\(\.plugin-stage-chrome, \.plugin-stage-list\) \{ display: none !important; \}\s*\.plugin-stage-workspace \{\s*position: absolute; inset: 0;/);
+  assert.doesNotMatch(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[^}]*grid-template-columns: var\(--tree-width/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
   // Bar insets and the back button's optical pull snapped to the 4/8 scale in the visual refinement
   // (spec → 第三轮 · 间距与形状): 20px → 24px, -6px → -8px, 10px → 12px. The bars are still pinned the same way.

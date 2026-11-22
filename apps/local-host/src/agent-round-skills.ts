@@ -46,7 +46,7 @@ export function roundSkillCatalog(readers: RoundSkillReaders): AgentRoundSkillCa
     const own = refs.filter(ref => !delegated.includes(ref));
     return [...(own.length ? [{ caller: readers.plugin, refs: own }] : []), ...(delegated.length ? [{ caller: readers.delegated!.person, refs: delegated }] : [])];
   };
-  const reading = (caller: ActionCallContext, consumer: ActionSkillRound["consumer"]): ActionCallContext => {
+  const reading = (caller: ActionCallContext, consumer: NonNullable<ActionSkillRound["consumer"]>): ActionCallContext => {
     if (caller.audience === "plugin" && !caller.permissions.includes(SKILLS_READ_PERMISSION)) {
       throw new ActionError("actions.forbidden", "这个插件没有获准读技能目录（skills:read），这一轮只能用它自己的技能");
     }

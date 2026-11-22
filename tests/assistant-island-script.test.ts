@@ -92,7 +92,7 @@ test("RAC-2571: the bottom-bar script is twelve String.raw parts joined in place
     "assistant-side-kit.ts": "ASSISTANT_SIDE_KIT_PART",
     "assistant-side-path.ts": "ASSISTANT_SIDE_PATH_PART",
     "assistant-strip.ts": "ASSISTANT_STRIP_PART",
-    "assistant-tabs.ts": "ASSISTANT_TABS_PART",
+    "assistant-head.ts": "ASSISTANT_HEAD_PART",
     "assistant-notices.ts": "ASSISTANT_NOTICES_PART",
     "assistant-materials.ts": "ASSISTANT_MATERIALS_PART",
     "assistant-composer.ts": "ASSISTANT_COMPOSER_PART",

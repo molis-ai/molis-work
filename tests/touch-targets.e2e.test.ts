@@ -55,12 +55,11 @@ const KINDS: Record<string, string> = {
   "[data-assistant-composer] [data-composer-stop]": "stop",
   // The foot (specs/screen-polish §4「底栏第十三版」第 2、3、5 条; the line's head, wings and paging are gone): the account bar's
   // name and its keys; inside the input's top right while the dialog is closed, 办完 · 在办 · 接下来 (and 该你 N under 960px), an
-  // event a reply belongs to, the task mark and the button that opens the conversation; the answers on the card in front.
+  // event a reply belongs to and the button that opens the conversation; the answers on the card in front.
   ".bar-account-me": "account",
   ".bar-account-key": "account key",
   ".work-count": "line count",
   ".work-event": "line event",
-  ".work-task-mark": "task mark",
   "[data-dialog-open]": "open conversation",
   "[data-work-stack] button": "stack card",
 };
@@ -278,18 +277,17 @@ const STRIP_MENUS = `(async () => {
   return out;
 })()`;
 
-/** The tab bar of the opened Assistant panel, opened from the receiver's name on the composer (a current work is the state that has one). */
+/** The one line over the opened conversation (what is being talked about, and its keys), opened from the expand key inside the input. */
 type PanelHeader = { shown: boolean; height: number; title: number; whole: boolean; controls: Array<{ label: string; w: number; h: number; inside: boolean }> };
 const PANEL_HEADER = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector("[data-reply-mini] [data-dialog-open]")?.click(); await wait(800);
-  const panel = document.querySelector("[data-assistant-panel]"), bar = panel.querySelector(".assistant-tabbar"), box = panel.getBoundingClientRect();
-  const controls = [...bar.querySelectorAll("button, [role=tab]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => {
-    // The tabs slide in their own box (specs/work-line §4.4): one that is slid out of view is cut by that box, which is what must stay inside.
-    const b = el.getBoundingClientRect(), at = (el.closest("[data-assistant-tabs]") ?? el).getBoundingClientRect();
+  document.querySelector("[data-work-counts] [data-dialog-open]")?.click(); await wait(800);
+  const panel = document.querySelector("[data-assistant-panel]"), bar = panel.querySelector("[data-assistant-head]"), box = panel.getBoundingClientRect();
+  const controls = [...bar.querySelectorAll(".assistant-head-actions > button")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => {
+    const at = el.getBoundingClientRect(), b = at;
     return { label: el.getAttribute("aria-label") || String(el.className).split(" ")[0], w: Math.round(b.width), h: Math.round(b.height), inside: at.left >= box.left - 1 && at.right <= box.right + 1 };
   });
-  const title = panel.querySelector(".assistant-tab[data-current] .assistant-tab-title");
+  const title = panel.querySelector("[data-assistant-head-title]");
   const out = { shown: !panel.hidden, height: Math.round(bar.getBoundingClientRect().height), title: title ? Math.round(title.clientWidth) : 0, whole: !!title && title.scrollWidth <= title.clientWidth + 1, controls };
   panel.querySelector("[data-assistant-panel-close]").click(); await wait(200);
   return out;
@@ -321,7 +319,7 @@ const PANEL_HOST_CONTROLS = assistantTextHtml('[link](https://example.test) 「�
   options: [{ value: 'one', label: '继续整理' }], allows_free_text: true }, text => text);
 const PANEL_BODY = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector("[data-reply-mini] [data-dialog-open]")?.click(); await wait(800);
+  document.querySelector("[data-work-counts] [data-dialog-open]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]");
   const sizes = (root) => [...root.querySelectorAll("button, summary, a[href], input, select, textarea, [role=tab]")]
     .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[data-test-made]"))
@@ -330,7 +328,10 @@ const PANEL_BODY = `(async () => {
   const real = {};
   if (panel.dataset.side !== "open") panel.querySelector("[data-assistant-side-toggle]").click();
   await wait(500);
-  real["the details"] = sizes(panel.querySelector("[data-assistant-side]"));
+  // The details of the work (its blocks and actions) open over the information column from 更多 › 详情 (36A-3).
+  panel.querySelector("[data-info-details-open]").click(); await wait(400);
+  real["the details"] = sizes(panel.querySelector("[data-info-details]"));
+  panel.querySelector("[data-info-details-close]").click(); await wait(200);
   panel.querySelector("[data-assistant-works-toggle]").click(); await wait(300);
   real["all works"] = sizes(panel.querySelector("[data-assistant-works]"));
   panel.querySelector("[data-assistant-works-toggle]").click(); await wait(200);
@@ -808,17 +809,18 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(await w.shellFindings(), [], `a new work · ${width}: the bar lays out cleanly with 44px controls`);
     }
     await w.makeCurrentWork();
-    // The opened Assistant panel's tab bar (the work's tab and its close mark, new work, all works, details, minimize) is a row of 44px
-    // targets that stays inside the panel and leaves the tab a title, at the phones' widths, held sideways and on a tablet.
+    // POLISH-18 (as rewritten): the keys at the right of the conversation's one line (the information column's key at the widths
+    // where it is a drawer, maximise, more, close) are 44px targets that stay inside the panel and leave the name room, at the
+    // phones' widths, held sideways and on a tablet.
     for (const [width, height] of [[320, 568], [360, 740], [390, 844], [852, 393], [1024, 768]] as const) {
       await w.open(width, height, "", "true");
       const header = await w.panelHeader();
       assert.equal(header.shown, true, `the panel opens from 展开对话, above the input, at ${width}`);
-      assert.ok(header.controls.length >= 5, `the panel's tab bar has its tab, close mark and four buttons at ${width} (${JSON.stringify(header.controls)})`);
+      assert.ok(header.controls.length >= 2, `the conversation's line has more and close at least at ${width} (${JSON.stringify(header.controls)})`);
       assert.deepEqual(header.controls.filter(control => Math.min(control.w, control.h) < 44).map(control => `${control.label} ${control.w}×${control.h}`), [], `panel header · ${width}: every control is a 44px target`);
       assert.deepEqual(header.controls.filter(control => !control.inside).map(control => control.label), [], `panel header · ${width}: and none leaves the panel`);
-      // The main conversation's tab is named by who is spoken to (specs/work-line §4.4): a short name shown whole is room enough.
-      assert.ok(header.title >= 40 || header.whole, `panel header · ${width}: the current tab keeps room for a title (${header.title}px)`);
+      // The line names what is being talked about: a short name shown whole is room enough.
+      assert.ok(header.title >= 40 || header.whole, `panel header · ${width}: the name keeps room (${header.title}px)`);
     }
     // The opened panel's body is 44px too: the details of the work (its blocks, actions and the hint to add a file), the list of all works,
     // and each kind of control the island can put into a thread or into the details of a work. A kind this test has not seen the
@@ -937,20 +939,29 @@ for (const scheme of ["light", "dark"] as const) {
     await w.open(1280, 800, "", "true");
     await w.carriedByCoding();
     await w.line("a new work Coding carries · 1280", [], NEW_WORK_KINDS, floors.bar);
-    // Escape puts away what a button of the composer or foot opened and gives it focus back: the "+" menu, the notices, and the work list.
+    // Escape puts away what a button of the composer or foot opened and gives it focus back: the "+" menu and the notices.
     for (const [name, button, popover] of [["the + menu", "[data-assistant-composer] [data-composer-add]", "[data-assistant-composer] .mw-composer__start [data-compose-menu]"],
-      ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"],
-      ["the work list", "[data-work-list='done']", "[data-work-lists]"]] as const) {
+      ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"]] as const) {
       if (name === "the notices") await w.evaluate(showChips(["[data-assistant-attention]"]));
       assert.deepEqual(await w.escapeReturns(button, popover), { opened: true, closed: true, focus: true, onButton: true }, `${name} · 1280: Escape closes it and focus goes back to its button`);
     }
+    // A list opens in the information column from its key inside the input; there Escape goes back to 信息, with focus on its tab (WLN-17).
+    assert.deepEqual(await w.evaluate(`(async () => {
+      const lists = document.querySelector("[data-work-lists]"); document.querySelector("[data-work-list='done']").click(); await new Promise((resolve) => setTimeout(resolve, 250));
+      const opened = !lists.hidden && !document.querySelector("[data-assistant-panel]").hidden;
+      document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); await new Promise((resolve) => setTimeout(resolve, 60));
+      return { opened, closed: lists.hidden, focus: document.activeElement === document.querySelector('[data-info-tab="info"]') };
+    })()`), { opened: true, closed: true, focus: true }, "the work list · 1280: Escape goes back to 信息 and focus goes to its tab");
     await w.makeCurrentWork();
     await w.open(1280, 800, "", "true");
     await w.line("a current work · 1280", [], ["work chip clear"], floors.bar);
     await w.line("a current work with a notice · 1280", ["[data-assistant-attention]"], WITH_NOTICE, floors.bar);
     // The opened panel's body is where the touch rules end: with a fine pointer its details and conversation controls keep the denser
-    // sizes they have on a desktop (the 22–28px ones are the known gap BL-127), and what is long or wide enough to read is not stretched.
+    // sizes they have on a desktop, and what is long or wide enough to read is not stretched. Those sizes are on the compact floor,
+    // 28px (BL-127, closed with 36A-3); the copy keys keep their 22px look and take the rest of the 28px around it (their ::after).
     const panel = await w.panelBody();
+    assert.deepEqual([...panel.real["the details"], ...panel.made].filter(item => /assistant-(segment|side-action|control)\b/.test(item.cls) && item.h < 28).map(item => `${item.cls} ${item.w}×${item.h}`), [],
+      "1280: BL-127 — the conversation's segments, detail actions and controls are at least 28px with a fine pointer");
     assert.deepEqual(panel.real["the details"].filter(item => /assistant-side-action/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: the panel's details keep their desktop sizes with a fine pointer");
     assert.deepEqual(panel.made.filter(item => /assistant-(copy|segment|side-action|code-copy)\b/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: and so do the conversation's own small buttons");
     assert.ok(panel.real["all works"].filter(item => /assistant-works-new/.test(item.cls)).every(item => item.h < 44), "1280: the list of all works keeps its desktop rows (the one-line row is not 44px)");

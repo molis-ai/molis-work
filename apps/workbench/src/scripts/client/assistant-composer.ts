@@ -130,24 +130,26 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [{ slash: readText("workbench.settings-agent-diagnostics.materials"), icon: "paperclip", label: readText("workbench.assistant-composer.choose-project-knowledge"), hint: readText("workbench.assistant-composer.several-once-their-text-goes-assistant"),
       run: () => emit(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + uuid(), max: 10 } })) }] : []),
   ];
-  /** Who the next Send goes to: the work in front, named by its place first when that is not this page (#1919); else a new work. */
+  /** Who the next Send goes to: the work in front, or a new work — 助理 by default (POLISH-11: this page's own place is never said); a place is named first only when it is not this page's (#1919), so words typed here are not filed elsewhere unseen. */
   const receiverNow = () => {
     const work = getWork();
     // With a page in front that takes words, the tag opens 「发给」 (O4), so the person can go back to it.
     const open = globalThis.molisBarReceivers?.front() || (project && host.lineEvents) ? openSendTo : openConversation;
-    // A new work names where it will be put first (this project, or personal), so a personal request typed on a project page is not filed there unseen.
-    const place = scopeLabel(nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" });
+    // A new work that will not be put in this page's place (a personal one typed on a project page) names where it goes first.
+    const place = project && nextScope !== "project" ? scopeLabel({ kind: "personal" }) + " · " : "";
     // An event's tab in front: the words are about that event (WLN-03); the cross goes back to now.
     const about = eventOf();
     if (about && !work?.reply_target) return { open, icon: "sparkles", label: about.title, reset: () => { void switchTo(null); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
-    if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : nextChar ? nextChar.title : readText("workbench.common.assistant")),
+    if (!work) return { open, icon: "sparkles", label: place + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : nextChar ? nextChar.title : readText("workbench.common.assistant")),
       ...(nextChar && !fresh ? { reset: () => { void talkTo(null); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") } : {}) };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
     // With a page in front that takes words, say plainly that this Send goes to the Assistant, not to that page.
     const to = globalThis.molisBarReceivers?.front() ? readText("workbench.common.assistant") + " · " : "";
+    // The main conversation is named by who it is with (助理, or the Character); 另起一件 is in the conversation's own menu, so its tag has no cross.
+    if (work.main && !work.reply_target) return { open, icon: "sparkles", label: (where ? where + " · " : "") + (work.character?.title || readText("workbench.common.assistant")) };
     return { open, icon: "sparkles", label: to + (work.reply_target ? readText("workbench.assistant-composer.original-comment-title", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title),
       // Words carried from this work into a new one are no longer this work's draft: they would come back on returning to it.
-      // The cross starts a separate new work (its label says so), the main conversation's included: 「现在」 would only lead back here.
+      // The cross starts a separate new work (its label says so).
       reset: () => { const from = curId, carried = String(input.value || ""); void Promise.resolve(startFresh()).then(() => {
         if (from && carried.trim() && String(input.value || "") === carried) void draftFor(from).write("").catch(() => undefined); }); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
   };
@@ -188,13 +190,15 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /* One input (unified-input-voice §10.3, O2): a framed page in front that takes words (Coding's session) is the receiver; the
      bar mounts the composer on its options, and the Assistant's own parts around the box step aside while it is. */
   let boundPage = null, declined = null;
-  // With the Assistant's thread open (or staged in its tab) the person is looking at it: the bar stays the Assistant's. So it does on
-  // a page the person chose the Assistant over in 「发给」, until they pick the page again or another page comes to the front.
+  // Staged in its own tab the Assistant is what the person is looking at: the bar stays the Assistant's. So it does on a page the
+  // person chose the Assistant over (「发给」, 改成问助理, an event or a conversation opened here), until they pick the page again or
+  // another page comes to the front. With the page as the receiver the conversation column does not repeat the page's conversation.
   const pageInFront = () => {
     const page = globalThis.molisBarReceivers?.front() || null;
     if (declined && page !== declined) declined = null;
-    return (panel && !panel.hidden) || !page || page === declined ? null : page;
+    return !page || page === declined ? null : page;
   };
+  function askAssistant() { const page = globalThis.molisBarReceivers?.front() || null; if (page && declined !== page) { declined = page; syncComposer(); drawHead(); } }
   // Closing the Assistant hands the bar back to the page in front, even one the person had chosen the Assistant over.
   if (panel) new MutationObserver(() => { if (panel.hidden) declined = null; syncComposer(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
@@ -260,7 +264,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   let refreshComposerWords = assistantInputName;
   const mountPage = (target) => {
     mountedFor = target.key; boundPage = target; draftHere = null; painted = "";
-    island.dataset.receiver = "page"; input.readOnly = false; input.placeholder = target.placeholder;
+    island.dataset.receiver = "page"; drawHead(); input.readOnly = false; input.placeholder = target.placeholder;
     // The page's own words, with the bar's where it gave none; its options are read live (getters kept), only the words are filled.
     const options = Object.defineProperties({}, Object.getOwnPropertyDescriptors(target.options));
     const labels = options.labels = {};
@@ -276,7 +280,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     target.bind(composer, input, refreshComposerWords, () => pageInFront() === target);
   };
   const mountComposer = () => {
-    island.removeAttribute("data-receiver"); paintAim(false);
+    island.removeAttribute("data-receiver"); drawHead(); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();
     mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
@@ -461,5 +465,10 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const [worksOpen, notices] = popovers();
     if (put(worksOpen)) return;
     if (island.contains(event.target) && panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
-    put(notices);
+    if (put(notices)) return;
+    // Then the conversation itself (innermost first: a menu, a list, the float — each takes its own Esc before this — maximise, the conversation).
+    if (!panel || panel.hidden || !island.contains(event.target)) return;
+    stop();
+    if (presentation?.on) { presentation.set(false); island.querySelector("[data-assistant-expand]")?.focus(); }
+    else { setPanel(false); input.focus(); }
   });`;

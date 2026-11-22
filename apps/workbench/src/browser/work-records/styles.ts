@@ -8,7 +8,7 @@ const PAGE_STYLES = `
   .wr-block > section { display: grid; gap: 8px; min-width: 0; }
   .wr-block h2 { margin: 0; font-size: 13px; font-weight: var(--weight-title, 600); color: var(--ink); }
   .wr-block .wr-sub { margin: 0; font-size: 12px; color: var(--muted); }
-  :where(.wr-page) .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, var(--r-control)); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  :where(.wr-page) .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-control); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
   :where(.wr-page) .mw-mark svg { width: 16px; height: 16px; }
   .wr-page .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-width: 0; margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper); }
   .wr-page .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--r-row); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }

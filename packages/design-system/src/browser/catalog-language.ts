@@ -31,29 +31,69 @@ function measureContrast(): void {
   }
 }
 
-/** The find field narrows the index to the names that hold what was typed; a chapter with nothing left steps aside. */
+/** The find field and chapter chips narrow the index; a chapter with nothing left steps aside. */
 function wireFind(): void {
   const field = document.querySelector<HTMLInputElement>("[data-catalog-find]");
   const index = field?.closest("[data-catalog-index]");
-  if (!field || !index) return;
+  if (!field || !index) {
+    return;
+  }
+  const chips = all<HTMLButtonElement>("[data-catalog-chapter]", index);
+  let activeChapter = "";
   const apply = () => {
     const wanted = field.value.trim().toLowerCase();
-    let shown = 0, heading: HTMLElement | undefined, inGroup = 0;
-    const close = () => { if (heading) heading.hidden = inGroup === 0; };
+    let shown = 0;
+    let heading: HTMLElement | undefined;
+    let currentChapter = "";
+    let inGroup = 0;
+    const close = () => {
+      if (heading) {
+        heading.hidden = inGroup === 0;
+      }
+    };
     for (const node of all(":scope > a, :scope > [data-catalog-group]", index)) {
-      if (node.hasAttribute("data-catalog-group")) { close(); heading = node; inGroup = 0; continue; }
-      const hit = !wanted || [node.textContent, node.getAttribute("title"), node.getAttribute("href")].some(text => text?.toLowerCase().includes(wanted));
+      if (node.hasAttribute("data-catalog-group")) {
+        close();
+        heading = node;
+        currentChapter = node.textContent?.trim() ?? "";
+        inGroup = 0;
+        continue;
+      }
+      const inChapter = !activeChapter || currentChapter === activeChapter;
+      const matchesText = !wanted || [node.textContent, node.getAttribute("title"), node.getAttribute("href")].some(text => text?.toLowerCase().includes(wanted));
+      const hit = inChapter && matchesText;
       node.hidden = !hit;
-      if (hit) { shown += 1; inGroup += 1; }
+      if (hit) {
+        shown += 1;
+        inGroup += 1;
+      }
     }
     close();
     const none = index.querySelector<HTMLElement>("[data-catalog-none]");
-    if (none) none.hidden = shown > 0;
+    if (none) {
+      none.hidden = shown > 0;
+    }
   };
+  for (const chip of chips) {
+    chip.addEventListener("click", () => {
+      activeChapter = chip.dataset.catalogChapter ?? "";
+      for (const item of chips) {
+        const on = item === chip;
+        item.classList.toggle("is-active", on);
+        item.setAttribute("aria-pressed", String(on));
+      }
+      apply();
+    });
+  }
   field.addEventListener("input", apply);
   field.addEventListener("keydown", event => {
-    if (event.key === "Enter") index.querySelector<HTMLElement>(":scope > a:not([hidden])")?.click();
-    if (event.key === "Escape" && field.value) { field.value = ""; apply(); }
+    if (event.key === "Enter") {
+      index.querySelector<HTMLElement>(":scope > a:not([hidden])")?.click();
+    }
+    if (event.key === "Escape" && field.value) {
+      field.value = "";
+      apply();
+    }
   });
 }
 

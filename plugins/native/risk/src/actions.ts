@@ -4,7 +4,7 @@ import { ActionError, ACTION_SUBJECT_SCHEMA, bindActionHandler, type ActionCallC
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { riskErrors } from "./error.js";
 import { RISK_KIND } from "./identity.js";
-import { RISK_LIMITS, type RiskEvent, type RiskLink, type RiskRecord, type RiskRow } from "./model.js";
+import { RISK_LIMITS, RISK_REFERENCE_LIMITS, type RiskEvent, type RiskLink, type RiskRecord, type RiskRow } from "./model.js";
 import { archiveRiskReviews, createRiskReviewHandlers } from "./review.js";
 import { RISK_PAGE, type RiskStore } from "./store.js";
 
@@ -16,7 +16,7 @@ const revision = { type: "integer", minimum: 1 } as const;
 const level = { enum: ["high", "medium", "low"] } as const;
 const status = { enum: ["open", "mitigating", "accepted", "closed"] } as const;
 const timestamp = { type: "string" } as const;
-const subject = object({ kind: { ...id, maxLength: 100 }, id: { ...id, maxLength: 400 } });
+const subject = object({ kind: { ...id, maxLength: RISK_REFERENCE_LIMITS.kind }, id: { ...id, maxLength: RISK_REFERENCE_LIMITS.id } });
 
 const riskFields = { risk_id: id, title: text(RISK_LIMITS.title), statement: text(RISK_LIMITS.statement), impact: level, likelihood: level,
   treatment: text(RISK_LIMITS.treatment), owner_name: nullableSchema(text(RISK_LIMITS.owner_name)), status, revision, created_by: id,

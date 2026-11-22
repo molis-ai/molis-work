@@ -48,6 +48,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // token of the 16 whole pages lies inside the bar (`data-assistant-island` and the work line beside it), a uniform -3154 (zh) /
 // -3134 (en) characters; the Goals content, JSON blocks and the other 50 records are byte for byte the same. The 16 were then
 // recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 91-0b (#2222, Decision 60) adds the global↔project scope switch (`settings-scope-switch`) and real-time sidebar filter
+// (`[data-settings-nav-filter]` / `[data-settings-nav-empty]`) in standalone & drawer settings navigation (shifting all 8 `page-*.zh`
+// records uniformly by +1246, all 8 `page-*.en` by +1360, all 3 standalone `settings-*.zh` by +496, and all 3 standalone `settings-*.en`
+// by +553; all 24 `refresh-*`, `momentum-*`, and `document-*` records and all 6 `settings-*-embedded.*` records remain byte-for-byte identical).
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

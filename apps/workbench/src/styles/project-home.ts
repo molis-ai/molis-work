@@ -60,6 +60,6 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + FIRST_PAGE_STYLES 
   .home-offers-result pre { overflow-wrap: anywhere; white-space: pre-wrap; }
   .home-peek__bar { display: flex; justify-content: end; margin-block-end: .4rem; }
   @media (max-width: 600px), (pointer: coarse) {
-    .home-peek { inset: auto 0 0; margin: 0; inline-size: 100%; max-inline-size: none; max-block-size: 90dvh; border-radius: var(--sk-r-card, var(--r-sheet)) var(--sk-r-card, var(--r-sheet)) 0 0; }
+    .home-peek { inset: auto 0 0; margin: 0; inline-size: 100%; max-inline-size: none; max-block-size: 90dvh; border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
   }
 `;

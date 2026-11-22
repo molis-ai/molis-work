@@ -26,9 +26,6 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   const type = async (selector: string, value: string) => {
     await evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.focus(); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event("input", { bubbles: true })); })()`);
   };
-  const change = async (selector: string, value: string) => {
-    await evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event("change", { bubbles: true })); })()`);
-  };
   const rowOf = (title: string) => `[data-todo-row="${byTitle(title)!.id}"]`;
   const noOverflow = async () => assert.ok((await browser.evaluate("document.documentElement.scrollWidth <= window.innerWidth") && await evaluate("document.documentElement.scrollWidth <= window.innerWidth")), "页面不应横向滚动");
 
@@ -105,14 +102,30 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   // Detail: waiting on someone, a due date and notes save as the person types; history records it as theirs.
   await click(`${rowOf("给王总回电话")} [data-todo-id]`);
   await waitFor("!document.querySelector('[data-todo-stage-workspace]').hidden && document.querySelector('[data-todo-field=title]').value === '给王总回电话'");
-  await click("[data-todo-status=waiting]");
-  await waitFor("!document.querySelector('[data-todo-waiting]').hidden");
+  // One filled button on the screen, and it is 完成; the status is a chip whose menu holds the other statuses.
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-todo-stage-workspace] .mw-btn--primary')].filter(node => node.getClientRects().length).map(node => node.textContent.trim())"), ["完成"]);
+  assert.equal(await evaluate("document.querySelector('[data-todo-state-name]').textContent"), "待处理");
+  await click('[data-todo-pop-open="status"]');
+  await waitFor("!document.querySelector('[data-todo-pop=status]').hidden && document.querySelector('[data-todo-pop-open=status]').getAttribute('aria-expanded') === 'true'");
+  assert.equal(await evaluate("document.querySelector('[data-todo-pop=status] [aria-checked=true]').dataset.todoStatus"), "open");
+  await click("[data-todo-pop=status] [data-todo-status=waiting]");
+  // Who is being waited for is asked at once: the block arrives and the caret is in it.
+  await waitFor("!document.querySelector('[data-todo-waiting]').hidden && document.activeElement?.matches(\"[data-todo-field='waiting.who']\")");
+  assert.equal(await evaluate("document.querySelector('[data-todo-pop=status]').hidden"), true, "a choice closes the menu");
   await type("[data-todo-field='waiting.who']", "王总");
   await type("[data-todo-field='waiting.what']", "回电时间");
-  await change("[data-todo-field=planned_date]", byTitle("给王总回电话")!.due_date!);
+  // Dates are picked in the page's own popover (no system date control): the row opens it, a choice takes effect at once.
+  assert.equal(await evaluate("document.querySelectorAll('[data-todo-stage-workspace] :is(input[type=date], input[type=time], input[type=datetime-local], select)').length"), 0);
+  assert.equal(await evaluate("document.querySelector('[data-todo-prop-value=planned]').textContent"), "未定");
+  await click('[data-todo-pop-open="planned"]');
+  await waitFor("!document.querySelector('[data-todo-pop=date]').hidden");
+  await click(`[data-todo-date-quick="${byTitle("给王总回电话")!.due_date!}"]`);
+  await waitFor("document.querySelector('[data-todo-pop=date]').hidden && document.querySelector('[data-todo-prop-value=planned]').textContent.startsWith('明天')");
+  assert.match(String(await evaluate("document.querySelector('[data-todo-facts]').textContent")), /明天 截止.*还有 1 天.*计划明天做/u);
   await type("[data-todo-field=notes]", "先确认方案版本");
-  await waitFor(`(() => { const s = document.querySelector('[data-todo-save-status]').textContent; return s === '等待他人'; })()`);
-  await waitFor("document.querySelector('[data-todo-history]').textContent.includes('你改了')");
+  await waitFor("document.querySelector('[data-todo-save-status]').textContent === '已保存' && document.querySelector('[data-todo-state-name]').textContent === '等待他人'");
+  await waitFor("document.querySelector('[data-todo-history]').textContent.includes('你改了') && document.querySelector('[data-todo-history-summary]').textContent.includes('最近：你改了')");
+  assert.equal(await evaluate("document.querySelector('[data-todo-history-fold]').open"), false, "the history is one line until opened");
   const waiting = byTitle("给王总回电话")!;
   assert.equal(waiting.status, "waiting");
   assert.deepEqual([waiting.waiting?.who, waiting.waiting?.what], ["王总", "回电时间"]);
@@ -122,9 +135,10 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   await screenshot("detail");
 
   // Relation between two todos, read from both ends.
-  await change("[data-todo-link-target]", byTitle("交周报")!.id);
-  await click("[data-todo-link-add]");
-  await waitFor("document.querySelector('[data-todo-links]').textContent.includes('交周报')");
+  await click('[data-todo-pop-open="link"]');
+  await waitFor("!document.querySelector('[data-todo-pop=link]').hidden && document.activeElement?.matches('[data-todo-link-search]')");
+  await click(`[data-todo-link-pick="${byTitle("交周报")!.id}"]`);
+  await waitFor("document.querySelector('[data-todo-links]').textContent.includes('要等它先完成交周报') && document.querySelector('[data-todo-pop=link]').hidden");
 
   // Delete asks first and cannot be undone.
   await click("[data-todo-delete]");

@@ -52,6 +52,8 @@ function bundledAppearanceFile(route: string): { body: string | Buffer; contentT
     }
     case "/assets/inter-latin-variable.woff2":
     case "/assets/noto-sans-sc-400.woff2":
+    case "/assets/noto-sans-sc-500-common.woff2":
+    case "/assets/noto-sans-sc-600-common.woff2":
     case "/assets/folio-nunito-latin.woff2":
     case "/assets/folio-rounded-400-common.woff2":
     case "/assets/folio-rounded-400-tail.woff2":

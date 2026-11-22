@@ -81,9 +81,9 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-file-row:hover .mw-file-row__x, .mw-file-row:focus-within .mw-file-row__x, .mw-file-row__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-row__x { opacity: 1; } }
   .mw-file-row.is-todo { grid-template-columns: minmax(0, 1fr) auto; }
   .mw-file-list.is-receipts { padding-left: 0; margin-top: 12px; }
-  .mw-file-kind { display: inline-grid; place-items: center; flex: none; min-width: 34px; height: 18px; padding: 0 5px; border-radius: 6px; font-size: 11px; font-weight: var(--weight-title, 600); letter-spacing: .02em; background: color-mix(in srgb, var(--mark-text, var(--ink-soft)) 12%, transparent); color: var(--mark-text, var(--ink-soft)); }
-  .mw-file-kind--pdf { background: color-mix(in srgb, var(--mark-pdf, var(--red)) 12%, transparent); color: var(--mark-pdf, var(--red)); }
-  .mw-file-kind--doc, .mw-file-kind--docx { background: color-mix(in srgb, var(--mark-link, var(--accent)) 12%, transparent); color: var(--mark-link, var(--accent)); }
+  .mw-file-kind { display: inline-grid; place-items: center; flex: none; min-width: 34px; height: 18px; padding: 0 5px; border-radius: 6px; font-size: 11px; font-weight: var(--weight-title, 600); letter-spacing: .02em; background: color-mix(in srgb, var(--mark-slate, var(--ink-soft)) 12%, transparent); color: var(--mark-slate, var(--ink-soft)); }
+  .mw-file-kind--pdf { background: color-mix(in srgb, var(--mark-clay, var(--red)) 12%, transparent); color: var(--mark-clay, var(--red)); }
+  .mw-file-kind--doc, .mw-file-kind--docx { background: color-mix(in srgb, var(--mark-blue, var(--accent)) 12%, transparent); color: var(--mark-blue, var(--accent)); }
   .mw-file-group .mw-status { font-size: 12px; }
 
   /* The checkbox's mixed state: only some of a group's files are chosen. */

@@ -1,15 +1,15 @@
 import { BASELINE_FONT, BASELINE_FONT_FACES, baselineFontRoute, baselinePackageFile } from "./baseline.js";
 import { renderFontScope, renderMonoScope } from "./appearance-tokens.js";
 
-/** Same-origin font files served by local-host. Offline fallbacks only; the platform's own sans comes first. */
+/** Same-origin font files served by local-host. Bundled Inter Variable + Noto Sans SC 400/500/600 (F1). */
 export const INTER_VARIABLE_ASSET_PATH = baselineFontRoute("font.inter-latin-variable");
 export const NOTO_SANS_SC_ASSET_PATH = baselineFontRoute("font.noto-sans-sc-400");
+export const NOTO_SANS_SC_500_ASSET_PATH = baselineFontRoute("font.noto-sans-sc-500-common");
+export const NOTO_SANS_SC_600_ASSET_PATH = baselineFontRoute("font.noto-sans-sc-600-common");
 
 /**
- * Soft Workbench type: the platform's system sans with its own Chinese face — SF and PingFang on
- * Apple, Segoe UI and Microsoft YaHei on Windows. Bundled Inter Variable covers Latin where no
- * system sans is found; the bundled Noto Sans SC (Regular only) is the last offline Chinese
- * fallback, after every system CJK face, so real weights win wherever they exist. Written in `resources/fonts/system-sans.json`.
+ * Default Sans + CJK stack (F1): bundled variable Latin + real 400/500/600 Chinese outlines,
+ * falling back cleanly to platform CJK & sans faces for rare glyphs. Written in `resources/fonts/system-sans.json`.
  */
 export const FONT_STACK = BASELINE_FONT.tokens.font!;
 
@@ -25,11 +25,19 @@ export function notoSansScFontFilePath(): string {
   return baselinePackageFile("font.noto-sans-sc-400");
 }
 
+export function notoSansSc500FontFilePath(): string {
+  return baselinePackageFile("font.noto-sans-sc-500-common");
+}
+
+export function notoSansSc600FontFilePath(): string {
+  return baselinePackageFile("font.noto-sans-sc-600-common");
+}
+
 /**
  * Last in every product stylesheet: the face, the weight roles and the type texture.
  * Body copy 400, controls and item titles 500, headings 600. Nothing forces a weight with
  * `!important`; components state their role through `--weight-*` and the shared primitives.
- * Weight is never synthesised, so a face that only ships Regular stays clean instead of smeared.
+ * Weight is never synthesised, so real 400/500/600 outlines stay crisp instead of smeared.
  */
 export const TYPEFACE_STYLES = `
 ${BASELINE_FONT_FACES}
@@ -38,9 +46,13 @@ ${BASELINE_FONT_FACES}
   html, body {
     font-family: var(--font);
     font-weight: var(--weight-body);
+    line-height: var(--type-body-line-height, 1.58);
     letter-spacing: var(--tracking-body);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-autospace: normal;
     font-synthesis-weight: none;
   }
+  :where(html:lang(en), [lang="en"], [lang^="en-"]) { letter-spacing: -0.011em; }
   :where(h1, h2, h3, h4, h5, h6) { font-family: var(--type-title-font); font-weight: var(--weight-title); letter-spacing: var(--tracking-title); }
   :where(h1) { letter-spacing: var(--tracking-display); }
   :where(strong, b, th, dt) { font-weight: var(--weight-control); }
@@ -48,5 +60,5 @@ ${BASELINE_FONT_FACES}
   :where(input, textarea, select, option) { font-weight: var(--weight-body); }
   :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
   :where(.mw-reading-text, .mw-look-proof__read) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }
-  :where(time) { font-variant-numeric: tabular-nums; }
+  :where(time, data, .mw-num) { font-variant-numeric: tabular-nums; }
 `;

@@ -24,17 +24,26 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
   }
   if (request.method !== "GET") return false;
   // The board's own language switch (`?lang=`) changes this page only, never the Home's language; without it, the Home's.
-  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), appearance?.current(), t.text("workbench.composer.next-boundary")));
-  const page = url.pathname === "/__ui/catalog" ? () => board(isWebLocale(lang) ? lang : currentLocale())
-    : url.pathname === "/__ui/catalog/bar" ? renderMolisWorkBarSpecimen
-      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), catalogSheet(url.searchParams.get("sheet"))))
-      : url.pathname === "/__ui/catalog/conditions" ? () => {
-        const options = parseConditionFrame(url.searchParams);
-        return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { readText, htmlLang }));
-      } : url.pathname === "/__ui/catalog/assistant" ? () => {
-        const options = parseAssistantFrame(url.searchParams);
-        return runWithLocale(options.lang, () => renderMolisWorkAssistantSpecimen(options, { readText, htmlLang, samples: drawnSamples(options.text) }));
-      } : null;
+  const currentAppearance = appearance?.current();
+  const lang = url.searchParams.get("lang");
+  const board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), currentAppearance, t.text("workbench.composer.next-boundary")));
+  const page = url.pathname === "/__ui/catalog"
+    ? () => board(isWebLocale(lang) ? lang : currentLocale())
+    : url.pathname === "/__ui/catalog/bar"
+      ? () => renderMolisWorkBarSpecimen(currentAppearance)
+      : url.pathname === "/__ui/catalog/navigation"
+        ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), catalogSheet(url.searchParams.get("sheet")), currentAppearance))
+        : url.pathname === "/__ui/catalog/conditions"
+          ? () => {
+              const options = parseConditionFrame(url.searchParams);
+              return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { readText, htmlLang }, currentAppearance));
+            }
+          : url.pathname === "/__ui/catalog/assistant"
+            ? () => {
+                const options = parseAssistantFrame(url.searchParams);
+                return runWithLocale(options.lang, () => renderMolisWorkAssistantSpecimen(options, { readText, htmlLang, samples: drawnSamples(options.text) }, currentAppearance));
+              }
+            : null;
   if (!page) return false;
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": pageCsp });
   response.end(page());

@@ -109,7 +109,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |
-| `work-brief/work-brief.db` | Work Brief owner：`plugins/native/work-brief/src/database.ts`（`WORK_BRIEF_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半与 Home 半共用一个库，项目的行由 `project_rows` 随项目删除 | 1 · WAL | `briefs`、`brief_versions`、`brief_edits`、`brief_proposals`、`brief_next_marks`、`brief_requests` |
+| `work-brief/work-brief.db` | Work Brief owner：`plugins/native/work-brief/src/database.ts`（`WORK_BRIEF_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半与 Home 半共用一个库，项目的行由 `project_rows` 随项目删除 | 2 · WAL | `briefs`、`brief_versions`、`brief_edits`、`brief_proposals`、`brief_next_marks`、`brief_requests`、`brief_editor_versions`、平台同步日志 |
 
 Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当前把安装、发行物与安装隔离 KV 放在同一库，错版或结构不完整的库拒绝，不就地迁移或补表。基线、拒绝与保存重启见 `tests/home-store-baselines.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/issue-home-runtime.test.ts`。任何其他 Home 的 v1 数据仍须独立列出与演练后取得具体维护授权。以下是已有库的基线来源：
 

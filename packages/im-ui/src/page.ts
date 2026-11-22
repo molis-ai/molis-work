@@ -2,7 +2,7 @@ import type { UiFrameLanguage } from "@molis-ai/molis-work-contracts/platform/ui
 import { imPageWords, type ImReadText } from "./locale.js";
 import { IM_PACK_ID, standaloneImLanguage } from "./locale-owner.js";
 import { escapeHtml as escapeImText, icon, renderToast } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 const button = (action: string, label: string, glyph: Parameters<typeof icon>[0], extra = "") =>
   `<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm im-icon-button ${extra}" data-action="${action}" aria-label="${escapeImText(label)}" title="${escapeImText(label)}">${icon(glyph)}</button>`;
 function composer(kind: "group" | "thread", readText: ImReadText) {
@@ -18,7 +18,7 @@ export function renderImPage(options: { embedded?: boolean; locale?: string; lan
   const language = options.language ?? standaloneImLanguage(options.locale);
   const { projection, readText } = imPageWords(language);
   const data = JSON.stringify(projection).replaceAll("<", "\\u003c");
-  return `<!doctype html><html lang="${language.html_lang}" dir="${language.direction}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>${escapeImText(readText("im-ui.page.title"))}</title><link rel="stylesheet" href="/im/styles.css"><script type="application/json" id="${IM_PACK_ID}">${data}</script><script src="/im/client.js" defer></script></head>
+  return `<!doctype html><html lang="${language.html_lang}" dir="${language.direction}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>${escapeImText(readText("im-ui.page.title"))}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/im/styles.css"><script type="application/json" id="${IM_PACK_ID}">${data}</script><script src="/im/client.js" defer></script></head>
   <body>${renderIconSprite()}<main class="im-app${options.embedded ? " is-embedded" : ""}" data-im-app>
     <aside class="im-sidebar" aria-label="${escapeImText(readText("im-ui.room.past"))}"><div class="im-brand">${escapeImText(readText("im-ui.room.past"))}${button("rooms", (readText("im-ui.room.hide-directory")), "x")}</div><nav data-room-list></nav><div class="im-form-actions">${button("create-room", (readText("im-ui.room.create")), "plus")}${button("join", (readText("im-ui.room.join")), "link")}</div><div class="im-profile"><span class="im-avatar" data-own-avatar translate="no"></span><span data-own-name translate="no"></span><span data-connection role="status"></span></div></aside>
     <section class="im-welcome" data-welcome><div class="im-welcome-symbol">${icon("message")}</div><h1 data-welcome-title>${escapeImText(readText("im-ui.page.welcome"))}</h1><p data-welcome-copy>${escapeImText(readText("im-ui.page.welcome-description"))}</p><div data-welcome-body><p class="im-muted" role="status">${escapeImText(readText("im-ui.page.connecting"))}</p></div></section>

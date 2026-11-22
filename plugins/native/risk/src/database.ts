@@ -1,5 +1,7 @@
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
+const RISK_EDITOR_VERSIONS = "CREATE TABLE risk_editor_versions (risk_id TEXT PRIMARY KEY, revision INTEGER NOT NULL);";
+
 /**
  * Risk's tables in each project's library (`databases.project`, PG-020): the risks themselves, what each is linked to, and its
  * history. Only this plugin reads and writes them. A risk's reviews are not here: they are Schedule's tasks, found by the risk they
@@ -7,7 +9,8 @@ import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/p
  */
 export const RISK_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "risk",
-  version: /* @version database.risk_project_database */ 1,
+  version: /* @version database.risk_project_database */ 2,
+  upgrades: [{ from: 1, sql: RISK_EDITOR_VERSIONS }],
   schema: `
     CREATE TABLE IF NOT EXISTS risk_items (
       risk_id TEXT PRIMARY KEY,
@@ -44,6 +47,7 @@ export const RISK_PROJECT_DATABASE: PluginDatabaseDeclaration = {
       at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS risk_events_risk_idx ON risk_events(risk_id, at);
+    ${RISK_EDITOR_VERSIONS}
   `,
   read_permission: "storage:private",
   write_permission: "storage:private",

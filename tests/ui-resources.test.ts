@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { BASELINE_REGISTRY, INTER_VARIABLE_ASSET_PATH, interVariableFontFilePath, NOTO_SANS_SC_ASSET_PATH, notoSansScFontFilePath } from "@molis-ai/molis-work-design-system";
+import { BASELINE_REGISTRY, INTER_VARIABLE_ASSET_PATH, interVariableFontFilePath, NOTO_SANS_SC_500_ASSET_PATH, NOTO_SANS_SC_600_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH, notoSansSc500FontFilePath, notoSansSc600FontFilePath, notoSansScFontFilePath } from "@molis-ai/molis-work-design-system";
 import { inspectLocaleSet, parseLocalePack, parseUiLanguageCatalog } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The one table of what ships with the product (specs/font-and-skin-system/a-section-contract.md §1.3, §3.6). What a row says of a file, and that nothing ships without a row.
@@ -34,7 +34,7 @@ test("FSS-58 every row's file or directory is there", () => {
 
 test("FSS-58 a third party's binary matches the digest in its row and has its licence", () => {
   const binaries = RESOURCES.filter((row) => row.kind === "font" || row.kind === "asset");
-  assert.deepEqual(binaries.map((row) => row.id).sort(), ["font.inter-latin-variable", "font.noto-sans-sc-400", ...FOLIO_ASSET_IDS].sort());
+  assert.deepEqual(binaries.map((row) => row.id).sort(), ["font.inter-latin-variable", "font.noto-sans-sc-400", "font.noto-sans-sc-500-common", "font.noto-sans-sc-600-common", ...FOLIO_ASSET_IDS].sort());
   for (const row of binaries) {
     if (row.kind !== "font" && row.kind !== "asset") continue;
     const directory = directoryOf(row.package);
@@ -69,7 +69,7 @@ test("FSS-58 a row's route is the literal Local Host serves, which the page-asse
   const webAssets = readFileSync(path.join(ROOT, "apps/local-host/src/web-assets.ts"), "utf8");
   const routes = RESOURCES.flatMap((row) => row.route ?? []);
   const folioRoutes = FOLIO_ASSET_IDS.map(id => `/assets/${id.slice("font.".length)}.woff2`);
-  assert.deepEqual([...routes].sort(), [INTER_VARIABLE_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH, ...folioRoutes].sort());
+  assert.deepEqual([...routes].sort(), [INTER_VARIABLE_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH, NOTO_SANS_SC_500_ASSET_PATH, NOTO_SANS_SC_600_ASSET_PATH, ...folioRoutes].sort());
   for (const route of routes) assert.ok(webAssets.includes(`case "${route}":`), route);
 });
 
@@ -79,6 +79,8 @@ test("FSS-58 the two font rows keep Local Host off the path the release does not
   const fileOf = (id: string) => path.join(ROOT, directoryOf(RESOURCES.find((row) => row.id === id)!.package), RESOURCES.find((row) => row.id === id)!.path);
   assert.equal(interVariableFontFilePath(), fileOf("font.inter-latin-variable"));
   assert.equal(notoSansScFontFilePath(), fileOf("font.noto-sans-sc-400"));
+  assert.equal(notoSansSc500FontFilePath(), fileOf("font.noto-sans-sc-500-common"));
+  assert.equal(notoSansSc600FontFilePath(), fileOf("font.noto-sans-sc-600-common"));
   assert.doesNotMatch(readFileSync(path.join(ROOT, "packages/design-system/src/typeface.ts"), "utf8"), /\.woff2/u);
 });
 

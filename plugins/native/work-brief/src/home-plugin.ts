@@ -4,6 +4,7 @@ import { workBriefErrors } from "./error.js";
 import { workBriefManifest } from "./manifest.js";
 import { createPersonalHandlers } from "./personal.js";
 import { briefStores, newBriefId } from "./plugin.js";
+import { workBriefSyncBindings } from "./replication.js";
 
 /**
  * Work Brief's Home half: the personal brief. It opens the same library as the project halves with no project scope, and reaches a
@@ -14,7 +15,7 @@ export function createHomeWorkBriefPlugin(): PluginDefinition {
     for (const permission of workBriefManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, directory = context.services?.actions?.directory;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供简报库");
-    return { kind: "app", views: [], actions: createPersonalHandlers({ ...briefStores(database, null), now: () => new Date().toISOString(), newId: newBriefId,
+    return { kind: "app", views: [], sync: workBriefSyncBindings(context), actions: createPersonalHandlers({ ...briefStores(database, null), now: () => new Date().toISOString(), newId: newBriefId,
       directory: () => directory ?? (() => { throw workBriefErrors.unavailable("这里读不到个人范围的来源"); })() }) };
   } };
 }

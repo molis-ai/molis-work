@@ -3,28 +3,44 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Mutex,
+};
 use std::time::{Duration, Instant};
 
 const REFUSED: &str = "本地服务身份验证失败";
 const MAX_HEAD: usize = 8192;
 const MAX_BODY: usize = 4096;
 /// Short lease reused only by explicitly allowlisted low-risk UI IPC commands (`S-14`).
-/// Invalidated immediately on any health failure, port change, Host stop, rollback, or exit.
+/// Bound to the active port, the Home's current control token digest, and a monotonic invalidation
+/// generation; invalidated immediately on any health failure, port change, Host stop, rollback, or exit.
 pub(crate) const LOW_RISK_HEALTH_LEASE: Duration = Duration::from_millis(2500);
 
 #[derive(Clone, Copy, Debug)]
 struct HealthLease {
     port: u16,
-    process_id: Option<u32>,
+    token_digest: [u8; 32],
+    generation: u64,
     verified_at: Instant,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct VerifiedHostPid {
+    port: u16,
+    process_id: u32,
+}
+
+static LEASE_GENERATION: AtomicU64 = AtomicU64::new(1);
 static HEALTH_LEASE: Mutex<Option<HealthLease>> = Mutex::new(None);
+/// Kept separately from `HEALTH_LEASE` so a transient probe blip during page load does not wipe
+/// the active Host PID to 0 and force destructive hard reloads; cleared only on port change, stop,
+/// rollback, or exit.
+static LAST_VERIFIED_PID: Mutex<Option<VerifiedHostPid>> = Mutex::new(None);
 
 #[derive(Deserialize)]
 pub(crate) struct Health {
@@ -62,51 +78,135 @@ pub(crate) fn control_token() -> Result<String, String> {
     Ok(token.into())
 }
 
+fn token_digest(token: &str) -> [u8; 32] {
+    Sha256::digest(token.as_bytes()).into()
+}
+
 pub(crate) fn invalidate_health_lease() {
+    LEASE_GENERATION.fetch_add(1, Ordering::AcqRel);
     if let Ok(mut slot) = HEALTH_LEASE.lock() {
         *slot = None;
     }
 }
 
-fn record_health_lease(port: u16, process_id: Option<u32>) {
+pub(crate) fn clear_verified_process_id() {
+    invalidate_health_lease();
+    if let Ok(mut slot) = LAST_VERIFIED_PID.lock() {
+        *slot = None;
+    }
+}
+
+pub(crate) fn record_verified_process_id(port: u16, process_id: Option<u32>) {
     if port != crate::host_port::port() {
         return;
     }
-    if let Ok(mut slot) = HEALTH_LEASE.lock() {
-        *slot = Some(HealthLease {
-            port,
+    if let Some(process_id) = process_id {
+        if let Ok(mut slot) = LAST_VERIFIED_PID.lock() {
+            *slot = Some(VerifiedHostPid { port, process_id });
+        }
+    }
+}
+
+struct HealthLeaseUpdate<'a> {
+    port: u16,
+    active_port: u16,
+    token: &'a str,
+    process_id: Option<u32>,
+    started_generation: u64,
+    current_generation: u64,
+    now: Instant,
+}
+
+fn apply_health_lease(
+    lease_slot: &mut Option<HealthLease>,
+    pid_slot: &mut Option<VerifiedHostPid>,
+    update: HealthLeaseUpdate<'_>,
+) -> bool {
+    if update.port != update.active_port || update.current_generation != update.started_generation {
+        return false;
+    }
+    *lease_slot = Some(HealthLease {
+        port: update.port,
+        token_digest: token_digest(update.token),
+        generation: update.started_generation,
+        verified_at: update.now,
+    });
+    if let Some(process_id) = update.process_id {
+        *pid_slot = Some(VerifiedHostPid {
+            port: update.port,
             process_id,
-            verified_at: Instant::now(),
         });
+    }
+    true
+}
+
+fn record_health_lease(port: u16, token: &str, process_id: Option<u32>, started_generation: u64) {
+    let active_port = crate::host_port::port();
+    if port != active_port || LEASE_GENERATION.load(Ordering::Acquire) != started_generation {
+        return;
+    }
+    if let (Ok(mut lease_slot), Ok(mut pid_slot)) = (HEALTH_LEASE.lock(), LAST_VERIFIED_PID.lock())
+    {
+        let current_generation = LEASE_GENERATION.load(Ordering::Acquire);
+        apply_health_lease(
+            &mut lease_slot,
+            &mut pid_slot,
+            HealthLeaseUpdate {
+                port,
+                active_port,
+                token,
+                process_id,
+                started_generation,
+                current_generation,
+                now: Instant::now(),
+            },
+        );
     }
 }
 
 fn health_lease_valid(
     lease: Option<HealthLease>,
     active_port: u16,
+    expected_token_digest: [u8; 32],
+    current_generation: u64,
     now: Instant,
     ttl: Duration,
 ) -> bool {
     lease.is_some_and(|entry| {
-        entry.port == active_port && now.saturating_duration_since(entry.verified_at) <= ttl
+        entry.port == active_port
+            && entry.token_digest == expected_token_digest
+            && entry.generation == current_generation
+            && now.saturating_duration_since(entry.verified_at) <= ttl
     })
 }
 
 pub(crate) fn last_verified_process_id() -> Option<u32> {
     let active_port = crate::host_port::port();
-    HEALTH_LEASE
+    LAST_VERIFIED_PID
         .lock()
         .ok()
         .and_then(|slot| (*slot).filter(|entry| entry.port == active_port))
-        .and_then(|entry| entry.process_id)
+        .map(|entry| entry.process_id)
 }
 
 /// Low-risk UI IPC commands reuse a verified active-port health lease for up to 2.5 s so resize/locale
-/// events do not block the main thread on TCP; an expired or invalidated lease falls back to a fresh HMAC probe.
+/// events do not block the main thread on TCP; an expired, rotated-token, or invalidated lease falls
+/// back to a fresh HMAC probe.
 pub(crate) fn low_risk_health_fresh() -> bool {
     let active_port = crate::host_port::port();
-    let fresh = HEALTH_LEASE.lock().ok().is_some_and(|slot| {
-        health_lease_valid(*slot, active_port, Instant::now(), LOW_RISK_HEALTH_LEASE)
+    let fresh = control_token().ok().is_some_and(|token| {
+        let digest = token_digest(&token);
+        HEALTH_LEASE.lock().ok().is_some_and(|slot| {
+            let generation = LEASE_GENERATION.load(Ordering::Acquire);
+            health_lease_valid(
+                *slot,
+                active_port,
+                digest,
+                generation,
+                Instant::now(),
+                LOW_RISK_HEALTH_LEASE,
+            )
+        })
     });
     if fresh {
         return true;
@@ -130,17 +230,25 @@ pub(crate) fn answer() -> Result<Answer, String> {
 pub(crate) fn answer_with_timeout(total_budget: Duration) -> Result<Answer, String> {
     let deadline = Instant::now() + total_budget;
     let port = crate::host_port::port();
+    let generation = LEASE_GENERATION.load(Ordering::Acquire);
+    let mut proved_token: Option<String> = None;
     let result = (|| {
         let connect_timeout = total_budget.min(Duration::from_millis(150));
         let token = control_token()?;
         let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
         let mut stream = TcpStream::connect_timeout(&address, connect_timeout)
             .map_err(|_| REFUSED.to_string())?;
-        prove_until(&mut stream, &token, &format!("127.0.0.1:{port}"), deadline)
+        let answer = prove_until(&mut stream, &token, &format!("127.0.0.1:{port}"), deadline)?;
+        proved_token = Some(token);
+        Ok(answer)
     })();
     if port == crate::host_port::port() {
         match &result {
-            Ok(Answer::Ready(health)) => record_health_lease(port, health.process_id),
+            Ok(Answer::Ready(health)) => {
+                if let Some(token) = proved_token.as_deref() {
+                    record_health_lease(port, token, health.process_id, generation);
+                }
+            }
             Ok(Answer::Upgrading) | Err(_) => invalidate_health_lease(),
         }
     }
@@ -149,16 +257,24 @@ pub(crate) fn answer_with_timeout(total_budget: Duration) -> Result<Answer, Stri
 
 /// `/health` on a port not yet adopted: the address file's, proved before anything uses it.
 pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
+    let generation = LEASE_GENERATION.load(Ordering::Acquire);
+    let mut proved_token: Option<String> = None;
     let result = (|| {
         let token = control_token()?;
         let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
         let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
             .map_err(|_| REFUSED.to_string())?;
-        prove(&mut stream, &token, &format!("127.0.0.1:{port}"))
+        let answer = prove(&mut stream, &token, &format!("127.0.0.1:{port}"))?;
+        proved_token = Some(token);
+        Ok(answer)
     })();
     if port == crate::host_port::port() {
         match &result {
-            Ok(Answer::Ready(health)) => record_health_lease(port, health.process_id),
+            Ok(Answer::Ready(health)) => {
+                if let Some(token) = proved_token.as_deref() {
+                    record_health_lease(port, token, health.process_id, generation);
+                }
+            }
             Ok(Answer::Upgrading) | Err(_) => invalidate_health_lease(),
         }
     }
@@ -168,9 +284,10 @@ pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
 /// A socket kept for a native request: only a ready service is sent one.
 pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health, String> {
     let port = crate::host_port::port();
+    let generation = LEASE_GENERATION.load(Ordering::Acquire);
     match prove(stream, token, &crate::host_port::host()) {
         Ok(Answer::Ready(health)) => {
-            record_health_lease(port, health.process_id);
+            record_health_lease(port, token, health.process_id, generation);
             Ok(health)
         }
         Ok(Answer::Upgrading) | Err(_) => {
@@ -222,13 +339,55 @@ fn prove_until(
     verify_response_until(stream, token, &challenge, Some(deadline)).ok_or_else(|| REFUSED.into())
 }
 
+trait DeadlineRead: Read {
+    fn set_deadline_timeout(&mut self, timeout: Duration) -> std::io::Result<()>;
+}
+
+impl DeadlineRead for TcpStream {
+    fn set_deadline_timeout(&mut self, timeout: Duration) -> std::io::Result<()> {
+        self.set_read_timeout(Some(timeout))
+    }
+}
+
 #[cfg(test)]
-fn verify_response(stream: &mut impl Read, token: &str, challenge: &str) -> Option<Answer> {
+impl<T: AsRef<[u8]>> DeadlineRead for std::io::Cursor<T> {
+    fn set_deadline_timeout(&mut self, _timeout: Duration) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Reads exactly `buf.len()` bytes while refreshing the socket's read timeout before every syscall
+/// so a slow-drip peer cannot stretch `SO_RCVTIMEO` past the cumulative `deadline`.
+fn read_exact_until(
+    stream: &mut impl DeadlineRead,
+    mut buf: &mut [u8],
+    deadline: Option<Instant>,
+) -> Option<()> {
+    while !buf.is_empty() {
+        if let Some(limit) = deadline {
+            let remaining = limit.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            stream.set_deadline_timeout(remaining).ok()?;
+        }
+        match stream.read(buf) {
+            Ok(0) => return None,
+            Ok(n) => buf = &mut buf[n..],
+            Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => return None,
+        }
+    }
+    Some(())
+}
+
+#[cfg(test)]
+fn verify_response(stream: &mut impl DeadlineRead, token: &str, challenge: &str) -> Option<Answer> {
     verify_response_until(stream, token, challenge, None)
 }
 
 fn verify_response_until(
-    stream: &mut impl Read,
+    stream: &mut impl DeadlineRead,
     token: &str,
     challenge: &str,
     deadline: Option<Instant>,
@@ -239,7 +398,7 @@ fn verify_response_until(
             return None;
         }
         let mut byte = [0];
-        stream.read_exact(&mut byte).ok()?;
+        read_exact_until(stream, &mut byte, deadline)?;
         head.push(byte[0]);
     }
     let head = std::str::from_utf8(&head).ok()?;
@@ -271,7 +430,7 @@ fn verify_response_until(
     }
     let length = length.filter(|length| *length <= MAX_BODY)?;
     let mut body = vec![0; length];
-    stream.read_exact(&mut body).ok()?;
+    read_exact_until(stream, &mut body, deadline)?;
     let mut mac = Hmac::<Sha256>::new_from_slice(token.as_bytes()).ok()?;
     mac.update(challenge.as_bytes());
     mac.update(b"\n");
@@ -445,26 +604,118 @@ mod tests {
     #[test]
     fn s14_low_risk_health_lease_expires_and_rejects_port_change() {
         let now = Instant::now();
+        let digest = token_digest(KEY);
+        let other_digest = token_digest("rotated-control-key");
         let lease = Some(HealthLease {
             port: 4173,
-            process_id: Some(42),
+            token_digest: digest,
+            generation: 7,
             verified_at: now,
         });
-        assert!(health_lease_valid(lease, 4173, now, LOW_RISK_HEALTH_LEASE));
         assert!(health_lease_valid(
             lease,
             4173,
+            digest,
+            7,
+            now,
+            LOW_RISK_HEALTH_LEASE
+        ));
+        assert!(health_lease_valid(
+            lease,
+            4173,
+            digest,
+            7,
             now + Duration::from_millis(2499),
             LOW_RISK_HEALTH_LEASE
         ));
         assert!(!health_lease_valid(
             lease,
             4173,
+            digest,
+            7,
             now + Duration::from_millis(2501),
             LOW_RISK_HEALTH_LEASE
         ));
-        assert!(!health_lease_valid(lease, 4174, now, LOW_RISK_HEALTH_LEASE));
-        assert!(!health_lease_valid(None, 4173, now, LOW_RISK_HEALTH_LEASE));
+        assert!(!health_lease_valid(
+            lease,
+            4174,
+            digest,
+            7,
+            now,
+            LOW_RISK_HEALTH_LEASE
+        ));
+        assert!(!health_lease_valid(
+            lease,
+            4173,
+            other_digest,
+            7,
+            now,
+            LOW_RISK_HEALTH_LEASE
+        ));
+        assert!(!health_lease_valid(
+            lease,
+            4173,
+            digest,
+            8,
+            now,
+            LOW_RISK_HEALTH_LEASE
+        ));
+        assert!(!health_lease_valid(
+            None,
+            4173,
+            digest,
+            7,
+            now,
+            LOW_RISK_HEALTH_LEASE
+        ));
+
+        // Stale in-flight probe cannot resurrect a lease after invalidation, while transient
+        // invalidation preserves LAST_VERIFIED_PID until explicit clear.
+        let mut lease_slot = None;
+        let mut pid_slot = None;
+        let generation = 7;
+        assert!(apply_health_lease(
+            &mut lease_slot,
+            &mut pid_slot,
+            HealthLeaseUpdate {
+                port: 4173,
+                active_port: 4173,
+                token: KEY,
+                process_id: Some(4242),
+                started_generation: generation,
+                current_generation: generation,
+                now,
+            },
+        ));
+        assert!(lease_slot.is_some());
+        assert_eq!(pid_slot.map(|entry| entry.process_id), Some(4242));
+        // Simulated transient invalidation: generation bumps and lease clears, PID stays.
+        lease_slot = None;
+        let bumped_generation = generation + 1;
+        assert_eq!(
+            pid_slot.map(|entry| entry.process_id),
+            Some(4242),
+            "transient probe failure must not wipe loaded Host PID"
+        );
+        assert!(!apply_health_lease(
+            &mut lease_slot,
+            &mut pid_slot,
+            HealthLeaseUpdate {
+                port: 4173,
+                active_port: 4173,
+                token: KEY,
+                process_id: Some(9999),
+                started_generation: generation,
+                current_generation: bumped_generation,
+                now,
+            },
+        ));
+        assert!(
+            lease_slot.is_none(),
+            "stale in-flight probe with older generation cannot resurrect lease"
+        );
+        assert_eq!(pid_slot.map(|entry| entry.process_id), Some(4242));
+
         let with_active = response(
             "fresh",
             KEY,
@@ -477,5 +728,48 @@ mod tests {
             }
             _ => panic!("verified health should parse process_id and active_work"),
         }
+    }
+
+    #[test]
+    fn s14_prove_until_enforces_cumulative_deadline_under_slow_drip_peer() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            let _ = socket.set_read_timeout(Some(Duration::from_secs(2)));
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut request = String::new();
+            while !request.ends_with("\r\n\r\n") {
+                if reader.read_line(&mut request).unwrap_or(0) == 0 {
+                    return;
+                }
+            }
+            let challenge = request
+                .split("challenge=")
+                .nth(1)
+                .unwrap()
+                .split(' ')
+                .next()
+                .unwrap();
+            let full = response(challenge, KEY, BODY);
+            for byte in full.as_bytes() {
+                if socket.write_all(&[*byte]).is_err() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(35));
+            }
+        });
+        let mut client = TcpStream::connect(address).unwrap();
+        let started = Instant::now();
+        let budget = Duration::from_millis(160);
+        let result = prove_until(&mut client, KEY, &address.to_string(), started + budget);
+        let elapsed = started.elapsed();
+        drop(client);
+        assert!(result.is_err(), "slow-drip response must abort at deadline");
+        assert!(
+            elapsed < Duration::from_millis(450),
+            "cumulative deadline should bound slow-drip reads (elapsed {elapsed:?})"
+        );
+        server.join().unwrap();
     }
 }

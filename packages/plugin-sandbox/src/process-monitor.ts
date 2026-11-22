@@ -14,7 +14,6 @@ export interface WatchedSandboxProcess {
 
 export interface BatchProcessMonitor {
   watch(entry: WatchedSandboxProcess): () => void;
-  snapshot(): { activePids: number; polls: number; batchedPids: number };
 }
 
 /** Parses macOS/POSIX `ps -o time=` durations (`MM:SS.cc`, `HH:MM:SS`, `D-HH:MM:SS`) into milliseconds. */
@@ -30,10 +29,14 @@ export function parsePsCpuMs(raw: string): number {
     days = Number(daysPart);
     rest = rest.slice(dash + 1);
   }
-  const parts = rest.split(':').map(Number);
-  if (parts.length < 2 || parts.length > 3 || parts.some(value => !Number.isFinite(value) || value < 0)) {
-    return Number.NaN;
+  const rawParts = rest.split(':');
+  if (rawParts.length < 2 || rawParts.length > 3) return Number.NaN;
+  for (let index = 0; index < rawParts.length; index++) {
+    const pattern = index === rawParts.length - 1 ? /^\d+(?:\.\d+)?$/ : /^\d+$/;
+    if (!pattern.test(rawParts[index]!)) return Number.NaN;
   }
+  const parts = rawParts.map(Number);
+  if (parts.some(value => !Number.isFinite(value) || value < 0)) return Number.NaN;
   const seconds = parts.reduce((total, value) => total * 60 + value, 0) + days * 86_400;
   return seconds * 1000;
 }
@@ -63,6 +66,11 @@ function sampleWithPs(pids: readonly number[]): Promise<Map<number, ProcessSampl
       ['-o', 'pid=', '-o', 'rss=', '-o', 'time=', '-p', pids.join(',')],
       { timeout: 1000, maxBuffer: Math.max(4096, pids.length * 128), env: {} },
       (error, output) => {
+        // Reject truncated stdout (maxBuffer exceeded or timeout SIGTERM) instead of parsing partial PID rows.
+        if (error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' || error?.killed) {
+          resolve(new Map());
+          return;
+        }
         // When all queried PIDs have already exited, `ps` exits non-zero with empty output; partial exits still return lines.
         if (!output) {
           resolve(new Map());
@@ -91,8 +99,6 @@ export function createBatchProcessMonitor(options?: {
   const entries = new Map<number, WatchedSandboxProcess>();
   let timer: NodeJS.Timeout | undefined;
   let sampling = false;
-  let polls = 0;
-  let batchedPids = 0;
 
   const stopTimerIfIdle = () => {
     if (entries.size === 0 && timer) {
@@ -110,8 +116,6 @@ export function createBatchProcessMonitor(options?: {
     const watched = new Map(entries);
     const pids = [...watched.keys()];
     sampling = true;
-    polls++;
-    batchedPids += pids.length;
     void sample(pids)
       .then(samples => {
         for (const [pid, measured] of samples) {
@@ -146,9 +150,6 @@ export function createBatchProcessMonitor(options?: {
           stopTimerIfIdle();
         }
       };
-    },
-    snapshot() {
-      return { activePids: entries.size, polls, batchedPids };
     },
   };
 }

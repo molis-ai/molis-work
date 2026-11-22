@@ -717,6 +717,8 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 /* The rules menu (batch12-design §3.7): two file groups, the second saying why nothing was read when nothing was. */
 dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
 .coding-rules__body { display:grid; gap:12px; min-width:0; }
+/* The model's rows are the SDK's settings section; in a settings page it stands 32px under the one before, here it is the first thing under the title. */
+.coding-rules .mw-settings-section { margin-top:0; }
 /* The as-of caption is a sentence: on a narrow screen it wraps instead of being cut. */
 .coding-rules__group .mw-file-group__text small { white-space:normal; overflow:visible; text-overflow:clip; }
 .coding-rules__body .mw-file-row__name { font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); }

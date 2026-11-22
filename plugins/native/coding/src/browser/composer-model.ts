@@ -59,7 +59,7 @@ export interface ComposerModels {
  */
 export function composerModels(ports: ComposerModelPorts): ComposerModels {
   const { q, lifetime, switchModel, status, changed, redraw, translate: readText } = ports;
-  const note = q("[data-coding-model-note]"), rows = q("[data-coding-round-model] > :last-child"); // the rows of the SDK's settings section (ui.ts)
+  const note = q("[data-coding-model-note]"), rows = q("[data-coding-round-model] > :last-child"); // the rows of the SDK's settings section (ui.ts), which has no title or lead and nothing after its rows
   const effortKeys: Readonly<Record<string, string>> = { low: "coding.effort.low", medium: "coding.effort.medium", high: "coding.effort.high" };
   let list: readonly ModelChoice[] = [], live: ComposerRun | null = null, busy = false, switching = false, round: ComposerRun | null = null;
   let value = "", effort = "", listed = "";

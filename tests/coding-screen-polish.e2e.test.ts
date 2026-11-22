@@ -328,6 +328,10 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
     return {title:dialog.querySelector('h2')?.textContent.trim()??'',model:!!model&&model.getBoundingClientRect().height>0,modelAbove:!!model&&model.getBoundingClientRect().bottom<=label.getBoundingClientRect().top,
       rules:label.textContent.trim(),groups:dialog.querySelectorAll('[data-coding-rules-body] .mw-file-group').length,fits:box.top>=0&&box.bottom<=innerHeight&&box.width<=innerWidth};})()`);
   assert.deepEqual(settings, { title: "本轮设置", model: true, modelAbove: true, rules: "规则", groups: 2, fits: true }, "POLISH-28 模型和规则合进「本轮设置」：先是模型，再是规则的两组");
+  // The model's rows are the SDK's settings section, set right under the title (a settings page's 32px between sections is not for here).
+  const under = await evaluate<{ part: string; margin: string }>(`(()=>{const section=document.querySelector('${coding} [data-coding-rules-dialog] [data-coding-round-model]');return {part:section.dataset.slot??'',margin:getComputedStyle(section).marginTop};})()`);
+  assert.deepEqual(under, { part: "settings-section", margin: "0px" }, "POLISH-28 「本轮设置」里模型那几行是 SDK 的设置区，紧接标题、上面不多空一截");
+  await look("zh-light-1440-round-settings");
   await evaluate(`document.querySelector('${coding} [data-coding-rules-dialog] [data-coding-rules-close]').click()`);
 
   // 1024: the bar is narrower still; the column keeps its edge and the round's end stays one line, its actions not wrapping.

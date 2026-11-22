@@ -185,18 +185,22 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   assert.deepEqual(splitPluginStylesheet(owned + unrelated, "feed", [], ["text-"]), { scoped: owned, shared: unrelated },
     "the production splitter claims text-stats at the complete hyphen boundary");
   assert.deepEqual(catalogProblems(withPrefix("text-")), ["feed: stylesheet prefix text- repeats a plugin's id"]);
-  for (const prefix of ["tex-", "stats-", "textstats-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
+  assert.deepEqual(catalogProblems(withPrefix("stats-")), ["feed and text-stats both claim stylesheet prefix stats-"],
+    "text-stats already claims stats-, so another plugin cannot claim it");
+  for (const prefix of ["tex-", "brief-", "textstats-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
   const feedEntry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "feed")!;
-  const middleOnly = { ...feedEntry, project_plugin_id: "text-stats-extra", catalog_order: NEXT_POSITION,
+  const middleOnly = { ...feedEntry, project_plugin_id: "text-middle-extra", catalog_order: NEXT_POSITION,
     manifest: { ...feedEntry.manifest, plugin_id: "io.molis.work.prefix-control" } };
-  const otherNamespace = ".text-stats-extra-card{color:green}";
-  assert.deepEqual(splitPluginStylesheet(otherNamespace, "feed", [], ["stats-"]), { scoped: "", shared: otherNamespace });
-  assert.deepEqual(catalogProblems([...withPrefix("stats-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
+  const otherNamespace = ".text-middle-extra-card{color:green}";
+  assert.deepEqual(splitPluginStylesheet(otherNamespace, "feed", [], ["middle-"]), { scoped: "", shared: otherNamespace });
+  assert.deepEqual(catalogProblems([...withPrefix("middle-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
   // The studio is the platform's since 47-1 C; its prefixes are still held against every plugin's.
   const studio = HOST_FRAMED_SURFACES.find(entry => entry.project_plugin_id === "plugin-builder")!;
   for (const prefix of ["as-", "pb-"]) assert.ok(studio.workbench.stylesheetPrefixes?.includes(prefix));
   assert.equal(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "plugin-builder"), false, "the studio is not a catalog plugin");
-  assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES]), [], "the existing studio prefixes stay valid");
+  const textStats = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "text-stats")!;
+  assert.ok(textStats.workbench.stylesheetPrefixes?.includes("stats-"));
+  assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES]), [], "the existing studio and text-stats prefixes stay valid");
   assert.deepEqual(catalogProblems([...BUILTIN_PLUGIN_CATALOG, { ...studio, workbench: { ...studio.workbench, stylesheetPrefixes: ["text-"] } }]),
     ["plugin-builder: stylesheet prefix text- repeats a plugin's id"], "a platform surface cannot claim a plugin's namespace");
   // The Host's list and the shell's are the same declarations, so the shell never frames a surface the Host gives no requests or words.

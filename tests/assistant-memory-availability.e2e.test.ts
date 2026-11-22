@@ -6,7 +6,7 @@ import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { openWork, putInput, readWork, waitWork } from "./fixtures/assistant-send-journey.js";
-import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
+import { CURRENT_WORK, OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 test("QEA-50 · unreadable memory suggestions keep the conversation and draft, retry restores real candidates or an empty result", { timeout: 120_000 }, async t => {
@@ -65,7 +65,8 @@ test("QEA-50 · unreadable memory suggestions keep the conversation and draft, r
   for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
     await browser.command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
     await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }, { name: "prefers-reduced-motion", value: "reduce" }] }, browser.sessionId);
-    if (await browser.evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded') !== 'true'")) await browser.click("[data-assistant-side-toggle]");
+    // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+    await browser.evaluate(OPEN_DETAILS);
     await browser.waitFor(`document.querySelector(${JSON.stringify(attention)}).getBoundingClientRect().width > 0`);
     if (saveShots) await writeFile(new URL(`candidate-unavailable-${theme}-${width}.png`, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
   }
@@ -90,7 +91,8 @@ test("QEA-50 · unreadable memory suggestions keep the conversation and draft, r
   assert.ok(newFailures > diagnostic.length, "a successful owner read ends the previous diagnostic episode");
   await readWork(browser, id); await readWork(browser, id);
   assert.equal(logs.filter(entry => entry.event === "memory_candidates_unavailable" && entry.fields?.work_id === id).length, newFailures, "new stable failure is reported once regardless of earlier interleaving");
-  if (await browser.evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded') !== 'true'")) await browser.click("[data-assistant-side-toggle]");
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await browser.evaluate(OPEN_DETAILS);
   unavailable = false;
   await browser.click(`${attention} .assistant-item-actions button`);
   await browser.waitFor(`!document.querySelector(${JSON.stringify(attention)})?.textContent.includes('记忆建议暂时读不到')`);

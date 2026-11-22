@@ -859,7 +859,7 @@ export interface ActionSceneView {
 export type ActionSchema = Readonly<Record<string, unknown>>;
 
 export interface ActionSkillRound {
-    readonly consumer: "assistant" | "coding" | "agent";
+    readonly consumer?: "assistant" | "coding" | "agent";
     readonly named: readonly SkillRef[];
     readonly engine?: "builtin" | "local";
     readonly round?: string;

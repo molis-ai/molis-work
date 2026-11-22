@@ -92,7 +92,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
 export function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore; delegations: WorkDelegationStore;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
+  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; activeRunCount(): number; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
   let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
   let storageCleanup: (() => Promise<void>) | undefined;
   const cleanup = new Set<() => Promise<void>>();
@@ -290,6 +290,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   },
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
+    /** Synchronous count of currently live AI runs in this runtime (for bounded `/health.active_work`). */
+    activeRunCount: () => {
+      let count = 0;
+      for (const run of state.activeRuns.values()) if (run.live()) count += 1;
+      return count;
+    },
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });
 }
 

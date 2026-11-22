@@ -134,7 +134,7 @@ Git 冲突主区及迟到反馈 QF-23/46 已保存于 `ff006e19f0`，冻结该�
 
 接续真实入口补查（第六批，2026-11-16）：`apps/workbench/src/arrival/chooser.ts:137` 将 attention 绑到选中项目，旧项目入口没有 Home 后台任务；这使选择项目后的 Home 列表一直拿不到跨项目任务。新 HTTP 聚合测试已通过，但第一轮浏览器在部分恢复等不到任务、停止用例在首屏等不到按钮，属于真实入口接线缺口，不能把它们当成停止交错已复现。正在同批修正 Home 投影范围与变更订阅，保留项目助理上下文；Home 不消费项目事项线，避免重复读选中项目的任务。
 
-复核另发现 `attention.ts` 重画会丢失停止按钮的 DOM disabled 状态；本批以页面持有的命令进行中/结果投影跨重画保留，等待真实 Home 实操。相邻项目入口 `apps/workbench/src/browser/work-task-panel.ts:191` 没有进行中保护，列为下一项真实交错检查；不把项目旧测试当作 Home 的验收证据。chooser 切换时在途 attention 的归属与迟到通知也待核对。
+复核另发现 `attention.ts` 重画会丢失停止按钮的 DOM disabled 状态；本批以页面持有的命令进行中/结果投影跨重画保留，等待真实 Home 实操。相邻项目入口 `apps/workbench/src/browser/work-tasks.ts:191` 没有进行中保护，列为下一项真实交错检查；不把项目旧测试当作 Home 的验收证据。chooser 切换时在途 attention 的归属与迟到通知也待核对。
 
 ### QF-05 / P2：动作绑定有现成公共实现，局部包装仍重复维护
 
@@ -260,7 +260,7 @@ Host JSON、原件上传原来都没有把断连传给已支持取消的 artifac
 
 ### QF-12 / P1：项目任务重绘丢失停止操作的进行中状态，并保留旧命令参数
 
-位置：`apps/workbench/src/browser/work-task-panel.ts:takeTasks/stopTask`，调用方是任务列表、任务卡及事件卡；`work-bar.ts` 从同一个 attention 回答交入投影。原 `stopTask` 每次点击都会生成新请求；`takeTasks` 只比较 `commands.length` 等局部字段，等长新命令不进入 `tasks`。前者可能重复命令，后者让用户点仍可见的按钮却被 Mainline 的当前命令检查拒绝。
+位置：`apps/workbench/src/browser/work-tasks.ts:takeTasks/stopTask`，调用方是任务列表、任务卡及事件卡；`work-bar.ts` 从同一个 attention 回答交入投影。原 `stopTask` 每次点击都会生成新请求；`takeTasks` 只比较 `commands.length` 等局部字段，等长新命令不进入 `tasks`。前者可能重复命令，后者让用户点仍可见的按钮却被 Mainline 的当前命令检查拒绝。
 
 依据：旧构建的真实 Coding 路径持有停止回执、刷新 owner 状态后 disabled 为 false；真实第三方插件只把命令 `input.job` 从 `export-1` 改为 `export-2`，页面已收到新回答，实际 POST 仍发 `export-1`。均为独立断言失败，不以超时推断。
 
@@ -1151,7 +1151,7 @@ QEA-151/152 当前构建实操通过。隔离浏览器 15 文件 48 项，包括
 
 ### 第 81 批项目任务停止职责
 
-组合 `ed5416f420` 的健康门禁指出 `apps/workbench/src/browser/work-task-panel.ts` 的 `installTaskPanel` 同时维护布局和本页停止尝试。将尝试记录、原命令派发及 owner 刷新结算移到同模块的 `installTaskStops`。面板消费当前是否繁忙和刷新后的变化，列表、任务卡及事件卡仍可请求同一个原动作。本地读回还用来源能力和版本判定本次是否完整，未生成额外的业务状态。原门禁按 `6b0e8a4f83` 通过。QEA-153 实际七文件 28 项全部通过，包括明确拒绝、未知回执无自动重发、同一真实进程停止、保留读回、不同来源、浮窗和工作线。证据 `quality-audit-b81-{health,real-entries}.log`。
+组合 `ed5416f420` 的健康门禁指出 `apps/workbench/src/browser/work-tasks.ts` 的 `installTaskPanel` 同时维护布局和本页停止尝试。将尝试记录、原命令派发及 owner 刷新结算移到同模块的 `installTaskStops`。面板消费当前是否繁忙和刷新后的变化，列表、任务卡及事件卡仍可请求同一个原动作。本地读回还用来源能力和版本判定本次是否完整，未生成额外的业务状态。原门禁按 `6b0e8a4f83` 通过。QEA-153 实际七文件 28 项全部通过，包括明确拒绝、未知回执无自动重发、同一真实进程停止、保留读回、不同来源、浮窗和工作线。证据 `quality-audit-b81-{health,real-entries}.log`。
 
 ### 第 81 批 Inbox 真实路径复量
 
@@ -1338,7 +1338,7 @@ QF-65 的窄窗回归在 780 × 493 的内容区复现。待审面在打开设�
 
 ### 第 104 批主干子任务修复交集
 
-两条实际入口分别从助理工作和 Coding 工作台到 SDK 的同一个对话适配。SDK 复用带版本的等待投影，主动读取与订阅交错时检查代次。草稿比较和原请求的结算绑定编辑器当时持有的版本。子任务历史与预算由 Agent Host 读原运行，Host 和插件分别校验本人及父工作，运行前复核权限，写入后由原回执报结果。主干清理首读重复取历史和无变化时重绘助理问题卡。工作台同时保留本轮停止命令去重及主干按原始点击路径判断浮窗归属的修复。[助理入口](../../apps/workbench/src/browser/assistant-subtasks.ts#L60) · [Coding 入口](../../plugins/native/coding/src/browser/subtask-conversation.ts#L31) · [SDK 适配](../../packages/plugin-sdk/src/browser/agent-subtask-source.ts#L29) · [草稿结算](../../packages/plugin-sdk/src/browser/subtask-draft.ts#L47) · [Agent Host](../../horizontal/agent-host/src/adapters/prologue-subagent-conversation.ts#L91) · [任务面板](../../apps/workbench/src/browser/work-task-panel.ts#L248)
+两条实际入口分别从助理工作和 Coding 工作台到 SDK 的同一个对话适配。SDK 复用带版本的等待投影，主动读取与订阅交错时检查代次。草稿比较和原请求的结算绑定编辑器当时持有的版本。子任务历史与预算由 Agent Host 读原运行，Host 和插件分别校验本人及父工作，运行前复核权限，写入后由原回执报结果。主干清理首读重复取历史和无变化时重绘助理问题卡。工作台同时保留本轮停止命令去重及主干按原始点击路径判断浮窗归属的修复。[助理入口](../../apps/workbench/src/browser/assistant-subtasks.ts#L60) · [Coding 入口](../../plugins/native/coding/src/browser/subtask-conversation.ts#L31) · [SDK 适配](../../packages/plugin-sdk/src/browser/agent-subtask-source.ts#L29) · [草稿结算](../../packages/plugin-sdk/src/browser/subtask-draft.ts#L47) · [Agent Host](../../horizontal/agent-host/src/adapters/prologue-subagent-conversation.ts#L91) · [任务面板](../../apps/workbench/src/browser/work-tasks.ts#L248)
 
 ### 第 104 批资源复量
 
@@ -1531,7 +1531,7 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 
 角色入口共用 Characters 目录与编辑抽屉。助理从可信动作读取稳定选择，Coding 续办读取原轮固定版，Agent Host 核实际版本、范围和授权，角色原件与跟随事务由 Characters 写入。保留本轮的助理资料推荐降级及滚动处理。 [工作台选角](../../apps/workbench/src/browser/characters/task-picker.ts#L159) · [助理角色合同](../../apps/local-host/src/assistant/assistant-characters.ts#L19) · [Coding 续办](../../plugins/native/coding/src/start-round.ts#L159) · [执行固定版](../../horizontal/agent-host/src/run-start.ts#L246) · [角色事实](../../modules/characters/src/service.ts#L70)
 
-事项安放从公开动作进入。主线在一次本地事务切换任务归属，任务主人仍写事件关系。工作台任务面板只发送事件去处。公开动作允许同时提交两个字段，事件写入在事项事务前。第 37 批接入两种去处时应明确两个服务各自的结算反馈和重试，避免把失败回执当作都未写入。保留主线服务的过期转换预检及来源请求键，快照重生成保留助理角色字段、资料建议的失败值，以及导入和 Sessions 合同。 [工作台入口](../../apps/workbench/src/browser/work-task-panel.ts#L265) · [公开声明与顺序](../../horizontal/mainline/src/index.ts#L379) · [事务](../../horizontal/mainline/src/store.ts#L297) · [转换预检](../../horizontal/mainline/src/items.ts#L169)
+事项安放从公开动作进入。主线在一次本地事务切换任务归属，任务主人仍写事件关系。工作台任务面板只发送事件去处。公开动作允许同时提交两个字段，事件写入在事项事务前。第 37 批接入两种去处时应明确两个服务各自的结算反馈和重试，避免把失败回执当作都未写入。保留主线服务的过期转换预检及来源请求键，快照重生成保留助理角色字段、资料建议的失败值，以及导入和 Sessions 合同。 [工作台入口](../../apps/workbench/src/browser/work-tasks.ts#L265) · [公开声明与顺序](../../horizontal/mainline/src/index.ts#L379) · [事务](../../horizontal/mainline/src/store.ts#L297) · [转换预检](../../horizontal/mainline/src/items.ts#L169)
 
 本地完整构建与重生成通过，111 份公开 API 快照、640 项 Manifest 动作、617 项额外宿主动作、44 个库结构、版本与包边界一致。真实事项动作 14/14 与归属不变量 5/5 通过，保存和撤销的角色服务 11/11，通过原 Coding HTTP 验证固定版实际生效。隔离 Home 的 3 条回执用例全部通过，两种现行 Skill 草稿打开后记录不变。Git 只读目录的用例在本机四倍限速与构建争用期间到原单项时限，正常速度同一用例 28.1 秒通过，失效审查无写入及最终磁盘结果保持。角色抽屉同文件的三条用例通过，窗口草稿用例在首次点设置前的页面加载命令超时，已安排同条件单独复验。日志 `quality-audit-b117-{regenerate,contract-gates,action-checks,browser-entries,git-context,git-context-normal}.log`。
 
@@ -1581,7 +1581,7 @@ Verify 首轮的产品子集第 1 片 66 份通过。Goals 刷新文件触及 24
 
 ### QF-96 / P2 相同文字的新回执会被当作已经收起
 
-主干工作线把上一条收起的回复正文和其指纹作为身份。浏览器重开后，第二条不同 ID 的回复即便是一次新工作，只要文字相同也不会显示在输入栏上方。用浏览器复现，原回复收起及重开断言通过，接着加入不同 ID、相同文字的回复等待显示超时。处置归工作台，以回复已有的工作、轮次与消息 ID 投影到同一 DOM 节点。窗口只保存当前收起的回复 ID，连续写入这条回复保持收起，另一条回复即使同字仍会出现。正文由原助理和原渲染器维护。按 QEA-198 复验两次真实发送、显示和持久化。 [回复身份](../../apps/workbench/src/scripts/client/assistant-conversation.ts#L233) · [窗口回执](../../apps/workbench/src/browser/work-task-panel.ts#L83) · [真实入口与读回](../../tests/work-line-done-card.e2e.test.ts)
+主干工作线把上一条收起的回复正文和其指纹作为身份。浏览器重开后，第二条不同 ID 的回复即便是一次新工作，只要文字相同也不会显示在输入栏上方。用浏览器复现，原回复收起及重开断言通过，接着加入不同 ID、相同文字的回复等待显示超时。处置归工作台，以回复已有的工作、轮次与消息 ID 投影到同一 DOM 节点。窗口只保存当前收起的回复 ID，连续写入这条回复保持收起，另一条回复即使同字仍会出现。正文由原助理和原渲染器维护。按 QEA-198 复验两次真实发送、显示和持久化。 [回复身份](../../apps/workbench/src/scripts/client/assistant-conversation.ts#L233) · [窗口回执](../../apps/workbench/src/browser/work-tasks.ts#L83) · [真实入口与读回](../../tests/work-line-done-card.e2e.test.ts)
 
 隔离 Home 用本地录制模型走两次正常发送。第一条回执经设置盖层收起，第二条同字但不同 ID 正常展示，Host 的原工作读取返回两个真实轮次及各自的回复 ID。现行 Markdown 渲染、原件名称、设置覆盖及窗口重开用例保持。工作线及 Coding 的六组浏览器用例共 86 项通过，另两个页面录制用例沿原模式跳过。Coding 材料服务十项中一项本机连接重置，同源码定向复跑通过，保留后台失败恢复、轮次固定版本和溢出项读回。完整构建、本机健康、包边界、111 份 API、44 个库结构、版本和动作快照一致。日志 `quality-audit-b118-{browser,coding-quick,coding-materials-retry,reply-build,health,contracts}.log`。
 
@@ -1597,7 +1597,7 @@ QEA-199 原 15 个场景仍由产品子集执行器运行。三个组内复用�
 
 `cea504b68d` 的 Full 第 23 片两次失败同一文件。首次 QEA-176 完整原文和色标通过，最长帧 242.8 ms。本机同源码重开也得 106.3 ms，原断言要求低于 100 ms。实际诊断的 10 个样本均见会话收起而回执可见，后几帧随着两份 DOM 变大出现 176～350 ms 间隔。浏览器采样记录了回执观察器的复制和替换，以及全页状态圆环的可见性检查。日志 `quality-audit-b118-long-code{,-trace}.log`。 [Linux 首轮第 23 片](https://github.com/molis-ai/molis-work/actions/runs/44353367194/job/134974784887)
 
-回执归 Workbench，按原回复 ID 和完整源文字更新。同一条回复的空格、换行与正文增量仍能更新预览。代码节点由原着色器推进，彩色标记的变化省掉整份回执的序列化及重建。迁移成本低，集中在同一个维护预览的函数。通过 QEA-200 在着色期间检查同一个实物回执节点，原全文、复制、色标准确性及 100 ms 断言保持。本机正常及三倍 CPU 限速各通过，最长帧 20.1／45.6 ms，均先出现两帧完整原文。补核源文字后，准确构建的长代码文件 10 项通过。日志 `quality-audit-b119-code-{normal,stress}.log`、`quality-audit-b119-exact-consumers.log`。 [状态读取与预览](../../apps/workbench/src/browser/work-task-panel.ts#L91) · [真实入口](../../tests/code-scale.e2e.test.ts#L231)
+回执归 Workbench，按原回复 ID 和完整源文字更新。同一条回复的空格、换行与正文增量仍能更新预览。代码节点由原着色器推进，彩色标记的变化省掉整份回执的序列化及重建。迁移成本低，集中在同一个维护预览的函数。通过 QEA-200 在着色期间检查同一个实物回执节点，原全文、复制、色标准确性及 100 ms 断言保持。本机正常及三倍 CPU 限速各通过，最长帧 20.1／45.6 ms，均先出现两帧完整原文。补核源文字后，准确构建的长代码文件 10 项通过。日志 `quality-audit-b119-code-{normal,stress}.log`、`quality-audit-b119-exact-consumers.log`。 [状态读取与预览](../../apps/workbench/src/browser/work-tasks.ts#L91) · [真实入口](../../tests/code-scale.e2e.test.ts#L231)
 
 以 `afaeabdd4a` 独立构建为基准，准确构建的 67 条静态资源、十组首屏、22 条许可匹配均通过。相对上一批，工作台脚本与六组工作台冷加载各减 6 B，各页热加载总量相同，中文项目选择冷增仍为 2,166 B。最大单项净增仍是原 Git 脚本的 8,403 B。源数据 `quality-audit-b119-exact-resource-proof.json`。
 
@@ -1633,7 +1633,7 @@ Workbench 在每次同地址读取完成后的半秒归并被动提示。期间�
 
 ### 第 122 批前三行预览和真实回复身份
 
-主干代码按前三行选取富文本，副本省下完整原文及着色数据。组合版沿这一实现过滤仅用于着色的节点变化。回执的收起继续识别原工作、轮次、消息组成的回复 ID。插入真实富文本、源文字变化或另一条回复进入时更新预览。长代码测试记录到着色完成的最后一帧，保留首见全文、后续分片颜色、完整复制及同一预览节点的断言，也从原按钮打开对话核读完整结果。 [回执绘制与观察](../../apps/workbench/src/browser/work-task-panel.ts#L78) · [QEA-203](../../tests/code-scale.e2e.test.ts#L262)
+主干代码按前三行选取富文本，副本省下完整原文及着色数据。组合版沿这一实现过滤仅用于着色的节点变化。回执的收起继续识别原工作、轮次、消息组成的回复 ID。插入真实富文本、源文字变化或另一条回复进入时更新预览。长代码测试记录到着色完成的最后一帧，保留首见全文、后续分片颜色、完整复制及同一预览节点的断言，也从原按钮打开对话核读完整结果。 [回执绘制与观察](../../apps/workbench/src/browser/work-tasks.ts#L78) · [QEA-203](../../tests/code-scale.e2e.test.ts#L262)
 
 两套独立构建以 `f1e875d11e` 实测 67 条静态资源及十组首屏，登记后两项均通过。工作台脚本净增 5,264 B，旧已验额度外需补登记 27 B。相对前一打包版 `97a60acd51`，工作台脚本与六组工作台冷量各增 705 B，其中主干预览的预算为 678 B。工作台热量相同，项目选择中英文冷量分别相同及减少 1 B。22 条原已批准的请求均匹配。最大单项净增仍是 Git 脚本 8,403 B。日志 `quality-audit-b122-resource-proof.json`。 该批资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 

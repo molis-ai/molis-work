@@ -18,7 +18,7 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
   withLocale?<T>(run: (locale: ActionLocale) => T): T;
   /** Present when the Manifest declares jobs (`background.jobs`). */
   jobs?: Omit<ActivationJobGate, keyof PluginInstance | "assertActive" | "requireGrant">;
-}): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): Promise<void> | undefined; stopProjectJobs(projectId: string): Promise<void> | undefined; hasProjectWork(projectId: string): boolean; close(): void } {
+}): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): Promise<void> | undefined; stopProjectJobs(projectId: string): Promise<void> | undefined; hasProjectWork(projectId: string): boolean; activeWorkCount(): number; close(): void } {
   let closed = false;
   const active = new Map<AbortController, string | null>();
   const jobs = gate.jobs?.declarations.length
@@ -86,6 +86,8 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
   }, hasProjectWork(projectId) {
     for (const project of active.values()) if (project === projectId) return true;
     return !!jobs?.hasProjectWork(projectId);
+  }, activeWorkCount() {
+    return active.size + (jobs?.activeWorkCount() ?? 0);
   }, stopProjectJobs(projectId) {
     jobs?.stopProject(projectId, "项目已关闭，这个后台作业已停止");
     return jobs?.drainProject(projectId);

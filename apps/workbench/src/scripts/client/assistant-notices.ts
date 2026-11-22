@@ -7,18 +7,21 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   const noticePop = island.querySelector("[data-assistant-notices]");
   const objectList = el("div", "assistant-attention-objects"), noticeList = el("div", "assistant-notice-list");
   objectList.dataset.attentionObjects = "";
-  noticePop?.append(el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-notice.attention")), objectList, noticeList);
+  // One popover, two things (方案第九节「等你的有哪几种」; 用户 2026-11-17 第 19 条): the objects that want a look open from their card
+  // in the stack; the notices (a connection lost, a model not ready, plugin deliveries, news of a work) from the account bar's key.
+  const noticeTitle = el("p", "assistant-popover-title", "");
+  noticePop?.append(noticeTitle, objectList, noticeList);
   const attentionRead = (body, signal) => host.positionRead("/api/host/surface-attention", body, signal);
   const attentionObjects = noticePop && host.positions?.mount(objectList, attentionRead, { source: () => ({}), onNavigate: () => setNotices(false) });
-  let attentionObjectsCount = 0, canRestoreAttention = false, badgeRead = null, badgeAt = null;
+  let attentionObjectsCount = 0, attentionSubjects = [], canRestoreAttention = false, badgeRead = null, badgeAt = null;
   const readBadge = (cursor) => {
     if (!attentionObjects || document.hidden || cursor !== undefined && cursor === badgeAt) return;
     badgeAt = cursor; badgeRead?.abort();
     const pending = badgeRead = new AbortController();
     attentionRead({ count: true }, pending.signal).then(result => {
-      if (!pending.signal.aborted && pending === badgeRead) { attentionObjectsCount = result.count; canRestoreAttention = result.can_restore === true; paintAttention(); }
+      if (!pending.signal.aborted && pending === badgeRead) { attentionObjectsCount = result.count; attentionSubjects = Array.isArray(result.subjects) ? result.subjects : []; canRestoreAttention = result.can_restore === true; paintAttention(); }
     }, () => {
-      if (!pending.signal.aborted && pending === badgeRead) { badgeAt = null; attentionObjectsCount = 0; canRestoreAttention = false; paintAttention(); }
+      if (!pending.signal.aborted && pending === badgeRead) { badgeAt = null; attentionObjectsCount = 0; attentionSubjects = []; canRestoreAttention = false; paintAttention(); }
     });
   };
   let notices = [];
@@ -104,7 +107,7 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
       held.forEach((notice) => quiet.append(row(notice)));
       noticeList.append(quiet);
     }
-    if (!notices.length && !pluginWaiting && !attentionObjectsCount) noticeList.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-notice.none")));
+    if (!notices.length && !pluginWaiting) noticeList.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-notice.none")));
     if (focusKey) (noticePop.querySelector('[data-notice-id="' + focusKey[0] + '"][data-notice-action="' + focusKey[1] + '"]') || noticePop.querySelector("button"))?.focus();
   };
   // Only what needs the person (a decision, a failure, a reminder that is due) shows before the input; news about a work
@@ -113,45 +116,71 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   // (WLN-39): the list behind it is still the notices and the plugins' items. It says it as an attribute; a change repaints here.
   // A standalone workbench bar (such as the Assistant specimen frame, without the top strip) still owns the bar, so the bell
   // reads 0 from [data-work-bar] instead of counting the notice list on its own.
-  let headWatched = null;
+  // Where there is an account bar (every project page), its 通知 key is the way to the notices and says how many want a hand; the
+  // objects that want a look are a card of the stack (the foot leaves out the ones it already shows). Under 960px the account bar
+  // is not drawn: the bell beside the input comes back for the notices alone. A frame with only the Assistant (no account bar,
+  // no stack) keeps the bell beside the input for both, as before.
+  const barNotices = document.querySelector("[data-bar-notices]"), barCount = barNotices?.querySelector("[data-bar-notices-count]"), barLabel = barNotices?.getAttribute("aria-label") || "";
+  const barShown = () => Boolean(barNotices && barNotices.getClientRects().length);
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held);
-    const head = document.querySelector("[data-top-corner-toggle],[data-work-bar]");
-    if (head && head !== headWatched) { headWatched = head; new MutationObserver(() => paintAttention()).observe(head, { attributes: true, attributeFilter: ["data-waiting"] }); }
-    // With nothing on the line waiting, what the list holds keeps the bell in reach, without a number of its own.
-    const listed = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting + attentionObjectsCount;
-    const urgent = head ? Number(head.dataset.waiting) || 0 : listed;
+    const wanted = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting, listed = wanted + (barNotices ? 0 : attentionObjectsCount);
+    if (barNotices) {
+      if (barCount) { barCount.hidden = !wanted; barCount.textContent = String(wanted); }
+      barNotices.setAttribute("aria-label", wanted ? globalThis.t.text("workbench.assistant-notice.attention-count", { count: wanted }) : barLabel);
+    }
     if (noticeBtn) {
-      if (urgent > lastUrgent) { noticeBtn.removeAttribute("data-bump"); void noticeBtn.offsetWidth; noticeBtn.setAttribute("data-bump", ""); }
-      lastUrgent = urgent;
-      noticeBtn.hidden = !urgent && !listed && !canRestoreAttention;
-      if (attentionCount) attentionCount.textContent = urgent ? globalThis.t.text("workbench.assistant-notice.waiting", { count: urgent }) : "";
-      noticeBtn.setAttribute("aria-label", urgent ? globalThis.t.text("workbench.assistant-notice.attention-count", { count: urgent }) : globalThis.t.text("workbench.assistant-notice.attention"));
+      if (listed > lastUrgent) { noticeBtn.removeAttribute("data-bump"); void noticeBtn.offsetWidth; noticeBtn.setAttribute("data-bump", ""); }
+      lastUrgent = listed;
+      // With nothing that wants a hand, what the list holds (news, held ones) keeps the bell in reach, without a number of its own.
+      noticeBtn.hidden = barShown() || !listed && !notices.length && !canRestoreAttention;
+      if (attentionCount) attentionCount.textContent = listed ? globalThis.t.text("workbench.assistant-notice.waiting", { count: listed }) : "";
+      noticeBtn.setAttribute("aria-label", listed ? globalThis.t.text("workbench.assistant-notice.attention-count", { count: listed }) : globalThis.t.text("workbench.assistant-notice.attention"));
     }
     unreadWorks = new Set(open.filter((notice) => notice.work_id && !URGENT.has(notice.kind)).map((notice) => notice.work_id));
     urgentWorks = new Set(open.filter((notice) => notice.work_id && URGENT.has(notice.kind)).map((notice) => notice.work_id));
-    drawTabs(); paintList();
+    drawHead(); paintList(); host.lineAttention?.();
     if (noticePop && !noticePop.hidden) paintNotices();
   };
-  const barNotices = document.querySelector("[data-bar-notices]");
-  let noticeTrigger = null;
-  const setNotices = (open) => {
+  // \`what\`: "objects" (from the stack's card) or "notices" (from the account bar's key); the bell beside the input shows both.
+  let noticeTrigger = null, noticeWhat = "both", lookOnly = null;
+  // Opened from the stack's card, the list is what that card counted: an object that already has a card there is not said twice.
+  const paintLook = () => {
+    for (const row of objectList.querySelectorAll("[data-home-row]")) row.hidden = noticeWhat === "objects" && lookOnly !== null && !lookOnly.has(row.dataset.homeSubjectKind + ":" + row.dataset.homeSubjectId);
+    for (const group of objectList.querySelectorAll("[data-home-group]")) group.hidden = [...group.querySelectorAll("[data-home-row]")].length > 0 && ![...group.querySelectorAll("[data-home-row]")].some(row => !row.hidden);
+  };
+  new MutationObserver(paintLook).observe(objectList, { childList: true, subtree: true });
+  const setNotices = (open, what, trigger) => {
     if (!noticePop) return;
-    if (open) noticeTrigger = document.activeElement === barNotices ? barNotices : noticeBtn;
-    noticePop.hidden = !open;
-    noticeBtn?.setAttribute("aria-expanded", String(open));
     if (open) {
-      paintNotices(true); noticePop.querySelector("button")?.focus();
-      void attentionObjects?.update().then(() => {
-        if (!noticePop.hidden && document.activeElement === noticeTrigger) {
+      noticeWhat = what || (barNotices ? "notices" : "both"); if (noticeWhat !== "objects") lookOnly = null;
+      noticeTrigger = trigger || (noticeWhat === "notices" && barShown() ? barNotices : noticeBtn);
+      // With nothing that wants a look, the way to bring back what was put away stays with the notices.
+      const objects = noticeWhat !== "notices" || !attentionObjectsCount && canRestoreAttention;
+      noticePop.dataset.what = noticeWhat; objectList.hidden = !objects; noticeList.hidden = noticeWhat === "objects";
+      noticeTitle.textContent = globalThis.t.text(noticeWhat === "objects" ? "workbench.assistant-notice.to-look-at" : noticeWhat === "notices" ? "workbench.account-bar.notices" : "workbench.assistant-notice.attention");
+      // It opens over the key that opened it: the account bar's at the left, the stack's card at the right.
+      const at = noticeTrigger && noticeTrigger !== noticeBtn && noticeTrigger.isConnected ? noticeTrigger.getBoundingClientRect() : null, frame = (noticePop.offsetParent || island).getBoundingClientRect();
+      noticePop.style.left = at && noticeWhat === "notices" ? Math.round(Math.max(8 - frame.left, at.left - frame.left)) + "px" : "";
+      noticePop.style.right = at && noticeWhat === "notices" ? "auto" : at ? Math.round(Math.max(8 - (innerWidth - frame.right), frame.right - at.right)) + "px" : "";
+    }
+    noticePop.hidden = !open;
+    noticeBtn?.setAttribute("aria-expanded", String(open && noticeTrigger === noticeBtn));
+    barNotices?.setAttribute("aria-expanded", String(open && noticeTrigger === barNotices));
+    if (open) {
+      paintNotices(true); (noticeList.hidden ? null : noticeList.querySelector("button"))?.focus();
+      if (!objectList.hidden) void attentionObjects?.update().then(() => {
+        if (!noticePop.hidden && (document.activeElement === noticeTrigger || document.activeElement === document.body || noticeList.hidden)) {
           const first = [...objectList.querySelectorAll("[data-home-row] [tabindex], [data-home-row] button, .surface-correction-default summary")]
             .find(node => node.closest("[data-home-row]") && node.checkVisibility() && !node.disabled);
           (first || objectList.querySelector(".surface-correction-default summary"))?.focus();
         }
       });
+      else attentionObjects?.clear();
     }
     else attentionObjects?.clear();
   };
+  barNotices?.addEventListener("click", () => { const shut = noticePop.hidden || noticeTrigger !== barNotices; setNotices(shut, "notices", barNotices); });
   // Notices come with the page's attention read (attention.ts).
   const loadNotices = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
   document.addEventListener("molis-work:attention", (event) => {
@@ -184,7 +213,8 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     const interval = setInterval(() => { if (island.isConnected) void look(); else clearInterval(interval); }, ${AUTOMATION_OFFER_INTERVAL_MS});
     document.addEventListener("visibilitychange", look);
   }
-  noticeBtn?.addEventListener("click", () => setNotices(noticePop.hidden));
+  noticeBtn?.addEventListener("click", () => setNotices(noticePop.hidden || noticeTrigger !== noticeBtn, undefined, noticeBtn));
+  if (barNotices) matchMedia("(max-width:959px)").addEventListener("change", () => { setNotices(false); paintAttention(); });
   document.addEventListener("molis-work:attention-refresh", () => readBadge());
   document.addEventListener("molis-work:model-ready", () => { if (problem && problem.action_kind === "open_model_settings") { problem = null; render(); } });
   document.addEventListener("molis-work:plugin-events", (event) => { pluginHeldSince = performance.now(); pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });`;

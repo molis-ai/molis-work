@@ -354,6 +354,11 @@ export class LocalHost<Runtime> {
     return this.line.isBusy(storageKey);
   }
 
+  /** Synchronously lists currently opened project runtimes without opening asleep or closed projects. */
+  openRuntimes(): Runtime[] {
+    return this.line.openRuntimes();
+  }
+
   /** Runs `work` without it counting as use of the projects it reads (`ProjectLine.quietly`). */
   quietly<T>(work: () => T): T {
     return this.line.quietly(work);

@@ -29,3 +29,9 @@ test("the design system icon sprite imports the SDK's attribute escaper instead 
   assert.match(source, /import \{ escapeAttribute, type PluginIconName \} from "@molis-ai\/molis-work-plugin-sdk\/ui";/);
   assert.doesNotMatch(source, /function escapeAttribute/, "the sprite must not copy the escaper again");
 });
+
+test("workbench i18n imports the SDK's escapeHtml instead of keeping a local escapeAttr copy", () => {
+  const source = readFileSync(new URL("../apps/workbench/src/i18n.ts", import.meta.url), "utf8");
+  assert.match(source, /import \{[^}]*\bescapeHtml\b[^}]*\} from "@molis-ai\/molis-work-plugin-sdk\/ui";/);
+  assert.doesNotMatch(source, /function escapeAttr/, "i18n.ts must not duplicate HTML escaping");
+});

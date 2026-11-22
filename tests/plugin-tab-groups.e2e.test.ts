@@ -207,7 +207,8 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   assert.ok(localHost.homePlugins);
   const platform = await localHost.homePlugins.ready();
   assert.ok(platform);
-  const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.checkVisibility()),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
+  // An open item takes the whole Feed page (36A-3): the list, and this row in it, stays behind 返回 through a revision.
+  const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.isConnected),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
   const beforeRevision = await rowState();
   assert.equal(beforeRevision.visible, true, JSON.stringify(beforeRevision));
   try { await feed.waitFor(`document.querySelector('[data-feed-entry-id="${a.item_id}"]').dataset.feedEntryRead==='read' && t403PendingReads===0`); }
@@ -339,8 +340,9 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
   const pages = (() => { try { return ["A", "B", "C"].map((letter) => store.create({ project_id: projectId!, title: `Page ${letter}`, body: { type: "doc", content: [] } })); } finally { store.close(); } })();
   const [a, b, c] = pages.map((page) => page.id) as [string, string, string];
   await browser.setViewport(1440, 1000);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a}` }, sessionId));
-  await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
+  // An open document takes the whole Pages page (36A-3), so several are picked in the list, with none open.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded !== 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
   const selected = `[...document.querySelectorAll('[data-pages-rows] button[data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
   assert.deepEqual(await child.evaluate(`(() => { const list = document.querySelector('[data-pages-rows]'); return [list.getAttribute('role'), list.getAttribute('aria-multiselectable'), list.querySelector('button[data-page-id]').getAttribute('role')]; })()`),
     ["listbox", "true", "option"], "the list says it picks several");
@@ -349,20 +351,20 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button, clickCount: 1, modifiers }, sessionId);
   };
 
-  // D24 a real ⌘-click on B picks it, with the open A, and opens no tab.
+  // D24 real ⌘-clicks on A and B pick both and open neither: no tab, no editor.
+  await press(a, "left", 4);
   await press(b, "left", 4);
   await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${b}"]')`), null, "a ⌘-click in the list opens no tab");
 
-  // D24 a middle click on C still opens it behind in the Pages group; the picks and the open page stay. The page was
-  // opened with openItem, so the current tab is A's item tab (or the Pages tab): whichever it is, it stays current.
+  // D24 a middle click on C still opens it behind in the Pages group; the picks stay and the Pages tab stays current.
   const current = `(() => { const tab = document.querySelector('[data-titlebar-tabs] .tab-item[aria-current]'); return tab ? tab.dataset.tabKind + ":" + (tab.dataset.itemId ?? tab.dataset.plugin) : null; })()`;
   const before = await evaluate<string | null>(current);
-  assert.ok(before === `item:${a}` || before === "plugin:pages", `the pane is on Pages before the middle click (${before})`);
+  assert.equal(before, "plugin:pages", "the pane is on Pages before the middle click");
   await press(c, "middle", 0);
   await waitFor(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${c}"]')`);
   assert.equal(await evaluate(current), before, "the pane stays where it was");
-  assert.equal(await child.evaluate("document.querySelector('[data-pages-title]')?.value"), "Page A", "A stays open in the editor");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the list stays in front: no document opened in the editor");
   assert.equal(await child.evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
 });
 
@@ -435,6 +437,14 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   const aLeft = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="left-a"] iframe[data-plugin-frame="pages"]');
   const bRight = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="right-b"] iframe[data-plugin-frame="pages"]');
   const defaultPage = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-full16-owner="right-default"] iframe[data-plugin-frame="pages"]');
+  // What is under test is the platform's item navigation from a declared row pressed in a frame (T405). An open document takes
+  // the whole Pages page (36A-3) and its list is the page behind it, so the test lays the list back beside the document in the
+  // frame it presses, to have a declared row under a real pointer while that frame's editor stays open.
+  const pressRow = async (frame: typeof aRight, id: string) => {
+    await frame.evaluate(`(()=>{if(document.getElementById('t405-list-beside'))return;const style=document.createElement('style');style.id='t405-list-beside';
+      style.textContent='html body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-list.plugin-stage-list{display:block!important;position:relative;z-index:5;width:280px;background:var(--paper)}';document.head.append(style);})()`);
+    await frame.click(`button[data-page-id="${id}"]`);
+  };
   await browser.setViewport(2200, 1000);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
   await waitFor("document.querySelector('[data-tab-edge=right]')");
@@ -461,10 +471,11 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   assert.equal(await itemCount(b.id), 0); assert.equal(await evaluate(`${ownerWindow}.t405TaggedCount`), 0);
   await aRight.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
   await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
-  assert.equal(await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]'),box=row?.getBoundingClientRect();return Boolean(row?.checkVisibility()&&box.width>0&&box.height>0);})()`), true, "the actual right-A pane keeps a visible Pages row before independent control input");
+  // An open document takes the whole Pages page (36A-3): the list stays in the pane behind 返回, so the row is there but not shown.
+  assert.equal(await aRight.evaluate(`Boolean(document.querySelector('button[data-page-id="${b.id}"]'))`), true, "the actual right-A pane keeps its Pages row before independent control input");
   // An independent control inside a broad declared row keeps its own action, rather than opening the row's item.
   await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]');const control=document.createElement('span');control.dataset.t405RowControl='1';control.setAttribute('role','button');control.tabIndex=0;control.textContent='control';control.addEventListener('click',event=>{event.stopPropagation();window.t405ControlClicks=(window.t405ControlClicks||0)+1;});row.append(control);})()`);
-  await aRight.click("[data-t405-row-control]");
+  await aRight.evaluate("document.querySelector('[data-t405-row-control]').click()");
   assert.equal(await aRight.evaluate("window.t405ControlClicks"), 1); assert.equal(await itemCount(b.id), 0);
   await aRight.evaluate("(()=>{window.t405OriginalEditor=window.t405Editor;window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror');})()");
   await aLeft.evaluate("void(window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror'))");
@@ -473,7 +484,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   holdSaves = true;
   await aRight.evaluate(`(()=>{const view=window.t405Editor.view;view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,view.state.schema.nodes.paragraph.create(null,view.state.schema.text(${JSON.stringify(draft)}))));})()`);
   await saveHeld; assert.equal(heldStatus, 200, "the real A save handler completed while its reply remains held");
-  await aRight.click(`button[data-page-id="${b.id}"]`);
+  await pressRow(aRight, b.id);
   await waitFor(`(()=>{const s=JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')),p=s.panes.find(p=>p.id===${JSON.stringify(right)});return p.tabs.find(t=>t.id===p.activeTabId)?.itemId===${JSON.stringify(b.id)};})()`);
   let saved = await layout(), rightPane = saved.panes.find(p => p.id === right)!, bTab = rightPane.activeTabId;
   assert.equal(rightPane.tabs.find(tab => tab.id === rightTab)?.itemId, a.id); assert.equal(rightPane.tabs.find(tab => tab.id === bTab)?.title, "Item B");
@@ -492,12 +503,12 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   assert.equal(await aRight.evaluate(`window.t405Editor===window.t405OriginalEditor && window.t405Editor.view.state.doc.textContent===${JSON.stringify(draft)}`), true);
   holdSaves = false; heldSaves.splice(0).forEach(release => release());
   await aRight.waitFor("document.querySelector('[data-pages-editor-status]').textContent==='已保存'");
-  await aRight.click(`button[data-page-id="${b.id}"]`);
+  await pressRow(aRight, b.id);
   await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)})?.activeTabId===${JSON.stringify(bTab)}`);
   await bRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
   assert.equal(await itemCount(b.id), 1); assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, bTab, "B deduplicates to its original tab");
   const taggedBeforeSameClick = await evaluate<number>(`${ownerWindow}.t405TaggedCount`);
-  await bRight.click(`button[data-page-id="${b.id}"]`);
+  await pressRow(bRight, b.id);
   assert.equal(await evaluate<number>(`${ownerWindow}.t405TaggedCount`), taggedBeforeSameClick, "same-item clicks do not emit a new item intent");
   await evaluate(`document.querySelector('[data-tab-pane="${left}"]').click()`);
   await evaluate(`document.querySelector('[data-tab-pane="${right}"]').click()`);
@@ -505,7 +516,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   const holdIntent = async (id: string) => {
     await selectTab(rightTab); await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
     await evaluate(`${ownerWindow}.t405HoldItemIntent=true`);
-    await aRight.click(`button[data-page-id="${id}"]`);
+    await pressRow(aRight, id);
     await waitFor(`${ownerWindow}.t405HeldItemIntents.length===1`);
   };
   const releaseIntent = async (before = "", after = "") => {
@@ -535,7 +546,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await waitFor(`document.querySelector(${defaultOwner})?.checkVisibility()`);
   await evaluate(`document.querySelector(${defaultOwner}).dataset.full16Owner='right-default'`);
   await defaultPage.waitFor("window.t405InitialItem===null && document.querySelector('[data-pages-rows]')");
-  await defaultPage.click(`button[data-page-id="${c.id}"]`);
+  await pressRow(defaultPage, c.id);
   await defaultPage.waitFor("document.querySelector('[data-pages-title]').value==='Item C'");
   assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, null, "a default plugin page still selects in place");
   // FSS-07: active and retained split surfaces update on the single connection, including after an in-page link.

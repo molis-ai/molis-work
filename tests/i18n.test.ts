@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import { htmlLang, installHostUiText, localeSetCookie, registeredBuiltinText, resolveWebLocale, runWithLocale, runWithRegisteredText, safeNextPath } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
 import { renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
 import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -143,5 +143,14 @@ test("VUX-40 the Pause control is a verb and the paused state is a state in the 
       assert.equal(read("workbench.assistant-dock.pause"), verb);
       assert.equal(read("workbench.assistant-island.paused"), state);
     }
+  });
+});
+
+test("renderLocaleSwitch renders escaped attributes and active state in both locales", () => {
+  for (const [locale, label] of [["zh", "界面语言"], ["en", "Language"]] as const) runWithLocale(locale, () => {
+    const html = createWorkbenchLocale(() => locale).renderLocaleSwitch("/settings/memory");
+    assert.match(html, new RegExp(`aria-label="${label}"`));
+    assert.match(html, new RegExp(`data-ui-language="${locale}" aria-current="true"`));
+    assert.match(html, /href="\/locale\?lang=en&next=%2Fsettings%2Fmemory"/);
   });
 });

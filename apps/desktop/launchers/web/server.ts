@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, isLoopbackPortAvailable, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -104,6 +104,7 @@ if (isMain) {
         : [preferred];
       let lastError: unknown;
       for (const candidate of candidates) {
+        if (allowFallback && !(await isLoopbackPortAvailable(candidate))) continue;
         try {
           await new Promise<void>((resolveListen, rejectListen) => {
             const onError = (error: NodeJS.ErrnoException) => {

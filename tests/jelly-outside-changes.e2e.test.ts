@@ -5,7 +5,7 @@ import test from "node:test";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { connectorAssistantModel, toolField } from "./fixtures/connector-assistant-model.js";
-import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
+import { CURRENT_WORK, OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 import { openWork, waitWork } from "./fixtures/assistant-send-journey.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -114,8 +114,9 @@ test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly eve
       await waitFor("document.documentElement.lang === 'en' && document.querySelector('[data-assistant-island]')");
       await openWork(browser, workId);
     }
-    await waitFor("document.querySelector('[data-assistant-side-toggle]')?.checkVisibility()");
-    if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
+    await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 30_000);
+    // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+    await evaluate(OPEN_DETAILS);
     const resultButton = '[data-assistant-block="results"] button.assistant-item-title';
     await waitFor(`document.querySelector(${JSON.stringify(resultButton)})?.checkVisibility()`);
     assert.equal(await evaluate(`document.querySelector(${JSON.stringify(resultButton)}).textContent`), title);

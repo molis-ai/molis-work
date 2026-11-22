@@ -5,6 +5,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 /** One streamed model turn: a tool call, or plain text. */
 function turn(tool?: { name: string; input: unknown }, text = "记下了。"): string {
@@ -69,8 +70,9 @@ test("a change taken back from the Assistant's panel leaves the owner's page at 
   // The Assistant's change shows on the page (the page already rereads after a change).
   await child.waitFor(listed, 30_000);
 
-  await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)");
-  if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 30_000);
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await evaluate(OPEN_DETAILS);
   const undo = '[data-assistant-side] button[aria-label="撤销：待办 · 新建待办"]';
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(undo)}))`, 10_000);
   await evaluate(`document.querySelector(${JSON.stringify(undo)}).scrollIntoView({ block: "center" })`);

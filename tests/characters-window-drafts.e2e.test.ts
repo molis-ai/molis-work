@@ -174,7 +174,7 @@ test("B36F-04 the task role picker uses the shared editor and sets defaults in p
   const main = await send(null, 1);
   assert.equal(main.work.main, true);
   assert.equal(main.rounds[0]?.character, undefined);
-  await click("[data-assistant-new]");
+  await click("[data-assistant-more]"); await click("[data-assistant-new]");
   await click("[data-assistant-panel-close]");
 
   await putInput(b, "选角前已输入的草稿");
@@ -216,6 +216,8 @@ test("B36F-04 the task role picker uses the shared editor and sets defaults in p
 
   const work = await send(main.work.work_id, 1);
   assert.equal(work.rounds[0]?.character?.title, "本次新角色");
+  // The work's own 谁来做 row is in the conversation's details (更多 › 详情, 36A-3).
+  await click("[data-assistant-more]"); await click("[data-info-details-open]");
   await waitFor(`Boolean(document.querySelector("${side}")?.getClientRects().length)`);
   await evaluate(`document.querySelector("${side}").focus()`);
   await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r", windowsVirtualKeyCode: 13 }, b.sessionId);

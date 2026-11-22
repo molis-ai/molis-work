@@ -130,6 +130,8 @@ async function readDirect({ command, sessionId, navigate, origin }: Browser, vie
   await pause(1500);
   for (const [index, selector] of steps.entries()) {
     if (index === steps.length - 1) await evaluate(OVERLAY_BEFORE);
+    // An open record takes the whole plugin page (36A-3): a row of its list is reached by going back first.
+    await evaluate(`(() => { const element = document.querySelector(${JSON.stringify(selector)}), stage = element?.closest('[data-expanded="true"]'); if (stage && !element.getClientRects().length && !element.closest('.plugin-stage-workspace')) [...stage.querySelectorAll('.plugin-stage-back')].find(key => key.getClientRects().length)?.click(); })()`);
     await waitFor(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility() === true`, 15_000);
     const point = await view.point(selector).catch(() => null);
     assert.ok(point, `${where}: ${selector} can be pressed`);

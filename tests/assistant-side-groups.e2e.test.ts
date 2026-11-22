@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantBackgroundJob, AssistantUndoable, AssistantUnsettledChange } from "@molis-ai/molis-work-contracts/services/assistant";
-import { openWork, putInput, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
+import { openDetails, openWork, putInput, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
 
 // specs/visual-ui-experience VUX-08, VUX-22: the Assistant's side groups what a work made, changed and still runs elsewhere
 // into one disclosure each. A real work on a real Host; its change and job rows, which only an owner's undoable action or
@@ -27,6 +27,7 @@ test("VUX-08 VUX-22: 产出, 变更 and 后台任务 are one disclosure each; fo
     return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
   }; })()`);
   await openWork(browser, id);
+  await openDetails(browser);
   const block = (key: string) => `document.querySelector('[data-assistant-block="${key}"]')`;
   await waitFor(`${block("changes")}?.checkVisibility() && ${block("background")}?.checkVisibility()`, 15_000);
 
@@ -56,6 +57,7 @@ test("VUX-08 VUX-22: 产出, 变更 and 后台任务 are one disclosure each; fo
   // An update arrives: the job finished. The folded group stays folded; the other's summary follows.
   await evaluate(`window.__jobState = "completed"`);
   await openWork(browser, id);
+  await openDetails(browser);
   await waitFor(`${block("background")}.querySelector('.assistant-block-badge')?.textContent === '1'`);
   assert.equal(await evaluate<string>(`${head("changes")}.getAttribute('aria-expanded')`), "false", "an update never unfolds what the person folded");
 
@@ -80,6 +82,7 @@ test("VUX-08: a long side group shows five, says how many more, never tucks a fa
     return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
   }; })()`);
   await openWork(browser, id);
+  await openDetails(browser);
   const block = `document.querySelector('[data-assistant-block="changes"]')`;
   await waitFor(`${block}?.checkVisibility() && ${block}.querySelector('.mw-show-more')`, 15_000);
   // Newest first: 第 9 … 第 5 in sight, 第 4 … 第 2 tucked, and 第 1 项 (the failure, last) still in sight.
@@ -94,6 +97,7 @@ test("VUX-08: a long side group shows five, says how many more, never tucks a fa
   // The view is drawn again (a row changed): what the person revealed stays revealed.
   await evaluate("window.__update = true");
   await openWork(browser, id);
+  await openDetails(browser);
   await waitFor(`${block}.textContent.includes('（更新）')`);
   assert.equal((await seen()).length, 9);
 });
@@ -117,6 +121,7 @@ test("VUX-08: 产出 keeps a fixed 成果库 version apart from the working obje
     return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
   }; })()`);
   await openWork(browser, id);
+  await openDetails(browser);
   const results = `document.querySelector('[data-assistant-block="results"]')`;
   await waitFor(`${results}?.checkVisibility() && ${results}.querySelectorAll('.assistant-group').length === 2`, 15_000);
   const groups = await evaluate<Array<[string, string]>>(`[...${results}.querySelectorAll('.assistant-group')].map((g) => [g.querySelector('.assistant-block-sub')?.textContent || '', g.querySelector('.assistant-stack').textContent])`);
@@ -152,6 +157,7 @@ test("VUX-08 VUX-09 QEA-183: 参考内容 keeps what waits to be sent, what this
     return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
   }; })()`);
   await openWork(browser, id);
+  await openDetails(browser);
   const box = `document.querySelector('[data-assistant-block="materials"]')`;
   await waitFor(`${box}?.hidden === false && ${box}.textContent.includes('本周计划')`, 15_000);
   await putInput(browser, "接着整理", "补充说明");
@@ -180,6 +186,7 @@ test("VUX-08 VUX-09: 工作环境 names the work's project and 连接与工具 w
   const { evaluate, waitFor } = browser;
   const id = await seedWork(browser, "看看能用什么");
   await openWork(browser, id);
+  await openDetails(browser);
   const env = `document.querySelector('[data-assistant-block="environment"]')`, tools = `document.querySelector('[data-assistant-block="tools"]')`;
   await waitFor(`${env}?.hidden === false && ${tools}?.hidden === false`, 20_000);
   const read = await evaluate<{ env: string; groups: string[]; callable: string; badge: string }>(`(() => ({ env: ${env}.textContent,
@@ -214,6 +221,7 @@ test("VUX-08 VUX-09: a plugin-carried work shows its directory and repository, a
       : new Response(JSON.stringify(next), { status: 200, headers: { "Content-Type": "application/json" } });
   }; })()`);
   await openWork(browser, id);
+  await openDetails(browser);
   const env = `document.querySelector('[data-assistant-block="environment"]')`, tools = `document.querySelector('[data-assistant-block="tools"]')`;
   await waitFor(`${env}?.textContent.includes('molis-ai/molis-work') && ${tools}?.textContent.includes('Notion')`, 20_000);
   const read = await evaluate<{ env: string; envBadge: [string, boolean]; tools: string; toolsBadge: [string, boolean]; blocked: string }>(`(() => {

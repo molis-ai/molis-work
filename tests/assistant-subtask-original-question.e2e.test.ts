@@ -4,6 +4,7 @@ import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-wor
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { recordingTextModel, type ModelWire } from "./fixtures/recording-text-model.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+import { OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 // SAI-06/09/15: actual native float, original question renderer, HTTP owner and installed SDK; only model replies are scripted.
 for (const source of ["work", "sdk"] as const) test(`${source} child ordinary chat leaves the original questionnaire open; its form answers the same Run`, { timeout: 120_000 }, async t => {
@@ -39,7 +40,8 @@ for (const source of ["work", "sdk"] as const) test(`${source} child ordinary ch
   assert.equal(childCalls, 1);
   await b.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{work_id:${JSON.stringify(sent.work.work_id)}}}))`);
   await b.waitFor("document.querySelector('.assistant-subtask-name')");
-  if (!await b.evaluate("document.querySelector('.assistant-subtask-name').getBoundingClientRect().width>0")) await b.click("[data-assistant-side-toggle]");
+  // The work's details (its path, sub-tasks, results and changes) are behind 更多 › 详情 (36A-3).
+  await b.evaluate(OPEN_DETAILS);
   await b.click(".assistant-subtask-name");
   const field = "[data-work-task-float] [data-ix-field=n0] input", composer = "[data-work-task-float] .mw-subtask__composer textarea";
   await b.waitFor(`document.querySelector(${JSON.stringify(field)})`);

@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, skillDraftActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, skillDraftActions } from "@molis-ai/molis-work-contracts/services/skills";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { isDeepStrictEqual } from "node:util";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
@@ -38,12 +37,8 @@ export async function handleSkillSettingsHttp(request: IncomingMessage, response
       const invoke = (context = caller) => client.invoke(context, { capability_id: definition.capability_id, version: definition.version }, body);
       if (definition === skillCatalogActions.readBodies && Array.isArray(body.refs) && body.refs.length === 1) {
         // The person's protected click names exactly this Skill, so the Host freezes it as the named list of this one read (§2.3): a
-        // `manual` Skill's body can be shown. The read is for the consumer the Skill applies to, which the catalog says; nothing is
-        // enabled and no use is recorded (only a round's owner records one).
-        const named = body.refs[0] as SkillRef;
-        const listed = await client.invoke(caller, { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as { skills: SkillCatalogEntry[] };
-        const appliesTo = listed.skills.find(skill => isDeepStrictEqual(skill.ref, named))?.applies_to;
-        return { status: 200, body: await invoke({ ...caller, skill_round: { consumer: appliesTo === "coding" ? "coding" : "assistant", named: [named] } }) };
+        // `manual` Skill's body can be shown in one catalog snapshot without listing first. It is not a round: nothing is enabled and no use is recorded.
+        return { status: 200, body: await invoke({ ...caller, skill_round: { named: [body.refs[0] as SkillRef] } }) };
       }
       return { status: 200, body: await invoke() };
     } });

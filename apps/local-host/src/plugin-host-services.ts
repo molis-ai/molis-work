@@ -70,6 +70,8 @@ export interface HostSession {
   stopProjectJobs(projectId: string): Promise<void>;
   /** Whether work this instance runs in the project would end if the project closed: a background execution or job, or a terminal. */
   hasProjectWork(projectId: string): boolean;
+  /** Synchronous count of active background executions and command-kept jobs owned by this instance. */
+  activeWorkCount(): number;
   revoke(): void;
   dispose(): Promise<void>;
 }
@@ -172,6 +174,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
       hasProjectWork: projectId => !!background?.hasProjectWork(projectId) || !!terminal?.live()
         || (!!options.home && hasLiveWorkTerminals({ home: options.home.directory, install_id: context.install_id, project_id: projectId })),
+      activeWorkCount: () => background?.activeWorkCount() ?? 0,
       revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     await dispose();

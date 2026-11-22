@@ -21,7 +21,7 @@ export const CODING_STYLES = `
 [data-coding-subagents] textarea { width:100%; resize:vertical; }
 .coding-plan-after { color:var(--muted); font-size:12px; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
-[data-coding-workbench] { container: molis-coding / inline-size; --coding-reading: var(--mw-bar-column, 680px); } /* the reading column, as wide as the bar's input over it (one input, specs/unified-input-voice §10.4): the bar says its width, 680px at most */
+[data-coding-workbench] { container: molis-coding / inline-size; --coding-bar: var(--mw-bar-column, 680px); --coding-reading: max(var(--coding-bar), 720px); } /* the reading column starts at the left edge of the bar's input (UIV-19; the bar says its width and where it stands) and is 720px wide where the dialogue has the room (POLISH-25), the bar's own width at least */
 .coding-layout { display:grid; grid-template-columns:240px minmax(0,1fr); height:100%; min-height:0; }
 .coding-layout .coding-stage { min-width:0; }
 .coding-directory-back { display:none; }
@@ -319,13 +319,14 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 /* A run's waiting question is the shared question card (A2); in the thread it keeps the reading width. */
 [data-coding-question],.coding-cards { max-width:var(--coding-reading); margin:16px auto 24px; }.coding-cards { display:grid; gap:12px; }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
-.coding-composer > * { width:min(100%, var(--coding-reading)); }
-.coding-composer > .coding-context { justify-content:flex-start; }
+/* What sits over the bar's box keeps the box's own width (the turns alone read at 720): wider, its right end would run under the workbench's 帮助. */
+.coding-composer > * { width:min(100%, var(--coding-bar)); }
+.coding-composer > :is(.coding-context,.coding-next-round) { justify-content:flex-start; }
 ${CODING_FOOTNOTE_STYLES}
 .coding-composer small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-composer-footnote { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .coding-composer-footnote kbd { font-size:11px; flex:none; }
-.coding-composer .coding-model-setup { align-self:center; justify-content:flex-start; padding:0; height:auto; min-height:20px; font-size:12px; }
+.coding-composer .coding-model-setup { justify-content:flex-start; padding:0; height:auto; min-height:20px; font-size:12px; }
 .coding-status { padding:4px 32px; min-height:0; }
 .coding-status:empty { display:none; }
 .coding-dialogue > .coding-status { width:min(100%, var(--coding-reading)); margin-inline:auto; padding-inline:0; }
@@ -716,6 +717,8 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 /* The rules menu (batch12-design §3.7): two file groups, the second saying why nothing was read when nothing was. */
 dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
 .coding-rules__body { display:grid; gap:12px; min-width:0; }
+/* The model's rows are the SDK's settings section; in a settings page it stands 32px under the one before, here it is the first thing under the title. */
+.coding-rules .mw-settings-section { margin-top:0; }
 /* The as-of caption is a sentence: on a narrow screen it wraps instead of being cut. */
 .coding-rules__group .mw-file-group__text small { white-space:normal; overflow:visible; text-overflow:clip; }
 .coding-rules__body .mw-file-row__name { font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); }

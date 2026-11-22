@@ -2,8 +2,9 @@
  * Where Coding's composer keeps each part. Since one input (specs/unified-input-voice §10.3–10.4, O2–O3) Coding draws no box of
  * its own: a session on show is the receiver of the workbench bar's one input, so these selectors are the bar's and every script
  * built from them runs in the TOP document (the workbench, `owner`/`browser`), never in the Coding frame. The box, send, stop and
- * pause are the composer's; the bar's controls carry their id (`intent`, `model`, `effort`, `model-switch`); what sets the next
- * round is a ＋ command, found by its `/word`.
+ * pause are the composer's; the bar's one control carries its id (`intent`); what sets the next round is a ＋ command, found by its
+ * `/word`. The model, its effort and switching a live round are rows of 「本轮设置」 in the Coding FRAME (screen-polish §6.7,
+ * POLISH-28): `CODING_MODEL` and its neighbours below, chosen with `codingSetting`.
  */
 export const CODING_COMPOSER = "[data-assistant-island] [data-assistant-composer]";
 export const CODING_BOX = `${CODING_COMPOSER} .mw-composer__input`;
@@ -17,15 +18,8 @@ export const CODING_TAKEN = "(document.querySelector('[data-assistant-island]')?
 /** True (top document) once the bar is Coding's and its box takes words (the session's first read landed). */
 export const CODING_OPEN = `(${CODING_TAKEN} && !document.querySelector(${JSON.stringify(CODING_BOX)}).disabled)`;
 
-/** A control in the bar by its id: `intent`, `model`, `effort` (a select) or `model-switch` (a button). */
+/** The bar's control by its id: `intent` (a select). */
 export const codingControl = (id: string) => `${CODING_COMPOSER} [data-composer-control="${id}"]`;
-
-/**
- * A script (top document) that brings the bar's controls into sight: the line's input at rest is one row and folds them behind
- * 更多 while it is 600px or narrower (craft-finish-bar.ts), so 更多 is opened when it shows and is not open yet.
- */
-export const codingControlsShown = `(()=>{const more=document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-more]`)});
-  if(more&&more.checkVisibility()&&more.getAttribute('aria-expanded')!=='true')more.click();})()`;
 
 /** A script (top document) that opens ＋ (unless it is open) and presses the command found by `/slash` (`materials`, `character`, `actions`…). */
 export const codingAdd = (slash: string) => `(()=>{const shell=document.querySelector(${JSON.stringify(CODING_COMPOSER)});
@@ -41,3 +35,12 @@ export const codingDeliver = (mode: "next-boundary" | "interrupt" | "after-run")
 /** A script (top document) that writes into the box the way typing does: the value, then the input event the composer listens to. */
 export const codingType = (text: string) => `(()=>{const node=document.querySelector(${JSON.stringify(CODING_BOX)});node.value=${JSON.stringify(text)};
   node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:${JSON.stringify(text.slice(-1))}}));})()`;
+
+/** 「本轮设置」's rows (FRAME document): the model's choice, its effort, and the button that switches a live round. */
+export const CODING_MODEL = "[data-coding-workbench] [data-coding-round-model] [data-coding-model]";
+export const CODING_EFFORT = "[data-coding-workbench] [data-coding-round-model] [data-coding-effort]";
+export const CODING_MODEL_SWITCH = "[data-coding-workbench] [data-coding-round-model] [data-coding-model-switch]";
+/** True (FRAME document) once the model's choice is drawn with what the catalog lists. */
+export const CODING_MODELS_LISTED = `(document.querySelector(${JSON.stringify(CODING_MODEL)})?.options.length >= 1)`;
+/** A script (FRAME document) that chooses in one of 「本轮设置」's selects as the person does: the value, then the change the page hears. */
+export const codingSetting = (selector: string, value: string) => `(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('change',{bubbles:true}));})()`;

@@ -23,7 +23,7 @@
 // added to the plugin's count.
 //
 // Goals is measured by the same generic registration loop as every other plugin: its stylesheet splits on demand into
-// `/assets/molis-work-plugins/goals.css` via `stylesheetPrefixes: ["goal-"]` and `pageClients`.
+// `/assets/molis-work-plugins/goals.css` via `stylesheetPrefixes: ["goal-"]` and `pageClient`.
 //
 // A number may only fall. `--update` refuses when any plugin grew relative to the reference (with `--base`: the merge-base's
 // copy, otherwise the committed file) and it refuses to write a plugin the file does not know, so a new plugin with rules in

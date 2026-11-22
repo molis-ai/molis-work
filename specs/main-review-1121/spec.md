@@ -18,7 +18,7 @@
 | MR21-04 | 一次放置同时改归属与事项时，先在主线核对事项（可见、权限、上限），核不过就整次拒绝，主人那边什么都不写 | `tests/mainline-items.test.ts` B36F-06 里的 MR21-04 断言 |
 | MR21-05 | 页面资源预算只许收紧：已有路由不能少计任何资源，新路由只能列确切资源（不能用前缀、后缀兜住一片） | `tests/page-assets-budget.test.ts` 的 MR21-05 段 |
 | MR21-06 | 资料的阅读位置只读调用者自己的；删除项目不再接管没有回执的暂存目录，原样保留 | `tests/system-materials-actions.test.ts`「MR21-06」、`tests/project-deletion-processes.test.ts`「ARF-1/MR21-06」；[ARF-1](../architecture-review-fixes/spec.md) 同步改 |
-| MR21-07 | 外壳里 Feed/Inbox 的名字分支随外壳整改搬走 | 未做，并入 [BL-b44-shell-goals-state](../backlog/BL-b44-shell-goals-state.md) |
+| MR21-07 | 外壳里 Feed/Inbox 的名字分支随外壳整改搬走 | 外壳一侧随 H4 搬走；Goals 画框里剩下的分支记 [BL-shell-goals-leftovers](../backlog/BL-shell-goals-leftovers.md) ⑥ |
 | MR21-08 | AGENTS.md 的页面资源规则与决定 58 一致（预算表、只许收紧、调高或移出路由先问） | 文档 |
 | MR21-09 | 补回丢失的证据：PWA-137 由托盘的「已停止」状态承担，两种语言下都不与运行中、重连中同词；EVD-13 标注；EVD-16 一份报告里多项引用同一轮同一组命令只问平台一次（随 #2155 退化，已修）；EVD-18 随 `acceptance.reports.submit@1` 去掉幂等键而失效，记入后续 | `apps/desktop/adapters/tauri/src/native_language.rs`「pwa137」、`tests/acceptance-requirements.test.ts`「EVD-13」「EVD-16 / MR21-09」 |
 | MR21-10 | 日程的命令成功后告诉打开的页面失败（插件正在停用）不会把成功变成失败 | `tests/schedule-task-grants.test.ts`「MR21-10」 |

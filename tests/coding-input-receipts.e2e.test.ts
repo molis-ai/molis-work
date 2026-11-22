@@ -8,7 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
-import { CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_SEND, CODING_STOP, CODING_TAKEN, codingDeliver } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_SEND, CODING_STOP, CODING_TAKEN, codingDeliver, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 
 const sse = (type: string, value: object) => `event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`;
 const start = sse("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } })
@@ -79,8 +79,9 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
-  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
-  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
+  await child.waitFor(CODING_MODELS_LISTED);
+  await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["local-only", "fixture-plain"])));
   await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
   assert.equal(await b.evaluate<boolean>(`!document.querySelector('${CODING_COMPOSER} [data-compose-menu-toggle]')`), true, "no send modes before a round runs");
   await barFill(`${CODING_COMPOSER} .mw-composer__input`, "登录流程哪里用了旧接口？");

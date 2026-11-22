@@ -81,7 +81,7 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
   };
   // A cover's own directory (settings categories) gives the column back to what the pane shows.
   const leaveCoverDirectory = () => {
-    const directory = document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory;
+    const directory = document.querySelector("[data-directory-pane]")?.dataset.desktopDirectory;
     if (directory === "settings" || directory === "project-settings") setDirectory("root", true, false);
   };
   const visitPlace = (pane, id) => {

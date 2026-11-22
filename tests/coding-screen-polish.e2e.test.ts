@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
+import { CODING_COMPOSER, codingAdd } from "./fixtures/coding-composer.js";
+import { shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
-// Screen polish, first round, P4 first half (specs/screen-polish/p4-coding.md): the Coding page as a person meets it, in the
+// Screen polish, first round, P4 (specs/screen-polish/p4-coding.md; both halves): the Coding page as a person meets it, in the
 // project's running instance. The session and its workspace are real; the one round on show is given to the page as the
 // service would answer it (a round needs a model), with its change set.
 
@@ -38,8 +42,9 @@ test("POLISH-23 POLISH-24 POLISH-26 POLISH-27: 目录列让名字说话，准备
   // read that named it otherwise would look like a rename, and the host answers a rename by selecting the session again, which
   // closes the results panel); its changes are a fixed set.
   await evaluate(`(()=>{const real=window.fetch,id=${JSON.stringify(encodeURIComponent(first))};window.changeReads=0;
+    window.changeReadPaths=[];
     window.fetch=async(input,init)=>{const path=String(input?.url||input),get=(init?.method||'GET')==='GET';
-      if(get&&path.includes('/runs/${RUN}/changeset'))changeReads++;
+      if(get&&path.includes('/runs/${RUN}/changeset')){changeReads++;changeReadPaths.push(path.slice(path.indexOf('/changeset')));}
       const answer=async change=>{const res=await real(input,init);if(!res.ok)return res;const data=await res.json();change(data);return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}});};
       if(get&&path.includes('/sessions/'+id+'?'))return answer(data=>{data.runs=[${JSON.stringify(run)}];if(data.session)data.session.title=${JSON.stringify(LONG_TITLE)};});
       if(get&&/\\/state(\\?|$)/.test(path))return answer(data=>{for(const session of data.sessions||[])if(session.session_id===${JSON.stringify(first)})session.title=${JSON.stringify(LONG_TITLE)};});
@@ -47,6 +52,8 @@ test("POLISH-23 POLISH-24 POLISH-26 POLISH-27: 目录列让名字说话，准备
     fakes.push({method:'GET',path:'/runs/${RUN}/changeset',body:${JSON.stringify({
       html: "", change: { files: [written("src/export.ts", "modified", 20, 6), written("src/week.ts", "added", 4, 0)] },
       reference: { artifact_id: "artifact-fixed", version: 1 }, saved_at: "2026-11-18T10:00:12.000Z", view_mode: "write", net_groups: [], output: null,
+      // What the counts-only read answers (`?stats=1`); the reader's own read of the same round takes the rest.
+      stats: { added_lines: 24, removed_lines: 6, files: [{ path: "src/export.ts", added_lines: 20, removed_lines: 6 }, { path: "src/week.ts", added_lines: 4, removed_lines: 0 }] },
     })}});})()`);
 
   // 6.2: a second session has no round yet. Its welcome says the environment is ready in one line; nothing is amber.
@@ -153,7 +160,7 @@ test("POLISH-23 POLISH-24 POLISH-26 POLISH-27: 目录列让名字说话，准备
   const leaked = [workspace, "knowledge.read"].filter(text => results.seen.includes(text)).map(text => results.seen.slice(Math.max(0, results.seen.indexOf(text) - 40), results.seen.indexOf(text) + text.length + 10));
   assert.deepEqual(leaked, [], "POLISH-27 绝对路径和能力编号不在首屏");
   assert.ok(results.folded.includes("coding-first-read"), "它们还在「运行详情」里，点开就看得到");
-  assert.equal(await evaluate<number>("changeReads"), 1, "增减行只读一次这一轮的变更，重画和打开面板都不再读");
+  assert.deepEqual(await evaluate<string[]>("changeReadPaths"), ["/changeset?stats=1"], "增减行只读一次这一轮的变更，读的是只带行数的那一种；重画和打开面板都不再读");
   // UIV-19: even with the 320px results panel open, the dialogue reading column aligns with --mw-bar-left (within 1px).
   const align = await evaluate<{ barLeft: number; turnLeft: number }>(`(()=>{
     const root=document.querySelector('${coding}'), barLeft=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mw-bar-left'));
@@ -233,4 +240,116 @@ test("POLISH-26: 环境有要处理的事时准备行展开并上琥珀；人收
   // Something to handle again is news: it opens once more.
   await evaluate("window.envAsks=true");
   await waitFor(`${fold}?.dataset.attention==='true'&&${fold}.open`, 20_000);
+});
+
+test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对齐输入框；输入框底行最多四个控件，模型与规则在「本轮设置」里", { timeout: 240_000 }, async t => {
+  const opened = await openCoding(t); if (!opened) return;
+  const { evaluate, waitFor, start, afterAStateRead, owner, command, sessionId, homeDirectory } = opened;
+  const first = await start("把导出改成按周汇总");
+  const long = "已经改成按周汇总。导出的每一行现在是一周的合计，周一为一周的开始；跨年的那一周按周一所在的年份归档，和报表页的口径一致。原来按天导出的入口还在，只是默认值换了。";
+  const run = {
+    ref: { run_id: RUN }, phase: "completed", started_at: "2026-11-18T10:00:00.000Z", ended_at: "2026-11-18T10:00:12.000Z",
+    turns: [{ turn_id: "t1", kind: "user", text: "把导出改成按周汇总", sequence: 1 }, { turn_id: "t2", kind: "assistant", text: long, html: `<p>${long}</p>`, sequence: 2 }],
+    activity: [{ call_id: "c1", name: "edit", target: "src/export.ts", state: "completed" }, { call_id: "c2", name: "write", target: "src/week.ts", state: "completed" }],
+    frozen: { model_id: "fixture-model", role_id: "writer", role_version: 1, skills: [], directory: { canonical_path: homeDirectory + "/coding-first-read" }, action_tools: [], text_materials: [] },
+    usage: { tokens: { input: 1200, output: 300 } },
+  };
+  await evaluate(`(()=>{const real=window.fetch,id=${JSON.stringify(encodeURIComponent(first))};
+    window.fetch=async(input,init)=>{const path=String(input?.url||input);
+      if((init?.method||'GET')!=='GET'||!path.includes('/sessions/'+id+'?'))return real(input,init);
+      const res=await real(input,init);if(!res.ok)return res;const data=await res.json();data.runs=[${JSON.stringify(run)}];
+      return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}});};
+    fakes.push({method:'GET',path:'/runs/${RUN}/changeset',body:${JSON.stringify({ stats: { added_lines: 24, removed_lines: 6, files: [{ path: "src/export.ts", added_lines: 20, removed_lines: 6 }, { path: "src/week.ts", added_lines: 4, removed_lines: 0 }] } })}});})()`);
+  await afterAStateRead();
+  await evaluate(`document.querySelector('${coding} [data-coding-session="${first}"]').click()`);
+  await waitFor(`!!document.querySelector('${coding} [data-run="${RUN}"] .coding-run-card .coding-change-counts')`, 40_000);
+
+  // 6.3 (POLISH-25): the reading column. `column` is the answer's own box; `bar` is the workbench input's left edge and width as the frame is told them.
+  const column = () => evaluate<{ left: number; width: number; barLeft: number; bar: number; room: number; card: number; line: number; prose: number }>(`(()=>{
+    const root=document.querySelector('${coding}'),block=root.querySelector('[data-run="${RUN}"]'),turn=block.querySelector('.coding-turn[data-kind=assistant]').getBoundingClientRect(),told=getComputedStyle(document.documentElement);
+    const card=block.querySelector('.coding-run-card'),dialogue=root.querySelector('.coding-dialogue').getBoundingClientRect();
+    return {left:Math.round(turn.left),width:Math.round(turn.width),barLeft:Math.round(parseFloat(told.getPropertyValue('--mw-bar-left'))),bar:Math.round(parseFloat(told.getPropertyValue('--mw-bar-column'))),
+      room:Math.round(dialogue.right-turn.left-12),card:Math.round(card.getBoundingClientRect().height),line:Math.round(card.querySelector('header').getBoundingClientRect().height),
+      prose:Math.round(block.querySelector('.coding-turn[data-kind=assistant] p').getBoundingClientRect().width)};})()`);
+  const at = async (width: number, height: number) => {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    // The frame hears the bar's new place after the window settles: wait for the column to be laid from it.
+    await waitFor(`(()=>{const told=getComputedStyle(document.documentElement),turn=document.querySelector('${coding} [data-run="${RUN}"] .coding-turn[data-kind=assistant]').getBoundingClientRect();
+      return innerWidth<=${width}&&innerWidth>${width}-80&&Math.abs(turn.left-parseFloat(told.getPropertyValue('--mw-bar-left')))<=1;})()`, 20_000);
+    return column();
+  };
+  /** A review screenshot of the whole window (opt-in), for the walk-through of 36A-4b. */
+  const look = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    const directory = join(process.cwd(), ".impeccable/qa/review/screen-polish/p4b/after"); await mkdir(directory, { recursive: true });
+    const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
+  };
+  const wide = await at(1440, 900);
+  await look("zh-light-1440");
+  assert.ok(wide.bar < 720, `1440 宽时底部输入框本身不到 720：${wide.bar}`);
+  assert.ok(wide.width >= 720, `POLISH-25 1440 宽时对话阅读列不窄于 720px：${wide.width}`);
+  assert.ok(Math.abs(wide.left - wide.barLeft) <= 1, `POLISH-25 阅读列加宽以后左缘仍对齐底部输入框（UIV-19）：${JSON.stringify(wide)}`);
+  assert.ok(wide.prose >= 560, `POLISH-25 正文段落跟着阅读列变宽，不被 52 字的上限卡住：${wide.prose}`);
+  assert.ok(wide.line <= 40 && wide.card <= 52, `回合结束卡在 1440 是一行：${JSON.stringify(wide)}`);
+
+  // What sits over the box in the page (the next round's tags, 工作区与目标, 打开模型设置) is the box's: as wide, from the same left edge.
+  const overBox = () => evaluate<{ rows: number; widest: number; off: number; bar: number }>(`(()=>{const told=getComputedStyle(document.documentElement),left=parseFloat(told.getPropertyValue('--mw-bar-left')),bar=parseFloat(told.getPropertyValue('--mw-bar-column'));
+    const rows=[...document.querySelectorAll('${coding} .coding-composer > *')].map(node=>node.getBoundingClientRect()).filter(box=>box.width>0&&box.height>0);
+    return {rows:rows.length,widest:Math.round(Math.max(0,...rows.map(box=>box.width))),off:Math.round(Math.max(0,...rows.map(box=>Math.abs(box.left-left)))),bar:Math.round(bar)};})()`);
+  const wideOver = await overBox();
+  assert.ok(wideOver.rows >= 1 && wideOver.widest <= wideOver.bar + 1 && wideOver.off <= 1, `1440 宽时输入框上方那几行与输入框同宽、左缘对齐输入框：${JSON.stringify(wideOver)}`);
+  // 6.7 (POLISH-28): the bar's bottom row at 1440. Four controls a person can press: ＋, the receiver, the way of working, 发送.
+  const foot = await owner.evaluate<{ controls: string[]; receiver: string; ids: string[]; above: boolean }>(`(()=>{const shell=document.querySelector(${JSON.stringify(CODING_COMPOSER)}),row=shell.querySelector('.mw-composer__foot');
+    const seen=node=>{const box=node.getBoundingClientRect();return box.width>0&&box.height>0&&getComputedStyle(node).visibility!=='hidden';};
+    const name=node=>node.dataset.composerControl||node.getAttribute('aria-label')||node.title||node.textContent.trim();
+    const line=row.getBoundingClientRect();
+    return {controls:[...row.querySelectorAll('button,select,.mw-tag')].filter(seen).filter(node=>!node.closest('.mw-tag')||node.classList.contains('mw-tag')).map(name),
+      receiver:row.querySelector('[data-composer-chip], .mw-tag')?.textContent.replace(/\s+/g,' ').trim()??'',ids:[...shell.querySelectorAll('[data-composer-control]')].map(node=>node.dataset.composerControl),
+      // What batch 35 put in the bar (pictures, the command chip, the notice line) is mounted over the box's text, never in this row.
+      above:!row.querySelector('[data-composer-chip], [data-composer-notice], img')&&[...shell.querySelectorAll('[data-composer-chip], [data-composer-notice]')].every(node=>!seen(node)||node.getBoundingClientRect().bottom<=line.top+1)};})()`);
+  assert.ok(foot.controls.length <= 4, `POLISH-28 输入框底行最多四个控件：${JSON.stringify(foot.controls)}`);
+  assert.deepEqual(foot.ids, ["intent"], "POLISH-28 底行里 Coding 只放「任务方式」一个控件，模型、规则和下一轮带上的都不在这一行");
+  assert.ok(foot.receiver && !/Coding|会话：|模型/.test(foot.receiver), `POLISH-28 收件人只写会话名：${foot.receiver}`);
+  assert.ok(foot.above, "第 35 批的图片条、指令标签和提示行在输入框上方，不占底行");
+  // 「本轮设置」 is one of ＋'s rows, saying the model and the rules beside its name; it opens the model's choice and the rules together.
+  await owner.evaluate(`document.querySelector(${JSON.stringify(CODING_COMPOSER)}).querySelector('[data-composer-add]').click()`);
+  const rows = `[...document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " [data-composer-command]")})].map(row=>row.textContent.replace(/\\s+/g,' ').trim())`;
+  await owner.waitFor(`${rows}.some(text=>text.includes('/settings'))`, 10_000);
+  const offered = await owner.evaluate<string>(`${rows}.find(text=>text.includes('/settings'))??''`);
+  assert.equal(await owner.evaluate<boolean>(`(()=>{const row=[...document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " [data-composer-command]")})].find(row=>row.textContent.includes('/settings')),menu=row.closest('[data-compose-menu]'),
+    at=row.getBoundingClientRect(),box=menu.getBoundingClientRect();return menu.scrollTop===0&&at.top>=box.top-1&&at.bottom<=box.bottom+1&&at.height>0;})()`), true, "POLISH-28 打开 ＋ 不用滚动就看得到「本轮设置」");
+  await look("zh-light-1440-plus-menu");
+  assert.match(offered, /^本轮设置.+ · 规则/, `POLISH-28 ＋ 里的「本轮设置」一行写出当前模型和规则：${offered}`);
+  await owner.evaluate(codingAdd("settings"));
+  await waitFor(`document.querySelector('${coding} [data-coding-rules-dialog]').open`, 10_000);
+  const settings = await evaluate<{ title: string; model: boolean; modelAbove: boolean; rules: string; groups: number; fits: boolean }>(`(()=>{const dialog=document.querySelector('${coding} [data-coding-rules-dialog]'),model=dialog.querySelector('[data-coding-round-model] [data-coding-model]')?.closest('.mw-setting-row'),
+    label=dialog.querySelector('[data-coding-rules-label]'),box=dialog.getBoundingClientRect();
+    return {title:dialog.querySelector('h2')?.textContent.trim()??'',model:!!model&&model.getBoundingClientRect().height>0,modelAbove:!!model&&model.getBoundingClientRect().bottom<=label.getBoundingClientRect().top,
+      rules:label.textContent.trim(),groups:dialog.querySelectorAll('[data-coding-rules-body] .mw-file-group').length,fits:box.top>=0&&box.bottom<=innerHeight&&box.width<=innerWidth};})()`);
+  assert.deepEqual(settings, { title: "本轮设置", model: true, modelAbove: true, rules: "规则", groups: 2, fits: true }, "POLISH-28 模型和规则合进「本轮设置」：先是模型，再是规则的两组");
+  // The model's rows are the SDK's settings section, set right under the title (a settings page's 32px between sections is not for here).
+  const under = await evaluate<{ part: string; margin: string }>(`(()=>{const section=document.querySelector('${coding} [data-coding-rules-dialog] [data-coding-round-model]');return {part:section.dataset.slot??'',margin:getComputedStyle(section).marginTop};})()`);
+  assert.deepEqual(under, { part: "settings-section", margin: "0px" }, "POLISH-28 「本轮设置」里模型那几行是 SDK 的设置区，紧接标题、上面不多空一截");
+  await look("zh-light-1440-round-settings");
+  await evaluate(`document.querySelector('${coding} [data-coding-rules-dialog] [data-coding-rules-close]').click()`);
+
+  // 1024: the bar is narrower still; the column keeps its edge and the round's end stays one line, its actions not wrapping.
+  const middle = await at(1024, 768);
+  assert.ok(Math.abs(middle.left - middle.barLeft) <= 1 && middle.width >= Math.min(720, middle.room) - 1, `POLISH-25 1024 宽时阅读列左缘对齐输入框，宽到 720 或对话区右缘：${JSON.stringify(middle)}`);
+  assert.ok(middle.line <= 40 && middle.card <= 52, `POLISH-25 1024 宽时回合结束卡的操作不折行：${JSON.stringify(middle)}`);
+  const footCount = () => owner.evaluate<number>(`(()=>{const row=document.querySelector(${JSON.stringify(CODING_COMPOSER)}).querySelector('.mw-composer__foot');
+    return [...row.querySelectorAll('button,select,.mw-tag')].filter(node=>{const box=node.getBoundingClientRect();return box.width>0&&box.height>0&&getComputedStyle(node).visibility!=='hidden'&&(!node.closest('.mw-tag')||node.classList.contains('mw-tag'));}).length;})()`);
+  await look("zh-light-1024");
+  const narrowFoot = await footCount();
+  assert.ok(narrowFoot <= 4, `POLISH-28 1024 宽时底行也不超过四个控件：${narrowFoot}`);
+  // What sits over the box in the page keeps the box's own width, so its right end stays clear of the workbench's 帮助 at this width.
+  const narrowOver = await overBox();
+  assert.ok(narrowOver.rows >= 1 && narrowOver.widest <= narrowOver.bar + 1 && narrowOver.off <= 1, `1024 宽时输入框上方那几行与输入框同宽、左缘对齐输入框，不跟着阅读列放到 720：${JSON.stringify(narrowOver)}`);
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 780, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await owner.waitFor("innerWidth<=390", 20_000);
+  await look("zh-light-390");
+  const phoneFoot = await footCount();
+  assert.ok(phoneFoot >= 1 && phoneFoot <= 4, `POLISH-28 390 宽时底行也不超过四个控件：${phoneFoot}`);
+  assert.deepEqual(await evaluate("(window.codingTestErrors || [])"), []);
 });

@@ -12,7 +12,7 @@ export const stateOf = (status: string): string => (status === "succeeded" ? "do
 const historyRow = (page: ImagesPage, job: ImageJob): HTMLButtonElement => {
   const { s, host, statuses } = page;
   const node = button("", "data-images-job", job.id);
-  node.className = `feed-stage-entry directory-list-row images-history-row${s.jobId === job.id ? " is-selected" : ""}`;
+  node.className = `mw-stage-entry directory-list-row images-history-row${s.jobId === job.id ? " is-selected" : ""}`;
   node.setAttribute("aria-pressed", String(s.jobId === job.id));
   const first = job.images?.[0];
   if (first) {

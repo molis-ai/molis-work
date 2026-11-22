@@ -209,7 +209,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     // the Host's own libraries, Agent run records and their key, encrypted credentials, the side browser, Plugin Studio work,
     // caches, folder bookmarks, Git review details and the person's settings in config/. Only the original lock skeleton remains.
     const registered = ["assistant/assistant.db", "placement/placement.db", "agent-definitions/agent-definitions.db", "characters/characters.sqlite",
-      "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
+      "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "security/secrets.json", "security/evidence/blobs/one", "browser/sites.json",
       "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
       "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json", "config/ui-locale.json",
       "config/desktop.json", "run/presence.json", "run/expired-seen.json",

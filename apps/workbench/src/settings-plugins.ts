@@ -316,6 +316,7 @@ panel.append(permissions(view.permissions), jobs(view.jobs));
 globalThis.molisSkillUI?.preview(panel, shown.skills);
 if (shown.requires?.length) panel.append(group(readText("workbench.settings-plugins.required-capabilities"), "", shown.requires.map(item => row(item.capability_id, item.reason, readText(item.satisfied ? "workbench.settings-agent-diagnostics.present" : "workbench.settings-plugins.not-available")))));
 if (shown.origins?.length) panel.append(group(readText("workbench.settings-plugins.service-addresses-may-access"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
+if (shown.memory_scene_after_restart) panel.append(el("p", "settings-muted", readText("workbench.settings-plugins.memory-scene-after-restart")));
 if (shown.agent_bodies && shown.agent_bodies.length) {
 const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", readText("workbench.settings-plugins.role-material")));
 shown.agent_bodies.forEach((item) => {

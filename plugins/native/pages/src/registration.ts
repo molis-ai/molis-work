@@ -14,6 +14,7 @@ export const registration: PluginRegistration = {
     order: 9,
     contributions: [pagesUiContribution],
     stylesheet: PAGES_STYLES,
+    frameStyleFeatures: ["context-toolbar"],
     clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
     clientAssets: ["/assets/molis-work-pages-editor.js"],
     clientAssetSpecifiers: { "/assets/molis-work-pages-editor.js": "@molis-ai/molis-work-plugin-pages/editor" },

@@ -17,26 +17,26 @@ function formatTime(value: string | undefined): string {
 
 const fixedCell = (_page: PagesPage, record: PagesRecord) => {
   if (!record.publication_pending && !(record.artifact_version > 0)) return null;
-  const node = make("span", "mw-status mw-status--plain feed-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done"));
+  const node = make("span", "mw-status mw-status--plain mw-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done"));
   node.dataset.mwState = record.publication_pending ? "unsaved" : "saved"; node.textContent = record.publication_pending ? uiText.text("pages.version.unfinished") : uiText.text("pages.version.pinned") + " v" + record.artifact_version;
   return node;
 };
 
 const renderRow = (page: PagesPage, record: PagesRecord) => {
   const { folders } = page;
-  const item = make("article", "feed-stage-item pages-doc-row creative-artifact-row");
+  const item = make("article", "mw-stage-item pages-doc-row creative-artifact-row");
   item.setAttribute("role", "none");
   item.draggable = folders.length > 0;
   item.dataset.pageId = record.id;
   const row = document.createElement("button");
   row.type = "button";
   row.draggable = folders.length > 0;
-  row.className = "feed-stage-entry directory-list-row" + (page.sel?.id === record.id ? " is-selected" : "");
+  row.className = "mw-stage-entry directory-list-row" + (page.sel?.id === record.id ? " is-selected" : "");
   row.dataset.pageId = record.id;
   row.setAttribute("role", "option");
   row.setAttribute("aria-selected", String(chosen(page, record.id)));
   if (page.picked.has(record.id)) item.classList.add("is-picked");
-  const leading = make("span", "feed-stage-leading");
+  const leading = make("span", "mw-stage-leading");
   const mark = make("span", "pages-doc-mark");
   mark.setAttribute("aria-hidden", "true");
   mark.innerHTML = ICON("note");

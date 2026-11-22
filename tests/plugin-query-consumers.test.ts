@@ -4,12 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { feedInformationPlanAction, feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { cachedMolisWorkWebView, declaredStageData } from "@molis-ai/molis-work-app-local-host";
-import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -130,24 +129,20 @@ for (const phase of ["dispatch", "response"] as const) {
         ? { available: false, code: "actions.plugin_disabled", reason: "Inbox 已停用" } : { available: true },
     });
     const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-    // The plan reads Feed's snapshot, which a caller reaches only holding `evidence:read` too (4e-2f).
-    const caller: ActionCallContext = { actor_id: "planner", audience: "user", project_id: reference.project_id, permissions: ["feed:read", "inbox:read", "model:invoke", "evidence:read"] };
+    const caller: ActionCallContext = { actor_id: "planner", audience: "user", project_id: reference.project_id, permissions: ["feed:read", "inbox:read", "model:invoke"] };
     const actions = bindActionClient(host.actionClient(reference), () => caller);
     try {
-      const pending = actions.invoke(informationActions.plan, { prompt: "整理一下当前材料" });
+      const pending = actions.invoke(feedInformationPlanAction, { prompt: "整理一下当前材料" });
       const refused = assert.rejects(pending, { code: "actions.plugin_disabled" });
       await Promise.race([entered.promise, pending.then(() => { throw new Error("missed model wait"); })]);
       disabled = true; release.resolve(); await refused;
       assert.equal(dispatched, phase === "dispatch" ? 0 : 1);
-      await assert.rejects(actions.invoke(informationActions.plan, { prompt: "整理" }), { code: "actions.plugin_disabled" });
+      await assert.rejects(actions.invoke(feedInformationPlanAction, { prompt: "整理" }), { code: "actions.plugin_disabled" });
       disabled = false; pause = false;
-      const result = await actions.invoke(informationActions.plan, { prompt: "整理" });
+      const result = await actions.invoke(feedInformationPlanAction, { prompt: "整理" });
       assert.equal(result.action, null); assert.equal(result.context.project_id, reference.project_id);
-      // RAC-1182: the Feed and Inbox dependencies are exactly the two capability ids, with no pinned provider; the directory supplies the one provider of each.
-      assert.deepEqual(informationActions.plan.action.required_actions, [
-        { capability_id: feedQueryActions.snapshot.capability_id, version: 1 },
-        { capability_id: inboxActions.list.capability_id, version: 1 },
-      ]);
+      // RAC-1182: the plan is Feed's (BL-b44-information-plan-to-feed), so its one dependency is Inbox's list, by capability id with no pinned provider.
+      assert.deepEqual(feedInformationPlanAction.action.required_actions, [{ capability_id: inboxActions.list.capability_id, version: 1 }]);
       assert.equal(dispatched, phase === "dispatch" ? 1 : 2);
       const runtime = await host.withProject(reference, r => r);
       assert.equal(createLocalFeedApplication(runtime.store.db).snapshot(DEMO_PROJECT_ID).feed_items.length, 0);

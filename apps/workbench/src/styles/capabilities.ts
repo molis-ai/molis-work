@@ -7,10 +7,10 @@ export const CAPABILITIES_STYLES = `
   .functions-system-editor .functions-stage-chrome h1 { flex: 1; margin: 0; font-size: 15px; font-weight: 500; }
   .functions-system-editor[data-expanded="true"] > .plugin-stage-list { display: none; }
   .functions-system-editor > .plugin-stage-workspace { position: absolute; inset: 0; overflow: hidden; }
-  .functions-system-editor .plugin-stage-list .feed-stage-entry { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 12px; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--line); text-align: left; }
-  .functions-system-editor .feed-stage-leading { flex: 1; min-width: 0; }
-  .functions-system-editor .feed-stage-entry:hover { background: var(--nav-hover); }
-  .functions-system-editor .feed-stage-entry strong { font-size: 15px; font-weight: 500; }
+  .functions-system-editor .plugin-stage-list .mw-stage-entry { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 12px; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--line); text-align: left; }
+  .functions-system-editor .mw-stage-leading { flex: 1; min-width: 0; }
+  .functions-system-editor .mw-stage-entry:hover { background: var(--nav-hover); }
+  .functions-system-editor .mw-stage-entry strong { font-size: 15px; font-weight: 500; }
   .functions-system-editor .mw-empty { padding: 32px; }
   .capability-rules-link { display: inline-block; margin: 12px 0 4px; color: var(--ink); text-underline-offset: 4px; }
   :is(.capabilities-page, .settings-stage) .functions-settings-document { padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
@@ -77,7 +77,7 @@ export const CAPABILITIES_STYLES = `
     :is(.capabilities-page, .settings-stage) .mcp-access :is(button,input) { min-height: 44px; }
     .mcp-access-row :is(summary,button) { min-height: 44px; }
 
-    .functions-system-editor .feed-stage-entry :is(.plugin-stage-fact, .plugin-stage-meta) { display: none; }
+    .functions-system-editor .mw-stage-entry :is(.plugin-stage-fact, .plugin-stage-meta) { display: none; }
     .capabilities-page .settings-shell { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr) !important; }
     .capabilities-page .settings-navigation { display: block !important; padding: 4px 12px !important; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
     .capabilities-page .settings-navigation > :is(.settings-nav-back, .settings-project-identity) { display: none; }

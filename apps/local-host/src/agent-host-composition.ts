@@ -44,6 +44,7 @@ import { modelRoundLocale, replyLanguage } from "./reply-language.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
 import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-round-skills.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
+import { skillConsumerOf } from "./memory/memory-plugin-scene.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
 import { exactActionView } from "./exact-action-view.js";
 
@@ -342,7 +343,7 @@ async function startAuthority(
         host_plugin: caller, plugin_install_id: caller.install_id, call_id: callId, locale },
       ...(named?.named.from === "host" ? { delegated: { refs: named.named.refs, person: { actor_id: named.person.actor_id, actor_kind: "user" as const,
         project_id: runtime.project_id, audience: "user" as const, permissions: [SKILLS_READ_PERMISSION], call_id: callId, locale } } } : {}),
-      named: named?.named.refs ?? [] }) } : {}),
+      named: named?.named.refs ?? [], workspaceConsumer: skillConsumerOf(pluginId, runtime.project_id) }) } : {}),
     mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate, session, skillRound, memory) => {
       const runtimeMemory = memory ? { plugin_id: pluginId, current_scene: memory.current_scene, class_restrictions: structuredClone(memory.class_restrictions) } : undefined;

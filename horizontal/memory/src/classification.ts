@@ -1,5 +1,5 @@
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_FORMAL_KINDS, memorySceneOfCaller, type MemoryChangeRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import { isMemoryScene, MEMORY_FORMAL_KINDS, memorySceneOfCaller, type MemoryChangeRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "./errors.js";
 import type { MemoryCaller } from "./service.js";
 
@@ -10,7 +10,7 @@ export function completeRevisionSnapshot(revision: { origin?: string; meta?: Age
   const classification = meta?.classification;
   if (!meta || typeof origin !== "string" || !classification || !MEMORY_FORMAL_KINDS.some(kind => kind === meta.kind)
     || !Array.isArray(classification.scenes) || !classification.scenes.length || classification.scenes.length > 3
-    || new Set(classification.scenes).size !== classification.scenes.length || classification.scenes.some(scene => !["coding", "assistant", "common"].includes(scene))
+    || new Set(classification.scenes).size !== classification.scenes.length || classification.scenes.some(scene => !isMemoryScene(scene))
     || !["long-term", "short-term", "session"].includes(classification.lifecycle)) return false;
   if (classification.lifecycle === "session" && (!meta.session_ref || meta.session_ref.kind !== "session" || !meta.session_ref.id
     || !Number.isSafeInteger(meta.session_ref.revision) || meta.session_ref.revision < 1)) return false;
@@ -35,7 +35,7 @@ export function requestedMemoryClassification(caller: MemoryCaller, expiresAt: s
   target?: { scenes: string[]; lifecycle: "long-term" | "short-term" | "session" }): Pick<AgentMemoryMeta, "classification" | "session_ref"> {
   if (!target) return newMemoryClassification(caller, expiresAt);
   if (!Array.isArray(target.scenes) || !target.scenes.length || target.scenes.length > 3 || new Set(target.scenes).size !== target.scenes.length
-    || target.scenes.some(scene => !["coding", "assistant", "common"].includes(scene)) || !["long-term", "short-term", "session"].includes(target.lifecycle))
+    || target.scenes.some(scene => !isMemoryScene(scene)) || !["long-term", "short-term", "session"].includes(target.lifecycle))
     throw memoryErrors.invalid("请选择已声明的记忆场景和保留方式");
   if (target.lifecycle === "short-term" && expiresAt === null) throw memoryErrors.invalid("短期记忆需要明确截止时间");
   if (target.lifecycle === "session" && (!caller.person || !caller.memory_session)) throw memoryErrors.forbidden("会话记忆需要本人原业务绑定");
@@ -47,7 +47,7 @@ export function requestedMemoryClassification(caller: MemoryCaller, expiresAt: s
 export function newMemoryClassification(caller: MemoryCaller, expiresAt: string | null): Pick<AgentMemoryMeta, "classification"> {
   // Match the Host's trusted caller binding; text, kind and scope do not establish a scene.
   const scene = memorySceneOfCaller(caller);
-  if (scene !== "coding" && scene !== "assistant" && scene !== "common") throw memoryErrors.invalid("当前记忆场景未定义，不能推断保存分类");
+  if (!isMemoryScene(scene)) throw memoryErrors.invalid("当前记忆场景未定义，不能推断保存分类");
   if (expiresAt !== null && !Number.isFinite(Date.parse(expiresAt))) throw memoryErrors.invalid("记忆有效期不合格，不能推断保存期限");
   return { classification: { scenes: [scene], lifecycle: expiresAt === null ? "long-term" : "short-term" } };
 }
@@ -59,7 +59,7 @@ export function correctedMemoryMeta(previous: AgentMemoryMeta, request: MemoryCh
     throw memoryErrors.invalid("请明确选择记忆类别");
   if (!target || Object.keys(target).some(key => !["scenes", "lifecycle"].includes(key)) || !Array.isArray(target.scenes)
     || !target.scenes.length || target.scenes.length > 3 || new Set(target.scenes).size !== target.scenes.length
-    || target.scenes.some(scene => !["coding", "assistant", "common"].includes(scene)) || !["long-term", "short-term", "session"].includes(target.lifecycle))
+    || target.scenes.some(scene => !isMemoryScene(scene)) || !["long-term", "short-term", "session"].includes(target.lifecycle))
     throw memoryErrors.invalid("请选择已声明的场景和长期或短期保留方式");
   if (previous.session_ref || previous.classification?.lifecycle === "session") {
     if (!caller?.person || !caller.memory_session) throw memoryErrors.invalid("会话记忆需要可信会话管理入口，本次没有修改");

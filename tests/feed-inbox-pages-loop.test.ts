@@ -10,15 +10,19 @@ import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
 import { generatePagesFromMaterials, ownPagesStores, type PagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
+import { checkedFeedInformationPlan, createFeedContentHandlers, feedContentActions, feedInformationPlanContext, feedInformationPlanData } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { PagesGenerationRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { registration as inboxRegistration } from "@molis-ai/molis-work-plugin-inbox/registration";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pagePack } from "./fixtures/page-text.js";
+
+/** Feed's own words, so a refused plan carries its sentence. */
+const feedText = (t: { after(fn: () => void): void }) => t.after(installTextForTest({ locale: "zh", packs: [pagePack("feed", "zh")] }));
 
 /** Generation as the Runtime gives it: Pages' own stores, an original caller that is never refused, and the model's whole result. */
 const generate = (store: PagesStore, record: PagesGenerationRecord, completeText?: (input: Parameters<NonNullable<Parameters<typeof generatePagesFromMaterials>[3]>>[0]) => Promise<string>) =>
@@ -26,7 +30,6 @@ const generate = (store: PagesStore, record: PagesGenerationRecord, completeText
     completeText ? async input => ({ text: await completeText(input), validateResult: () => {} }) : undefined);
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
-const modelAnswer = (data: Record<string, unknown>) => ({ value: JSON.stringify(data), validateResult() {} });
 function publishedPackage() {
   const path = "packages/twitter-ai-observation/daily-v1";
   const research = JSON.stringify({ source_records: [{ id: "s1", title: "作者自述", url: "https://example.com/source", summary: "待核验", read_scope: "SUMMARY_EXPORT", boundary: "未重读全文" }], findings: [{ id: "f1", claim: "一个有边界的观察", support: "材料支持有限", boundary: "不是效果证明", source_ids: ["s1"] }], unknowns: ["没有独立复现"] });
@@ -96,7 +99,8 @@ test("Pages retries saved input, rejects concurrent generation and preserves lat
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
-test("explicit auto admission separates positive, negative and review outcomes and dedupes Inbox", async () => {
+test("explicit auto admission separates positive, negative and review outcomes and dedupes Inbox", async t => {
+  feedText(t);
   const home = mkdtempSync(join(tmpdir(), "molis-loop-rules-"));
   const dbPath = join(home, "project.db"); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const fixture = feedCaptureFixture(content => ({ status: content.includes("review-item") ? "needs_review" : "ok",
@@ -112,7 +116,9 @@ test("explicit auto admission separates positive, negative and review outcomes a
     assert.equal(entries.length, 2); assert.equal(entries.find(entry => entry.subject_id === ids[2])?.detail.needs_review, true);
     await feed.evaluateItems(DEMO_PROJECT_ID, ids);
     assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule").length, 2);
-    await assert.rejects(planInformationWork(feed.snapshot(DEMO_PROJECT_ID), DEMO_PROJECT_ID, { prompt: "整理" }, async () => modelAnswer({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } })), /当前 Inbox/);
+    const snapshot = feed.snapshot(DEMO_PROJECT_ID), context = feedInformationPlanContext({ sources: snapshot.sources, items: snapshot.feed_items,
+      inbox_entries: snapshot.inbox_entries, titleOf: () => undefined }, DEMO_PROJECT_ID, { prompt: "整理" });
+    assert.throws(() => checkedFeedInformationPlan({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } }, context), { code: "feed.plan_reply_invalid" });
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -242,31 +248,37 @@ test("RAC-2275: a document of 100,001 one-unit characters is refused by the char
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
-test("RAC-2409: the information planner cuts feed titles and source names to 200 whole characters before the prompt is built", async () => {
+test("RAC-2409: the information planner cuts feed titles and source names to 200 whole characters before the prompt is built", () => {
   // Neither a feed title nor a source name has a length limit of its own (Feed keeps the title as it arrived), so the planner caps both
   // in whole characters, as it already caps a summary at 1,000: a cut never keeps half of a two-unit character.
   const title = "😀".repeat(250), sourceName = "😀".repeat(250);
-  let shown = "";
-  const result = await planInformationWork({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
-    feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
-    inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }] }, "project-a", { prompt: "整理" },
-    async value => { shown = value; return modelAnswer({ message: "ok", action: null }); });
+  const context = feedInformationPlanContext({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
+    items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
+    inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }], titleOf: () => undefined }, "project-a", { prompt: "整理" });
+  const shown = feedInformationPlanData(context, "整理");
   const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
-  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
-  assert.deepEqual([context.items[0]!.title, context.inbox[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
+  const data = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
+  assert.deepEqual([data.items[0]!.title, data.inbox[0]!.title, data.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
     "the prompt carries 200 whole characters of the feed title, the inbox entry's feed title and the source name, not 250");
-  assert.deepEqual(result.context, { project_id: "project-a", items: 1, inbox: 1 });
+  assert.deepEqual(checkedFeedInformationPlan({ message: "ok", action: null }, context).context, { project_id: "project-a", items: 1, inbox: 1 });
 });
 
-test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources in the prompt, so the data stays bounded", async () => {
+test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources in the prompt, so the data stays bounded", () => {
   // A Home can have many enabled sources; with no count bound the context could outgrow the port's data position. The items and inbox
   // entries are already capped at 20, and the source list is capped the same way, in the snapshot's own order.
   const sources = Array.from({ length: 25 }, (_, index) => ({ source_id: `s${index}`, name: `来源 ${index}`, enabled: true }));
-  let shown = "";
-  await planInformationWork({ sources, feed_items: [], inbox_entries: [] }, "project-a", { prompt: "整理" },
-    async value => { shown = value; return modelAnswer({ message: "ok", action: null }); });
-  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
-  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[] };
+  const context = feedInformationPlanContext({ sources, items: [], inbox_entries: [], titleOf: () => undefined }, "project-a", { prompt: "整理" });
   assert.equal(context.sources.length, 20, "at most 20 sources are described, like items and inbox entries");
   assert.deepEqual(context.sources.map(source => source.name), Array.from({ length: 20 }, (_, index) => `来源 ${index}`), "the first 20 enabled sources, in the snapshot's order");
+});
+
+test("BL-b44-information-plan-to-feed: an open Inbox entry older than the recent items still gets its own item's title, and a plan is held to this project", t => {
+  feedText(t);
+  const context = feedInformationPlanContext({ sources: [{ source_id: "s1", name: "来源", enabled: true }], items: [{ item_id: "new", source_id: "s1", title: "新消息" }],
+    inbox_entries: [{ entry_id: "e-old", subject_type: "feed_item", subject_id: "old", status: "in_progress" }, { entry_id: "e-done", subject_type: "feed_item", subject_id: "new", status: "done" }],
+    titleOf: id => id === "old" ? "旧消息" : undefined }, "project-a", { prompt: "整理" });
+  assert.deepEqual(context.inbox, [{ entry_id: "e-old", item_id: "old", title: "旧消息" }], "only open entries, titled by their own item");
+  assert.equal(checkedFeedInformationPlan({ message: "m", action: { kind: "draft_pages", entry_ids: ["e-old"], title: "t", instructions: "i" } }, context).action?.kind, "draft_pages");
+  assert.throws(() => checkedFeedInformationPlan({ message: "m", action: { kind: "draft_pages", entry_ids: ["e-done"], title: "t", instructions: "i" } }, context), { code: "feed.plan_reply_invalid" });
+  assert.throws(() => checkedFeedInformationPlan({ message: "m", action: { kind: "configure_filter", source_id: "s9", sample_item_id: "new", name: "n", instructions: "i" } }, context), { code: "feed.plan_reply_invalid" });
 });

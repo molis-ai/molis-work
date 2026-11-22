@@ -9,7 +9,6 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
@@ -227,7 +226,9 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
   }));
 }
 
-for (const proposal of ["initial Skill draft", "information plan"] as const) test(
+// The information plan moved into Feed (BL-b44-information-plan-to-feed); a plugin's model call is held to the same check by
+// services.model (tests/plugin-model-generation.test.ts).
+for (const proposal of ["initial Skill draft"] as const) test(
   `QEA-131 the ${proposal} does not return a proposal after its model changes during final authorization`, { timeout: 45_000 }, async () => fixture(async f => {
     configure(f);
     const provider = f.catalog.models.get("configured")!;
@@ -242,14 +243,10 @@ for (const proposal of ["initial Skill draft", "information plan"] as const) tes
     f.answer(async request => {
       answered = true;
       const title = request.model === "configured-model" ? "原模型建议" : "当前模型建议";
-      const value = proposal === "initial Skill draft"
-        ? { name: title, description: "了解当前事项的进度。", body: "# 按状态整理", applies_to: "assistant" }
-        : { message: title, action: null };
+      const value = { name: title, description: "了解当前事项的进度。", body: "# 按状态整理", applies_to: "assistant" };
       return { choices: [{ message: { content: JSON.stringify(value) } }] };
     });
-    const run = async (caller: ActionCallContext) => proposal === "initial Skill draft"
-      ? (await client.invoke(caller, skillAuthoringActions.draft, { intent: "整理当前事项" })).name
-      : (await client.invoke(caller, informationActions.plan, { prompt: "整理现有材料" })).message;
+    const run = async (caller: ActionCallContext) => (await client.invoke(caller, skillAuthoringActions.draft, { intent: "整理当前事项" })).name;
     const outcome = await run({ ...person, async validate_authority() {
       if (!answered || ++checksAfterReply !== 3) return;
       f.catalog.models.upsert({ ...provider, models: [{ model_id: "replacement-model", enabled: true }] });

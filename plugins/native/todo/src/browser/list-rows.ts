@@ -81,7 +81,7 @@ export function renderRow(page: TodoPage, item: TodoRow): HTMLElement {
     overdue: uiText.text("todo.flag.overdue"), due_today: uiText.text("todo.flag.due-today"), planned_past: uiText.text("todo.flag.planned-past"), stale: uiText.text("todo.flag.stale"),
   };
   const closed = item.status === "done" || item.status === "cancelled";
-  const row = make("article", `feed-stage-item todo-row${closed ? " is-closed" : ""}${state.selected && state.selected.id === item.id ? " is-selected" : ""}`);
+  const row = make("article", `mw-stage-item todo-row${closed ? " is-closed" : ""}${state.selected && state.selected.id === item.id ? " is-selected" : ""}`);
   row.dataset.todoRow = item.id;
   row.setAttribute("role", "listitem");
   const pick = make("input", "mw-check todo-pick");
@@ -94,7 +94,7 @@ export function renderRow(page: TodoPage, item: TodoRow): HTMLElement {
   done.dataset.todoDone = item.id;
   done.setAttribute("aria-label", uiText.text(item.status === "done" ? "todo.row.reopen" : "todo.row.complete", { title: item.title }));
   done.innerHTML = iconSvg(item.status === "done" ? "check" : "circle");
-  const open = make("button", "feed-stage-entry directory-list-row todo-entry");
+  const open = make("button", "mw-stage-entry directory-list-row todo-entry");
   open.type = "button";
   open.dataset.todoId = item.id;
   const title = make("strong", "todo-title", item.title);

@@ -151,7 +151,7 @@ test("S-upgrade-too-new-untouched: a vault one version ahead, damaged or holding
     ["an entry that is not sealed", JSON.stringify({ version: SECRET_STORE_FILE.version, backend: "aes-gcm-file", entries: { "another-owner:entry": "not-sealed" } }), /not AES-GCM sealed/u],
   ] as const;
   for (const [label, contents, refused] of vaults) await t.test(label, async t => {
-    const home = homeOf(t), remote = github(t), vault = join(home, "feed", "secrets.json");
+    const home = homeOf(t), remote = github(t), vault = join(home, "security", "secrets.json");
     mkdirSync(dirname(vault), { recursive: true });
     writeFileSync(vault, contents);
     await assert.rejects(startDeviceOAuth(home, START), refused);
@@ -163,7 +163,7 @@ test("S-upgrade-too-new-untouched: a vault one version ahead, damaged or holding
 });
 
 test("S-upgrade-too-new-untouched: a poll does not ask for the token once the vault holds an entry that is not sealed: the vault is as it was", async t => {
-  const home = homeOf(t), time = clock(t), remote = github(t), vault = join(home, "feed", "secrets.json");
+  const home = homeOf(t), time = clock(t), remote = github(t), vault = join(home, "security", "secrets.json");
   const started = await startDeviceOAuth(home, START);
   const file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
   writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));

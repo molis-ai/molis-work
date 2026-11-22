@@ -10,7 +10,7 @@ export const LINGGUANG_STYLES = `
   .lingguang-selection-bar .mw-btn { flex: none; width: auto; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   [data-lingguang="directory"] [data-lingguang-rows] { max-width: 40rem; }
-  body.immersive-workbench .plugin-stage-shell:not([data-expanded="true"]) [data-lingguang="directory"] .feed-stage-entry {
+  body.immersive-workbench .plugin-stage-shell:not([data-expanded="true"]) [data-lingguang="directory"] .mw-stage-entry {
     width: 100%;
     grid-template-columns: minmax(0, 1.2fr) 4.75rem minmax(0, 1fr) max-content;
   }
@@ -104,4 +104,6 @@ export const LINGGUANG_STYLES = `
   .lingguang-bar-group--quiet { margin-left: auto; }
   .lingguang-link-field { display: grid; gap: 6px; font-size: 13px; width: min(420px, 80vw); }
   .lingguang-reading-progress { width: 100%; accent-color: var(--accent); }
+  [data-lingguang-save-status] { color: var(--muted); font-size: 12px; &[data-failed=true] { color: var(--red); } }
+  @media (max-width: 600px) { [data-lingguang-save-status] { order: 2; flex-basis: 100%; } }
 `;

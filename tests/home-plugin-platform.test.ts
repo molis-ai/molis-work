@@ -184,7 +184,7 @@ test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an in
   // W4-11: a fixture is given a library under a free name (registered as its own); a name the Home registered to another
   // owner stays theirs. A shipped plugin's unregistered library is refused in plugin-project-database.test.ts.
   for (const [store, message] of [["issues", /登记的主人是 io\.molis\.work\.issues，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
-    ["dataset", /登记的主人是 io\.molis\.work\.dataset，/u], ["feed", /归 packages\/storage，不是库/u], ["../dataset", /一个目录名/u]] as const) {
+    ["dataset", /登记的主人是 io\.molis\.work\.dataset，/u], ["security", /归 packages\/storage，不是库/u], ["../dataset", /一个目录名/u]] as const) {
     const home = mkdtempSync(join(tmpdir(), "home-store-owner-")), probe = homeProbe();
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [{ definition: withLibrary(probe.definition,
       { store_name: store, version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: "homeprobe:read", write_permission: "homeprobe:write" }) }] } });

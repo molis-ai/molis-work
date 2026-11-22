@@ -120,14 +120,14 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
   try { assert.equal((await (await builder).memory!.withCaller(snapshotMemoryCaller("snapshot-builder")).list("user", "snapshot-builder"))[0]?.text, "Retained builder memory"); }
   finally { await builder.close(); }
   assert.equal((await readRuntimeConfigBackup(f.home, "codex", "snapshot-config")).contents, f.runtimeText);
-  assert.equal(createEvidenceContentStore({ secretStore: createLazyFileSecretStore(f.home), rootDirectory: join(f.home, "feed", "evidence") }).read(f.evidence), "Retained evidence body");
+  assert.equal(createEvidenceContentStore({ secretStore: createLazyFileSecretStore(f.home), rootDirectory: join(f.home, "security", "evidence") }).read(f.evidence), "Retained evidence body");
   const source = new LocalProjectDatabase(f.projects[0]!.database_path, { existingOnly: true });
   try {
     const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event), eventCursor: id => source.eventCursor(id) });
     assert.deepEqual(artifacts.query.listArtifactVersions(f.projects[0]!.project_id, "snapshot-report").map(item => item.version).sort(), [1, 2]);
     assert.deepEqual(artifacts.query.getArtifactVersion(f.projects[0]!.project_id, { artifact_id: "snapshot-report", version: 2 })?.payload, { text: "Kept report 2" });
   } finally { source.close(); }
-  assert.equal(createHash("sha256").update(await readFile(join(f.home, "feed", "secrets.key"))).digest("hex"), createHash("sha256").update(f.key).digest("hex"));
+  assert.equal(createHash("sha256").update(await readFile(join(f.home, "security", "secrets.key"))).digest("hex"), createHash("sha256").update(f.key).digest("hex"));
   assert.equal((await lstat(f.sdkRoot)).ino, identities.directory); assert.equal((await lstat(ownerFile)).ino, identities.lock);
   assert.equal(dirname(f.snapshot), f.directory);
 });

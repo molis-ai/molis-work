@@ -113,8 +113,8 @@ test("SPC-15 S-84 local signing refuses invalid content and unauthorized calls b
   await assert.rejects(actions.invoke({ ...signPerson, permissions: ["plugin-install:read"] }, signRef, draft), refused("actions.forbidden"));
   await assert.rejects(actions.invoke({ ...signPerson, project_id: null }, signRef, localDraft("home")), refused("actions.project_required"));
   assert.equal(existsSync(identityPath(h.home)), false);
-  assert.equal(existsSync(join(h.home, "feed", "secrets.json")), false);
-  assert.equal(existsSync(join(h.home, "feed", "secrets.key")), false);
+  assert.equal(existsSync(join(h.home, "security", "secrets.json")), false);
+  assert.equal(existsSync(join(h.home, "security", "secrets.key")), false);
   h.nothingWritten();
 });
 
@@ -129,8 +129,8 @@ test("SPC-15 S-84 the manifest budget includes the final publisher before openin
   const name = String(draft.manifest.name) + "x".repeat(SKILL_LIMITS.fileBytes - wireBytes + 1);
   await assert.rejects(actions.invoke(signPerson, signRef, { ...draft, manifest: { ...draft.manifest, name } }), refused("plugin.declaration_invalid"));
   assert.equal(existsSync(identityPath(h.home)), false, "an oversized final manifest never opens the signing identity");
-  assert.equal(existsSync(join(h.home, "feed", "secrets.json")), false);
-  assert.equal(existsSync(join(h.home, "feed", "secrets.key")), false);
+  assert.equal(existsSync(join(h.home, "security", "secrets.json")), false);
+  assert.equal(existsSync(join(h.home, "security", "secrets.key")), false);
   h.nothingWritten();
 });
 

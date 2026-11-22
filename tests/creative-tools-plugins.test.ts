@@ -155,9 +155,9 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /<div class="dataset-prompt">[\s\S]*data-dataset-ai-prompt[\s\S]*<\/label>[\s\S]*data-dataset-generate/);
   assert.doesNotMatch(html, /data-form-ai-prompt"[^>]*>\s*<button[^>]*data-form-generate/);
   assert.doesNotMatch(html, /data-dataset-ai-prompt"[^>]*>\s*<button[^>]*data-dataset-generate/);
-  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-form="directory"/);
-  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-dataset="directory"/);
-  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-ppt="directory"/);
+  assert.match(html, /plugin-stage-list mw-stage-list mw-stage-tree" data-form="directory"/);
+  assert.match(html, /plugin-stage-list mw-stage-list mw-stage-tree" data-dataset="directory"/);
+  assert.match(html, /plugin-stage-list mw-stage-list mw-stage-tree" data-ppt="directory"/);
   assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-form-new/);
   assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-dataset-new/);
   assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-ppt-new/);
@@ -204,9 +204,9 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.result\.loading/);
   assert.match(pptSource("slides.ts"), /ppt-card-notes/);
   assert.match(pptSource("slides.ts"), /ppt-card-empty/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
-  assert.match(datasetSource("list.ts"), /feed-stage-entry directory-list-row/);
-  assert.match(pptSource("list.ts"), /feed-stage-entry directory-list-row/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-stage-entry directory-list-row/);
+  assert.match(datasetSource("list.ts"), /mw-stage-entry directory-list-row/);
+  assert.match(pptSource("list.ts"), /mw-stage-entry directory-list-row/);
   // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
   for (const [owner, script, cell] of [
     ["form", formSource("list.ts"), /fixedCell\(readText, record\)/],
@@ -227,7 +227,7 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(formSource("list.ts"), /mw-status mw-status--plain mw-status--" \+ \(published/);
   assert.match(pptSource("slides.ts"), /ppt-slide-index/);
   // The PPT row carries no placeholder status span any more; its state cell is fixedCell (asserted above).
-  assert.doesNotMatch(pptSource("list.ts"), /mw-status--quiet feed-entry-status/);
+  assert.doesNotMatch(pptSource("list.ts"), /mw-status--quiet mw-entry-status/);
   assert.match(pptSource("list.ts"), /node\.textContent = uiText\.text\("ppt\.fixed\.label"\) \+ " v" \+ record\.artifact_version;\s*\} else node\.setAttribute\("aria-hidden", "true"\);/);
   assert.doesNotMatch(pptSource("list.ts"), /草稿/);
   assert.doesNotMatch(formSource("list.ts"), /className = "form-row/);

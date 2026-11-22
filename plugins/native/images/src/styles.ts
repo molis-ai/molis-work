@@ -20,7 +20,7 @@ export const IMAGES_STYLES = `
   .images-note.is-error { color: var(--red); }
   .images-workspace-body > .images-note { max-width: 760px; margin: 16px auto 0; }
   .images-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 12px; font-size: 11px; color: var(--muted); }
-  body.immersive-workbench [data-images=workbench] .images-history-row.feed-stage-entry { display: flex; width: 100%; gap: 12px; min-height: 58px; padding: 8px; align-items: center; text-align: left; }
+  body.immersive-workbench [data-images=workbench] .images-history-row.mw-stage-entry { display: flex; width: 100%; gap: 12px; min-height: 58px; padding: 8px; align-items: center; text-align: left; }
   .images-history-thumb { flex: none; width: 38px; height: 38px; object-fit: cover; border-radius: 4px; background: var(--rail); }
   .images-history-thumb-placeholder { display: grid; place-items: center; color: var(--muted); }
   .images-history-thumb-placeholder svg { width: 16px; height: 16px; }

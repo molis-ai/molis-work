@@ -1,4 +1,5 @@
 import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
+import { skillAudienceDeclared } from './memory/memory-plugin-scene.js';
 import { directoryWordResolver } from './ui-text-provider.js';
 import { activeLocale } from './web-locale.js';
 /**
@@ -52,6 +53,10 @@ export interface PluginInstallPorts {
    */
   localSigner?: { keyId(): string | null; sign(draft: LocalPackageSignInput, caller: InstallAuthority): Promise<PluginPackageBundle> };
   skillStates?(scopeRef: string, installId: string): ReadonlyMap<string, import("@molis-ai/molis-work-contracts/services/skills").SkillState>;
+  /** Whether a scene the package declares is one this running Home's memory does not list yet (BL-b44-coding-scene-enum). */
+  sceneAfterRestart?(scene: unknown): boolean;
+  /** Whether a Skill's `applies_to` names someone this Home has (`skillAudienceDeclared`); without it, the built-in plugins' scenes and the package's own. */
+  skillAudienceDeclared?(appliesTo: unknown, own: unknown): boolean;
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
   /** Installs a release in the current project. The owner runs `complete` synchronously after refresh and authority checks, inside its compensation window. */
@@ -137,6 +142,8 @@ export interface PluginInstallPreviewResult {
    * (S-95, BL-691). They are part of the signed package, so they stay what the person saw: another set comes only with another package and its own preview.
    */
   origins?: Array<{ service_id: string; title: string; origins: string[] }>;
+  /** The package declares a scene this running Molis Work does not list yet: its memories in that scene start after the next restart (BL-b44-coding-scene-enum). */
+  memory_scene_after_restart?: true;
 }
 
 /** One of a Manifest's `requires`, as the preview says it: an unmet required one makes its Skills unavailable, an unmet optional one only less. */
@@ -303,6 +310,11 @@ export class PluginInstallService {
     this.assertPublisherStanding(key_id);
     const { manifest } = pkg, runtime_scope = scopeOf(manifest), dual = isDualPackage(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
+    for (const method of manifest.methods ?? []) {
+      if (!(this.ports.skillAudienceDeclared ?? ((appliesTo, own) => skillAudienceDeclared(appliesTo, undefined, own)))(method.applies_to, manifest.memory_scene)) {
+        throw pluginErrors.declaration_invalid(`方法 ${method.skill_id} 的 applies_to「${method.applies_to}」不是这里有的场景：只能是 assistant、both，或这个插件或已有插件申报的场景名`);
+      }
+    }
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
@@ -330,6 +342,7 @@ export class PluginInstallService {
     const locale = activeLocale();
     const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
     const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
+      ...(this.ports.sceneAfterRestart?.(manifest.memory_scene) ? { memory_scene_after_restart: true as const } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null, ...(this.ports.localSigner?.keyId() === key_id ? { local: true as const } : {}) },
       ...(refs.length ? { secrets: refs.map(name => ({ name, saved: saved.includes(name) })) } : {}),
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,

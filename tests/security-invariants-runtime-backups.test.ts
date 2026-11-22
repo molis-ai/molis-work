@@ -20,7 +20,7 @@ test("RAC-104: a real Runtime integration retains only a sealed reference and re
   assert.equal(result.status, "connected", result.message); assert.ok(result.backup_path);
   const descriptor = await readFile(result.backup_path!, "utf8");
   assert.equal(descriptor.includes(f.secret), false, "the Home backup is not a plaintext credential-bearing copy");
-  assert.equal((await readFile(join(f.home, "feed", "secrets.json"), "utf8")).includes(f.secret), false);
+  assert.equal((await readFile(join(f.home, "security", "secrets.json"), "utf8")).includes(f.secret), false);
   assert.equal(JSON.stringify(result).includes(f.secret), false);
   const first = await reader()(f.home, "codex", plan.plan_id);
   assert.deepEqual(first, { contents: f.contents, mode: 0o640 });
@@ -50,7 +50,7 @@ test("RAC-104 BL-tests-umask: connecting rewrites the user's configuration with 
 });
 
 test("S-12 RAC-104: an existing empty Runtime configuration survives restart without poisoning other secrets or later backups", async t => {
-  const f = await runtimeBackupFixture(t), key = join(f.home, "feed", "secrets.key"), vault = join(f.home, "feed", "secrets.json");
+  const f = await runtimeBackupFixture(t), key = join(f.home, "security", "secrets.key"), vault = join(f.home, "security", "secrets.json");
   await writeFile(f.config, "");
   createLazyFileSecretStore(f.home).put("unrelated-owner", f.secret);
   const originalKey = await readFile(key), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
@@ -85,7 +85,7 @@ test("RAC-104: a backup refuses a missing original key and a reference to a diff
   await writeFile(result.backup_path!, JSON.stringify({ ...descriptor, auth_ref: "another-owned-secret" }));
   await assert.rejects(read(f.home, "codex", plan.plan_id), { code: "installer.runtime_backup.invalid" });
   await writeFile(result.backup_path!, JSON.stringify(descriptor));
-  const key = join(f.home, "feed", "secrets.key"), originalKey = await readFile(key);
+  const key = join(f.home, "security", "secrets.key"), originalKey = await readFile(key);
   await unlink(key);
   await assert.rejects(read(f.home, "codex", plan.plan_id), { code: "installer.runtime_backup.key_unavailable" });
   await assert.rejects(readFile(key), { code: "ENOENT" });
@@ -98,7 +98,7 @@ test("S-12 RAC-104: linked backup or vault files cannot redirect an explicit own
     const f = await runtimeBackupFixture(t), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
     const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected", result.message);
-    const target = fault.startsWith("backup") ? result.backup_path! : join(f.home, "feed", "secrets.json");
+    const target = fault.startsWith("backup") ? result.backup_path! : join(f.home, "security", "secrets.json");
     const original = await readFile(target), configured = await readFile(f.config);
     if (fault.endsWith("symlink")) { await rename(target, target + ".original"); await symlink(target + ".original", target); }
     else await link(target, target + ".extra");
@@ -114,7 +114,7 @@ test("S-12 RAC-104: special backup and vault files are refused without blocking 
     const f = await runtimeBackupFixture(t), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
     const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected", result.message);
-    const target = subject === "backup" ? result.backup_path! : join(f.home, "feed", "secrets.json");
+    const target = subject === "backup" ? result.backup_path! : join(f.home, "security", "secrets.json");
     await unlink(target);
     const fifo = spawnSync("mkfifo", [target], { encoding: "utf8" }); assert.equal(fifo.status, 0, fifo.stderr);
     assert.equal((await lstat(target)).isFIFO(), true);
@@ -193,11 +193,11 @@ function processAlive(pid: number): boolean {
 test("S-12 RAC-104: a missing original key refuses capture before changing Runtime configuration", async t => {
   const f = await runtimeBackupFixture(t), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
   createLazyFileSecretStore(f.home).put("other-owner", f.secret);
-  await unlink(join(f.home, "feed", "secrets.key"));
+  await unlink(join(f.home, "security", "secrets.key"));
   const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
   assert.equal(result.status, "rolled_back");
   assert.equal(await readFile(f.config, "utf8"), f.contents);
   assert.equal(JSON.stringify(result).includes(f.secret), false);
   await assert.rejects(readFile(plan.backup_path!), { code: "ENOENT" });
-  await assert.rejects(readFile(join(f.home, "feed", "secrets.key")), { code: "ENOENT" });
+  await assert.rejects(readFile(join(f.home, "security", "secrets.key")), { code: "ENOENT" });
 });

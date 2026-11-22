@@ -15,6 +15,7 @@ export const registration: PluginRegistration = {
     order: 6,
     contributions: [inboxUiContribution],
     stylesheet: INBOX_STYLES,
+    frameStyleFeatures: ["presentation-form", "detail-reading"],
     recordRow: { selector: "[data-inbox-row][data-inbox-entry-id]", idDataset: "inboxEntryId" },
   },
 };

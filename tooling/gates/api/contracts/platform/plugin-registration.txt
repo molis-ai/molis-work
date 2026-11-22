@@ -164,6 +164,8 @@ export type PluginDistributionVerifier = (release: {
     publisherKeyId: string;
 }, signedPackage: unknown, files: ReadonlyMap<string, Uint8Array>) => void;
 
+export type PluginFrameStyleFeature = "coding-basics" | "coding-companions" | "composer" | "context-toolbar" | "detail-reading" | "input-receipts" | "interaction" | "keep-edits" | "presentation-form" | "settings-document" | "source-ladder";
+
 export interface PluginManagementActionDeclaration {
     readonly capability_id: string;
     readonly version: number;
@@ -224,6 +226,7 @@ export interface PluginWorkbenchRegistration {
     readonly order: number;
     readonly contributions: readonly UiContribution[];
     readonly stylesheet?: string;
+    readonly frameStyleFeatures?: readonly PluginFrameStyleFeature[];
     readonly stylesheetLayer?: "over-shell" | "beneath-shell";
     readonly stylesheetShared?: readonly string[];
     readonly stylesheetPrefixes?: readonly string[];

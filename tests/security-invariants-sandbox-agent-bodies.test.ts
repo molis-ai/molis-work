@@ -89,7 +89,7 @@ for (const [label, change, refusal] of [
   ["no body path", { body: undefined }, /要写 body/],
   ["no description", { description: undefined }, /要写 description/],
   ["no applies_to", { applies_to: undefined }, /要写 applies_to/],
-  ["an applies_to outside the list", { applies_to: "everyone" }, /applies_to 只能是/],
+  ["an applies_to outside the list", { applies_to: "everyone" }, /applies_to「everyone」不是这里有的场景/],
 ] as const) {
   test(`RAC-2637 S-105 SKP-08 SKC-03 a signed method with ${label} is refused before any install effect`, async () => {
     const h = await previewHarness();

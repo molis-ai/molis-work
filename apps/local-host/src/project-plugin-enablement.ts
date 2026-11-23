@@ -5,17 +5,21 @@ import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-co
 import type { PluginSupervisorState } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { pluginCatalogFor } from "./home-side.js";
-import { pluginReachable, projectMembershipReach, projectReachablePlugins } from "./project-action-availability.js";
+import { cachedProjectReachablePlugins, pluginReachable, projectMembershipReach, projectReachStamp } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+
+function enablementMap(reachable: ReadonlySet<string>): ReadonlyMap<string, boolean> {
+  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
+}
 
 /** The catalog remains the only project enablement fact; standalone fixtures have no such catalog. */
 export async function projectPluginEnablement(home: string | undefined, projectId: string): Promise<ReadonlyMap<string, boolean> | undefined> {
   const catalog = home ? pluginCatalogFor(home) : undefined;
   if (!catalog) return undefined;
   // The one list actions and routes read (PG-013), so what a project runs and what it may call never disagree.
-  const reachable = await catalog({ homeDirectory: home }, value => projectReachablePlugins(value, projectId, homePluginsOutsideBuild(home)));
+  const reachable = await catalog({ homeDirectory: home }, value => cachedProjectReachablePlugins(value, projectId, home, homePluginsOutsideBuild(home)));
   if (!reachable) return undefined;
-  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
+  return enablementMap(reachable);
 }
 
 /** Compare what the supervisor is expected to run on either side of the committed Catalog change. */
@@ -44,21 +48,41 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
   const pending = new Map<string, { desired: boolean; install: InstallIdentity | null }>();
   let tail: Promise<unknown> = Promise.resolve();
   let queued: Promise<ProjectPluginRefreshResult | null> | undefined;
+  let lastStamp: string | null = null;
+  let lastEnabled: ReadonlyMap<string, boolean> | undefined;
+  const resetCache = (): null => {
+    lastStamp = null;
+    lastEnabled = undefined;
+    return null;
+  };
   return () => {
     if (queued) return queued;
     const next = tail.then(async () => {
       queued = undefined;
-      const enabled = await projectPluginEnablement(home, projectId);
-      if (!enabled) return null;
+      const catalog = home ? pluginCatalogFor(home) : undefined;
+      if (!catalog || !home) return resetCache();
+      const read = await catalog({ homeDirectory: home }, value => {
+        const outsideBuild = homePluginsOutsideBuild(home);
+        const stamp = projectReachStamp(value, home, outsideBuild);
+        if (pending.size === 0 && stamp !== null && stamp === lastStamp && lastEnabled !== undefined) {
+          return { stamp, enabled: lastEnabled };
+        }
+        const reachable = cachedProjectReachablePlugins(value, projectId, home, outsideBuild);
+        return { stamp, enabled: reachable ? enablementMap(reachable) : undefined };
+      });
+      const enabled = read.enabled;
+      if (!enabled) return resetCache();
       const active = new Set(platform.supervisor.enabledPluginIds());
       const unfinished: ProjectPluginRefreshFailure[] = [];
+      let switched = false;
       for (const { plugin_id } of platform.supervisor.states()) {
         const previous = pending.get(plugin_id);
         const desired = enabled.get(plugin_id);
         if (!previous && (desired === undefined || desired === active.has(plugin_id))) continue;
+        switched = true;
         // An earlier switch may await plugin code while the Catalog changes.
         const latest = await projectPluginEnablement(home, projectId);
-        if (!latest) return null;
+        if (!latest) return resetCache();
         const wanted = latest.get(plugin_id);
         const state = platform.supervisor.state(plugin_id);
         if (wanted === undefined || !state) { pending.delete(plugin_id); continue; }
@@ -81,6 +105,13 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         const current = readInstallation(platform, plugin_id, platform.supervisor.state(plugin_id)?.install_id);
         if (!install) pending.set(plugin_id, { desired: wanted, install: installationIdentity(current) });
         else if (!sameInstallation(install, current)) pending.delete(plugin_id);
+      }
+      if (!switched && unfinished.length === 0 && pending.size === 0 && read.stamp !== null) {
+        lastStamp = read.stamp;
+        lastEnabled = enabled;
+      } else {
+        lastStamp = null;
+        lastEnabled = undefined;
       }
       return unfinished;
     });

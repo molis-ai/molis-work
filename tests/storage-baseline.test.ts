@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -282,9 +282,12 @@ test("D0276 existing-only reads neither create a store nor initialize an empty f
   finally { reader.close(); }
 });
 
-test("B103-02 a Home store is opened once per process and borrowed after; a replaced file, a nested write and a release get a fresh connection", t => {
-  const home = mkdtempSync(join(tmpdir(), "molis-held-store-"));
-  t.after(() => { releaseHeldHomeSqlite(home); rmSync(home, { recursive: true, force: true }); });
+test("B103-02 a Home store holds separate RO and RW connections keyed by canonical path; replaced files, nested writes and releases stay clean", t => {
+  const root = mkdtempSync(join(tmpdir(), "molis-held-store-"));
+  const home = join(root, "home"), alias = join(root, "home-link");
+  mkdirSync(home);
+  symlinkSync(home, alias);
+  t.after(() => { releaseHeldHomeSqlite(home); rmSync(root, { recursive: true, force: true }); });
   const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY)" };
   let prepared = 0;
   const prepare = () => { prepared += 1; };
@@ -292,10 +295,33 @@ test("B103-02 a Home store is opened once per process and borrowed after; a repl
   assert.equal(existsSync(homeSqlitePath(home, "notes")), false);
   const first = heldHomeSqlite(home, "notes", baseline, prepare);
   first.prepare("INSERT INTO notes VALUES ('a')").run();
-  assert.equal(heldHomeSqlite(home, "notes", baseline, prepare), first, "the next borrower gets the same connection");
+  assert.equal(heldHomeSqlite(home, "notes", baseline, prepare), first, "the next RW borrower gets the same connection");
   assert.equal(heldHomeSqlite(join(home, "."), "notes", baseline, prepare), first, "equivalent home path spellings share the same held connection");
-  assert.equal(withHeldHomeSqlite(home, "notes", baseline, db => db, { prepare, existingOnly: true }), first);
-  assert.equal(prepared, 1, "checked and prepared once");
+  assert.equal(heldHomeSqlite(alias, "notes", baseline, prepare), first, "a symlinked Home path shares the same RW slot");
+  assert.equal(heldHomeSqlite(join(home, ".", "..", basename(home)), "notes", baseline, prepare), first, "a non-normalized Home path shares the same RW slot");
+  const reader = withHeldHomeSqlite(home, "notes", baseline, db => db, { prepare, existingOnly: true });
+  assert.ok(reader, "existingOnly opens the separate read-only slot");
+  assert.notEqual(reader, first, "existingOnly never hands out or upgrades to the RW connection");
+  assert.equal((reader.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 1);
+  assert.throws(() => reader.prepare("INSERT INTO notes VALUES ('refused')").run(), /readonly/iu, "the RO slot refuses writes");
+  assert.equal(withHeldHomeSqlite(alias, "notes", baseline, db => db, { prepare, existingOnly: true }), reader, "repeated RO reads reuse the same canonical slot");
+  assert.equal(prepared, 2, "checked and prepared once for RW and once for RO");
+  // Warm RO reads must not touch the idle RW sibling handle (and vice versa).
+  const touched = new Set<DatabaseSync>();
+  const origPrepare = DatabaseSync.prototype.prepare;
+  const siblingProbe = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+    touched.add(this);
+    return origPrepare.call(this, sql);
+  });
+  try {
+    withHeldHomeSqlite(home, "notes", baseline, db => db.prepare("SELECT count(*) AS n FROM notes").get(), { prepare, existingOnly: true });
+    assert.deepEqual([...touched], [reader], "warm RO read only touches the RO handle, never the idle RW sibling");
+    touched.clear();
+    withHeldHomeSqlite(home, "notes", baseline, db => db.prepare("SELECT count(*) AS n FROM notes").get(), { prepare });
+    assert.deepEqual([...touched], [first], "warm RW borrow only touches the RW handle, never the idle RO sibling");
+  } finally {
+    siblingProbe.mock.restore();
+  }
   // A call made inside another call's write gets its own connection: it neither joins nor breaks the transaction around it.
   first.exec("BEGIN IMMEDIATE");
   first.prepare("INSERT INTO notes VALUES ('b')").run();
@@ -303,20 +329,26 @@ test("B103-02 a Home store is opened once per process and borrowed after; a repl
   assert.notEqual(inside.db, first);
   assert.equal(inside.rows, 1, "it reads what was committed, not the open write");
   assert.equal(inside.db.isOpen, false, "and is closed after");
+  const readDuringTx = withHeldHomeSqlite(home, "notes", baseline, db => (db.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, { prepare, existingOnly: true });
+  assert.equal(readDuringTx, 1, "an RO read during an open RW transaction still sees only committed rows");
   first.exec("COMMIT");
   // The file is replaced under the process (a restore, a Home made again at the same path): the next borrower opens the new file.
   const file = homeSqlitePath(home, "notes");
   rmSync(file);
   const replaced = heldHomeSqlite(home, "notes", baseline, prepare);
   assert.notEqual(replaced, first);
-  assert.equal(first.isOpen, false, "the connection to the old file is closed");
+  assert.equal(first.isOpen, false, "the RW connection to the old file is closed");
+  assert.equal(reader.isOpen, false, "the stale RO sibling is closed too");
   assert.equal((replaced.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 0);
-  releaseHeldHomeSqlite(home);
-  assert.equal(replaced.isOpen, false, "released with the Home");
+  const replacedReader = withHeldHomeSqlite(home, "notes", baseline, db => db, { prepare, existingOnly: true });
+  assert.ok(replacedReader && replacedReader !== replaced);
+  releaseHeldHomeSqlite(alias);
+  assert.equal(replaced.isOpen, false, "RW released with the Home via symlink alias");
+  assert.equal(replacedReader.isOpen, false, "RO released with the Home via symlink alias");
   assert.notEqual(heldHomeSqlite(home, "notes", baseline, prepare), replaced, "a later borrower opens again");
 });
 
-test("B103-02 RAR-02 another connection's commit or structure change makes the next borrow check the store again; a read never binds a store it reopens", t => {
+test("B103-02 RAR-02 another connection's commit, space change, or structure change makes the next borrow check again; a read opens once and never binds", t => {
   const home = mkdtempSync(join(tmpdir(), "molis-held-recheck-"));
   t.after(() => { releaseHeldHomeSqlite(home); rmSync(home, { recursive: true, force: true }); });
   const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY)" };
@@ -324,21 +356,92 @@ test("B103-02 RAR-02 another connection's commit or structure change makes the n
   const first = heldHomeSqlite(home, "notes", baseline);
   first.prepare("INSERT INTO notes VALUES ('a')").run();
   assert.equal(heldHomeSqlite(home, "notes", baseline), first, "its own writes keep the connection");
-  // Another connection commits: the next borrower gets a connection checked again, and the old one is closed.
+  const initialReader = withHeldHomeSqlite(home, "notes", baseline, (db, stamp) => ({ db, stamp }), { existingOnly: true })!;
+  assert.notEqual(initialReader.db, first);
+  const secondRead = withHeldHomeSqlite(home, "notes", baseline, (db, stamp) => ({ db, stamp }), { existingOnly: true })!;
+  assert.equal(secondRead.db, initialReader.db);
+  assert.equal(secondRead.stamp, initialReader.stamp, "unchanged RO reads keep the same stamp");
+  // Another connection commits: the next borrower gets a connection checked again, and the old ones are closed.
   const other = new DatabaseSync(file);
   other.prepare("INSERT INTO notes VALUES ('b')").run();
   other.close();
-  const rechecked = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true });
+  const rechecked = withHeldHomeSqlite(home, "notes", baseline, (db, stamp) => ({ db, stamp }), { existingOnly: true })!;
   assert.ok(rechecked, "the store exists, so a read gets a connection");
-  assert.notEqual(rechecked, first);
-  assert.equal(first.isOpen, false, "the connection checked before the outside write is closed");
-  assert.equal((rechecked.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2);
+  assert.notEqual(rechecked.db, first);
+  assert.notEqual(rechecked.db, initialReader.db);
+  assert.notEqual(rechecked.stamp, initialReader.stamp, "reopening after an external commit advances the stamp");
+  assert.equal(first.isOpen, false, "the RW connection checked before the outside write is closed");
+  assert.equal(initialReader.db.isOpen, false, "the RO connection checked before the outside write is closed");
+  assert.equal((rechecked.db.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2);
+  assert.throws(() => rechecked.db.prepare("INSERT INTO notes VALUES ('no')").run(), /readonly/iu);
+  // Removing storage-space.json invalidates the held RO handle immediately on the next read.
+  const spacePath = join(home, "storage-space.json");
+  const savedSpace = readFileSync(spacePath);
+  rmSync(spacePath);
+  assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
+  assert.equal(rechecked.db.isOpen, false, "missing space descriptor closes the held RO handle");
+  // Restore storage-space.json, re-acquire RO, then test dropping molis_storage_space.
+  ensureStorageSpace(home, JSON.parse(savedSpace.toString("utf8")));
+  const originalPrepare = DatabaseSync.prototype.prepare;
+  let versionChecks = 0;
+  const spy = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+    if (sql === "PRAGMA user_version") versionChecks += 1;
+    return originalPrepare.call(this, sql);
+  });
+  // Verify 1 RO open on first read (no double preflight open on non-closed-WAL store) and 0 on reuse.
+  const activeWriter = heldHomeSqlite(home, "notes", baseline);
+  versionChecks = 0;
+  const reboundReader = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true })!;
+  assert.ok(reboundReader.isOpen);
+  assert.equal(versionChecks, 1, "first existingOnly read opens and checks version once (no double preflight open)");
+  assert.equal(withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true }), reboundReader);
+  assert.equal(versionChecks, 1, "repeated existingOnly reads reuse the held RO handle with zero extra opens");
+  spy.mock.restore();
+  assert.ok(activeWriter.isOpen);
+  // Switch to WAL so an external writer can commit while an outer RO transaction holds a snapshot.
+  activeWriter.exec("PRAGMA journal_mode = WAL");
+  const walReader = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true })!;
+  // A nested existingOnly read during an outer RO transaction must never close the outer RO handle even after an external commit.
+  withHeldHomeSqlite(home, "notes", baseline, outerDb => {
+    assert.equal(outerDb, walReader);
+    outerDb.exec("BEGIN");
+    try {
+      const beforeRows = (outerDb.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n;
+      assert.equal(beforeRows, 2);
+      const externalDuringRoTx = new DatabaseSync(file);
+      try {
+        externalDuringRoTx.prepare("INSERT INTO notes VALUES ('c')").run();
+      } finally {
+        externalDuringRoTx.close();
+      }
+      const nested = withHeldHomeSqlite(home, "notes", baseline, (nestedDb, nestedStamp) => {
+        assert.notEqual(nestedDb, outerDb, "nested RO read uses its own short-lived connection");
+        assert.throws(() => nestedDb.prepare("INSERT INTO notes VALUES ('bad')").run(), /readonly/iu);
+        return { db: nestedDb, stamp: nestedStamp, rows: (nestedDb.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n };
+      }, { existingOnly: true })!;
+      assert.equal(nested.rows, 3, "nested RO connection sees the newly committed external write");
+      assert.equal(nested.db.isOpen, false, "nested short-lived RO connection is closed on return");
+      assert.equal(outerDb.isOpen, true, "outer held RO handle stays open for its active transaction");
+      assert.equal(outerDb.isTransaction, true, "outer held RO transaction remains active");
+      assert.equal((outerDb.prepare("SELECT count(*) AS n FROM notes").get() as { n: number }).n, 2, "outer RO snapshot stays intact");
+    } finally {
+      outerDb.exec("COMMIT");
+    }
+  }, { existingOnly: true });
+  const afterRoTx = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true })!;
+  assert.notEqual(afterRoTx, walReader, "once the outer RO transaction finishes, the next RO read detects the external commit and reopens");
+  assert.equal(walReader.isOpen, false, "previous RO handle is closed once idle and replaced");
   // Another connection drops the space binding: a read refuses the store and leaves it unbound, as a read that opened it did.
   const unbind = new DatabaseSync(file);
   unbind.exec("DROP TABLE molis_storage_space");
   unbind.close();
   assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
-  assert.equal(rechecked.isOpen, false);
+  assert.equal(afterRoTx.isOpen, false);
+  // An explicit allowUnbound RO handle is never reused by a strict caller without allowUnbound.
+  const unboundRo = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true, allowUnbound: true })!;
+  assert.ok(unboundRo.isOpen);
+  assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
+  assert.equal(unboundRo.isOpen, false, "strict caller rejects and drops the unbound RO slot");
   const after = new DatabaseSync(file, { readOnly: true });
   assert.equal(after.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'molis_storage_space'").get()!.n, 0, "the read wrote no binding");
   after.close();

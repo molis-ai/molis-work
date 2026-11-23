@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService } from "@molis-ai/molis-work-app-desktop";
 import { installMolisWorkHome, MolisWorkWebServiceManager, RuntimeIntegrationService, readRollbackHold, rollbackHrefFor, readRollbackPoint, rollbackHome, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
-import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, heldHomeSqlite, withHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { BASELINE_V2, notesDescriptor, notesOf, present, seedStore, sha256, upgradeTestHome, useDescriptors, V1, versionOf } from "./fixtures/home-upgrade-home.js";
 
@@ -72,7 +72,13 @@ test("UPGR-03 a store the newer version upgraded goes back to its bytes from bef
   assert.equal(versionOf(store), 2);
   const point = readRollbackPoint(home);
   assert.equal(point.available && point.data, "restore");
+  // Hold both RW and RO handles to the upgraded store; rollbackHome must release both before replacing files.
+  const heldRw = heldHomeSqlite(home, "notes", BASELINE_V2);
+  const heldRo = withHeldHomeSqlite(home, "notes", BASELINE_V2, db => db, { existingOnly: true })!;
+  assert.ok(heldRw.isOpen && heldRo.isOpen && heldRo !== heldRw);
   const result = await rollbackHome(home);
+  assert.equal(heldRw.isOpen, false, "rollbackHome releases held RW Home handles before swapping files");
+  assert.equal(heldRo.isOpen, false, "rollbackHome releases held RO Home handles before swapping files");
   assert.deepEqual(result.restored, ["notes/notes.db"]);
   assert.equal(sha256(store), before.bytes, "byte for byte what the kept program left");
   assert.deepEqual(notesOf(store), before.notes);

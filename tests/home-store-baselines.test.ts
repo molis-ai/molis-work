@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, releaseHeldHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
-import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, PLATFORM_PLUGIN_REGISTRATIONS, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
@@ -147,6 +147,80 @@ test("RAR-02 cached expectations keep both space shapes and still refuse changed
     assert.deepEqual(readFileSync(file), bytes, `${damage}: refusal must leave the store unchanged`);
     assert.deepEqual(readdirSync(directory), files, `${damage}: refusal must leave no new sidecar`);
   }
+});
+
+test("RAR-02 held RO plugin-runtime reads reuse their handle, see live writes, and reject external tampering intact", async t => {
+  const root = mkdtempSync(join(tmpdir(), "home-ro-plugin-store-"));
+  const home = join(root, "home");
+  const catalog = await MolisWorkProjectCatalog.open({ homeDirectory: home });
+  t.after(() => { catalog.close(); releaseHeldHomeSqlite(home); rmSync(root, { recursive: true, force: true }); });
+  const project = await catalog.createProject({ display_name: "RO plugin runtime test", actor_id: "user" });
+  const target = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.always_on === true)!;
+  assert.ok(target, "the build ships at least one always-on plugin");
+  const ledger = new HomeConsentLedger(home);
+  assert.deepEqual(ledger.observedPublishers(), [], "missing plugin-runtime store stays absent");
+  assert.throws(() => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: target.project_plugin_id, actor_id: "user" }), { code: "catalog.plugin_always_on" });
+  // Initialize bound store through the writable ledger.
+  assert.deepEqual(ledger.publishers(), []);
+  assert.deepEqual(ledger.observedPublishers(), []);
+  assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
+  const execute = DatabaseSync.prototype.prepare;
+  let pluginRuntimeQueries = 0;
+  const spy = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+    if (sql.includes("plugin_consents") || sql.includes("plugin_runtime_installs")) pluginRuntimeQueries += 1;
+    return execute.call(this, sql);
+  });
+  // Repeated reads reuse the live-stamped always-on snapshot without re-querying plugin-runtime tables.
+  for (let i = 0; i < 5; i += 1) {
+    assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
+  }
+  assert.equal(pluginRuntimeQueries, 0, "warm always-on reads reuse their live-stamped snapshot");
+  spy.mock.restore();
+  // Pin a publisher via RW ledger; held RO observedPublishers sees it immediately.
+  ledger.pinPublisher({ key_id: "pub-1", public_key_spki_base64: "spki-1", label: "Publisher 1", pinned_at: "2026-11-22T00:00:00Z", pinned_by: "user" });
+  assert.deepEqual(ledger.observedPublishers().map(pin => pin.key_id), ["pub-1"]);
+  // Revoke the always-on consent via RW ledger; catalog immediately sees it is no longer always-on and permits hiding it.
+  ledger.record({
+    plugin_id: target.manifest.plugin_id,
+    publisher_signature: target.manifest.publisher.signature,
+    manifest_digest: "digest-1",
+    granted_by: "host_build",
+    grants: [{ kind: "always_on", subject: "always_on" }],
+    at: "2026-11-22T00:00:00Z",
+  });
+  const consent = ledger.consents(target.manifest.plugin_id).find(row => row.kind === "always_on")!;
+  ledger.revoke(consent.consent_id, "2026-11-22T00:01:00Z");
+  const afterHide = catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: target.project_plugin_id, actor_id: "user" });
+  assert.equal(afterHide.hidden.includes(target.project_plugin_id), true, "revoking always-on consent immediately updates catalog always-on checks");
+  // External tampering, dropped space binding, and removed storage-space.json are all rejected intact.
+  const file = join(home, "plugin-runtime", "plugin-runtime.db");
+  const directory = join(home, "plugin-runtime");
+  releaseHeldHomeSqlite(home);
+  const checkTamper = (mutate: () => void, expected: RegExp | { code: string; message: RegExp }) => {
+    const backup = readFileSync(file), spaceBackup = readFileSync(join(home, "storage-space.json"));
+    try {
+      mutate();
+      const bytes = readFileSync(file), files = readdirSync(directory);
+      assert.throws(() => ledger.observedPublishers(), expected);
+      assert.throws(() => catalog.projectPluginMembership(project.project_id), expected);
+      assert.deepEqual(readFileSync(file), bytes);
+      assert.deepEqual(readdirSync(directory), files);
+    } finally {
+      releaseHeldHomeSqlite(home);
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(file, backup);
+      writeFileSync(join(home, "storage-space.json"), spaceBackup);
+    }
+  };
+  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("CREATE TABLE unexpected (kept TEXT);"); } finally { db.close(); } }, { code: "actions.execution_failed", message: /结构与当前基线不一致/u });
+  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("DROP TABLE plugin_private_values;"); } finally { db.close(); } }, { code: "actions.execution_failed", message: /结构与当前基线不一致/u });
+  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version=99;"); } finally { db.close(); } }, { code: "storage.store_too_new", message: /结构版本是 99/u });
+  checkTamper(() => {
+    const other = ensureStorageSpace(join(root, "other-owner"));
+    const db = new DatabaseSync(file);
+    try { db.prepare("UPDATE molis_storage_space SET space_id=?, descriptor=?").run(other.spaceId, JSON.stringify(other)); } finally { db.close(); }
+  }, { code: "actions.forbidden", message: /不属于当前空间/u });
+  checkTamper(() => { rmSync(join(home, "storage-space.json")); }, { code: "actions.forbidden", message: /不属于当前空间/u });
 });
 
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any

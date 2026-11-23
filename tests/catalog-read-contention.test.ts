@@ -8,8 +8,8 @@ import { once } from "node:events";
 import { performance } from "node:perf_hooks";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
+import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, PLATFORM_PLUGIN_REGISTRATIONS, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { acquireStorageOwner, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
@@ -152,4 +152,97 @@ test("Web catalog owner reuses one connection, observes commits, and closes afte
   assert.equal((await held).length, 1);
   await close;
   assert.throws(() => borrowed.listProjects(), /not open/);
+});
+
+test("live-stamped projectActionAvailability and web-catalog-access reuse snapshots when unchanged and invalidate immediately on mutations", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-catalog-live-stamp-"));
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  const access = createWebCatalogAccess(home, options => openMolisWorkProjectCatalog({ ...options, storageOwner }));
+  t.after(async () => { await access.close(); releaseHeldHomeSqlite(home); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
+  const project = await access.withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "实时失效验证", actor_id: "user" }));
+  assert.equal(access.projectCount, 1);
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "user" }));
+
+  const availability = projectActionAvailability(access.withCatalog, home);
+  const caller = { actor_id: "user", project_id: project.project_id, audience: "user" as const, permissions: [] };
+  const alwaysOnEntry = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.always_on === true)!;
+  assert.ok(alwaysOnEntry, "the build ships at least one always-on plugin");
+  const pagesAction = { provider: { provider_id: "io.molis.work.pages", plugin_id: "io.molis.work.pages", title: "Pages", kind: "plugin" as const } };
+  const alwaysOnAction = { provider: { provider_id: alwaysOnEntry.manifest.plugin_id, plugin_id: alwaysOnEntry.manifest.plugin_id, title: alwaysOnEntry.manifest.name, kind: "plugin" as const } };
+
+  let membershipReads = 0, projectListReads = 0;
+  const origMembership = MolisWorkProjectCatalog.prototype.projectPluginMembership;
+  const origListProjects = MolisWorkProjectCatalog.prototype.listProjects;
+  t.mock.method(MolisWorkProjectCatalog.prototype, "projectPluginMembership", function (this: MolisWorkProjectCatalog, ...args: Parameters<typeof origMembership>) {
+    membershipReads += 1;
+    return origMembership.apply(this, args);
+  });
+  t.mock.method(MolisWorkProjectCatalog.prototype, "listProjects", function (this: MolisWorkProjectCatalog) {
+    projectListReads += 1;
+    return origListProjects.call(this);
+  });
+
+  // First check populates the live-stamped snapshot; subsequent unchanged checks hit it with 0 extra catalog reads.
+  assert.deepEqual(await availability(caller, pagesAction), { available: true });
+  assert.deepEqual(await availability(caller, pagesAction), { available: true });
+  assert.deepEqual(await availability(caller, alwaysOnAction), { available: true });
+  assert.equal(membershipReads, 1, "unchanged availability checks reuse the live-stamped snapshot");
+  assert.equal(projectListReads, 0, "pure-read withCatalog turns skip redundant listProjects refreshes");
+
+  // Removing a plugin via the catalog immediately invalidates the stamp.
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "user" }));
+  assert.equal((await availability(caller, pagesAction)).available, false, "plugin removal takes effect immediately");
+  assert.equal(membershipReads, 2);
+
+  // External SQLite write to catalog.db immediately invalidates the stamp via PRAGMA data_version.
+  const external = openTestSqlite(join(home, "projects", "catalog.db"));
+  try {
+    external.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'pages', '2026-11-22T00:00:00Z')").run(project.project_id);
+  } finally { external.close(); }
+  assert.equal((await availability(caller, pagesAction)).available, true, "external catalog.db write invalidates snapshot immediately");
+  assert.equal(membershipReads, 3);
+
+  // Revoking an always-on consent in plugin-runtime.db immediately invalidates the stamp without touching catalog.db.
+  const ledger = new HomeConsentLedger(home);
+  ledger.record({
+    plugin_id: alwaysOnEntry.manifest.plugin_id,
+    publisher_signature: alwaysOnEntry.manifest.publisher.signature,
+    manifest_digest: "digest-always-on",
+    granted_by: "host_build",
+    grants: [{ kind: "always_on", subject: "always_on" }],
+    at: "2026-11-22T00:00:00Z",
+  });
+  const consent = ledger.consents(alwaysOnEntry.manifest.plugin_id).find(row => row.kind === "always_on")!;
+  ledger.revoke(consent.consent_id, "2026-11-22T00:01:00Z");
+  // The availability check must miss its cache because alwaysOnPluginStamp changed, even though catalog.db was untouched.
+  const afterRevoke = await availability(caller, alwaysOnAction);
+  assert.equal(membershipReads, 4, "always-on consent revocation invalidates the cached reach stamp without touching catalog.db");
+  assert.equal(afterRevoke.available, alwaysOnEntry.personal === true, "non-personal always-on becomes unavailable; personal stays reachable until hidden");
+  // Hiding the personal plugin immediately flips availability to false too.
+  if (alwaysOnEntry.personal === true) {
+    await access.withCatalog({ homeDirectory: home }, catalog => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: alwaysOnEntry.project_plugin_id, actor_id: "user" }));
+    assert.equal((await availability(caller, alwaysOnAction)).available, false, "hiding a personal plugin invalidates availability immediately");
+    assert.equal(membershipReads, 5);
+  }
+
+  // Creating another project via withCatalog refreshes projectCount immediately.
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "第二个项目", actor_id: "user" }));
+  assert.equal(access.projectCount, 2, "mutating withCatalog refreshes projectCount");
+  const countAfterSecond = projectListReads;
+  assert.equal(countAfterSecond > 0, true);
+  // An unchanged pure-read turn skips listProjects, while an external catalog commit between turns refreshes projectCount on the next pure read.
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id));
+  assert.equal(projectListReads, countAfterSecond, "unchanged pure read after mutation skips redundant listProjects");
+  const externalCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner });
+  try {
+    await externalCatalog.createProject({ display_name: "外部新增项目", actor_id: "user" });
+  } finally {
+    externalCatalog.close();
+  }
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id));
+  assert.equal(access.projectCount, 3, "a pure-read withCatalog turn refreshes projectCount after an external commit between turns");
+  const countAfterExternal = projectListReads;
+  assert.equal(countAfterExternal, countAfterSecond + 1);
+  await access.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id));
+  assert.equal(projectListReads, countAfterExternal, "subsequent unchanged pure reads skip listProjects again");
 });

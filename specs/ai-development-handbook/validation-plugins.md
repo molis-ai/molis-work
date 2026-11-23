@@ -241,7 +241,7 @@
     code 115312214 → 212712269）：示例改成写用途的一句（事后回看时最需要的结论、决定和待办，沿用笔记里的说法，没写到的
     不补）；「实现时」加一条：要求写这一步为谁、做成什么样算好，不照抄示例，不随手规定条数和字数；条数或长度是产品约束时
     在要求里说明原因，并在代码里检查返回结果，不合格按失败处理。
-  model.generate 的能力说明（plugins/native/plugin-builder/src/agent-capabilities.ts；设计者在能力目录里读，代码 Agent
+  model.generate 的能力说明（horizontal/plugin-studio/src/agent-capabilities.ts；设计者在能力目录里读，代码 Agent
     在 developer/capabilities.json 里读）：换同一个示例，删掉「写清楚……多长」和例子里的「不超过 50 字」，不加新句子。
   生成插件工程的 developer/README.md（apps/local-host/src/plugin-builder/build-project.ts，只有代码 Agent 读）：换同一个
     示例，加同一条（英文）。
@@ -346,7 +346,7 @@
 ### C1 创作台设计者提示词不再用文字恳求 JSON 完整（2026-10-17）
 
 ```text
-改动：plugins/native/plugin-builder/src/agent-prompts.ts 的 designer 升 3.8.0，开头那句从「每次只输出一个 JSON 对象：不要 Markdown、
+改动：horizontal/plugin-studio/src/agent-prompts.ts 的 designer 升 3.8.0，开头那句从「每次只输出一个 JSON 对象：不要 Markdown、
   不要解释、不要推理过程；输出前检查每个括号都已闭合、每个字符串都已结束」改成「每次只输出一个 JSON 对象」，少 48 个字符；其余不动。
   tests/prompt-registration.test.ts 的登记版本跟着改成 30800。
 要解决的问题：清单 C1。这几句是在求模型自己把格式做对。先查了能不能换成工程上的保证：设计者一次回答的输出上限已经是 32768
@@ -382,7 +382,7 @@
 ### 创作台视觉复查提示词不再写「不要 Markdown、代码围栏……」（2026-10-17）
 
 ```text
-改动：plugins/native/plugin-builder/src/agent-prompts.ts 的 review 升 ui-review/2.1.0，删掉「不要 Markdown、代码围栏、前言、结语或
+改动：horizontal/plugin-studio/src/agent-prompts.ts 的 review 升 ui-review/2.1.0，删掉「不要 Markdown、代码围栏、前言、结语或
   JSON 之外的分析；」。「只输出一个合法 JSON 对象：{…}」和「所有需要表达的理由放进 issues」都留着，其余不动。
 要解决的问题：C1 之后的同类一项（统筹 10-17）。格式已经由宿主管住：model-json.ts 去掉代码围栏和推理块，再交给
   acceptPresentationReview 检查。复查没有修复循环，答案被拒就记成「视觉模型未完成复查」，界面保持原样，所以标准是首个回答被接受。

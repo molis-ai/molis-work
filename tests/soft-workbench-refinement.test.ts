@@ -142,7 +142,7 @@ test("a field grows only through the shared intrinsic sizing", () => {
   for (const [name, css] of sheets()) {
     for (const match of css.matchAll(/([^{};]*)\{[^{}]*?field-sizing\s*:\s*content/g)) assert.equal(match[1]!.trim(), ":where(textarea[data-fit])", `${name}: ${match[1]!.trim().slice(-100)} sizes a field of its own`);
   }
-  const roots = ["apps", "packages", "plugins/native"].flatMap(top => readdirSync(top, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => join(top, entry.name, "src")));
+  const roots = ["apps", "packages", "plugins/native"].flatMap(top => readdirSync(top, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => join(top, entry.name, "src"))).concat(join("horizontal", "plugin-studio", "src"));
   const own = new Set([join("packages", "design-system", "src", "field-fit.ts"), join("packages", "design-system", "src", "browser", "field-fit.ts")]);
   for (const root of roots) {
     let files: string[];

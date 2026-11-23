@@ -4,6 +4,7 @@ import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
 import { PersonalSync, resolveSyncEndpoint, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { builtinPluginByProjectKey } from './plugin-registry.js';
+import { hostSurfaceByProjectKey } from './host-surfaces.js';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 import type { PersonalAccountLease } from './personal-auth.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
@@ -28,7 +29,7 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
   let children:readonly SyncRegistration[]=[],discovered:readonly SyncRegistration[]=[];
   const hasPluginReference=(projectId:string,reference:{owner:string;collectionId?:string;assetId:string;version?:number})=>{
     check();
-    const manifestId=builtinPluginByProjectKey(reference.owner)?.manifest.plugin_id??reference.owner;
+    const manifestId=(builtinPluginByProjectKey(reference.owner)??hostSurfaceByProjectKey(reference.owner))?.manifest.plugin_id??reference.owner;
     const owner=discovered.find(row=>row.selection.plugin_id===manifestId
       &&(reference.collectionId===undefined||row.selection.collection_id===reference.collectionId)
       &&typeof row.hasReference==='function');

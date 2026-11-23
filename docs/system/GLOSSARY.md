@@ -379,7 +379,7 @@
 | 状态家族 | 状态环的语义类别，例如进行中、需核对，与业务状态 ID 各有各的用途 |
 | 状态机声明 | Manifest 的 `state_machines`，包含机器 ID、版本、状态及其家族、初始态和终态 |
 | `machine_id` | 一台机器的稳定 ID，由插件 ID 和一个本地名组成 |
-| 兑现 | 运行实现提供与清单一致的状态机；核对由[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)接入 |
+| 兑现 | 运行实现提供与清单一致的状态机；Plugin Runtime 在启动前核对，不一致不启动 |
 | 登记 | 从定义和已安装发行包的 Manifest 读取出来的机器元数据投影 |
 | 流水账 | 状态主人为中断恢复或幂等留在自身库里的操作记录 |
 
@@ -468,7 +468,7 @@
 
 **U1　动作叫「能力」还是「动作」（2026-11-17 已批准）**
 
-- 现状：界面把动作目录叫「能力」：顶栏「能力」「打开能力服务」（`apps/workbench/src/arrival/shell.ts`），页面「能力库」（`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-sections.ts`），创作台「能力板」（`plugins/native/plugin-builder/src/agent-studio.ts`），角色页「角色可选能力」（`modules/characters/src/actions.ts`），助理提示词里的「可用能力目录」（`apps/local-host/src/assistant/assistant-service.ts`），报错「能力未注册或版本已失效」（`packages/kernel/src/action-service.ts`）。在 `apps/workbench/src`、`plugins/native`、`apps/local-host/src` 里，「能力」出现 264 行，「动作」200 行（只数 `.ts/.mts/.mjs`，不含测试和英文翻译文件；含注释、提示词和动作说明，不全是界面文字）。
+- 现状：界面把动作目录叫「能力」：顶栏「能力」「打开能力服务」（`apps/workbench/src/arrival/shell.ts`），页面「能力库」（`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-sections.ts`），创作台「能力板」（`horizontal/plugin-studio/src/agent-studio-client-board.ts`），角色页「角色可选能力」（`modules/characters/src/actions.ts`），助理提示词里的「可用能力目录」（`apps/local-host/src/assistant/assistant-service.ts`），报错「能力未注册或版本已失效」（`packages/kernel/src/action-service.ts`）。在 `apps/workbench/src`、`plugins/native`、`apps/local-host/src` 里，「能力」出现 264 行，「动作」200 行（只数 `.ts/.mts/.mjs`，不含测试和英文翻译文件；含注释、提示词和动作说明，不全是界面文字）。
 - 同一页里两个词并用：判断规则编辑器里既有「从动作库加入」「原动作不可用」（`apps/workbench/src/judgment-rules/client-render.ts`），又有「搜索能力」「没有匹配的能力」（`apps/workbench/src/judgment-rules/ui.ts`、`client-render.ts`）。
 - 同一组页面两个名字：顶栏进入的是「能力 · 系统服务」，设置里同样四页（能力库、服务连接、对外接入、调用记录）却放在「工具与接入」组下（`apps/workbench/src/settings-sections.ts`）。该组还含「AI 与执行工具」，范围比前者大，所以这一条不要求合并，只请确认。
 - 决定（2026-11-17）：界面统一用「能力 / 能力库」指目录里的条目；页面上推荐给用户的下一步仍叫「动作」（「页面动作」「推荐动作」）。代码与文档仍写 Action。

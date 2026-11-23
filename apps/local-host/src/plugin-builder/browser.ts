@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { isLoopbackHttpUrl } from '@molis-ai/molis-work-contracts/platform/loopback';
-import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-studio';
 import { locateBrowser } from '../browser/locate.js';
 import { trackHostChildEndpoint } from '../host-endpoints.js';
 

@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,builderManifest,expandDesign} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,builderManifest,expandDesign} from '@molis-ai/molis-work-plugin-studio';
 import type {PluginPrivateStorage} from '@molis-ai/molis-work-contracts/platform/plugin';
 import {detail} from './fixtures/builder-workflow-design.js';
 

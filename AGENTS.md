@@ -41,13 +41,13 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
   - 外部 AI 会话（`horizontal/sessions`）原文绝不落库或进全文索引；读取受范围与项目 AI 许可约束。
   - 工作记录/观测层（`horizontal/observation`）：新增或修改入口、动作、后台任务、触发条件、Skill 生效方式或模型上下文时，同步在 `OBSERVATION_COVERAGE_PLAN` 登记覆盖；只经三条写入路（动作出口、`ObservationSink`、`observation.report@1`）记录，不复制业务事实、不改变或拖慢业务结果（`docs/horizontal/observation.md`）。
   - 中央账号（`horizontal/account`）合同以 Auth 仓库为准，不得在 Work 侧独立修改（更新经 Auth 仓库同步脚本生成）。
-- **状态与状态机：** 平台能力的公开状态从 contracts 的[公开词表](docs/platform/STATE-VOCABULARY.md)派生，转换归原来的包；插件自己的状态用 Manifest 申报，写入和流水账归该插件。状态声明变更走合同流程，非法转换由 SDK 拒绝；清单校验已落地，启动兑现与只读登记见[第 47 批](specs/post-anticorruption-roadmap/reference/batches/47.md)。
+- **状态与状态机：** 平台能力的公开状态从 contracts 的[公开词表](docs/platform/STATE-VOCABULARY.md)派生，转换归原来的包；插件自己的状态用 Manifest 申报，写入和流水账归该插件。状态声明变更走合同流程，非法转换由 SDK 拒绝；随宿主发布的插件启动时核对代码运行的状态机和清单一致，不一致不启动；已申报的状态机经 `system.state-machines` 只读查询（`state_machines.list@1`、`state_machines.get@1`），登记是投影、不建表（`packages/plugin-runtime/README.md`）。
 - **模型调用只经 `horizontal/agent-host`**（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程，其他入口转发给常驻宿主。
 - **外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk`。** SDK 只依赖 contracts，不转出私有包；作者和平台共用的运行时工具放在 SDK 里，平台各层取同一份。SDK 算共享核心，改它按共享核心跑全量。
 - **取消、撤权、停用的调用不再写业务记录。** 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。处理器开始前就被拒的只留一行不含内容的诊断。两个由用户定的例外：跨分区移动被拒后平台把对象移回原处（S-35），OAuth 共用刷新的凭据写回（S-95），条件见 `docs/system/SECURITY-INVARIANTS.md`。
 - **合同只认现行取值。** 库与带版本文件改结构须经 `tooling/versions.json` 与 `pnpm versions:generate` 升版本、附连续升级步骤、同步 `docs/releases/CHECKLIST.md` 第 3 节并在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」留记录，且 `tests/fixtures/golden-homes/` 有旧版金样可回放；读取时不兜底历史取值；新增兼容或迁移逻辑先写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认。
 - **可信身份从调用上下文来**，不从输入读；密钥只给引用。
-- **新的内置插件只有一条路：** 在自己包的 `src/registration.ts` 写 `registration`，项目级给 `project_runtime`，由每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记装配，那个文件不为新插件改；Home 级在 Manifest 写 `runtime: { scope: "home" }` 并在登记上给 `runtime`，由 `apps/local-host/src/home-plugins.ts` 装配（写法见 `skills/molis-plugin-dev/host.md`）。`apps/workbench/src/builtin-plugins.ts`、`apps/local-host/src/plugin-registry.generated.ts` 及三处 `package.json` 的内置插件依赖均由 `node scripts/generate-plugin-registry.mjs` 生成，不手改。构建期手写接线只剩用户批过的 Alchemist 与插件创作台，名单在 `tests/builtin-plugin-assembly-gate.test.ts`，不可照抄。
+- **新的内置插件只有一条路：** 在自己包的 `src/registration.ts` 写 `registration`，项目级给 `project_runtime`，由每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记装配，那个文件不为新插件改；Home 级在 Manifest 写 `runtime: { scope: "home" }` 并在登记上给 `runtime`，由 `apps/local-host/src/home-plugins.ts` 装配（写法见 `skills/molis-plugin-dev/host.md`）。`apps/workbench/src/builtin-plugins.ts`、`apps/local-host/src/plugin-registry.generated.ts` 及三处 `package.json` 的内置插件依赖均由 `node scripts/generate-plugin-registry.mjs` 生成，不手改。构建期手写接线只剩用户批过的 Alchemist，名单在 `tests/builtin-plugin-assembly-gate.test.ts`，不可照抄。插件创作台不是插件，是平台能力（用户 2026-11-22 定），由 `apps/local-host/src/host-surfaces.ts` 与 `apps/workbench/src/host-surfaces.ts` 两份「平台框内页面」名单登记，不进插件目录。
 - **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；安装信任按发布者签名区分。插件的数据库升级段随 Manifest 申报，由平台按归属执行；已装签名包在用户确认换版时升级。插件缺什么就补进平台，不给某个插件开私路。
 - **插件只提供内容，挂在工作台的位置**，不出自己的整页、不开第二个标签页（例外见 `specs/shell-page-exceptions/spec.md`）。
 - **成果库只收人要留存、引用的固定版本与导入文件**，类型在 manifest `artifacts.produces` 声明；交给别的插件的数据是过程项（`process_items.produces`）。
@@ -70,7 +70,7 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 - **原生与脚本检查：** 改 Rust（`apps/desktop`、`server/src/sync`、`apps/sync-worker`）、Swift 或 `.sh`/`.py` 时，跑 `node scripts/gates/native-checks.mjs <rust|swift|shell|python>`（对应 CI 的 `native-checks` 与 `shell-checks`）。
 - spec 的验收标准逐条带编号，证明它的测试在名字或注释里写出编号（`specs/README.md`「验收编号」）。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。偶发失败写进 `tests/quarantine.json`（带 owner 与到期日），不从 `tests/ci-product-subset.txt` 删行（规则见 `docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」）。
-- 改了创作台挂载的 Skill 章节、`plugins/native/plugin-builder/src/agent-prompts.ts` 或宿主对设计答卷的整理与校验：跑 `pnpm studio:replay`，再在隔离 Home 里跑 `pnpm studio:replay smoke`（`docs/platform/STUDIO-SKILL-REPLAY.md`）。
+- 改了创作台挂载的 Skill 章节、`horizontal/plugin-studio/src/agent-prompts.ts` 或宿主对设计答卷的整理与校验：跑 `pnpm studio:replay`，再在隔离 Home 里跑 `pnpm studio:replay smoke`（`docs/platform/STUDIO-SKILL-REPLAY.md`）。
 - 测试截图默认写进已忽略的 `.impeccable/qa/review/`；常规评审截图使用 `shouldSaveReviewScreenshots()`（`MOLIS_WORK_SAVE_SCREENSHOTS=1` 按需开启），仅失败诊断和像素断言测试无条件截屏；入库的评审图只许刷新已有的（`docs/system/REPOSITORY-HYGIENE.md`）。
 - **测试卫生防膨胀：** 修 bug 或加断言优先并入对应功能/owner 测试文件，不按单次修复或单次收口新开一次性小文件（不写“收口清单 / spec 文案字符串正则”测试）；浏览器测试同夹具场景复用单个 Chrome 实例，不用超过 500ms 的硬编码 `sleep` 替代真实 DOM/事件就绪条件；不把抓图脚本写进 `*.test.ts`。
 - 推送前先 `git fetch origin main`，再 `pnpm secrets:check`。

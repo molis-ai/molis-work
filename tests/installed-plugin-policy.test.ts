@@ -10,10 +10,10 @@ import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { createPluginPlatform } from '@molis-ai/molis-work-app-local-host';
-import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
-import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
-import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
+import { createPluginPlatform, generatedPluginManifest } from '@molis-ai/molis-work-app-local-host';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-plugin-sandbox-definition.js';
+import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/installed-plugin-catalog.js';
+import { exposedActionId, exposeInstalledPlugin } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 
 // Exercise the actual exposed action with its installed identity; raw HTTP control is deliberately refused.
 const mac = { skip: process.platform !== 'darwin', timeout: 15_000 };
@@ -48,9 +48,9 @@ async function fixture(t: TestContext) {
   ] };
   const bundlePath = join(directory, 'plugin.mjs');
   await writeFile(bundlePath, `export const operations={run:async(input,sdk)=>{const value=await sdk.capability.call('fixture.lookup',input);await sdk.storage.set('last',value);return input==='invalid'?{unexpected:true}:value},read:async(input,sdk)=>sdk.capability.call('fixture.lookup',input),local:async(_,sdk)=>(await sdk.storage.get('last'))??'empty'};`);
-  const releaseFixture = { buildId: 'policy-fixture', pluginId: contract.pluginId, version: 1, bundlePath, design: { title: 'Policy', contract, parts: [], acceptance: [] }, nodes: [] } as never;
+  const releaseFixture = { buildId: 'policy-fixture', pluginId: contract.pluginId, version: 1, bundlePath, design: { title: 'Policy', contract, parts: [], acceptance: [] }, nodes: [], prompts: [] } as never;
   const catalog = () => capabilityCatalog(actions, 'owner');
-  const definition = sandboxedPluginDefinition(releaseFixture, effectsDeclaration, [], { capabilities: catalog,
+  const definition = sandboxedPluginDefinition(releaseFixture, effectsDeclaration, generatedPluginManifest(releaseFixture), { capabilities: catalog,
     capability: catalogCapabilities({ actions, catalog, live: () => true, declaration: () => ({ manifest: definition.manifest }), granted: () => effectsDeclaration.capabilities }) });
   t.after(async () => { release.resolve(); dispose(); for (const record of platform.runtime.list()) await platform.runtime.stop(record.install_id); store.close(); await rm(directory, { recursive: true, force: true }); });
   // Its operations call a platform capability, so the installation holds that switch (BL-701).

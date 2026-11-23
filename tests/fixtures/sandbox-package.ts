@@ -42,7 +42,8 @@ export function newPublisher() {
 export interface PackageFiles { [path: string]: string | undefined }
 
 /** The files of a sandbox package that is in the format; `change` edits them (undefined removes one) before the Manifest is written. */
-export function packageFiles(publisher: string, change?: (files: PackageFiles, manifest: PluginManifest) => void, options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project" } = {}): { files: PackageFiles; manifest: PluginManifest } {
+/** `change` edits the files and the Manifest in place, or returns the Manifest that replaces it. */
+export function packageFiles(publisher: string, change?: (files: PackageFiles, manifest: PluginManifest) => void | PluginManifest, options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project" } = {}): { files: PackageFiles; manifest: PluginManifest } {
   const pluginId = options.pluginId ?? PACKAGE_PLUGIN_ID, contract = packageContract(pluginId), parts = packageParts();
   const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
   const manifest = sandboxPluginManifest({ pluginId, version: options.version ?? "1.0.0", name: options.name ?? "Example notes", publisher: { publisher_id: "example", signature: publisher }, presentation: false,
@@ -51,8 +52,8 @@ export function packageFiles(publisher: string, change?: (files: PackageFiles, m
     [SANDBOX_PACKAGE_FILES.entrypoint]: CODE, [SANDBOX_PACKAGE_FILES.contract]: JSON.stringify(contract),
     [SANDBOX_PACKAGE_FILES.interface]: JSON.stringify({ parts, nodes }), [SANDBOX_PACKAGE_FILES.prompts]: "[]",
   };
-  change?.(files, manifest);
-  return { files, manifest };
+  const replaced = change?.(files, manifest);
+  return { files, manifest: replaced && typeof replaced === "object" ? replaced : manifest };
 }
 
 export function payloadOf(manifest: PluginPackageManifest, files: PackageFiles): PluginPackagePayload {
@@ -62,7 +63,7 @@ export function payloadOf(manifest: PluginPackageManifest, files: PackageFiles):
 }
 
 /** A signed package in the format, made by `publisher`; `change` edits its files and Manifest before signing. */
-export function signedPackage(publisher = newPublisher(), change?: (files: PackageFiles, manifest: PluginManifest) => void, options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project" } = {}): PluginPackageBundle {
+export function signedPackage(publisher = newPublisher(), change?: (files: PackageFiles, manifest: PluginManifest) => void | PluginManifest, options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project" } = {}): PluginPackageBundle {
   const { files, manifest } = packageFiles(publisher.identity, change, options);
   return signPluginPackage({ payload: payloadOf(manifest, files), signature: null, publisher_key: null }, publisher.signer);
 }

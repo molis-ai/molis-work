@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -171,6 +171,11 @@ export function createLocalWebAssets(ports: {
         // 外部会话 (`sessions`) is a Host surface loaded on demand when opened or when its Read Scope overlay is called.
         : pathname === "/assets/molis-work-plugins/sessions.js"
         ? { body: renderMolisWorkSessionsClientScript(), contentType: "text/javascript; charset=utf-8" }
+        // An installed signed package's page is the platform's: one program for every package, project or Home (47-1).
+        : pathname === "/assets/molis-work-plugins/installed-plugin.js"
+        ? { body: renderMolisWorkInstalledPluginClientScript(), contentType: "text/javascript; charset=utf-8" }
+        : pathname === "/assets/molis-work-plugins/installed-plugin.css"
+        ? { body: renderMolisWorkInstalledPluginStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-arrival.css"
           ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"

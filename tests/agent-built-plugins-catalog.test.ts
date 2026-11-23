@@ -6,7 +6,7 @@ import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-c
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
-import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/installed-plugin-catalog.js';
 import { deferred } from './fixtures/home-runtime.js';
 import { openTestHome } from './fixtures/test-home.js';
 import { initializeBoard } from "./fixtures/goals-board.js";
@@ -126,7 +126,7 @@ test('a stand-in is a valid value for the capability\'s output', async () => {
 });
 
 test('the designer sees the capabilities that bear on the request in full, the ones in use always, and the rest summarised by source', async () => {
-  const { focusCatalog } = await import('@molis-ai/molis-work-plugin-builder');
+  const { focusCatalog } = await import('@molis-ai/molis-work-plugin-studio');
   const entry = (id: string, title: string, source: string) => ({ id, title, source, description: title, input: { type: 'object' } });
   const catalog = [entry('model.generate', '调用模型', '插件平台'), entry('reminders.add', '到点提醒', '插件平台'), entry('reminders.cancel', '取消提醒', '插件平台'),
     entry('goals.list', '目标目录', 'Goals'), entry('goals.note', '记录目标便笺', 'Goals'),
@@ -163,7 +163,7 @@ test('an action that only answers its own installation is on the board but not o
 });
 
 test('an installed plugin\'s functions are actions of the directory: people, the Home AI, MCP clients and other plugins can call them; uninstalling withdraws them', async () => {
-  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/dist/plugin-builder/exposed-actions.js');
+  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/dist/installed-plugin-exposed-actions.js');
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const contract = { version: 1, pluginId: 'studio.words', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
     { id: 'words.list', kind: 'query', description: '列出生词', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: { storage: ['read'] }, examples: [] },
@@ -207,7 +207,7 @@ test('a capability that needs another action is not offered to generated plugins
 });
 
 test('the designer\'s catalog stays within budget: what is in use and the most relevant keep full schemas, the rest their field names', async () => {
-  const { withinBudget } = await import('@molis-ai/molis-work-plugin-builder');
+  const { withinBudget } = await import('@molis-ai/molis-work-plugin-studio');
   const huge = (id: string) => ({ id, title: id, description: id, input: { type: 'object', properties: Object.fromEntries(Array.from({ length: 200 }, (_, index) => ['field' + index, { type: 'string', description: 'x'.repeat(40) }])) }, output: { type: 'object' } });
   const entries = [huge('pages.create'), huge('pages.generate'), huge('pages.extract'), huge('goals.list')];
   const trimmed = withinBudget(entries, ['goals.list'], 20_000);
@@ -218,7 +218,7 @@ test('the designer\'s catalog stays within budget: what is in use and the most r
 });
 
 test('arbitrarily named providers drive sandbox limits, cost disclosure and rate limits through the same directory', async () => {
-  const { capabilityLimits, slowOperations } = await import('../apps/local-host/dist/plugin-builder/capabilities.js');
+  const { capabilityLimits, slowOperations } = await import('../apps/local-host/dist/installed-plugin-capabilities.js');
   const { actions } = project();
   const base = goals('research.summarize', 'query');
   const definition: ActionDefinition = { ...base, version: 2, action: { ...base.action, execution: { timeout_ms: 75_000, cost: 'metered', max_calls_per_minute: 1 } } };
@@ -296,8 +296,8 @@ test('PG110-09 S-15 a sandbox call runs under a caller the Host issues for that 
   const retained = seen[0]!;
   assert.deepEqual([retained.plugin_id, retained.install_id, retained.project_id, retained.actor_id],
     ['studio.probe', 'sandbox-install', project.project_id, 'plugin:studio.probe']);
-  await assert.rejects(service.call(context({ projectId: 'another-project' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'an identity of another project');
-  await assert.rejects(service.call(context({ pluginId: 'studio.undeclared' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'a plugin that declared nothing');
+  await assert.rejects(service.call(context({ projectId: 'another-project' }), peek.capability_id, {}), { code: 'plugin.capability_denied' }, 'an identity of another project');
+  await assert.rejects(service.call(context({ pluginId: 'studio.undeclared' }), peek.capability_id, {}), { code: 'plugin.capability_denied' }, 'a plugin that declared nothing');
   assert.equal(seen.length, 1, 'neither refused call reached the provider');
   const as = (caller: HostPluginCaller, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: caller.actor_id, actor_kind: 'runtime', project_id: caller.project_id,
     audience: 'plugin', permissions: ['callers:read'], plugin_install_id: caller.install_id, host_plugin: caller, ...change });
@@ -326,7 +326,7 @@ test('PG110-10 PG-006 Goals keeps no builtin list: the board offers its plugin a
   const listed = await service.call(context(), goalPluginActions.list.capability_id, {}) as { goals: unknown[] };
   assert.deepEqual(listed.goals, []);
   await assert.rejects(service.call(context(), goalPluginActions.state.capability_id, { goal_id: 'missing-goal' }),
-    (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && !/宿主发出|不一致|没有声明或没有获得/u.test(error.message),
+    (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && !/宿主发出|不一致|没有声明或没有获得/u.test(error.message),
     'a read of a goal that is not there is Goals\' own answer, not a refusal of the caller');
 });
 
@@ -343,7 +343,7 @@ test('PG006-02 PG006-04 S-15 behind the board, the gateway itself refuses a Goal
   });
   const cursor = () => host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
   const write = (key: string, based_on_cursor: number) => ({ goal_id, based_on_cursor, summary: 'progress ' + key, idempotency_key: key });
-  const missing = (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && /没有声明或没有获得/u.test(error.message);
+  const missing = (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && /没有声明或没有获得/u.test(error.message);
   /** The Goal write presented to the gateway with the caller the Host issued for a sandbox call held open, claiming the write's permissions. */
   const presented = async (key: string, based: number) => {
     const held = holdNext(), pending = service.call(context(), peek.capability_id, {});
@@ -380,7 +380,7 @@ test('PG110-14 S-15 the board passes a sandbox call only for the capability the 
     assert.deepEqual(definition.action.permissions, goalPluginActions.list.action.permissions, `${definition.capability_id} needs what goals.list needs`);
     // Goals' own answer for a goal that is not there says nothing of approval (PG110-10): this refusal is the board's.
     await assert.rejects(service.call(context(), definition.capability_id, { goal_id: 'missing-goal' }),
-      (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && /没有声明或没有获得这项能力的授权/u.test(error.message),
+      (error: Error & { code?: string }) => error.code === 'plugin.capability_refused' && /没有声明或没有获得这项能力的授权/u.test(error.message),
       `${definition.capability_id} was not approved itself, so the caller holding goals:read for goals.list does not carry it`);
   }
 });
@@ -399,6 +399,6 @@ test('PG110-15 D18 an action not offered to plugins is on the board as not offer
   assert.ok(designer.includes(goalPluginActions.list.capability_id), 'the design AI sees what the board offers');
   assert.equal(designer.includes(agentsOnly.capability_id), false, '2. and not what it does not offer');
   approved.add(agentsOnly.capability_id);
-  await assert.rejects(service.call(context(), agentsOnly.capability_id, {}), { code: 'plugin_builder.capability_denied' }, '3. a sandbox call to it is refused, even approved');
+  await assert.rejects(service.call(context(), agentsOnly.capability_id, {}), { code: 'plugin.capability_denied' }, '3. a sandbox call to it is refused, even approved');
   assert.equal(calls, 0, 'and never reaches its provider');
 });

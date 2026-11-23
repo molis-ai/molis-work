@@ -55,6 +55,8 @@ test("production CSS does not paint indigo or blue focus strokes", () => {
     "apps/desktop/src",
     "packages/design-system/src",
     "plugins/native",
+    // The plugin studio left plugins/native when it became a platform capability (47-1 C); its controls stay checked.
+    "horizontal/plugin-studio/src",
   ];
   const hits: string[] = [];
   const walk = (dir: string) => {
@@ -170,7 +172,7 @@ test("product HTML no longer uses retired control class names", () => {
   // "./document-action.js" is not a control class.
   const names = "document-action|text-button|button-primary|goal-primary-action|planning-primary-action|settings-button|guidance-primary-action";
   const banned = new RegExp(`(?:class(?:Name)?\\s*=\\s*["'\`][^"'\`]*?\\b|classList\\.\\w+\\(\\s*["'\`]|(?<![./\\w-])\\.)(?:${names})(?![\\w-])`);
-  const roots = ["apps/workbench/src", "plugins/native", "packages/design-system/src"];
+  const roots = ["apps/workbench/src", "plugins/native", "packages/design-system/src", "horizontal/plugin-studio/src"];
   const hits: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

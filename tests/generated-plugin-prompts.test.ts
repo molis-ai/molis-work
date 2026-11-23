@@ -3,10 +3,25 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
-import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { generatedRegistration, promptVersions, readPluginPrompts, registerGeneratedPrompts, resolvePluginPrompt, unregisterGeneratedPrompts } from "../apps/local-host/src/plugin-builder/prompts.js";
+import type { AgentRelease } from "@molis-ai/molis-work-plugin-studio";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { promptVersions, readPluginPrompts, releaseInstructions, resolvePluginPrompt } from "../apps/local-host/src/installed-plugin-prompts.js";
+import { homeAgentDefinitions, pluginAgentRegistration } from "../apps/local-host/src/plugin-instructions.js";
+
+// A plugin the studio made is installed from its signed package (PG-083), so its prompts reach the Home's register the way every
+// plugin's do: the instructions its definition carries, projected by the platform. These stand where that definition stands.
+const SIGNATURE = "ed25519:sha256:fixture-publisher";
+function generatedRegistration(value: AgentRelease, releases: readonly AgentRelease[], state: "enabled" | "disabled", pluginVersion: string) {
+  const manifest = sandboxPluginManifest({ pluginId: value.pluginId, name: value.design.title, version: pluginVersion, presentation: false,
+    publisher: { publisher_id: "molis-studio", signature: SIGNATURE } });
+  const definition: PluginDefinition = { manifest, execution: "sandbox", instructions: releaseInstructions(value, releases),
+    start() { throw new Error("these definitions are registered, never started"); } };
+  const made = pluginAgentRegistration(definition)!;
+  return { ...made, source: { ...made.source, state } } as typeof made;
+}
+const registerGeneratedPrompts = (home: string, registration: ReturnType<typeof generatedRegistration>, scope?: string) => homeAgentDefinitions(home).register(registration, scope);
+const unregisterGeneratedPrompts = (home: string, pluginId: string, scope?: string) => homeAgentDefinitions(home).unregister(pluginId, scope);
 
 const OPERATION = `
 export const prompts = [
@@ -51,12 +66,12 @@ test("a prompt keeps its registered version until its default text changes, so o
 test("installing registers a generated plugin's prompts; the person's edit runs, survives reinstall, and a release from before prompts says why it cannot be edited", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-generated-prompts-"));
   try {
-    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    const registry = homeAgentDefinitions(home);
     const v1 = release(1, [{ id: "summary", title: "要点提炼", purpose: "把笔记提炼成三条要点", body: "只输出三条中文要点。" }]);
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "enabled", "1.0.0"));
     const view = registry.prompt("studio.b1/summary");
     assert.deepEqual([view.source.kind, view.kind, view.title, view.used_by], ["plugin", "instruction", "要点提炼", ["笔记助手"]]);
-    assert.equal(view.source.kind === "plugin" && view.source.origin, "generated");
+    assert.equal(view.source.kind === "plugin" && view.source.publisher_signature, SIGNATURE, "it is listed as its publisher's, like any installed package");
 
     const installed = { kind: "installed" as const, registration: generatedRegistration(v1, [v1], "enabled", "1.0.0") };
     const preview = { kind: "preview" as const, prompts: [{ id: "summary", title: "要点提炼", purpose: "p", body: "BUILD" }] };
@@ -82,7 +97,7 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
 test("one installation cannot supply another release's defaults, declarations or registration lifetime", () => {
   const home = mkdtempSync(join(tmpdir(), "molis-prompt-installations-"));
   try {
-    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    const registry = homeAgentDefinitions(home);
     const v1 = release(1, [{ id: "summary", title: "Summary", purpose: "p", body: "V1" }, { id: "old-only", title: "Old", purpose: "p", body: "OLD" }]);
     const v2 = release(2, [{ id: "summary", title: "Summary", purpose: "p", body: "V2" }, { id: "new-only", title: "New", purpose: "p", body: "NEW" }]);
     const first = generatedRegistration(v1, [v1], "enabled", "1.0.0"), second = generatedRegistration(v2, [v1, v2], "enabled", "2.0.0");
@@ -108,7 +123,7 @@ test("one installation cannot supply another release's defaults, declarations or
 test("developer diagnostics say what each source registered and what is not in effect, and list calls that bypass the register", () => {
   const home = mkdtempSync(join(tmpdir(), "molis-prompt-diagnostics-"));
   try {
-    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    const registry = homeAgentDefinitions(home);
     const v1 = release(1, [{ id: "summary", title: "要点提炼", purpose: "p", body: "A" }]);
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "disabled", "1.0.0"));
     registry.save("studio.b1/summary", "B", null, "person");

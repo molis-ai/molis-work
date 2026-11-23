@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from "./platform-definitions.js";
+import { lifecycleGuarded } from "./lifecycle-machine.js";
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
@@ -74,8 +75,11 @@ export class PluginRuntime implements PluginRuntimeApi {
   private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
   private readonly actionDisposers = new Map<string, () => void>(); private readonly startedAt: string;
 
+  /** Guarded: every lifecycle state this Runtime writes is a declared step of `PLUGIN_LIFECYCLE_MACHINE`. */
+  private readonly repository: PluginRuntimeRepository;
+
   constructor(
-    private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
+    repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
     private readonly options: { now?: () => Date; hostStartedAt?: string; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; assertPresentation?: PresentationAdmission; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
@@ -89,7 +93,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       /** The release's own bundled packages under the Host's prefix (`io.molis.work.`), which a non-host install may carry (S-reserved-host-prefix). */
       releaseIds?: ReadonlySet<string>;
       actions?: PluginRuntimeActions },
-  ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); this.startedAt = options.hostStartedAt ?? (options.now?.() ?? new Date()).toISOString(); }
+  ) {
+    if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单");
+    this.repository = lifecycleGuarded(repository);
+    this.startedAt = options.hostStartedAt ?? (options.now?.() ?? new Date()).toISOString();
+  }
 
   /** Capture the original activation, grants and optional upper bound; used by owners and route admission. */
   capturePermission(installId: string, permission: string): () => void {
@@ -693,7 +701,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     contribution: PluginContribution,
   ): Promise<void> {
     try {
-      assertContributionMatchesManifest(definition.manifest, contribution, redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id));
+      assertContributionMatchesManifest(definition.manifest, contribution,
+        { ...redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id), state_machines_owed: record.publisher_trust === "host" });
       const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions, activation = this.liveContext(record.install_id);

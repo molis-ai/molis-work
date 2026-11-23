@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, STUDIO_CAPABILITIES, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, STUDIO_CAPABILITIES, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type CatalogEntry } from '@molis-ai/molis-work-plugin-studio';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { mountedSkill } from './skill.mjs';
 import { studioDesignLanguages } from '../../apps/local-host/src/plugin-builder/studio-language.js';
@@ -76,7 +76,7 @@ async function designOne(options: SmokeOptions, item: SmokeBrief): Promise<Smoke
     runInLanguage: run => runBackgroundWork(locale, run),
     validateContract: contract => assertContract(contract), prepareBuild: async () => scratch,
     check: async () => { throw new Error(DESIGN_ONLY); }, call: async () => { throw new Error(DESIGN_ONLY); }, resetPreview: async () => {},
-    browserAcceptance: async () => { throw new Error(DESIGN_ONLY); }, publish: async () => { throw new Error(DESIGN_ONLY); }, installations: async () => [], lifecycle: async () => {},
+    browserAcceptance: async () => { throw new Error(DESIGN_ONLY); }, publish: async () => { throw new Error(DESIGN_ONLY); }, installations: async () => [],
   };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
   let build: AgentBuild = workflow.create(item.brief), answered = false;

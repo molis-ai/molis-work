@@ -65,7 +65,12 @@ export function projectPluginJudge(catalog: Pick<MolisWorkProjectCatalog, "proje
 
 /** Bundled plugins use the existing project installation record; Runtime plugins enforce their own grants. */
 export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, homeDirectory: string) {
-  const entryOf = (action: Pick<ActionView, "provider">) => action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;
+  const entryOf = (action: Pick<ActionView, "provider">) => {
+    const entry = action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;
+    // A Home plugin outside the build has no project half: a project's own provider under its id is another publisher's plugin (BL-586),
+    // whose grants are its own, not the Home one the project's list shows or hides.
+    return entry && !("manifest" in entry) && action.provider.project_id !== undefined ? undefined : entry;
+  };
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string> | null> => {
     if (!caller.project_id) return null;
     return withCatalog({ homeDirectory }, catalog => projectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));

@@ -15,7 +15,17 @@ export interface InstalledPackageControl {
   refresh?(): Promise<void>;
   /** The owning service's synchronous commit, after every asynchronous preparation and authority check. */
   complete?(): void;
+  /** The optional permissions the person switched on in the confirmation: a first installation starts with them. */
+  optional?: readonly string[];
+  /** The keys the person typed in the confirmation, each for a reference the release declares; the lifecycle seals them. */
+  secrets?: readonly PackageInstallSecret[];
 }
+
+/** One key the person typed for a package: the reference the package names, the request header it goes in, and its value. */
+export interface PackageInstallSecret { readonly name: string; readonly header: string; readonly value: string }
+
+/** What the person chose in the confirmation besides agreeing (`PluginInstallService.confirm`). */
+export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets'>;
 
 export const HOME_INSTALL_SCOPE = '~home';
 

@@ -1,4 +1,3 @@
-import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import { ChildProcess, spawn } from 'node:child_process';
@@ -7,9 +6,10 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
@@ -19,8 +19,8 @@ import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
 import { acquireUpgradedHomeOwner, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, projectedPermissionDeclarations, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions, readMcpToolPreference } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
-import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
-import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
+import { sandboxedPluginDefinition } from '../apps/local-host/dist/installed-plugin-sandbox-definition.js';
+import { exposedActionId } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
 import { scheduleServiceFor, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
@@ -31,10 +31,18 @@ import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins 
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
+import { packagedStudioRelease } from './fixtures/studio-package.js';
 import { openTestHome } from './fixtures/test-home.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
+// 47-1 B: the Host opens a project's installed plugins itself, on the project's one platform (`installedPluginsOf`, reached from the prepared
+// action entry); a prepared read alone opens nothing. A test asks the Host to open them first, so the owner it then holds is the Host's own,
+// never one opened beside it with the test's wiring (whose catalog reads would wait on that same opening).
+const openedByHost = async (host: MolisWorkLocalHost, ref: NonNullable<Parameters<MolisWorkLocalHost['inspectActions']>[1]>) => {
+  await host.inspectActions({ ...caller, project_id: ref.project_id }, ref);
+  return host;
+};
 
 test('BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease', { timeout: 20_000 }, async t => {
   const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'com.example.fixture.statement';
@@ -52,7 +60,8 @@ test('BSH-03 S-59 a real installed project SQL child exits before the Host relea
   const project = await home.createProject('Close with a native child');
   const installed = await home.host.withProject(project.reference, ({ store }) =>
     ensureInstalledPlugins({ store, projectId: project.project_id, homeDirectory: home.home, actorId: LOCAL_PERSON_ACTOR_ID }));
-  assert.deepEqual((await installed.platform.start([{ definition, trust: { level: 'unsigned' }, grants: permissions }])).running, [pluginId]);
+  // The project's platform also runs its built-in plugins (47-1 B); the report names this fixture among them.
+  assert.ok((await installed.platform.start([{ definition, trust: { level: 'unsigned' }, grants: permissions }])).running.includes(pluginId));
   assert.ok(capture.statements);
 
   const spawned: { child?: ChildProcess } = {};
@@ -109,23 +118,38 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] },
     { id: 'schedule', kind: 'command', input: { type: 'string' }, output: { type: 'string' }, effects: { capabilities: ['schedules.add'] }, errors: [], examples: [{ input: '2026-09-28T01:00:00Z', output: 'id' }] },
   ] };
+  if (secretRefs.length) contract.operations.push({ id: 'fetch', kind: 'command', input: { type: 'null' }, output: { type: 'string' },
+    effects: { networkDomains: ['api.example.test'], secretRefs }, errors: [], examples: [{ input: null, output: 'fetched' }] });
   if (lookup) contract.operations.push({ id: 'lookup', kind: 'command', input: { type: 'null' }, output: { type: 'string' },
     effects: { capabilities: ['fixture.lookup'], storage: ['write'] }, errors: [], examples: [{ input: null, output: 'looked up' }] });
   const bundlePath = join(home, name + '.mjs');
-  await writeFile(bundlePath, `export const operations={save:async(input,sdk)=>{await sdk.storage.set('value',input.value);return input.value},read:async(_,sdk)=>await sdk.storage.get('value')??'empty',schedule:async(at,sdk)=>(await sdk.capability.call('schedules.add',{operation:'save',at,input:{value:'scheduled'},inbox:false})).scheduleId${lookup ? ",lookup:async(_,sdk)=>{const value=await sdk.capability.call('fixture.lookup',null);await sdk.storage.set('value',value);return value}" : ''}};`);
-  const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home,
+  // The code implements exactly the operations its contract names (the sandbox refuses any other set), so a version that adds `fetch` brings it.
+  const write = (value: Pick<AgentRelease, 'bundlePath' | 'design'>) => writeFileSync(value.bundlePath, `export const operations={save:async(input,sdk)=>{await sdk.storage.set('value',input.value);return input.value},read:async(_,sdk)=>await sdk.storage.get('value')??'empty',schedule:async(at,sdk)=>(await sdk.capability.call('schedules.add',{operation:'save',at,input:{value:'scheduled'},inbox:false})).scheduleId${value.design.contract.operations.some(operation => operation.id === 'fetch') ? ",fetch:async()=>'fetched'" : ''}${lookup ? ",lookup:async(_,sdk)=>{const value=await sdk.capability.call('fixture.lookup',null);await sdk.storage.set('value',value);return value}" : ''}};`);
+  const raw: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home,
     prompts: [{ id: 'summary', title: 'Summary', purpose: 'Summarize notes', body: 'Shipped instruction' }],
     design: { id: 'one', catalog: 'actions/1', title: 'Installed fixture', description: 'Fixture', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] },
-    nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])],
-      ...(secretRefs.length ? { networkDomains: ['api.example.test'], secretRefs } : {}) }, publishedAt: new Date().toISOString() };
-  publishCheckedStudioFixture(storage, release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+    nodes: [], manifest: buildManifest(contract), permissions: {}, publishedAt: new Date().toISOString() };
+  write(raw);
+  // What the studio publishes and an installation runs: the release's signed package, kept in the Home under a pinned publisher (PG-083).
+  const publisher = newPublisher(), release = packagedStudioRelease(home, raw, publisher);
+  /**
+   * Another version of the same plugin by the same publisher; `change` edits what it is made from. It upgrades (and reads the data of) every
+   * version before it unless `upgradesFrom` says otherwise, and `code` stands in for its entrypoint (a package is what it was signed as: a
+   * version that cannot start is a package of its own, never a file changed afterwards).
+   */
+  const next = (version: number, change: (value: AgentRelease) => void = () => undefined, options: { upgradesFrom?: readonly number[]; code?: string } = {}) => {
+    const value: AgentRelease = structuredClone({ ...raw, version, bundlePath: join(home, name + '-v' + version + '.mjs') }); change(value); write(value);
+    if (options.code !== undefined) writeFileSync(value.bundlePath, options.code);
+    return packagedStudioRelease(home, value, publisher, { upgradesFrom: options.upgradesFrom ?? Array.from({ length: version - 1 }, (_, index) => index + 1) });
+  };
+  storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
   // The person switched on what the operations use (BL-701): the platform capabilities.
-  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local',
-    grants: ['storage:private', 'capabilities:call'] });
+  const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local',
+    grants: ['storage:private', 'capabilities:call', ...(secretRefs.length ? ['network:request', 'secret:use'] : [])] });
   if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
   store.close();
-  return { databasePath, release, install, draft: waiting, ref: molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }) };
+  return { databasePath, release, raw, publisher, next, install, draft: waiting, ref: molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }) };
 }
 
 test('Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities', mac, async () => {
@@ -163,21 +187,21 @@ test('Host discovery and invocation refresh generated cost without rewriting ins
     register('none', 3);
     // Invoke without a preceding discovery also refreshes the public declaration.
     assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
-    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    const installed = await (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
       actions: { registry: host.actionRegistry(fixture.ref), client, project_id: DEMO_PROJECT_ID } }));
     assert.equal((await installed.catalog()).find(entry => entry.id === action('lookup').capability_id)!.execution.cost, 'none');
     assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
     assert.equal(installed.records()[0]!.install_id, fixture.install.install_id);
-    const next = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, next);
+    const next = fixture.next(2);
     await installed.lifecycle('upgrade', next);
-    await assert.rejects(client.invoke(caller, action('lookup'), null), 'the old version is withdrawn');
-    assert.equal(await client.invoke(caller, action('lookup', 2), null), 'looked up');
-    await installed.lifecycle('rollback', fixture.release);
+    // A newer package of the same plugin answers under the same action: the installation is the same one, its package the new one.
     assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
-    assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
-    await installed.lifecycle('disable', fixture.release);
+    assert.equal(installed.records()[0]!.install_id, fixture.install.install_id);
+    assert.equal(installed.records()[0]!.version, '2.0.0');
+    assert.notEqual(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
+    await installed.lifecycle('disable', next);
     assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false);
-    await installed.lifecycle('enable', fixture.release);
+    await installed.lifecycle('enable', next);
     dispose();
     assert.equal((await client.discover(caller)).find(view => view.capability_id === action('lookup').capability_id)!.action.execution?.cost, 'unknown');
     await assert.rejects(client.invoke(caller, action('lookup'), null));
@@ -196,7 +220,8 @@ test('an in-flight catalog inspection cannot restore generated registrations aft
     const pending = installed.catalog(); await entered.promise;
     await installed.close(); release.resolve();
     assert.deepEqual(await pending, []);
-    assert.deepEqual(service.discover(caller), []);
+    // The project's built-in plugins keep their actions on the platform they share (47-1 B); no generated one comes back.
+    assert.deepEqual(service.discover(caller).filter(view => view.capability_id.startsWith('generated.')), []);
   } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -209,11 +234,11 @@ test(`QEA-81 SYS-15-S1 Host restores ${installation} installed actions and sched
   const action = (operation: string) => ({ capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + release.pluginId });
   try {
     if (installation === 'lifecycle') {
-      const installed = await host.withProject(ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+      const installed = await (await openedByHost(host, ref)).withProject(ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
         actions: { registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: DEMO_PROJECT_ID } }));
       await installed.lifecycle('install', release, { consent: true });
       const record = installed.records()[0]!;
-      assert.equal(record.publisher_trust, 'unsigned', 'normal Studio installs have no signed package archive');
+      assert.equal(record.publisher_trust, 'pinned', 'PBU-47-9 a plugin the studio made is installed from its signed package, under the publisher the person pinned');
       await installed.platform.runtime.regrant(record.install_id, 'capabilities:call', true); // The person enables scheduling, as in the retained fixture.
     }
     await host.inspectActions(caller, ref);
@@ -273,7 +298,7 @@ test("S-task-grant-subjects uninstalling a plugin from a project takes its tasks
   const fixture = await publishedFixture(home, 'project');
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   try {
-    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    const installed = await (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
       actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
     const install = fixture.install.install_id;
     const grant = (project_id: string, install_id: string) => ({ client_id: `agent:task:${project_id}:${install_id}:daily`, project_id, capability_id: 'fixture.read',
@@ -292,7 +317,7 @@ test('explicitly disabled installations stay disabled after Host restart and onl
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project');
   let host = new MolisWorkLocalHost({ homeDirectory: home });
-  const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+  const control = async () => (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
   try {
     const installed = await control();
@@ -324,7 +349,7 @@ test('explicitly disabled installations stay disabled after Host restart and onl
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('missing publication or approval is reported without borrowing another Home or granting release permissions', mac, async () => {
+test('a missing package or approval is reported without borrowing another installation or granting what the package declares', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-recovery-'));
   const first = await publishedFixture(home, 'first'), second = await publishedFixture(home, 'second');
   const stores = [first, second].map(fixture => new LocalProjectDatabase(fixture.databasePath));
@@ -343,17 +368,18 @@ test('missing publication or approval is reported without borrowing another Home
     await one.lifecycle('install', first.release, { consent: true });
     assert.equal((await one.actions.client.discover(context)).filter(view => view.capability_id.startsWith('generated.')).length, 3, 'new consent repairs a missing approval without borrowing another installation');
     await releaseInstalledPlugins(stores[1]!, DEMO_PROJECT_ID);
-    const secondStorage = studioStorage(stores[1]!.db, DEMO_PROJECT_ID);
-    secondStorage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:1,builds: [], releases: [],revisions:{} }));
+    // The packages the Home kept are gone, this installation's among them: nothing else stands in for it, the studio's own record least of all.
+    await rm(join(home, 'plugin-packages'), { recursive: true, force: true });
     const missing = await ensureInstalledPlugins({ store: stores[1]!, projectId: DEMO_PROJECT_ID, homeDirectory: home });
-    assert.match(missing.recoveryErrors.get(second.release.pluginId) ?? '', /发布记录/);
+    assert.ok(missing.recoveryErrors.get(second.release.pluginId), 'the person is told the installation cannot be read back');
+    assert.equal(missing.installations()[0]?.state, 'failed');
     assert.equal((await missing.actions.client.discover(context)).some(view => view.capability_id.startsWith('generated.')), false);
   } finally { for (const store of stores) { await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); } await rm(home, { recursive: true, force: true }); }
 });
 
 async function hostWithProject(home: string, fixture: Awaited<ReturnType<typeof publishedFixture>>) {
   let host = new MolisWorkLocalHost({ homeDirectory: home });
-  const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+  const control = async () => (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
   const generated = async () => (await host.actionClient(fixture.ref).discover(caller)).filter(view => view.capability_id.startsWith('generated.')).length;
   return { control, generated, get host() { return host; }, reopen() { host = new MolisWorkLocalHost({ homeDirectory: home }); return host; } };
@@ -369,12 +395,9 @@ test('a disabled installation switches versions and stays disabled, before and a
   try {
     const installed = await rig.control();
     await installed.lifecycle('disable', fixture.release);
-    const v2 = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, v2);
+    const v2 = fixture.next(2);
     await installed.lifecycle('upgrade', v2);
     assert.deepEqual(rows(installed), [{ state: 'disabled', version: 2 }], 'the version moved and the plugin is still off');
-    await installed.lifecycle('rollback', fixture.release);
-    assert.deepEqual(rows(installed), [{ state: 'disabled', version: 1 }]);
-    await installed.lifecycle('upgrade', v2);
     assert.equal(await rig.generated(), 0, 'nothing of it is offered while it is off');
     const router = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + fixture.release.pluginId + '/call', actor_id: 'owner', body: { operation: 'read', input: null } });
     // W3-02-C: the router answers a plugin that is not enabled with the platform's code (it was 404 plugin_not_enabled).
@@ -387,12 +410,9 @@ test('a disabled installation switches versions and stays disabled, before and a
     const restored = await rig.control();
     assert.deepEqual(rows(restored), [{ state: 'disabled', version: 2 }]);
     assert.equal(await rig.generated(), 0, 'a restart does not bring it back');
-    const v3 = { ...fixture.release, version: 3 }; publishCheckedStudioFixture(restored.storage, v3);
+    const v3 = fixture.next(3);
     await restored.lifecycle('upgrade', v3);
     assert.deepEqual(rows(restored), [{ state: 'disabled', version: 3 }], 'after a restart the Supervisor knows nothing of it, and the switch still works');
-    await restored.lifecycle('rollback', v2);
-    assert.deepEqual(rows(restored), [{ state: 'disabled', version: 2 }]);
-    await restored.lifecycle('upgrade', v3);
     assert.equal(await rig.generated(), 0);
     await rig.host.close();
     assert.deepEqual(stateOnDisk(), { state: 'disabled', version: '3.0.0' });
@@ -404,22 +424,26 @@ test('a disabled installation switches versions and stays disabled, before and a
     assert.deepEqual(rows(again), [{ state: 'running', version: 3 }], 'enable starts the version the installation is on, whatever release the caller names');
     assert.equal(await rig.generated(), 3);
     assert.equal(await rig.host.actionClient(fixture.ref).invoke(caller, action(v3, 'read'), null), 'empty');
-    await again.lifecycle('rollback', v2);
-    assert.deepEqual(rows(again), [{ state: 'running', version: 2 }], 'an enabled installation switches as before');
+    await again.lifecycle('upgrade', fixture.next(4));
+    assert.deepEqual(rows(again), [{ state: 'running', version: 4 }], 'an enabled installation switches as before');
+    // PBU-47-9: a signed package is replaced by a newer one and by nothing else; there is no way back to an earlier version.
+    await assert.rejects(again.lifecycle('upgrade', v2), { code: 'plugin.upgrade_required' });
+    assert.deepEqual(rows(again), [{ state: 'running', version: 4 }]);
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('a version of a disabled installation that needs more permission asks for them, and its approval moves with it', mac, async () => {
+test('a version of a disabled installation that uses more is approved as its package declares it: the approval moves with the version', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-disabled-consent-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   try {
     const installed = await rig.control();
     await installed.lifecycle('disable', fixture.release);
-    const wider = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, networkDomains: ['api.example.test'] } }; publishCheckedStudioFixture(installed.storage, wider);
-    await assert.rejects(installed.lifecycle('upgrade', wider), /新的权限/);
-    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
-    await installed.lifecycle('upgrade', wider, { consent: true });
+    // What the person is asked is the install sheet's question (tests/plugin-package-install-preview.test.ts); what reaches here is the confirmed package.
+    const wider = fixture.next(2, value => { value.design.contract.operations.push({ id: 'fetch', kind: 'command', input: { type: 'null' }, output: { type: 'string' },
+      effects: { networkDomains: ['api.example.test'] }, errors: [], examples: [{ input: null, output: 'fetched' }] }); });
+    assert.deepEqual(installed.installations().map(({ state, version, effects }) => ({ state, version, domains: effects.networkDomains ?? [] })), [{ state: 'disabled', version: 1, domains: [] }]);
+    await installed.lifecycle('upgrade', wider);
     assert.deepEqual(installed.installations().map(({ state, version, effects }) => ({ state, version, domains: effects.networkDomains })), [{ state: 'disabled', version: 2, domains: ['api.example.test'] }]);
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -432,7 +456,7 @@ test('a quarantined installation is refused a version switch with a reason, befo
   new SqlitePluginRuntimeRepository(database.db).save({ ...fixture.install, state: 'quarantined' }); database.close();
   const rig = await hostWithProject(home, fixture);
   try {
-    const installed = await rig.control(), next = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, next);
+    const installed = await rig.control(), next = fixture.next(2);
     const snapshot = () => ({ supervisor: installed.platform.supervisor.state(fixture.release.pluginId), installation: installed.platform.runtime.get(fixture.install.install_id) });
     const before = structuredClone(snapshot()), calls = { upgrade: 0, rollback: 0 };
     const upgrade = installed.platform.upgrade.bind(installed.platform), rollback = installed.platform.rollback.bind(installed.platform);
@@ -440,9 +464,7 @@ test('a quarantined installation is refused a version switch with a reason, befo
     installed.platform.rollback = (...args) => { calls.rollback++; return rollback(...args); };
     await assert.rejects(installed.lifecycle('upgrade', next), /隔离/);
     assert.deepEqual(snapshot(), before, 'a refused upgrade leaves the restored declaration and the installation unchanged');
-    await assert.rejects(installed.lifecycle('rollback', fixture.release), /隔离/);
-    assert.deepEqual(snapshot(), before, 'a refused rollback leaves the restored declaration and the installation unchanged');
-    assert.deepEqual(calls, { upgrade: 0, rollback: 0 }, 'neither refused version switch reaches the Supervisor');
+    assert.deepEqual(calls, { upgrade: 0, rollback: 0 }, 'the refused version switch never reaches the Supervisor');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
     await installed.lifecycle('install', next, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }], 'uninstalling and installing again is the way out');
@@ -454,12 +476,11 @@ test('an install that cannot start leaves nothing behind: no secrets, no approva
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
   const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
-  const working = await readFile(fixture.release.bundlePath, 'utf8');
   try {
     const installed = await rig.control(), pluginId = fixture.release.pluginId;
     await installed.lifecycle('uninstall', fixture.release, { keepData: false });
-    await writeFile(fixture.release.bundlePath, "throw new Error('broken bundle');");
-    await assert.rejects(installed.lifecycle('install', fixture.release, { consent: true, secrets: [secret] }), /安装没有完成/);
+    const broken = fixture.next(2, undefined, { code: "throw new Error('broken bundle');" });
+    await assert.rejects(installed.lifecycle('install', broken, { consent: true, secrets: [secret] }), /安装没有完成/);
     assert.deepEqual(installed.secrets.list(pluginId), [], 'the secret from the consent dialog was not kept');
     assert.equal(await installed.secrets.resolve(pluginId, 'weather'), null);
     assert.equal(installed.storage.get(approvalKey), null, 'no approval for an installation that does not exist');
@@ -470,7 +491,6 @@ test('an install that cannot start leaves nothing behind: no secrets, no approva
     await assert.rejects(installed.lifecycle('install', fixture.release, { consent: true, secrets: [{ ...secret, name: 'other' }] }), /没有声明/);
     assert.deepEqual(installed.records(), [], 'a secret the release never named is refused before anything is installed');
 
-    await writeFile(fixture.release.bundlePath, working);
     await installed.lifecycle('install', fixture.release, { consent: true, secrets: [secret] });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 1 }]);
     assert.deepEqual(installed.secrets.list(pluginId), [{ name: 'weather', header: 'X-Api-Key' }], 'a finished install keeps what the person typed');
@@ -483,26 +503,23 @@ test('a reinstall that cannot read the data an uninstall kept is refused until t
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
-  const working = await readFile(fixture.release.bundlePath, 'utf8');
-  const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:1,builds: [], releases: [release],revisions:{} }));
   const kept = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id).length);
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
     await client.invoke(caller, action(fixture.release, 'save'), { value: 'old data' });
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
-    const v3 = { ...fixture.release, version: 3 }; only(installed, v3);   // the earlier releases are gone, so v3 does not say it reads their data
+    const v3 = fixture.next(3, undefined, { upgradesFrom: [] });   // v3 does not say it reads the data of any earlier version
     assert.ok(await kept() > 0);
     await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string; message: string }) => error.code === 'plugin.kept_data_incompatible' && /放弃/.test(error.message));
     await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: false }), (error: { code?: string }) => error.code === 'plugin.kept_data_incompatible');
     assert.deepEqual(installed.records(), [], 'a refused install changes nothing');
     assert.ok(await kept() > 0, 'and the data is still there');
 
-    await writeFile(fixture.release.bundlePath, "throw new Error('broken bundle');");
-    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: true }), /安装没有完成/);
+    const broken = fixture.next(4, undefined, { upgradesFrom: [], code: "throw new Error('broken bundle');" });
+    await assert.rejects(installed.lifecycle('install', broken, { consent: true, discardKeptData: true }), /安装没有完成/);
     assert.deepEqual(installed.records(), []);
     assert.ok(await kept() > 0, 'an install that fails after the person agreed does not cost them the data');
 
-    await writeFile(fixture.release.bundlePath, working);
     await installed.lifecycle('install', v3, { consent: true, discardKeptData: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
     assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'the new version starts fresh');
@@ -514,8 +531,7 @@ test('an install that fails over kept data puts the uninstalled record back exac
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
-  const working = await readFile(fixture.release.bundlePath, 'utf8'), broken = "throw new Error('broken bundle');";
-  const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:1,builds: [], releases,revisions:{} }));
+  const broken = "throw new Error('broken bundle');";
   const rows = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
   const row = (installed: Awaited<ReturnType<typeof rig.control>>) => installed.platform.runtime.get(fixture.install.install_id);
   try {
@@ -526,8 +542,7 @@ test('an install that fails over kept data puts the uninstalled record back exac
     assert.ok(before.state === 'uninstalled' && before.retain_private_data && data.length > 0);
 
     // The person agreed to drop the old data and the install then failed: the record is the one the question was asked about.
-    const v3 = { ...fixture.release, version: 3 }; only(installed, v3);
-    await writeFile(fixture.release.bundlePath, broken);
+    const v3 = fixture.next(3, undefined, { upgradesFrom: [], code: broken });   // reads no earlier version's data, and cannot start
     await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: true }), /安装没有完成/);
     assert.deepEqual(row(installed), before, 'same version, digest, installation generation and kept-data flag');
     assert.deepEqual(await rows(), data, 'and the same data');
@@ -535,7 +550,7 @@ test('an install that fails over kept data puts the uninstalled record back exac
     await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string }) => error.code === 'plugin.kept_data_incompatible', 'a plain retry is asked again, not let through');
 
     // The same for an install that is allowed over the data: it fails, and the record and the data stay what the uninstall left.
-    const v2 = { ...fixture.release, version: 2 }; only(installed, fixture.release, v2);   // v2 names v1 as an earlier release, so it declares it can read v1's data
+    const v2 = fixture.next(2);   // v2 names v1 as a version it upgrades, so it declares it can read v1's data
     const start = installed.platform.start;
     installed.platform.start = async () => {
       await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)').run(fixture.install.install_id, 'stray', 'written by the attempt'));
@@ -545,11 +560,9 @@ test('an install that fails over kept data puts the uninstalled record back exac
     installed.platform.start = start;
     assert.deepEqual(row(installed), before);
     assert.deepEqual(await rows(), data, 'what the failed attempt wrote is not added to the kept data');
-    await writeFile(fixture.release.bundlePath, broken);
-    await assert.rejects(installed.lifecycle('install', v2, { consent: true }), /安装没有完成/);
+    await assert.rejects(installed.lifecycle('install', fixture.next(4, undefined, { code: broken }), { consent: true }), /安装没有完成/);
     assert.deepEqual(row(installed), before);
 
-    await writeFile(fixture.release.bundlePath, working);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
     assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'old data', 'the data the person kept is still there for the version that can read it');
@@ -702,7 +715,7 @@ test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real insta
     assert.equal(listed(), false, 'the next directory read after a retaining Host uninstall has no entry');
     assert.deepEqual(installed.installations(), []);
 
-    const v2 = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, v2);
+    const v2 = fixture.next(2);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
     assert.equal(listed(), true, 'the new installation returns to the directory');
@@ -712,7 +725,7 @@ test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real insta
     await installed.lifecycle('uninstall', v2, { keepData: false });
     assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
     assert.equal(listed(), false, 'dropping private data also leaves no entry on the next directory read');
-    const v3 = { ...fixture.release, version: 3 }; publishCheckedStudioFixture(installed.storage, v3);
+    const v3 = fixture.next(3);
     await installed.lifecycle('install', v3, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
     assert.equal(listed(), true, 'installing after data deletion returns the fresh installation to the directory');
@@ -724,8 +737,9 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
   let store = new LocalProjectDatabase(databasePath);
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
-    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('studio.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+    const publisher = newPublisher();
+    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('studio.' + buildId + '\u0000' + publisher.identity).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
     let first = '', second = '';
     for (let n = 1; !first; n++) {
@@ -737,11 +751,12 @@ test('a failing installed plugin is recorded with its own reason at startup, not
       const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
         { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
       const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, bundle);
-      const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
+      const release = packagedStudioRelease(home, { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
         design: { id: 'one', catalog: 'actions/1', title: 'Fixture ' + buildId.slice(-3), description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
-        nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
-      publishCheckedStudioFixture(storage, release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-      runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
+        nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() } satisfies AgentRelease, publisher);
+      storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+      const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local', grants });
+      assert.equal(install.install_id, installIdOf(buildId), 'the order below is the order of the real installation ids');
       return pluginId;
     };
     const lacksGrant = await make(first, "export const operations={read:async()=>'empty'};", []);
@@ -763,12 +778,14 @@ test('closing a project releases every owner and closes its database even when o
   let closedReferences = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, onRuntimeClose: () => { closedReferences++; } });
   try {
-    const { store, installed } = await host.withProject(fixture.ref, async runtime => ({ store: runtime.store, installed: await ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    const { store, installed } = await (await openedByHost(host, fixture.ref)).withProject(fixture.ref, async runtime => ({ store: runtime.store, installed: await ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
       actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }) }));
     assert.equal(installed.installations()[0]?.state, 'running');
     // The process really stops, then the stop reports a failure: the installed plugins are the first release to fail.
     const stop = installed.platform.runtime.stop.bind(installed.platform.runtime);
-    installed.platform.runtime.stop = async (...args: Parameters<typeof stop>) => { await stop(...args); throw new Error('stop failed'); };
+    // Only the installed plugin's stop fails: the built-in plugins on the same platform (47-1 B) stop as usual.
+    const failing = installed.installations()[0]!.record.install_id;
+    installed.platform.runtime.stop = async (...args: Parameters<typeof stop>) => { await stop(...args); if (args[0] === failing) throw new Error('stop failed'); };
 
     await assert.rejects(host.closeProject(fixture.ref), /安装插件停止失败/);
     assert.throws(() => store.db.prepare('SELECT 1').get(), 'the release steps after the failing one ran, so the project database is closed');
@@ -783,11 +800,12 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
     const home = await mkdtemp(join(tmpdir(), 'installed-upgrade-secrets-')), fixture = await publishedFixture(home, 'project', false, ['weather']);
     const store = new LocalProjectDatabase(fixture.databasePath), service = new ActionService();
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), reexposed = Promise.withResolvers<void>();
-    let armed = false, inspections = 0, exposures = 0;
+    let armed = false, armedOnce = false, inspections = 0, exposures = 0;
     const register = service.registerProvider.bind(service);
     t.mock.method(service, 'registerProvider', registration => {
       const dispose = register(registration);
-      if (registration.definitions.some(definition => definition.capability_id === exposedActionId(fixture.release, 'read') && definition.version === 2)
+      // A package's actions keep their version across its versions: what is counted is each exposure once the upgrade began (its own, then the enable's).
+      if (armedOnce && registration.definitions.some(definition => definition.capability_id === exposedActionId(fixture.release, 'read'))
         && ++exposures === 2) reexposed.resolve();
       return dispose;
     });
@@ -800,10 +818,10 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
     const pluginId = fixture.release.pluginId, old = { name: 'weather', header: 'X-Api-Key', value: randomUUID() }, replacement = { ...old, value: randomUUID() };
     const fresh = { name: 'new-provider', header: 'Authorization', value: randomUUID() };
     installed.secrets.save(pluginId, old);
-    const v2 = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, secretRefs: ['weather', 'new-provider'] } }; publishCheckedStudioFixture(installed.storage, v2);
+    const v2 = fixture.next(2, value => { value.design.contract.operations.find(operation => operation.id === 'fetch')!.effects.secretRefs = ['weather', 'new-provider']; });
     const approvalKey = 'plugin-builder:agent-studio:approved:' + pluginId, beforeApproval = installed.storage.get(approvalKey);
     try {
-      armed = true; const pending = installed.lifecycle('upgrade', v2, { consent: true, secrets: [replacement, fresh] });
+      armed = armedOnce = true; const pending = installed.lifecycle('upgrade', v2, { consent: true, secrets: [replacement, fresh] });
       const rejected = assert.rejects(pending);
       await entered.promise;
       let enabling: Promise<void> | undefined;
@@ -868,7 +886,7 @@ async function signedInstallFixture() {
     const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
   };
-  const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+  const control = async () => (await openedByHost(host, reference)).withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: DEMO_PROJECT_ID } }));
   await control();
   return { home, reference, ledger, packages, confirm, control,
@@ -905,7 +923,7 @@ test('T2-FIX-02 a failed signed-package install keeps its pin and immutable pack
   } finally { await h.close(); }
 });
 
-test('T2-FIX-05 BL623-02 a pinned rollback returns plugin.state_invalid, and an upgrade to the version already installed plugin.upgrade_required, without changing the installation, approval, pin or package', mac, async () => {
+test('T2-FIX-05 BL623-02 a rollback returns plugin.state_invalid, and an upgrade to the version already installed plugin.upgrade_required, without changing the installation, approval, pin or package', mac, async () => {
   const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
   try {
     await h.confirm(bundle);
@@ -914,9 +932,10 @@ test('T2-FIX-05 BL623-02 a pinned rollback returns plugin.state_invalid, and an 
     const before = records(), approvalKey = 'plugin-builder:agent-studio:approved:' + PACKAGE_PLUGIN_ID;
     assert.equal(before[0]!.state, 'running', 'the package is genuinely installed and started before the refusals');
     const approval = installed.storage.get(approvalKey), pins = h.ledger.publishers(), bytes = await readFile(release.bundlePath);
+    // An installation moves to a newer package and nowhere else (PBU-47-9): the lifecycle has no rollback, and a caller that asks for one all the same is refused.
     for (const action of ['upgrade', 'rollback'] as const) {
-      await assert.rejects(installed.lifecycle(action, release, { consent: true }), error => error instanceof ActionError && (action === 'upgrade'
-        ? error.code === 'plugin.upgrade_required' : error.code === 'plugin.state_invalid' && error.message === '从签名的包装进来的插件还不能回滚：先卸载，再装新的包'));
+      await assert.rejects(installed.lifecycle(action as 'upgrade', release, { consent: true }), error => error instanceof ActionError
+        && error.code === (action === 'upgrade' ? 'plugin.upgrade_required' : 'plugin.state_invalid'));
       assert.deepEqual(records(), before); assert.equal(installed.storage.get(approvalKey), approval);
       assert.deepEqual(h.ledger.publishers(), pins); assert.deepEqual(await readFile(release.bundlePath), bytes);
       assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID)?.packaged?.manifest.version, '1.0.0');
@@ -1153,7 +1172,8 @@ test('RAC-1198 closing the Host stops a running installation exactly once with p
   try {
     const installed = await rig.control(), runtime = installed.platform.runtime, id = fixture.install.install_id, stop = runtime.stop.bind(runtime);
     const calls: Array<{ install_id: string; options: unknown }> = [];
-    runtime.stop = async (...args: Parameters<typeof stop>) => { calls.push({ install_id: args[0], options: args[1] }); return stop(...args); };
+    // The built-in plugins on the project's platform (47-1 B) stop too; this counts the installation's own stops.
+    runtime.stop = async (...args: Parameters<typeof stop>) => { if (args[0] === id) calls.push({ install_id: args[0], options: args[1] }); return stop(...args); };
     await rig.host.close();
     assert.deepEqual(calls, [{ install_id: id, options: { preserve_enabled: true } }]);
     await rig.host.close();
@@ -1180,8 +1200,10 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
     const get = runtime.get.bind(runtime), stop = runtime.stop.bind(runtime), revoke = platform.supervisor.revoke.bind(platform.supervisor);
     const revoked: string[] = [], stopped: string[] = [];
     runtime.get = (installId: string) => { if (installId === id) throw injected; return get(installId); };
-    runtime.stop = async (...args: Parameters<typeof stop>) => { stopped.push(args[0]); return stop(...args); };
-    platform.supervisor.revoke = (pluginId: string) => { revoked.push(pluginId); revoke(pluginId); };
+    // The built-in plugins on the project's platform (47-1 B) are stopped and revoked by the project's own release; these watch the installation.
+    const own = (installId: string) => installId === id, ownPlugin = (pluginId: string) => pluginId === fixture.release.pluginId;
+    runtime.stop = async (...args: Parameters<typeof stop>) => { if (own(args[0])) stopped.push(args[0]); return stop(...args); };
+    platform.supervisor.revoke = (pluginId: string) => { if (ownPlugin(pluginId)) revoked.push(pluginId); revoke(pluginId); };
     undo = () => { runtime.get = get; runtime.stop = stop; platform.supervisor.revoke = revoke; };
     await assert.rejects(rig.host.close(), (error: unknown) => error instanceof AggregateError && error.message === '安装插件停止失败' && error.errors.includes(injected));
     assert.deepEqual(stopped, [], 'nothing is stopped on a record the Host could not read');
@@ -1209,17 +1231,17 @@ for (const [order, gonePluginId, keptPluginId] of [
   const store = new LocalProjectDatabase(fixture.databasePath);
   let second: { pluginId: string; installId: string } | undefined;
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID);
     const buildId = randomUUID(), pluginId = gonePluginId;
     const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
       { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
     const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, "export const operations={read:async()=>'empty'};");
-    const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
+    const release = packagedStudioRelease(home, { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
       design: { id: 'one', catalog: 'actions/1', title: 'Second fixture', description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
-      nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
-    publishCheckedStudioFixture(storage, release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
-    const { install } = runtime.install({ trust: { level: 'unsigned' }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
+      nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() } satisfies AgentRelease, newPublisher());
+    storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+    const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local', grants: ['storage:private'] });
     second = { pluginId, installId: install.install_id };
   } finally { store.close(); }
   assert.ok(second);
@@ -1234,7 +1256,8 @@ for (const [order, gonePluginId, keptPluginId] of [
     // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, in the order this case built them.
     // The expected array is written per case rather than sorted, so swapping the two fixture ids for the two orders also breaks the
     // labels; comparing the whole array still fails when the close order is empty (an indexOf would see -1 === -1).
-    const closeOrder = platform.supervisor.enabledPluginIds();
+    // The project's platform also runs its built-in plugins (47-1 B); the installed host closes only its own, in the same order.
+    const closeOrder = platform.supervisor.enabledPluginIds().filter(pluginId => pluginId === gone.pluginId || pluginId === fixture.release.pluginId);
     const expectedOrder = order === 'first' ? [gone.pluginId, fixture.release.pluginId] : [fixture.release.pluginId, gone.pluginId];
     assert.deepEqual(closeOrder, expectedOrder, `the close order is exactly both plugin ids, ascending (the ${order} one goes)`);
     saved = await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('SELECT * FROM plugin_runtime_installs WHERE install_id = ?').get(gone.installId) as Record<string, unknown> | undefined);

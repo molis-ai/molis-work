@@ -14,7 +14,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage,privateValueReplicaOwner,installPrivateValueReplicationJournal,validatePrivateValueReplication} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,AgentBuilderWorkflow,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,normalizeProposal,studioBuildDiagnostic,type AgentRelease,type AgentBuild,type AgentBuilderPorts} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,AgentBuilderWorkflow,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,normalizeProposal,studioBuildDiagnostic,type AgentRelease,type AgentBuild,type AgentBuilderPorts} from '@molis-ai/molis-work-plugin-studio';
 import {pluginComponentChoices} from '@molis-ai/molis-work-design-system';
 import {createSqliteReplica,initializeReplica,namespacedReplicaDatabase,replicaMarkRowsSql,bindDatabaseSpace,personalStorageSpace,replicaSchemaSql} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState,createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
@@ -129,7 +129,7 @@ test('FSS-36 Studio resumes portable v1 proposals and operations with long origi
    contractRevision:request.contractRevision,instruction:request.instruction,input:request.task,output:detail('已选择方案'),configuredModel:'fixture',reportedModels:[],phase:'completed',startedAt:at,finishedAt:at,activity:[],usage:[]};}}),
   prepareBuild:async()=>f.homes[1]!, check:async()=>({passed:true,gates:[{id:'G5',passed:true,detail:'Fixture operation checks'}]}), call:async()=>null,
   resetPreview:async()=>{}, browserAcceptance:async()=>({passed:true,at,cases:[{id:'add-note',passed:true,detail:'Fixture acceptance'}]}),
-  publish:async()=>{throw new Error('This journey does not publish');}, installations:async()=>[], lifecycle:async()=>{},
+  publish:async()=>{throw new Error('This journey does not publish');}, installations:async()=>[],
  };
  const workflow=new AgentBuilderWorkflow(f.storage[1]!,ports);
  workflow.subscribe(build=>{observed.push(...build.steps);});

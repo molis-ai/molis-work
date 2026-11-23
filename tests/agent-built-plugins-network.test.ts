@@ -6,8 +6,8 @@ import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { pluginSecrets } from '../apps/local-host/src/plugin-builder/secrets.js';
-import { hostNetwork, NETWORK_STAND_IN, publicAddress } from '../apps/local-host/src/plugin-builder/network.js';
+import { pluginSecrets } from '../apps/local-host/src/installed-plugin-secrets.js';
+import { hostNetwork, NETWORK_STAND_IN, publicAddress } from '../apps/local-host/src/installed-plugin-network.js';
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from './fixtures/public-address-policy.js';
 
 const context = (namespace = 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'studio.weather', namespace }, signal: new AbortController().signal }) as never;

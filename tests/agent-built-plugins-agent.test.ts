@@ -166,7 +166,7 @@ test('FSS-74 the plugin development Skill reaches the model through Prologue, as
     assert.ok(seen.includes('生成插件：怎么设计'), 'and receives its text');
     assert.ok(seen.includes('生成插件：AI 经 Prologue'), 'the AI rules reach the model, not only the root Skill link');
     assert.ok(seen.includes('生成插件：体验与审美标准'), 'journey and visual guidance reaches main design');
-    const instruction = (await readFile(new URL('../plugins/native/plugin-builder/prompts/plugin-builder.designer.en.md', import.meta.url), 'utf8')).trimEnd();
+    const instruction = (await readFile(new URL('../horizontal/plugin-studio/prompts/plugin-builder.designer.en.md', import.meta.url), 'utf8')).trimEnd();
     await agent.run({ ...request, instruction, skills: english });
     assert.ok(english.every(skill => seen.includes(skill.id + '@' + skill.version)), 'all three English groups arrive in the same Runtime');
     assert.match(seen, /Never replay a paid request whose outcome is unknown/);

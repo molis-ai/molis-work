@@ -8,7 +8,7 @@ import test from "node:test";
 import { TAB_WORKSPACE_FILES, tabWorkspaceSource } from "./tab-workspace-files.js";
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
-import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, extendPluginIds, findPluginSettingsNavItem, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, HOST_FRAMED_SURFACES, extendPluginIds, findPluginSettingsNavItem, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, renderCodingSettings } from "@molis-ai/molis-work-plugin-coding";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID, renderShelfSettings } from "@molis-ai/molis-work-plugin-shelf";
 import { defaultShelfDeviceSettings } from "@molis-ai/molis-work-module-shelf";
@@ -51,11 +51,13 @@ test("RAC-694 the rail and the Dock keep no table of plugin names; the Manifests
   const declared = (field: "rail" | "pinned_default") => BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.ui?.views ?? [])
     .filter(view => view[field] !== undefined).map(view => [entry.project_plugin_id, view[field], view.slot, view.order] as const))
     .sort((left, right) => (left[3] ?? 100) - (right[3] ?? 100));
-  assert.deepEqual(declared("rail"), [["goals", "core", "navigator", 10], ["inbox", "core", "navigator", 30], ["feed", "core", "navigator", 40], ["plugin-builder", "extend", "navigator", 57]]);
+  assert.deepEqual(declared("rail"), [["goals", "core", "navigator", 10], ["inbox", "core", "navigator", 30], ["feed", "core", "navigator", 40]]);
+  // 47-1 C: the studio's extend place is the platform's framed surface now, declared in its own Manifest beside the catalog.
+  assert.deepEqual(HOST_FRAMED_SURFACES.flatMap(entry => (entry.manifest.ui?.views ?? []).filter(view => view.rail).map(view => [entry.project_plugin_id, view.rail])), [["plugin-builder", "extend"]]);
   // The Manifests still declare `pinned_default` (a contract field), but the top strip keeps no plugins of its own (specs/screen-polish
   // §3 方案 C): the Dock script holds 项目主页 alone and keeps no list in the browser.
   assert.deepEqual(declared("pinned_default").map(([id]) => id), ["goals", "inbox", "feed"], "in the views' order");
-  assert.deepEqual([...extendPluginIds()], ["plugin-builder"]);
+  assert.deepEqual([...extendPluginIds()], [], "no catalog plugin is an extend entry");
   assert.doesNotMatch(CLIENT_SCRIPT, /DEFAULT_PINS|molis-work:dock-pins|data-dock-choice/, "the Dock script reads no pins");
 });
 

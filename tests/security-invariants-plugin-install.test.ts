@@ -155,7 +155,7 @@ test("SPC-15 S-84 S-87 a real Host signs for preview, ordinary confirmation inst
   assert.equal(store.load(localContentId, confirmed.publisher_key_id, "1.0.0").packaged?.manifest.publisher.signature, confirmed.publisher_key_id);
   await assert.rejects(h.client.invoke(h.person, pluginInstallActions.confirm, { preview_id, consent: true }), refused("plugin.preview_unknown"));
   h.ledger.revokePublisher(confirmed.publisher_key_id, AT);
-  await assert.rejects(h.client.invoke(h.person, signRef, localDraft("project", "2.0.0")), refused("plugin_builder.publisher_revoked"));
+  await assert.rejects(h.client.invoke(h.person, signRef, localDraft("project", "2.0.0")), refused("plugin.publisher_revoked"));
   assert.deepEqual(store.releases(localContentId, confirmed.publisher_key_id).map(pkg => pkg.manifest.version), ["1.0.0"]);
 });
 
@@ -525,12 +525,14 @@ test("RAC-1503 S-84 the other-publisher check refuses only another publisher's p
 test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, or sits on one's dotted path, is refused at the preview with plugin.id_namespace_conflict, in either range, before anything is written", async () => {
   const h = await harness(undefined, true);
   try {
-    for (const id of ["io.molis.work.todo", "io.molis.work.git", "io.molis.work.files", "io.molis.work.native.workflows"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
+    // The plugin studio left the plugin catalog for a platform package (47-1 C); its id stays the Host's, so no package takes its page grants.
+    for (const id of ["io.molis.work.todo", "io.molis.work.git", "io.molis.work.files", "io.molis.work.native.workflows", "io.molis.work.plugin-builder"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
     const publisher = newPublisher();
     const cases: Array<[string, PluginPackageBundle]> = [
       ["RAC-1680 a Home package with a Home plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo" })],
       ["RAC-1680 a project package with a project plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.git" })],
       ["RAC-1680 a project package with the retired Files plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.files" })],
+      ["RAC-1680 a project package with the platform studio's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.plugin-builder" })],
       ["RAC-1681 a Home package under a Host plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo.notes" })],
       ["RAC-1681 a project package above a Host plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.native" })],
     ];

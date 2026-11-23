@@ -173,8 +173,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     post("/api/contextual/prepare", { pane_id: source.pane, focus, key, request_id: newRequestId() })
       .then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(detail));
   };
-  // ✦ and 「带到助理」: what is in hand goes in the Assistant's strip, unsent; the person says what to do (spec §21.2 point 4).
-  const bringToAssistant = () => { if (bus.focus) openAssistant(inHand(bus.focus)); };
+  // ✦ and 「带到助理」: what is in hand goes in the Assistant's strip, unsent, and keeps the dialog's open/closed state unchanged (POLISH-49; context-program §21.2 point 4).
+  const bringToAssistant = () => { if (bus.focus) openAssistant({ ...inHand(bus.focus), open: false }); };
 
 
   const starters = {

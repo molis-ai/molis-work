@@ -13,6 +13,7 @@ import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
 import { retitleMethodControls } from "./methods.js";
 import { api, sessionPath, status } from "./request.js";
+import { drawRules } from "./rules.js";
 import { select, surfaceChanged } from "./select.js";
 import { startFromComposer } from "./mount-submit.js";
 import type { RoundSelection } from "./shapes.js";
@@ -246,4 +247,5 @@ export function retitleCodingComposer(page: Page): void {
   retitleMethodControls(page);
   s.composerDrawn = "";
   controls(page);
+  if (page.q<HTMLDialogElement>("[data-coding-rules-dialog]").open) drawRules(page);
 }

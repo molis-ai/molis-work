@@ -21,8 +21,8 @@ export interface IdentifySessionDirectoryOptions {
 
 /**
  * The few file-system reads the identification makes. It is written once, as steps (`identify` below), and run either at once
- * (`identifySessionDirectory`, for a caller inside a catalog read) or without blocking the event loop (`identifySessionDirectoryAsync`,
- * batch 103-2), so the two can never disagree about what a directory is.
+ * (`identifySessionDirectory`, for a caller inside a catalog read) or without blocking the event loop (`identifySessionDirectoryAsync`),
+ * so the two can never disagree about what a directory is.
  */
 interface GitFs {
   realpath(filePath: string): string;

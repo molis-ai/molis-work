@@ -78,8 +78,8 @@ function dedentServedCss(source: string): string {
 }
 
 /**
- * Compact the original program with its public names and literal text intact; parse failure leaves it unchanged. Off the main thread
- * (batch 103-2): esbuild works in its own process, so a first request for a large program no longer stops every other request.
+ * Compact the original program with its public names and literal text intact; parse failure leaves it unchanged. Off the main thread:
+ * esbuild works in its own process, so a first request for a large program no longer stops every other request.
  */
 export async function tightenServedJs(source: string): Promise<string> {
   try {

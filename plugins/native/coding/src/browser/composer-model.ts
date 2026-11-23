@@ -62,7 +62,7 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
   const note = q("[data-coding-model-note]"), rows = q("[data-coding-round-model] > :last-child"); // the rows of the SDK's settings section (ui.ts), which has no title or lead and nothing after its rows
   const effortKeys: Readonly<Record<string, string>> = { low: "coding.effort.low", medium: "coding.effort.medium", high: "coding.effort.high" };
   let list: readonly ModelChoice[] = [], live: ComposerRun | null = null, busy = false, switching = false, round: ComposerRun | null = null;
-  let value = "", effort = "", listed = "";
+  let value = "", effort = "", listed = "", effortListed = "";
   const key = (item: Pick<ModelChoice, "provider_id" | "model_id">) => JSON.stringify([item.provider_id, item.model_id]);
   const chosen = () => list.find((item) => key(item) === value) || null;
   /** No model chosen yet (a session started before any was set up): the first the catalog lists, as the select shows it. */
@@ -104,11 +104,15 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     // A session started on a model the catalog no longer lists keeps it, said to be unavailable, until another is chosen.
     if (value && !options.some((one) => one.value === value)) options.push({ value, label: readText("coding.model.unavailable") });
     if (!options.length) options.push({ value: "", label: readText("coding.model.none") });
-    const modelRow = row("data-coding-model-row", () => renderSettingRow({ name: readText("coding.model.label"), hint: "", attrs: { "data-coding-model-row": "" }, hintAttrs: { "data-coding-model-hint": "" },
-      control: renderSelect({ attrs: { "data-coding-model": "", "aria-label": readText("coding.model.label") } }) }))!;
+    const modelLabel = readText("coding.model.label");
+    const modelRow = row("data-coding-model-row", () => renderSettingRow({ name: modelLabel, hint: "", attrs: { "data-coding-model-row": "" }, nameAttrs: { "data-coding-model-name": "" }, hintAttrs: { "data-coding-model-hint": "" },
+      control: renderSelect({ attrs: { "data-coding-model": "", "aria-label": modelLabel } }) }))!;
     if (!modelRow.isConnected) rows.prepend(modelRow);
+    const modelName = modelRow.querySelector("[data-coding-model-name]")!;
+    if (modelName.textContent !== modelLabel) modelName.textContent = modelLabel;
     modelRow.querySelector("[data-coding-model-hint]")!.textContent = parts.length ? parts.join(" · ") : readText("coding.palette.model-hint");
     const model = modelRow.querySelector<HTMLSelectElement>("[data-coding-model]")!, offered = JSON.stringify(options);
+    if (model.getAttribute("aria-label") !== modelLabel) model.setAttribute("aria-label", modelLabel);
     if (offered !== listed) {
       listed = offered;
       model.innerHTML = options.map((one) => option(one, value)).join("");
@@ -121,21 +125,40 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
       gone.remove();
     };
     if (chosen()?.reasoning_effort && !live) {
-      const effortRow = row("data-coding-effort-row", () => renderSettingRow({ name: readText("coding.effort.label"), attrs: { "data-coding-effort-row": "" },
-        control: renderSelect({ attrs: { "data-coding-effort": "", "aria-label": readText("coding.effort.label") },
-          optionsHtml: [{ value: "", label: readText("coding.effort.default") }, ...(["low", "medium", "high"] as const).map((level) => ({ value: level, label: readText(effortKeys[level]!) }))].map((one) => option(one, effort)).join("") }) }))!;
-      if (!effortRow.isConnected) modelRow.after(effortRow);
-      choose(effortRow.querySelector<HTMLSelectElement>("[data-coding-effort]")!, effort);
-    } else leave(row("data-coding-effort-row"));
+      const effortLabel = readText("coding.effort.label");
+      const effortOptions = [{ value: "", label: readText("coding.effort.default") }, ...(["low", "medium", "high"] as const).map((level) => ({ value: level, label: readText(effortKeys[level]!) }))];
+      const effortRow = row("data-coding-effort-row", () => renderSettingRow({ name: effortLabel, attrs: { "data-coding-effort-row": "" }, nameAttrs: { "data-coding-effort-name": "" },
+        control: renderSelect({ attrs: { "data-coding-effort": "", "aria-label": effortLabel },
+          optionsHtml: effortOptions.map((one) => option(one, effort)).join("") }) }))!;
+      const effortOffered = JSON.stringify(effortOptions);
+      if (!effortRow.isConnected) {
+        modelRow.after(effortRow);
+        effortListed = effortOffered;
+      }
+      const effortName = effortRow.querySelector("[data-coding-effort-name]")!;
+      if (effortName.textContent !== effortLabel) effortName.textContent = effortLabel;
+      const effortSelect = effortRow.querySelector<HTMLSelectElement>("[data-coding-effort]")!;
+      if (effortSelect.getAttribute("aria-label") !== effortLabel) effortSelect.setAttribute("aria-label", effortLabel);
+      if (effortOffered !== effortListed) {
+        effortListed = effortOffered;
+        effortSelect.innerHTML = effortOptions.map((one) => option(one, effort)).join("");
+      }
+      choose(effortSelect, effort);
+    } else {
+      effortListed = "";
+      leave(row("data-coding-effort-row"));
+    }
     const target = switchable();
     if (target) {
+      const switchLabel = readText("coding.model.switch");
       const switchRow = row("data-coding-model-switch-row", () => renderSettingRow({ name: "", hint: "", attrs: { "data-coding-model-switch-row": "" }, nameAttrs: { "data-coding-model-switch-name": "" }, hintAttrs: { "data-coding-model-switch-hint": "" },
-        control: renderButton({ label: readText("coding.model.switch"), variant: "secondary", size: "sm", attrs: { "data-coding-model-switch": "" } }) }))!;
+        control: renderButton({ label: switchLabel, variant: "secondary", size: "sm", attrs: { "data-coding-model-switch": "" } }) }))!;
       if (!switchRow.isConnected) rows.append(switchRow);
       // The row is named by the model alone: its button says 本轮改用, its hint when that takes effect.
       switchRow.querySelector("[data-coding-model-switch-name]")!.textContent = target.label;
       switchRow.querySelector("[data-coding-model-switch-hint]")!.textContent = readText("coding.model.switch-title", { model: target.label });
       const press = switchRow.querySelector<HTMLButtonElement>("[data-coding-model-switch]")!, off = busy || switching;
+      if (press.textContent !== switchLabel) press.textContent = switchLabel;
       // Pressed, it goes off while the switch is asked for: the focus it held goes to the model's choice rather than nowhere.
       lost ||= off && !press.disabled && press === document.activeElement;
       press.disabled = off;

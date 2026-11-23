@@ -95,7 +95,7 @@ const MINIMAX_HOME = { base: "home", segments: [".minimax"] } as const;
 const GEMINI_CHATS = { base: "home", segments: [".gemini", "tmp"] } as const;
 
 /**
- * The register's rows with their literal values, kept inside this module (batch 103-2): the public API is the entry shape and the types
+ * The register's rows with their literal values, kept inside this module: the public API is the entry shape and the types
  * derived from it, so the 3,600-line literal no longer stands in every caller's API snapshot.
  */
 const REGISTER = [
@@ -283,7 +283,7 @@ type RegisterRow = (typeof REGISTER)[number];
 
 /**
  * Every id, in register order. Written out (and the runtime lists below) so the public shape names ids, not the whole register; the
- * checks under them fail to compile when a row is added, removed or gains or loses one of these fields without them (batch 103-2).
+ * checks under them fail to compile when a row is added, removed or gains or loses one of these fields without them.
  */
 export type ExternalToolId = "codex" | "claude-code" | "cursor" | "opencode" | "pi-agent" | "grok-build" | "codex-ide" | "codex-desktop"
   | "codex-cloud" | "claude-code-desktop" | "claude-code-ide" | "claude-code-web" | "gemini-cli" | "antigravity-cli" | "antigravity-desktop"

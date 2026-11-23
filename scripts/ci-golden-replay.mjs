@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // The golden replay as CI runs it (specs/upgrade-continuity/golden-replay-design.md §5): the same script a person runs, with what a green job did not check said where
-// people look. On Linux the samples that need the macOS sandbox did not run; the job is green and that is not a pass, so the result says so in the job's summary and as a
-// notice on the run, and never only in a log nobody opens.
+// people look. The job summary and run notices identify any platform-specific steps that did not run.
 //
 //   node scripts/ci-golden-replay.mjs [any arguments of scripts/replay-golden-homes.mjs]    exit: the replay's own
 import { spawnSync } from "node:child_process";
@@ -15,7 +14,7 @@ const NOT_A_PASS = /not run on [^,)]+, not a pass/u;
 export function reported(stdout, status) {
   const notRun = stdout.split("\n").filter(line => NOT_A_PASS.test(line));
   return {
-    summary: ["## Golden Home replay", "", status === 0 ? (notRun.length ? "Everything that ran passed. The signed samples did not run here: not a pass for them." : "Everything passed, the signed samples included.") : "Failed.", "", "```text", stdout.trimEnd(), "```", ""].join("\n"),
+    summary: ["## Golden Home replay", "", status === 0 ? (notRun.length ? "Everything that ran passed. The skipped steps remain unverified." : "Everything passed.") : "Failed.", "", "```text", stdout.trimEnd(), "```", ""].join("\n"),
     notices: notRun.map(line => `::notice title=Golden replay: not run on this runner::${line.trim()}`),
   };
 }

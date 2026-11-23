@@ -151,6 +151,7 @@ function readsFailed(where, broken) {
 async function letKnowledgeCardsCatchUp(manifest, session, item) {
   const file = path.join(item.path, "knowledge/knowledge.db");
   const recorded = manifest.stores.find(entry => entry.path === file)?.tables.knowledge_cards ?? 0;
+  if (recorded === 0) return;
   const count = () => {
     const db = new DatabaseSync(path.join(item.at, "knowledge/knowledge.db"), { readOnly: true });
     try { return countSqliteRows(db).knowledge_cards ?? 0; } finally { db.close(); }
@@ -162,7 +163,9 @@ async function letKnowledgeCardsCatchUp(manifest, session, item) {
 }
 
 /** The root Home's versioned files through their owners (§4 step 3). */
-async function readVersionedFiles(manifest, source, [root]) {
+async function readVersionedFiles(manifest, source, homes) {
+  const root = homes.find(item => !item.path);
+  if (!root) return 0;
   const session = await openGoldenHost(root.at);
   try { return await assertVersionedFilesRead(manifest, source, goldenActions(session, root.projects[0], "replay")); } finally { await session.close(); }
 }
@@ -193,6 +196,7 @@ async function writeEverything(homes) {
   const writes = await loadGoldenWrites();
   let count = 0;
   for (const item of homes) {
+    if (!item.projects.length) continue;
     const session = await openGoldenHost(item.at, { web: !item.account });
     try {
       const actions = goldenActions(session, item.projects[0], "replay");

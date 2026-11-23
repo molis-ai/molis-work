@@ -31,7 +31,7 @@ export async function configureMemberActions(input:{hostUrl:string;homeDirectory
     const liveEntry=entries.find(row=>row.capability_id===action.capability_id && row.version===action.version && (!action.provider_id || row.provider_id===action.provider_id));
     const readOnly=liveEntry
       ? liveEntry.kind==="query"
-      : (registeredHostAction(action.capability_id,action.version)?.operation==="query" || action.capability_id==="artifacts.version.read");
+      : (registeredHostAction(action.capability_id,action.version)?.operation==="query" || action.capability_id==="artifacts.read");
     const enabled=input.role!=="revoked" && (input.role!=="viewer" || readOnly);
     const previous=grants.find(row=>row.capability_id===action.capability_id && row.version===action.version && row.provider_id===action.provider_id);
     const expected=previous ? {expected_generation:previous.generation} : {expected_absent:true};

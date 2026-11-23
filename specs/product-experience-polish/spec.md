@@ -95,7 +95,7 @@
 
 ---
 
-### 2.4 平台共享样式表剥离具体插件类名与防回流守卫（[BL-b44-shared-styles-plugin-names](../backlog/BL-b44-shared-styles-plugin-names.md)，[决定 65](../post-anticorruption-roadmap/reference/decisions.md#decision-65)）
+### 2.4 平台共享样式表剥离具体插件类名与防回流守卫（[BL-b44-shared-styles-plugin-names](../../docs/backlog-removed.md) 已由第 44 批复核 [#2258](https://github.com/molis-ai/molis-work/pull/2258) 提前结清，[决定 65](../post-anticorruption-roadmap/reference/decisions.md#decision-65)）
 
 对 `apps/workbench/src/styles/`（`9` 个模块：`base`、`capabilities`、`coding-companions`、`detail-reading`、`immersive-directory`、`immersive-navigation`、`linear-density`、`placement`、`plugin-stage`）与 `packages/design-system/src/styles/`（`13` 个模块：`arrival-components`、`craft-finish`、`craft-finish-pages`、`craft-finish-selectors`、`desktop-titlebar`、`directory-ledger`、`disclosure`、`foundation`、`interaction-texture`、`micro-interactions`、`navigation-ownership`、`primitives-plugin`、`workspace-panes`）逐行核查，共清点出 **`22` 个平台共享样式模块、`250+` 行**仍包含具体插件类名或数据属性。其中显式区分两项非插件通用样式：① `.form-disclosure`（见 `disclosure.ts`、`primitives-plugin.ts`、`coss-controls.ts`、`surface-language.ts`）以及 `.form-actions` / `.form-error` 属设置折叠、终端与通用表单控件共用，**不属于 `plugins/native/form/`，严禁迁入 `form/src/styles.ts`**（仅 `.form-tabs` 与 `.form-export-panel` 归 `form` 插件）；② `diff-view.ts` 的 `[data-diff-measure]`/`[data-diff-sized]` 属平台共用 `mw-diff` 控件，建议顺手更名 `[data-mw-diff-*]` 消除歧义。
 

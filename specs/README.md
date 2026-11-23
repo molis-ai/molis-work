@@ -21,6 +21,7 @@
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 
 - [第 47 批独立复核修复](batch-47-review-fixes/spec.md) 覆盖签名包、安装单、创作台输入和状态机登记。负责人 Codex。
+- [BL-1064 macOS 插件沙箱的 Node 运行时](bl-1064-node-sandbox/spec.md) 由 Codex 负责，Homebrew 动态库授权与启动诊断已在本地验证，待合入。
 - [第 35 批复核修复](batch-35-audit-fixes/spec.md) 覆盖 Sessions 接续、Coding A 期与共享附件。负责人 Codex。工程验证和本人验收进度见规格书。
 - [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
 - [第 61 批复核修复](batch-61-audit-fixes/spec.md)：Codex，在独立分支修复 #2133 的采用、触达、账号选择与搜索问题；实施与验证见该需求书。

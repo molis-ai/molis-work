@@ -622,13 +622,24 @@ test("55-3 T3-02 reopened decisions survive pagination and explicit close across
   await f.inA.invoke(todoActions.revert, { batch_id: handled.change_batch_id });
   const reopened = (await f.inA.invoke(organize.get, { id: batch.batch_id })).batch;
   assert.deepEqual(reopened.candidates.map(c => c.decision?.action ?? null), [null, null, "ignored"]);
+  const kept = (await f.inA.invoke(todoActions.create, { title: "已采用的待办" })).item;
+  const history = { ...batch, candidates: batch.candidates.map(candidate => ({ ...candidate, decision: {
+    action: "added", item_id: kept.id, reason: "", at: batch.created_at,
+  } })) };
+  const reads = t.mock.method(db, "get"), lists = t.mock.method(db, "all");
+  let visibleReadCounts: number[] = [];
   for (const project of ["project-b", "project-a"]) {
     for (let i = 0; i < 50; i++) {
       db.run(`INSERT INTO todo_batches(batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision)
         SELECT ?, ?, origin, method, title, ?, ?, '2099-01-01', updated_at, 1 FROM todo_batches WHERE batch_id = ?`,
-        [project + i, project, JSON.stringify({ materials: [], candidates: [], reference_only: [], notes: [] }), project === "project-b" ? "open" : "done", batch.batch_id]);
+        [project + i, project, JSON.stringify(history), project === "project-b" ? "open" : "done", batch.batch_id]);
     }
+    reads.mock.resetCalls();
+    lists.mock.resetCalls();
     assert.deepEqual((await f.agentA.invoke(organize.list, {})).batches, [reopened]);
+    const counts = [reads.mock.callCount(), lists.mock.callCount()];
+    if (project === "project-b") visibleReadCounts = counts;
+    else assert.deepEqual(counts, visibleReadCounts, "completed history adds no per-candidate reads or extra list queries");
     await assert.rejects(f.agentA.invoke(organize.get, { id: "project-b0" }), { code: "todo.not_found" });
   }
   const closed = (await f.inA.invoke(organize.close, { id: batch.batch_id })).batch;

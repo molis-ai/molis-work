@@ -9,7 +9,7 @@ import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { person } from "./fixtures/home-runtime.js";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 /**
@@ -34,6 +34,20 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   // A Host of its own (no model): the test seeds the brief through the same actions the Assistant uses.
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
+  await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories = new Proxy({}, { set(target, key, factory) {
+    target[key] = key === "work-brief" ? host => {
+      const invoke = host.invokeAction.bind(host);
+      host.invokeAction = async (action, input) => {
+        if (window.holdBriefRead && action.capability_id === "work-brief.briefs.get") {
+          window.briefReadStarted = true;
+          await window.holdBriefRead;
+        }
+        return invoke(action, input);
+      };
+      return factory(host);
+    } : factory;
+    return true;
+  } });`);
   const { command, sessionId, navigate, origin, projectId, web, localHost, databasePath } = browser;
   for (const plugin_id of ["risk", "work-brief"]) await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(web, projectId) });
   const client = localHost!.actionClient(molisWorkHostProjectReference({ databasePath, projectId }));
@@ -185,7 +199,13 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   const freshStep = fresh.version!.next[0]!.option_id, step = { brief_id: first.brief.brief_id, option_id: freshStep };
   await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { capability_id: "work-brief.briefs.save" } }))`);
   await waitFor(has(act("skip-next", freshStep)));
+  await evaluate("void (window.holdBriefRead = new Promise(resolve => { window.releaseBriefRead = resolve; }))");
   await click(act("skip-next", freshStep));
+  await waitFor("window.briefReadStarted === true");
+  try {
+    assert.equal(await evaluate(`${has(act("skip-next", freshStep))}.disabled`), true, "the old action stays disabled until its new state is read");
+    assert.equal(await evaluate(`${has(act("run-next", freshStep))}.disabled`), true);
+  } finally { await evaluate("window.holdBriefRead = null; window.releaseBriefRead()"); }
   await waitFor(has(act("undo-next", freshStep)));
   await click(act("undo-next", freshStep));
   await waitFor(has(act("skip-next", freshStep)));

@@ -57,17 +57,17 @@ export class TodoOrganizer {
 
   list(access: TodoAccess, status: "open" | "all" = "open"): TodoBatch[] {
     const projects = access.projectId ? [...access.projectIds, access.projectId] : access.projectIds;
-    const result: TodoBatch[] = [];
-    for (let offset = 0; ; offset += 50) {
-      const rows = this.db.all(`SELECT * FROM todo_batches WHERE project_id IS NULL OR project_id IN (SELECT value FROM json_each(?))
-        ORDER BY created_at DESC, batch_id DESC LIMIT 50 OFFSET ?`, [JSON.stringify(projects), offset]) as unknown as BatchRow[];
-      for (const row of rows) {
-        const batch = this.live(row, access);
-        if (status === "all" || batch.status === "open") result.push(batch);
-        if (result.length === 50) return result;
-      }
-      if (rows.length < 50) return result;
-    }
+    // A completed batch reopens when undo removed one of its adopted items (see afterUndo).
+    const rows = this.db.all(`SELECT * FROM todo_batches
+      WHERE (project_id IS NULL OR project_id IN (SELECT value FROM json_each(?)))
+        AND (? = 'all' OR status = 'open' OR EXISTS (
+          SELECT 1 FROM json_each(todo_batches.body_json, '$.candidates') AS candidate
+          WHERE candidate.value ->> '$.decision.action' = 'added'
+            AND candidate.value ->> '$.decision.item_id' IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM todo_items WHERE id = candidate.value ->> '$.decision.item_id')
+        ))
+      ORDER BY created_at DESC, batch_id DESC LIMIT 50`, [JSON.stringify(projects), status]) as unknown as BatchRow[];
+    return rows.map(row => this.live(row, access));
   }
 
   get(id: string, access: TodoAccess): TodoBatch {

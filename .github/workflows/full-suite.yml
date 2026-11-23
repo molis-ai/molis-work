@@ -80,6 +80,12 @@ jobs:
           git diff --name-only -z "$FULL_SUITE_BASELINE" HEAD -- scripts tests .github/workflows/visual-audit.yml |
             git --literal-pathspecs restore --source "$FULL_SUITE_BASELINE" --staged --worktree --pathspec-from-file=- --pathspec-file-nul
 
+      # Test repository policy against its real default workflow, not this dispatch wrapper.
+      - name: Restore the production workflow for gate self-tests
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison != 'normal' }}
+        shell: bash
+        run: git show "$FULL_SUITE_BASELINE:.github/workflows/full-suite.yml" > .github/workflows/full-suite.yml
+
       - name: Setup Node, pnpm and dependencies
         uses: ./.github/actions/setup-work
         timeout-minutes: 8
@@ -128,9 +134,9 @@ jobs:
       # CIP-06: 24 runners run 24 shards in a single wave (eliminating second-wave queueing). Each 4-core runner keeps
       # 1 browser worker plus 1 non-browser worker busy (`MOLIS_WORK_TEST_JOBS=2`, `MOLIS_WORK_TEST_BROWSER_JOBS=1`), matching
       # 4/1 browser-bound wall time while avoiding CPU starvation and timer races on 4-core runners.
-      max-parallel: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && 40 || 24 }}
+      max-parallel: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && 48 || 24 }}
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.only_files != '' && '[1]' || github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]') }}
+        shard: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.only_files != '' && '[1]' || github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]') }}
     env:
       # Four cores per runner: one browser worker plus one non-browser worker leaves headroom for Chrome/Host and avoids timer races.
       MOLIS_WORK_TEST_JOBS: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && '3' || '2' }}
@@ -147,6 +153,12 @@ jobs:
         run: |
           git diff --name-only -z "$FULL_SUITE_BASELINE" HEAD -- scripts tests .github/workflows/visual-audit.yml |
             git --literal-pathspecs restore --source "$FULL_SUITE_BASELINE" --staged --worktree --pathspec-from-file=- --pathspec-file-nul
+
+      # Test repository policy against its real default workflow, not this dispatch wrapper.
+      - name: Restore the production workflow for gate self-tests
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison != 'normal' }}
+        shell: bash
+        run: git show "$FULL_SUITE_BASELINE:.github/workflows/full-suite.yml" > .github/workflows/full-suite.yml
 
       - name: Setup Node, pnpm and dependencies
         uses: ./.github/actions/setup-work

@@ -1,6 +1,6 @@
 # 金样生成确定性与电脑设置回放
 
-状态：执行中（2026-11-22，Codex）。目标为工程验证通过。
+状态：工程验证通过，待合入（2026-11-23，Codex）。
 
 在最新 `origin/main` 的独立工作树处理 BL-golden-generation-nondeterministic 和 BL-golden-computer-settings。依照 [金样回放设计](../upgrade-continuity/golden-replay-design.md) §2、§5 和 [#1743 的复现记录](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6847046532)，用 `.nvmrc` 的 Node 24.15.0 与内置 SQLite 3.51.3 复现两条 UPG2-02，再从生成步骤定位并控制漂移源。以实际还原出的文件和主人的设置入口验证电脑设置。范围是生成、回放及其夹具，使用隔离 Home。
 
@@ -19,3 +19,15 @@
 - Node 24.15.0、SQLite 3.51.3、macOS。原测试的首次定向运行 2/2 通过，说明这次未踩中时序差异。
 - 保留该次首份样本，另一次常速生成与它相比，根 Home 的 `memory_markers` 从 9 行变为 10 行。队列记录、记忆库转储和清单均有差异。
 - 在修复前用扩展后的慢机夹具加速 Prologue 单次定时器，`golden-home.mjs check` 退出 1。根与账号 Home 的 `queued-tasks`、`memory_markers` 均报告 `golden.differs`，清单也不同。
+
+## 验证结果
+
+- **GDC-01** 分支同步到 `origin/main` `8192cc7b10` 后，使用 Node 24.15.0、SQLite 3.51.3、pnpm 11.9.0 完成构建。`node scripts/run-tests.mjs --jobs 1 tests/golden-home.test.ts` 44/44 通过，含常速与模拟慢机比较。`node scripts/golden-home.mjs check --version 0.1.1-dev.8` 报 `identical, 3113110 bytes`。
+- **GDC-02** macOS 实际从设置入口读回合成禁用应用。删除该记录并更新测试金样的摘要后，回放报 `golden.versioned_file_lost`。Linux 分支通过 `pretend-linux.mjs` 核对，JSON 的 `steps.computer_settings` 为 `not-run`，`not_run` 列出 `computer-settings`。CI 摘要与 notice 的测试通过。原生 Linux 未运行。
+- **GDC-03** `node scripts/run-tests.mjs --jobs 1 tests/golden-coverage-gate.test.ts` 10/10 通过。最新清单记录 `format.computer.settings` v1，`uncovered` 已去掉这一路径。两份旧金样仍提供升级输入。`node scripts/replay-golden-homes.mjs --all` 在 macOS 退出 0，见下表。运行中有 Node `TimeoutOverflowWarning`。
+
+| 金样 | 读 | 写 | 签名插件与 Home 库 | 电脑设置 |
+| --- | --- | --- | --- | --- |
+| `0.1.0-dev.1` | 166 | 37 | `absent` | `absent` |
+| `0.1.0` | 529 | 65 | `replayed` | `absent` |
+| `0.1.1-dev.8` | 529 | 65 | `replayed` | `replayed` |

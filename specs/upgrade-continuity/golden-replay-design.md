@@ -132,7 +132,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 挡合并的作业放在 Linux，单独一个 CI 任务 `golden-replay`；时长目标是最近 3 份加起来不超过 5 分钟，超了就减少每份的项目数，不砍检查步骤。
 
-**第三方插件（用户 2026-11-07 定）：** 第三方插件的沙箱只有 macOS 有，Linux 上回放跳过这段：结果的 `steps.third_party`、`steps.home_library` 是 `"not-run"`（清单里没装样本才是 `"absent"`，跑过是 `"replayed"`），`not_run` 列出没跑的步骤。`ok: true` 只说跑了的都过了，`not_run` 不空就不算这段通过；CI 把它写进作业摘要和运行页的 notice（`scripts/ci-golden-replay.mjs`），不只留在日志里。所以 `golden-replay` 在 Linux 上跑第三方之外的全部，并在结果里写明第三方这段没跑，不算通过；改到插件运行、沙箱、存储这些相关部分时，另一个 macOS 作业加跑第三方插件，不过就合不进去；每天的定时作业在 macOS 上跑全部，兜住路径清单漏掉的。路径清单写在 `scripts/ci-test-selection.mjs` 的 `GOLDEN_THIRD_PARTY_RUN_WHEN`，和 `native-checks` 同一种做法，宁宽勿窄，选择器失败时照跑。定时作业是 `.github/workflows/golden-replay-nightly.yml`。
+**第三方插件（用户 2026-11-07 定）：** 第三方插件的沙箱只有 macOS 有，Linux 上回放跳过这段：结果的 `steps.third_party`、`steps.home_library` 是 `"not-run"`（清单里没装样本才是 `"absent"`，跑过是 `"replayed"`），`not_run` 列出没跑的步骤。`ok: true` 只说跑了的都过了，`not_run` 不空就不算这段通过；CI 把它写进作业摘要和运行页的 notice（`scripts/ci-golden-replay.mjs`），不只留在日志里。`golden-replay` 在 Linux 上运行本平台支持的检查，并在结果里列出跳过的步骤；改到插件运行、沙箱、存储这些相关部分时，另一个 macOS 作业加跑第三方插件，不过就合不进去；每天的定时作业在 macOS 上跑全部，兜住路径清单漏掉的。路径清单写在 `scripts/ci-test-selection.mjs` 的 `GOLDEN_THIRD_PARTY_RUN_WHEN`，和 `native-checks` 同一种做法，宁宽勿窄，选择器失败时照跑。定时作业是 `.github/workflows/golden-replay-nightly.yml`。
 
 `computer/settings.json` 的文件版本在所有平台核对。macOS 的 `versioned-files` 还通过助手设置核对开关和合成禁用应用，结果 `steps.computer_settings` 为 `"replayed"`。Linux 的入口读回记作 `"not-run"`，不计入 `steps.versioned_files`，`not_run` 列出 `computer-settings`，作业摘要与 notice 同步显示。缺少该文件的旧金样记作 `"absent"`。
 

@@ -5,7 +5,6 @@ import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http"
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
-import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
 const GROUP_CONTRAST = `(() => {
@@ -335,7 +334,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
 test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and supports pure keyboard multi-select, folder toggle, inline actions, and single Tab stop", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, async () => "# Combined sources");
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory, web } = browser;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const store = openPagesStore(homeDirectory);
   const seeded = (() => {
@@ -361,7 +360,16 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   const order = await child.evaluate<string[]>(`[...document.querySelectorAll('${folderGroup} button[data-page-id]')].map((row) => row.dataset.pageId)`);
   assert.deepEqual([...order].sort(), seeded.pages.slice(0, 2).map((page) => page.id).sort());
   const [a, b] = order;
-  await evaluate("document.addEventListener('molis:surface-focus', (event) => { window.bl340Focus = event.detail; })");
+  await evaluate(`(() => {
+    document.addEventListener('molis:surface-focus', (event) => { window.bl340Focus = event.detail; });
+    const fetch = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const response = await fetch(...args);
+      if (response.ok && response.url.endsWith('/api/contextual/candidates')) window.bl340Plan = (await response.clone().json()).plan;
+      if (response.ok && response.url.endsWith('/api/contextual/prepare')) window.bl340Prepared = await response.clone().json();
+      return response;
+    };
+  })()`);
   const selected = `[...document.querySelectorAll('[data-pages-rows] [role=row][data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
   assert.deepEqual(await child.evaluate(`(() => {
     const grid = document.querySelector('[data-pages-rows]');
@@ -434,16 +442,7 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(b)}`);
   await key(" ", "Space", 32);
   await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
-  await waitFor(`window.bl340Focus?.granularity === 'objects' && window.bl340Focus.targets.map((target) => target.ref.id).sort().join() === ${JSON.stringify([a, b].sort().join())}`);
-  const request = { pane_id: "keyboard-sources", focus: await evaluate<SurfaceFocus>("window.bl340Focus") };
-  const contextual = `/projects/${projectId}/api/contextual`;
-  const { plan } = await web.post<{ plan: { candidates: { offer_id: string; key: string }[] } }>(contextual + "/candidates", request);
-  const synthesis = plan.candidates.find((candidate) => candidate.offer_id === "synthesize");
-  assert.ok(synthesis);
-  const prepared = await web.post<{ input: { inputs: { item_id: string }[] } }>(contextual + "/prepare", {
-    ...request, key: synthesis.key, request_id: "bl-340-keyboard-sources",
-  });
-  assert.deepEqual(prepared.input.inputs.map((item) => item.item_id).sort(), [a, b].sort(), "Pages prepares the two keyboard-selected sources");
+  await waitFor(`window.bl340Focus?.granularity === 'objects' && window.bl340Focus.screen?.rect.width > 0 && window.bl340Focus.targets.map((target) => target.ref.id).sort().join() === ${JSON.stringify([a, b].sort().join())}`);
   assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "Space multi-select does not open the editor");
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item]')`), null, "Space multi-select opens no item tab");
   // Deselect B and A purely with keyboard.
@@ -490,6 +489,50 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   assert.equal(await evaluate(current), before, "the pane stays where it was");
   assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the list stays in front: no document opened in the editor");
   assert.equal(await child.evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
+
+  // Clear the mouse picks, then pick both sources and invoke the existing synthesis action entirely by keyboard.
+  await child.evaluate("document.querySelector('[data-pages-search]').focus()");
+  await key("Tab", "Tab", 9);
+  await key("Home", "Home", 36);
+  await key("Home", "Home", 36, 2);
+  await key("ArrowDown", "ArrowDown", 40);
+  await key(" ", "Space", 32);
+  await key("ArrowDown", "ArrowDown", 40);
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === ''`);
+  await key(" ", "Space", 32);
+  await key("ArrowUp", "ArrowUp", 38);
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())}`);
+  const toolbar = ".mw-ctx:not([hidden]):not([data-away])";
+  await waitFor(`window.bl340Plan?.context_id === window.bl340Focus?.context_id && window.bl340Plan?.candidates.some((candidate) => candidate.offer_id === 'synthesize' && candidate.available) && document.querySelector(${JSON.stringify(toolbar)})`);
+  const synthesis = await evaluate<string>("window.bl340Plan.candidates.find((candidate) => candidate.offer_id === 'synthesize').key");
+  const action = `[data-key=${JSON.stringify(synthesis)}]`;
+  const mod = await child.evaluate<number>("/Mac/i.test(navigator.userAgentData?.platform || navigator.platform) ? 4 : 2");
+  await key(".", "Period", 190, mod);
+  await waitFor(`document.activeElement?.closest(${JSON.stringify(toolbar)})`);
+
+  const reach = async (scope: string, target: string, moveKey: "ArrowRight" | "ArrowDown", code: number) => {
+    const steps = await evaluate<number>(`(() => {
+      const buttons = [...document.querySelector(${JSON.stringify(scope)}).querySelectorAll('button:not(:disabled)')];
+      const at = buttons.indexOf(document.activeElement), next = buttons.findIndex((button) => button.matches(${JSON.stringify(target)}));
+      return at < 0 || next < 0 ? -1 : (next - at + buttons.length) % buttons.length;
+    })()`);
+    assert.ok(steps >= 0, "the action is keyboard reachable");
+    for (let i = 0; i < steps; i++) await key(moveKey, moveKey, code);
+    await waitFor(`document.activeElement.matches(${JSON.stringify(target)})`);
+  };
+  if (await evaluate(`!!document.querySelector(${JSON.stringify(toolbar + " " + action)})`)) {
+    await reach(toolbar, action, "ArrowRight", 39);
+  } else {
+    await reach(toolbar, "[data-more]", "ArrowRight", 39);
+    await key("Enter", "Enter", 13);
+    await waitFor("document.activeElement?.closest('.mw-ctx-menu')");
+    await reach(".mw-ctx-menu", action, "ArrowDown", 40);
+  }
+  await key("Enter", "Enter", 13);
+  await waitFor("window.bl340Prepared?.input?.inputs");
+  assert.deepEqual(await evaluate("window.bl340Prepared.input.inputs.map((item) => item.item_id).sort()"), [a, b].sort(), "Pages prepares the two keyboard-selected sources");
 });
 
 

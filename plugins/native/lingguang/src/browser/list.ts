@@ -110,13 +110,11 @@ export function installList(page: LingguangPage): void {
     el.empty.hidden = s.records.length > 0;
     el.rowsEl.replaceChildren();
     s.records.forEach((record) => el.rowsEl.append(renderRow(record)));
-    if (focusedId) {
-      const rows = [...el.rowsEl.querySelectorAll<HTMLElement>(OPTION)];
-      const next = rows.find((row) => row.dataset.lingguangId === focusedId) ?? rows[0];
-      next?.focus({ preventScroll: true });
-    }
     void annotateFates(s.records);
     page.syncSelectionBar();
+    if (!focusedId) return;
+    const rows = [...el.rowsEl.querySelectorAll<HTMLElement>(OPTION)];
+    return rows.find((row) => row.dataset.lingguangId === focusedId) ?? rows[0];
   };
   const patchPreview = (record: Spark) => {
     const row = el.rowsEl.querySelector(`[data-lingguang-id="${record.id}"]`);
@@ -129,8 +127,9 @@ export function installList(page: LingguangPage): void {
 
   page.renderList = () => {
     const top = el.list.scrollTop || 0;
-    paintList();
+    const focus = paintList();
     el.list.scrollTop = top;
+    focus?.focus();
   };
   page.markSelected = (id) => {
     el.rowsEl.querySelectorAll<HTMLElement>("[data-lingguang-id]").forEach((row) => paintRow(row, s.picks.has(row.dataset.lingguangId || "") || row.dataset.lingguangId === id));

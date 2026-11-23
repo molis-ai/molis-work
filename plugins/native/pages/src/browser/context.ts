@@ -66,8 +66,11 @@ function pickedRect(page: PagesPage) {
     .filter((row) => page.picked.has(row.dataset.pageId!))
     .map((row) => row.getBoundingClientRect())
     .filter((box) => box.width > 0 && box.height > 0);
+  if (!boxes.length) return null;
   const edge = (side: "left" | "right" | "top" | "bottom", pick: (...values: number[]) => number) => pick(...boxes.map((box) => box[side]));
-  return boxes.length ? { left: edge("left", Math.min), right: edge("right", Math.max), top: edge("top", Math.min), bottom: edge("bottom", Math.max) } : null;
+  const left = edge("left", Math.min), right = edge("right", Math.max);
+  const top = edge("top", Math.min), bottom = edge("bottom", Math.max);
+  return { left, right, top, bottom, width: right - left, height: bottom - top };
 }
 
 function objectsFocus(page: PagesPage): SurfaceDetail | null {

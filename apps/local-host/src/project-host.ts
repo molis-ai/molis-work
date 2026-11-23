@@ -4,6 +4,8 @@ import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { kitProviders } from "./kit-actions.js";
 import { mainlineHost, mainlineProvider } from "./mainline-actions.js";
+import { mainlineHeldReviews } from "./mainline-held-reviews.js";
+import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { acceptanceProvider } from "./acceptance-actions.js";
 import { resolveHostProjectReference } from "./acceptance-http.js";
 import { withConnectorsKitReport } from "./kit-mcp-reports.js";
@@ -311,10 +313,11 @@ export class MolisWorkLocalHost {
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
     this.plugins = { host: this.host, localHost: this, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
+    const taskReviews = mainlineHeldReviews(async () => (await readyAgentHost(this.plugins))?.reviews, () => computerHolderFor(this)?.() ?? null);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), ...(options.homeDirectory && this.recommendations ? [adoptionProvider(this, options.homeDirectory, callerClient)] : []), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
-      mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined, taskReviews), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantSettingsProvider(this.assistantStore), assistantDelegationProvider({ host: this, works: this.assistantStore,
         permissions: async () => (await readyAgentHost(this.plugins))?.workDelegations("prologue") })] : []),
       stateMachineRegistryProvider(options.homeDirectory ? { homeDirectory: options.homeDirectory, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) } : undefined),

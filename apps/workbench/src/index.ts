@@ -56,7 +56,9 @@ export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export { renderAgentReviewRecovery } from "./agent-review-recovery.js";
 export {
   isDecidable,
+  isReviewDocumentReadable,
   leakedMarkup,
+  renderAgentReviewDocument,
   renderAgentReviewSurface,
   reviewPhase,
   reviewSourceSummary,

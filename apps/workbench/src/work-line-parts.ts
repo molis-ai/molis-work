@@ -268,6 +268,8 @@ export interface TaskDecisionView {
   readonly task: string; readonly id: string;
   readonly reference?: { readonly id: string; readonly version: string };
   readonly ask: string; readonly why?: string;
+  /** Rendered by the Host from the review queue. */
+  readonly reviewHtml?: string;
   /** The asking task's name, where the card is not that task's own. */
   readonly from?: string;
   readonly changes: readonly { readonly label: string; readonly value: string }[];
@@ -298,9 +300,10 @@ export function renderTaskDecision(view: TaskDecisionView): string {
     : `<div class="work-card-actions">${view.answers.length
       ? view.answers.map(role => button(role, role === "approve" && view.lead ? "primary" : "secondary", { "data-decision-answer": role })).join("")
       : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-handle"), attrs: { "data-decision-go": "" } })}</div>`;
-  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}"${view.reference ? ` data-review-reference="${escapeHtml(view.reference.id)}" data-review-version="${escapeHtml(view.reference.version)}"` : ""} aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
-    + `<p class="work-decision-ask" title="${escapeHtml(plainLine(view.ask))}">${escapeHtml(plainLine(view.ask))}</p>`
+  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}"${view.reference ? ` data-review-reference="${escapeHtml(view.reference.id)}" data-review-version="${escapeHtml(view.reference.version)}"` : ""}${view.reviewHtml ? " data-task-held-review" : ""} aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
+    + (view.reviewHtml ? "" : `<p class="work-decision-ask" title="${escapeHtml(plainLine(view.ask))}">${escapeHtml(plainLine(view.ask))}</p>`)
     + (changes ? `<ul class="work-decision-changes" aria-label="${escapeHtml(say("decision-changes"))}">${changes}</ul>` : "")
+    + (view.reviewHtml ? `<div class="work-decision-changes">${view.reviewHtml}</div>` : "")
     + (why ? `<small class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</small>` : "") + answers + `</section>`;
 }
 

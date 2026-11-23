@@ -1,5 +1,6 @@
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
+import { BACKGROUND_TASK_MAX_HELD_REVIEWS } from "../platform/reviews.js";
 import { CHARACTER_TASK_SELECTION_SCHEMA } from "../modules/character-role-scope.js";
 import { CONVERSATION_ATTACHMENT_LIMITS } from "./materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
@@ -563,6 +564,14 @@ export const agentHostCapabilities = {
     action: { title: "请求回退到检查点", description: "为自己会话的一个检查点准备文件回退，交本人审批。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, entryId, entryId], additionalItems: false }, output_schema: reviewRequestOutput },
   } as ActionDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
+  listPendingReviewIds: {
+    capability_id: "agent.reviews.pending-ids", version: /* @version action.agent.reviews.pending-ids */ 1, operation: "query",
+    action: { title: "列出会话待审记录编号", description: "只读本安装在本项目的指定 Agent 会话的待审记录编号。",
+      kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [ids(500)], additionalItems: false },
+      output_schema: { type: "array", maxItems: 500, items: shape(["session_id", "ids"], { session_id: entryId,
+        ids: { type: "array", maxItems: BACKGROUND_TASK_MAX_HELD_REVIEWS, items: text(200) } }) } },
+  } as ActionDefinition<[sessionIds: string[]], Array<{ session_id: string; ids: string[] }>>,
   /**
    * Read the approval queue: what a round submitted, and the reviewed integrations that brought that round's result back to the
    * main workspace (they name the round as their source and have no run of their own). Deciding is a user action and is not exposed to Plugins.

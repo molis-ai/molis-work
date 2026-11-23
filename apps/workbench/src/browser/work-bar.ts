@@ -11,8 +11,7 @@
  *
  * The tasks behind the events are in work-tasks.ts and an event's information in work-event-card.ts; they paint from the same read.
  *
- * Bundled by esbuild into dist/work-bar-client.js and carried in workbench.js; the workbench's start calls the page global
- * `molisWorkBar` once its shell is drawn (not in a pane-embedded page, which has no bar).
+ * The project home browser entry carries this program in workbench.js so both share the SDK's text and renderers.
  */
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -23,6 +22,8 @@ import { installAcceptance } from "./work-acceptance.js";
 import { installEventCards, type EventCardHandle, type EventCardOpen, type PositionViews } from "./work-event-card.js";
 import { ASKS, FAILED, installTasks, type SubtaskRef } from "./work-tasks.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
+
+type WorkLineDisplay = Pick<WorkLineReadResult, "events" | "issues">;
 
 /** What the workbench gives the foot: where its routes are, how a thing opens in the work area, and the conversation an event is talked about in. */
 export interface WorkBarHost {
@@ -575,7 +576,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     cardStack.paint(dialog.hidden ? [...events.values()].find(one => keyOf(one.subject) === focused)?.id : undefined);
   }).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
 
-  const adopt = (result: WorkLineReadResult) => {
+  const adopt = (result: WorkLineDisplay) => {
     const before = events;
     events = new Map(result.events.map(event => [event.id, event]));
     issues = result.issues;
@@ -584,7 +585,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // What waits for the person, as the stack holds it with nothing in front: the events and loose tasks, the main conversation
   // when it waits, and one for whatever wants a look. An event the conversation is about still counts (POLISH-40).
   function waitingCount(): number { return waitingEvents().length + tasks.loose().length + (host.mainWaiting?.() ? 1 : 0) + (toLook().length ? 1 : 0); }
-  const draw = (result: WorkLineReadResult, before = adopt(result)): boolean => {
+  const draw = (result: WorkLineDisplay, before = adopt(result)): boolean => {
     // The same events in the same states are the same lists: nothing is redrawn, so a press or a scroll under way is not lost.
     const drawn = JSON.stringify([result.events.map(event => [event.id, event.title, event.summary, event.wing, event.rank, stateOf(event), event.tasks.running, event.tasks.waiting, Boolean(event.suggestion)]), result.issues.map(issue => issue.title)]);
     if (drawn === shown) return false;
@@ -743,7 +744,8 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       checking(null, false);
       knownAt = new Date().toISOString();
       try {
-        sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: read }));
+        const display: WorkLineDisplay = { events: read.events, issues: read.issues };
+        sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: display }));
       } catch {
         /* a convenience of this tab */
       }
@@ -783,7 +785,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     tasks.retitle();
   });
   try {
-    const last = JSON.parse(sessionStorage.getItem(kept) ?? "null") as { at: string; line: WorkLineReadResult } | null;
+    const last = JSON.parse(sessionStorage.getItem(kept) ?? "null") as { at: string; line: WorkLineDisplay } | null;
     if (last?.line && Array.isArray(last.line.events)) { draw(last.line); knownAt = last.at; checking(last.at); }
   } catch { /* nothing kept */ }
   paintExpand();
@@ -831,5 +833,3 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     },
   };
 }
-
-(globalThis as { molisWorkBar?: (host: WorkBarHost) => WorkBarHandle | undefined }).molisWorkBar = installWorkBar;

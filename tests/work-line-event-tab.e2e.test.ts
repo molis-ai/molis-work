@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 // specs/work-line §4.4 as §16「第十三版的落点」 rewrote it: a press on an event turns the conversation to it — its name in the
 // conversation's line, its page in a tab at the top, what is known of it in the information column. The event here is a plugin's
@@ -14,6 +18,106 @@ const today = () => { const at = new Date(); return `${at.getFullYear()}-${pad(a
 /** Whom the conversation is with: the name in its one line — an event's, a Character's, or 助理 for the main conversation. */
 const ABOUT = "document.querySelector('[data-assistant-head-title]')?.textContent";
 const TODO = "给王总回电话", MAIN = "助理";
+
+test("WLHR-02 WLHR-03: the real event card shows each Agent proposal and records both answers in its original queue", { timeout: 120_000 }, async t => {
+  const ids = ["file-to-approve", "file-to-reject"], agentSession = "quote-agent-session";
+  let eventId = "", waiting = false;
+  const plugin = backgroundPlugin(() => ({ source: { surface: "example", title: "示例", icon: "list" }, tasks: waiting ? [{
+    subject: { kind: "homebg_task", id: "quote" }, title: "整理报价单", state: "approval", details: [], waiting: true,
+    updated_at: new Date().toISOString(), executor: { kind: "plugin", label: "示例" }, serves: [{ kind: "todo_item", id: eventId }],
+    scope: "project", commands: [], decisions: [], held_reviews: { session_id: agentSession, ids }, open: null,
+  }] : [] }));
+  const browser = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, { project: [plugin.definition] });
+  if (!browser) return;
+  const { localHost, projectId, origin, homeDirectory, databasePath, command, sessionId, navigate, waitFor, evaluate, click, setViewport } = browser;
+  assert.ok(localHost && projectId);
+  const store = openTodoStore(homeDirectory);
+  try {
+    eventId = store.create({ title: "核对报价", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user", actorId: "test" }).item.id;
+  } finally { store.close(); }
+  await setViewport(1440, 900);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  const event = `[data-work-line] [data-work-event*="todo-planned:${eventId}"]`;
+  const card = `[data-assistant-event-card] [data-event-card="todo_item:${eventId}"]`;
+  await waitFor(`document.querySelector(${JSON.stringify(event)})`, 20_000);
+  await evaluate(press(event));
+  await waitFor(`document.querySelector(${JSON.stringify(card)})?.getClientRects().length`, 15_000);
+  const reference = molisWorkHostProjectReference({ projectId, databasePath });
+  const directory = await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: ["homebg:read"] }, reference);
+  const provider = directory.find(action => action.capability_id === "homebg.tasks")?.provider;
+  assert.ok(provider?.plugin_id && provider.plugin_install_id);
+  const agents = localHost.ensureAgentService(homeDirectory, () => { throw new Error("The web composition owns the Agent service"); });
+  await agents.ready;
+  const queue = agents.agentHost.reviews;
+  const delivered: Array<[string, string]> = [];
+  for (const id of ids) {
+    queue.request({ review_id: id, reference: { owner: { kind: "agent-review", project_id: projectId, plugin_id: provider.plugin_id, install_id: provider.plugin_install_id }, id, version: "proposal-1" },
+      project_id: projectId, plugin_id: provider.plugin_id, kind: "text-edit", run: { session_id: agentSession, run_id: "run" },
+      requested_at: new Date().toISOString(), expires_at: null,
+      document: { kind: "text-edit", target_path: id + ".md", exists: true, before_text: "旧报价", after_text: "新报价 <1200>" } });
+    queue.registerDecisionHandler(id, async (input, commit) => {
+      const receipt = await commit();
+      delivered.push([id, input.decision]);
+      return receipt;
+    });
+  }
+  waiting = true;
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  const selector = (id: string) => card + ` [data-task-decision="${id}"]`;
+  const kept = ids.map(selector);
+  await waitFor(`document.querySelector(${JSON.stringify(kept[1])})?.getClientRects().length`, 15_000);
+  const snapshot = await evaluate<string>(`sessionStorage.getItem(${JSON.stringify(`molis.work-line.last:${projectId}`)})`);
+  assert.match(snapshot, /核对报价/);
+  assert.doesNotMatch(snapshot, /review_html|file-to-approve|file-to-reject|新报价/);
+  for (const [at, id] of ids.entries()) {
+    const part = `document.querySelector(${JSON.stringify(kept[at])})`;
+    assert.equal(await evaluate(`${part}.dataset.reviewVersion`), "proposal-1");
+    assert.match(await evaluate<string>(`${part}.querySelector('.agent-review-doc').textContent`), /新报价 <1200>/);
+    assert.match(await evaluate<string>(`${part}.querySelector('.agent-review-doc').textContent`), new RegExp(id));
+  }
+  const approval = kept[0] + ' [data-decision-answer="approve"]';
+  const rejection = kept[1] + ' [data-decision-answer="reject"]';
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(approval)}).textContent.trim()`), "同意");
+  const capture = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    const directory = reviewEvidenceUrl("work-line-held-reviews/");
+    await mkdir(directory, { recursive: true });
+    const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(new URL(name, directory), Buffer.from(screenshot.data, "base64"));
+  };
+  await capture("held-review-event-card.png");
+  // The same open card gets its new words from the workbench after a language change in another window.
+  await evaluate(`(async () => {
+    await molisWorkRequest('/api/ui/locale', { body: { preference: 'en' } });
+    const channel = new BroadcastChannel('molis-work-ui-language');
+    channel.postMessage(null);
+    channel.close();
+  })()`);
+  await waitFor(`document.documentElement.lang === 'en' && document.querySelector(${JSON.stringify(approval)})?.textContent.trim() === 'Approve'`, 15_000);
+  await click(approval);
+  await waitFor(`!document.querySelector(${JSON.stringify(kept[0])})`, 15_000);
+  assert.equal(queue.receipt(ids[0])?.status, "approved");
+  assert.deepEqual(queue.receipt(ids[0])?.source, { kind: "person", actor_id: LOCAL_PERSON_ACTOR_ID });
+
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
+  await waitFor("document.documentElement.dataset.resolvedTheme === 'dark'");
+  await setViewport(680, 844);
+  await waitFor(`innerWidth === 680 && document.querySelector(${JSON.stringify(rejection)})?.getClientRects().length`);
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, "680px: the event card fits the page");
+  await setViewport(390, 844, true);
+  await waitFor("innerWidth === 390 && document.querySelector('[data-assistant-panel][data-layout=drawer]')");
+  const information = "[data-assistant-side-toggle]";
+  if (await evaluate(`document.querySelector(${JSON.stringify(information)}).getAttribute('aria-expanded') === 'false'`)) await click(information);
+  await waitFor(`document.querySelector(${JSON.stringify(rejection)})?.getClientRects().length`);
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, "390px: the event card fits the page");
+  await capture("held-review-event-card-390-dark.png");
+  await click(rejection);
+  await waitFor(`!document.querySelector(${JSON.stringify(kept[1])})`, 15_000);
+  assert.equal(queue.receipt(ids[1])?.status, "rejected");
+  assert.deepEqual(queue.receipt(ids[1])?.source, { kind: "person", actor_id: LOCAL_PERSON_ACTOR_ID });
+  assert.deepEqual(delivered, [[ids[0], "approve"], [ids[1], "reject"]]);
+  assert.deepEqual(plugin.state.answers, []);
+});
 /** A press by script: a row of a list is pressed whether or not the conversation is open (the lists are drawn either way). */
 const press = (selector: string) => `document.querySelector(${JSON.stringify(selector)}).click()`;
 /** The page in front, at the top: its tab, and the key that closes it (which goes back to the main conversation, WLN-07). */

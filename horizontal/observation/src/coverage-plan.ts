@@ -23,6 +23,7 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // and dynamic Skill/Kit scene candidate reads and bindings (`kit.catalog.list`, `skills.kit.report`, `skills.catalog.list`,
   // `skills.import.preview`, `skills.import.confirm`, `skills.drafts.adopt`, `plugins.install.preview`), and signed package repair through the two protected settings actions
   // (`plugins.installed.repair`, `plugins.home.installed.repair`).
+  // The action exit also covers the work line's `background.tasks.decide` and Coding's `agent.reviews.pending-ids`.
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", "schedule", "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.

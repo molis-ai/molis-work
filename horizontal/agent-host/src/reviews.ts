@@ -1,6 +1,7 @@
 import { agentErrors } from "./errors.js";
 import { isDeepStrictEqual } from "node:util";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASK_MAX_HELD_REVIEWS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
 
   AgentReviewDecisionInput,
@@ -11,6 +12,7 @@ import type {
   AgentReviewRequest,
   AgentReviewRow,
   AgentReviewStatus,
+  AgentSessionOwner,
   AgentGitIndexObservation,
   AgentReviewRecoveryInput,
   AgentReviewRecoveryView,
@@ -462,6 +464,21 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
         && (status === undefined || this.#status(row) === status))
       .map((row) => clonePresentedReview(row.request))
       .sort((left, right) => left.requested_at.localeCompare(right.requested_at));
+  }
+
+  /** Task providers only need IDs. Scan once without copying any of the proposals. */
+  pendingIds(owner: Pick<AgentSessionOwner, "project_id" | "plugin_id" | "install_id">, sessionIds: readonly string[]) {
+    const sessions = new Set(sessionIds), matches = new Map<string, string[]>();
+    for (const row of this.#rows.values()) {
+      const { run, reference, review_id } = row.request;
+      if (!run || !sessions.has(run.session_id) || review_id.length > 200 || reference.owner.kind !== "agent-review"
+        || reference.owner.project_id !== owner.project_id || reference.owner.plugin_id !== owner.plugin_id
+        || reference.owner.install_id !== owner.install_id || this.#status(row) !== "pending") continue;
+      const ids = matches.get(run.session_id) ?? [];
+      if (ids.length < BACKGROUND_TASK_MAX_HELD_REVIEWS) ids.push(review_id);
+      matches.set(run.session_id, ids);
+    }
+    return Array.from(matches, ([session_id, ids]) => ({ session_id, ids }));
   }
 
   get(reviewId: string): AgentReviewRequest | null {

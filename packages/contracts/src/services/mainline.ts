@@ -1,7 +1,8 @@
 import { inputSchemaFor } from "../platform/action-input.js";
-import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_SCHEMA, OPEN_TARGET_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, WORK_EVENT_WINDOW_SCHEMA, defineErrorCodes,
-  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type OpenTarget, type WorkEvent, type WorkEventCollection,
+import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_DECISION_SCHEMA, BACKGROUND_TASK_SCHEMA, OPEN_TARGET_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, WORK_EVENT_WINDOW_SCHEMA, defineErrorCodes,
+  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type OpenTarget, type WorkEvent, type WorkEventCollection,
   type WorkEventWindow } from "../platform/actions.js";
+import { REVIEW_REFERENCE_SCHEMA, type ReviewReference } from "../platform/reviews.js";
 import type { StateRingState } from "../platform/ui-state-rings.js";
 import { defineSubjectContextAction } from "../platform/action-subjects.js";
 import { PLACEMENT_RELATION_LIMITS, definePlacementRelationAction } from "../platform/placement.js";
@@ -21,8 +22,16 @@ export const MAINLINE_PLACE_PERMISSION = "mainline:place";
 /** Arranging the person's own mainline: work items, groups, the current item and what each item holds. */
 export const MAINLINE_ARRANGE_PERMISSION = "mainline:arrange";
 
-/** A task as a reader gets it: the provider's own row, with the provider it came from. */
-export interface BackgroundTaskRow extends BackgroundTask {
+/** The Host's display of a pending Agent review. Its buttons answer the Host's queue directly. */
+export interface BackgroundTaskHeldReview extends Omit<BackgroundTaskDecision, "reference" | "answers"> {
+  reference: ReviewReference;
+  review_html: string;
+  answers: Array<{ role: "approve" | "reject" }>;
+}
+
+/** A task as a reader gets it, with its source and any reviews resolved by the Host. */
+export interface BackgroundTaskRow extends Omit<BackgroundTask, "decisions" | "held_reviews"> {
+  decisions: Array<BackgroundTaskDecision | BackgroundTaskHeldReview>;
   /** The same for a provider's task across reads. */
   id: string;
   /** The provider that answered; each command's action is its own. */
@@ -85,7 +94,11 @@ export interface BackgroundTaskCommandResult { role: BackgroundTaskCommand["role
  * answers. It is run only if the provider, asked again, still asks exactly that and still offers that answer, so an answer never
  * reaches another question or a later version of this one (PWA-135). `note` is the person's words for `revise`, and is required for it.
  */
-export interface BackgroundTaskDecideRequest { source: Required<ActionReference>; subject: ActionSubject; decision: string; role: BackgroundTaskAnswer["role"]; note?: string }
+export interface BackgroundTaskDecideRequest {
+  source: Required<ActionReference>; subject: ActionSubject; decision: string; role: BackgroundTaskAnswer["role"]; note?: string;
+  /** Required for a held Agent review, using the version the person saw on the card. */
+  review_version?: string;
+}
 export interface BackgroundTaskDecideResult { role: BackgroundTaskAnswer["role"]; output: unknown }
 
 /**
@@ -236,7 +249,14 @@ export const MAINLINE_HOLDS_RELATION = "holds";
 
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
 const source = { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] } as const;
-export const BACKGROUND_TASK_ROW_SCHEMA = { ...BACKGROUND_TASK_SCHEMA, properties: { ...BACKGROUND_TASK_SCHEMA.properties, id: { type: "string", minLength: 1, maxLength: 1000 }, source, origin: WORK_EVENT_SOURCE_SCHEMA },
+const { held_reviews: _heldReviews, ...taskRowProperties } = BACKGROUND_TASK_SCHEMA.properties;
+const heldReview = { ...BACKGROUND_TASK_DECISION_SCHEMA, properties: { ...BACKGROUND_TASK_DECISION_SCHEMA.properties,
+  reference: REVIEW_REFERENCE_SCHEMA, review_html: { type: "string", minLength: 1 },
+  answers: { type: "array", maxItems: 2, minItems: 1, items: { type: "object", properties: { role: { enum: ["approve", "reject"] } }, required: ["role"], additionalProperties: false } },
+}, required: [...BACKGROUND_TASK_DECISION_SCHEMA.required, "reference", "review_html"] };
+export const BACKGROUND_TASK_ROW_SCHEMA = { ...BACKGROUND_TASK_SCHEMA, properties: { ...taskRowProperties,
+  decisions: { type: "array", maxItems: 20, items: { anyOf: [BACKGROUND_TASK_DECISION_SCHEMA, heldReview] } },
+  id: { type: "string", minLength: 1, maxLength: 1000 }, source, origin: WORK_EVENT_SOURCE_SCHEMA },
   required: [...BACKGROUND_TASK_SCHEMA.required, "id", "source", "origin"] };
 const ISSUE_SCHEMA = { type: "object", properties: { source, title: { ...id, maxLength: 500 }, code: id }, required: ["source", "title", "code"], additionalProperties: false } as const;
 const COMMAND_SCHEMA = { type: "object", properties: { role: { enum: ["stop", "pause", "resume"] }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { type: "string", maxLength: 1000 } },
@@ -324,10 +344,10 @@ export const mainlineActions = {
     output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { type: "string", minLength: 1, maxLength: 1000 }, target: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] } },
       required: ["subject", "title", "target"], additionalProperties: false } } } as ActionDefinition<ObjectOpenRequest, ObjectOpenResult>,
   decide: { capability_id: "background.tasks.decide", version: /* @version action.background.tasks.decide */ 1, operation: "command", action: { ...metadata,
-    title: "回答后台任务要你定的事", description: "重新读取任务的提供方，确认它仍在问这一件、仍给出这种回答后，以本人身份调用它写明的动作；同意、改一下或拒绝只作用于这一个问题。",
+    title: "回答后台任务要你定的事", description: "重新读取任务，确认它还在等这项决定。插件自己的问题交给它的动作，Agent 待审操作由本人按卡上版本交给平台审批。",
     kind: "operation", effect: "write", audiences: ["user"], permissions: [MAINLINE_CONTROL_PERMISSION],
     input_schema: inputSchemaFor<BackgroundTaskDecideRequest>()({ type: "object", properties: { source, subject: ACTION_SUBJECT_SCHEMA, decision: id, role: { enum: ["approve", "revise", "reject"] },
-      note: { type: "string", minLength: 1, maxLength: 2000 } }, required: ["source", "subject", "decision", "role"], additionalProperties: false } as const),
+      note: { type: "string", minLength: 1, maxLength: 2000 }, review_version: { ...id, maxLength: 240 } }, required: ["source", "subject", "decision", "role"], additionalProperties: false } as const),
     output_schema: { type: "object", properties: { role: { enum: ["approve", "revise", "reject"] }, output: {} }, required: ["role", "output"], additionalProperties: false } } } as ActionDefinition<BackgroundTaskDecideRequest, BackgroundTaskDecideResult>,
 };
 

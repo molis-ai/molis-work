@@ -85,7 +85,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
     }).catch((error) => { showToast(error, true); return false; });
     { const asked = new URL(location.href), kind = asked.searchParams.get("openObject"), id = asked.searchParams.get("openItem");
       if (kind && id && !asked.searchParams.has("openPlugin")) { asked.searchParams.delete("openObject"); asked.searchParams.delete("openItem"); history.replaceState(history.state, "", asked); void openObject({ kind, id }); } }
-    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openObject, openEvent: (event, quiet) => assistantIsland?.openEvent(event, quiet), toNow: (quiet) => assistantIsland?.toNow(quiet), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
+    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkHomeView?.installWorkBar({ route, openObject, openEvent: (event, quiet) => assistantIsland?.openEvent(event, quiet), toNow: (quiet) => assistantIsland?.toNow(quiet), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
       subtasks: () => assistantIsland?.subtasks() || [], openSubtask: (key) => assistantIsland?.openSubtask(key), mainWaiting: () => assistantIsland?.mainWaiting() || null, openMain: () => assistantIsland?.openMain(), attention: () => assistantIsland?.attention() || [], openAttention: (from, only) => assistantIsland?.openAttention(from, only),
       placeName: () => project.display_name || "",
       // What is in front in the focused pane: an object's tab, a surface's own page, or a system view; null under a cover.

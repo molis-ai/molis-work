@@ -15,7 +15,7 @@ const uiText = globalThis.t;
 type Hit = (selector: string) => HTMLElement | null;
 
 /** The menus, the folders and the ways to make a document: true when the click was one of them. */
-async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boolean> {
+async function menuClick(page: PagesPage, event: MouseEvent, hit: Hit): Promise<boolean> {
   if (hit("[data-pages-more]")) {
     stop(event);
     closeMove(page);

@@ -12,7 +12,7 @@ import { ActionError, type ActionCallContext, type ActionReference, type FileCon
 import { MATERIALS_PROVIDER_ID, MATERIALS_SURFACE, materialsActions, materialsFileSource, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureResult, type MaterialsOpenResult,
   type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
-import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
+import { diffActions } from "@molis-ai/molis-work-plugin-diff";
 import { person } from "./fixtures/home-runtime.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -113,17 +113,20 @@ test("BSH-05 materials.capture fixes what was seen as the platform's process ite
   assert.equal((await m.call<MaterialsReadResult>(materialsActions.read, { ref: captured.ref, mode: "text" })).text, text);
 });
 
-test("BSH-05 the snapshot the materials service fixes reaches Text Stats by its default source, and Text Stats counts that one, not the disk", { timeout: 60_000 }, async t => {
-  const m = await materialsHome(t, ["text-stats"]);
-  const text = "中文🙂\nfirst\n";
-  await writeFile(join(m.folder, "notes.md"), text);
-  const counted = async () => (await m.call<{ view: { phase: string; characters?: number; lines?: number } }>(textStatsActions.state, {}, person(["artifact:read"], m.project.project_id))).view;
-  assert.equal((await counted()).phase, "waiting", "nothing fixed yet");
-  await m.call<MaterialsCaptureResult>(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha(text), port: "before" });
-  const view = await counted();
-  assert.deepEqual([view.phase, view.characters, view.lines], ["ready", Array.from(text).length, 2]);
+test("BSH-05 the snapshots the materials service fixes reach Diff by its default sources, and Diff compares those, not the disk", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t, ["diff"]);
+  const first = "中文🙂\nfirst\n", second = "中文🙂\nsecond\n";
+  const compared = async () => (await m.call<{ view: { phase: string; rows: ReadonlyArray<{ kind: string; text: string }> } }>(diffActions.state, {}, person(["artifact:read"], m.project.project_id))).view;
+  assert.equal((await compared()).phase, "waiting", "nothing fixed yet");
+  await writeFile(join(m.folder, "notes.md"), first);
+  await m.call<MaterialsCaptureResult>(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha(first), port: "before" });
+  await writeFile(join(m.folder, "notes.md"), second);
+  await m.call<MaterialsCaptureResult>(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha(second), port: "after" });
+  const view = await compared();
+  assert.equal(view.phase, "ready");
+  assert.deepEqual(view.rows.filter(row => row.kind !== "equal").map(row => [row.kind, row.text]), [["delete", "first"], ["insert", "second"]]);
   await writeFile(join(m.folder, "notes.md"), "rewritten on disk\n");
-  assert.deepEqual(await counted(), view, "Text Stats keeps counting the fixed snapshot, not the file as it is now");
+  assert.deepEqual(await compared(), view, "Diff keeps comparing the fixed snapshots, not the file as it is now");
 });
 
 test("BSH-05 a refused capture writes no process item, no port value and no event", { timeout: 60_000 }, async t => {

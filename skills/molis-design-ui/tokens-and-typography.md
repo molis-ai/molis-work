@@ -61,7 +61,7 @@
 
 - **字体栈**：
   - UI Sans：`"Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`（`Inter Variable` 置顶管拉丁字母与数字，`Noto Sans SC` 随包提供真 `400` 简体全集及覆盖全仓 100% 界面中文词表的 `500 / 600` 常用子集，罕见字由系统 CJK 字体承接，配合 `font-synthesis-weight: none` 杜绝伪粗体与字重塌陷）。
-  - 等宽代码：`--font-mono`（`SF Mono`, `JetBrains Mono`, `Cascadia Code`, `ui-monospace`, monospace），统一经 `--type-code-weight` / `--type-code-size` / `--type-code-line-height` 消费。
+  - 等宽代码：`--font-mono`（`SF Mono`, `JetBrains Mono`, `Cascadia Code`, `ui-monospace`, monospace）；全局 `:where(code, kbd, samp, pre)` 只落 `font-family: var(--font-mono); letter-spacing: 0`，字号与行高（`--type-code-weight` / `--type-code-size` / `--type-code-line-height`）由具体代码块 / 终端 / Diff 容器按需消费，不全局强行覆盖内联 `<code>` 行高（守 `VUX-33` / `PAS-15`）。
 - **分语种字距与中英自动微隙**：
   - 默认（中文及混排）：正文 `letter-spacing: 0`、标题 `-0.012em`～`-0.014em`（**严禁把 `-0.011em` / `-0.03em` 套在中文上**）。
   - 纯英文（`:lang(en)`）：正文 `-0.011em`、大标题 `-0.024em`。

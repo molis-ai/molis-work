@@ -15,3 +15,16 @@ CREATE TABLE adoption_steps (
   apply_json TEXT NOT NULL, undo_json TEXT, revision INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (preview_id, part_id)
 );
+
+CREATE TABLE IF NOT EXISTS personal_blueprints_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS personal_blueprints_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS personal_blueprints_replica_changes_key ON personal_blueprints_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS personal_blueprints_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS personal_blueprints_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS personal_blueprints_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS personal_blueprints_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+
+INSERT INTO personal_blueprints_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER personal_blueprints_insert AFTER INSERT ON blueprint_drafts BEGIN INSERT INTO personal_blueprints_replica_changes(key) SELECT NEW.draft_id WHERE (SELECT applying FROM personal_blueprints_replica_state WHERE id=1)=0 AND (NEW.project_id IS NULL); END;
+CREATE TRIGGER personal_blueprints_update AFTER UPDATE ON blueprint_drafts BEGIN INSERT INTO personal_blueprints_replica_changes(key) SELECT NEW.draft_id WHERE (SELECT applying FROM personal_blueprints_replica_state WHERE id=1)=0 AND (NEW.project_id IS NULL); END;
+CREATE TRIGGER personal_blueprints_delete AFTER DELETE ON blueprint_drafts BEGIN INSERT INTO personal_blueprints_replica_changes(key) SELECT OLD.draft_id WHERE (SELECT applying FROM personal_blueprints_replica_state WHERE id=1)=0 AND (OLD.project_id IS NULL); END;

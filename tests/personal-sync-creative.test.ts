@@ -1,10 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {personalSyncFixture} from './fixtures/personal-sync-coordinator.js';
-import {runtimePersonalSync} from './fixtures/runtime-personal-sync.js';
+import { runtimePersonalSync, syncOwnerPair } from './fixtures/runtime-personal-sync.js';
 import {openFormStore,openDatasetStore,openPptStore,openLingguangStore,openWorkflowsStore,openJellyStore,openTodoStore} from './fixtures/plugin-sync-stores.js';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase, homeAgentDefinitions, personalConfigRegistrations} from '@molis-ai/molis-work-app-local-host';
+import { APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION, appearanceSelectionActions, type UiAppearanceSelection } from '@molis-ai/molis-work-contracts/platform/ui';
+import { bindActionClient, type ActionCallContext } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionService } from '@molis-ai/molis-work-kernel';
+import { createAppearanceOwner } from '@molis-ai/molis-work-service-appearance';
+import { AdoptionStore } from '@molis-ai/molis-work-service-blueprints';
+import { createFunctionsService } from '@molis-ai/molis-work-module-judgment-rules';
+import { AttentionModule } from '@molis-ai/molis-work-module-attention-resumption';
+import { createSurfaceCorrections } from '@molis-ai/molis-work-service-surfaces';
+import type { Blueprint } from '@molis-ai/molis-work-contracts/platform/blueprints';
+import { ASSISTANT_PLUGIN_ID } from '@molis-ai/molis-work-contracts/services/assistant';
+import { syncNamespace, type SyncSelection } from '@molis-ai/molis-work-module-sync-replication';
+import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { type TestContext } from 'node:test';
 import {formManifest} from '@molis-ai/molis-work-plugin-form';
 import {datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
 import {pptManifest} from '@molis-ai/molis-work-plugin-ppt';
@@ -76,4 +92,210 @@ test('Host exposes and transfers all registered creative collections through the
   for(const client of [a,b])for(const collection of client.status().collections)assert.deepEqual(collection.conflicts,[],collection.selection.plugin_id+' '+collection.selection.collection_id);
   const before=f.events.length;await a.run();await b.run();assert.equal(f.events.length,before,'no replication echo');
   assert.doesNotMatch(JSON.stringify(f.events),/this-device-only-connection|this-device-only-reference/,'source setup never enters the transport');
+});
+
+const configIds = ['appearance', 'surfaces', 'prompt_overrides', 'blueprints', 'judgment_rules', 'attention'];
+const promptKey = ASSISTANT_PLUGIN_ID + '/assistant-base';
+const configText = { literal: 'Personal planning' };
+const configBlueprint: Blueprint = {
+  title: configText, purpose: { audience: configText, work: configText, inputs: configText, outputs: configText, first_result: configText },
+  parts: [{ part_id: 'note', layer: 'personal', required: false, proposal: { kind: 'content', type: 'notes.outline.v1', body: {} } }],
+  steps: [{ step_id: 'next', title: configText, part_ids: ['note'] }],
+  example_task: { title: configText, input: configText, step_ids: ['next'], result: { part_id: 'note', location: configText } },
+};
+const configAppearance: UiAppearanceSelection = {
+  skin: { id: 'soft-workbench', revision: 1 }, font: { policy: 'pinned', scheme: { id: 'system-sans', revision: 1 } }, mono: null,
+};
+const configSlot = { kind: 'home' } as const;
+const now = () => '2026-11-20T00:00:00.000Z';
+const noop = () => {};
+function appearanceClient(home: string, actor: string) {
+  const owner = createAppearanceOwner(home, { locale: { defaultLocale: 'en', isSupported: (value): value is 'en' => value === 'en',
+    readFailed: noop, writeFailed: noop, writeSucceeded: noop }, listenerFailed: noop });
+  const dispatcher = new ActionService();
+  const close = dispatcher.registerProvider(owner.provider());
+  const client = bindActionClient(dispatcher, () => ({ actor_id: actor, audience: 'user' as const, project_id: null,
+    permissions: [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION] }));
+  return { client, close() { close(); owner.close(); } };
+}
+
+async function platformConfigPair(t: TestContext) {
+  // Attention is a platform registration even when Inbox is not running on either Home.
+  const pair = await syncOwnerPair(t, []);
+  const { source, owner } = pair;
+  const withProject = <T>(side: typeof source, run: (db: LocalProjectDatabase['db'], projectId: string) => T): T => {
+    const project = side.project();
+    const store = new LocalProjectDatabase(project.database_path);
+    try { return run(store.db, project.project_id); } finally { store.close(); }
+  };
+  const appearance = appearanceClient(source.home, owner);
+  t.after(appearance.close);
+  await appearance.client.invoke(appearanceSelectionActions.apply, { request_id: 'choose-skin', expected_revision: 0,
+    choice: { kind: 'selection', selection: configAppearance } });
+  const caller: Pick<ActionCallContext, 'actor_id' | 'audience'> = { actor_id: owner, audience: 'user' };
+  const pin = async (position: number, expected_revision: string) => {
+    const store = new LocalProjectDatabase(source.project().database_path);
+    try {
+      await createSurfaceCorrections(store.db, caller).correct({ slot: configSlot, subject: { kind: 'goal', id: 'saved-goal' },
+        correction: 'pin', position, expected_revision }, { beforeEffect: async () => {}, current: noop }, now);
+    } finally { store.close(); }
+  };
+  await pin(2, '0');
+  withProject(source, (db, projectId) => {
+    const attention = new AttentionModule(db, { exists: () => true });
+    const { entry } = attention.commands.create({ project_id: projectId, entry_id: 'persisted-attention', subject_type: 'goal',
+      subject_id: 'saved-goal', reason: 'manual' });
+    attention.commands.setStatus(projectId, entry.entry_id, 'done', entry.revision);
+  });
+  const definitions = homeAgentDefinitions(source.home);
+  definitions.save(promptKey, 'Check the saved facts.', null, owner);
+  const blueprints = new AdoptionStore(source.home);
+  const scope = { actor_id: owner, project_id: null };
+  const draft = blueprints.saveDraft(scope, { blueprint: configBlueprint, expected_revision: null }, 'en').draft;
+  assert.equal(draft.source.kind, 'draft');
+  const draftId = draft.source.draft_id;
+  const functions = createFunctionsService({ home: source.home, credential: () => null });
+  let rule: ReturnType<typeof functions.createChoice>;
+  try { rule = functions.createChoice({ name: 'Personal test rule', function_key: 'personal_test_rule' }); }
+  finally { functions.close(); }
+
+  async function read(side: typeof source) {
+    const skin = appearanceClient(side.home, owner);
+    const decisions = createFunctionsService({ home: side.home, credential: () => null });
+    try {
+      const selected = await skin.client.invoke(appearanceSelectionActions.get, {});
+      const [surfaces, attention] = withProject(side, (db, projectId) => [
+        createSurfaceCorrections(db, caller).read(configSlot).corrections.map(row => row.position),
+        new AttentionModule(db, { exists: () => false }).query.list(projectId).find(row => row.entry_id === 'persisted-attention')?.status ?? null,
+      ] as const);
+      const prompt = homeAgentDefinitions(side.home).prompt(promptKey);
+      const present = decisions.getByKey(rule.function_key);
+      let blueprint = null;
+      try { blueprint = new AdoptionStore(side.home).draft(scope, draftId).blueprint.title; }
+      catch (error) { assert.equal((error as { code?: string }).code, 'actions.missing'); }
+      return [selected.selection, surfaces, prompt.user ? prompt.body : null, blueprint, present?.name ?? null, attention];
+    } finally { skin.close(); decisions.close(); }
+  }
+  async function editAll() {
+    const selection = await appearance.client.invoke(appearanceSelectionActions.apply, { request_id: 'restore-skin',
+      expected_revision: 1, choice: { kind: 'restore' } });
+    await pin(3, '1');
+    const prompt = definitions.prompt(promptKey).user;
+    assert.ok(prompt);
+    definitions.save(promptKey, 'Recheck the saved facts.', prompt.revision, owner);
+    const title = { literal: 'Updated planning' };
+    blueprints.saveDraft(scope, { draft_id: draftId, expected_revision: 1, blueprint: { ...configBlueprint, title } }, 'en');
+    const decisions = createFunctionsService({ home: source.home, credential: () => null });
+    try { decisions.updateDraft(rule.id, { name: 'Updated personal rule' }, rule.updated_at); }
+    finally { decisions.close(); }
+    withProject(source, (db, projectId) => {
+      const attention = new AttentionModule(db, { exists: () => true });
+      const entry = attention.query.list(projectId).find(row => row.entry_id === 'persisted-attention');
+      assert.ok(entry);
+      attention.commands.setStatus(projectId, entry.entry_id, 'open', entry.revision);
+    });
+    return [selection.selection, [3], 'Recheck the saved facts.', title, 'Updated personal rule', 'open'];
+  }
+  return { ...pair, read, editAll };
+}
+
+test('AC-M1-04 each platform configuration has independent consent, restores through its owner and survives reopening', { timeout: 120_000 }, async t => {
+  const { source, target, read, editAll, space } = await platformConfigPair(t);
+  await source.sync.run();
+  await target.sync.run();
+  assert.deepEqual(source.sync.policy().selections, []);
+  const original = await read(target);
+  const expected = [configAppearance, [2], 'Check the saved facts.', configText, 'Personal test rule', 'done'];
+  assert.notDeepEqual(original, expected);
+  const selections: SyncSelection[] = [];
+  for (const [index, id] of configIds.entries()) {
+    const found = source.sync.status().collections.filter(row => row.selection.collection_id === id && row.group === 'platform');
+    assert.equal(found.length, 1, id);
+    selections.push(found[0]!.selection);
+    await source.sync.save({ ...source.sync.policy(), selections: [...selections] });
+    await source.sync.run();
+    await target.sync.run();
+    assert.equal(source.sync.status().error, null, id);
+    assert.equal(target.sync.status().error, null, id);
+    assert.deepEqual(await read(target), [...expected.slice(0, index + 1), ...original.slice(index + 1)], id);
+  }
+  const updated = await editAll();
+  await source.sync.run();
+  await target.sync.run();
+  assert.deepEqual(await read(target), updated);
+  await target.close();
+  const reopened = await runtimePersonalSync(target.home, space);
+  try {
+    assert.deepEqual(await read({ ...target, ...reopened }), updated);
+    assert.equal(reopened.sync.policy().selections.length, 6);
+  } finally { await reopened.close(); }
+});
+
+test('AC-M1-05 all six adapters reject unknown fields, oversize, physical paths and suspected credentials before owner writes', { timeout: 120_000 }, async t => {
+  const { source, target, owner, space, read } = await platformConfigPair(t);
+  const make = (side: typeof source) => {
+    const selections = side.sync.status().collections.filter(row => row.group === 'platform' && configIds.includes(row.selection.collection_id)).map(row => row.selection);
+    return personalConfigRegistrations({ home: side.home, actor: owner, spaceId: space.spaceId, authorize: noop,
+      catalog: side.withCatalog, readCatalog: side.readCatalog, selected: () => ({ revision: 1, selections }) });
+  };
+  const origins = make(source);
+  const attention = origins.find(row => row.selection.collection_id === 'attention')!;
+  const project = source.project();
+  const sourceOnlyPath = '/private/tmp/only-on-source';
+  await source.withCatalog({ homeDirectory: source.home }, catalog =>
+    catalog.commit(() => catalog.renameProject(project.project_id, sourceOnlyPath, owner, project.display_name)));
+  assert.throws(() => attention.withReplica(replica => replica.next()), 'attention does not publish a physical path used as the project title');
+  await source.withCatalog({ homeDirectory: source.home }, catalog =>
+    catalog.commit(() => catalog.renameProject(project.project_id, project.display_name, owner, sourceOnlyPath)));
+
+  const targetById = new Map(make(target).map(row => [syncNamespace(row.selection), row]));
+  const original = await read(target);
+  for (const origin of origins) {
+    const destination = targetById.get(syncNamespace(origin.selection))!;
+    const mutation = origin.withReplica(replica => replica.next());
+    assert.ok(mutation?.value, origin.title);
+    for (const [index, mark] of [
+      'unrecognized', 'x'.repeat(1024 * 1024), '/private/tmp/only-on-source', ['token', 'dummy-payload-value'].join('='), 'synthetic-only',
+    ].entries()) {
+      const value = structuredClone(mutation.value) as Record<string, unknown>;
+      if (index === 0) value.foreign = mark;
+      else if (index === 4) value.clientSecret = mark;
+      else if (origin.selection.collection_id === 'attention') {
+        const facts = value.facts as { attention_content: { inbox_entries: { subject_id: string }[] } };
+        facts.attention_content.inbox_entries[0]!.subject_id = mark;
+      } else if (origin.selection.collection_id === 'appearance') {
+        (value.selection as { skin: { id: string } }).skin.id = mark;
+      } else if (origin.selection.collection_id === 'surfaces') {
+        (value.data as Array<{ subject_id: string }>)[0]!.subject_id = mark;
+      } else if (origin.selection.collection_id === 'prompt_overrides') {
+        (value.data as { overrides: Array<{ body: string }> }).overrides[0]!.body = mark;
+      } else if (origin.selection.collection_id === 'blueprints') {
+        (value.data as { blueprint: { title: { literal: string } } }).blueprint.title.literal = mark;
+      } else (value.data as { instructions: string }).instructions = mark;
+      const event = { ...mutation, value, revision: index + 1, operationId: 'invalid-config-' + index };
+      assert.throws(() => destination.withReplica(replica => replica.receive(event)), origin.title);
+      assert.equal(destination.withReplica(replica => replica.counts().conflicts), 0, origin.title);
+      assert.deepEqual(await read(target), original, origin.title);
+    }
+  }
+});
+
+test('AC-M1-06 local space, another account, and a revoked account cannot read or write any platform configuration replica', { timeout: 120_000 }, async t => {
+  const { source, owner, space } = await platformConfigPair(t);
+  const local = mkdtempSync(join(tmpdir(), 'm1-b2-local-'));
+  t.after(() => rmSync(local, { recursive: true, force: true }));
+  ensureStorageSpace(local);
+  const selections = source.sync.status().collections.filter(row => row.group === 'platform' && configIds.includes(row.selection.collection_id)).map(row => row.selection);
+  for (const [home, actor, authorize] of [[local, owner, noop], [source.home, 'other-account', noop],
+    [source.home, owner, () => { throw new Error('TEST_LEASE_REVOKED'); }]] as const) {
+    const registrations = personalConfigRegistrations({ home, actor, spaceId: space.spaceId, authorize, catalog: source.withCatalog,
+      readCatalog: source.readCatalog, selected: () => ({ revision: 1, selections }) });
+    assert.equal(registrations.length, 6);
+    for (const registration of registrations) {
+      await assert.rejects(registration.refresh(), /不属于当前个人空间|TEST_LEASE_REVOKED/);
+      assert.throws(() => registration.withReplica(replica => replica.counts()), /不属于当前个人空间|TEST_LEASE_REVOKED/);
+      assert.throws(() => registration.withReplica(replica => replica.receive({ key: 'foreign', revision: 1, base: 0, operationId: 'forged', value: null })),
+        /不属于当前个人空间|TEST_LEASE_REVOKED/);
+    }
+  }
 });

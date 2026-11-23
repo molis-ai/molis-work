@@ -8,7 +8,8 @@ import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai
 import { APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION, appearanceSelectionActions as actions,
   type UiAppearanceApplyInput, type UiAppearanceSelection } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { APPEARANCE_STATE_PATH, createAppearanceOwner, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
+import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, createAppearanceOwner, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
+import { upgradeVersionedFile } from '@molis-ai/molis-work-storage';
 
 const person: ActionCallContext = { actor_id: "appearance-person", audience: "user", project_id: null,
   permissions: [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION] };
@@ -64,7 +65,7 @@ test("FSS-01 FSS-14 FSS-19 FSS-24 FSS-32 persist precise choices and actor recei
   assert.deepEqual(saved, { request_id: "restore", selection_revision: 2, selection: baseline });
   assert.deepEqual(revisions, [1, 2]);
   assert.equal(fs.statSync(setup.path).mode & 0o777, 0o600);
-  assert.equal(JSON.parse(fs.readFileSync(setup.path, "utf8")).schema_version, 1);
+  assert.equal(JSON.parse(fs.readFileSync(setup.path, "utf8")).schema_version, 2);
   assert.deepEqual(JSON.parse(fs.readFileSync(setup.localeFile, "utf8")), { schema_version: 1, locale: "en" });
   setup.close();
 
@@ -170,8 +171,8 @@ test("FSS-24 FSS-27 refuse future or unreadable state and an interface directory
   setup.owner.subscribe(revision => revisions.push(revision));
   fs.mkdirSync(dirname(setup.path));
   for (const [content, status, code] of [
-    ['{"schema_version":2,"unknown":"preserve"}', "too_new", "storage.store_too_new"],
-    ['{"schema_version":1,"selection_revision":1}', "unreadable", "storage.schema_version_mismatch"],
+    ['{"schema_version":3,"unknown":"preserve"}', "too_new", "storage.store_too_new"],
+    ['{"schema_version":2,"selection_revision":1}', "unreadable", "storage.schema_version_mismatch"],
     ["{incomplete", "unreadable", "storage.schema_version_mismatch"],
   ]) {
     fs.writeFileSync(setup.path, content);
@@ -189,6 +190,27 @@ test("FSS-24 FSS-27 refuse future or unreadable state and an interface directory
   await assert.rejects(client.invoke(actions.apply, restore("linked", 0)), { code: "storage.schema_version_mismatch" });
   assert.deepEqual(fs.readdirSync(outside), []);
   assert.deepEqual(revisions, []);
+});
+
+test('M1-B2 upgrades the checked-in v1 appearance golden and preserves the exact selection and undo receipt', async t => {
+  const setup = await isolatedHome(t);
+  const golden = fs.readFileSync(new URL('./fixtures/golden-homes/0.1.0/files/interface/state.json', import.meta.url), 'utf8');
+  const old = JSON.parse(golden);
+  assert.equal(old.schema_version, 1);
+  fs.mkdirSync(dirname(setup.path), { recursive: true });
+  fs.writeFileSync(setup.path, golden);
+  await assert.rejects(setup.client().invoke(actions.apply, restore('upgrade-required', 0)), { code: 'storage.upgrade_pending' });
+  assert.equal(fs.readFileSync(setup.path, 'utf8'), golden);
+  assert.deepEqual(upgradeVersionedFile(APPEARANCE_STATE_FILE, setup.path, setup.home), { from: 1, to: 2 });
+  assert.deepEqual(JSON.parse(fs.readFileSync(setup.path, 'utf8')), { ...old, schema_version: 2, sync: null });
+  const reopened = open(setup.home);
+  try {
+    const caller = { ...person, actor_id: old.applications[0].actor_id };
+    const receipt = old.applications[0].applied;
+    const view = await reopened.client(caller).invoke(actions.get, { request_id: receipt.request_id });
+    assert.deepEqual(view.selection, old.selection);
+    assert.deepEqual(view.recovery?.applied, receipt);
+  } finally { reopened.close(); }
 });
 
 test("FSS-27 read the real state after Storage fails before or after rename and signal only confirmed commits", async t => {

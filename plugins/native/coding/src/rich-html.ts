@@ -1,4 +1,3 @@
-import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
@@ -42,8 +41,8 @@ type PageBody = {
  * (`change-html.ts`). Only a route's answer gets it, after a round's fingerprint is taken, so a model, a workflow or MCP reading
  * the same action gets the words and the change alone. The body is the call's own, filled in as it is.
  */
-export function codingPageHtml<T>(body: T, request: { route_id: string; query: Readonly<Record<string, string>> }, locale: ActionLocale | undefined): T {
-  codingChangeHtml(body, request, locale);
+export function codingPageHtml<T>(body: T, request: { route_id: string; query: Readonly<Record<string, string>> }): T {
+  codingChangeHtml(body, request);
   const page = body as PageBody | undefined;
   if (Array.isArray(page?.runs)) for (const run of page.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.

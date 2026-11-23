@@ -507,10 +507,7 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
 }
 
 fn native_language_source(label: &str, url: Option<&Url>) -> bool {
-    label == "main"
-        && url.is_some_and(|url| {
-            is_molis_work_web_url(url) && url.username().is_empty() && url.password().is_none()
-        })
+    ipc_caller_allowed(label, url)
 }
 
 /// The main window publishes the interface language; the tray's menu follows it.

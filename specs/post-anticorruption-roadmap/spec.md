@@ -236,13 +236,13 @@
 |  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
-| [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（2026-11-21 零阻塞前置，[决定 60](reference/decisions.md#decision-60)） |
-|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（[决定 60](reference/decisions.md#decision-60)） |
-|  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（并入 `91-0b` 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
+| [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（已合入 [#2221](https://github.com/molis-ai/molis-work/pull/2221)，[决定 60](reference/decisions.md#decision-60)） |
+|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（已合入 [#2222](https://github.com/molis-ai/molis-work/pull/2222) 及补清小修，[决定 60](reference/decisions.md#decision-60)） |
+|  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（已随 `91-0b` [#2222](https://github.com/molis-ai/molis-work/pull/2222) 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
-|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5)（拆入 `91-0a` 先行落地 + `91-0b` 实装校准，[决定 60](reference/decisions.md#decision-60)） |
+|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5)（已随 `91-0a` [#2221](https://github.com/molis-ai/molis-work/pull/2221) + `91-0b` [#2222](https://github.com/molis-ai/molis-work/pull/2222) 与补清小修落稳，[决定 60](reference/decisions.md#decision-60)） |
 | [91B](reference/batches/91b.md) | [入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口](reference/batches/91b.md#batch-91b-item-1)（2026-11-18 加，紧接 91，不等 38～89，[决定 55](reference/decisions.md#decision-55)） |
 |  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
 |  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
@@ -261,13 +261,13 @@
 | [97](reference/batches/97.md) | [助理只汇报结果时，别占用继续干活的次数](reference/batches/97.md#batch-97-item-1) |
 |  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
 | [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
-| [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
+| [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1)（#2207 已合入） |
 | [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，#2186 已合入，[决定 58](reference/decisions.md#decision-58)） |
 |  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2)（#2188 已合入） |
 | [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，#2189 已合入，[决定 58](reference/decisions.md#decision-58)） |
 |  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2)（#2189 已合入） |
-| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2216 已合入） |
-|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2)（#2196 已合入） |
+| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2216、`#2229` 已合入） |
+|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2)（#2196、`#2226` 已合入） |
 | [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)；#2205 已合入 `1faf24dbf0`） |
 |  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2)（#2211 已合入 `7acf6bea7a`） |
 | [104](reference/batches/104.md) | [15+ 插件非 Agent 单次 AI 调用纳管](reference/batches/104.md#batch-104-item-1)（2026-11-20 加，前置 91、101-1，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |

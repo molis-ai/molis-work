@@ -10,15 +10,14 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createDiffPlugin, DIFF_LABELS, DIFF_PLUGIN_ID, diffActions, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { createTextStatsPlugin, TEXT_STATS_PLUGIN_ID, textStatsActions, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 import { escapeHtml, icon, installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { pagePack, pageText, withPageText } from "./fixtures/page-text.js";
+import { pagePack, pageText } from "./fixtures/page-text.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
-// specs/archive/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
+// specs/archive/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff draws its own `/state` answer for a
 // page, in the page's language, with their own words; the Host no longer decorates their route results.
 
 const SOURCE = "io.molis.work.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;
@@ -28,8 +27,6 @@ const snapshot = (text: string, workspaceId = "ws") => ({ workspace: { workspace
 const pagePrimitives = (locale: ActionLocale, ...plugins: string[]) => ({ escape: escapeHtml, text: pageText(locale, ...plugins), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
 /** The same for Diff: its sentences with values in them matched to its messages first, as the Host's Diff renderer did. */
 const diffPrimitives = (locale: ActionLocale) => ({ ...pagePrimitives(locale), text: diffPageText(locale) });
-const expectedTextStats = (view: TextStatsView, locale: ActionLocale) =>
-  withPageText(locale, ["text-stats"], () => renderTextStats({ view, primitives: pagePrimitives(locale, "text-stats") }));
 
 const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   manifest: {
@@ -44,7 +41,7 @@ const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   async start(context) { assert.ok(context.services?.outputs); source.outputs = context.services.outputs; return { kind: "app", views: [] }; },
 };
 
-type Platform = { invoke<Output>(definition: typeof diffState | typeof statsState, caller: Partial<ActionCallContext>): Promise<Output>; publish(text: string, workspaceId?: string): void; pinBefore(text: string): void };
+type Platform = { invoke<Output>(definition: typeof diffState, caller: Partial<ActionCallContext>): Promise<Output>; publish(text: string, workspaceId?: string): void; pinBefore(text: string): void };
 
 async function withPlatform(run: (project: Platform) => Promise<void>) {
   const directory = mkdtempSync(join(tmpdir(), "companion-state-html-")), databasePath = join(directory, "project.db");
@@ -55,16 +52,15 @@ async function withPlatform(run: (project: Platform) => Promise<void>) {
   const platform = createPluginPlatform({ actions, db: store.db, project_id: DEMO_PROJECT_ID, actor_id: ACTOR, artifacts, processItems: new ProcessItemsModule(options),
     ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   try {
-    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }]);
+    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
     platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "snapshots");
-    for (const [target, port] of [[DIFF_PLUGIN_ID, "after"], [TEXT_STATS_PLUGIN_ID, "text"]] as const) platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
-      target_plugin_id: target, target_port: port, source_plugin_id: SOURCE, source_port: "after", origin: "user" });
+    platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
+      target_plugin_id: DIFF_PLUGIN_ID, target_port: "after", source_plugin_id: SOURCE, source_port: "after", origin: "user" });
     await run({
-      invoke: async <Output>(definition: typeof diffState | typeof statsState, caller: Partial<ActionCallContext>) => {
-        const owner = definition.capability_id === diffState.capability_id ? "diff" : "text-stats";
-        const locale = caller.locale ?? "zh", packs = [pagePack(owner, "zh")];
-        if (locale !== "zh") packs.push(pagePack(owner, locale));
+      invoke: async <Output>(definition: typeof diffState, caller: Partial<ActionCallContext>) => {
+        const locale = caller.locale ?? "zh", packs = [pagePack("diff", "zh")];
+        if (locale !== "zh") packs.push(pagePack("diff", locale));
         const restore = installTextForTest({ locale, packs });
         try {
           return await actions.client.invoke({ actor_id: ACTOR, project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read"], ...caller }, definition, {}) as Output;
@@ -85,16 +81,12 @@ async function withPlatform(run: (project: Platform) => Promise<void>) {
   }
 }
 
-const diffState = { ...diffActions.state, provider_id: DIFF_PLUGIN_ID }, statsState = { ...textStatsActions.state, provider_id: TEXT_STATS_PLUGIN_ID };
+const diffState = { ...diffActions.state, provider_id: DIFF_PLUGIN_ID };
 
-test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plugin's own markup, in the page's language", async () => {
+test("PG062-01, PG062-02: a page's diff.state carries the plugin's own markup, in the page's language", async () => {
   await withPlatform(async project => {
-    // Nothing bound yet: each answers with its own empty block.
+    // Nothing bound yet: it answers with its own empty block.
     for (const locale of ["zh", "en"] as const) {
-      const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
-      assert.equal(stats.view.phase, "waiting");
-      assert.equal(stats.html, expectedTextStats(stats.view, locale));
-      assert.match(stats.html, /mw-empty[\s\S]*#icon-hash/);
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
       assert.equal(diff.view.message, "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异");
       const message = locale === "en" ? "Pin a “Before” and “After” version in the Materials reader first to view their differences here" : diff.view.message;
@@ -107,21 +99,15 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.equal(diff.view.phase, "ready");
       assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: diff.view, primitives: diffPrimitives(locale) }), `diff.state draws the same comparison the Host drew (${locale})`);
       assert.match(diff.html, /original &lt;b&gt;/); assert.doesNotMatch(diff.html, /original <b>/, "a line's text is escaped");
-      const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
-      assert.equal(stats.view.phase, "ready");
-      assert.equal(stats.html, expectedTextStats(stats.view, locale), `text-stats.state draws the same counts the Host drew (${locale})`);
-      if (locale === "en") for (const html of [diff.html, stats.html]) assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), HAN, "the English page gets English words");
+      if (locale === "en") assert.doesNotMatch(diff.html.replace(/<[^>]*>/g, ""), HAN, "the English page gets English words");
     }
-    // Coding's, Files' and Git's pages read both through their consumer declarations, so the call reaches them as a plugin's (#1018):
+    // Coding's and Git's pages read it through their consumer declarations, so the call reaches them as a plugin's (#1018):
     // the same markup in the page's language, where the Host used to draw it.
-    for (const definition of [diffState, statsState]) for (const locale of ["zh", "en"] as const) {
+    for (const definition of [diffState]) for (const locale of ["zh", "en"] as const) {
       const page = await project.invoke<{ html: string }>(definition, { locale });
       const consumed = await project.invoke<{ html: string }>(definition, { audience: "plugin", locale });
       assert.equal(consumed.html, page.html, `${definition.capability_id} draws the same markup for a consuming plugin's page (${locale})`);
     }
-    // No language from the page (no cookie, no Accept-Language): the plugins' Chinese, as the Host's default was.
-    const plain = await project.invoke<{ view: TextStatsView; html: string }>(statsState, {});
-    assert.equal(plain.html, expectedTextStats(plain.view, "zh"));
 
     project.publish("changed <b>\n", "another-workspace");
     const chinese = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale: "zh" });
@@ -134,29 +120,29 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
   });
 });
 
-test("PG062-03: a model, a workflow or an MCP client reads the view alone, and both outputs declare the optional markup (V-16)", async () => {
-  for (const definition of [diffActions.state, textStatsActions.state]) {
+test("PG062-03: a model, a workflow or an MCP client reads the view alone, and its output declares the optional markup (V-16)", async () => {
+  for (const definition of [diffActions.state]) {
     const schema = definition.action.output_schema as { properties: Record<string, unknown>; required: readonly string[]; additionalProperties: boolean };
     assert.deepEqual(schema.properties.html, { type: "string" }); assert.deepEqual(schema.required, ["view"]); assert.equal(schema.additionalProperties, false);
   }
   await withPlatform(async project => {
     project.pinBefore("a\n"); project.publish("b\n");
-    for (const audience of ["agent", "workflow", "mcp"] as const) for (const definition of [diffState, statsState]) {
+    for (const audience of ["agent", "workflow", "mcp"] as const) for (const definition of [diffState]) {
       const result = await project.invoke<Record<string, unknown>>(definition, { audience, locale: "en" });
       assert.deepEqual(Object.keys(result), ["view"], `${definition.capability_id} for ${audience} carries no page markup`);
     }
   });
 });
 
-test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results or a page's action answers", () => {
+test("PG062-04: the Host no longer names Diff to decorate their route results or a page's action answers", () => {
   // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
   const surface = ["project-plugin-stages.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
-  for (const name of ["DIFF_PLUGIN_ID", "TEXT_STATS_PLUGIN_ID", "renderTextStats", "decorateRuntimeResult", "decorateCompanionState"]) {
+  for (const name of ["DIFF_PLUGIN_ID", "decorateRuntimeResult", "decorateCompanionState"]) {
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }
-  // A plugin page's action (Files, Git or Coding reading diff.state or text-stats.state) returns what the plugin drew; the Host
+  // A plugin page's action (Git or Coding reading diff.state) returns what the plugin drew; the Host
   // adds nothing after the call (tests/security-invariants-plugin-pages.test.ts SYS-15-U5 reads the markup through that path).
   const pageActions = readFileSync(new URL("../apps/local-host/src/plugin-page-http.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(pageActions, /coding-surface|decorateCompanionState|renderDiff|renderTextStats/u,
+  assert.doesNotMatch(pageActions, /coding-surface|decorateCompanionState|renderDiff/u,
     "plugin-page-http.ts returns a page action's answer as the plugin drew it");
 });

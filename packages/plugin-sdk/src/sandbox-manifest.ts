@@ -122,6 +122,8 @@ export interface SandboxManifestInput {
    * writes its checked target scope. Whether the Home takes it is the install's to decide (S-80), not the form's.
    */
   runtime?: PluginManifest['runtime'];
+  /** Optional scene declared by this plugin for memory classification and Skill binding (`memory_scene`). */
+  memoryScene?: PluginManifest['memory_scene'];
   /** The icon of the plugin's page in the navigation; absent means the Host's default. */
   icon?: PluginIconName;
   /** Validated contract effects; the Manifest's optional permission rows are derived from them (`sandboxDerivedPermissions`). */
@@ -250,6 +252,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ...sandboxUpgradeFields(input),
     ...(input.stateMachines === undefined ? {} : { state_machines: input.stateMachines }),
     ...(input.runtime ? { runtime: input.runtime } : {}),
+    ...(input.memoryScene === undefined ? {} : { memory_scene: input.memoryScene }),
     ...sandboxResources(input),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(input.effects)],
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },

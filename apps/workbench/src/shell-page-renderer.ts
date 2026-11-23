@@ -105,8 +105,6 @@ export interface WorkbenchShellPageView {
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
    */
   plugin_directory?: PluginDirectory;
-  /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
-  developer_mode?: boolean;
   project: ShellProject | null;
   projects: ShellProject[];
   route_prefix: string;
@@ -230,7 +228,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell, sideTabs, {
         enabled: enabledPlugins,
-        rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
+        rail: renderPluginRail(primitives, enabledPlugins, directory, { marksFromHost: Boolean(view.plugin_directory) }),
         corner: renderProjectCorner(view.project ?? null, projectOptions, desktopShell, "__PROJECT_INDEX__"),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
       })}
@@ -251,7 +249,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${page?.html ?? ""}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="${uiText("workbench.artifacts.navigation-name")}" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list mw-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div>${renderHelpDeclarationScript(workbenchSurfaceHelpDeclaration("artifacts"))}</section>
             ${view.project ? renderMaterialsStage() : ""}${renderSessionsStage(view.project?.project_id)}
-            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${uiText("workbench.shell-page-renderer.plugin-market")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
+            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${uiText("workbench.shell-page-renderer.plugin-market")}" hidden>${renderPluginMarket(primitives, { marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
             ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, readText)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
             ${declared.html.map(defer).join("")}

@@ -77,18 +77,18 @@ const control = (fields: Fields, errors: Partial<Record<Field, string>>, name: E
   return rows ? `<textarea class="mw-textarea${name === "body" ? " au-body" : ""}" data-slot="textarea" rows="${rows}" ${common}>${esc(fields[name])}</textarea>`
     : `<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${esc(fields[name])}" ${common}>`;
 };
-const toggles = (label: string, name: "applies" | "scope", current: string, items: ReadonlyArray<readonly [string, string]>, disabled: boolean) =>
+const toggles = (label: string, name: "applies" | "scope", current: string, items: ReadonlyArray<readonly [string, string]>, disabled: boolean, error?: string) =>
   `<div class="au-field"><span class="mw-field__label">${esc(label)}</span>${renderToggleGroup({
     label, items: items.map(([value, word]) => ({ value, label: word, current: value === current, attrs: { ...act(`au-${name}`, value), disabled } })),
-  })}</div>`;
+  })}${error ? `<p class="mw-field__error" id="au-${name}-error" data-au-error="${name === "applies" ? "applies_to" : name}">${esc(error)}</p>` : ""}</div>`;
 
 /** A draft's form: the same fields a Skill has, with the body's count. */
-export function fieldsMarkup(fields: Fields, errors: Partial<Record<Field, string>>, limits: SkillWritingLimits, disabled: boolean): string {
+export function fieldsMarkup(fields: Fields, errors: Partial<Record<Field, string>>, limits: SkillWritingLimits, disabled: boolean, scope?: SkillScope): string {
   const count = countOf(fields.body, limits);
   return `${field(errors, "name", say("name"), say("name-hint"), control(fields, errors, "name", 0, disabled))}
     ${field(errors, "description", say("when"), say("when-hint"), control(fields, errors, "description", 3, disabled))}
     ${field(errors, "when_not_to_use", say("when-not"), say("when-not-hint"), control(fields, errors, "when_not_to_use", 2, disabled))}
-    ${toggles(say("for"), "applies", fields.applies_to, [["assistant", sceneWord("assistant")], ...skillScenes().map(row => [row.scene, row.name] as [string, string]), ["both", bothWord()]], disabled)}
+    ${toggles(say("for"), "applies", fields.applies_to, [["assistant", sceneWord("assistant")], ...skillScenes(scope).map(row => [row.scene, row.name] as [string, string]), ["both", bothWord(scope)]], disabled, errors.applies_to)}
     <div class="mw-field au-field"><label class="mw-field__label" for="au-body">${esc(say("body"))}</label>${control(fields, errors, "body", 16, disabled)}${
       renderTextCount({ hint: say("body-hint"), hintId: "au-body-hint", count: count.text, over: count.over, attrs: { "data-au-count": true } })}${errors.body ? `<p class="mw-field__error" id="au-body-error" data-au-error="body">${esc(errors.body)}</p>` : ""}</div>
     <details class="au-more"${fields.argument_hint || errors.argument_hint ? " open" : ""}><summary>${esc(say("more"))}</summary>${field(errors, "argument_hint", say("hint"), say("hint-hint"), control(fields, errors, "argument_hint", 0, disabled))}</details>`;

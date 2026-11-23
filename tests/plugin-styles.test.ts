@@ -153,7 +153,7 @@ test("RAC-759 a frame's page starts with its plugin's sheet and the sheets of th
   const clients = pluginSurfaceClients(packs);
   for (const client of clients) {
     const pack = packs.find((one) => one.project_plugin_id === client.id)!;
-    const wanted = [client.id, ...(pack.stylesheetUses ?? [])].filter((id) => pluginOnDemandStylesheet(id, packs) !== null);
+    const wanted = [client.id, ...(pack.stylesheetUses ?? [])].filter((id) => pluginFrameServedStylesheet(id, packs) !== null);
     assert.deepEqual([...client.styles], [...new Set(wanted)], `${client.id}: its own sheet first, then the used ones, only where a sheet exists`);
   }
   const coding = clients.find((client) => client.id === "coding")!;
@@ -435,6 +435,14 @@ test("102-1 PEQ plugin-base stylesheet ships all core SDK primitives and plugin-
   };
   const featureOnlyServed = pluginFrameServedStylesheet("acme-feature-only", [featureOnlyPack]);
   assert.ok(featureOnlyServed && featureOnlyServed.includes(".mw-detail"), "102-1 PEQ: stylesheet-less framed plugin with frameStyleFeatures still gets served");
+  const sharedOnlyPack: BuiltinPluginWorkbenchPack = {
+    project_plugin_id: "acme-shared-only",
+    contributions: [],
+    clientFactory: "() => {}",
+    stylesheet: "@keyframes acme-spin { from { opacity: 0; } to { opacity: 1; } } .pc-acme-note { color: var(--ink); }",
+  };
+  const sharedOnlyServed = pluginFrameServedStylesheet("acme-shared-only", [sharedOnlyPack]);
+  assert.ok(sharedOnlyServed && sharedOnlyServed.includes("@keyframes acme-spin") && sharedOnlyServed.includes(".pc-acme-note"), "102-1: framed plugin whose stylesheet splits entirely into shared rules still receives its own rules inside its opaque frame");
   // Regression guards from independent review + visual-compare + #2218 parity: expanded plugin stage matches full-stage single-record rule with no undefined --immersive-sidebar-width, dark .mw-select preserves chevron sizing/position against generic dark select shorthand, and picker trigger starts with mw- so [class^="mw-"] focus-ring rules match.
   assert.ok(base.includes('.plugin-stage-shell[data-expanded="true"]') && !base.includes("--immersive-sidebar-width"), "102-1: plugin-base expanded stage matches #2218 single-record rule without undefined --immersive-sidebar-width");
   for (const sheet of [base, renderMolisWorkWorkbenchStylesheet()]) {
@@ -446,20 +454,3 @@ test("102-1 PEQ plugin-base stylesheet ships all core SDK primitives and plugin-
   assert.match(selectMenuSrc, /"mw-select-picker__trigger " \+ select\.className/, "102-1: select-picker trigger must start with mw- class for [class^='mw-'] focus-visible parity");
 });
 
-test("102-1 text-stats declares stylesheetPrefixes so its .stats-* rules ship in text-stats.css instead of the shared workbench sheet", async () => {
-  const textStats = packs.find((pack) => pack.project_plugin_id === "text-stats")!;
-  assert.deepEqual([...(textStats.stylesheetPrefixes ?? [])], ["stats-"]);
-  const own = pluginOnDemandStylesheet("text-stats", packs);
-  assert.ok(own && own.includes(".stats-counts") && own.includes(".stats-origin"), "text-stats.css carries its own .stats-* rules");
-  for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
-    assert.doesNotMatch(sheet, /\.stats-(?:counts|origin)\b/u, "shared sheets no longer carry text-stats .stats-* rules");
-  }
-  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "text-stats", "Text Stats")), `${link("text-stats")}<p>x</p>`);
-  const assets = createLocalWebAssets({ ptyClientFilePath: () => "/missing-pty-client.js", renderer: {
-    renderMolisWorkWorkbenchClientScript: () => "", renderMolisWorkWorkbenchStylesheet: () => "", renderMolisWorkArrivalStylesheet: () => "", renderMolisWorkSettingsStylesheet: () => "" } });
-  const served = await serve(assets, "/assets/molis-work-plugins/text-stats.css");
-  assert.equal(served.status, 200);
-  assert.match(served.type, /^text\/css/);
-  assert.match(served.body, /\.stats-counts\b/u);
-  assert.match(served.body, /\.stats-origin\b/u);
-});

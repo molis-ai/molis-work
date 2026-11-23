@@ -818,12 +818,6 @@
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/text-stats/src/ui.ts",
-    "name": "io.molis.work.native.text-stats.ui.v1",
-    "values": { "io.molis.work.native.text-stats.ui.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
     "file": "plugins/native/todo/src/ui.ts",
     "name": "io.molis.work.native.todo.ui.v1",
     "values": { "io.molis.work.native.todo.ui.v1": 1 },

@@ -1,5 +1,5 @@
 import { skillEntriesOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { builtinScenePlugins } from "../memory/memory-plugin-scene.js";
+import { builtinActiveSkillScenes, skillSceneChoicesOf, type ActiveSkillScene } from "../memory/memory-plugin-scene.js";
 import type { SkillDisplayWords } from "./skill-display-words.js";
 import { resolveCategoryPlaceholders, type CategoryAccounts } from "./skill-connector-categories.js";
 import { createHash } from "node:crypto";
@@ -9,11 +9,11 @@ import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/pla
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredFields, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
-  type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
+  type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSceneChoice, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
 import { skillSettingReceipt } from "./skill-setting-receipt.js";
-import type { KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
+import { KIT_LIMITS, type KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
 
 /** Ephemeral projection of the existing installation and Agent definition owners, never a second register. */
 export interface CatalogSkill {
@@ -35,7 +35,7 @@ export interface CatalogSkill {
 export interface SkillCatalogPorts {
   definitions: AgentDefinitions;
   /** After asynchronous preparation, read the current grants once and call the consumer synchronously with them. */
-  withSkills<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result>;
+  withSkills<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[], scenes?: ReadonlyMap<string, ActiveSkillScene>) => Result): Promise<Result>;
   resource(skill: CatalogSkill, path: string): Uint8Array;
   /** Read after an await, once per action: the ledger's current pins, for `assertPublisher`. */
   publishers(): ReadonlyMap<string, PluginPublisherPin>;
@@ -126,15 +126,15 @@ export class SkillCatalog {
     return undefined;
   }
 
-  private withSnapshot<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[], settings: ReadonlyMap<string, SkillSetting>) => Result): Promise<Result> {
-    return this.ports.withSkills(caller, skills => {
+  private withSnapshot<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[], settings: ReadonlyMap<string, SkillSetting>, scenes: ReadonlyMap<string, ActiveSkillScene>) => Result): Promise<Result> {
+    return this.ports.withSkills(caller, (skills, scenes) => {
       const settings = new Map(this.ports.definitions.skills.settings(scopeOf(caller)).map(row => [settingKey(row.install_id, row.skill_id), row]));
-      return use(skills, settings);
+      return use(skills, settings, scenes ?? builtinActiveSkillScenes());
     });
   }
 
-  list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[] }> {
-    return this.withSnapshot(caller, (skills, settings) => {
+  list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[]; scenes?: SkillSceneChoice[] }> {
+    return this.withSnapshot(caller, (skills, settings, scenes) => {
       const latest = this.ports.definitions.skills.latestUses(scopeOf(caller)), counted = this.ports.definitions.skills.usesByCaller(scopeOf(caller));
       const rows = skills.filter(skill => listable(skill, caller, input.applies_to)).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
         .map(row => {
@@ -142,7 +142,8 @@ export class SkillCatalog {
           return { ...row, ...used ? { last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : {}, ...uses ? { recent_uses: uses } : {} };
         })
         .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state)));
-      return { skills: this.ports.decorate ? this.ports.decorate(caller, skills, rows) : rows };
+      const listed = this.ports.decorate ? this.ports.decorate(caller, skills, rows) : rows;
+      return caller.audience === "user" && !caller.skill_round ? { skills: listed, scenes: skillSceneChoicesOf(scenes) } : { skills: listed };
     });
   }
 
@@ -216,9 +217,11 @@ export class SkillCatalog {
    * `skills.catalog.list@1` gives it, in its installation's pack, with the uses on record. Who it comes from is the install record's.
    */
   async kitReport(caller: ActionCallContext): Promise<KitReport> {
-    const { skills } = await this.list(caller, {}), counts = this.ports.definitions.skills.useCounts();
-    const english = caller.locale === "en", scenePlugins = builtinScenePlugins();
-    const forWhom = (entry: string) => entry === "assistant" ? (english ? "Assistant" : "助理") : scenePlugins.get(entry)?.name ?? entry;
+    const { skills, scenes } = await this.list(caller, {}), counts = this.ports.definitions.skills.useCounts();
+    const english = caller.locale === "en";
+    const active = scenes ?? skillSceneChoicesOf(builtinActiveSkillScenes());
+    const sceneNames = new Map(active.map(row => [row.scene, row.name]));
+    const forWhom = (entry: string) => entry === "assistant" ? (english ? "Assistant" : "助理") : sceneNames.get(entry) ?? entry;
     return { entries: skills.map(skill => {
       const used = counts.get(settingKey(skill.ref.install_id, skill.ref.skill_id));
       return { kind: "skill" as const, entry_id: settingKey(skill.ref.install_id, skill.ref.skill_id).replace("\0", "/"), name: skill.name, description: skill.description,
@@ -226,13 +229,13 @@ export class SkillCatalog {
         version: { label: english ? `v${skill.ref.version}` : `第 ${skill.ref.version} 版`, ...skill.based_on?.newer_version
           ? { change: { kind: "default_updated" as const, base_version: skill.based_on.source.version, default_version: skill.based_on.newer_version } } : {} },
         declares: { tools: skill.tools.slice(0, 64), permissions: [], connector_categories: skill.connector_categories.slice(0, 64) }, scope: skill.pack.scope,
-        where: skillEntriesOf(skill.applies_to, [...scenePlugins.keys()]).map(forWhom), availability: skill.availability.available
+        where: skillEntriesOf(skill.applies_to, active.map(row => row.scene)).slice(0, KIT_LIMITS.where).map(forWhom), availability: skill.availability.available
           ? { available: true as const } : { available: false as const, reason: skill.availability.reason, ...(skill.availability.detail ? { detail: skill.availability.detail } : {}) },
         usage: used ? { kind: "recent" as const, count: used.count, last_at: used.last_at, kept: { rows_per_key: USES_KEPT } } : { kind: "none" as const },
         export: skill.pack.trust === "host" ? "reference" as const : "package" as const, skill,
         source: { kind: "plugin" as const, plugin_id: skill.pack.plugin_id, title: skill.pack.title, version: skill.pack.version, install_id: skill.ref.install_id,
           publisher_label: skill.pack.publisher_label, trust: skill.pack.trust }, pack: `plugin:${skill.ref.install_id}` };
-    }) };
+    }), scenes: active };
   }
 
   /** The trusted round owner calls this only with its acceptance receipt; reads alone never count as use. */

@@ -13,7 +13,7 @@ import { SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from 
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
   type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
 import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
-import { skillAudienceDeclared } from './memory/memory-plugin-scene.js';
+import { builtinActiveSkillScenes, skillAudienceActive } from './memory/memory-plugin-scene.js';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { t } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
@@ -34,7 +34,7 @@ interface Who { project_id: string; actor_id: string }
 /** What a save writes: the fields, in a scope, as a new Skill or the next version of one of the person's own. */
 type SkillSave = SkillAuthoredFields & { scope: SkillScope; skill_id?: string };
 
-export interface SkillAuthoringPorts extends Pick<SkillImportPorts, 'installed' | 'publisherKeyId' | 'readSealedPublisherKeyId' | 'retained' | 'retainedOf' | 'sign' | 'install'> {
+export interface SkillAuthoringPorts extends Pick<SkillImportPorts, 'installed' | 'publisherKeyId' | 'readSealedPublisherKeyId' | 'retained' | 'retainedOf' | 'sign' | 'install' | 'activeScenes'> {
   /** Takes the scope's package of own Skills off, as the settings door's uninstall does; the caller has asked that door's entry. */
   uninstall(scope: SkillScope, who: Who, caller: ActionExecutionContext): Promise<void>;
   /** The publisher signature the scope's installed package of own Skills is recorded under; absent when none is installed. */
@@ -130,6 +130,10 @@ export class SkillAuthoringService {
    */
   async save(input: SkillSave, who: Who, caller: ActionExecutionContext, complete?: (skillId: string) => void): Promise<SkillAuthoredSaveResult> {
     const fields = checkedFields(input);
+    const active = this.ports.activeScenes ? await this.ports.activeScenes(input.scope, who.project_id, caller.locale) : builtinActiveSkillScenes();
+    if (!skillAudienceActive(fields.applies_to, active)) {
+      throw skillErrors.authored_invalid('「给谁用」所选的场景当前不可用，请改选其他对象', { field: 'applies_to' });
+    }
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
     if (others.some(skill => skill.declaration.name.trim() === fields.name)) throw skillErrors.authored_name_taken(`你已经有一个叫「${fields.name}」的技能，换个名称`, { field: 'name' });
@@ -200,7 +204,7 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
  */
 export async function draftSkill(intent: string, complete: HostTextForCommit | undefined, authority: HostTextRequestOptions | undefined,
   resolve: (prompt: InstructedPrompt) => string = value => composeInstructedPrompt(value.instruction.body, value.data),
-  declared: (appliesTo: unknown) => boolean = appliesTo => skillAudienceDeclared(appliesTo)): Promise<SkillAuthoredFields> {
+  declared: (appliesTo: unknown) => boolean = appliesTo => skillAudienceActive(appliesTo, builtinActiveSkillScenes())): Promise<SkillAuthoredFields> {
   const asked = intent.trim();
   if (!asked || asked.length > SKILL_DRAFT_INTENT_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_DRAFT_INTENT_CHARS} 字说想让这个技能做什么`, { field: 'intent' });
   if (!complete) throw textModelRequired('起草技能');

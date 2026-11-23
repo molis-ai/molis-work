@@ -44,10 +44,11 @@ test("Run review reads refresh original receipts and isolate project, session, r
     { agentHost: () => host, projectId: (context: { project_id: string }) => context.project_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
   const handler = handlers.get(agentHostCapabilities.readRunReviews.capability_id)!, invocation = ownerInvocation();
   const read = (source: object, input: unknown[]) => handler(source, input, invocation), context = { project_id: "project-a" };
-  const base = { reference: { owner: { kind: "agent-review" as const, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "install" }, id: "owned", version: "proposal-1" }, review_id: "owned", project_id: "project-a", plugin_id: "io.molis.work.coding", run,
+  const base = { reference: { owner: { kind: "agent-review" as const, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "install-1" }, id: "owned", version: "proposal-1" }, review_id: "owned", project_id: "project-a", plugin_id: "io.molis.work.coding", run,
     kind: "text-edit" as const, document: { kind: "text-edit" as const, target_path: "a.txt", exists: true, before_text: "before", after_text: "after" }, requested_at: "2026-09-22T00:00:00Z", expires_at: null };
   for (const request of [base, { ...base, review_id: "other-session", run: { ...run, session_id: "elsewhere" } },
     { ...base, review_id: "other-run", run: { ...run, run_id: "elsewhere" } }, { ...base, review_id: "other-plugin", plugin_id: "foreign" }, { ...base, review_id: "other-board", project_id: "foreign" }]) host.reviews.request({ ...request, reference: { ...base.reference, id: request.review_id, owner: { ...base.reference.owner, project_id: request.project_id, plugin_id: request.plugin_id } } });
+  host.reviews.request({ ...base, review_id: "other-install", reference: { ...base.reference, id: "other-install", owner: { ...base.reference.owner, install_id: "install-2" } } });
   await assert.rejects(read({ project_id: "foreign" }, [session, run]));
   await assert.rejects(read(context, [session, { ...run, session_id: "foreign" }]));
   assert.equal(refreshes, 0);
@@ -62,7 +63,7 @@ test("Run review reads refresh original receipts and isolate project, session, r
 });
 
 // specs/post-anticorruption-roadmap/reference/batches/99.md#acceptance DEL-07: a round's reviews also carry the reviewed integrations that name that round as
-// their source (they have no run of their own); another round's, another session's or another plugin's integration does not come along.
+// their source (they have no run of their own); another round's, another session's, another plugin's, another installation's, another project's or a non-integration review does not come along.
 test("DEL-07: run reviews carry the integrations sourced from that round, and only those", async () => {
   const host = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), adapter = readOnlyAdapter("reviews"), session = { runtime_id: "reviews", session_id: "session-1" }, run = { session_id: "session-1", run_id: "r" };
   const original = adapter.readSession.bind(adapter);
@@ -70,10 +71,10 @@ test("DEL-07: run reviews carry the integrations sourced from that round, and on
   const handlers = new Map<string, Function>();
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: (context: { project_id: string }) => context.project_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
-  const read = () => handlers.get(agentHostCapabilities.readRunReviews.capability_id)!({ project_id: "project-a" }, [session, run], ownerInvocation());
-  const owner = { kind: "agent-review" as const, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "install" };
-  const integration = (id: string, source: { session_id: string; run_id: string }, plugin_id = "io.molis.work.coding") => ({
-    reference: { owner: { ...owner, plugin_id }, id, version: "proposal-1" }, review_id: id, project_id: "project-a", plugin_id, run: null,
+  const read = (invocation = ownerInvocation()) => handlers.get(agentHostCapabilities.readRunReviews.capability_id)!({ project_id: "project-a" }, [session, run], invocation);
+  const owner = { kind: "agent-review" as const, project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "install-1" };
+  const integration = (id: string, source: { session_id: string; run_id: string }, plugin_id = "io.molis.work.coding", install_id = "install-1", project_id = "project-a") => ({
+    reference: { owner: { ...owner, project_id, plugin_id, install_id }, id, version: "proposal-1" }, review_id: id, project_id, plugin_id, run: null,
     operation: { operation_id: `op-${id}`, workspace_id: "work", kind: "git-integration" as const }, kind: "git-integration" as const,
     document: { kind: "git-integration" as const, target_directory: "/work", source: { ...source, subagent_id: "child", branch: "writer/child", base_commit: "abc", directory: "/work-child" },
       files: [{ path: "gone.ts", before_text: "was\n", after_text: null, before_mode: "100644" as const, after_mode: null }] },
@@ -81,10 +82,20 @@ test("DEL-07: run reviews carry the integrations sourced from that round, and on
   host.reviews.request({ reference: { owner, id: "edit", version: "proposal-1" }, review_id: "edit", project_id: "project-a", plugin_id: "io.molis.work.coding", run,
     kind: "text-edit", document: { kind: "text-edit", target_path: "a.txt", exists: true, before_text: "before", after_text: "after" }, requested_at: "2026-11-21T00:00:00Z", expires_at: null });
   for (const request of [integration("ours", run), integration("other-run", { ...run, run_id: "earlier" }), integration("other-session", { ...run, session_id: "elsewhere" }),
-    integration("other-plugin", run, "foreign")]) host.reviews.request(request, { plugin_id: request.plugin_id, install_id: "install", holds: () => true });
+    integration("other-plugin", run, "foreign"), integration("other-install", run, "io.molis.work.coding", "install-2"),
+    integration("other-project", run, "io.molis.work.coding", "install-1", "project-b")])
+    host.reviews.request(request, { plugin_id: request.plugin_id, install_id: request.reference.owner.install_id, holds: () => true });
+  host.reviews.request({ reference: { owner, id: "worktree-create", version: "proposal-1" }, review_id: "worktree-create", project_id: "project-a", plugin_id: "io.molis.work.coding", run: null,
+    operation: { operation_id: "op-wt", workspace_id: "work", kind: "git-worktree" as const }, kind: "tool-operation",
+    document: { kind: "tool-operation", tool: "git-worktree-create", summary: "create", fields: [] }, requested_at: "2026-11-21T00:00:00Z", expires_at: null },
+    { plugin_id: "io.molis.work.coding", install_id: "install-1", holds: () => true });
   const rows = await read();
   assert.deepEqual(rows.map((row: { request: { review_id: string } }) => row.request.review_id), ["edit", "ours"]);
   assert.equal(rows[1].request.run, null); assert.equal(rows[1].receipt.status, "pending");
+  // Revoked or cancelled caller is refused before returning any integration review.
+  let active = true;
+  host.reviews.registerRefresh(async () => { active = false; });
+  await assert.rejects(read({ ...ownerInvocation(), assertAuthorityCurrent() { if (!active) throw new Error("revoked"); } }), /revoked/);
 });
 
 function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {

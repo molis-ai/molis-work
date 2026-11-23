@@ -1,7 +1,7 @@
 import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage } from "./dom.js";
-import type { PagePorts, Translate } from "./types.js";
+import type { PagePorts } from "./types.js";
 
 interface ChangeFile {
   readonly path: string;
@@ -130,13 +130,13 @@ function close(r: Reader) {
   r.reader.parentElement?.removeAttribute("data-coding-reading");
 }
 
-const lineLabel = (_L: Translate, remark: Remark) => remark.side === "before" ? uiText.text("coding.change.line-before", { line: remark.line }) : uiText.text("coding.change.line-after", { line: remark.line });
+const lineLabel = (remark: Remark) => remark.side === "before" ? uiText.text("coding.change.line-before", { line: remark.line }) : uiText.text("coding.change.line-after", { line: remark.line });
 
 /** One remark: where it is, its text, and the button that drops it. */
 function remarkRow(r: Reader, remark: Remark, n: number) {
-  const { translate: readText, lifetime } = r.ports, file = r.value?.change.files[remark.change_index];
+  const { lifetime } = r.ports, file = r.value?.change.files[remark.change_index];
   const row = el("div", "", "coding-feedback-item"), head = el("div", "", "coding-feedback-where");
-  const where = el("span", uiText.text("coding.change.where", { path: file?.path || uiText.text("coding.change.original-file"), write: remark.change_index + 1, line: lineLabel(readText, remark) }));
+  const where = el("span", uiText.text("coding.change.where", { path: file?.path || uiText.text("coding.change.original-file"), write: remark.change_index + 1, line: lineLabel(remark) }));
   where.title = where.textContent ?? "";
   const input = el("textarea", "", "mw-textarea"), remove = el("button", "", "mw-btn mw-btn--ghost coding-feedback-remove");
   input.rows = 2;
@@ -177,8 +177,8 @@ function renderComments(r: Reader) {
   });
 }
 
-/** The state of one write: tone, words, and the ring the page draws for it. */
-function stateOf(_L: Translate, file: ChangeFile): readonly [string, string, string] {
+/** The state of one change: tone, words, and the ring the page draws for it. */
+function stateOf(file: ChangeFile): readonly [string, string, string] {
   // A removal is listed only once it was confirmed: it reads as done, not as written.
   const tones: Readonly<Record<string, readonly [string, string, string]>> = { applied: ["done", uiText.text(file.kind === "deleted" ? "coding.change.applied-removal" : "coding.change.applied"), "done"], failed: ["failed", uiText.text("coding.change.apply-failed"), "failed"], unknown: ["attention", uiText.text("coding.change.unknown"), "verify"], "not-applied": ["idle", uiText.text("coding.change.not-applied"), "idle"] };
   const decisions: Readonly<Record<string, readonly [string, string]>> = { rejected: [uiText.text("coding.change.rejected"), "cancelled"], cancelled: [uiText.text("coding.state.cancelled"), "cancelled"], expired: [uiText.text("coding.change.expired"), "stale"], pending: [uiText.text("coding.change.pending"), "approval"] };
@@ -208,8 +208,8 @@ const pathLabel = (path: string) => {
   return box;
 };
 
-function stateChip(readText: Translate, file: ChangeFile) {
-  const [tone, label, ring] = stateOf(readText, file), node = el("span", label, "coding-change-state");
+function stateChip(file: ChangeFile) {
+  const [tone, label, ring] = stateOf(file), node = el("span", label, "coding-change-state");
   node.dataset.tone = tone;
   node.dataset.mwState = ring;
   return node;
@@ -229,16 +229,16 @@ function pickButton(r: Reader, runValue: string, n: number) {
 
 /** A path changed once: one button for the file. */
 function singleFile(r: Reader, runValue: string, path: string, n: number, file: ChangeFile) {
-  const readText = r.ports.translate, button = pickButton(r, runValue, n);
+  const button = pickButton(r, runValue, n);
   button.setAttribute("aria-pressed", String(n === r.index));
   button.classList.add("is-file");
-  button.append(fileIcon(), pathLabel(path), el("span", kindLabel(file.kind), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
+  button.append(fileIcon(), pathLabel(path), el("span", kindLabel(file.kind), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(file));
   return button;
 }
 
 /** A path written more than once: its header, the net change when it can be shown, and each write. */
 function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], path: string, list: readonly number[], group: HTMLElement) {
-  const { translate: readText, lifetime } = r.ports;
+  const { lifetime } = r.ports;
   const head = el("div", "", "coding-change-file-head"), writes = el("span", uiText.text("coding.change.writes", { count: list.length }), "coding-change-kind");
   const netGroup = (r.value?.net_groups || []).find(item => item.path === path);
   if (netGroup && !netGroup.available && netGroup.reason) writes.title = netGroup.reason;
@@ -261,7 +261,7 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     if (!file) return;
     const button = pickButton(r, runValue, n);
     button.append(el("span", file.kind === "deleted" ? kindLabel(file.kind)
-      : uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + kindLabel(file.kind) : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
+      : uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" ? " · " + kindLabel(file.kind) : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(file));
     group.append(button);
   });
 }
@@ -274,7 +274,6 @@ function renderFiles(r: Reader, files: readonly ChangeFile[], runValue: string) 
   for (const [path, list] of groups) {
     const first = files[list[0] ?? 0], group = el("div", "", "coding-change-file");
     if (!first) continue;
-    group.dataset.kind = first.kind;
     if (list.length === 1) group.append(singleFile(r, runValue, path, list[0] ?? 0, first));
     else manyWrites(r, runValue, files, path, list, group);
     nav.append(group);

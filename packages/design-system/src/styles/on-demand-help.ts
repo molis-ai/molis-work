@@ -7,7 +7,9 @@
 export const ON_DEMAND_HELP_PLUGIN_STYLES = `
   .mw-facts, .mw-help-content, .mw-help-section, .mw-help-section__list, .mw-help-next, .mw-help-card { display: flex; flex-direction: column; }
   .mw-fact-row, .mw-help-card__head, .mw-help-card__foot, .mw-help-tip, .mw-help-tip__actions { display: flex; align-items: center; }
-  .mw-facts { margin: 16px 0; padding: 12px 14px; border-radius: var(--r-card); border: 1px solid var(--line); background: var(--surface-soft); gap: 8px; }
+  .mw-facts, .mw-help-next, .mw-help-tip { border: 1px solid var(--line); background: var(--surface-soft); }
+  .mw-help-card__next, .mw-help-card__foot { flex: none; border-top: 1px solid var(--line); background: var(--surface-soft); }
+  .mw-facts { margin: 16px 0; padding: 12px 14px; border-radius: var(--r-card); gap: 8px; }
   .mw-facts__heading { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
   .mw-fact-row { gap: 10px; font-size: 13px; line-height: 1.45; color: var(--ink); }
   .mw-fact-row__icon { width: 22px; height: 22px; border-radius: 6px; display: inline-grid; place-items: center; flex: none; background: var(--rail); color: var(--ink-soft); svg { width: 14px; height: 14px; } }
@@ -21,7 +23,7 @@ export const ON_DEMAND_HELP_PLUGIN_STYLES = `
   .mw-help-section__heading, .mw-help-next__title { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
   .mw-help-section__body { margin: 0; color: var(--ink); }
   .mw-help-section__list { margin: 0; padding-left: 18px; gap: 4px; }
-  .mw-help-next { margin-top: 4px; padding: 12px 14px; border-radius: var(--r-row); background: var(--surface-soft); border: 1px solid var(--line); gap: 8px; }
+  .mw-help-next { margin-top: 4px; padding: 12px 14px; border-radius: var(--r-row); gap: 8px; }
   .mw-help-next__fact { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
   .mw-help-next__actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .mw-help-card {
@@ -30,7 +32,7 @@ export const ON_DEMAND_HELP_PLUGIN_STYLES = `
     animation: craft-drop var(--dur-move) var(--ease-quint);
     &:focus { outline: none; }
     @media (max-width: 760px) {
-      left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(var(--dock-h, var(--helm-h, 52px)) + 8px) !important;
+      left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(var(--dock-h, var(--helm-h, 74px)) + 8px) !important;
       width: auto !important; max-width: none; max-height: 50dvh; border-radius: var(--r-sheet); animation-name: craft-rise-from-bar;
       .mw-help-next__fact { display: none; }
     }
@@ -38,10 +40,10 @@ export const ON_DEMAND_HELP_PLUGIN_STYLES = `
   .mw-help-card__head { gap: 8px; padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--line); flex: none; svg { width: 14px; height: 14px; color: var(--muted); flex: none; } }
   .mw-help-card__title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-help-card__body { padding: 14px; overflow: auto; flex: 1; min-height: 0; }
-  .mw-help-card__next { flex: none; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface-soft); .mw-help-next { margin-top: 0; padding: 0; border: 0; background: transparent; } }
-  .mw-help-card__foot { justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; border-top: 1px solid var(--line); background: var(--surface-soft); flex: none; }
+  .mw-help-card__next { padding: 10px 14px; .mw-help-next { margin-top: 0; padding: 0; border: 0; background: transparent; } }
+  .mw-help-card__foot { justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; }
   .mw-help-card__hint { font-size: 12px; color: var(--muted); }
-  .mw-help-tip { gap: 10px; padding: 9px 12px; border-radius: var(--r-row); background: var(--surface-soft); border: 1px solid var(--line); margin-bottom: 14px; font-size: 13px; color: var(--ink); > span:first-child svg { width: 15px; height: 15px; color: var(--accent); display: block; } @media (max-width: 600px) { flex-wrap: wrap; } }
+  .mw-help-tip { gap: 10px; padding: 9px 12px; border-radius: var(--r-row); margin-bottom: 14px; font-size: 13px; color: var(--ink); > span:first-child svg { width: 15px; height: 15px; color: var(--accent); display: block; } @media (max-width: 600px) { flex-wrap: wrap; } }
   .mw-help-tip__text { flex: 1; min-width: 0; }
   .mw-help-tip__actions { gap: 8px; flex: none; }
   .mw-btn.mw-help-auto-trigger { position: fixed; bottom: 12px; right: 14px; z-index: 20; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(6px); }

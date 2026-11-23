@@ -40,3 +40,16 @@ CREATE TABLE skill_lineage (
   scope_ref TEXT NOT NULL, skill_id TEXT NOT NULL, source TEXT NOT NULL, replacements TEXT NOT NULL, seen_version INTEGER NOT NULL, updated_at TEXT NOT NULL,
   PRIMARY KEY (scope_ref, skill_id)
 );
+
+CREATE TABLE IF NOT EXISTS personal_prompt_overrides_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS personal_prompt_overrides_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS personal_prompt_overrides_replica_changes_key ON personal_prompt_overrides_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS personal_prompt_overrides_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS personal_prompt_overrides_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS personal_prompt_overrides_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS personal_prompt_overrides_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+
+INSERT INTO personal_prompt_overrides_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER personal_prompt_overrides_insert AFTER INSERT ON prompt_overrides BEGIN INSERT INTO personal_prompt_overrides_replica_changes(key) SELECT NEW.key WHERE (SELECT applying FROM personal_prompt_overrides_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER personal_prompt_overrides_update AFTER UPDATE ON prompt_overrides BEGIN INSERT INTO personal_prompt_overrides_replica_changes(key) SELECT NEW.key WHERE (SELECT applying FROM personal_prompt_overrides_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER personal_prompt_overrides_delete AFTER DELETE ON prompt_overrides BEGIN INSERT INTO personal_prompt_overrides_replica_changes(key) SELECT OLD.key WHERE (SELECT applying FROM personal_prompt_overrides_replica_state WHERE id=1)=0 AND (1=1); END;

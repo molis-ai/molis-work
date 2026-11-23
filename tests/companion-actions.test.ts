@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
-import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { gitActions } from "@molis-ai/molis-work-plugin-git";
 import { diffActions } from "@molis-ai/molis-work-plugin-diff";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -32,9 +31,8 @@ test("headless runtime companions are discovered and called by the official MCP 
   try {
     await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "Headless companions", actor_id: "owner" });
-      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
-      // Coding embeds Git and Diff; Text stats is a project plugin of its own (batch 06 S5 took it off Coding's embedded list).
-      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
+      // Git embeds Diff, and nothing else in this project does: taking Git out takes Diff's actions with it.
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "git", actor_id: "owner" });
       const served = await serveTestHost(null, { home, host });
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       const caller: ActionCallContext = { actor_id: "runtime:reader", project_id: project.project_id, audience: "mcp", permissions: ["artifact:read"] };
@@ -50,55 +48,53 @@ test("headless runtime companions are discovered and called by the official MCP 
       };
       try {
         await assert.rejects(async () => client.discover({ ...caller, project_id: "wrong" }), { code: "actions.scope_mismatch" });
-        const definitions = [textStatsActions.count, textStatsActions.state, diffActions.compare, diffActions.state];
+        const definitions = [diffActions.compare, diffActions.state];
         const directories = await Promise.all([client.discover(caller), client.discover(caller)]);
         const rows = directories[0].filter(row => definitions.some(def => def.capability_id === row.capability_id));
-        assert.equal(rows.length, 4);
+        assert.equal(rows.length, 2);
         assert.ok(rows.every(row => row.availability.available));
         assert.deepEqual(directories[0], directories[1], "concurrent discovery shares providers");
         assert.equal(workspaceReads, 0); assert.equal(completions, 0);
         const reader = await connect("reader"), stranger = await connect("stranger");
-        const countName = molisWorkActionToolName(textStatsActions.count);
-        assert.equal((await reader.listTools()).tools.some(tool => tool.name === countName), false, "discovery does not grant execution");
+        const compareName = molisWorkActionToolName(diffActions.compare);
+        assert.equal((await reader.listTools()).tools.some(tool => tool.name === compareName), false, "discovery does not grant execution");
         for (const row of rows) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, row, true), { host_reason: "fixture" });
-        assert.ok((await reader.listTools()).tools.some(tool => tool.name === countName));
+        assert.ok((await reader.listTools()).tools.some(tool => tool.name === compareName));
         const fileAction = (await host.inspectActions(caller, reference)).find(row => row.capability_id === gitActions.selectDiff.capability_id)!;
         assert.equal(fileAction.availability.available, false, "legacy owner-bound actions must disclose their current identity limit");
         await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, fileAction, true), { host_reason: "fixture" });
         const foreignWrite = await reader.callTool({ name: molisWorkActionToolName(gitActions.selectDiff), arguments: { workspace_id: "unknown", path: ["note.txt"], side: "index" } });
         assert.equal(foreignWrite.isError, true, "an explicit action grant cannot impersonate the local Artifact owner");
-        const counted = await reader.callTool({ name: countName, arguments: { text: "中🙂\r\nx\n" } });
-        assert.equal(counted.isError, false, JSON.stringify(counted));
-        assert.deepEqual(counted.structuredContent, { characters: 6, utf8_bytes: 11, lines: 2 });
-        const compared = await reader.callTool({ name: molisWorkActionToolName(diffActions.compare), arguments: { before: "a\r\nb\n", after: "a\r\nc" } });
+        const compared = await reader.callTool({ name: compareName, arguments: { before: "a\r\nb\n", after: "a\r\nc" } });
         assert.equal(compared.isError, false, JSON.stringify(compared));
         const ops = (compared.structuredContent as any).ops;
         assert.equal(ops.filter((op: any) => op.kind !== "insert").map((op: any) => op.line.text + op.line.ending).join(""), "a\r\nb\n");
         assert.equal(ops.filter((op: any) => op.kind !== "delete").map((op: any) => op.line.text + op.line.ending).join(""), "a\r\nc");
-        const state = await reader.callTool({ name: molisWorkActionToolName(textStatsActions.state), arguments: {} });
+        const state = await reader.callTool({ name: molisWorkActionToolName(diffActions.state), arguments: {} });
         assert.equal(state.isError, false, JSON.stringify(state));
         assert.equal((state.structuredContent as any).view.phase, "waiting");
-        assert.equal((await stranger.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
-        assert.equal((await reader.callTool({ name: countName, arguments: { text: "no", actor_id: "owner" } })).isError, true);
-        const countGrant = createMcpActionGrant(caller.actor_id, project.project_id, rows.find(row => row.capability_id === textStatsActions.count.capability_id)!, true);
-        await writeMcpActionGrant(home, { ...countGrant, enabled: false }, { host_reason: "fixture" });
-        assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
-        await writeMcpActionGrant(home, countGrant, { host_reason: "fixture" });
-        // Text stats is its own project plugin (batch 06): taking it out of the project withdraws its actions.
-        catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
-        assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
-        assert.equal((await client.discover(caller)).some(row => row.capability_id === textStatsActions.count.capability_id), false,
+        const tiny = { before: "a\n", after: "b\n" };
+        assert.equal((await stranger.callTool({ name: compareName, arguments: tiny })).isError, true);
+        assert.equal((await reader.callTool({ name: compareName, arguments: { ...tiny, actor_id: "owner" } })).isError, true);
+        const compareGrant = createMcpActionGrant(caller.actor_id, project.project_id, rows.find(row => row.capability_id === diffActions.compare.capability_id)!, true);
+        await writeMcpActionGrant(home, { ...compareGrant, enabled: false }, { host_reason: "fixture" });
+        assert.equal((await reader.callTool({ name: compareName, arguments: tiny })).isError, true);
+        await writeMcpActionGrant(home, compareGrant, { host_reason: "fixture" });
+        // Taking Git out of the project withdraws the actions of the plugins only it brought (Diff).
+        catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "git", actor_id: "owner" });
+        assert.equal((await reader.callTool({ name: compareName, arguments: tiny })).isError, true);
+        assert.equal((await client.discover(caller)).some(row => row.capability_id === diffActions.compare.capability_id), false,
           "the resident Host withdraws the disabled Runtime's actions");
         // RAC-105-A-GW-03: the resident has withdrawn this disabled provider; the MCP caller sees missing, not plugin_unavailable.
-        await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.missing" });
-        assert.equal((await readMcpToolPreference(home)).action_grants?.length, 5, "disabling retains exact references");
-        catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
+        await assert.rejects(client.invoke(caller, diffActions.compare, tiny), { code: "actions.missing" });
+        assert.equal((await readMcpToolPreference(home)).action_grants?.length, 3, "disabling retains exact references");
+        catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "git", actor_id: "owner" });
         await reader.close();
         await host.closeProject(reference);
         const reopened = await client.discover(caller);
-        assert.equal(reopened.find(row => row.capability_id === textStatsActions.count.capability_id)!.provider.provider_id, countGrant.provider_id);
+        assert.equal(reopened.find(row => row.capability_id === diffActions.compare.capability_id)!.provider.provider_id, compareGrant.provider_id);
         const restarted = await connect("reader");
-        assert.equal((await restarted.callTool({ name: countName, arguments: { text: "" } })).isError, false);
+        assert.equal((await restarted.callTool({ name: compareName, arguments: { before: "", after: "" } })).isError, false);
       } finally { await Promise.all(clients.map(client => client.close())); await served.close();  }
     });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

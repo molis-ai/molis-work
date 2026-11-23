@@ -9,12 +9,9 @@ import { workbenchSurfaceHelpDeclaration } from "./settings-help-topics.js";
  * and the rows below answer what to do, so the page carries no sentence about itself.
  * The frame is the first page's grid (`mw-first-page`): the column holds the page's kind, the project's name and the groups; the
  * margin beside it (`data-home-margin`) is filled with where the page's facts were read from.
- * `data-home-lead` holds the one plugin page a `lead` group names: while it is shown it is the first page, written by that plugin
- * in the same parts, and the platform's own is put away (specs/screen-polish §八之二).
  */
 export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShellPrimitives): string {
   return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${uiText("workbench.project-home.project-home")}" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
-    <div class="home-lead" data-home-lead hidden></div>
     <div class="home-scroll mw-first-page" data-home-scroll><div class="mw-first-page__grid">
       <div class="mw-first-page__column">
         <div class="mw-first-page__meta"><span>${uiText("workbench.project-home.project-home")}</span><span class="mw-first-page__grow"></span><span data-home-version></span>${renderButton({ label: uiText.text("workbench.home.refresh"), variant: "ghost", size: "sm", icon: "refresh", iconOnly: true, attrs: { "data-home-control": "refresh" } })}${renderHelpButton({ topic: "workbench-home", label: uiText.text("common.help.title"), size: "sm" })}</div>

@@ -353,7 +353,7 @@ for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transp
 test("SYS-15-U5 S-47 Coding and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
-  for (const plugin_id of ["coding", "git", "diff", "text-stats"]) {
+  for (const plugin_id of ["coding", "git", "diff"]) {
     const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }

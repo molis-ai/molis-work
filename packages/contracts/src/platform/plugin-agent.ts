@@ -134,10 +134,12 @@ export const isPluginSceneName = (value: unknown): value is string =>
 /** Who may pick a method a Plugin offers to others (Manifest `methods`): `assistant`, `both`, or one plugin scene (Coding's `coding`). */
 export type SkillAppliesTo = string;
 export const isSkillAppliesTo = (value: unknown): value is SkillAppliesTo => value === "assistant" || value === "both" || isPluginSceneName(value);
+/** One plugin scene name as a schema: well formed and none of the platform's reserved names. */
+export const PLUGIN_SCENE_SCHEMA = { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: [...PLATFORM_SCENE_NAMES] } } as const;
 /** `applies_to` as a schema: the two platform words or a plugin scene. */
-export const SKILL_APPLIES_TO_SCHEMA = { anyOf: [{ enum: ["assistant", "both"] }, { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: [...PLATFORM_SCENE_NAMES] } }] } as const;
+export const SKILL_APPLIES_TO_SCHEMA = { anyOf: [{ enum: ["assistant", "both"] }, PLUGIN_SCENE_SCHEMA] } as const;
 /** One entry a Skill is offered in or replayed in: the Assistant or one plugin scene (never `both`). */
-export const SKILL_ENTRY_SCHEMA = { anyOf: [{ const: "assistant" }, { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: [...PLATFORM_SCENE_NAMES] } }] } as const;
+export const SKILL_ENTRY_SCHEMA = { anyOf: [{ const: "assistant" }, PLUGIN_SCENE_SCHEMA] } as const;
 /** The entries `applies_to` names, given the plugin scenes there are: `both` is the Assistant and each of them. */
 export const skillEntriesOf = (appliesTo: SkillAppliesTo, pluginScenes: readonly string[]): string[] =>
   appliesTo === "both" ? ["assistant", ...pluginScenes] : [appliesTo];

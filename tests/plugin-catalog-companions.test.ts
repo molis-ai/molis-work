@@ -4,7 +4,11 @@ import test from "node:test";
 import {
   BUILTIN_PLUGIN_CATALOG, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
-import { availableProjectPluginIds, BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { availableProjectPluginIds, BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS, requiredCompanions } from "@molis-ai/molis-work-app-local-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { SNAPSHOT_READER, snapshotReaderManifest } from "./fixtures/snapshot-reader-plugin.js";
+import { snapshotSourcePlugin } from "./fixtures/snapshot-source-plugin.js";
 
 /**
  * Enabling a Plugin has to leave the user with something that can work.
@@ -20,9 +24,19 @@ test("工作目录由项目系统服务提供，Git 不安装旧 Workspace 插�
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("workspace"), false);
 });
 
-test("必选输入的默认来源是平台资料服务时不拉插件：Text stats 单独启用", () => {
-  // Its snapshot comes from the platform's materials (system.materials), which every project has; until batch 06 it brought Files.
-  assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), []);
+/** A catalog entry for the fixtures: only what the companions are worked out from (the key and the Manifest). */
+const entry = (project_plugin_id: string, manifest: PluginManifest) => ({ project_plugin_id, catalog_order: 0, manifest }) as PluginRegistration;
+
+test("必选输入从 Manifest 推出伴随插件：有人发布这类过程项就带上它，可选输入与没人发布的类型不拉人", () => {
+  const reader = entry(SNAPSHOT_READER.project_plugin_id, snapshotReaderManifest), source = entry("snapshot-source", snapshotSourcePlugin().manifest);
+  // Its required snapshot defaults to the platform's materials, which every project has; no plugin in this catalog publishes one.
+  assert.deepEqual(requiredCompanions(reader.project_plugin_id, [reader]), []);
+  // A plugin that publishes the type comes along, because enabled alone the input could never be bound.
+  assert.deepEqual(requiredCompanions(reader.project_plugin_id, [reader, source]), ["snapshot-source"]);
+  const optional = entry("optional-reader", { ...snapshotReaderManifest, ports: { inputs: snapshotReaderManifest.ports!.inputs.map(port => ({ ...port, optional: true })), outputs: [] } });
+  assert.deepEqual(requiredCompanions(optional.project_plugin_id, [optional, source]), [], "an optional input brings nobody");
+  // No built-in plugin has a required input any longer, so none brings a companion of its own.
+  for (const id of PROJECT_SCOPED_PLUGIN_IDS) assert.deepEqual(requiredCompanions(id), [], id);
 });
 
 test("输入全是可选的插件不拉人：单独开着也是能解释的状态", () => {
@@ -35,7 +49,7 @@ test("Feed 仍然带上 Inbox：手写的伴随关系没有被推导覆盖掉", 
 });
 
 test("新插件都能被项目启用，否则面板永远挂不上去", () => {
-  for (const id of ["git", "diff", "text-stats", "coding"]) {
+  for (const id of ["git", "diff", "coding"]) {
     assert.equal(BUILTIN_PLUGIN_REGISTRY.has(id), true, `${id} 应当可以被项目启用`);
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), true);
   }
@@ -70,7 +84,7 @@ test("embedded surfaces follow unknown plugin declarations, transitively and wit
   assert.deepEqual([...availableProjectPluginIds(["parent"], catalog)].sort(), ["child", "leaf", "parent"]);
   assert.deepEqual([...availableProjectPluginIds([], catalog)], []);
   assert.equal(availableProjectPluginIds(["coding"]).has("diff"), true);
-  assert.equal(availableProjectPluginIds(["git"]).has("text-stats"), false);
+  assert.equal(availableProjectPluginIds(["git"]).has("coding"), false);
   assert.equal(availableProjectPluginIds([]).has("diff"), false);
   assert.equal(railEntries(["coding"]).some(entry => entry.id === "diff"), false);
 });

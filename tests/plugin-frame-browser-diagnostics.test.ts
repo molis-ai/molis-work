@@ -247,6 +247,48 @@ test("102-1 plugin-frame navigation normalizes and dispatches platform-aware sho
   assert.equal(posted.length, 0);
   assert.equal(fireKey({ key: "[", code: "BracketLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, target: new FakeElement(false) }), true);
   assert.deepEqual(JSON.parse(JSON.stringify(posted)), [{ type: "shortcut", keys: "Mod+BracketLeft" }]);
+
+  // 102-1 audit: childContext ignores key repeat and IME composition for Mod+. while forwarding genuine presses.
+  const ctxBundled = buildSync({
+    entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/context-child.ts", import.meta.url))],
+    bundle: true, format: "iife", globalName: "frameContextChildMod", platform: "browser", write: false,
+  }).outputFiles[0]!.text;
+  const ctxListeners = new Map<string, Array<(e: unknown) => void>>();
+  const ctxPosted: unknown[] = [];
+  const ctxVm: Record<string, unknown> = {
+    navigator: { platform: "MacIntel" },
+    Element: FakeElement,
+    HTMLElement: FakeHTMLElement,
+    document: { querySelector: () => null, activeElement: null },
+    window: { dispatchEvent: () => {} },
+    getSelection: () => null,
+  };
+  runInNewContext(ctxBundled, ctxVm);
+  const { childContext } = ctxVm.frameContextChildMod as {
+    childContext(port: unknown, scope: unknown, root: unknown): void;
+  };
+  childContext(
+    { postMessage: (msg: unknown) => ctxPosted.push(msg) },
+    {
+      alive: true,
+      own: () => {},
+      listen: (_target: unknown, type: string, fn: (e: unknown) => void) => {
+        (ctxListeners.get(type) ?? ctxListeners.set(type, []).get(type)!).push(fn);
+      },
+    },
+    new FakeElement(false),
+  );
+  const fireContextKey = (init: Record<string, unknown>) => {
+    let prevented = false;
+    const ev = { key: ".", code: "Period", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false, isComposing: false, defaultPrevented: false, target: new FakeElement(false), preventDefault: () => { prevented = true; }, ...init };
+    for (const fn of ctxListeners.get("keydown") ?? []) fn(ev);
+    return prevented;
+  };
+  assert.equal(fireContextKey({ repeat: true }), false, "childContext must ignore held key repeats");
+  assert.equal(fireContextKey({ isComposing: true }), false, "childContext must ignore IME composition events");
+  assert.equal(ctxPosted.length, 0);
+  assert.equal(fireContextKey({}), true, "childContext forwards genuine Mod+.");
+  assert.deepEqual(JSON.parse(JSON.stringify(ctxPosted)), [{ type: "context-key" }]);
 });
 
 test("102-1 plugin-frame document hoists same-origin /assets/ stylesheets into <head> and rejects foreign/non-asset/embedded links", () => {
@@ -544,13 +586,22 @@ test("91-0b feedback runtime covers molisBusy Esc/icon swap, molisToast alert/un
   assert.equal(toastNode.getAttribute("role"), "status");
   assert.equal(toastNode.querySelector("[data-toast-action]")?.textContent, "撤销");
   toastNode.dispatchEvent({ type: "pointerenter" });
-  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("保存失败", { tone: "error", duration: Number.NaN });
+  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("保存失败", { tone: "error", duration: Number.NaN, action: { label: "重试", onClick: () => {} } });
   assert.equal(toastNode.getAttribute("role"), "alert");
   assert.equal(toastNode.getAttribute("aria-live"), "assertive");
-  assert.equal(timers.size, 0, "replacement toast keeps paused state while pointer is inside");
+  assert.equal(timers.size, 0, "interactive replacement toast keeps paused state while pointer is inside");
   toastNode.dispatchEvent({ type: "pointerleave" });
-  assert.equal(timers.size, 1, "leaving hovered toast resumes countdown");
-  toastNode.dispatchEvent({ type: "pointerleave" });
+  assert.equal(timers.size, 1, "leaving hovered interactive toast resumes countdown");
+  // Replacing a keyboard-focused interactive toast with another interactive toast must clear stale focus pause
+  // (replaceChildren() removes the focused button without firing focusout) and auto-dismiss when pointer is outside.
+  toastNode.dispatchEvent({ type: "focusin" });
+  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("操作失败", { tone: "error", action: { label: "重试", onClick: () => {} } });
+  assert.equal(timers.size, 1, "interactive replacement toast clears torn-down focus pause and schedules auto-dismiss");
+  // Replacing a hovered/focused interactive toast with a passive (pointer-events: none) toast must reset pause flags and schedule auto-dismiss.
+  toastNode.dispatchEvent({ type: "pointerenter" });
+  toastNode.dispatchEvent({ type: "focusin" });
+  (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("已同步", { tone: "success" });
+  assert.equal(timers.size, 1, "passive replacement toast clears stale hover/focus pause flags and auto-dismisses");
   // Verify undo click triggers callback
   (win.molisToast as (m: string, o?: Record<string, unknown>) => void)("可撤销", { undo: () => { undone = true; } });
   toastNode.querySelector("[data-toast-action]")!.dispatchEvent({ type: "click" });

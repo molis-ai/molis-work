@@ -48,6 +48,8 @@ export declare const SKILL_REVISE_INSTRUCTION_CHARS = 1000;
 
 export declare const SKILL_ROUND_AUTO_LIMIT = 3;
 
+export declare const SKILL_SCENE_CHOICE_SCHEMA: ActionSchema;
+
 export declare const SKILL_SCOPES: readonly ["project", "home"];
 
 export declare const SKILL_SETTINGS_LOCKED_REASONS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid"];
@@ -352,6 +354,7 @@ export interface SkillImportPreview {
     };
     applies_to: SkillAppliesTo;
     candidates: SkillImportCandidate[];
+    scenes?: SkillSceneChoice[];
 }
 
 export interface SkillImportPreviewRequest {
@@ -424,6 +427,12 @@ export interface SkillResourceSummary {
     path: string;
     role: SkillResourceRole;
     bytes: number;
+}
+
+export interface SkillSceneChoice {
+    scene: string;
+    name: string;
+    scope?: SkillScope;
 }
 
 export type SkillScope = (typeof SKILL_SCOPES)[number];
@@ -505,6 +514,7 @@ export declare const skillAuthoringActions: {
 export declare const skillCatalogActions: {
     list: ActionDefinition<SkillCatalogListRequest, {
         skills: SkillCatalogEntry[];
+        scenes?: SkillSceneChoice[];
     }>;
     readBodies: ActionDefinition<SkillBodyReadRequest, {
         results: SkillBodyReadResult[];

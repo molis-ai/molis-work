@@ -15,7 +15,9 @@ export const durationsFile = (root) => path.join(root, "node_modules", ".cache",
 const GUESS_SECONDS = { browser: 60, other: 10 };
 
 const FILE_TIMEOUT_SECONDS = new Map([
-  // The test reports its own 95 s timeout but can keep its process alive. Leave time for startup and teardown before retrying.
+  // These scenarios report their own 95 s timeout but can keep their process alive. Leave time for startup and teardown before retrying.
+  ["tests/automation-recommendations-assistant.e2e.test.ts", 180],
+  ["tests/automation-recommendations-studio.e2e.test.ts", 180],
   ["tests/automation-recommendations.e2e.test.ts", 180],
 ]);
 

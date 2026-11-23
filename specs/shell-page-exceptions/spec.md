@@ -16,6 +16,10 @@
 | 协作服务 | `/continuity`、`/im`（独立部署的 `server/`） | 给其他设备与成员用 | 协作服务 | 服务并入本机工作台或停止独立部署时复查。 |
 | 外部链接 | 外部网站 | 侧栏浏览器或新标签页 | 打开链接的工作台入口 | 站外链接改由宿主接管、或目标改为站内内容时复查。 |
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（M15）：纯平台内置表面——`system.shelf`（`modules/shelf`）、`horizontal/plugin-studio`（创作台，`#2239`）、`system.artifacts`、`system.characters`（`/api/platform/characters`）、`system.sessions`——在 `44B` 统一经 `HostSurfaceRegistration` 登记与渲染，不再各自硬编码路由或以插件壳形态存在于 `plugins/native/`。
+
 ## 变更规则
 
 - 新增、删除或修改一处例外，要同时改本表与 `tests/shell-page-gate.test.ts` 的 `EXCEPTIONS`；两处不一致算门禁失败。

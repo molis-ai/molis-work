@@ -3,6 +3,10 @@
 状态：第一片已随第 15 批 #2017 合入 main（2026-11-13，`b819373250`）；确定组合服务、公共四形态与组件板、基础首页及跨位置消费者已交付。证据见 §16–17。实际文字、页面授权与项目成员接入已随本批接回；整批验证与本人验收待完成，后续三片仍按路线书推进。本人实物验收见 [BL-surface-home-acceptance](../backlog/BL-surface-home-acceptance.md)，IUI-20 切换后复测见 [BL-surface-home-performance](../backlog/BL-surface-home-performance.md)。一层横向的平台能力：插件声明自己的对象能怎样展示、能做什么，以及别人可以把东西放在它的哪里；平台和助理把插件允许的内容、平台里调用方有权看的全部内容、接进来的 MCP 工具与 Skill 合在一起，按此刻的位置、对象和任务组合出最合适的展示与操作面，注入插件允许的位置、对话、项目讨论和其他入口。四片已排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-3)「智能呈现怎样接进来」（阶段 1～4，11-02 写入）；按轨道：合同归 C1，组合服务归 C3（新的 `horizontal/` 包，用户 11-01 定新的平台服务不进宿主），模型调用归 C2（只经 `horizontal/agent-host`），共享组件与组件板归 D，各插件自己的声明归各自轨道，助理与对话归 A，项目讨论归 `packages/im-ui` 与 `server/src/im` 的主人。设计参考了 Molis-Club 的 Work 产品页各版（附录 A），不复刻。
 验收编号见 §14，前缀 `IUI`。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：创作台已归纯平台 `horizontal/plugin-studio` 不再作为插件声明呈现（第 `68-4` 批仅覆盖生成插件）；呈现声明去 `shelf` 等插件专有槽名，跨分区总览统一读 `108` 的 `overview_projection` 索引。
+
 ## 1. 要解决的问题
 
 对照 main `885728c79` 的现状：

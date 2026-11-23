@@ -8,6 +8,10 @@
 
 2026-11-04 补充：用户定下由 Molis Work 提供**官方场景包**（§3.8.1、ONB-50～56），首批三套：行业观察与写作、写代码、个人事务与每日简报；引导里既能先说目的再由助理推荐，也能在第一问旁直接挑官方场景包；官方场景包随安装包带上，选了才启用。本次只补需求与排批，未实现。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（U11/V6）：① 空 Home 首次启动直接进入个人空间分区，引导（一问一答）作为个人空间里的第一张卡，并修正 `onboarding.ts` 首次运行判断不再把 `personal` 误算作用户项目；② §3.8 场景包采用与助理配置插件统一走 [`106`](../post-anticorruption-roadmap/reference/batches/106.md) 落地的 `partitions.plugins.set@1`（覆盖个人空间与项目，空白开始仅启用声明 `default_enabled` 的插件，无硬编码默认名单）。
+
 ## 1. 目标与依据
 
 用户需要分别理解角色、插件、Skill、工作流程、资料和多处设置，才能拼出使用路径。引导应把这些配置组织成可开始工作的场景：**表达用途 → 补齐必要背景 → 预览场景与配置 → 采用 → 完成第一件事 → 继续使用与调整**。材料导入、空白开始和个人空间继续可用；场景目标与已有材料都可以作为起点。

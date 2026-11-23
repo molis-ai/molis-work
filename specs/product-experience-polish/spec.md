@@ -9,6 +9,10 @@
 
 ---
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：本需求第 `91-2..4` 与 `91B` 段排在 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md) 与 [`106`～`111`](../post-anticorruption-roadmap/reference/batches/106.md)（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)）之后（允许 `#2259` 的 `91-0c` 并行/前置）：① **纯平台部件归 `91B-1`**：Shelf 已收归纯平台 `modules/shelf`（`system.shelf`，`/api/platform/shelf`）、创作台已归 `horizontal/plugin-studio`，连同 `111` 交付的个人空间置顶切换器与按类市场一并在 `91B-1` 收口；② **内置插件校准为 20 个平等分区插件 + 3 统一连接器驱动**：移除已于 `#2243` 删除的 `text-stats`、已于 `44B` 彻底删除的旧 `alchemist`、并入 `rss` 的 `youtube` 及不存在的 `goal-canvas.ts`；③ `91B-4` 五层门禁测试名单同步校准到 20 插件与纯平台表面，消费 `#2258` 共享样式 `.mw-*` 泛化成果。
+
 ## 1. 目标与边界分工
 
 基于 `origin/main`（`f5efe316a2`，已含 `#2110` P0 急救、`#2120` 词包治理、`#2127` 设置页 P5 第一段、`#2132` 决定 53、`#2134` 助理代码重绘与 `#2135` 第 91 批立项）的全仓 38 个产品表面深度走查，Molis Work 已具备扎实的 Soft Workbench 设计底座，但存在三类跨表面系统性体验债：

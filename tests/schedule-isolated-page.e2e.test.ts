@@ -65,7 +65,7 @@ test("SYS-15 Schedule isolated page creates, edits, pauses, reopens, resumes and
   assert.deepEqual((await browser.web.get<typeof tasks>(api + '/list')).tasks, []);
 });
 
-test("96-2 an open task's detail shows the round that just failed and why without a reload; a late answer keeps the newer choice", { timeout: 150_000 }, async t => {
+test("SCC-01 96-2: an open task's detail shows the round that just failed and why without a reload; a late answer keeps the newer choice", { timeout: 150_000 }, async t => {
   // The Host is this test's own (no model configured), so the test can reach the project's clock.
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   await browser.setViewport(1440, 900);

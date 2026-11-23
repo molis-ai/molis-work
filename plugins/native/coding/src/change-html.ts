@@ -2,12 +2,10 @@ import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/wor
 import { t, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   compareChange,
-  emptyDiffView,
+  compareCodingChangeSet,
   renderDiff,
   unifiedPatch,
-  type DiffFileEntry,
   type DiffSide,
-  type DiffView,
   type DiffViewLabels,
   type DiffViewPrimitives,
 } from "@molis-ai/molis-work-plugin-sdk/diff-view";
@@ -44,18 +42,6 @@ const LABELS: DiffViewLabels = {
 
 const primitives = (): DiffViewPrimitives => ({ escape: escapeHtml, text: t.text, icon: name => icon(name as Parameters<typeof icon>[0]) });
 
-/** One file of a round's change set as the reader shows it: both ends of a reviewed write. */
-function changeView(change: CodingChangeSet, index: number, version: number): DiffView {
-  const files: DiffFileEntry[] = change.files.map(file => ({ path: file.path, kind: file.kind, added_lines: file.added_lines, removed_lines: file.removed_lines }));
-  if (files.length === 0) return emptyDiffView(GROUP, t.text("coding.change.reader.no-text-review"), "ready", t.text("coding.change.reader.run-again"));
-  const chosen = change.files[index];
-  if (chosen === undefined) return { ...emptyDiffView(GROUP, t.text("coding.change.reader.no-such-change"), "unavailable", t.text("coding.change.reader.run-again")), files };
-  const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
-    path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
-  return { ...compareChange(GROUP, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
-    created: chosen.review.before_text === null, removed: chosen.kind === "deleted" }), files };
-}
-
 /**
  * The reader's answer, filled in on the route's body as it is: which write (`change_index`), the net change when asked (`net`,
  * offered only when it is exactly what happened), unified or side by side (`layout`), and the patch 复制补丁 copies (VUX-33),
@@ -72,7 +58,12 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
     const kind = last.kind === "deleted" ? "deleted" as const : net.before_text === null ? "added" as const : "modified" as const;
     return [{ ...last, kind, review: { ...last.review, before_text: net.before_text } }];
   })() : null;
-  const view = changeView(netFiles ? { ...change, files: netFiles } : change, netFiles ? 0 : index, body.reference?.version ?? 1);
+  const view = compareCodingChangeSet(netFiles ? { ...change, files: netFiles } : change,
+    { source_plugin_id: CODING_PLUGIN_ID, content_version: body.reference?.version ?? 1 }, netFiles ? 0 : index, {
+      empty: t.text("coding.change.reader.no-text-review"),
+      missing: t.text("coding.change.reader.no-such-change"),
+      recovery: t.text("coding.change.reader.run-again"),
+    });
   const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);
   Object.assign(body, { view_mode: netFiles ? "net" : "write",
     // An available net change also says its lines: what the round left in that file, not the sum of its writes.

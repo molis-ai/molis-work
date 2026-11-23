@@ -117,8 +117,8 @@ export class ArtifactsService<
     return versionConsumptionCompatibility(this.requireVersion(projectId, reference), supportedTypes);
   }
 
-  registerVersion(input: I): FixedVersionResult<R> {
-    const normalized = declaredOnly(normalizeRegistration<R, I>(input, { library: this.#repository.tables.library, readOwner: (owner, scope) => this.#repository.readOwner(owner, scope) }), this.options.declared, this.kind);
+  registerVersion(input: Parameters<FixedVersionCommandApi<R, I>["registerVersion"]>[0]): FixedVersionResult<R> {
+    const normalized = declaredOnly(normalizeRegistration<R>(input, { library: this.#repository.tables.library, readOwner: (owner, scope) => this.#repository.readOwner(owner, scope) }), this.options.declared, this.kind);
     return this.#repository.immediate(() => {
       const globalIdentity = this.#repository.getIdentityById(normalized.artifact_id);
       if (globalIdentity && globalIdentity.project_id !== normalized.project_id) {

@@ -110,3 +110,18 @@ test("unknown browser files inherit the known browser median rather than the non
   // Each of the 3 browser files (1 known + 2 unknown) weighs 80s and gets its own shard instead of piling onto one shard at 4s each.
   assert.deepEqual(plan.shards.map((part: typeof entries) => part.filter(e => e.browser).length), [1, 1, 1]);
 });
+
+test("the mixed shard projects the queue it will run, including delayed browser work", () => {
+  const entries = [
+    { file: "browser-small", browser: true },
+    { file: "worker-long", browser: false },
+    { file: "browser-medium", browser: true },
+    { file: "worker-medium", browser: false },
+  ];
+  const weights = { "worker-long": 10, "worker-medium": 9, "browser-medium": 8, "browser-small": 7 };
+  const result = planShards(entries, { count: 1, jobs: 2, browserJobs: 1 }, weights, (entry: typeof entries[number]) => entry.file, (entry: typeof entries[number]) => entry.browser);
+  assert.deepEqual(result.shards, [entries]);
+  assert.deepEqual(result.executionOrder, [[entries[1], entries[3], entries[2], entries[0]]]);
+  // The units occupy both workers initially. The browser lane then runs 8 s and 7 s from t=9.
+  assert.equal(result.loads[0]?.seconds, 24);
+});

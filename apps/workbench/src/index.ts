@@ -47,7 +47,8 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
 export { readAssistantReviewWords } from "./assistant-review-html.js";
-export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, sidePlaces, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, hostSurfaceDirectory, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, sidePlaces, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
+export { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
 export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageOpeningView, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
@@ -99,6 +100,7 @@ export { renderCharacters } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 export { CHARACTERS_CLIENT_PATH } from "./characters/client-path.js";
 export { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
+export { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, renderInstalledPluginBody, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet } from "./installed-plugin/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 export { connectionNeedHtml, isConnectionLoginUrl, type ConnectionNeedView } from "./connection-need-card.js";

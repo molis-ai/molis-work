@@ -12,7 +12,7 @@
 
 - **阶段／类型**：发行；底层与架构
 - **需求来源**：[C 端就绪 C-5A][CEND]
-- **前置／待决**：开工由用户定；先核已有 logger；BL-812 的日志端口归本批（75 已改读 28 的记录、不再用它；端口放在哪、什么形状，开工时问用户，见 BL-812）；发布符号的上传位置从 26-9 的发行配置读
+- **前置／待决**：开工由用户定；先核已有 logger；BL-812 的日志端口归本批（75 已改读 28 的记录、不再用它；端口放在哪、什么形状，开工时问用户，见 BL-812）；发布符号的上传位置从 26-9 的发行配置读 按[决定 66](../decisions.md#decision-66)，本机日志与脱敏诊断包覆盖纯平台 `system.shelf`、`horizontal/plugin-studio` 及 `listPartitions()` 分区列表，不含已删旧 Alchemist 与 `better-sqlite3`。
 - **可并行项**：REL-2、REL-4
 - **UI 要求**：复用：诊断导出沿 [runtime-and-recovery](../../../../docs/design/runtime-and-recovery/README.md) 已定样
 
@@ -40,6 +40,7 @@
 
 本批另有：
 - 日志里不出现密钥、令牌和用户内容原文；脱敏规则带拒绝测试。
+- 按决定 66：日志与诊断包覆盖纯平台 system.shelf、horizontal/plugin-studio 与 listPartitions()，不含旧 Alchemist。
 ```
 
 [ASC]: ../../../assistant-service-connections/spec.md

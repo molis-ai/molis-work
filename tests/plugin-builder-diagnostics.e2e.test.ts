@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { build } from 'esbuild';
 import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-packs.js';
 import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 import { installHostUiText, runBackgroundWork } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/dist/plugin-builder/browser.js';
 import { builderBrowserExecutable, openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
@@ -20,6 +20,8 @@ function previewHtml(view: unknown, { components = '(' + PLUGIN_COMPONENT_CLIENT
   const suppliedView = JSON.stringify(view ?? null).replaceAll('<', '\\u003c');
   return '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>'
     + pageTextScriptForPacks('zh', chinesePagePacks('plugin-builder')) + prelude
+    // The studio asks through the shared request helper, which a real frame installs first (47-1: no transport of its own).
+    + UI_REQUEST_CLIENT_SCRIPT
     + '\n(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT
     + ')(),mode:"preview",build:"probe",view:' + suppliedView + (acceptance ? ',acceptance:"owned-test-trial"' : '')
     + ',api:path=>path,components:' + components + '})</script>';

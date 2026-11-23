@@ -103,6 +103,15 @@ interface Page {
   surfaceSlots?: ReturnType<typeof pageSurfaceSlotState>;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
+/** How long a page keeps its authority after its last request ended. */
+const PAGE_IDLE_MS = 30 * 60_000;
+/** B12: the page stayed open with nothing in flight for too long. Says what to do; the page keeps what the person typed. */
+const lapsedPage = () => new ActionError("actions.forbidden", "这个页面太久没有操作，授权已过期。请刷新页面后继续，已输入的内容仍在。");
+/**
+ * A page is idle only while none of its own requests is in flight: one that still holds its event stream open has not been left
+ * (B12, a long build with nothing but its progress stream). Idle time counts from the end of its last request.
+ */
+const lapsed = (page: Page) => page.requests.size === 0 && page.expiresAt < Date.now();
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
 const homes = new Map<string, PluginPageAuthority>();
 const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; pageCurrent(): void; signal: AbortSignal; surfaceSlot: boolean }>();
@@ -199,7 +208,7 @@ export class PluginPageAuthority {
     this.expire();
     if (this.pages.size + this.texts.size >= OPEN_LIMIT) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
-    this.pages.set(id, { activation, embedded, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
+    this.pages.set(id, { activation, embedded, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + PAGE_IDLE_MS,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
     return { page_id: id, storage_scope: `${this.storageScope}:${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
@@ -237,13 +246,14 @@ export class PluginPageAuthority {
   async finish(id: string, action: { reference: ActionReference; input: unknown } | undefined): Promise<void> {
     const page = this.pages.get(id);
     if (!page || !action || page.closing) { this.close(id, () => page ? this.left(page) : refused()); return; }
+    const stale = lapsed(page);
     page.closing = true;
     // Each in-flight request takes its own reason, as in `close`: never one error object shared between requests.
     for (const request of page.requests) request.abort(this.left(page));
     const controller = new AbortController(); page.requests.add(controller);
     const check = () => {
       controller.signal.throwIfAborted();
-      if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
+      if (this.pages.get(id) !== page || !this.activations.has(page.activation) || stale) throw refused();
       page.sessionCurrent(); page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     const beforeEffect = async () => { check(); await page.assertScope?.(); check(); };
@@ -264,7 +274,7 @@ export class PluginPageAuthority {
 
   private expire() {
     const now = Date.now();
-    for (const [id, page] of this.pages) if (page.expiresAt < now) this.close(id);
+    for (const [id, page] of this.pages) if (lapsed(page)) this.close(id);
     for (const [id, grant] of this.texts) if (grant.expiresAt < now) this.texts.delete(id);
   }
 
@@ -311,7 +321,7 @@ export class PluginPageAuthority {
         grant.sessionCurrent(request); assertTextSource(grant.activation, this.activations); grant.assertCurrent();
       }
       for (const { id, page } of entries) {
-        if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now()) throw refused();
+        if (this.pages.get(id) !== page || page.closing || lapsed(page)) throw refused();
         page.sessionCurrent(request); page.selection?.assertCurrent();
         assertTextSource(page.activation, this.activations);
         for (const embedded of page.embedded) assertTextSource(embedded, this.activations);
@@ -331,12 +341,12 @@ export class PluginPageAuthority {
     const page = this.pages.get(id);
     if (!page || !page.activation.install_id) throw refused();
     const check = () => {
-      if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
+      if (this.pages.get(id) !== page || !this.activations.has(page.activation) || lapsed(page)) throw refused();
       page.sessionCurrent(); page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     check();
     return { install_id: page.activation.install_id, plugin_id: page.activation.manifest.plugin_id, project_id: page.project_id, actor_id: page.activation.actor_id,
-      async assertCurrent() { check(); await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; } };
+      async assertCurrent() { check(); await page.assertScope?.(); check(); page.expiresAt = Date.now() + PAGE_IDLE_MS; } };
   }
 
   /** The shared transport guard calls this before any route, including management and static resources. */
@@ -344,7 +354,8 @@ export class PluginPageAuthority {
     const contextual = request.headers["x-molis-context-page"], id = contextual ?? request.headers["x-molis-plugin-page"];
     if (id === undefined) return;
     const page = typeof id === "string" ? this.pages.get(id) : undefined;
-    if (!page || page.closing || page.expiresAt < Date.now()) throw refused();
+    if (!page || page.closing) throw refused();
+    if (lapsed(page)) throw lapsedPage();
     const prefix = page.project_id === null ? "" : `/projects/${encodeURIComponent(page.project_id)}`;
     if (!url.pathname.startsWith(`${prefix}/api/`)) throw refused();
     const pathname = url.pathname.slice(prefix.length);
@@ -374,23 +385,31 @@ export class PluginPageAuthority {
     // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
     const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";
+    // The platform's install sheet (S-package-install-sheet): the page only handed the shell a signed package, so any page of a project may have one.
+    const installChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id) && request.method === "POST" && pathname === "/api/host/plugin-page-install";
     const surfaceSlot = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.selection?.surfaceSlotSource) && request.method === "POST" && pathname === "/api/contextual/surface-slot";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery", "/api/agent/reviews/permission"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery", "/api/agent/reviews/permission"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !installChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const pageCurrent = () => {
-      if (this.pages.get(id as string) !== page || surfaceSlot && (page.closing || page.expiresAt < Date.now()) || !this.activations.has(page.activation)) throw refused();
+      if (this.pages.get(id as string) !== page || surfaceSlot && (page.closing || lapsed(page)) || !this.activations.has(page.activation)) throw refused();
       page.sessionCurrent(); page.activation.assertCurrent(permission);
       page.selection?.assertCurrent();
     };
     const check = () => { controller.signal.throwIfAborted(); pageCurrent(); };
-    await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; page.requests.add(controller);
+    await page.assertScope?.(); check(); page.expiresAt = Date.now() + PAGE_IDLE_MS; page.requests.add(controller);
     requests.set(request, { page, check, pageCurrent, signal: controller.signal, surfaceSlot });
-    const release = () => { controller.abort(this.left(page)); page.requests.delete(controller); requests.delete(request); };
+    const release = () => {
+      controller.abort(this.left(page));
+      // Idle time starts when the page's request ends, not when it began (B12).
+      if (page.requests.delete(controller)) page.expiresAt = Date.now() + PAGE_IDLE_MS;
+      requests.delete(request);
+    };
     response?.once("finish", release); response?.once("close", release); return release;
   }
 }

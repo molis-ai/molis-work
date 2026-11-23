@@ -2,6 +2,10 @@
 
 状态：现行规范（2026-11-13）；第 20 批公共合同、SDK 校验与必要接入已实现；唯一 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 已完成最终验证并合入 main `6df7285c31c34bb6261cbf2e48c3ef4e67a1038a`（候选 `b5789885a837c130b07a506d8f4200371da763f8`，tree `217c31661fb1929f7d00cc35624133abda3b3c1e`；合入树与候选树相同），以下为交付与证据记录。首次 Full 的四份持续失败已修复；产品头 `f5da16b304` 的本机验证已通过，后续覆盖核账发现的 macOS 测试夹具缺口已在 `580256f6c6` 修复，11 项原用例补验及两路代码增量审查通过。随后 `1f6` 普通 CI 的 RAC-390 状态观察断言失败，`8b87087269` 已仅在测试中修正为撤权祖先的因果断言，原文件 3 项及正反交错验证通过。旧 Full 的失败、取消与缺失汇总记录均保留；最终普通 CI／Full／合并队列与文档头绑定已完成（32 分片+汇总、1,883／1,883 文件，3 份仅既定重试后通过；见[第 20 批记录](../post-anticorruption-roadmap/reference/batches/20.md#最终-cifull-结算与合入2026-11-09)）。原金样首败、视觉失败及用户仅对本轮两处具体像素差异的豁免分别保留，不扩大授权（批准记录见 PR #2000 评论 [6740376438](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6740376438)、[6745182388](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6745182388)，逐像素复核见 [6742161422](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6742161422)；后续比较若仍出现同类差异需用户另行决定是否延续）。完整证据见[第 20 批整批记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户确定的分工，20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全，45 接引导采用与另存，52 接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（V6）：本规范 P-3a 规划的项目插件成员动作 `projects.plugins.set@1` 扩展为分区级 `partitions.plugins.set@1`（涵盖保留分区 `personal` 与各项目，带成员 revision），在 [`106`](../post-anticorruption-roadmap/reference/batches/106.md)（UPP-A）落地，供场景包采用与助理配置插件共同调用。
+
 ## 0. 这份稿子做什么
 
 [第 20 批第 1 项](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-item-1)要交「角色、设置、场景定义、页面运行、保存／恢复及插件采用边界」的公共合同。本稿写六样：
@@ -29,7 +33,7 @@
 | --- | --- |
 | 依赖哪种能力 | Manifest 的 `requires`（`PluginRequirementDeclaration`，含 `optional`） |
 | 只有声明的插件、签名的内容包、随包带上未装 | 08 的 `kind: "content"`、内容包、`plugins.bundled.list@1` |
-| 安装与信任 | `plugins.install.preview`、`plugins.install.confirm`、`verifyPluginPackageSignature`、这个 Home 现有的发布身份（`apps/local-host/src/plugin-builder/publisher-identity.ts`） |
+| 安装与信任 | `plugins.install.preview`、`plugins.install.confirm`、`verifyPluginPackageSignature`、这个 Home 现有的发布身份（`apps/local-host/src/installed-plugin-publisher.ts`） |
 | Skill 的精确引用与启用 | 08 的 `SkillRef`、`skills.settings.set@1` |
 | 角色 | `modules/characters` 的 `CharacterDraft`、`characters.create@1` 等；层次与生效按 36 |
 | 页面隔离 | 不透明框架 `apps/workbench/src/browser/plugin-frame/`（S-47：固定脚本清单、`connect-src none`、动作走页面网关） |
@@ -466,7 +470,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 导入通过当前项目的动作客户端调用确切 `plugin-install` 提供方，沿 `retainActionAuthority` 保留原 `skills.import.confirm@1` 的本人、授权、取消信号与尾检。包安装到 Home 不改变发起项目绑定。导入只拿发布者公钥指纹读取留存版本，不持有签名器。公钥元数据缺失时，先对最终选中内容做同一预检。试用声明若带 `compatible_from`，版本高于已装版本。导入确认和签名授权均有效时，原身份 owner 只从已封存的密钥取得公钥指纹，未有密钥便返回空。导入用这个指纹读取留存版本并确定最终包和技能版本。签名命令用真实指纹的长度预检最终稿，再沿原发布流程补回公钥元数据或首次建钥，并签名。
 
-本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/plugin-builder/publisher-identity.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
+本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/installed-plugin-publisher.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
 
 **合入 #1997 后的在途撤销。** Skill 正文和附带文件按 S-skill-catalog、SKC-08／09 核当前发布者。即使安装状态尚未更新，在目录检查等待期间已撤销的发布者也不再给出正文或附带文件。先完成异步准备，再读一次同意账本，并在同一个同步步骤投影目录、检查安装及设置和读取内容。一次读取多个引用复用这一份发布者快照。状态写入和使用回执仍在 `beforeEffect()` 后另取一次当前发布者快照，核对原安装与信任再写。验收用实际已签包的两个公开读取动作，暂停目录检查，真实撤销后再放行，并核对 20 个引用共用一次账本读取。
 

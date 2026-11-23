@@ -12,6 +12,7 @@ import { agentStudioFixture } from './agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH, studioHarnessPage, studioHarnessRequests } from './agent-studio-harness.mjs';
 import { LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID, pluginPagesFor, resolveWebLocale, authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import { handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { handleInstalledPluginHttp } from '../apps/local-host/dist/installed-plugin-http.js';
 import { releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 
 const fixture = process.argv.includes('--fixture');
@@ -30,9 +31,9 @@ const server = createServer((request, response) => {
       response.end(studioHarnessPage(home, DEMO_PROJECT_ID, "", proof, resolveWebLocale(request.headers.cookie, request.headers["accept-language"]))); return;
     }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    return pluginPagesFor(home).bind(request, url).then(release => {
+    return pluginPagesFor(home).bind(request, url).then(async release => {
       if (release) response.once("close", release);
-      return handleAgentStudioHttp(request, response, local, options, proof);
+      return (await handleInstalledPluginHttp(request, response, local, options, proof)) || await handleAgentStudioHttp(request, response, local, options, proof);
     }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: '请打开 ' + STUDIO_HARNESS_PATH }); })
       .catch(error => sendLocalWebJson(response, 500, { error: String(error) }));
   });

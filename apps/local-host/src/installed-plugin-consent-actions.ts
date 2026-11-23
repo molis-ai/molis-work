@@ -9,8 +9,8 @@ import { consentsChanged } from "./consent-revision.js";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry, assertProjectReachSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { pluginInstallActions } from "./plugin-install-actions.js";
 import type { ProjectReachConsents, ProjectReachSelection, ProjectReachView } from "./plugin-project-reach-consent.js";
-import type { CatalogCapability } from "./plugin-builder/catalog.js";
-import { latestCapability } from "./plugin-builder/capabilities.js";
+import type { CatalogCapability } from "./installed-plugin-catalog.js";
+import { latestCapability } from "./installed-plugin-capabilities.js";
 
 // Taking an agreement back (ac-trust T5, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-77). The Home's consent ledger
 // holds one row for each declaration of a plugin that changes what it does elsewhere (常开, a default wiring, a default input group). Only

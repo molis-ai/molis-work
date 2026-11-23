@@ -68,7 +68,7 @@ const PRIVATE_UI_PACKAGE_NAMES = new Set([
  * presentation checks, which live in the design system: a platform capability (10-18 decision), not a precedent.
  */
 export const PRIVATE_UI_EXEMPT_PLUGINS: readonly string[] = [
-  "plugins/native/plugin-builder",
+  "horizontal/plugin-studio",
 ];
 
 const DATABASE_IMPLEMENTATIONS = new Set([

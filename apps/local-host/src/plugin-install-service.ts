@@ -20,7 +20,7 @@ import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, PluginUninstallTarget, ProjectPluginInstalledView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
-import type { InstalledRelease } from './installed-release.js';
+import type { InstalledRelease, PackageInstallChoices, PackageInstallSecret } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
 import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sandbox-package.js';
@@ -62,9 +62,11 @@ export interface PluginInstallPorts {
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
   /** Installs a release in the current project. The owner runs `complete` synchronously after refresh and authority checks, inside its compensation window. */
-  installInProject(projectId: string, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void>;
+  installInProject(projectId: string, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void, choices?: PackageInstallChoices): Promise<void>;
   /** Installs a release in the Home: one instance every project shares, which a package asks for in its Manifest (`runtime.scope`, BL-628). */
-  installInHome(release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void>;
+  installInHome(release: InstalledRelease, assertCurrent?: () => void, complete?: () => void, choices?: PackageInstallChoices): Promise<void>;
+  /** The names of the keys already saved for a plugin where the package installs (a project, or the Home: null); never a value. A Host without it says none. */
+  savedSecrets?(projectId: string | null, pluginId: string): Promise<readonly string[]>;
   runHomeInstallation?<Result>(operation: (assertOpen: () => void) => Promise<Result>): Promise<Result>;
   presentationCatalog?(projectId: string | null): Promise<SurfaceInstallCatalog>;
   /**
@@ -127,7 +129,10 @@ export interface PluginInstallPreviewResult {
   preview: PluginInstallPreview;
   /** What the plugin's operations ask for in all: confirming approves exactly this. */
   effects: SandboxEffects;
-  publisher: { key_id: string; pinned_label: string | null };
+  /** `local`: signed with this Home's own publisher identity (a package made on this computer). */
+  publisher: { key_id: string; pinned_label: string | null; local?: true };
+  /** The keys the package's requests name (`effects.secretRefs`), each with whether one is saved where it installs; never a value. */
+  secrets?: Array<{ name: string; saved: boolean }>;
   /** The role materials the package ships, and in an upgrade how each changed. Its methods are Skills, listed in `skills`. */
   agent_bodies?: Array<{ kind: 'role'; name: string; excerpt: string; body: string; total_chars: number; truncated: boolean; change?: 'added' | 'changed' | 'removed' }>;
   /** Every Skill the package declares (its Manifest's `methods`), and in an upgrade what changed (specs/skill-packs/contract-design.md §5). */
@@ -157,6 +162,38 @@ interface Held extends PreviewOwner {
   view: PluginInstallPreviewResult;
   spki: string;
   expires: number;
+}
+
+/** What confirming answers: the installed plugin, and the optional switches of an upgrade that could not be moved (the upgrade itself stands). */
+export interface PluginInstallConfirmResult { plugin_id: string; version: string; publisher_key_id: string; permission_changes_failed?: string[] }
+export interface PluginInstallConfirmInput {
+  preview_id: string;
+  consent: boolean;
+  pin_label?: string;
+  /**
+   * The optional permissions that are to be on once this is installed, of those the preview listed as optional and requested. A first
+   * installation starts with them; an upgrade moves each switch that differs from the installation's. Absent: a first installation
+   * holds only what is required, an upgrade keeps its switches.
+   */
+  optional_permissions?: string[];
+}
+
+/**
+ * Keys the person typed in the trusted confirmation, held for the one `confirm` of their preview (the id is the Host's own random one
+ * and is used up by that call). They never ride in an action's input: the confirmation's own Host route puts them here, and the
+ * lifecycle seals them.
+ */
+const stagedSecrets = new Map<string, { secrets: PackageInstallSecret[]; expires: number }>();
+export function stageInstallSecrets(previewId: string, secrets: readonly PackageInstallSecret[]): void {
+  const now = Date.now();
+  for (const [id, entry] of stagedSecrets) if (entry.expires <= now) stagedSecrets.delete(id);
+  if (stagedSecrets.size >= MAX_PREVIEWS) stagedSecrets.delete(stagedSecrets.keys().next().value!);
+  stagedSecrets.set(previewId, { secrets: secrets.map(secret => ({ ...secret })), expires: now + PREVIEW_TTL_MS });
+}
+function takeInstallSecrets(previewId: string): PackageInstallSecret[] {
+  const entry = stagedSecrets.get(previewId);
+  stagedSecrets.delete(previewId);
+  return entry && entry.expires > Date.now() ? entry.secrets : [];
 }
 
 export function assertInstallAuthority(caller?: InstallAuthority): void {
@@ -314,9 +351,11 @@ export class PluginInstallService {
     const pin = this.assertPublisherStanding(key_id);
     const word = connectorWords(manifest.plugin_id, pkg.localePacks);
     const preview_id = randomUUID();
+    const refs = pkg.permissions.secretRefs ?? [], saved = refs.length && current ? await this.ports.savedSecrets?.(runtime_scope === 'home' ? null : who.project_id, manifest.plugin_id) ?? [] : [];
     const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(skill_scenes ? { skill_scenes } : {}), ...(requires.length ? { requires } : {}),
       ...(this.ports.sceneAfterRestart?.(manifest.memory_scene) ? { memory_scene_after_restart: true as const } : {}),
-      effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
+      effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null, ...(this.ports.localSigner?.keyId() === key_id ? { local: true as const } : {}) },
+      ...(refs.length ? { secrets: refs.map(name => ({ name, saved: saved.includes(name) })) } : {}),
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
         permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
@@ -352,7 +391,7 @@ export class PluginInstallService {
 
   /** A plugin id keeps the range its first kept package gave it: a package of another range is refused rather than run where its Manifest never asked (BL-628, PEQ-06). */
   private assertScopeKept(manifest: KeptSandboxPackage['manifest'], refuse: (message: string) => Error): void {
-    const kept = this.ports.packages.scopeOf(manifest.plugin_id), range = rangeOf(manifest);
+    const kept = this.ports.packages.scopeOf(manifest.plugin_id, manifest.publisher.signature), range = rangeOf(manifest);
     if (kept !== undefined && kept !== range) {
       const label = kept === 'dual' ? '双实例' : kept === 'home' ? 'Home' : '项目';
       throw refuse(`插件 ${manifest.plugin_id} 已经以「${label}」范围装过，它的范围不能更换：请给这个包换一个插件 ID`);
@@ -389,20 +428,35 @@ export class PluginInstallService {
    * Installs what a preview showed. The preview is used up by this call, whatever happens. A publisher the person has not pinned is pinned
    * here only when they said so (`pin_label`); the install then runs under that pin.
    */
-  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: PreviewOwner, caller?: ActionExecutionContext, complete?: () => void): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
-    const entry = this.held.get(input.preview_id);
+  async confirm(input: PluginInstallConfirmInput, who: PreviewOwner, caller?: ActionExecutionContext, complete?: () => void): Promise<PluginInstallConfirmResult> {
+    const entry = this.held.get(input.preview_id), secrets = takeInstallSecrets(input.preview_id);
     this.held.delete(input.preview_id);
     const held = requireHeldPreview(entry, who);
     if (input.consent !== true) throw pluginErrors.consent_required('安装前请确认插件要使用的权限');
+    const chosen = this.chosen(held, input.optional_permissions, secrets);
     const { runHomeInstallation } = this.ports;
     if (held.view.runtime_scope === 'home' && runHomeInstallation) {
-      return runHomeInstallation(assertOpen => this.confirmHeld(held, input.pin_label, who.actor_id, caller, assertOpen, complete));
+      return runHomeInstallation(assertOpen => this.confirmHeld(held, input.pin_label, who.actor_id, chosen, caller, assertOpen, complete));
     }
     if (held.view.runtime_scope === 'home' && held.pkg.manifest.presentation !== undefined) throw pluginErrors.declaration_invalid('这个宿主没有 Home 安装串行入口');
-    return this.confirmHeld(held, input.pin_label, who.actor_id, caller, undefined, complete);
+    return this.confirmHeld(held, input.pin_label, who.actor_id, chosen, caller, undefined, complete);
   }
 
-  private async confirmHeld(held: Held, pinLabel: string | undefined, actorId: string, caller?: ActionExecutionContext, assertOpen?: () => void, complete?: () => void) {
+  /**
+   * What the person chose besides agreeing, checked against what the preview showed: a switch only for a permission the preview listed
+   * as optional and requested, a key only for a reference the package names. Anything else is refused before the publisher is pinned or
+   * the package kept. A package installed as two halves takes no switches here: its halves are switched in the settings.
+   */
+  private chosen(held: Held, optional: readonly string[] | undefined, secrets: readonly PackageInstallSecret[]): { optional?: string[]; secrets: readonly PackageInstallSecret[] } {
+    const offered = held.view.preview.permissions.filter(row => !row.required && row.requested).map(row => row.permission);
+    if (optional?.some(permission => !offered.includes(permission))) throw pluginErrors.grant_denied('这个包没有请求这项可选权限，不能在安装时打开');
+    if (optional?.length && held.view.dual_instance) throw pluginErrors.grant_denied('这个插件在个人空间和项目里各有一半，可选权限装好后在设置里开');
+    const refs = held.pkg.permissions.secretRefs ?? [];
+    if (secrets.some(secret => !refs.includes(secret.name)) || new Set(secrets.map(secret => secret.name)).size !== secrets.length) throw new ActionError('actions.input_invalid', '密钥和这个包声明的不一致');
+    return { ...(optional ? { optional: [...new Set(optional)] } : {}), secrets };
+  }
+
+  private async confirmHeld(held: Held, pinLabel: string | undefined, actorId: string, chosen: { optional?: string[]; secrets: readonly PackageInstallSecret[] }, caller?: ActionExecutionContext, assertOpen?: () => void, complete?: () => void): Promise<PluginInstallConfirmResult> {
     const { runtime_scope, dual_instance, publisher: { key_id } } = held.view;
     const dual = isDualPackage(held.pkg.manifest);
     // The range the person saw is the range of the package: checked again, as another preview may have been confirmed since.
@@ -450,6 +504,9 @@ export class PluginInstallService {
       const directory = this.ports.packages.save(held.bundle, held.pkg);
       const release = packagedRelease(held.pkg, directory, this.now());
       // The installation owner checks authority and commits the dependent owner's state inside its compensation window.
+      const present = inHome ? homePresent : projectPresent;
+      // A first installation starts with the switches the person chose; an upgrade keeps its own and moves the ones that differ afterwards.
+      const choices: PackageInstallChoices = { ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
       if (dual) {
         const homeAlreadySame = homePresent?.record.version === held.pkg.manifest.version;
         if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent);
@@ -460,9 +517,21 @@ export class PluginInstallService {
           }
           throw error;
         }
-      } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete);
-      else await this.ports.installInProject(held.project_id, release, assertCurrent, complete);
-      return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete, choices);
+      else await this.ports.installInProject(held.project_id, release, assertCurrent, complete, choices);
+      const installed = { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      if (!present || !chosen.optional) return installed;
+      // The upgrade stands whatever happens to a switch: each one that differs is moved as the settings move it, and one that fails is named.
+      const failed: string[] = [], held_now = new Set(present.record.grants), wanted = new Set(chosen.optional);
+      for (const row of held.view.preview.permissions) {
+        if (row.required || !row.requested || held_now.has(row.permission) === wanted.has(row.permission)) continue;
+        try {
+          assertCurrent();
+          if (inHome) await this.setHomePermission(present.record.install_id, row.permission, wanted.has(row.permission));
+          else await this.setPermission(held.project_id, present.record.install_id, row.permission, wanted.has(row.permission));
+        } catch { failed.push(row.permission); }
+      }
+      return failed.length ? { ...installed, permission_changes_failed: failed } : installed;
     };
     return catalog ? withSurfacePresentationCheck(held.pkg.manifest, catalog, keep) : keep();
   }

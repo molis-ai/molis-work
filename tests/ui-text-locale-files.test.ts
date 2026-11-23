@@ -6,7 +6,7 @@ import test from "node:test";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { packPluginProject, packSandboxProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
 import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
@@ -328,13 +328,15 @@ test("FSS-53 FSS-60 a real signed installation binds words to its authorized pag
 });
 
 test("FSS-53 built-in registrations use the same declared language files as a plugin project", () => {
-  const entries = BUILTIN_PLUGIN_CATALOG;
+  // The platform's framed surface (the studio, 47-1 C) declares its files the same way, in its own package.
+  const entries = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ entry, directory: path.join("plugins/native", entry.project_plugin_id) })),
+    ...HOST_FRAMED_SURFACES.map(entry => ({ entry, directory: "horizontal/plugin-studio" }))];
   assert.ok(entries.length > 1);
-  for (const entry of entries) {
+  assert.equal(HOST_FRAMED_SURFACES.length, 1, "a second platform surface names its package here");
+  for (const { entry, directory } of entries) {
     assert.ok(entry.manifest.ui.locales, entry.manifest.plugin_id);
     assert.deepEqual(new Set(entry.manifest.ui.locales.available), new Set(["zh", "en"]), entry.manifest.plugin_id);
-    const directory = entry.project_plugin_id === "plugin-builder" ? "plugin-builder" : entry.project_plugin_id;
-    assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join("plugins/native", directory, file), "utf8")), [], entry.manifest.plugin_id);
+    assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join(directory, file), "utf8")), [], entry.manifest.plugin_id);
   }
 });
 

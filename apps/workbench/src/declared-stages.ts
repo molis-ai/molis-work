@@ -1,8 +1,9 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { HostSurfaceRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { StagePagePresentation, UiContribution, UiRenderRequest, UiSurfaceDescriptor, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
 import { renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
@@ -62,7 +63,7 @@ export function stageContributionId(manifest: PluginManifest): string | undefine
  * The contribution that draws a plugin's stage in the main slot: the view that opens the stage names it, and its `workbench`
  * surface declares the main slot. Undefined when the plugin has no such view or surface, so it has no declared stage.
  */
-export function declaredStageContributionId(entry: PluginRegistration): string | undefined {
+export function declaredStageContributionId(entry: HostSurfaceRegistration): string | undefined {
   const contributionId = stageContributionId(entry.manifest);
   const contribution = entry.workbench.contributions.find(item => item.descriptor.contribution_id === contributionId);
   const surface = contribution?.descriptor.surfaces?.find(item => item.surface_id === "workbench");
@@ -72,6 +73,8 @@ export function declaredStageContributionId(entry: PluginRegistration): string |
 export interface DeclaredStageOptions {
   /** The plugins this project shows. */
   enabled: readonly string[];
+  /** A project page also frames the platform's own surfaces (the plugin studio, 47-1 C); they are nobody's to show or hide. */
+  hostSurfaces?: boolean;
   /** Exact contribution/surface pairs already drawn by a Host path. */
   rendered: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
   unavailable?: readonly string[];
@@ -173,12 +176,13 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
  * contribution's `workbench` surface is mounted in the slot it declares, which must be the main slot. No per-plugin row and no
  * host branch; a plugin without such a view or surface has no stage here, and one a host path has drawn is not drawn twice.
  */
-export function renderDeclaredStages({ enabled, rendered, model, page_owner, unavailable = [] }: DeclaredStageOptions) {
+export function renderDeclaredStages({ enabled, hostSurfaces = false, rendered, model, page_owner, unavailable = [] }: DeclaredStageOptions) {
   const shown = new Set(enabled), refused = new Set(unavailable);
   let page: RenderedStagePage | undefined;
   const panels: Record<string, string> = {}, overlays: string[] = [], surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [];
-  const html = BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
-    if (!shown.has(entry.project_plugin_id) || refused.has(entry.project_plugin_id)) return [];
+  const entries: readonly HostSurfaceRegistration[] = [...BUILTIN_PLUGIN_CATALOG.filter(entry => shown.has(entry.project_plugin_id)), ...(hostSurfaces ? HOST_FRAMED_SURFACES : [])];
+  const html = entries.flatMap(entry => {
+    if (refused.has(entry.project_plugin_id)) return [];
     const contributionId = declaredStageContributionId(entry);
     if (!contributionId) return [];
     const contribution = entry.workbench.contributions.find(item => item.descriptor.contribution_id === contributionId)!;

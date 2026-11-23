@@ -4,7 +4,7 @@ import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/mol
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginComponentChoices } from '@molis-ai/molis-work-design-system';
 import { createStudioPublisher } from '@molis-ai/molis-work-app-local-host';
-import { AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild, type AgentRelease, type AgentDesign } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild, type AgentRelease, type AgentDesign } from '@molis-ai/molis-work-plugin-studio';
 import { packageFiles } from './sandbox-package.js';
 
 /** The fixture's durable storage uses the same compare-and-set contract as the production Builder store. */
@@ -21,7 +21,7 @@ export const publicationAuthority = (): PluginExecutionControl => ({ signal: new
 export function publicationPorts(home: string, root: string): AgentBuilderPorts {
   const unused = async (): Promise<never> => { throw new Error('This publication fixture must not generate, check, or install'); };
   return { projectId: 'author', catalog: async () => [], models: async () => [], agent: unused, validateContract() {}, prepareBuild: unused,
-    check: unused, call: unused, resetPreview: async () => {}, browserAcceptance: unused, publish: createStudioPublisher(home, root), installations: async () => [], lifecycle: unused };
+    check: unused, call: unused, resetPreview: async () => {}, browserAcceptance: unused, publish: createStudioPublisher(home, root), installations: async () => [] };
 }
 
 /** A previously checked fixed source, for publication boundary tests; real checking/browser coverage is separate. */

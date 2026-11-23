@@ -11,6 +11,7 @@ type ActiveCell = {
   readonly kind: "page" | "folder";
   readonly id: string;
   readonly group: string | undefined;
+  readonly action: string | undefined;
   readonly column: number;
 };
 const activeCells = new WeakMap<PagesPage, ActiveCell>();
@@ -173,15 +174,16 @@ const cellDescriptor = (button: HTMLButtonElement): ActiveCell | null => {
   const row = button.closest<HTMLElement>('[role="row"]');
   if (!row) return null;
   const column = rowButtons(row).indexOf(button);
-  if (row.dataset.pageId) return { kind: "page", id: row.dataset.pageId, group: groupOf(row), column };
-  if (row.dataset.pagesFolderRow !== undefined) return { kind: "folder", id: row.dataset.pagesFolderRow, group: groupOf(row), column };
-  return null;
+  const action = Object.keys(button.dataset).find((key) => key === "pageId" || key.startsWith("pages"));
+  const id = row.dataset.pageId ?? row.dataset.pagesFolderRow;
+  if (id === undefined) return null;
+  return { kind: row.dataset.pageId ? "page" : "folder", id, group: groupOf(row), action, column };
 };
 
-const buttonInColumn = (row: HTMLElement | undefined, column: number): HTMLButtonElement | undefined => {
+const buttonInColumn = (row: HTMLElement | undefined, column: number, action?: string): HTMLButtonElement | undefined => {
   if (!row) return;
   const cells = rowButtons(row);
-  return cells[column] ?? cells.at(-1);
+  return (action ? cells.find((cell) => Object.hasOwn(cell.dataset, action)) : undefined) ?? cells[column] ?? cells.at(-1);
 };
 
 const setTabStop = (page: PagesPage, button: HTMLButtonElement) => {
@@ -193,18 +195,18 @@ const setTabStop = (page: PagesPage, button: HTMLButtonElement) => {
   if (descriptor) activeCells.set(page, descriptor);
 };
 
-const restoreTabStop = (page: PagesPage, hadFocus: boolean) => {
+const restoreTabStop = (page: PagesPage): HTMLButtonElement | undefined => {
   const rows = visibleRows(page.rowsEl);
   const active = activeCells.get(page);
   const matching = active
     ? rows.filter((row) => (active.kind === "page" ? row.dataset.pageId : row.dataset.pagesFolderRow) === active.id)
     : [];
-  // Starred documents also appear in their own folder. Restore the same occurrence after a refresh.
+  // A starred document may appear twice. The action also has to survive a Move button being inserted or removed.
   const row = matching.find((candidate) => groupOf(candidate) === active?.group) ?? matching[0];
-  const button = buttonInColumn(row, active?.column ?? 0) ?? buttonInColumn(rows[0], 0);
+  const button = buttonInColumn(row, active?.column ?? 0, active?.action) ?? buttonInColumn(rows[0], 0);
   if (!button) return;
   setTabStop(page, button);
-  if (hadFocus) button.focus({ preventScroll: true });
+  return button;
 };
 
 const setFolderOpen = (page: PagesPage, fold: HTMLElement, open: boolean) => {
@@ -314,8 +316,9 @@ export const visibleRecords = (page: PagesPage) => {
 
 export const renderList = (page: PagesPage) => {
   const top = page.list?.scrollTop || 0;
-  paintList(page);
+  const focus = paintList(page);
   if (page.list) page.list.scrollTop = top;
+  focus?.focus();
 };
 
 const paintList = (page: PagesPage) => {
@@ -341,7 +344,8 @@ const paintList = (page: PagesPage) => {
     const unfiled = shown.filter((record) => !record.folder_id);
     if (unfiled.length) rowsEl.append(renderFold(page, "", uiText.text("pages.folder.unfiled"), unfiled, !closed.has("")));
   }
-  restoreTabStop(page, hadFocus);
+  const button = restoreTabStop(page);
+  return hadFocus ? button : undefined;
 };
 
 /** The list could not be read: an error box with a retry in its place. */

@@ -428,7 +428,7 @@ export const PAGES_STYLES = `
     transition: opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-folder-row:hover .pages-folder-actions,
-  .pages-folder-actions:focus-within { opacity: 1; } @media (hover: none) { .pages-folder-actions { opacity: 1; } }
+  .pages-folder-row:focus-within .pages-folder-actions { opacity: 1; } @media (hover: none) { .pages-folder-actions { opacity: 1; } }
   .pages-folder-actions button {
     width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center;

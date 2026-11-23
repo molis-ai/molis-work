@@ -5,6 +5,7 @@ import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http"
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
 const GROUP_CONTRAST = `(() => {
@@ -332,9 +333,9 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
 });
 
 test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and supports pure keyboard multi-select, folder toggle, inline actions, and single Tab stop", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, async () => "# Combined sources");
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory, web } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const store = openPagesStore(homeDirectory);
   const seeded = (() => {
@@ -434,6 +435,15 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   await key(" ", "Space", 32);
   await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
   await waitFor(`window.bl340Focus?.granularity === 'objects' && window.bl340Focus.targets.map((target) => target.ref.id).sort().join() === ${JSON.stringify([a, b].sort().join())}`);
+  const request = { pane_id: "keyboard-sources", focus: await evaluate<SurfaceFocus>("window.bl340Focus") };
+  const contextual = `/projects/${projectId}/api/contextual`;
+  const { plan } = await web.post<{ plan: { candidates: { offer_id: string; key: string }[] } }>(contextual + "/candidates", request);
+  const synthesis = plan.candidates.find((candidate) => candidate.offer_id === "synthesize");
+  assert.ok(synthesis);
+  const prepared = await web.post<{ input: { inputs: { item_id: string }[] } }>(contextual + "/prepare", {
+    ...request, key: synthesis.key, request_id: "bl-340-keyboard-sources",
+  });
+  assert.deepEqual(prepared.input.inputs.map((item) => item.item_id).sort(), [a, b].sort(), "Pages prepares the two keyboard-selected sources");
   assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "Space multi-select does not open the editor");
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item]')`), null, "Space multi-select opens no item tab");
   // Deselect B and A purely with keyboard.

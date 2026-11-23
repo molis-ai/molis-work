@@ -6,7 +6,7 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
-import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 type AXTree = { nodes: { ignored: boolean; role?: { value: string }; name?: { value: string } }[] };
 type Summary = { remotes: { name: string; url: string }[]; upstream: string | null; staged: { path: string }[] };
@@ -15,7 +15,7 @@ const control = (name: string) => `[data-git-${name}]`;
 const node = (name: string) => `document.querySelector('${control(name)}')`;
 const visible = (name: string) => `${node(name)}?.checkVisibility()`;
 
-test("ACTCOPY-03 ACTCOPY-04: Git offers real operations as repository conditions change and keeps typed drafts", { timeout: 120_000 }, async t => {
+test("ACTCOPY-03 ACTCOPY-04 BL-1040: Git offers real operations as repository conditions change and keeps typed drafts", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded");
   if (!b) return;
   assert.ok(b.projectId);
@@ -23,7 +23,7 @@ test("ACTCOPY-03 ACTCOPY-04: Git offers real operations as repository conditions
   const { command, sessionId, web } = b;
   const { evaluate, waitFor, click } = frame;
   const output = reviewEvidenceUrl("batch27-git-source-controls/");
-  await mkdir(output, { recursive: true });
+  if (shouldSaveReviewScreenshots()) await mkdir(output, { recursive: true });
   const repo = join(b.homeDirectory, "launch-repo"), remote = join(b.homeDirectory, "launch-remote.git");
   const file = join(repo, "notes.md"), initial = "Launch notes\n";
   const git = (...args: string[]) => execFileSync("git", [
@@ -91,6 +91,7 @@ test("ACTCOPY-03 ACTCOPY-04: Git offers real operations as repository conditions
     await command("Input.insertText", { text: value }, sessionId);
   };
   const capture = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(new URL(name + ".png", output), Buffer.from(data, "base64"));
   };
@@ -98,7 +99,8 @@ test("ACTCOPY-03 ACTCOPY-04: Git offers real operations as repository conditions
   await b.setViewport(1440, 900);
   await go(url);
   const unavailable = ["commit", "commit-draft", "pull", "push", "pr-toggle", "pr-form"];
-  for (const [locale, remoteState, stagedState] of [["zh", "没有远端", "没有已暂存的文件"], ["en", "No remote", "No staged files"]] as const) {
+  const labels = [["zh", "没有远端", "没有已暂存的文件", "建 PR…"], ["en", "No remote", "No staged files", "Open a PR…"]] as const;
+  for (const [locale, remoteState, stagedState, prLabel] of labels) {
     if (locale === "en") await go("/locale?lang=en&next=" + encodeURIComponent(url));
     await waitFor(settled);
     assert.equal(await text("sync"), remoteState);
@@ -112,6 +114,7 @@ test("ACTCOPY-03 ACTCOPY-04: Git offers real operations as repository conditions
         for (const state of [remoteState, stagedState]) {
           assert.deepEqual(tree.filter(([role, name]) => name === state && role !== "InlineTextBox"), [["StaticText", state]]);
         }
+        assert.ok(tree.every(([, name]) => name !== prLabel), "the PR entry is absent from the accessibility tree without a remote");
         assert.equal(await evaluate(`[${unavailable.map(visible).join(",")}].some(Boolean)`), false);
         assert.equal(await evaluate(`(() => {
           const box = ${node("sc")}.getBoundingClientRect();
@@ -226,17 +229,21 @@ test("ACTCOPY-03 ACTCOPY-04: Git offers real operations as repository conditions
 
   // A branch in the same repository can be a valid upstream without a configured remote.
   await click(control("close"));
-  git("restore", "--staged", "notes.md");
-  await writeFile(file, initial);
   git("remote", "remove", "origin");
   git("branch", "--set-upstream-to=release-base", "main");
   await refresh();
   const local = await read();
   assert.deepEqual([local.remotes, local.upstream], [[], "release-base"]);
+  assert.deepEqual(local.staged.map(item => item.path), ["notes.md"]);
+  assert.equal(await evaluate(visible("commit")), true, "the staged file can still be committed locally without a remote");
+  assert.equal(await evaluate(visible("commit-state")), false);
   assert.equal(await text("sync"), "No remote");
   assert.equal(await evaluate(visible("pr-toggle")), false);
   assert.equal(await evaluate(visible("push")), false);
   assert.equal(await text("pull"), "Pull…");
+  git("restore", "--staged", "notes.md");
+  await writeFile(file, initial);
+  await refresh();
   await focus("pull");
   await capture("local-upstream-en-dark-1024");
   await press("Enter");

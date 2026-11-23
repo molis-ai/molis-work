@@ -4,10 +4,10 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 
-test("QEA-38: an empty project's normal Goals canvas loads without an invalid empty selection", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded", seedBoard);
+test("QEA-38 BL-1037: opening Goals and its canvas in an empty project leaves no invalid stage read", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", seedBoard, null);
   if (!browser) return;
-  assert.ok(browser.projectId);
+  assert.ok(browser.projectId && browser.localHost?.callLog);
   const requests: Array<{ goal: string | null; status: number }> = [];
   browser.server.on("request", (request, response) => {
     const url = new URL(request.url ?? "/", browser.origin);
@@ -23,6 +23,9 @@ test("QEA-38: an empty project's normal Goals canvas loads without an invalid em
   assert.equal(await browser.evaluate("document.querySelector('[data-goal-momentum]').dataset.loaded"), "true");
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-momentum-node]').length"), 0);
   assert.equal(await browser.evaluate("document.querySelector('.goal-canvas-empty')?.checkVisibility()"), true);
+  const refusedStageReads = browser.localHost.callLog.list(browser.projectId).filter(row =>
+    row.capability_id === "goals.stage.read" && row.refused && row.code === "actions.input_invalid");
+  assert.deepEqual(refusedStageReads, [], "opening Goals must not leave an invalid input row marked as not run in call history");
 });
 
 test("canvas retries graph loading, pans without bounds, drags compact nodes without changing dependencies, and restores its view", { timeout: 60_000 }, async (t) => {

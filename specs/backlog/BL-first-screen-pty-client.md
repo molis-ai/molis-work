@@ -4,4 +4,4 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BL-first-screen-pty-client | `/desktop/pty-client.js` 509,323 B（线上 509,681 B），工作台每次第一屏都载入，不管用不用终端；路径不在 `/assets/` 下，所以 `page-assets` 门禁和第一屏总字节的旧口径都量不到它，往里加字节不会被拦。它和 [BL-637](BL-637.md)（Goal 文档旁的终端窗格仍是这个包的一部分，随 Goals S11 改成 Goals 自己的客户端）是同一个文件：要做的是改成打开终端时再载入，并把它列进第一屏清单或挪到 `/assets/` 下受门禁管；是否一并等 BL-637，先看终端窗格是不是第一屏就要用 | [字体皮肤语言的首屏实测与资源预算方案](../font-and-skin-system/resource-budget.md) 第 5、8 节（附录 B，工作台每页 1 个请求） | 已知缺口 | 资源预算方案只建议另登，没有排期；按需载入要先核对终端入口怎么触发它 | BL-637（同一个文件，Goals 侧的去向） | 中 | D 外观与语言／工作台外壳（执行会话待分配） |
+| BL-first-screen-pty-client | `/desktop/pty-client.js`（约 413 KB）已在 `tooling/gates/page-asset-budgets.json`（`pluginFrame` 路由）受预算门禁管制，且第 44 批 44-4 已将其泛化为平台通用对象工作终端客户端（原 BL-637 已关闭，见[已删除的 BL](../../docs/backlog-removed.md)）；但 `apps/workbench/src/shell-page-renderer.ts:270` 在传入 `parts?.terminal_client` 时仍于首屏提前载入，尚未改成打开终端时再按需加载 | [字体皮肤语言的首屏实测与资源预算方案](../font-and-skin-system/resource-budget.md) 第 5、8 节（附录 B） | 已知缺口 | 资源预算方案只建议另登，没有排期；按需载入要先核对各声明 `work_terminals` 的插件终端入口怎么触发它 | 无 | 中 | D 外观与语言／工作台外壳（执行会话待分配） |

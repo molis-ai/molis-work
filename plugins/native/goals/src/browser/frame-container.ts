@@ -18,6 +18,7 @@ export interface FrameContainerHost {
   readonly locateGraphNode: (goalId: string) => void;
   readonly getProjectId: () => string;
   readonly route: Route;
+  readonly pluginTitle?: (surface: string) => string | undefined;
   readonly openGoalTab?: (goalId: string) => void;
   readonly openGoalWork?: (paneId?: string) => void;
   readonly activateGoalsMother?: () => void;
@@ -148,10 +149,11 @@ export function frameContainerClient(host: FrameContainerHost) {
     const statusEl = target.querySelector<HTMLElement>("[data-frame-goal-status]");
     const source = document.querySelector('[data-goal-id="' + CSS.escape(goalId) + '"] .goal-status');
     if (statusEl) {
-      statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
+      statusEl.className = source?.className || ("mw-object-status goal-status" + (status ? " mw-object-status--" + status + " goal-status--" + status : ""));
       if (source) statusEl.innerHTML = source.innerHTML;
       else statusEl.textContent = item?.status_label || status;
       statusEl.dataset.status = status;
+      statusEl.dataset.craftFocal = "frame:" + goalId;
     }
     put("[data-frame-goal-outcome]", item?.goal.outcome || globalThis.t.text("goals.frame-container-client.no-expected-result-written-yet-can-add-one"));
     const empty = target.querySelector<HTMLElement>("[data-frame-empty]");
@@ -161,9 +163,9 @@ export function frameContainerClient(host: FrameContainerHost) {
     if (!world) return;
     world.replaceChildren();
     frame.blocks.forEach((block) => {
-      const article = blockArticle(block, frame.expanded === block.id);
+      const article = blockArticle(block, frame.expanded === block.id, host.pluginTitle);
       world.append(article);
-      if (frame.expanded === block.id) void fillBody(article, block, route);
+      if (frame.expanded === block.id) void fillBody(article, block, route, false, host.pluginTitle);
     });
   };
   /** The frame surface on the page and its copies in the other split panes. */
@@ -329,10 +331,10 @@ export function frameContainerClient(host: FrameContainerHost) {
       id: "b-" + Date.now() + "-" + (blockSeq++),
       kind: asset.kind,
       itemId: asset.id,
-      itemRef: asset.itemRef || "",
-      entryId: asset.entryId || "",
+      readingSurface: asset.readingSurface || "",
+      readingObject: asset.readingObject || "",
       title: asset.title || asset.id,
-      caption: asset.caption || kindLabel(asset.kind),
+      caption: asset.caption || kindLabel(asset.kind, host.pluginTitle),
       reading: asset.reading || null,
       x: Math.max(16, x),
       y: Math.max(16, y),
@@ -403,7 +405,7 @@ export function frameContainerClient(host: FrameContainerHost) {
       button.dataset.framePickerAsset = asset.kind + ":" + asset.id;
       const title = document.createElement("strong"), caption = document.createElement("small"), state = document.createElement("span");
       title.textContent = asset.title;
-      caption.textContent = [kindLabel(asset.kind), asset.caption].filter(Boolean).join(" · ");
+      caption.textContent = [kindLabel(asset.kind, host.pluginTitle), asset.caption].filter(Boolean).join(" · ");
       button.disabled = frameOf(pickerGoal || curTab).blocks.some((block) => block.kind === asset.kind && block.itemId === asset.id);
       state.textContent = button.disabled ? globalThis.t.text("goals.frame-container-client.added") : "+";
       state.setAttribute("aria-hidden", "true");
@@ -424,7 +426,7 @@ export function frameContainerClient(host: FrameContainerHost) {
     const assets = new Map<string, FrameAsset>();
     document.querySelectorAll("[data-frame-asset]").forEach((row) => {
       const asset = readAsset(row);
-      if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
+      if (asset?.id && asset.kind && asset.kind !== "goal") assets.set(asset.kind + ":" + asset.id, asset);
     });
     try { for (const asset of await (await host.frameAssets()).list(signal)) assets.set(asset.kind + ":" + asset.id, asset); }
     catch {
@@ -433,6 +435,14 @@ export function frameContainerClient(host: FrameContainerHost) {
     }
     if (signal.aborted || !targetSurface.checkVisibility({ visibilityProperty: true }) || goalOfSurface(targetSurface) !== goalId || version !== receivingVersion) return;
     pickItems = [...assets.values()];
+    const allOption = pickerKind.querySelector<HTMLOptionElement>('option[value="all"]') || Object.assign(document.createElement("option"), { value: "all", textContent: globalThis.t.text("goals.frame-stage.all-sources") });
+    const kindOptions = [...new Set(pickItems.map((asset) => asset.kind))].sort().map((kind) => {
+      const option = document.createElement("option");
+      option.value = kind;
+      option.textContent = kindLabel(kind, host.pluginTitle);
+      return option;
+    });
+    pickerKind.replaceChildren(allOption, ...kindOptions);
     pickQuery.value = "";
     pickerKind.value = "all";
     drawPicker();
@@ -577,11 +587,12 @@ function bindSurfaceGestures(target: HTMLElement, parts: SurfaceParts) {
       if (accept) void host.frameAssets().then(service => service.drag(asset)).then(fresh => { if (fresh) accept(fresh); }).catch(() => { /* An old source cannot add a block. */ });
       return;
     }
-    if (["feed", "inbox"].includes(asset.kind)) return;
     if (asset.kind === "goal") {
       rejectGoal(canvas);
       return;
     }
+    // Only host-rendered artifacts drag without a verified frame handle; every plugin asset must arrive via frameAssets().drag().
+    if (asset.kind !== "artifact") return;
     routeAsset(asset, event.clientX, event.clientY, target, goalId);
   });
   let pan: Pan | null = null;
@@ -653,10 +664,10 @@ function bindSurfaceGestures(target: HTMLElement, parts: SurfaceParts) {
       event.preventDefault();
       const article = retry.closest<HTMLElement>("[data-frame-block]");
       const block = frameOf(goalId).blocks.find((item) => item.id === article?.dataset.frameBlock);
-      if (article && block) void fillBody(article, block, route, true);
+      if (article && block) void fillBody(article, block, route, true, host.pluginTitle);
       return;
     }
-    if (el.closest("[data-frame-block-body] a, [data-frame-block-body] button, [data-feed-action], [data-inbox-action]")) return;
+    if (el.closest('[data-frame-block-body] :is(a, button, summary, input, select, textarea, [role="button"])')) return;
     const article = el.closest<HTMLElement>("[data-frame-block]");
     if (!article || !goalId || boardTab(goalId)) return;
     const frame = frameOf(goalId);

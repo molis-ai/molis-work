@@ -97,7 +97,7 @@ export function renderLingguangWorkbench(_model: LingguangUiModel): string {
         </span>
         <span class="lingguang-bar-group lingguang-bar-group--quiet">
         <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-lingguang-dispatch-current aria-label="${uiText("lingguang.action.copy")}" title="${uiText("lingguang.action.copy")}">${icon("copy")}</button>
-        <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-lingguang-discard-current aria-label="${uiText("lingguang.action.discard")}" title="${uiText("lingguang.action.discard")}">${icon("trash")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-lingguang-discard-current data-stage-danger aria-label="${uiText("lingguang.action.discard")}" title="${uiText("lingguang.action.discard")}">${icon("trash")}</button>
         </span>
       </div>
       <form class="lingguang-ask" id="lingguang-ask" data-lingguang-ask hidden>

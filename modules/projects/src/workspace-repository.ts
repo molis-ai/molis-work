@@ -57,12 +57,6 @@ const PERSON_BOUND_BY = LOCAL_PERSON_ACTOR_ID;
 const isPersonBoundBy = (boundBy: string): boolean => boundBy === PERSON_BOUND_BY;
 export const toolBoundBy = (actorId: string): string => `binding:${actorId}`;
 
-/** Whether the person made any of the project's links, by the same allow-list; for the catalog upgrade, which has its own connection. */
-export function projectHasPersonMembership(db: { prepare(sql: string): { all(...params: unknown[]): unknown[] } }, projectId: string): boolean {
-  return (db.prepare("SELECT bound_by FROM workspace_project_memberships WHERE project_id = ?").all(projectId) as Row[])
-    .some((row) => isPersonBoundBy(text(row.bound_by)));
-}
-
 const role = (row: Row): DirectoryRole[] => [...(booleanInt(row.role_input) ? ["input" as const] : []), ...(booleanInt(row.role_output) ? ["output" as const] : [])];
 
 /**

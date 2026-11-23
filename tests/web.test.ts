@@ -88,20 +88,20 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
     <body data-board-view="current" data-desktop-shell="true" data-native-desktop="true">
       <div class="app"><main class="workspace" style="--tree-width: 519px; width: 1178px; height: 760px">
         <aside class="tree-pane" data-desktop-directory="goals">
-          <section class="desktop-directory-panel desktop-goal-directory">
-            <div class="tree-scroll"><ul class="goal-tree">
+          <section class="desktop-directory-panel desktop-tree-directory">
+            <div class="tree-scroll"><ul class="mw-tree">
             <li class="tree-item is-collapsed" id="parent-item">
               <div class="tree-row" id="parent-row"><button class="tree-toggle" type="button"></button><div class="tree-entry directory-list-row">
                 <button class="tree-node" type="button"><span class="tree-copy"><span class="tree-title-line"><strong id="parent-title">${longTitle}</strong></span><small>G2G</small></span></button>
-                <span class="directory-row-state"><span class="goal-status goal-status--clarification_pending">目标待澄清</span></span>
+                <span class="directory-row-state"><span class="mw-object-status mw-object-status--waiting_user">目标待澄清</span></span>
                 <span class="tree-meta-line"><span class="tree-progress" id="parent-progress"><span>3/8</span><i><b></b></i></span></span>
               </div></div>
-              <ul class="tree-children"><li class="tree-item"><div class="tree-row"><span class="tree-guide"></span><div class="tree-entry directory-list-row"><button class="tree-node" type="button"><span class="tree-copy"><span class="tree-title-line"><strong>可见的子 Goal</strong></span></span></button><span class="directory-row-state"><span class="goal-status goal-status--satisfied">已完成</span></span><span class="tree-meta-line"></span></div></div></li></ul>
+              <ul class="tree-children"><li class="tree-item"><div class="tree-row"><span class="tree-guide"></span><div class="tree-entry directory-list-row"><button class="tree-node" type="button"><span class="tree-copy"><span class="tree-title-line"><strong>可见的子 Goal</strong></span></span></button><span class="directory-row-state"><span class="mw-object-status mw-object-status--completed">已完成</span></span><span class="tree-meta-line"></span></div></div></li></ul>
             </li>
             <li class="tree-item"><ul class="tree-children"><li class="tree-item"><ul class="tree-children"><li class="tree-item"><ul class="tree-children"><li class="tree-item">
               <div class="tree-row"><span class="tree-guide"></span><div class="tree-entry directory-list-row">
                 <button class="tree-node" type="button"><span class="tree-copy"><span class="tree-title-line"><strong id="target-title">${longTitle}</strong></span><small>G2G/J</small></span></button>
-                <span class="directory-row-state" id="target-status"><span class="goal-status goal-status--execution_blocked">执行受阻</span></span>
+                <span class="directory-row-state" id="target-status"><span class="mw-object-status mw-object-status--blocked">执行受阻</span></span>
                 <span class="tree-meta-line"><span class="tree-progress"><span>1 个前置</span></span></span>
               </div></div>
             </li></ul></li></ul></li></ul></li></ul></div>

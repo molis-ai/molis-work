@@ -23,6 +23,7 @@ export interface TabWorkspace {
   openPlugin(plugin: string): void;
   /** Sets the view of the item tab shown in a pane (the focused one unless named). */
   setItemView(plugin: string, view: string | undefined, paneId?: string): void;
+  pluginTitle?(plugin: string): string | undefined;
   focusPane?(paneId: string): void;
 }
 

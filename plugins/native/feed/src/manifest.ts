@@ -12,7 +12,6 @@ import { feedWakeJob } from "./runtime-wake.js";
 import { FEED_PERMISSIONS } from "./permissions.js";
 import { FEED_ACTIONS, GOAL_CONTRACT, WAKE } from "./runtime-actions.js";
 import { FEED_STAGE_INBOX_READ, feedQueryActions } from "./query-actions.js";
-import { feedItemActions } from "./item-actions.js";
 import { feedRuntimeCaptureScene } from "./scenes.js";
 import { feedDemoSeedAction } from "./demo-seed.js";
 import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -23,7 +22,7 @@ export const FEED_PROJECT_PLUGIN_ID = "feed";
 /**
  * Feed's declaration, written out as one literal because it is a dual-instance plugin's (the gate `scripts/gates/dual-instance.mjs` reads it as
  * syntax): each project runs Feed, and the Home runs its half, which keeps the reference ledger of the evidence bodies the projects hold
- * (`databases.home`). The two halves share this Manifest and each answers only its own actions; every permission is required.
+ * (`databases.home`). The two halves share this Manifest and each answers only its own actions; every permission is required except `functions:manage` (RAC-1038), and the Home half's grants stay capped to its ledger.
  */
 export const feedManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1,
@@ -37,7 +36,7 @@ export const feedManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: FEED_PERMISSIONS,
   // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
-  capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
+  capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id] },
   presentation: feedPresentation,
   actions: FEED_ACTIONS,
   demo_seed: { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version },

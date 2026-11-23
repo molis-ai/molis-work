@@ -8,7 +8,6 @@ export const CODING_COMPANION_STYLES = `
 .companion-manage { display:flex; width:100%; justify-content:flex-start; margin-bottom:8px; }
 .companion-manage > span { flex:1; text-align:left; }
 .companion-manage > svg:last-child { color:var(--faint); }
-.companion-directory .git-browser { border:0; overflow:visible; }
 .companion-result { min-width:0; min-height:0; overflow:auto; }
 .companion-empty { height:100%; max-width:400px; margin:auto; padding:32px; align-content:center; justify-items:center; text-align:center; }
 .companion-empty p { font-size:13px; line-height:1.7; }
@@ -39,7 +38,5 @@ export const CODING_COMPANION_STYLES = `
   [data-companion] :is(.mw-btn,.mw-dir-row,.mw-select-picker__trigger) { min-height:44px; }
   [data-companion] .mw-dir-row--compact { height:44px; }
   [data-companion] :is(input,select,textarea) { font-size:16px; }
-  .git-reader-head { flex-wrap:wrap; }
-  .git-reader-head > div { flex-basis:100%; }
 }
 `;

@@ -7,9 +7,7 @@ import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { changeMcpClientCredential, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { configureMemberActions } from "@molis-ai/molis-work-app-local-host";
-import { gatewayFactory } from "@molis-ai/molis-work-app-local-host";
-import { CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
+import { configureMemberActions, gatewayFactory, hostContinuityActions } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 test("local administrator grants through the protected owner API and gateway keeps member actors separate",{timeout:120000},async()=>{
@@ -26,7 +24,8 @@ test("local administrator grants through the protected owner API and gateway kee
   const first=factory({projectId:project.project_id,memberId:'member-a',validate:()=>{},signal:new AbortController().signal});
   const second=factory({projectId:project.project_id,memberId:'member-b',validate:()=>{},signal:new AbortController().signal});
   const admin={homeDirectory:home,hostUrl:url,controlTokenFile:join(home,'config/web-control-token'),projectId:project.project_id};
-  const action=(id:string)=>CONTINUITY_ACTIONS.find(a=>a.capability_id===id)!;
+  const continuityActions=hostContinuityActions();
+  const action=(id:string)=>continuityActions.find(a=>a.capability_id===id)!;
   try {
     await assert.rejects(first.client.discover(first.caller),{code:"actions.connection_required"});
     changeMcpClientCredential(home,first.caller.actor_id,"connect");
@@ -55,5 +54,55 @@ test("the administrator command refuses everything but a numeric loopback origin
   for (const hostUrl of ["https://127.0.0.1:4173", "http://localhost:4173", "http://evil.example:4173", "http://127.0.0.1:4173/path", "http://127.0.0.1:4173/?x=1", "http://127.0.0.1:4173/#x",
     "http://user:pass@127.0.0.1:4173", "http://0.0.0.0:4173", "http://[::ffff:127.0.0.1]:4173"]) {
     await assert.rejects(configureMemberActions({ hostUrl, homeDirectory: "/unused", controlTokenFile: "/nonexistent/web-control-token", memberId: "m", projectId: "p", role: "viewer" }), /numeric loopback HTTP origin/, hostUrl);
+  }
+});
+
+test("configureMemberActions fails closed for viewer on third-party command or unknown actions", async () => {
+  const { createServer } = await import("node:http");
+  const { writeFile } = await import("node:fs/promises");
+  const home = await mkdtemp(join(tmpdir(), "continuity-viewer-fail-closed-"));
+  const tokenFile = join(home, "control-token");
+  const posted: Array<{ capability_id: string; enabled: boolean }> = [];
+  await writeFile(tokenFile, "a".repeat(48), "utf8");
+  const server = createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.method === "GET") {
+      res.end(JSON.stringify({
+        grants: [],
+        entries: [
+          { capability_id: "thirdparty.states.read", version: 1, provider_id: "io.thirdparty.milestones", kind: "query" },
+          { capability_id: "thirdparty.progress.record", version: 1, provider_id: "io.thirdparty.milestones", kind: "operation" },
+        ],
+      }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    req.on("data", chunk => chunks.push(chunk));
+    req.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { capability_id: string; enabled: boolean };
+      posted.push({ capability_id: body.capability_id, enabled: body.enabled });
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  try {
+    await configureMemberActions({
+      hostUrl: `http://127.0.0.1:${address.port}`, homeDirectory: home, controlTokenFile: tokenFile,
+      memberId: "viewer-1", projectId: "proj-1", role: "viewer",
+      actions: [
+        { capability_id: "thirdparty.states.read", version: 1, provider_id: "io.thirdparty.milestones" },
+        { capability_id: "thirdparty.progress.record", version: 1, provider_id: "io.thirdparty.milestones" },
+        { capability_id: "thirdparty.unknown.write", version: 1, provider_id: "io.thirdparty.milestones" },
+      ],
+    });
+    assert.deepEqual(posted, [
+      { capability_id: "thirdparty.states.read", enabled: true },
+      { capability_id: "thirdparty.progress.record", enabled: false },
+      { capability_id: "thirdparty.unknown.write", enabled: false },
+    ]);
+  } finally {
+    await new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); });
+    await rm(home, { recursive: true, force: true });
   }
 });

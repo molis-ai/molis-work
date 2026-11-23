@@ -7,7 +7,7 @@ import {readDatabaseSpace} from './space.js';
 const errors=defineErrorCodes('storage',{sync_sections_invalid:'invalid',sync_sections_scope:'forbidden',sync_sections_limit:'too_large'});
 /**
  * A project's sections as they are stored and carried inline. `format` tells this encoding apart from the chunked one the Host's
- * Goal content codec uses: two values of one field, chosen by size, not a version. Neither moves on its own.
+ * project content codec uses: two values of one field, chosen by size, not a version. Neither moves on its own.
  */
 export const PROJECT_SECTIONS_INLINE_ENCODING={format:1} as const;
 

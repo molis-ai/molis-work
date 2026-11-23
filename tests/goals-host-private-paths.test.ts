@@ -70,3 +70,30 @@ test("PEQ-03 H4 Workbench source names no hardcoded io.molis.work.goals plugin I
   const found = sources(workbench).filter(path => /io\.molis\.work\.goals/u.test(text(path)));
   assert.deepEqual(found, [], `Workbench hardcodes io.molis.work.goals again: ${where(found)}`);
 });
+
+test("PEQ-03 Host demo-seed is plugin-neutral and carries no Goals plugin ID, Goals actions, or demo Goal data", () => {
+  const demoSeed = text(join(HOST, "demo-seed.ts"));
+  assert.doesNotMatch(demoSeed, /io\.molis\.work\.goals|"goals\.|DEMO_GOALS/u, "apps/local-host/src/demo-seed.ts hardcodes Goals again");
+});
+
+test("PEQ-03 Continuity server and app-server carry no hardcoded Goals plugin ID or capability names", () => {
+  const serverSources = [
+    ...sources(join(ROOT, "server", "src", "continuity")),
+    ...sources(join(ROOT, "apps", "server", "src")),
+    join(HOST, "continuity-admin.ts"),
+    join(HOST, "continuity-gateway.ts"),
+  ];
+  const found = serverSources.filter(path => /io\.molis\.work\.goals|["']goals\.|project_goals/u.test(text(path)));
+  assert.deepEqual(found, [], `Continuity hardcodes Goals again: ${where(found)}`);
+});
+
+test("MR21-07 PEQ-08 frame assets and Goals frame canvas carry no hardcoded Feed/Inbox branches or /api/stage/feed/objects/ URL", () => {
+  const frameFiles = [
+    join(ROOT, "apps", "workbench", "src", "browser", "plugin-frame", "frame-assets.ts"),
+    join(ROOT, "plugins", "native", "goals", "src", "page", "frame-stage.ts"),
+    join(ROOT, "plugins", "native", "goals", "src", "browser", "frame-blocks.ts"),
+    join(ROOT, "plugins", "native", "goals", "src", "browser", "frame-container.ts"),
+  ];
+  const found = frameFiles.filter(path => /["'](?:feed|inbox)["']|\/api\/stage\/feed\/objects\/|data-(?:feed|inbox)-/u.test(text(path)));
+  assert.deepEqual(found, [], `Frame asset projection or Goals frame canvas hardcodes Feed/Inbox again: ${where(found)}`);
+});

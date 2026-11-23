@@ -122,7 +122,7 @@ function renderGoalTree(
     const chip = item.presentation_status && renderPresentationForm(treeObject, "chip", { locale: primitives.presentationLocale?.() ?? null,
       ownerDisplay: treeOwner, read: { state: "ok", values: { title: item.goal.title, status: item.presentation_status } } });
     const choose = (label: string) => `<button class="tree-node${selected ? " is-selected" : ""}" type="button" draggable="true"
-      data-frame-asset="goal" data-frame-asset-id="${escapeHtml(item.goal.goal_id)}" data-select-goal="${escapeHtml(item.goal.goal_id)}" aria-pressed="${selected}">${label}</button>`;
+      data-frame-asset="goal" data-frame-asset-id="${escapeHtml(item.goal.goal_id)}" data-select-goal="${escapeHtml(item.goal.goal_id)}" aria-pressed="${selected}" data-craft-land="goal:${escapeHtml(item.goal.goal_id)}">${label}</button>`;
     return `<li class="tree-item${depth > 0 ? "" : " tree-item--root"}" style="--tree-depth:${depth}" data-tree-item data-tree-depth="${depth}" data-goal-id="${escapeHtml(item.goal.goal_id)}" data-goal-search="${escapeHtml(searchValue)}" data-goal-status="${escapeHtml(visibleGoalStatus(item))}">
       <div class="tree-row">
         <div class="tree-entry directory-list-row${selected ? " is-selected" : ""}">
@@ -150,7 +150,7 @@ function renderGoalTree(
   const leftovers = sortGoals(items.filter((item) => !visited.has(item.goal.goal_id)))
     .map((item) => renderNode(item, 0))
     .join("");
-  return `<ul class="goal-tree" ${rootToken}>${rendered}${leftovers}</ul>`;
+  return `<ul class="mw-tree goal-tree" ${rootToken}>${rendered}${leftovers}</ul>`;
 }
 
 function renderTreeStatusFilter(items: readonly GoalsTreeItem[]): string {
@@ -187,11 +187,11 @@ function renderCollectionFold(
   const filterEmpty = kind === "current"
     ? `<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${uiText("goals.tree-ui.no-goal-matches-current-filters")}</p><button class="mw-btn mw-btn--link" type="button" data-clear-tree-filter>${uiText("goals.tree-ui.clear-all-filters")}</button></div>`
     : "";
-  const body = items.length ? `${kind === "current" ? treeColumns() : ""}${tree}${filterEmpty}` : `<p class="goal-collection-empty">${empty}</p>`;
-  return `<details class="goal-collection-fold" data-goal-collection-fold="${kind}" data-persist-open="${persist}"${open ? " open data-collection-open" : ""}>
+  const body = items.length ? `${kind === "current" ? treeColumns() : ""}${tree}${filterEmpty}` : `<p class="mw-collection-empty">${empty}</p>`;
+  return `<details class="mw-collection-fold" data-goal-collection-fold="${kind}" data-persist-open="${persist}"${open ? " open data-collection-open" : ""}>
     <summary>
-      <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
-      <span class="goal-collection-mark" aria-hidden="true">${icon(mark)}</span>
+      <span class="mw-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
+      <span class="mw-collection-mark" aria-hidden="true">${icon(mark)}</span>
       <strong>${title}</strong>
       <small>${items.length}</small>
     </summary>

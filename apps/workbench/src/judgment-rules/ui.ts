@@ -31,7 +31,7 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
         <button class="plugin-stage-back" type="button" data-functions-back aria-label="${uiText("workbench.ui.back")}" title="${uiText("workbench.ui.back")}">${icon("chevron-right")}</button>
         <h1 data-functions-editor-title>${uiText("workbench.ui.evaluation")}</h1>
         <span data-functions-editor-status></span>
-        <button class="mw-btn mw-btn--ghost" type="button" data-functions-delete hidden>${uiText("workbench.ui.delete-draft")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-functions-delete data-stage-danger hidden>${uiText("workbench.ui.delete-draft")}</button>
       </div>
       <form class="functions-editor" data-functions-editor>
         <nav class="functions-steps" aria-label="${uiText("workbench.ui.function-setup-steps")}">

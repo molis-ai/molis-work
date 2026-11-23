@@ -56,7 +56,7 @@ export const pagesManifest: PluginManifest = {
     { permission: "storage:private", required: true, reason: "本机文档库" },
     { permission: "artifact:write", required: true, reason: "把文档存为成果" },
     { permission: "artifact:read", required: true, reason: "读取自己固定的文档以编号、恢复或对比版本" },
-    { permission: "goals:read", required: true, reason: "选择文档所属的目标" },
+    { permission: "goals:read", required: false, reason: "项目启用 Goals 时选择文档所属的目标" },
   ],
   capabilities: { provides: [], consumes: ["goals.collection.read"] },
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],

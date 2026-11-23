@@ -75,3 +75,28 @@ export function workItemPromotionRoleOf(action: TypedActionShape): WorkItemPromo
     WORK_ITEM_PROMOTION_PROTOCOL[role].input_type === action.input_type
     && WORK_ITEM_PROMOTION_PROTOCOL[role].output_type === action.output_type) ?? null;
 }
+
+/** Role 5: Cross-device work-progress continuity (3 roles discovered on one provider; viewer callers only need read roles). */
+export const WORK_PROGRESS_CONTINUITY_ROLES = ["states.read", "progress.record", "progress.receipt"] as const;
+export type WorkProgressContinuityRole = (typeof WORK_PROGRESS_CONTINUITY_ROLES)[number];
+
+export const WORK_PROGRESS_CONTINUITY_PROTOCOL: Record<WorkProgressContinuityRole, { readonly input_type: string; readonly output_type: string }> = {
+  "states.read": {
+    input_type: /* @version type.molis.work.continuity.states.input "molis.work.continuity.states.input.v{version}" */ "molis.work.continuity.states.input.v1",
+    output_type: /* @version type.molis.work.continuity.states.output "molis.work.continuity.states.output.v{version}" */ "molis.work.continuity.states.output.v1",
+  },
+  "progress.record": {
+    input_type: /* @version type.molis.work.continuity.record.input "molis.work.continuity.record.input.v{version}" */ "molis.work.continuity.record.input.v1",
+    output_type: /* @version type.molis.work.continuity.record.output "molis.work.continuity.record.output.v{version}" */ "molis.work.continuity.record.output.v1",
+  },
+  "progress.receipt": {
+    input_type: /* @version type.molis.work.continuity.receipt.input "molis.work.continuity.receipt.input.v{version}" */ "molis.work.continuity.receipt.input.v1",
+    output_type: /* @version type.molis.work.continuity.receipt.output "molis.work.continuity.receipt.output.v{version}" */ "molis.work.continuity.receipt.output.v1",
+  },
+};
+
+export function workProgressContinuityRoleOf(action: TypedActionShape): WorkProgressContinuityRole | null {
+  return WORK_PROGRESS_CONTINUITY_ROLES.find(role =>
+    WORK_PROGRESS_CONTINUITY_PROTOCOL[role].input_type === action.input_type
+    && WORK_PROGRESS_CONTINUITY_PROTOCOL[role].output_type === action.output_type) ?? null;
+}

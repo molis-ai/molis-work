@@ -2,14 +2,11 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 
 const goals_event_agreement = defineErrorCodes("goals.event_agreement", {
   change_mismatch: "invalid",
-  duplicate_retire: "invalid",
-  duplicate_revision: "invalid",
   expected_agreement_version_required: "invalid",
   expected_config_version_required: "invalid",
   invalid_change: "invalid",
   no_changes: "invalid",
   outcome_required: "invalid",
-  revision_empty: "invalid",
   stale_config_version: "conflict",
   stale_version: "conflict",
   unauthorized_change: "invalid",
@@ -87,14 +84,11 @@ const goals_event_state = defineErrorCodes("goals.event_state", {
 
 export const stateErrors = {
   "goals.event_agreement.change_mismatch": goals_event_agreement.change_mismatch,
-  "goals.event_agreement.duplicate_retire": goals_event_agreement.duplicate_retire,
-  "goals.event_agreement.duplicate_revision": goals_event_agreement.duplicate_revision,
   "goals.event_agreement.expected_agreement_version_required": goals_event_agreement.expected_agreement_version_required,
   "goals.event_agreement.expected_config_version_required": goals_event_agreement.expected_config_version_required,
   "goals.event_agreement.invalid_change": goals_event_agreement.invalid_change,
   "goals.event_agreement.no_changes": goals_event_agreement.no_changes,
   "goals.event_agreement.outcome_required": goals_event_agreement.outcome_required,
-  "goals.event_agreement.revision_empty": goals_event_agreement.revision_empty,
   "goals.event_agreement.stale_config_version": goals_event_agreement.stale_config_version,
   "goals.event_agreement.stale_version": goals_event_agreement.stale_version,
   "goals.event_agreement.unauthorized_change": goals_event_agreement.unauthorized_change,

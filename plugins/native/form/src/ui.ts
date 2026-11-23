@@ -71,7 +71,7 @@ export function renderFormWorkbench(_model: FormUiModel): string {
         <h1 data-form-editor-title>${uiText("form.page.title")}</h1>
         <span data-form-editor-status></span>
         <span data-placement-slot data-placement-saved="off"></span>
-        <div class="form-tabs" role="tablist">
+        <div class="form-tabs mw-stage-tabs" role="tablist">
           <button class="mw-btn mw-btn--ghost is-current" type="button" role="tab" aria-selected="true" data-form-tab="editor">${uiText("form.tab.edit")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview" title="${uiText("form.try.hint")}">${uiText("form.try.label")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${uiText("form.tab.result")}</button>
@@ -92,7 +92,7 @@ export function renderFormWorkbench(_model: FormUiModel): string {
           <div class="plugin-stage-more-actions">
             <button class="mw-btn mw-btn--ghost" type="button" data-form-close hidden>${uiText("form.collect.stop")}</button>
             <button class="mw-btn mw-btn--ghost" type="button" data-form-reload>${uiText("form.action.reload")}</button>
-            <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${uiText("form.action.delete")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-delete data-stage-danger>${uiText("form.action.delete")}</button>
           </div>
         </details>
       </div>

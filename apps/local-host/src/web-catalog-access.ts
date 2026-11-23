@@ -1,5 +1,4 @@
 import { sqliteErrorName } from "@molis-ai/molis-work-storage";
-import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -71,14 +70,4 @@ export function createWebCatalogAccess(
       })().catch(error => { shutdown = undefined; throw error; });
     },
   };
-}
-
-/** The check and native spawn run in one turn; retained panel records cannot reopen recycled projects. */
-export function assertTerminalProjectAvailable(access: ReturnType<typeof createWebCatalogAccess> | undefined, home: string, panelId: string): void {
-  if (!access) throw new Error('项目目录尚未就绪，不能启动终端');
-  access.read(catalog => {
-    const panel = catalog.terminalPanels.get(panelId);
-    if (!panel) throw new Error('终端记录已不存在');
-    if (panel.project_id) { catalog.getProject(panel.project_id); assertPassiveProjectAvailable(home, panel.project_id); }
-  });
 }

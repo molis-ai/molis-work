@@ -1,10 +1,10 @@
 # Projects
 
-**定位：** Project 身份、Catalog、workspace membership、生命周期与存储定位的唯一 owner。`project_id` 是唯一身份：目录条目、项目数据库和库里 Goals 的根记录（`boards` 表）都用它。
+**定位：** Project 身份、Catalog、workspace membership、项目指导（`guidance_entries` / `guidance_revisions`，第 44 批迁入）、生命周期与存储定位的唯一 owner。`project_id` 是唯一身份：目录条目与项目数据库都用它（Goals 是可选项目插件，拥有自己的 `databases.project`）。
 
-**当前已拥有：** Project metadata、workspace membership、数据库定位、创建/重命名/删除记录与 Project Event。未来 Personal/Team owner reference、archive/access mode 仍需独立功能 Spec，AP1 没有伪造当前不存在的能力。
+**当前已拥有：** Project metadata、workspace membership、项目指导（`guidance_entries` / `guidance_revisions` 及同步副本）、数据库定位、创建/重命名/删除记录与 Project Event。未来 Personal/Team owner reference、archive/access mode 仍需独立功能 Spec，AP1 没有伪造当前不存在的能力。
 
-**公开面：** `ProjectsModule.query` 提供列表、读取、选择、workspace 目录、项目的输入与输出（`projectDirectories`、`outputDirectory`）和删除记录；`ProjectsModule.commands` 提供重命名、加入输入目录（`addWorkspaceProject`）和项目目录的改动（`changeDirectories`，即 `projects.directories.*` 的六项）；本地 composition root 通过受控 `lifecycle` 端口完成文件落盘前后的注册、回滚、事件和删除收据。
+**公开面：** `ProjectsModule.query` 提供列表、读取、选择、workspace 目录、项目的输入与输出（`projectDirectories`、`outputDirectory`）和删除记录；`ProjectsModule.commands` 提供重命名、加入输入目录（`addWorkspaceProject`）和项目目录的改动（`changeDirectories`，即 `projects.directories.*` 的六项）；`openProjectGuidance` 提供项目指导的读取、新增与更新（`projects.guidance.{read,add,update}@1`）；本地 composition root 通过受控 `lifecycle` 端口完成文件落盘前后的注册、回滚、事件和删除收据。
 
 **不负责：** 不拥有 Session、Desktop panel、Goal、Artifact 或 Runtime binding 的业务状态；workspace membership 只表达“这个 Project 与哪个本地目录关联，该目录对它是输入（只读，可多个）还是输出（唯一，可写）”，不把目录路径当成 Session ID。
 

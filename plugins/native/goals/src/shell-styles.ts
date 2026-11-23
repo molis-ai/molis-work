@@ -124,13 +124,20 @@ export const GOALS_BASE_STYLES = `
   .archive-empty p { margin: 0 0 16px; }
   .archive-empty a { color: var(--blue); text-decoration: none; }
   .goal-input-mode { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); font-size: 11px; }
-  .goal-status--clarifying, .goal-status--executing, .goal-status--reviewing, .goal-status--revalidating { color: var(--tone-progress, var(--blue)); --goal-status-tone: var(--tone-progress); }
-  .goal-status--clarification_pending, .goal-status--clarification_decision_pending, .goal-status--compound_closure_pending, .goal-status--completion_pending, .goal-status--review_pending, .goal-status--waiting_for_human, .goal-status--revalidation_pending { color: var(--tone-attention, var(--amber)); --goal-status-tone: var(--tone-attention); }
-  .goal-status--continue, .goal-status--execution_pending { color: var(--tone-idle, var(--ink-soft)); --goal-status-tone: var(--tone-idle); }
-  .goal-status--clarification_blocked, .goal-status--execution_blocked, .goal-status--completion_blocked, .goal-status--review_blocked, .goal-status--revalidation_blocked, .goal-status--invalidated { color: var(--tone-blocked, var(--red)); --goal-status-tone: var(--tone-blocked); }
-  .goal-status--waiting_children { color: var(--tone-hold, var(--ink-soft)); --goal-status-tone: var(--tone-hold); }
-  .goal-status--satisfied { color: var(--tone-done, var(--green)); --goal-status-tone: var(--tone-done); }
-  .goal-status--trashed, .goal-status--replaced { color: var(--tone-quiet, var(--muted)); --goal-status-tone: var(--tone-quiet); }
+  .goal-status--clarifying, .goal-status--executing, .goal-status--reviewing, .goal-status--revalidating,
+  .goal-canvas-shell [data-object-status="clarifying"], .goal-canvas-shell [data-object-status="executing"], .goal-canvas-shell [data-object-status="reviewing"], .goal-canvas-shell [data-object-status="revalidating"] { color: var(--tone-progress, var(--blue)); --mw-object-status-tone: var(--tone-progress); }
+  .goal-status--clarification_pending, .goal-status--clarification_decision_pending, .goal-status--compound_closure_pending, .goal-status--completion_pending, .goal-status--review_pending, .goal-status--waiting_for_human, .goal-status--revalidation_pending,
+  .goal-canvas-shell [data-object-status="clarification_pending"], .goal-canvas-shell [data-object-status="clarification_decision_pending"], .goal-canvas-shell [data-object-status="compound_closure_pending"], .goal-canvas-shell [data-object-status="completion_pending"], .goal-canvas-shell [data-object-status="review_pending"], .goal-canvas-shell [data-object-status="waiting_for_human"], .goal-canvas-shell [data-object-status="revalidation_pending"] { color: var(--tone-attention, var(--amber)); --mw-object-status-tone: var(--tone-attention); }
+  .goal-status--continue, .goal-status--execution_pending,
+  .goal-canvas-shell [data-object-status="continue"], .goal-canvas-shell [data-object-status="execution_pending"] { color: var(--tone-idle, var(--ink-soft)); --mw-object-status-tone: var(--tone-idle); }
+  .goal-status--clarification_blocked, .goal-status--execution_blocked, .goal-status--completion_blocked, .goal-status--review_blocked, .goal-status--revalidation_blocked, .goal-status--invalidated,
+  .goal-canvas-shell [data-object-status="clarification_blocked"], .goal-canvas-shell [data-object-status="execution_blocked"], .goal-canvas-shell [data-object-status="completion_blocked"], .goal-canvas-shell [data-object-status="review_blocked"], .goal-canvas-shell [data-object-status="revalidation_blocked"], .goal-canvas-shell [data-object-status="invalidated"] { color: var(--tone-blocked, var(--red)); --mw-object-status-tone: var(--tone-blocked); }
+  .goal-status--waiting_children,
+  .goal-canvas-shell [data-object-status="waiting_children"] { color: var(--tone-hold, var(--ink-soft)); --mw-object-status-tone: var(--tone-hold); }
+  .goal-status--satisfied,
+  .goal-canvas-shell [data-object-status="satisfied"] { color: var(--tone-done, var(--green)); --mw-object-status-tone: var(--tone-done); }
+  .goal-status--trashed, .goal-status--replaced,
+  .goal-canvas-shell [data-object-status="trashed"], .goal-canvas-shell [data-object-status="replaced"] { color: var(--tone-quiet, var(--muted)); --mw-object-status-tone: var(--tone-quiet); }
   [data-goal-view] .relation-layout { display: grid; grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
   [data-goal-view] .relation-group { min-width: 0; border-bottom: 1px solid var(--line); }
   [data-goal-view] .relation-group:last-child { border-bottom: 0; }
@@ -292,7 +299,6 @@ export const GOALS_BASE_STYLES = `
   body[data-desktop-shell="true"] .goal-now-body > div > strong { font-size: 15px; }
   body[data-desktop-shell="true"] .goal-focus-criteria { padding: 16px 0 24px; }
   .goal-navigator { min-width: 0; padding: 4px 0 16px; }
-  .navigator-goal-row .goal-status { min-height: 19px; padding-inline: 8px; font-size: 12px; }
   .tree-pane[data-navigator-view="graph"] .goal-list-view { display: none; }
   @container (max-width: 660px) {
     .goal-factor-nav, .goal-factor-panels { margin-left: 0; }

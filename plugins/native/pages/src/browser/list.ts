@@ -74,11 +74,11 @@ const renderRow = (page: PagesPage, record: PagesRecord) => {
 };
 
 const renderFold = (page: PagesPage, key: string, label: string, items: readonly PagesRecord[], actions?: HTMLElement) => {
-  const fold = make("details", "goal-collection-fold");
+  const fold = make("details", "mw-collection-fold");
   fold.open = true;
   fold.dataset.folderId = key;
   const summary = document.createElement("summary");
-  const caret = make("span", "goal-collection-caret");
+  const caret = make("span", "mw-collection-caret");
   caret.setAttribute("aria-hidden", "true");
   caret.innerHTML = ICON("chevron-down");
   const strong = document.createElement("strong");
@@ -90,7 +90,7 @@ const renderFold = (page: PagesPage, key: string, label: string, items: readonly
   if (key !== "starred") fold.dataset.pagesDrop = "folder";
   fold.append(summary);
   if (!items.length) {
-    const vacant = make("p", "goal-collection-empty");
+    const vacant = make("p", "mw-collection-empty");
     vacant.textContent = uiText.text("pages.list.empty");
     fold.append(vacant);
   } else items.forEach((record) => fold.append(renderRow(page, record)));

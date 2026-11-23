@@ -44,7 +44,7 @@ export async function dispatchMcpProjectTool(
     return actions;
   };
   const bound = (actions: McpManagementActions, projectId: unknown) => {
-    if (projectId !== actions.project_id) throw new ActionError("actions.scope_mismatch", "目标请求不属于当前项目");
+    if (projectId !== actions.project_id) throw new ActionError("actions.scope_mismatch", "请求不属于当前项目");
   };
   let result: unknown;
   switch (name) {

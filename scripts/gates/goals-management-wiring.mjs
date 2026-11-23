@@ -26,7 +26,7 @@ export function checkGoalsManagementWiring(source, mode) {
   const errors = [], reject = message => errors.push(`${path}: ${message}`);
   if (production?.error) reject(production.error);
   const namedCalls = name => calls.filter(node => ts.isIdentifier(node.expression) && node.expression.text === name);
-  // The management MCP's fallback keeps the Goals port; the command line's has only the platform's review operations (batch 44, H6).
+  // The management MCP's fallback keeps the full management actions port (including plugin-declared management tools); the command line's has only the platform's review operations (batch 44, H6).
   const factoryName = mcp ? "bindStandaloneManagementActions" : "bindStandaloneReviewActions";
   const factory = namedCalls(factoryName), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");

@@ -70,7 +70,7 @@ test("collection selection preserves requested/active precedence without default
   assert.match(stage, /data-goal-stage-list/);
   assert.match(stage, /data-goal-list-view/);
   assert.match(stage, /data-goal-collection-fold="current"[^>]*\sopen/);
-  assert.match(stage, /class="goal-collection-mark"/);
+  assert.match(stage, /class="mw-collection-mark"/);
   assert.match(stage, /data-goal-collection-fold="archive"/);
   assert.match(stage, /data-goal-collection-fold="trash"/);
   assert.match(stage, /data-tree-root/);
@@ -187,7 +187,7 @@ test("tree chrome keeps status counts, localized copy, and empty states", () => 
   assert.doesNotMatch(GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, /visibleGoals\(\)\[0\]|getActiveGoalId\(\)/);
   assert.doesNotMatch(GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, /currentGoals\[0\]/);
   assert.match(renderer.renderTreeChrome(view([])), /当前还没有可筛选的目标/);
-  assert.equal(renderer.renderGoalTree(view([]), ""), '<ul class="goal-tree" data-tree-root></ul>');
+  assert.equal(renderer.renderGoalTree(view([]), ""), '<ul class="mw-tree goal-tree" data-tree-root></ul>');
 });
 
 test("stage list keeps current, archive and trash collection folds", () => {

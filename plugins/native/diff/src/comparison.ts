@@ -8,8 +8,8 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   compareChange,
+  compareCodingChangeSet,
   emptyDiffView,
-  type DiffFileEntry,
   type DiffPhase,
   type DiffSide,
   type DiffView as DiffViewOf,
@@ -100,9 +100,9 @@ export function chooseSnapshots(): DiffView {
   return withDisplay(emptyDiffView("snapshots", message[0]), { message });
 }
 
-function diffWithoutRows(group: DiffInputGroup, message: DiffWord, phase: DiffPhase, files?: DiffFileEntry[]): DiffView {
+function diffWithoutRows(group: DiffInputGroup, message: DiffWord, phase: DiffPhase): DiffView {
   const hint = recovery[group], view = emptyDiffView(group, message[0], phase, hint[0]);
-  return withDisplay(files ? { ...view, files } : view, { message, recovery: hint });
+  return withDisplay(view, { message, recovery: hint });
 }
 
 /** Two captured snapshots, compared line by line. */
@@ -183,27 +183,13 @@ export function compareRunChangeSet(
   path?: string,
   changeIndex?: number,
 ): DiffView {
-  const group: DiffInputGroup = "change-set";
-  const change = input.content;
-  const files: DiffFileEntry[] = change.files.map((file) => ({
-    path: file.path,
-    kind: file.kind,
-    added_lines: file.added_lines,
-    removed_lines: file.removed_lines,
-  }));
-  if (files.length === 0) {
-    return diffWithoutRows(group, ["这一轮没有可读取的文本改动审查；命令及外部操作请查看执行记录", "diff.msg.no-readable-review"], "ready");
-  }
-  const chosen = changeIndex !== undefined ? change.files[changeIndex] : path === undefined
-    ? change.files[0]!
-    : change.files.find((file) => file.path === path);
-  if (chosen === undefined) {
-    return diffWithoutRows(group, [`这一轮没有改动 ${path}`, "diff.msg.no-change-in", { path: String(path) }], "unavailable", files);
-  }
-  const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
-    path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
-  return { ...compareChange(group, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
-    created: chosen.review.before_text === null, removed: chosen.kind === "deleted" }), files };
+  const empty: DiffWord = ["这一轮没有可读取的文本改动审查；命令及外部操作请查看执行记录", "diff.msg.no-readable-review"];
+  const missing: DiffWord = [`这一轮没有改动 ${path}`, "diff.msg.no-change-in", { path: String(path) }];
+  const hint = recovery["change-set"];
+  const view = compareCodingChangeSet(input.content, input, changeIndex ?? path ?? 0, {
+    empty: empty[0], missing: missing[0], recovery: hint[0],
+  });
+  return view.before ? view : withDisplay(view, { message: view.phase === "unavailable" ? missing : empty, recovery: hint });
 }
 
 function sideOf(snapshot: FileSnapshot, input: DiffInputSnapshot): DiffSide {

@@ -707,6 +707,7 @@ export interface UiClientScope extends UiRequestScope {
     dispose(): void;
     frame(callback: () => void): number;
     whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
+    watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
 }
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;

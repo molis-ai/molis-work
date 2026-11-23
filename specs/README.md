@@ -24,6 +24,7 @@
 - [第 35 批复核修复](batch-35-audit-fixes/spec.md) 覆盖 Sessions 接续、Coding A 期与共享附件。负责人 Codex。工程验证和本人验收进度见规格书。
 - [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
 - [第 61 批复核修复](batch-61-audit-fixes/spec.md)：Codex，在独立分支修复 #2133 的采用、触达、账号选择与搜索问题；实施与验证见该需求书。
+- [页面刷新、成果动作和固定变更的 SDK 收口](sdk-contract-closeouts/spec.md)，负责人 Codex，实施与验证见需求书。
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 

@@ -99,6 +99,9 @@
 | BL-coding-skill-auto | 已完成并删除 | 2026-11-11 第 09 批审计整改补做，见 [specs/README](../specs/README.md) 与 [第 09 批](../specs/post-anticorruption-roadmap/reference/batches/09.md) |
 | BL-onboarding-language-node-retention | 已完成并删除 | 2026-11-23 完成。FSS-37 的欢迎区保留由 [#2123](https://github.com/molis-ai/molis-work/pull/2123) 先行恢复，这次补齐晚到重绘时的「继续」节点保留和问候语言。整份引导回归 16/16，见 [OPENFIX-01](../specs/onboarding-language-503/spec.md#验收) |
 | BL-blank-503-notice | 已完成并删除 | 2026-11-23 完成。工作台项目页遇到本机服务 503 时展示双语原因和重试，服务恢复后可回到原地址。见 [OPENFIX-02](../specs/onboarding-language-503/spec.md#验收) |
+| BL-ui-client-scope-watch-revision | 已完成并删除 | 2026-11-23，公开 `UiClientScope` 补上宿主已有的 `watchRevision` 签名，Git、Coding、Schedule 共用。见 [SCC-01](../specs/sdk-contract-closeouts/spec.md#验收标准)。 |
+| BL-artifact-sdk-handler-binding | 已完成并删除 | 2026-11-23，成果 SDK 的八个动作按现行 schema 推导输入并共用 `bindActionHandler`，Shelf 直接使用平台给的可消费列表。见 [SCC-02、SCC-03](../specs/sdk-contract-closeouts/spec.md#验收标准)。 |
+| BL-coding-changeset-view-shared | 已完成并删除 | 2026-11-23，Coding 和 Diff 通过 SDK `/diff-view` 的 `compareCodingChangeSet` 读取固定变更视图。见 [SCC-04](../specs/sdk-contract-closeouts/spec.md#验收标准)。 |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。
 

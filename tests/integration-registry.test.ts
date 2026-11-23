@@ -38,7 +38,7 @@ test("RAC-2507 presentation declarations use schema/API 1 and the packaged JSON 
 test("RAC-2507 pure presentations use the actual declaring integration, without binding a source or reading an account", async () => {
   const registry = new IntegrationRegistry();
   let bound = 0, reads = 0, result: unknown = { scope_options: [{ value: "narrow", label: "Narrow scope" }] };
-  const manifest = { ...manifestOf("io.molis.work.example.pure", [], []), source_presentations: ["fixture-display"] };
+  const manifest = { ...manifestOf("com.example.pure", [], []), source_presentations: ["fixture-display"] };
   const definition = definePollingIntegrationPlugin({ manifest, createProvider() { bound++; throw new Error("must not bind"); },
     presentSource(id, input) { reads++; assert.equal(id, "fixture-display"); assert.deepEqual(input, { cursor: { last: "one" } }); return result as never; } });
   await registry.enable(definition);
@@ -49,7 +49,7 @@ test("RAC-2507 pure presentations use the actual declaring integration, without 
   for (const invalid of [{ home_url: "https://user:secret@example.com" }, { home_url: "javascript:alert(1)" }, { scope_options: [{ value: "x", label: "<script>" }] }, { credential_ref: "secret" }]) {
     result = invalid; await assert.rejects(registry.presentSource("fixture-display", input), { code: "plugin.declaration_invalid" });
   }
-  const rival = definePollingIntegrationPlugin({ ...definition, manifest: { ...manifest, plugin_id: "io.molis.work.example.rival-pure" }, createProvider() { throw new Error("never"); }, presentSource: () => ({}) });
+  const rival = definePollingIntegrationPlugin({ ...definition, manifest: { ...manifest, plugin_id: "com.example.rival-pure" }, createProvider() { throw new Error("never"); }, presentSource: () => ({}) });
   await assert.rejects(registry.enable(rival), { code: "plugin.integration_declaration_conflict" });
   assert.equal(bound, 0); assert.equal(reads, 5);
   await registry.disable(manifest.plugin_id);
@@ -68,7 +68,7 @@ test("RAC-2507 pure presentations use the actual declaring integration, without 
 });
 
 test("RAC-2507 an attached presentation cannot return data after its original provider is replaced or withdrawn", async () => {
-  const registry = new IntegrationRegistry(), manifest = { ...manifestOf("io.molis.work.example.held-display", [], []), source_presentations: ["held-display"] };
+  const registry = new IntegrationRegistry(), manifest = { ...manifestOf("com.example.held-display", [], []), source_presentations: ["held-display"] };
   let release!: () => void, entered!: () => void;
   const waiting = new Promise<void>(resolve => { entered = resolve; });
   const held = new Promise<void>(resolve => { release = resolve; });
@@ -128,7 +128,7 @@ test("RAC2880 signed data-MCP is refused by the real preview and attach, includi
 
 test("RAC2887 malformed remote MCP data refuses the whole manifest while valid data starts as a real Host contribution", async () => {
   const method = { kind: "mcp", endpoint: "https://mcp.example.test/mcp", auth: "either" };
-  const declare = (value: Record<string, unknown>) => ({ ...manifestOf("io.molis.work.example.mcp-shape", [], []),
+  const declare = (value: Record<string, unknown>) => ({ ...manifestOf("com.example.mcp-shape", [], []),
     connection_services: [{ ...service("mcp-shape"), auth: { methods: [value] } }] });
   for (const value of [
     { ...method, extra: true }, { ...method, endpoint: "http://mcp.example.test/mcp" },
@@ -144,7 +144,7 @@ test("RAC2887 malformed remote MCP data refuses the whole manifest while valid d
   const valid = { kind: "mcp", endpoint: "https://mcp.example.test/mcp", auth: "either",
     endpoint_pattern: { source: "^https://mcp\\.example\\.test/mcp$", flags: "iu" } } as const;
   const registry = new IntegrationRegistry();
-  await registry.enable(fixturePlugin("io.molis.work.example.mcp-shape", [service("mcp-shape", { auth: { methods: [valid] } })], []));
+  await registry.enable(fixturePlugin("com.example.mcp-shape", [service("mcp-shape", { auth: { methods: [valid] } })], []));
   assert.deepEqual(registry.mcpOwner("mcp-shape")?.method, valid);
   assert.equal(registry.mcpOwner("mcp-shape")?.state, "running");
 });
@@ -217,8 +217,8 @@ test("RAC-488 a plugin nothing names is registered and bound the way the built-i
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: {} }; },
   }));
-  await registry.enable(holderOf("io.molis.work.example.ext-feed", "ext-feed"));
-  assert.equal(registry.integration("ext-feed")?.plugin_id, "io.molis.work.example.ext-feed");
+  await registry.enable(holderOf("com.example.ext-feed", "ext-feed"));
+  assert.equal(registry.integration("ext-feed")?.plugin_id, "com.example.ext-feed");
   assert.ok(registry.hasSource("ext-feed"));
   assert.ok(connectorDirectory(registry).some(entry => entry.connector_id === "ext-feed" && entry.feed_available === true));
   const key = integrationKeyOf({ sync_kind: "connector", kind: "ext-feed" })!;
@@ -230,7 +230,7 @@ test("RAC-488 a plugin nothing names is registered and bound the way the built-i
 test("RAC-489 one start per plugin, one provider per bound source, and a source's failure stays that source's", async () => {
   const providers: IntegrationBinding[] = [];
   let starts = 0;
-  const plugin = fixturePlugin("io.molis.work.example.shared", [service("shared")], [{ integration_id: "shared", kind: "source", service_id: "shared" }],
+  const plugin = fixturePlugin("com.example.shared", [service("shared")], [{ integration_id: "shared", kind: "source", service_id: "shared" }],
     ({ binding: seen }) => {
       providers.push(seen);
       if (seen.source_id === "bad") throw new Error("provider for this source cannot be built");
@@ -252,7 +252,7 @@ test("RAC-489 one start per plugin, one provider per bound source, and a source'
 test("RAC-489 a changed source setting binds a new provider without a restart", async () => {
   let starts = 0;
   const seen: IntegrationBinding[] = [];
-  const plugin = fixturePlugin("io.molis.work.example.settings", [service("settings")], [{ integration_id: "settings", kind: "source", service_id: "settings" }], ({ binding: item }) => { seen.push(item); });
+  const plugin = fixturePlugin("com.example.settings", [service("settings")], [{ integration_id: "settings", kind: "source", service_id: "settings" }], ({ binding: item }) => { seen.push(item); });
   const registry = new IntegrationRegistry();
   await registry.enable({ ...plugin, async start(context) { starts += 1; return plugin.start(context); } });
   await registry.bind("settings", "source", binding("one", { config: { scope: "in:inbox is:unread" } }));
@@ -263,10 +263,10 @@ test("RAC-489 a changed source setting binds a new provider without a restart", 
 
 test("RAC-489 a disabled plugin leaves its sources with an integration-unavailable fault, and the others keep working", async () => {
   const registry = new IntegrationRegistry();
-  await registry.enable(holderOf("io.molis.work.example.gone", "gone"));
-  await registry.enable(holderOf("io.molis.work.example.stays", "stays"));
+  await registry.enable(holderOf("com.example.gone", "gone"));
+  await registry.enable(holderOf("com.example.stays", "stays"));
   assert.ok(await registry.bind("gone", "source", binding("one")));
-  await registry.disable("io.molis.work.example.gone");
+  await registry.disable("com.example.gone");
   await assert.rejects(registry.bind("gone", "source", binding("one")), { code: "plugin.integration_unavailable" });
   assert.equal(registry.integration("gone"), undefined);
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "gone"), false);
@@ -275,46 +275,46 @@ test("RAC-489 a disabled plugin leaves its sources with an integration-unavailab
 
 test("RAC-490 a later plugin that declares a held id fails to enable naming the id and the holder, and the holder is untouched", async () => {
   const registry = new IntegrationRegistry();
-  await registry.enable(holderOf("io.molis.work.example.first", "contested"));
-  const rival = fixturePlugin("io.molis.work.example.rival", [service("rival-service")], [{ integration_id: "contested", kind: "source", service_id: "rival-service" }]);
+  await registry.enable(holderOf("com.example.first", "contested"));
+  const rival = fixturePlugin("com.example.rival", [service("rival-service")], [{ integration_id: "contested", kind: "source", service_id: "rival-service" }]);
   await assert.rejects(registry.enable(rival), (error: unknown) => {
     assert.equal((error as { code?: string }).code, "plugin.integration_declaration_conflict");
     assert.match((error as Error).message, /contested/u);
-    assert.match((error as Error).message, /io\.molis\.work\.example\.first/u);
+    assert.match((error as Error).message, /com\.example\.first/u);
     return true;
   });
-  const sameService = fixturePlugin("io.molis.work.example.copycat", [service("contested")], []);
+  const sameService = fixturePlugin("com.example.copycat", [service("contested")], []);
   await assert.rejects(registry.enable(sameService), { code: "plugin.integration_declaration_conflict" });
-  assert.equal(registry.integration("contested")?.plugin_id, "io.molis.work.example.first");
-  assert.equal(registry.connectionServices().find(entry => entry.declaration.service_id === "contested")?.owner, "io.molis.work.example.first");
+  assert.equal(registry.integration("contested")?.plugin_id, "com.example.first");
+  assert.equal(registry.connectionServices().find(entry => entry.declaration.service_id === "contested")?.owner, "com.example.first");
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "rival-service"), false, "a refused plugin records nothing");
   assert.equal((await (await registry.bind("contested", "source", binding("one"))).connector_driver.health(connectorControl())).ok, true);
 });
 
 test("RAC-490 installed plugins restore oldest first: the earlier install holds the id and the later one is reported refused", async () => {
-  const early = holderOf("io.molis.work.example.early", "contested");
-  const late = fixturePlugin("io.molis.work.example.late", [service("late-service")], [{ integration_id: "contested", kind: "source", service_id: "late-service" }]);
+  const early = holderOf("com.example.early", "contested");
+  const late = fixturePlugin("com.example.late", [service("late-service")], [{ integration_id: "contested", kind: "source", service_id: "late-service" }]);
   const registry = new IntegrationRegistry();
   const refused = await registry.restore([
     { definition: late, installed_at: "2026-02-01T00:00:00.000Z" },
     { definition: early, installed_at: "2026-01-01T00:00:00.000Z" },
   ]);
-  assert.deepEqual(refused.map(entry => entry.plugin_id), ["io.molis.work.example.late"]);
+  assert.deepEqual(refused.map(entry => entry.plugin_id), ["com.example.late"]);
   assert.equal((refused[0]!.error as { code?: string }).code, "plugin.integration_declaration_conflict");
-  assert.equal(registry.integration("contested")?.plugin_id, "io.molis.work.example.early");
+  assert.equal(registry.integration("contested")?.plugin_id, "com.example.early");
 });
 
 test("RAC-490 the platform's own declarations come before any plugin's", async () => {
   const registry = new IntegrationRegistry({ platform: [service("host-card")] });
   assert.equal(registry.connectionServices()[0]?.owner, "platform");
-  await assert.rejects(registry.enable(fixturePlugin("io.molis.work.example.takeover", [service("host-card")], [])),
+  await assert.rejects(registry.enable(fixturePlugin("com.example.takeover", [service("host-card")], [])),
     (error: unknown) => (error as { code?: string }).code === "plugin.integration_declaration_conflict" && /platform/u.test((error as Error).message));
   assert.equal(registry.connectionServices().find(entry => entry.declaration.service_id === "host-card")?.owner, "platform");
 });
 
 test("RAC-490 a declaration outside the shape is refused before it reaches the registry", () => {
   const ok = [service("shape")];
-  const base = (integration: Record<string, unknown>) => ({ ...manifestOf("io.molis.work.example.shape", ok, []), integrations: [integration] });
+  const base = (integration: Record<string, unknown>) => ({ ...manifestOf("com.example.shape", ok, []), integrations: [integration] });
   assert.throws(() => parsePluginManifest(base({ integration_id: "shape", kind: "stream", service_id: "shape" })), { code: "plugin.declaration_invalid" });
   assert.throws(() => parsePluginManifest(base({ integration_id: "shape", kind: "source", service_id: "someone-elses" })), { code: "plugin.declaration_invalid" }, "a service of another plugin cannot be referenced");
   assert.throws(() => parsePluginManifest(base({ integration_id: "shape", kind: "source", service_id: "shape", document_source: "notes" })), { code: "plugin.declaration_invalid" });
@@ -324,7 +324,7 @@ test("RAC-490 a declaration outside the shape is refused before it reaches the r
 
 test("RAC-490 a source integration is not a document import, and a document import is not a source", async () => {
   const registry = new IntegrationRegistry();
-  await registry.enable(fixturePlugin("io.molis.work.example.both", [service("both")], [
+  await registry.enable(fixturePlugin("com.example.both", [service("both")], [
     { integration_id: "both", kind: "source", service_id: "both" },
     { integration_id: "both-documents", kind: "document_import", service_id: "both", document_source: "both-docs", connection_methods: ["token"] },
   ]));
@@ -367,7 +367,7 @@ test("RAC-519 declaring a service that is registered is refused, and the registe
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: {} }; },
   }));
-  await assert.rejects(registry.enable(fixturePlugin("io.molis.work.example.lookalike", [service("github", { title: "GitHub, honest" })], [{ integration_id: "github-clone", kind: "source", service_id: "github" }])),
+  await assert.rejects(registry.enable(fixturePlugin("com.example.lookalike", [service("github", { title: "GitHub, honest" })], [{ integration_id: "github-clone", kind: "source", service_id: "github" }])),
     (error: unknown) => (error as { code?: string }).code === "plugin.integration_declaration_conflict" && /github/u.test((error as Error).message));
   assert.equal(registry.connectionServices().find(entry => entry.declaration.service_id === "github")?.declaration.title, "GitHub");
   assert.equal(registry.integration("github-clone"), undefined);
@@ -377,7 +377,7 @@ test("RAC-519 declaring a service that is registered is refused, and the registe
 test("RAC-519 a registered plugin gets no connection service and its binding holds only the references of its source's own connection", async () => {
   const seen: Seen[] = [];
   const registry = new IntegrationRegistry();
-  await registry.enable(fixturePlugin("io.molis.work.example.cardholder", [service("cardholder")], [{ integration_id: "cardholder", kind: "source", service_id: "cardholder" }], item => seen.push(item)));
+  await registry.enable(fixturePlugin("com.example.cardholder", [service("cardholder")], [{ integration_id: "cardholder", kind: "source", service_id: "cardholder" }], item => seen.push(item)));
   await registry.bind("cardholder", "source", binding("mine"));
   const { context, binding: given } = seen[0]!;
   assert.equal(context.services?.connections, undefined, "owning a card does not open the connections service");
@@ -411,18 +411,18 @@ test("RAC-890 a source's account reads the way its integration plugin says; the 
   const seen: string[] = [];
   const own = new IntegrationRegistry();
   await own.enable(definePollingIntegrationPlugin({
-    manifest: manifestOf("io.molis.work.example.labelled", [service("labelled")], [{ integration_id: "labelled", kind: "source", service_id: "labelled" }]),
+    manifest: manifestOf("com.example.labelled", [service("labelled")], [{ integration_id: "labelled", kind: "source", service_id: "labelled" }]),
     createProvider: fixtureProvider,
     presentAccount(cursor, label, bound) { seen.push(bound.source_id); return { account_label: `${label} → ${(cursor as { who: string }).who}`, region: "eu" }; },
   }));
   assert.deepEqual((await own.bind("labelled", "source", binding("one"))).account?.({ who: "ann" }, "before"), { account_label: "before → ann", region: "eu" });
   assert.deepEqual(seen, ["one"], "the plugin is told which source it is presenting");
-  await own.enable(holderOf("io.molis.work.example.silent", "silent"));
+  await own.enable(holderOf("com.example.silent", "silent"));
   assert.equal((await own.bind("silent", "source", binding("two"))).account, undefined, "a plugin that says nothing leaves the source's account alone");
 });
 
 test("RAC-892 the SDK refuses connection_methods missing, empty, repeated or unknown on a document import, and on a source", () => {
-  const base = (integration: Record<string, unknown>) => ({ ...manifestOf("io.molis.work.example.methods", [service("methods")], []), integrations: [integration] });
+  const base = (integration: Record<string, unknown>) => ({ ...manifestOf("com.example.methods", [service("methods")], []), integrations: [integration] });
   const documents = (extra: Record<string, unknown>) => base({ integration_id: "methods", kind: "document_import", service_id: "methods", document_source: "notes", ...extra });
   for (const [why, methods] of [["missing", undefined], ["empty", []], ["repeated", ["token", "token"]], ["unknown", ["token", "password"]], ["not a list", "token"]] as const) {
     assert.throws(() => parsePluginManifest(documents(methods === undefined ? {} : { connection_methods: methods })), { code: "plugin.declaration_invalid", message: /connection_methods/u }, why);
@@ -439,7 +439,7 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   // A flow the SDK's own checks pass (asana's identity address is in the platform's table), so what refuses it is the registry.
   const flow = { kind: "oauth", grant: "authorization_code", authorize_url: "https://app.asana.com/-/oauth_authorize", token_url: "https://app.asana.com/-/oauth_token",
     scopes: [], identity: { url: "https://app.asana.com/api/1.0/users/me", account_id: [[], ["identity:/data/gid"]], label: ["identity:/data/name"] } } as const;
-  const carrying = manifestOf("io.molis.work.example.oauth-carrier", [service("asana", { auth: { methods: [{ kind: "token", label: "token" }, flow] } })],
+  const carrying = manifestOf("com.example.oauth-carrier", [service("asana", { auth: { methods: [{ kind: "token", label: "token" }, flow] } })],
     [{ integration_id: "oauth-carrier", kind: "source", service_id: "asana" }]);
   assert.ok(parsePluginManifest(carrying), "the Manifest itself is well formed");
   const registry = new IntegrationRegistry();
@@ -451,13 +451,13 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
   assert.equal(registry.integration("oauth-carrier"), undefined);
   assert.equal(registry.oauthOwner("asana"), undefined);
   // The bare kind named the platform's table, which is gone (W5-11 slice 4): the Manifest itself is refused, so nothing attaches.
-  const bare = manifestOf("io.molis.work.example.oauth-bare", [service("oauth-bare", { auth: { methods: [{ kind: "oauth" }] } })], [{ integration_id: "oauth-bare", kind: "source", service_id: "oauth-bare" }]);
+  const bare = manifestOf("com.example.oauth-bare", [service("oauth-bare", { auth: { methods: [{ kind: "oauth" }] } })], [{ integration_id: "oauth-bare", kind: "source", service_id: "oauth-bare" }]);
   assert.throws(() => parsePluginManifest(bare), { code: "plugin.declaration_invalid", message: /要把授权流程写成数据/u });
   assert.equal(registry.oauthOwner("oauth-bare"), undefined);
   // The Host's own build may carry the flow: it is enabled, and is the owner with its install, publisher and method.
-  await registry.enable(fixturePlugin("io.molis.work.example.oauth-built", [service("asana", { auth: { methods: [flow] } })], []));
+  await registry.enable(fixturePlugin("com.example.oauth-built", [service("asana", { auth: { methods: [flow] } })], []));
   const owner = registry.oauthOwner("asana");
-  assert.equal(owner?.plugin_id, "io.molis.work.example.oauth-built");
+  assert.equal(owner?.plugin_id, "com.example.oauth-built");
   assert.equal(owner?.publisher_id, "io.example");
   assert.ok(owner?.install_id);
   assert.deepEqual(owner?.method, flow);
@@ -467,7 +467,7 @@ test("RAC-1081 a signed package's data-bearing oauth method is refused at attach
 // nothing, and the document import table (what `documentImports()` reads from `listIntegrations`) is unchanged.
 test("RAC-2447 RAC-2787 RAC-2788 document source conflicts refuse enable and attach before side effects", async () => {
   const registry = new IntegrationRegistry();
-  const first = fixturePlugin("io.molis.work.example.docs", [service("docs-service")], [
+  const first = fixturePlugin("com.example.docs", [service("docs-service")], [
     { integration_id: "docs-notes", kind: "document_import", service_id: "docs-service", document_source: "notes", connection_methods: ["token"] },
   ]);
   await registry.enable(first);
@@ -478,27 +478,27 @@ test("RAC-2447 RAC-2787 RAC-2788 document source conflicts refuse enable and att
     [entry.declaration.document_source, entry.declaration.service_id, entry.plugin_id]);
   const holderServices = services();
   const holderSources = sources();
-  assert.deepEqual(holderServices, [["docs-service", "io.molis.work.example.docs"]]);
-  assert.deepEqual(holderSources, [["notes", "docs-service", "io.molis.work.example.docs"]]);
-  assert.equal(registry.pluginName("io.molis.work.example.docs"), "io.molis.work.example.docs");
+  assert.deepEqual(holderServices, [["docs-service", "com.example.docs"]]);
+  assert.deepEqual(holderSources, [["notes", "docs-service", "com.example.docs"]]);
+  assert.equal(registry.pluginName("com.example.docs"), "com.example.docs");
   const assertHolderAndRefusal = async () => {
     assert.deepEqual(services(), holderServices, "the holder's service owner survives refusal");
     assert.deepEqual(sources(), holderSources, "the holder's document source survives refusal");
-    assert.equal(registry.pluginName("io.molis.work.example.docs"), "io.molis.work.example.docs");
+    assert.equal(registry.pluginName("com.example.docs"), "com.example.docs");
     assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "rival-docs-service"), false);
-    assert.equal(registry.pluginName("io.molis.work.example.docs-rival"), undefined);
+    assert.equal(registry.pluginName("com.example.docs-rival"), undefined);
     assert.equal(registry.integration("rival-notes"), undefined);
     const bound = await registry.bind("docs-notes", "document_import", binding("holder-notes"));
     assert.equal((await bound.connector_driver.health(connectorControl())).ok, true, "the holder still binds a healthy driver");
   };
-  const rival = fixturePlugin("io.molis.work.example.docs-rival", [service("rival-docs-service")], [
+  const rival = fixturePlugin("com.example.docs-rival", [service("rival-docs-service")], [
     { integration_id: "rival-notes", kind: "document_import", service_id: "rival-docs-service", document_source: "notes", connection_methods: ["token"] },
   ]);
   let starts = 0;
   await assert.rejects(registry.enable({ ...rival, async start(context) { starts += 1; return rival.start(context); } }), (error: unknown) => {
     assert.equal((error as { code?: string }).code, "plugin.integration_declaration_conflict");
     assert.match((error as Error).message, /notes/u);
-    assert.match((error as Error).message, /io\.molis\.work\.example\.docs/u);
+    assert.match((error as Error).message, /com\.example\.docs/u);
     return true;
   });
   // RAC-2787 / RAC-2789: moving the production conflict check past start must fail here with starts=1.
@@ -519,42 +519,42 @@ test("RAC-2447 RAC-2787 RAC-2788 document source conflicts refuse enable and att
 // cannot write the same document_source in two integrations.
 test("RAC-2448 a plugin's own source is not a conflict, release frees it, and one Manifest declares a source once", async () => {
   const registry = new IntegrationRegistry();
-  const packaged = manifestOf("io.molis.work.example.packaged", [service("packaged-service")], [
+  const packaged = manifestOf("com.example.packaged", [service("packaged-service")], [
     { integration_id: "packaged-notes", kind: "document_import", service_id: "packaged-service", document_source: "packaged", connection_methods: ["token"] },
   ]);
   await registry.attach(packaged, "fixture-docs-packaged-install", () => null, () => true);
   registry.assertFree(packaged);
-  assert.throws(() => registry.assertFree(manifestOf("io.molis.work.example.same", [service("same-service")], [
+  assert.throws(() => registry.assertFree(manifestOf("com.example.same", [service("same-service")], [
     { integration_id: "same-one", kind: "document_import", service_id: "same-service", document_source: "notes", connection_methods: ["token"] },
     { integration_id: "same-two", kind: "document_import", service_id: "same-service", document_source: "notes", connection_methods: ["token"] },
   ])), { code: "plugin.integration_declaration_conflict" });
-  await registry.detach("io.molis.work.example.packaged");
-  const second = fixturePlugin("io.molis.work.example.after", [service("after-service")], [
+  await registry.detach("com.example.packaged");
+  const second = fixturePlugin("com.example.after", [service("after-service")], [
     { integration_id: "after-packaged", kind: "document_import", service_id: "after-service", document_source: "packaged", connection_methods: ["token"] },
   ]);
   await registry.enable(second);
   assert.deepEqual(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source, entry.plugin_id]),
-    [["packaged", "io.molis.work.example.after"]]);
+    [["packaged", "com.example.after"]]);
 });
 
 // T-134 (BL-530 前置): a connection made for a package's service is pinned to the package that declared it. The registry names it from
 // what the Home attached, the install id included; a service the Host's build or the platform declares is pinned to nothing.
 test("RAC-2521 connectionDeclarer names the attached package and the install the Home gave it; a built or platform service has none, and none after detach", async () => {
   const registry = new IntegrationRegistry({ platform: [service("host-card")] });
-  await registry.enable(fixturePlugin("io.molis.work.example.built", [service("built")], []));
-  const packaged = manifestOf("io.molis.work.example.packaged", [service("packaged")], [{ integration_id: "packaged", kind: "source", service_id: "packaged" }]);
+  await registry.enable(fixturePlugin("com.example.built", [service("built")], []));
+  const packaged = manifestOf("com.example.packaged", [service("packaged")], [{ integration_id: "packaged", kind: "source", service_id: "packaged" }]);
   assert.equal(await registry.attach(packaged, "install-from-home-record", () => null, () => true), true);
-  assert.deepEqual(registry.connectionDeclarer("packaged"), { plugin_id: "io.molis.work.example.packaged", install_id: "install-from-home-record", plugin_title: "io.molis.work.example.packaged" });
+  assert.deepEqual(registry.connectionDeclarer("packaged"), { plugin_id: "com.example.packaged", install_id: "install-from-home-record", plugin_title: "com.example.packaged" });
   assert.equal(registry.connectionDeclarer("built"), undefined, "the Host's build declares it: nothing to pin");
   assert.equal(registry.connectionDeclarer("host-card"), undefined, "the platform declares it: nothing to pin");
   assert.equal(registry.connectionDeclarer("nobody"), undefined);
-  await registry.detach("io.molis.work.example.packaged");
+  await registry.detach("com.example.packaged");
   assert.equal(registry.connectionDeclarer("packaged"), undefined, "a detached package declares nothing");
 });
 
 test("RAC-2615-REG reattaching the same installation replaces declarations atomically, and a refused replacement keeps the old owner", async () => {
   const registry = new IntegrationRegistry();
-  const id = "io.molis.work.example.upgrade";
+  const id = "com.example.upgrade";
   const first = manifestOf(id, [service("old", { origins: ["https://old.example.com"] })], [{ integration_id: "old-source", kind: "source", service_id: "old" }]);
   const next = manifestOf(id, [service("new", { title: "New title", origins: ["https://new.example.com"] })], [{ integration_id: "new-source", kind: "source", service_id: "new" }]);
   await registry.attach(first, "same-install", () => null, () => true);
@@ -564,7 +564,7 @@ test("RAC-2615-REG reattaching the same installation replaces declarations atomi
   assert.deepEqual(registry.connectionServices().map(entry => entry.declaration.service_id), ["new"]);
   assert.deepEqual(registry.connectionDeclarer("new"), { plugin_id: id, install_id: "same-install", plugin_title: id });
   const snapshot = registry.connectionServices();
-  const rival = manifestOf("io.molis.work.example.rival", [service("taken")], []);
+  const rival = manifestOf("com.example.rival", [service("taken")], []);
   await registry.attach(rival, "rival-install", () => null, () => true);
   const conflict = manifestOf(id, [service("taken")], []);
   await assert.rejects(registry.attach(conflict, "same-install", () => null, () => true), { code: "plugin.integration_declaration_conflict" });
@@ -581,7 +581,7 @@ test("RAC-2615-REG reattaching the same installation replaces declarations atomi
 
 // RAC-2615: the retained producer check is issued before the first provider wait, and belongs to that exact attachment.
 test("RAC-2615-HELD a binding retains its provider before waiting; replacement cannot revive it and a refused replacement cannot revoke the current one", async () => {
-  const registry = new IntegrationRegistry(), id = "io.molis.work.example.heldsource";
+  const registry = new IntegrationRegistry(), id = "com.example.heldsource";
   const manifest = manifestOf(id, [service("held")], [{ integration_id: "held", kind: "source", service_id: "held" }]);
   const contribution: PluginIntegrationContribution = { kind: "integration", bind: () => pollingIntegrationBinding({ manifest,
     provider: { type: "fixture", health: async () => ({ ok: true, status: "connected", message: "ready" }),
@@ -600,7 +600,7 @@ test("RAC-2615-HELD a binding retains its provider before waiting; replacement c
     await registry.bind("held", "source", binding("two"), check => current.push(check));
     current[0]!();
     assert.throws(held[0]!, { code: "plugin.integration_unavailable" }, "reenabling the same installation does not revive the old check");
-    await registry.attach(manifestOf("io.molis.work.example.rivalheld", [service("occupied")], []), "rival", () => null, () => true);
+    await registry.attach(manifestOf("com.example.rivalheld", [service("occupied")], []), "rival", () => null, () => true);
     await assert.rejects(registry.attach(manifestOf(id, [service("occupied")], []), "same-install", () => contribution, () => true), { code: "plugin.integration_declaration_conflict" });
     current[0]!();
     await registry.detach(id);

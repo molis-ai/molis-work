@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
@@ -51,7 +51,7 @@ test("RAC-484 a Home no scene has been registered into has no rule, and a starte
 test("RAC-485 a rule an installed plugin's scene declares is written like a shipped one, with its own words and options", async t => {
   const home = await openTestHome(t, { host: { functions: OPTIONS } });
   const registry = home.host.actionRegistry();
-  const dispose = registry.registerProvider(registration("io.molis.work.example.installed", [scene("example.pick", rule("example_pick_next"))]));
+  const dispose = registry.registerProvider(registration("com.example.installed", [scene("example.pick", rule("example_pick_next"))]));
   try {
     const written = withFunctionsService(home.home, service => service.getByKey("example_pick_next"), OPTIONS);
     assert.ok(written, "the installed plugin's rule is in the library");
@@ -66,21 +66,21 @@ test("RAC-485 a rule an installed plugin's scene declares is written like a ship
 test("RAC-486 a rule key belongs to the plugin that declared it first: another plugin declaring it is refused, with nothing registered or written", async t => {
   const home = await openTestHome(t, { host: { functions: OPTIONS } });
   const registry = home.host.actionRegistry();
-  const first = registry.registerProvider(registration("io.molis.work.example.first", [scene("example.first", rule("example_shared", { name: "先声明的" }))]));
+  const first = registry.registerProvider(registration("com.example.first", [scene("example.first", rule("example_shared", { name: "先声明的" }))]));
   const before = withFunctionsService(home.home, service => service.getByKey("example_shared"), OPTIONS)!;
   try {
     for (const [plugin, name] of [["second", "后声明的"], ["third", "第三个声明的"]] as const) {
-      assert.throws(() => registry.registerProvider(registration(`io.molis.work.example.${plugin}`, [scene(`example.${plugin}`, rule("example_shared", { name, instructions: "另一套说明" }))])),
+      assert.throws(() => registry.registerProvider(registration(`com.example.${plugin}`, [scene(`example.${plugin}`, rule("example_shared", { name, instructions: "另一套说明" }))])),
         (error: { code?: string }) => error.code === "functions.rule_key_taken", `${plugin} is refused`);
     }
     const kept = withFunctionsService(home.home, service => service.list().filter(record => record.function_key === "example_shared"), OPTIONS);
     assert.equal(kept.length, 1);
     assert.deepEqual(kept[0], before, "the stored rule is untouched");
-    assert.equal(kept[0]!.id, "declared:io.molis.work.example.first:example_shared", "the row names who declared it");
+    assert.equal(kept[0]!.id, "declared:com.example.first:example_shared", "the row names who declared it");
     assert.equal(kept[0]!.scene_id, "example.first");
     // The declarer registering again (its provider restarted) is no conflict.
     first();
-    const again = registry.registerProvider(registration("io.molis.work.example.first", [scene("example.first", rule("example_shared", { name: "先声明的" }))]));
+    const again = registry.registerProvider(registration("com.example.first", [scene("example.first", rule("example_shared", { name: "先声明的" }))]));
     again();
     assert.deepEqual(withFunctionsService(home.home, service => service.getByKey("example_shared"), OPTIONS), before);
   } finally { first(); }
@@ -91,13 +91,13 @@ test("RAC-501 the keys the Host's own scenes declare are reserved: any other plu
   assert.ok(reserved.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
   const home = await openTestHome(t, { host: { functions: OPTIONS } });
   for (const key of [...reserved, SYSTEM_HOME_DOCK_FUNCTION_KEY]) {
-    assert.throws(() => home.host.actionRegistry().registerProvider(registration("io.molis.work.example.squatter", [scene("example.squat", rule(key))])),
+    assert.throws(() => home.host.actionRegistry().registerProvider(registration("com.example.squatter", [scene("example.squat", rule(key))])),
       (error: { code?: string }) => error.code === "functions.rule_key_taken", key);
   }
   assert.deepEqual(withFunctionsService(home.home, service => service.list(), OPTIONS), [], "a refused registration writes nothing");
 
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, reservedRuleKeys: () => new Set(reserved) });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, reservedRuleKeys: () => new Set(reserved) });
   const base = ownerFilesProbe("reservedkeys", "project").withoutFiles();
   // A pinned install is only a pinned one when the Manifest's signature is its key (S-75.1); the reserved key is then what refuses it.
   const declaring = (key: string, suffix = "", signature = `${base.manifest.publisher.signature}${suffix}`): PluginDefinition => ({ ...base, manifest: { ...base.manifest, plugin_id: `${base.manifest.plugin_id}${suffix}`,
@@ -132,6 +132,6 @@ test("RAC-487 a malformed default rule is refused with the scene, and nothing is
   assert.deepEqual(inspectActionDeclarations([], [scene("example.ok", rule("example_fine"))]), []);
 
   const home = await openTestHome(t, { host: { functions: OPTIONS } });
-  assert.throws(() => home.host.actionRegistry().registerProvider(registration("io.molis.work.example.bad", [scene("example.bad", bad[0]![1])])));
+  assert.throws(() => home.host.actionRegistry().registerProvider(registration("com.example.bad", [scene("example.bad", bad[0]![1])])));
   assert.equal(withFunctionsService(home.home, service => service.getByKey("example_one"), OPTIONS), null);
 });

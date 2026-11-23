@@ -1,5 +1,5 @@
 import { modelPreferenceDeclaration } from "./fixtures/model-preference-declaration.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -20,7 +20,7 @@ import { homeProbe } from "./fixtures/home-runtime.js";
 // through the broker. What the sandbox is not given is a refusal with a code when the installation starts, never a silent absence. This file
 // asserts those refusals; the per-service ones (over-reach, unapproved, after revoke) sit beside each service as it is given.
 
-const PLUGIN_ID = "io.molis.work.example.sbxservices";
+const PLUGIN_ID = "com.example.sbxservices";
 const NOT_GIVEN = { code: "sandbox.service_not_given" } as const;
 const MODEL_CONFIGURATION: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration = {
   preference: { store_name: "sandbox-model-settings", file_name: "model.json" }, custom_provider: { provider_id: "sandbox-model", display_name: "Sandbox model" },
@@ -141,7 +141,7 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   t.after(async () => { await local.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const started: string[] = [];
   const definition = (id: string, execution: PluginDefinition["execution"], modelConfiguration = false): PluginDefinition => ({

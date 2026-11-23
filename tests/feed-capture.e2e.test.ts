@@ -1,7 +1,7 @@
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -150,11 +150,11 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     title: "插件判断：需要跟进", description: "判断原材料是否需要跟进", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: [], subject_kinds: ["feed_item"],
     input_schema: feedCaptureScene.input_schema, output_schema: feedCaptureScene.result_schema, output_type: feedCaptureScene.result_type } };
   const inputs: string[] = [];
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.capture", version: "1.0.0", name: "捕捉判断示例",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.capture", version: "1.0.0", name: "捕捉判断示例",
     kind: "app", publisher: { publisher_id: "example", signature: "capture-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, args) => { inputs.push((args as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install;
   await runtime.start(install.install_id);
   const section = `[data-feed-out-rules="${source.source_id}"]`;

@@ -34,7 +34,7 @@ async function fixture(t: TestContext) {
       return stored;
     } })) });
   const start = async (name: string, declare = true, write = true) => {
-    const id = "io.molis.work.example." + name;
+    const id = "com.example." + name;
     owned.add(id);
     const command: ActionDefinition = { ...target, capability_id: name + ".run", action: { ...target.action, audiences: ["user"], permissions: [], input_schema: { type: "object" }, output_schema: {} } };
     const read: ActionDefinition = { ...command, capability_id: name + ".read", operation: "query", action: { ...command.action, kind: "query" } };

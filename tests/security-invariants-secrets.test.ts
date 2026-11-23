@@ -136,7 +136,7 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   const failing = command("fail", { note: { type: "string" } });
   const failingRead = { ...command("read", { note: { type: "string" } }), operation: "query" as const };
   failingRead.action = { ...failingRead.action, kind: "query" };
-  host.actionRegistry().registerProvider({ provider: { provider_id: "sweep", title: "Sweep", kind: "plugin", plugin_id: "io.molis.work.example.sweep" }, definitions: [refused, finished, failing, failingRead], handlers: [
+  host.actionRegistry().registerProvider({ provider: { provider_id: "sweep", title: "Sweep", kind: "plugin", plugin_id: "com.example.sweep" }, definitions: [refused, finished, failing, failingRead], handlers: [
     { ...refused, handle: async () => ({}) },
     { ...finished, handle: async (_context, input) => ({ echoed: String(input.note) }) },
     { ...failing, handle: async () => { throw new Error("the sweep handler refuses this one"); } },

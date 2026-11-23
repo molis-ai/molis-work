@@ -26,8 +26,8 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // permission, declared and granted; and only while that very activation runs, is enabled and subscribes in its current Manifest.
 // It is not stored, never starts a plugin, is never replayed, and runs outside any action as the subscriber itself.
 
-const A = "io.molis.work.example.hostasker", B = "io.molis.work.example.hostbystander", C = "io.molis.work.example.hostdeaf";
-const W = "io.molis.work.example.hostwatcher", V = "io.molis.work.example.hostviewer", R = "io.molis.work.example.hostreader";
+const A = "com.example.hostasker", B = "com.example.hostbystander", C = "com.example.hostdeaf";
+const W = "com.example.hostwatcher", V = "com.example.hostviewer", R = "com.example.hostreader";
 const SETTLED: PluginEventSubscribeDeclaration = { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 };
 const CHANGED: PluginEventSubscribeDeclaration = { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 };
 const READ: PluginPermissionDeclaration = { permission: "workspace:read", required: false, reason: "工作区变了就重读" };

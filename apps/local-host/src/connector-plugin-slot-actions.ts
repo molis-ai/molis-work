@@ -1,6 +1,6 @@
 import { defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_ID_PATTERN, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineConnectorUsagesAction, defineConnectorUsagesSwitchAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput, type ConnectorUsagesSwitchInput, type ConnectorUsagesSwitchResult } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
@@ -17,7 +17,7 @@ import { connectionSwitchErrors as switchErrors, refusalCode, switchTarget } fro
 
 const slot = {
   install_id: { type: "string", minLength: 1, maxLength: 160 },
-  plugin_id: { type: "string", pattern: "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$", maxLength: 160 },
+  plugin_id: { type: "string", pattern: PLUGIN_ID_PATTERN, maxLength: 160 },
   slot_id: { type: "string", pattern: "^[a-z][a-z0-9-]{0,63}$" },
 };
 const metadata = { scope: "home", audiences: ["user"], subject_kinds: ["connector"] } as const;

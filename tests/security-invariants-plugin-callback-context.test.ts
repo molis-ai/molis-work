@@ -6,7 +6,7 @@ import type {
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 
-const pluginId = "io.molis.work.example.callbackcontext";
+const pluginId = "com.example.callbackcontext";
 const action: ActionDefinition = { capability_id: "callbackcontext.read", version: 1, operation: "query", action: {
   title: "Read", description: "Read through the installed action", kind: "query", scope: "project", audiences: ["user"], permissions: [],
   subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "boolean" },

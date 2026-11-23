@@ -90,7 +90,7 @@
 
 ```json
 "ui": {
-  "contributions": ["io.molis.work.demo.greeting.main"],
+  "contributions": ["com.example.greeting.main"],
   "locales": { "default": "en", "available": ["en", "zh"] }
 }
 ```
@@ -106,7 +106,7 @@
 ```json
 {
   "format_version": 1,
-  "owner": "io.molis.work.demo.greeting",
+  "owner": "com.example.greeting",
   "locale": "en",
   "messages": {
     "greeting.main.title": "Greeting",
@@ -122,7 +122,7 @@
 ```json
 {
   "format_version": 1,
-  "owner": "io.molis.work.demo.greeting",
+  "owner": "com.example.greeting",
   "locale": "zh",
   "messages": {
     "greeting.main.title": "问候",
@@ -232,7 +232,7 @@ Skill、方法和提示词的长正文每种语言一个文件，缺译文时用
 {
   "schema_version": 1,
   "host_api_version": 1,
-  "plugin_id": "io.molis.work.demo.greeting",
+  "plugin_id": "com.example.greeting",
   "version": "1.0.0",
   "name": "Greeting",
   "kind": "integration",
@@ -242,7 +242,7 @@ Skill、方法和提示词的长正文每种语言一个文件，缺译文时用
   "capabilities": { "provides": [], "consumes": [] },
   "artifacts": { "produces": [], "consumes": [] },
   "ui": {
-    "contributions": ["io.molis.work.demo.greeting.main"],
+    "contributions": ["com.example.greeting.main"],
     "locales": { "default": "en", "available": ["en", "zh"] }
   }
 }

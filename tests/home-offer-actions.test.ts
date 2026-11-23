@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -20,7 +20,7 @@ test("unknown SDK plugin prepares real actions, Home revalidates exact input and
   const offers = defineSubjectOffersAction("unknown.note.offers", 1, ["note"], "笔记可用动作", ["note:read"], [
     { offer_id: "notes.replace", title: "整理笔记", action: { capability_id: write.capability_id, version: 1 } },
   ]);
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.offer-notes", version: "1.0.0", name: "Notes",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.offer-notes", version: "1.0.0", name: "Notes",
     kind: "app", publisher: { publisher_id: "example", signature: "example-offer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["note:read", "note:write"].map(permission => ({ permission, required: false, reason: "读写原笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [write, offers] },
     async start() { return { kind: "app", actions: [{ ...write, handle: (_caller, value) => {
@@ -35,7 +35,7 @@ test("unknown SDK plugin prepares real actions, Home revalidates exact input and
       return { offers: mode === "duplicate" ? [offer, offer] : [offer] };
     } }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: caller.project_id! } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: caller.project_id! } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["note:read", "note:write"] }).install;
   const input = { subject: { kind: "note", id: "note-1" }, request_id: "fixed-request" };
   const prepare = async (context = caller) => await service.invoke(context, homeOfferActions.offers, input) as HomeActionOffers;

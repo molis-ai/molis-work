@@ -1159,7 +1159,7 @@ function declaredMcpPlugin(serviceId: string, method: PluginMcpMethodDeclaration
   pluginId?: string; publisherId?: string; signature?: string; version?: string;
 } = {}): PluginDefinition {
   const manifest: PluginManifest = {
-    schema_version: 1, host_api_version: 1, plugin_id: identity.pluginId ?? "io.molis.work.example." + serviceId,
+    schema_version: 1, host_api_version: 1, plugin_id: identity.pluginId ?? "com.example." + serviceId,
     name: "Declared MCP fixture", version: identity.version ?? "1.0.0", kind: "integration",
     publisher: { publisher_id: identity.publisherId ?? "io.example.mcp", signature: identity.signature ?? "fixture-mcp-signature-v1" },
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }], permissions: [],
@@ -1408,7 +1408,7 @@ test("RAC2881 product MCP clients are read and sent only for the original runnin
         if (variant !== "original") {
           await registry.disable(originalPlugin);
           await registry.enable(declaredMcpPlugin("huggingface", { kind: "mcp", endpoint, auth: "either" }, {
-            pluginId: variant === "other-plugin" ? "io.molis.work.example.claimant" : originalPlugin,
+            pluginId: variant === "other-plugin" ? "com.example.claimant" : originalPlugin,
             publisherId: variant === "other-publisher" ? "io.example.other" : "io.adeptify",
             signature: variant === "other-signature" ? "different-publisher-signature" : "adeptify-official-signature-v1", version: "9.0.0",
           }));
@@ -1457,7 +1457,7 @@ test("RAC2882 an authorization cannot commit after source ABA, owner, endpoint, 
         await registry.disable(definition.manifest.plugin_id);
         const changed: PluginMcpMethodDeclaration = { ...method, ...(change === "endpoint" ? { endpoint: remote.endpoint + "/changed" } : {}),
           ...(change === "auth" ? { auth: "either" as const } : {}), ...(change === "registration" ? { registration: "manual" as const } : {}) };
-        await registry.enable(declaredMcpPlugin("source-race", changed, { pluginId: change === "owner" ? "io.molis.work.example.other-owner" : definition.manifest.plugin_id, version: change === "reenable" ? "1.0.0" : "1.1.0" }));
+        await registry.enable(declaredMcpPlugin("source-race", changed, { pluginId: change === "owner" ? "com.example.other-owner" : definition.manifest.plugin_id, version: change === "reenable" ? "1.0.0" : "1.1.0" }));
         if (change === "reenable") {
           assert.equal(registry.mcpOwner("source-race")!.install_id, original.install_id);
           assert.notEqual(registry.mcpOwner("source-race")!.installation_generation, original.installation_generation);
@@ -1590,7 +1590,7 @@ test("RAC2885 fresh operations reject changed persistent source pins and never g
             ...(change === "registration" ? { registration: "manual" as const } : {}),
             ...(change === "pattern" ? { endpoint_pattern: { source: "^https://stable-source\\.example\\.test/mcp$", flags: "iu" as const } } : {}) };
           await registry.enable(declaredMcpPlugin("stable-source", changed, {
-            pluginId: change === "owner" ? "io.molis.work.example.new-source" : definition.manifest.plugin_id,
+            pluginId: change === "owner" ? "com.example.new-source" : definition.manifest.plugin_id,
             publisherId: change === "publisher" ? "io.example.new-publisher" : definition.manifest.publisher.publisher_id,
             signature: change === "signature" ? "changed-source-signature" : definition.manifest.publisher.signature, version: "1.1.0",
           }));

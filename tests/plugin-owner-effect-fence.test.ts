@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -40,7 +40,7 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "boolean" },
   } };
   const definition: PluginDefinition = { manifest: {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.owner-fence", version: "1.0.0", name: "Owner fence", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.owner-fence", version: "1.0.0", name: "Owner fence", kind: "app",
     publisher: { publisher_id: "example", signature: "example-owner-fence" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep this installation's own fact" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],
@@ -55,7 +55,7 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
     })] };
   } };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install;
   stop = () => runtime.stop(installed.install_id);
   await runtime.start(installed.install_id);

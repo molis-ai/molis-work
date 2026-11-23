@@ -29,7 +29,7 @@ test("the gateway refuses a Runtime client that names no Session for an action t
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const handled: string[] = [];
   await host.withProject(reference, () => {
-    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture-gateway", title: "Fixture", kind: "plugin", plugin_id: "io.molis.work.example.gateway-author" },
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture-gateway", title: "Fixture", kind: "plugin", plugin_id: "com.example.gateway-author" },
       definitions: [recorded], handlers: [{ ...recorded, handle: caller => { handled.push(caller.audit_actor_id ?? caller.actor_id); return { author: caller.audit_actor_id ?? caller.actor_id }; } }] });
   });
   // The provider above lives on this Host, so this Host serves the access settings the grant goes through, and the gateway.

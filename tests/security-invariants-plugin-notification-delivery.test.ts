@@ -16,8 +16,8 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
  * D6-2 (FI-6 step 4a): a plugin's notification is the platform's queue row; the platform hands it to the receiver a Manifest declares
  * on a receiving action's intake (`accepts: [{ kind: "notification" }]`, batch 44), and keeps it queued while none can take it. Acceptance RAC-1010 to RAC-1013.
  */
-const row = (key: string) => ({ project_id: "p", sender_plugin_id: "io.molis.work.example.sender", sender_install_id: "install-1", sender_generation: "g1", key,
-  title: "Title " + key, summary: "Summary", body: "Body " + key, open_plugin_id: "io.molis.work.example.sender", created_at: "2026-10-26T00:00:00.000Z" });
+const row = (key: string) => ({ project_id: "p", sender_plugin_id: "com.example.sender", sender_install_id: "install-1", sender_generation: "g1", key,
+  title: "Title " + key, summary: "Summary", body: "Body " + key, open_plugin_id: "com.example.sender", created_at: "2026-10-26T00:00:00.000Z" });
 const asRecord = (value: unknown): Record<string, unknown> => value as Record<string, unknown>;
 
 test("RAC-1010: a notification receiver is one action's intake { accepts: [notification] }, a project command only the workflow calls, with the platform's shapes", () => {
@@ -68,7 +68,7 @@ test("RAC-1011: the queue keeps a notification until a receiver takes it, once, 
       if (mode === "broken") throw new ActionError("feed.rule_store_down", "down");
       received.push(delivery.key); return { item_id: "item-" + delivery.key, created: true };
     } };
-    const receiver = { plugin_id: "io.molis.work.example.receiver", reference: { capability_id: "receiver.take", version: 1 }, permissions: ["feed:write"] };
+    const receiver = { plugin_id: "com.example.receiver", reference: { capability_id: "receiver.take", version: 1 }, permissions: ["feed:write"] };
     const delivery = createNotificationDelivery({ project_id: "p", queue, client, receivers: () => [receiver], senderName: () => "Sender" });
     const first = queue.enqueue(row("one")), again = queue.enqueue(row("one"));
     assert.equal(first.created, true); assert.equal(again.created, false); assert.equal(first.notification_id, pluginNotificationId("install-1", "g1", "one"));

@@ -131,7 +131,7 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   assert.deepEqual(probe.routed, [hidden.project_id, shown.project_id, hidden.project_id], "unhiding restores the next route call");
   assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id, shown.project_id, hidden.project_id]);
   // Only the Host's Home registration says which ids are such plugins: an id it does not register cannot be hidden, whatever the request says.
-  const hideUnknown = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "io.molis.work.example.unregistered", expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
+  const hideUnknown = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "com.example.unregistered", expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
   assert.equal(hideUnknown.status, 400, await hideUnknown.clone().text());
   assert.equal((await hideUnknown.json()).code, "catalog.plugin_not_found");
   const probeAlone = await request(`/api/plugins/${probe.id}/state?project_id=${encodeURIComponent(shown.project_id)}`);
@@ -141,7 +141,7 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   const probePage = await request(`/plugins/${probe.id}`);
   assert.equal(probePage.status, 200, await probePage.clone().text());
   assert.match(await probePage.text(), new RegExp(`data-home-lifecycle=[\\s\\S]*${probe.id.replaceAll(".", "\\.")}`, "u"));
-  assert.equal((await request(`/plugins/io.molis.work.example.unregistered`)).status, 404, "a key the Home does not register opens no page");
+  assert.equal((await request(`/plugins/com.example.unregistered`)).status, 404, "a key the Home does not register opens no page");
 
   // The Host's lifecycle operations are the Home's: under a project's path they are not there, and the plugin keeps running.
   for (const operation of ["disable", "enable", "retry", "restart", "upgrade", "release-quarantine"]) {
@@ -156,7 +156,7 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
 });
 
 test("S-31 a plugin cannot name the project itself: a project on a control the Host did not issue is not read", { timeout: 60_000 }, async t => {
-  const id = "io.molis.work.example.relay";
+  const id = "com.example.relay";
   const where: ActionDefinition<Record<string, never>, string | null> = { capability_id: "relay.where", version: 1, operation: "query",
     action: { title: "在哪个项目", description: "说出这次调用所在的项目", scope: "home", permissions: ["relay:read"], kind: "query",
       audiences: ["user"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };

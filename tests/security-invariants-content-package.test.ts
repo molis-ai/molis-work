@@ -12,7 +12,7 @@ import { PluginInstallService, SandboxPackageStore, homeAgentDefinitions, plugin
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, contentPackageParts, contentPayload, forgedBundle, signedContentPackage, type ContentPackageOptions } from "./fixtures/content-package.js";
 import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // S-content-package (batch 08, 08-6): a plugin with only declarations is installed from its signed content package through the one install
@@ -213,7 +213,7 @@ test("SKC-02 a plugin with only declarations is declared, not started: the Runti
   const { manifest } = contentPackageParts(publisher.identity, { requires: [{ capability_id: "nobody.offers", version: 1, reason: "没有提供者" }] });
   let started = 0;
   const definition = { manifest, execution: "sandbox", async start() { started += 1; throw new Error("a plugin with only declarations is never started"); }, async stop() {} } as PluginDefinition;
-  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const { install } = runtime.install({ definition, deployment: "local", grants: [], trust: { level: "pinned", publisher_key_id: publisher.identity } });
   assert.equal(install.selected_entrypoint, "", "no entrypoint is selected");
   const receipt = await runtime.start(install.install_id);

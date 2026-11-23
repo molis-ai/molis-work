@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./isolated-host.js";
 import { DatabaseSync } from "node:sqlite";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
@@ -24,14 +24,14 @@ const read = defineAction({ capability_id: "fixture.notes.list", version: 1, ope
   output_schema: { type: "array", $defs: { row: { type: "object", properties: { text: { type: "string" }, actor: { type: "string" } }, required: ["text", "actor"] } }, items: { $ref: "#/$defs/row" } },
 } }, context => db.prepare("SELECT text, actor FROM notes WHERE project = ? ORDER BY id").all(context.project_id));
 const plugin = definePlugin({ manifest: {
-  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.fixture.stdio-notes", version: "1.0.0", name: "Stdio notes", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: "com.example.fixture.stdio-notes", version: "1.0.0", name: "Stdio notes", kind: "app",
   publisher: { publisher_id: "test", signature: "test" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [{ permission: "notes:write", required: true, reason: "Save notes" }], capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [write.definition, read.definition],
 }, async start() { return { kind: "app", actions: [write.handler, read.handler] }; } });
 const reference = { project_id: project, storage_key: database };
 const host = new LocalHost({ runtimeFactory: { open: () => db, close: value => value.close() } });
-const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: project } });
+const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(reference), project_id: project } });
 const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
 await runtime.start(installed.install_id);
 const ports = createActionMcpPorts({ service: host.actionClient(reference), serverInfo: { name: "molis-action-fixture", version: "1.0.0" },

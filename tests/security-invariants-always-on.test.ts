@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
@@ -14,7 +14,7 @@ import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeReposit
 // is a row that is revoked by `revoked_at`, never rewritten or deleted, and the Host's later start does not undo a revocation.
 // What the consent makes true elsewhere (the always-on list, refusing removal) is checked where that list is built.
 
-const PLUGIN_ID = "io.molis.work.example.always-on";
+const PLUGIN_ID = "com.example.always-on";
 const ALWAYS_ON = { kind: "always_on", subject: consentSubject.alwaysOn() } as const;
 
 function manifest(version: string, extra: Partial<PluginManifest> = {}): PluginManifest {
@@ -30,7 +30,7 @@ function definition(value: PluginManifest, execution?: "sandbox"): PluginDefinit
   return { manifest: value, ...(execution ? { execution } : {}), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
 }
 
-const runtimeWith = (consents = new MemoryPluginConsentLedger()) => ({ consents, runtime: new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, consents }) });
+const runtimeWith = (consents = new MemoryPluginConsentLedger()) => ({ consents, runtime: new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, consents }) });
 const declaredInvalid = (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid";
 
 test("RAC-384 S-34 an unsigned plugin that declares always_on is installed, and without a consent the declaration is not in effect", () => {

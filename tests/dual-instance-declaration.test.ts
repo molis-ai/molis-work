@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -80,7 +80,7 @@ test("RAC-198 PG-051 a dual-instance plugin's Home and project halves are one in
 test("DUAL-12 the same plugin on both start lists without the mark is refused before anything starts", async t => {
   const dual = dualPlugin(), home = await temporaryHome(t);
   assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [dual.home], project: [dual.project] } }),
-    /插件 io\.molis\.work\.example\.dualprobe 不能同时在 Home 与项目启动名单里/u);
+    /插件 com\.example\.dualprobe 不能同时在 Home 与项目启动名单里/u);
 });
 
 test("DUAL-12 only the Home side carries the mark, and a marked Home half must have its project half", async t => {
@@ -88,10 +88,10 @@ test("DUAL-12 only the Home side carries the mark, and a marked Home half must h
   const host = (fixtures: Fixtures) =>
     () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: fixtures });
   assert.throws(host({ home: [{ definition: dual.home, dual_instance: true }], project: [{ definition: dual.project, dual_instance: true }] }),
-    /项目夹具 io\.molis\.work\.example\.dualprobe 不能自称双实例/u);
+    /项目夹具 com\.example\.dualprobe 不能自称双实例/u);
   assert.throws(host({ home: [dual.home], project: [{ definition: dual.project, dual_instance: true }] }), /不能自称双实例/u,
     "a project entry's own mark is refused, whatever the Home side says");
-  assert.throws(host({ home: [{ definition: dual.home, dual_instance: true }] }), /双实例插件 io\.molis\.work\.example\.dualprobe 在项目启动名单里没有另一半/u);
+  assert.throws(host({ home: [{ definition: dual.home, dual_instance: true }] }), /双实例插件 com\.example\.dualprobe 在项目启动名单里没有另一半/u);
 });
 
 test("DUAL-12 a sandboxed definition is no half: a fixture refuses it, and the Runtime refuses to treat one as shipping with the Host", async t => {
@@ -99,7 +99,7 @@ test("DUAL-12 a sandboxed definition is no half: a fixture refuses it, and the R
   const { host } = await openHost(t, { home: [{ definition: sandboxed, dual_instance: true }], project: [dual.project] });
   await assert.rejects(host.homePlugins!.ready(), /是沙箱执行的/u);
   assert.equal(dual.services.home, undefined);
-  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: { ...dual.project, execution: "sandbox" }, deployment: "local", trust: { level: "host" }, grants: [dual.read] }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: { ...dual.project, execution: "sandbox" }, deployment: "local", trust: { level: "host" }, grants: [dual.read] }),
     { code: "plugin.grant_denied" });
 });
 

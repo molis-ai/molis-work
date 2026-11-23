@@ -412,7 +412,7 @@ test("APR-07/08/11 H1: the actual permission picker uses the live original Pages
 }));
 
 test("APR-11: an empty target needs a label from its own provider before it can be granted", { timeout: 45_000 }, async t => runWithLocale("en", async () => {
-  const pluginId = "io.molis.work.fixture.permission-location";
+  const pluginId = "com.example.fixture.permission-location";
   const action: ActionDefinition = { capability_id: "fixture.permission_location.move", version: 1, operation: "command", action: {
     title: "Move a note", description: "Set the note's folder or collection", kind: "operation", scope: "home", audiences: ["user", "agent"],
     permissions: [], subject_kinds: [],

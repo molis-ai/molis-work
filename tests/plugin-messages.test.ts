@@ -5,7 +5,7 @@ import { createTextReader, inspectLocaleSet, parseLocalePack, refuseSharedTextPr
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pagePack } from "./fixtures/page-text.js";
 
-const OWNER = "io.molis.work.example.notes";
+const OWNER = "com.example.notes";
 const TITLE = "notes.panel.title";
 const COUNT = "notes.panel.count";
 const pack = (locale: string, messages: unknown, owner = OWNER) => ({ format_version: 1, owner, locale, messages });

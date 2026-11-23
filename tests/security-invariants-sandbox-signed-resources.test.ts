@@ -18,7 +18,7 @@ import { fixture, mac, operate, operationsOf, person, ref } from "./fixtures/hom
 import { serveTestHost } from "./fixtures/test-home.js";
 import { signedResourceHttps } from "./fixtures/signed-resource-https.js";
 
-const ID = "io.molis.work.example.resources";
+const ID = "com.example.resources";
 const SCHEMA = "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL UNIQUE);";
 const DB = ["home-database:read", "home-database:write"], FILES = ["owner-files:read", "owner-files:write"];
 const ALL = ["storage:private", ...DB, ...FILES, "connections:use", "materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
@@ -134,7 +134,7 @@ test("RAC2865 real signed read-only resources distinguish Declared, Requested an
   const rows = (await r.list()).plugins.find(plugin => plugin.plugin_id === ID)!.permissions;
   assert.equal(rows.find(row => row.permission === DB[1])!.requested, false);
   const project = await r.project("Requested project files"), client = r.h.host.actionClient(project.reference), who = person(project.project_id);
-  const projectId = "io.molis.work.example.projectfiles397";
+  const projectId = "com.example.projectfiles397";
   const projectPreview = await client.invoke(who, ref(pluginInstallActions.preview), { bundle: bundle(newPublisher(), { id: projectId, readonly: true, projectFiles: true }) }) as { preview_id: string };
   await client.invoke(who, ref(pluginInstallActions.confirm), { preview_id: projectPreview.preview_id, consent: true, pin_label: "Project files" });
   const installed = await client.invoke(who, ref(pluginInstallActions.installed), {}) as { plugins: Array<{ plugin_id: string; install_id: string }> };

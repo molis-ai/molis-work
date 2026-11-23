@@ -67,7 +67,7 @@ async function fixture(t: TestContext, integrations?: IntegrationRegistry) {
     for (const record of platform.runtime.list()) if (owned.has(record.plugin_id) && record.state === "running") await platform.runtime.stop(record.install_id);
   };
   const start = async (name: string, permissions: string[]) => {
-    const id = "io.molis.work.example." + name;
+    const id = "com.example." + name;
     owned.add(id);
     const action = (suffix: string, needed: string[], shape: { concurrent?: boolean; query?: boolean } = {}): ActionDefinition<Record<string, never>, unknown> => ({
       capability_id: `${name}.${suffix}`, version: 1, operation: shape.query ? "query" : "command", action: { title: suffix, description: "Pulls sources as the plugin", scope: "project",
@@ -373,7 +373,7 @@ test("S-97 RAC-1019: repository.read refuses what is not a repository and a sour
 test("RAC-2507 a pure presentation rechecks the original consumer authority after its provider await", { timeout: 30_000 }, async t => {
   const registry = new IntegrationRegistry();
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let presentations = 0;
-  const definition = definePollingIntegrationPlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.deferred-presentation", version: "1.0.0", name: "Pure display",
+  const definition = definePollingIntegrationPlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.deferred-presentation", version: "1.0.0", name: "Pure display",
     kind: "integration", publisher: { publisher_id: "example", signature: "deferred-display" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, source_presentations: ["deferred-display"] },
     createProvider() { throw new Error("a display cannot bind a source"); }, async presentSource() { presentations++; entered.resolve(); await release.promise; return { home_url: "https://example.com/" }; } });

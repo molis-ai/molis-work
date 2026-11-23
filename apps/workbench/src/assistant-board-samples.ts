@@ -6,7 +6,7 @@ import {
 import { boardSampleText, type BoardSampleText } from "./assistant-board-text.js";
 
 /** Sample executor id for the component board (never references a real plugin catalog entry). */
-const SAMPLE_EXECUTOR_PLUGIN_ID = "io.molis.work.example.workspace";
+const SAMPLE_EXECUTOR_PLUGIN_ID = "com.example.workspace";
 
 /**
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host

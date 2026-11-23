@@ -765,7 +765,7 @@
         "molis_storage_space": 1,
         "plugin_home_libraries": 1
       },
-      "sha256": "42b8520dd8843f30a28d86d0713c1513cb98392ef64ef3f137080e8c3c2c6449"
+      "sha256": "1135979268da6f66e00ff091cdeb2560f7a81934b2a19a2065192e16e16cf041"
     },
     {
       "path": "plugin-originals/plugin-originals.db",
@@ -793,8 +793,8 @@
         "plugin_runtime_installs": 9,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "7819b42e3e1f43486ce98160c6d26d1c1a1468786b3540730412b305f2499bd5",
-      "expanded_sha256": "f68414c6880aa893642f3cdbcdb588fbcc4df7b622f269b09cdbb85f8ace52ba"
+      "sha256": "85b8b405df7f80c8bc76254aaba36b464560f2ac83cc7dd5c517dbc8c60f1ce0",
+      "expanded_sha256": "95c3ef8e4a89513599212b460c9cb74c02c692af94b2e566a8fb7a1919380076"
     },
     {
       "path": "ppt/ppt.db",
@@ -1679,14 +1679,14 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "e3a5b781eea37e4e0255dcb91acb79a5577410cbd48ce13253b4753596f71ea1",
-      "expanded_sha256": "60873b7da1d8f6d7245950966a143e360823841c6da0af88a40f213043bad011"
+      "sha256": "7b5c17da58691a7d57a8c77ed1b1ce35395f2f34ea201816482b732f5b1017f1",
+      "expanded_sha256": "0c7c893a36e895a9a46318df3d9d66f253b13d5aaac74940c0d2107952f87271"
     },
     {
-      "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
-      "owner": "io.molis.work.example.golden-home-library",
+      "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
+      "owner": "com.example.golden-home-library",
       "mode": 384,
-      "payload": "stores/sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db.sql",
+      "payload": "stores/sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db.sql",
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
@@ -2062,44 +2062,44 @@
       "sha256": "0a62f1ff5a5293b01db04906e102555e30c076243690d694fa2b3a5fb76cb417"
     },
     {
-      "path": "plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416/files/notes.txt",
+      "path": "plugin-files/plugin-install-7de07736f8d0991537baa0c377de771e/files/notes.txt",
       "owner": "apps/local-host",
       "mode": 384,
-      "payload": "files/plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416/files/notes.txt",
+      "payload": "files/plugin-files/plugin-install-7de07736f8d0991537baa0c377de771e/files/notes.txt",
       "size": 6,
       "sha256": "dd56de4137951d9c92681b03416ec15f886b4482a27e3a517d32f085244cbe5d"
     },
     {
-      "path": "plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/bundle.json",
+      "path": "plugin-packages/594a29be8083eb811d8aecbe7dd509d5/bundle.json",
       "owner": "apps/local-host",
       "mode": 256,
-      "payload": "files/plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/bundle.json",
-      "size": 29898,
-      "sha256": "755dd9e8b7348782d3acea7dd3556dac4a927c554d33730a2ef8ad10803b7d22"
+      "payload": "files/plugin-packages/594a29be8083eb811d8aecbe7dd509d5/bundle.json",
+      "size": 8083,
+      "sha256": "566173c38793386e0e9cde09aea42f67bc14d6f0468ffdcff3d0a311324887ff"
     },
     {
-      "path": "plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/plugin.mjs",
+      "path": "plugin-packages/594a29be8083eb811d8aecbe7dd509d5/plugin.mjs",
       "owner": "apps/local-host",
       "mode": 256,
-      "payload": "files/plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/plugin.mjs.data",
-      "size": 3467,
-      "sha256": "2e1954c68e7a9e8afea8b5bb98a8f467318e67c6a6c1d1c30b321e2f78733d64"
-    },
-    {
-      "path": "plugin-packages/c861427de0348ce0d342472ce862c484/bundle.json",
-      "owner": "apps/local-host",
-      "mode": 256,
-      "payload": "files/plugin-packages/c861427de0348ce0d342472ce862c484/bundle.json",
-      "size": 8165,
-      "sha256": "169bbacff96c1bf373951b2760e3380e6e0674226489b307228e3d51a4e7e099"
-    },
-    {
-      "path": "plugin-packages/c861427de0348ce0d342472ce862c484/plugin.mjs",
-      "owner": "apps/local-host",
-      "mode": 256,
-      "payload": "files/plugin-packages/c861427de0348ce0d342472ce862c484/plugin.mjs.data",
+      "payload": "files/plugin-packages/594a29be8083eb811d8aecbe7dd509d5/plugin.mjs.data",
       "size": 658,
       "sha256": "704edde5820a1eb52d8e600940b816019048d483182d1419884ae981c5ab1c98"
+    },
+    {
+      "path": "plugin-packages/af75063822606216e16120fff81da05c/bundle.json",
+      "owner": "apps/local-host",
+      "mode": 256,
+      "payload": "files/plugin-packages/af75063822606216e16120fff81da05c/bundle.json",
+      "size": 29307,
+      "sha256": "bd499ff8189c69c040327e736929fa63912fdab7a706c625d524fca0952afd42"
+    },
+    {
+      "path": "plugin-packages/af75063822606216e16120fff81da05c/plugin.mjs",
+      "owner": "apps/local-host",
+      "mode": 256,
+      "payload": "files/plugin-packages/af75063822606216e16120fff81da05c/plugin.mjs.data",
+      "size": 3467,
+      "sha256": "2e1954c68e7a9e8afea8b5bb98a8f467318e67c6a6c1d1c30b321e2f78733d64"
     },
     {
       "path": "runtime-integrations/codex.json",
@@ -2393,53 +2393,8 @@
   ],
   "formats": [
     {
-      "entry": "format.browser.site-decisions",
-      "path": "browser/sites.json",
-      "version": 1
-    },
-    {
-      "entry": "format.mcp.tool-preference",
-      "path": "config/mcp-tools.json",
-      "version": 1
-    },
-    {
-      "entry": "format.home.onboarding",
-      "path": "config/onboarding.json",
-      "version": 1
-    },
-    {
-      "entry": "format.project.arrival",
-      "path": "config/project-arrival.json",
-      "version": 1
-    },
-    {
-      "entry": "format.ui.last-locale",
-      "path": "config/ui-locale.json",
-      "version": 1
-    },
-    {
-      "entry": "format.secret-store.map",
-      "path": "feed/secrets.json",
-      "version": 1
-    },
-    {
-      "entry": "format.ui.appearance-state",
-      "path": "interface/state.json",
-      "version": 1
-    },
-    {
-      "entry": "format.jelly.workspace",
-      "path": "jelly/jelly.db",
-      "version": 1
-    },
-    {
-      "entry": "format.model.preference",
-      "path": "jelly/preferences.json",
-      "version": 1
-    },
-    {
-      "entry": "database.memory_ledger_baseline",
-      "path": "memory/memory.db",
+      "entry": "database.home.catalog",
+      "path": "projects/catalog.db",
       "version": 1
     },
     {
@@ -2448,8 +2403,38 @@
       "version": 1
     },
     {
-      "entry": "database.home.catalog",
-      "path": "projects/catalog.db",
+      "entry": "database.memory_ledger_baseline",
+      "path": "memory/memory.db",
+      "version": 1
+    },
+    {
+      "entry": "format.browser.site-decisions",
+      "path": "browser/sites.json",
+      "version": 1
+    },
+    {
+      "entry": "format.home.onboarding",
+      "path": "config/onboarding.json",
+      "version": 1
+    },
+    {
+      "entry": "format.jelly.workspace",
+      "path": "jelly/jelly.db",
+      "version": 1
+    },
+    {
+      "entry": "format.mcp.tool-preference",
+      "path": "config/mcp-tools.json",
+      "version": 1
+    },
+    {
+      "entry": "format.model.preference",
+      "path": "jelly/preferences.json",
+      "version": 1
+    },
+    {
+      "entry": "format.project.arrival",
+      "path": "config/project-arrival.json",
       "version": 1
     },
     {
@@ -2458,8 +2443,23 @@
       "version": 1
     },
     {
+      "entry": "format.secret-store.map",
+      "path": "feed/secrets.json",
+      "version": 1
+    },
+    {
       "entry": "format.shelf.catalog",
       "path": "shelf/catalog.json",
+      "version": 1
+    },
+    {
+      "entry": "format.ui.appearance-state",
+      "path": "interface/state.json",
+      "version": 1
+    },
+    {
+      "entry": "format.ui.last-locale",
+      "path": "config/ui-locale.json",
       "version": 1
     }
   ]

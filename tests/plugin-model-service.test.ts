@@ -28,7 +28,7 @@ import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 const MODEL_INVOKE = "model:invoke";
 const MODEL_READ = "model:read";
-const idOf = (name: string) => `io.molis.work.example.${name}`;
+const idOf = (name: string) => `com.example.${name}`;
 /** The error codes a refused call raises, with the sort of failure each is (docs/system/CONTRACT-CHANGES.md; the action error model). */
 const CODES = {
   action_required: ["plugin.model_action_required", "forbidden"], permission_undeclared: ["plugin.model_permission_undeclared", "forbidden"],

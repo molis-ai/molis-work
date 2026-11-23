@@ -5,7 +5,7 @@ import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
 
 export const queryInput = { type: "object", properties: { item_id: { type: "string" }, text: { type: "string" } }, additionalProperties: false };
 export function queryProbe(name = "queryprobe", scope: "home" | "project" = "home", pages = true, consumed = true) {
-  const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [], seen: ActionExecutionContext[] = [];
+  const id = `com.example.${name}`, contexts: PluginStartContext[] = [], seen: ActionExecutionContext[] = [];
   const action: ActionDefinition<{ item_id?: string; text?: string }, unknown> = { capability_id: `${name}.read`, version: 1, operation: "command", action: {
     title: "Read selected material", description: "Query a declared owner under the original caller", kind: "operation", scope, scheduling: "concurrent",
     audiences: ["user", "agent", "mcp"], permissions: ["storage:private"], subject_kinds: [], input_schema: queryInput,

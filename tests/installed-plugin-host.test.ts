@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import { ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -45,7 +45,7 @@ const openedByHost = async (host: MolisWorkLocalHost, ref: NonNullable<Parameter
 };
 
 test('BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease', { timeout: 20_000 }, async t => {
-  const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'io.molis.work.fixture.statement';
+  const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'com.example.fixture.statement';
   const capture: { statements?: PluginProjectStatements } = {};
   const definition: PluginDefinition = { execution: 'sandbox', manifest: {
     schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: '1.0.0', name: 'Statement fixture', kind: 'app',
@@ -112,7 +112,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
   const waiting = builder.update(draft.id, draft.revision, value => { value.active = { token: 'interrupted-draft', stage: 'design' }; value.phase = 'designing'; });
-  const buildId = randomUUID(), pluginId = fixedPluginId ?? 'io.molis.work.generated.' + buildId;
+  const buildId = randomUUID(), pluginId = fixedPluginId ?? 'studio.' + buildId;
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     { id: 'save', kind: 'command', input: { type: 'object', additionalProperties: false, required: ['value'], properties: { value: { type: 'string' } } }, output: { type: 'string' }, effects: { storage: ['write'] }, errors: [], examples: [{ input: { value: 'value' }, output: 'value' }] },
     { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] },
@@ -143,7 +143,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     return packagedStudioRelease(home, value, publisher, { upgradesFrom: options.upgradesFrom ?? Array.from({ length: version - 1 }, (_, index) => index + 1) });
   };
   storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, permissionDeclarations: projectedPermissionDeclarations });
   // The person switched on what the operations use (BL-701): the platform capabilities.
   const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local',
     grants: ['storage:private', 'capabilities:call', ...(secretRefs.length ? ['network:request', 'secret:use'] : [])] });
@@ -733,9 +733,9 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
   let store = new LocalProjectDatabase(databasePath);
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, permissionDeclarations: projectedPermissionDeclarations });
     const publisher = newPublisher();
-    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('io.molis.work.generated.' + buildId + '\u0000' + publisher.identity).digest('hex').slice(0, 32);
+    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('studio.' + buildId + '\u0000' + publisher.identity).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
     let first = '', second = '';
     for (let n = 1; !first; n++) {
@@ -743,7 +743,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
       if (installIdOf(a) < installIdOf(b)) { first = a; second = b; }
     }
     const make = async (buildId: string, bundle: string, grants: string[]) => {
-      const pluginId = 'io.molis.work.generated.' + buildId;
+      const pluginId = 'studio.' + buildId;
       const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
         { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
       const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, bundle);
@@ -1217,8 +1217,8 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
 // run: the record that goes is first, then last. The first order is where "keep going after a failure" is observable — with the record that
 // goes last there is nothing after it the loop could skip.
 for (const [order, gonePluginId, keptPluginId] of [
-  ['first', 'io.molis.work.generated.close-order-a-gone', 'io.molis.work.generated.close-order-z-kept'],
-  ['last', 'io.molis.work.generated.close-order-z-gone', 'io.molis.work.generated.close-order-a-kept'],
+  ['first', 'studio.close-order-a-gone', 'studio.close-order-z-kept'],
+  ['last', 'studio.close-order-z-gone', 'studio.close-order-a-kept'],
 ] as const) test(`RAC-2406 closing the Host keeps going when the installation record is gone ${order} in the close order`, { ...mac, timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-record-gone-close-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
@@ -1236,7 +1236,7 @@ for (const [order, gonePluginId, keptPluginId] of [
       design: { id: 'one', catalog: 'actions/1', title: 'Second fixture', description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
       nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() } satisfies AgentRelease, newPublisher());
     storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, permissionDeclarations: projectedPermissionDeclarations });
     const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local', grants: ['storage:private'] });
     second = { pluginId, installId: install.install_id };
   } finally { store.close(); }

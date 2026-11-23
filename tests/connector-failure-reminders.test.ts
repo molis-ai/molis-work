@@ -22,7 +22,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // request refused before it was sent and the person's own disconnecting, disabling or removing never tell them.
 
 const TOKEN = "fixture-reminder-token";
-const target = { plugin_id: "io.molis.work.example.failurereminders", install_id: "install-asc58", slot_id: "github", service_id: "github" };
+const target = { plugin_id: "com.example.failurereminders", install_id: "install-asc58", slot_id: "github", service_id: "github" };
 const definition: ActionDefinition = { capability_id: "example.reminders.sync", version: 1, operation: "command", action: {
   title: "sync", description: "probe", scope: "home", kind: "operation", subject_kinds: [], audiences: ["user"], permissions: ["connections:use"],
   scheduling: "concurrent", input_schema: { type: "object", additionalProperties: false } } };

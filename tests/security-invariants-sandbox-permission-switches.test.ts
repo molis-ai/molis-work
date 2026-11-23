@@ -15,9 +15,9 @@ import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-wo
 import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
-const ID = "io.molis.work.example.switches";
+const ID = "com.example.switches";
 
 /** The notes package, plus `probe`, which counts its own runs and then calls `capability`, answering what became of the call, and `runs`. */
 const switchesPackage = (capability: string) => signedPackage(newPublisher(), (files, manifest) => {
@@ -175,11 +175,11 @@ test("B27-PERM-03 BL-701 the SDK projects only what a signed Manifest has no row
 test("B27-PERM-04 BL-701 the Runtime counts projected rows in every grant ceiling and drops one an upgrade no longer asks for", async () => {
   const projected = new Map<string, string[]>([["1.0.0", ["network:request"]], ["1.1.0", []]]);
   const definitionOf = (version: string): PluginDefinition => ({ async start() { return { kind: "app", views: [] }; }, async stop() {}, manifest: {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.ceiling", version, name: "Ceiling", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.ceiling", version, name: "Ceiling", kind: "app",
     publisher: { publisher_id: "fixture", signature: "agent-built:ceiling" }, entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     ...(version === "1.0.0" ? {} : { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } }),
     permissions: [{ permission: "storage:private", required: true, reason: "x" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] } });
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS,
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS,
     permissionDeclarations: definition => projected.get(definition.manifest.version)!.map(permission => ({ permission, required: false, reason: "projected" })) });
   const { install } = runtime.install({ definition: definitionOf("1.0.0"), deployment: "local", trust: { level: "unsigned" }, grants: ["storage:private"] });
   await runtime.regrant(install.install_id, "network:request", true);

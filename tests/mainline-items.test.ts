@@ -124,11 +124,11 @@ test("MLC-05 an object becomes an item read as the caller, once; 「建成」 as
   notes.state.notes.set("n1", { id: "n1", title: "笔记一", status: "open" });
   notes.state.memos.add("m1");
   const read = await me.invoke(mainlineItemActions.read, {});
-  assert.deepEqual(read.sources, [{ kind: "goal", owner: "io.molis.work.goals", create: true, next: true }, { kind: "note", owner: "io.molis.work.example.notes", create: true, next: true }],
+  assert.deepEqual(read.sources, [{ kind: "goal", owner: "io.molis.work.goals", create: true, next: true }, { kind: "note", owner: "com.example.notes", create: true, next: true }],
     "each declared kind, with what its source offers; Goals is one source among others");
   const reader = as(person(projectId, { permissions: [MAINLINE_READ_PERMISSION, MAINLINE_ARRANGE_PERMISSION, "notes:read"] }));
   assert.deepEqual((await reader.invoke(mainlineItemActions.read, {})).sources, [{ kind: "goal", owner: "io.molis.work.goals", create: false, next: false },
-    { kind: "note", owner: "io.molis.work.example.notes", create: false, next: true }], "a part the caller cannot call is not offered; the kind still takes an existing object");
+    { kind: "note", owner: "com.example.notes", create: false, next: true }], "a part the caller cannot call is not offered; the kind still takes an existing object");
   const made = await me.invoke(mainlineItemActions.create, { from: { kind: "note", id: "n1" } });
   assert.deepEqual([made.item.source, made.item.name], [{ kind: "note", id: "n1" }, undefined], "an object's item has no name of its own");
   const again = await me.invoke(mainlineItemActions.create, { from: { kind: "note", id: "n1" }, group_id: "next" });

@@ -80,7 +80,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
   const ledger = createFeedContentLedger(store, { collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)) });
   const permissions = ["feed:read", "feed:write", "evidence:collect"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
   const actions = Object.values(feedContentLedgerActions);
-  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "fixture-feed-home" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions,
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
@@ -1110,7 +1110,7 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
 
 // RAC-1027 .. RAC-1028 (4e-2e; provisional numbers): the platform's notifications reach a Runtime Feed as the platform's own delivery, in one commit.
 const RECEIVER = declaredNotificationReceivers([feedManifest])[0]!;
-const SENDER = "io.molis.work.example.sender";
+const SENDER = "com.example.sender";
 const delivery = (key: string, sender = SENDER) => ({ notification_id: `n-${key}`, sender_plugin_id: sender, sender_name: "Sender", sender_install_id: "install-1", sender_generation: "g1",
   key, title: `Title ${key}`, summary: "A summary", body: `Body of ${key}`, open_plugin_id: sender, created_at: "2026-10-26T12:00:00.000Z" });
 /** The platform's notification service as a caller: the workflow audience under its own identity, holding what the receiving action declares. */
@@ -1137,7 +1137,7 @@ test("RAC-1027 a Runtime Feed takes the platform's notification as one write: th
   assert.equal(second.created, true);
   assert.deepEqual([f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", `plugin-notifications:${SENDER}`), f.count("SELECT count(*) AS n FROM feed_sources WHERE kind = 'plugin'")], [2, 1]);
   // Another sender has a source of its own.
-  await receive("one", "io.molis.work.example.other");
+  await receive("one", "com.example.other");
   assert.equal(f.count("SELECT count(*) AS n FROM feed_sources WHERE kind = 'plugin'"), 2);
 });
 
@@ -1157,13 +1157,13 @@ test("RAC-1027 only the platform's notification service delivers: a person, a wo
 test("RAC-1028 a notification delivered by a caller who is revoked at any point is all there or not there: the source, the item and the Inbox entry together", async t => {
   const f = await platform(t);
   const probe = platformCaller();
-  await f.client.invoke(probe.context, RECEIVER.reference, delivery("probe", "io.molis.work.example.probe"));
+  await f.client.invoke(probe.context, RECEIVER.reference, delivery("probe", "com.example.probe"));
   const asked = probe.checks();
   assert.ok(asked >= 2, "a delivery asks its caller more than once: " + asked);
   // A later delivery asks a few more times than the first (the Inbox has more in it), so the sweep covers a good way past what the probe asked.
   let cutOff = 0, committedFirst = 0;
   for (let from = 1; from <= asked * 2; from += 1) {
-    const sender = `io.molis.work.example.sweep${from}`, source = `plugin-notifications:${sender}`;
+    const sender = `com.example.sweep${from}`, source = `plugin-notifications:${sender}`;
     const outcome = await f.client.invoke(platformCaller(from).context, RECEIVER.reference, delivery(`sweep-${from}`, sender)).then(() => "done" as const, () => "refused" as const);
     const parts = [f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ?", source), f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", source),
       f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id IN (SELECT item_id FROM feed_items WHERE source_id = ?)", source)];

@@ -27,7 +27,7 @@ import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { recordHostAlwaysOnAgreements } from "./always-on-plugins.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
-import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
+import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { closeHomePlugins } from "./plugin-platform-close.js";
 import { bindHomeRegistration } from "./home-registration.js";
@@ -363,7 +363,7 @@ async function startHomePlatformRuntime(input: {
   // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
   const ledger = new SqlitePluginConsentLedger(db);
   recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
     assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, installationScope.catalog(), runtime, rollback),
     redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},
     actions: { registry: options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),

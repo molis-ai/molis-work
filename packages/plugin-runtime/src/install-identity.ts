@@ -1,4 +1,4 @@
-import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_PLUGIN_ID_PREFIX, pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { assertConsentsDeclared, assertPluginTrust, assertScopeFitsRuntime, assertTrustFitsDefinition, type InProcessAdmission } from "./trust-rules.js";
@@ -7,6 +7,9 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 // Who an install may say it is (ac-trust T6, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.6, S-75). A publisher's
 // signature is a label the author writes unless a pinned key backs it, so the label alone never gives a plugin another's identity, and
 // the names plugins live under (`plugin_id`, the contribution ids made from it) belong to whoever came first.
+
+/** No package of the release under the Host's prefix (a Runtime that installs no bundled package). */
+const NO_RELEASE_IDS: ReadonlySet<string> = new Set();
 
 /** The form of a pinned key's fingerprint (`contracts/platform/plugin-trust`): a label in this form would pass for one. */
 const FINGERPRINT_FORM = "ed25519:sha256:";
@@ -17,14 +20,19 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
 /**
  * Checks what an install is called with, and answers its trust. S-75.1: only `pinned` may carry a fingerprint, matching its trusted key
  * (`plugin.signer_mismatch`). S-75.2 and S-75.4, for an install that is not of the Host's build: its `plugin_id` may not be one the
- * Host's build ships (`hostIds`) or nest with one, and may not nest with the id of another publisher's installation that is not
- * uninstalled (`plugin.id_namespace_conflict`); only the same pinned key's ids may nest. Unsigned labels never establish identity.
+ * Host's build ships (`hostIds`) or nest with one, may not sit under the Host's prefix `io.molis.work.` at all (S-reserved-host-prefix:
+ * the prefix is reserved as a whole, so an id the Host ships later or a platform provider without a plugin shell is never left open;
+ * only an id among `releaseIds`, the packages the release itself carries in its bundled folder, is let through, and the Host lets a
+ * package with such an id be previewed only from that folder),
+ * and may not nest with the id of another publisher's installation that is not uninstalled (`plugin.id_namespace_conflict`); only the
+ * same pinned key's ids may nest. Unsigned labels never establish identity.
  * The Host's build is not refused here: an id
  * that comes with a later release is the Host's to give, and what already holds one is then the later one's to answer.
  */
 export function assertInstallIdentity(
   input: { readonly trust: unknown; readonly definition: PluginDefinition; readonly consents?: readonly PluginConsentGrant[] },
   installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>, runtimeScope?: "home" | "project", inProcess?: InProcessAdmission,
+  releaseIds: ReadonlySet<string> = NO_RELEASE_IDS,
 ): PluginTrust {
   const trust = assertPluginTrust(input.trust);
   const { plugin_id: id, publisher } = input.definition.manifest;
@@ -35,6 +43,7 @@ export function assertInstallIdentity(
     throw pluginErrors.signer_mismatch("发布者签名只有验过的固定公钥才能写成指纹的形式；自己写的标签不能冒充某个发布者");
   }
   if (trust.level === "host") return trust;
+  if (id.startsWith(HOST_PLUGIN_ID_PREFIX) && !releaseIds.has(id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
   for (const reserved of hostIds) {
     if (reserved === id || nested(reserved, id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 与随宿主发布的 ${reserved} 冲突`);
   }
@@ -49,10 +58,10 @@ export function assertInstallIdentity(
 
 /** Recheck normally loaded records before any activation; persisted pinned signatures are the key bound at installation. */
 export function assertStartIdentity(record: PluginInstanceRecord, definition: PluginDefinition, installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>,
-  runtimeScope?: "home" | "project", inProcess?: InProcessAdmission): void {
+  runtimeScope?: "home" | "project", inProcess?: InProcessAdmission, releaseIds?: ReadonlySet<string>): void {
   const trust: PluginTrust = record.publisher_trust === "pinned"
     ? { level: "pinned", publisher_key_id: record.publisher_signature } : { level: record.publisher_trust };
-  assertInstallIdentity({ trust, definition }, installed, hostIds, runtimeScope, inProcess);
+  assertInstallIdentity({ trust, definition }, installed, hostIds, runtimeScope, inProcess, releaseIds);
 }
 
 /** An identity conflict (or code that may not run in the Host's process, S-75 ⑥) needs changed installation facts, not repeated executor recovery attempts. */

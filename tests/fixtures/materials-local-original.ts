@@ -13,7 +13,7 @@ interface Input { url?: string; key?: string; max?: number }
  * installation needs, so a project-level fixture starts with them granted.
  */
 export function localOriginalProbe(name = "localoriginal", options: { permissions?: string[]; version?: string; required?: boolean } = {}) {
-  const id = `io.molis.work.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["materials:fetch", "materials:fetch_local", "materials:original"])];
+  const id = `com.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["materials:fetch", "materials:fetch_local", "materials:original"])];
   const contexts: PluginStartContext[] = [];
   const action = (suffix: string, needed: string[]): ActionDefinition<Input, unknown> => ({
     capability_id: `${name}.${suffix}`, version: 1, operation: "command", action: {

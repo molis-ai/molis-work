@@ -19,8 +19,8 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // reach in process, or `null`, which says it reaches none), and a Host can be given plugins that exist only for a test or a
 // probe (`pluginFixtures`). The services themselves (`services.homeStore`, `services.model`) come in D and E.
 
-const PROBE = "io.molis.work.example.fixture-probe";
-const SECOND = "io.molis.work.example.fixture-second";
+const PROBE = "com.example.fixture-probe";
+const SECOND = "com.example.fixture-second";
 const SHIPPED = "io.molis.work.diff";
 
 const shape = { scope: "project" as const, audiences: ["user" as const], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } };

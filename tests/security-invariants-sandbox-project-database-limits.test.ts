@@ -31,7 +31,7 @@ const ROWS = 1000;
 /** The plugin that exists only for this test: one table of its own in the project's library. */
 const declaration: PluginDatabaseDeclaration = { store_name: "sbxlimit", version: 1, read_permission: "sbxlimit:read", write_permission: "sbxlimit:write",
   schema: "CREATE TABLE sbxlimit_rows (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
-const PLUGIN_ID = "io.molis.work.example.sbxlimit";
+const PLUGIN_ID = "com.example.sbxlimit";
 const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: PLUGIN_ID, kind: "app",
   publisher: { publisher_id: "molis", signature: "probe-sbxlimit" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: ["storage:private", declaration.read_permission, declaration.write_permission].map(permission => ({ permission, required: true, reason: "读写自己的表" })),

@@ -30,7 +30,7 @@ const bindingOf = (scene: string, id: string, project: string | null = DEMO_PROJ
 
 /** A plugin of the test: three actions (concurrent, serial, query) that make the scene-client call `step` names, and a scene of its own unless told not. */
 function probe(short: string, options: ProbeOptions = {}) {
-  const id = `io.molis.work.example.${short}`, grants = options.grants ?? [SCENES], hasScene = options.scene ?? true;
+  const id = `com.example.${short}`, grants = options.grants ?? [SCENES], hasScene = options.scene ?? true;
   const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback"], input_schema: textInput, result_schema: decisionOutput, permissions: [], configuration_permissions: [] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, consumed: [] as unknown[],

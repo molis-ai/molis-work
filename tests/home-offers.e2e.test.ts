@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { waitForHomeRow } from "./fixtures/home-rows.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -39,7 +39,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
   let writes = 0;
   let releaseOffers!: () => void;
   const offersReady = new Promise<void>(resolve => { releaseOffers = resolve; });
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.browser-offers", version: "1.0.0", name: "材料标记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.browser-offers", version: "1.0.0", name: "材料标记",
     kind: "app", publisher: { publisher_id: "example", signature: "example-browser-offers" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "处理自己的材料标记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [offers, write] },
     async start() { return { kind: "app", actions: [{ ...offers, handle: async (_caller, value) => {
@@ -53,7 +53,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
       const result = store.db.prepare("UPDATE fixture_home_tags SET tag = ?, revision = revision + 1 WHERE id = ? AND revision = ?").run(input.tag, input.id, input.revision);
       assert.equal(result.changes, 1); writes++; return read();
     } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   await runtime.start(installed.install_id);
   // The original Inbox offers and another provider's offer use the same Peek and the same execution gateway.

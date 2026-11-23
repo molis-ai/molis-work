@@ -18,7 +18,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-const ID = "io.molis.work.example.sceneprobe", EVENT = `${ID}.written`, PERMISSION = "sceneprobe:write";
+const ID = "com.example.sceneprobe", EVENT = `${ID}.written`, PERMISSION = "sceneprobe:write";
 const scene: ActionSceneDefinition = { scene_id: `${ID}.scene`, version: 1, title: "场景探针", description: "检查场景回调", trigger: "manual",
   scope: "project", subject_kinds: [], input_schema: { type: "object" }, result_schema: { type: "boolean" },
   event_schema: { type: "object" }, permissions: [PERMISSION], configuration_permissions: [PERMISSION] };

@@ -43,7 +43,7 @@ async function fixture(t: TestContext) {
   const effectsDeclaration = { capabilities: ['fixture.lookup'], storage: ['read', 'write'] as Array<'read' | 'write'> };
   const operation = (id: string, kind: 'query' | 'command', effects: typeof effectsDeclaration | { capabilities: string[] } | { storage: Array<'read'> }) => ({
     id, kind, effects, input: { type: 'string' as const }, output: { type: 'string' as const }, errors: [], examples: [{ input: 'x', output: 'x' }] });
-  const contract: SandboxPluginContract = { version: 1, pluginId: 'io.molis.work.test.policy', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+  const contract: SandboxPluginContract = { version: 1, pluginId: 'com.example.test.policy', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     operation('run', 'command', effectsDeclaration), operation('read', 'query', { capabilities: ['fixture.lookup'] }), operation('local', 'query', { storage: ['read'] }),
   ] };
   const bundlePath = join(directory, 'plugin.mjs');

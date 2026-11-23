@@ -1,5 +1,5 @@
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError, intakeMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -125,7 +125,7 @@ test("N26 D0325 SDK parsing, author assertion and Runtime share the version refu
     for (const read of [
       () => parsePluginManifest(manifest),
       () => assertManifest(manifest),
-      () => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" },
+      () => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ trust: { level: "unsigned" },
         definition: { manifest, async start() { assert.fail("an unsupported Manifest must never start"); } }, deployment: "local" }),
     ]) assert.throws(read, (error: unknown) => {
       if (!(error instanceof ActionError) || error.code !== "plugin.manifest_version_invalid" || error.kind !== "invalid") return false;
@@ -258,9 +258,9 @@ test("ports must agree with the Artifact permissions and declarations they rely 
 test("embedded plugin dependencies are explicit IDs, not implicit grants or self links", () => {
   const input = currentManifest();
   const ui = input.ui as Record<string, unknown>;
-  ui.embedded_plugins = ["io.molis.work.example.reader"];
-  assert.deepEqual(parsePluginManifest(input).ui.embedded_plugins, ["io.molis.work.example.reader"]);
-  for (const invalid of [[PLUGIN_ID], ["io.molis.work.example.reader", "io.molis.work.example.reader"], [" padded"], "io.molis.work.example.reader", [null]]) {
+  ui.embedded_plugins = ["com.example.reader"];
+  assert.deepEqual(parsePluginManifest(input).ui.embedded_plugins, ["com.example.reader"]);
+  for (const invalid of [[PLUGIN_ID], ["com.example.reader", "com.example.reader"], [" padded"], "com.example.reader", [null]]) {
     ui.embedded_plugins = invalid;
     assert.throws(() => parsePluginManifest(input), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
   }
@@ -320,11 +320,11 @@ test("BCD-15: a code-root intake refuses a query, Home-scoped, shared or reshape
   assert.deepEqual(parsePluginManifest(codingManifest).actions?.filter(item => intakeMaterial(item.action.intake, "code_root")).map(item => item.capability_id), ["coding.onboarding.take"]);
 });
 
-test("retired io.goalboard.* plugin IDs are rejected while io.molis.work.* is accepted", () => {
+test("V16 a plugin id is a lowercase dotted reverse-domain name: one with capitals is rejected, any such name is accepted", () => {
   const manifest = {
     schema_version: 1,
     host_api_version: 1,
-    plugin_id: "io.goalboard.example.notes",
+    plugin_id: "Com.Example.Notes",
     version: "1.0.0",
     name: "Notes",
     kind: "integration",
@@ -339,5 +339,5 @@ test("retired io.goalboard.* plugin IDs are rejected while io.molis.work.* is ac
     () => parsePluginManifest(manifest),
     (error: unknown) => (error as { kind?: string; code?: string }).kind === "invalid" && (error as { code?: string }).code === "plugin.manifest_invalid",
   );
-  assert.equal(parsePluginManifest({ ...manifest, plugin_id: "io.molis.work.example.notes" }).plugin_id, "io.molis.work.example.notes");
+  for (const plugin_id of ["com.example.notes", "io.goalboard.example.notes", "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e"]) assert.equal(parsePluginManifest({ ...manifest, plugin_id }).plugin_id, plugin_id);
 });

@@ -10,7 +10,7 @@
         "export": "default"
       },
       "action": {
-        "capability_id": "io.molis.work.example.notes.results.read",
+        "capability_id": "com.example.notes.results.read",
         "version": 1,
         "input": {},
         "expect": {

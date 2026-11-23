@@ -1,6 +1,6 @@
 import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { connectorControl } from "./fixtures/connector-control.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -35,17 +35,17 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
   try {
     const invalid = spawnSync(process.execPath, [cli, "create", project, "invalid", "developer", "local-binding"], { encoding: "utf8" });
     assert.equal(invalid.status, 1);
-    execFileSync(process.execPath, [cli, "create", project, "io.molis.work.example.notes", "developer", "local-binding"]);
+    execFileSync(process.execPath, [cli, "create", project, "com.example.notes", "developer", "local-binding"]);
     const original = readFileSync(join(project, "index.mjs"), "utf8");
-    const repeat = spawnSync(process.execPath, [cli, "create", project, "io.molis.work.example.other", "developer", "local-binding"], { encoding: "utf8" });
+    const repeat = spawnSync(process.execPath, [cli, "create", project, "com.example.other", "developer", "local-binding"], { encoding: "utf8" });
     assert.equal(repeat.status, 1);
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
-    assert.equal(validated.plugin_id, "io.molis.work.example.notes");
+    assert.equal(validated.plugin_id, "com.example.notes");
     // SMP-04: the CLI generates and validates the same declaration the isolated sample uses.
     const sampleManifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8"));
     assert.deepEqual(validated.state_machines, sampleManifest.state_machines);
-    assert.equal(validated.state_machines[0].machine_id, "io.molis.work.example.notes.result");
+    assert.equal(validated.state_machines[0].machine_id, "com.example.notes.result");
     // FSS-62: the language files are checked too; a placeholder broken in one language fails the check, and fixing it passes again.
     const zhPath = join(project, "locales/zh.json"), zhSource = readFileSync(zhPath, "utf8");
     writeFileSync(zhPath, zhSource.replace("已保存的结果：{count}", "已保存的结果：{count"));
@@ -73,7 +73,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const sandbox = spawnSync(process.execPath, ["--input-type=module", "-e", `
       import { effectsFromContract, sandboxPluginManifest, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
       const effects=effectsFromContract({operations:[{effects:{storage:["read"]}},{effects:{storage:["write","read"]}}]});
-      const manifest=parsePluginManifest(sandboxPluginManifest({pluginId:"io.molis.work.example.sandbox",name:"Sandbox author",version:"1.0.0",publisher:{publisher_id:"author",signature:"author-binding"},presentation:true,effects,runtime:{scope:"home"}}));
+      const manifest=parsePluginManifest(sandboxPluginManifest({pluginId:"com.example.sandbox",name:"Sandbox author",version:"1.0.0",publisher:{publisher_id:"author",signature:"author-binding"},presentation:true,effects,runtime:{scope:"home"}}));
       console.log(JSON.stringify({effects,entry:manifest.entrypoints[0].entrypoint,scope:manifest.runtime.scope,requires:manifest.requires.map(x=>[x.capability_id,x.version])}));
     `], { cwd: project, encoding: "utf8" });
     assert.equal(sandbox.status, 0, sandbox.stderr);
@@ -362,7 +362,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       console.log(JSON.stringify({ pack: pack.ok, owner: pack.value.owner, before, skin: skin.ok ? true : skin.problems, locale: environment.locale.tag, title, none }));`],
     { cwd: repositorySample, encoding: "utf8" });
     assert.equal(texts.status, 0, texts.stderr);
-    assert.deepEqual(JSON.parse(texts.stdout), { pack: true, owner: "io.molis.work.example.notes", before: "ui.text_no_context", skin: true, locale: "zh",
+    assert.deepEqual(JSON.parse(texts.stdout), { pack: true, owner: "com.example.notes", before: "ui.text_no_context", skin: true, locale: "zh",
       title: "已保存的结果：2", none: { code: "ui.text_no_context", key: true } });
     // The SDK's `/ui` goes into a browser page: bundled for the browser it reaches no Node built-in module.
     const forBrowser = await build({ stdin: { contents: 'export * from "@molis-ai/molis-work-plugin-sdk/ui";', resolveDir: repositorySample, loader: "js" },
@@ -407,7 +407,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     // The Host's text context and the plugin's own words, as `createPluginPlatform` gives them (§8.3): the page the Host mounts says them.
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
       artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest),
-      localePacks: given => pluginLocaleReader(given.manifest, path => existsSync(join(project, path)) ? readFileSync(join(project, path), "utf8") : null) }), { hostIds: ISOLATED_HOST_IDS, actions });
+      localePacks: given => pluginLocaleReader(given.manifest, path => existsSync(join(project, path)) ? readFileSync(join(project, path), "utf8") : null) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");

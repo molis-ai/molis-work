@@ -44,7 +44,7 @@ const ORIGIN = "http://localhost:19358";
 const ASANA_TOKEN = "https://app.asana.com/-/oauth_token";
 const ASANA_ME = "https://app.asana.com/api/1.0/users/me";
 const unavailable = (error: unknown) => error instanceof ActionError && error.code === "connector.plugin_requests.connection_unavailable";
-const target = { plugin_id: "io.molis.work.example.sharedrefresh", install_id: "install-rac1085", slot_id: "account", service_id: "asana" };
+const target = { plugin_id: "com.example.sharedrefresh", install_id: "install-rac1085", slot_id: "account", service_id: "asana" };
 
 /** A Home with an Asana account authorized through the generic flow (access `old-access`, refresh `refresh-1`), bound to the plugin's slot. */
 async function connected(t: TestContext, expired = true) {
@@ -554,7 +554,7 @@ test("S-95 RAC-2462 a sandboxed integration's request ended by the broker carrie
     const port = { request: (_connection: unknown, dispatch: PluginConnectionDispatch) => new Promise<never>((_resolve, reject) => {
       dispatch.signal.addEventListener("abort", () => { reason = dispatch.signal.reason; reject(reason); }, { once: true });
     }), describe: () => ({ bound: true }) };
-    const client = createCallConnectionsClient(port, { plugin_id: "io.molis.work.example.pull", service_id: "asana", connection_id: "connection" }, "source", control);
+    const client = createCallConnectionsClient(port, { plugin_id: "com.example.pull", service_id: "asana", connection_id: "connection" }, "source", control);
     const broker = new AbortController(), answered = client.request("source", { url: ASANA_ME, signal: broker.signal });
     await turn();
     if (lost) current = false;

@@ -127,7 +127,7 @@ test("QEA-146 RAC-2648 project deletion revokes all Home installation consents t
     const owner = projectDeletedHooksFor(home).owners().find(item => item.id === "plugin-project-reach")!;
     await owner.clear(gone); assert.equal(existsSync(file), false);
     const ledger = new HomeConsentLedger(home);
-    const grant = (project_id: string, install_id: string) => ledger.grantProjectReach({ plugin_id: "io.molis.work.example." + install_id, publisher_signature: "publisher", manifest_digest: "digest",
+    const grant = (project_id: string, install_id: string) => ledger.grantProjectReach({ plugin_id: "com.example." + install_id, publisher_signature: "publisher", manifest_digest: "digest",
       project_id, install_id, approved_capability_ids: ["goals.state"], at: "then" });
     const a = grant(gone, "first"), second = grant(gone, "second"), b = grant(kept, "first");
     const damaged = grant(gone, "damaged"), neighbour = grant(kept, "neighbour");
@@ -162,7 +162,7 @@ test("QEA-146 RAC-2648 project deletion revokes all Home installation consents t
 test("RAC-2648 a ledger cleanup failure remains pending across catalog reopen, and a fixed project id is recreated only after its old consent is withdrawn", async () => {
   await withHome(async ({ home, catalog, kept }) => {
     const input = { actor_id: "test-user", user_confirmed: true }; await catalog.ensureDemoProject(input);
-    const ledger = new HomeConsentLedger(home), entry = { plugin_id: "io.molis.work.example.cleanup", publisher_signature: "publisher", manifest_digest: "digest", install_id: "same-install",
+    const ledger = new HomeConsentLedger(home), entry = { plugin_id: "com.example.cleanup", publisher_signature: "publisher", manifest_digest: "digest", install_id: "same-install",
       approved_capability_ids: ["goals.state"], at: "then" };
     const old = ledger.grantProjectReach({ ...entry, project_id: DEMO_PROJECT_ID }), b = ledger.grantProjectReach({ ...entry, project_id: kept });
     const file = homeSqlitePath(home, "plugin-runtime"), db = openTestSqlite(file);

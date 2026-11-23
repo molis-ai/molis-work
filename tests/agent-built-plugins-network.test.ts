@@ -10,7 +10,7 @@ import { pluginSecrets } from '../apps/local-host/src/installed-plugin-secrets.j
 import { hostNetwork, NETWORK_STAND_IN, publicAddress } from '../apps/local-host/src/installed-plugin-network.js';
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from './fixtures/public-address-policy.js';
 
-const context = (namespace = 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.weather', namespace }, signal: new AbortController().signal }) as never;
+const context = (namespace = 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'studio.weather', namespace }, signal: new AbortController().signal }) as never;
 const approved = { domains: ['api.weather.example'], secretRefs: [] as string[] };
 /** The response without the server's clock. */
 const undated = (response: unknown) => { const { headers, ...rest } = response as { headers: Record<string, string> }; const { date: _date, ...kept } = headers; return { ...rest, headers: kept }; };
@@ -73,7 +73,7 @@ test('an approved https request goes out with the saved secret, comes back bound
       // W2-18-UPGRADE-SECRETS-01: the same sealed-store staging used by a version switch feeds the actual HTTPS header.
       const privateValues = new Map<string, string>(), storage = { get: (key: string) => privateValues.get(key) ?? null,
         set: (key: string, value: string) => { privateValues.set(key, value); }, delete: (key: string) => privateValues.delete(key) };
-      const secrets = pluginSecrets(dir, 'p', storage), pluginId = 'io.molis.work.generated.weather';
+      const secrets = pluginSecrets(dir, 'p', storage), pluginId = 'studio.weather';
       secrets.save(pluginId, { name: 'weather', header: 'Authorization', value: 'Bearer previous' });
       const changed = secrets.stage!(pluginId, [{ name: 'weather', header: 'Authorization', value: 'Bearer s3cret' }]); changed.apply();
       const network = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), allowAddress: () => true, testServer,
@@ -111,7 +111,7 @@ test('a plugin\'s saved secrets: listed without values, one plugin cannot read a
   const sealed = { put: (ref: string, value: string) => { values.set(ref, value); }, get: (ref: string) => values.get(ref) ?? null, delete: (ref: string) => { values.delete(ref); } } as never;
   const storage = { get: (key: string) => kept.get(key) ?? null, set: (key: string, value: string) => { kept.set(key, value); }, delete: (key: string) => kept.delete(key) } as never;
   const secrets = pluginSecrets(undefined, 'board', storage, sealed);
-  const a = 'io.molis.work.generated.a', b = 'io.molis.work.generated.b';
+  const a = 'studio.a', b = 'studio.b';
   secrets.save(a, { name: 'weather', header: 'X-Api-Key', value: 'k-123' });
   assert.deepEqual(secrets.list(a), [{ name: 'weather', header: 'X-Api-Key' }]);
   assert.deepEqual(await secrets.resolve(a, 'weather'), { header: 'X-Api-Key', value: 'k-123' });

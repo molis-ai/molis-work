@@ -11,7 +11,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 function manifest() {
   return {
     schema_version: 1, host_api_version: 1,
-    plugin_id: "io.molis.work.example.notes", version: "1.0.0", name: "Notes", kind: "integration",
+    plugin_id: "com.example.notes", version: "1.0.0", name: "Notes", kind: "integration",
     publisher: { publisher_id: "local-developer", signature: "local-development-identity" },
     entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:write", required: true, reason: "分享用户选择的笔记" }],
@@ -86,7 +86,7 @@ test("SMP-12 real Plugin CLI validates in a clean directory without executing en
     const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
     const valid = invoke("validate", manifestPath);
     assert.equal(valid.status, 0, valid.stderr);
-    assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "io.molis.work.example.notes", version: "1.0.0",
+    assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "com.example.notes", version: "1.0.0",
       state_machine_notes: ["此 Manifest 未声明状态机；有状态的插件可填写 state_machines。"] });
     assert.equal(readFileSync(manifestPath, "utf8"), bytes);
     assert.equal(existsSync(join(directory, "executed")), false);

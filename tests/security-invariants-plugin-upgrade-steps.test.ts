@@ -17,7 +17,7 @@ import {
   upgradePluginProjectTables, type PluginUpgradeInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, nativeSqliteOwnerBoundary, nativeSqliteSchemaBoundary } from "@molis-ai/molis-work-storage";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import {
   declaration, ledgerRow, libraryState, libraryTemplate, openCode, othersOf, probeManifest, projectLibrary, tracking, upgradeCode, type LibraryState,
 } from "./fixtures/plugin-upgrade-library.js";
@@ -28,7 +28,7 @@ const template = libraryTemplate();
 /** Another plugin beside the probe, with tables the probe's steps try to reach; one of them is named like the probe's with a U+00A0 after it. */
 const NEIGHBOUR = probeManifest(declaration(1, `CREATE TABLE neighbour_items (id INTEGER PRIMARY KEY, note TEXT);
 CREATE INDEX neighbour_items_note ON neighbour_items(note);
-CREATE TABLE "probe_notes " (id INTEGER PRIMARY KEY, note TEXT);`, undefined, "neighbour"), { id: "io.molis.work.example.neighbour" });
+CREATE TABLE "probe_notes " (id INTEGER PRIMARY KEY, note TEXT);`, undefined, "neighbour"), { id: "com.example.neighbour" });
 
 /** The probe has tables named `main` and `if` too, the two names a reader of the first word alone gets wrong. */
 const PROBE_SCHEMA = `CREATE TABLE probe_notes (id INTEGER PRIMARY KEY, note TEXT);
@@ -191,13 +191,13 @@ test("S-upgrade-plugin-steps-scope: UPG-09 built-in and installed plugins admit 
   const legal = declaration(2, "CREATE TABLE probe_notes (id INTEGER PRIMARY KEY, note TEXT, tag TEXT);", [{ from: 1, sql: "ALTER TABLE probe_notes ADD COLUMN tag TEXT" }]);
   const outOfScope = declaration(2, legal.schema, [{ from: 1, sql: "DROP TABLE IF EXISTS goals" }]);
   const install = (trust: typeof HOST_BUILD_TRUST, project: PluginDatabaseDeclaration) =>
-    new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: definition(manifest("1.0.2", project)), deployment: "local", grants: ["probe:read", "probe:write"], trust });
+    new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: definition(manifest("1.0.2", project)), deployment: "local", grants: ["probe:read", "probe:write"], trust });
   assert.equal(install(UNSIGNED_TRUST, legal).install.publisher_trust, "unsigned");
   assert.throws(() => install(UNSIGNED_TRUST, outOfScope), code(OUT_OF_SCOPE), "a step no plugin may write says so first");
   assert.throws(() => install(HOST_BUILD_TRUST, outOfScope), code(OUT_OF_SCOPE), "the Host's own build gets the same check");
   assert.equal(install(HOST_BUILD_TRUST, legal).install.publisher_trust, "host");
 
-  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const installed = runtime.install({ definition: definition(manifest("1.0.1", declaration(1, "CREATE TABLE probe_notes (id INTEGER PRIMARY KEY, note TEXT);"))), deployment: "local",
     grants: ["probe:read", "probe:write"], trust: UNSIGNED_TRUST });
   await assert.rejects(runtime.upgrade({ install_id: installed.install.install_id, definition: definition(manifest("1.0.2", outOfScope)), grants: ["probe:read", "probe:write"] }),

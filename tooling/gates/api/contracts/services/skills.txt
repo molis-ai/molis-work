@@ -13,8 +13,8 @@ export declare const SKILLS_PROVIDER_ID = "system.skills";
 export declare const SKILLS_READ_PERMISSION = "skills:read";
 
 export declare const SKILL_AUTHORED_PLUGIN_IDS: {
-    readonly home: "io.molis.work.my-skills.home";
-    readonly project: "io.molis.work.my-skills.project";
+    readonly home: "my-skills.home";
+    readonly project: "my-skills.project";
 };
 
 export declare const SKILL_BODY_READ_MAX_REFS = 20;

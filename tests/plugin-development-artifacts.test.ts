@@ -65,7 +65,7 @@ test("W3-07-6-01 A3-DEV-01: Runtime refuses an undeclared development publicatio
     try {
       const versions = openProjectVersionStores(store);
       assert.deepEqual(versions.artifacts.query.listArtifacts("plugin-development"), []);
-      const installed = new SqlitePluginRuntimeRepository(store.db).list().filter(row => row.plugin_id === "io.molis.work.example.notes");
+      const installed = new SqlitePluginRuntimeRepository(store.db).list().filter(row => row.plugin_id === "com.example.notes");
       assert.equal(installed.length, 1);
       assert.equal(installed[0].state, "uninstalled");
       assert.deepEqual(versions.artifacts.query.listArtifactVersions("plugin-development", `${installed[0].install_id}:sample-result`), []);

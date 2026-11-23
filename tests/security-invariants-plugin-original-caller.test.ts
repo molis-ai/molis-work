@@ -25,8 +25,8 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // service writing for one installation refuses inside another installation's action. A project plugin has no private files
 // (`owner_files` is the Home half's, PG-102); the same rules for them are in security-invariants-plugin-owner-files-lifecycle.test.ts.
 
-const ID = "io.molis.work.example.callerprobe", READ = "callerprobe:read", WRITE = "callerprobe:write", ITEM = "example.item";
-const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`, WRITTEN = `${ID}.written`;
+const ID = "com.example.callerprobe", READ = "callerprobe:read", WRITE = "callerprobe:write", ITEM = "example.item";
+const LISTENER = "com.example.callerlistener", ANNOUNCED = `${ID}.announced`, WRITTEN = `${ID}.written`;
 const DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 /** The probe's own table in the project's library (PLIB-07). */

@@ -382,7 +382,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.doesNotMatch(workbench, /plugin-stage-chrome shelf-stage-chrome/);
   assert.doesNotMatch(SHELF_STYLES, /margin: 12px 0 6px/);
   // The group mark is a neutral label beside a coloured type glyph, never a green tick.
-  assert.match(workbench, /goal-collection-mark shelf-group-mark tone-ochre/);
+  assert.match(workbench, /mw-collection-mark shelf-group-mark tone-ochre/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /is-ready|icon-check/);
   const withClip = renderShelfWorkbench(model({
       clipboard: [{

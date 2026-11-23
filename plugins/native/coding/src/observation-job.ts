@@ -22,4 +22,21 @@ export function startCodingObservation(a: CodingActivation): void {
     }
   });
   void job.done.catch(() => {}); // The platform ends it on stop or withdrawal; there is no business failure record.
+  try {
+    const goalJob = context.services.background.keep("observe-goals", async control => {
+      const beforeWrite = Object.assign(control.beforeEffect, { assert_current: control.assert_authority_current, signal: control.signal });
+      while (!control.signal.aborted) {
+        await setTimeout(5_000, undefined, { signal: control.signal, ref: false });
+        try {
+          const ids = execution.sessions.list(projectId).flatMap(record => record.goal_id ? [record.goal_id] : []);
+          await execution.goalTitles.read(ids, beforeWrite, true);
+        } catch {
+          if (control.signal.aborted) return;
+        }
+      }
+    });
+    void goalJob.done.catch(() => {});
+  } catch {
+    // goals:read is optional: Coding keeps observing sessions even when Goals is absent or ungranted.
+  }
 }

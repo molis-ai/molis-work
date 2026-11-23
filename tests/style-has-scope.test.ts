@@ -114,8 +114,8 @@ function sourceSelectors(source: string): string[] {
 // placed before a combinator, a match restyles everything under it. Measured on the plugin switch (VUX-35, VUX-36): the
 // switcher's whole list and the work area were restyled on every press. Such state is marked on the element instead.
 const LARGE = /^(?:html|body|:root)\b|\.immersive-workspace|\[data-workspace\]|\.tab-workspace(?:-panes)?\b|\.plugin-picker(?![\w-])|\[data-plugin-picker\]|\[data-dock\]|\.workbench-bar(?![\w-])/;
-// Only in short windows (max-height: 560px): the Goals record form is the plugin's own node, and the bar is the host's.
-const KNOWN = new Set([".immersive-workspace:has(.is-editing-goal)"]);
+// Only in short windows (max-height: 560px): an editing record form belongs to a plugin surface, and the bar is the host's.
+const KNOWN = new Set([".immersive-workspace:has(.is-editing-record)"]);
 
 // Measured in Chrome on a 13,000-node page (VUX-36): a :has() in a rule for one of these pseudo-elements, on the subject, on an
 // ancestor or inside :not(), made one node put anywhere cost 29–31 ms of style (0.3 ms without), where ::before, ::after, ::marker,

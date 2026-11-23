@@ -38,8 +38,9 @@
 //  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is
 //    not counted. Names only inside `:is()` or `:where()` are stripped before that verdict, so `:is(.feed-card){color:red}`
 //    and `:where(.feed-card){color:red}` also stay shared without being counted. This gate does not change those split rules.
-//  - The shared sheets are not searched for plugin rules that no registration names (a class copied by hand into a host
-//    stylesheet is invisible to the splitter too).
+//  - The shared platform stylesheets (`packages/design-system/src/styles/`, `packages/design-system/src/palette.ts`,
+//    `packages/design-system/src/browser/on-demand-help.ts`, `apps/workbench/src/styles/`) are scanned separately by
+//    `findSharedStylePluginSelectors` so plugin classes, data attributes and custom properties cannot creep back into host CSS (PEQ-08).
 //  - Sizes are not measured here; `/assets/` bytes are `scripts/gates/page-assets.mjs`. The two files can disagree about what a
 //    "plugin style" is only if the splitter changes, and RAC-756/757 pin the splitter's behaviour in tests/plugin-styles.test.ts.
 //
@@ -53,7 +54,7 @@
 //   --counts <file>                test hook: take { "<plugin id>": <rule blocks> } from a JSON file instead of the build
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (a missing build is exit 2, never a pass).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isMainScript } from "../script-paths.mjs";
@@ -108,6 +109,69 @@ export function countRules(css) {
 export function rulesInSharedSheet(split, stylesheet, id, { sharedClasses = [], prefixes = [], countPrefixes = prefixes, framed = true } = {}) {
   const sharedSheet = framed ? split(stylesheet, id, sharedClasses, prefixes).shared : stylesheet;
   return countRules(split(sharedSheet, id, [], countPrefixes).scoped);
+}
+
+const DEFAULT_SHARED_STYLE_PLUGIN_PREFIXES = [
+  "goal", "goals", "feed", "inbox", "coding", "shelf", "git", "lingguang",
+  "alchemist", "dataset", "pages", "ppt", "schedule", "todo", "risk", "jelly",
+  "text-stats", "plugin-builder",
+];
+// `form` overlaps HTML `<form>` platform classes (`.form-disclosure`, `.form-actions`, `.form-error`) and `diff`
+// overlaps the platform diff viewer primitive (`--diff-*`, `[data-diff-sized]`, `[data-diff-measure]`), so their
+// plugin-specific selectors are matched explicitly rather than via bare `<id>-` / `--<id>-`.
+const SHARED_STYLE_DIRS = ["packages/design-system/src/styles", "apps/workbench/src/styles"];
+const SHARED_STYLE_FILES = ["packages/design-system/src/palette.ts", "packages/design-system/src/browser/on-demand-help.ts"];
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * PEQ-08: platform shared stylesheets and design-system helpers must stay free of plugin-owned class names,
+ * data attributes, surface selectors and custom properties.
+ */
+export function findSharedStylePluginSelectors(root, extraIds = []) {
+  const files = [];
+  for (const rel of SHARED_STYLE_FILES) {
+    if (existsSync(path.join(root, rel))) files.push(rel);
+  }
+  for (const dir of SHARED_STYLE_DIRS) {
+    const full = path.join(root, dir);
+    if (!existsSync(full)) continue;
+    for (const entry of readdirSync(full).sort()) {
+      if (entry.endsWith(".ts")) files.push(path.posix.join(dir, entry));
+    }
+  }
+  if (!files.length) return [];
+  const prefixSet = new Set(DEFAULT_SHARED_STYLE_PLUGIN_PREFIXES);
+  for (const raw of extraIds) {
+    const normalized = String(raw).replace(/-$/, "");
+    if (normalized && normalized !== "form" && normalized !== "diff" && /^[a-z][a-z0-9-]*$/.test(normalized)) {
+      prefixSet.add(normalized);
+    }
+  }
+  const alt = [...prefixSet].sort().map(escapeRegExp).join("|");
+  const allSurfaces = [...new Set([...prefixSet, "form", "diff"])].sort().map(escapeRegExp).join("|");
+  const forbidden = new RegExp(
+    `(?<![a-z0-9-])\\.(?:${alt}|diff)-[a-z0-9_-]+`
+    + `|\\.(?:form-tabs|form-export-panel|is-editing-goal|desktop-goal-directory|navigator-goal[a-z0-9_-]*|placement-goal-[a-z0-9_-]+|frame-goal-[a-z0-9_-]+)`
+    + `|\\[data-(?:${alt}|form)-[a-z0-9_-]+`
+    + `|\\[data-(?:work-surface|plugin-id)=["'](?:${allSurfaces})["']\\]`
+    + `|--(?:${alt})-[a-z0-9_-]+`,
+    "g",
+  );
+  const violations = [];
+  for (const rel of files) {
+    const raw = readFileSync(path.join(root, rel), "utf8");
+    const stripped = raw
+      .replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, " "))
+      .replace(/(^|[^:\\])\/\/[^\n]*/g, "$1");
+    const lines = stripped.split("\n");
+    for (let index = 0; index < lines.length; index++) {
+      for (const hit of lines[index].matchAll(forbidden)) {
+        violations.push({ file: rel, line: index + 1, selector: hit[0] });
+      }
+    }
+  }
+  return violations;
 }
 
 // ---- the executable part ---------------------------------------------------------------------------------------------
@@ -184,8 +248,11 @@ async function measureFromBuild(knownPrefixes) {
 
   const measured = {};
   const prefixes = {};
+  const pluginIds = [];
   for (const pack of workbench.BUILTIN_PLUGIN_WORKBENCH) {
     const id = pack.project_plugin_id;
+    pluginIds.push(id);
+    for (const prefix of pack.stylesheetPrefixes ?? []) pluginIds.push(prefix);
     let rules = 0;
     if (pack.stylesheet) {
       const declared = pack.stylesheetPrefixes ?? [];
@@ -201,14 +268,15 @@ async function measureFromBuild(knownPrefixes) {
     if (rules > 0) measured[id] = rules;
   }
 
-  return { measured, prefixes, registered: new Set(workbench.BUILTIN_PLUGIN_WORKBENCH.map((pack) => pack.project_plugin_id)) };
+  return { measured, prefixes, pluginIds, registered: new Set(workbench.BUILTIN_PLUGIN_WORKBENCH.map((pack) => pack.project_plugin_id)) };
 }
 
 async function measure(knownPrefixes) {
   if (!options.counts) return measureFromBuild(knownPrefixes);
   let counts;
   try { counts = JSON.parse(readFileSync(path.resolve(options.counts), "utf8")); } catch { return fail(`--counts ${options.counts} is not a readable JSON file`); }
-  return { measured: parseBudget(JSON.stringify({ plugins: counts }), `--counts ${options.counts}`).plugins, prefixes: {}, registered: null };
+  const parsed = parseBudget(JSON.stringify({ plugins: counts }), `--counts ${options.counts}`).plugins;
+  return { measured: parsed, prefixes: {}, pluginIds: Object.keys(parsed), registered: null };
 }
 
 // ---- the rules -------------------------------------------------------------------------------------------------------
@@ -302,8 +370,9 @@ for (const budget of [reference, currentBudget]) {
   }
 }
 
-const { measured, prefixes: declaredPrefixes, registered } = await measure(knownPrefixes);
+const { measured, prefixes: declaredPrefixes, pluginIds, registered } = await measure(knownPrefixes);
 const total = Object.values(measured).reduce((sum, rules) => sum + rules, 0);
+const sharedStyleViolations = findSharedStylePluginSelectors(root, pluginIds);
 
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
@@ -339,7 +408,8 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const budget = currentBudget ?? budgetNow();
-const errors = [...headErrors(measured, declaredPrefixes, budget, reference), ...(reference ? referenceErrors(budget, reference, false, registered) : [])];
+const sharedErrors = sharedStyleViolations.map((hit) => `${hit.file}:${hit.line} names plugin selector/token ${JSON.stringify(hit.selector)} in platform shared styles (PEQ-08); use a neutral platform class/attribute or move the rule into the owning plugin's stylesheet`);
+const errors = [...headErrors(measured, declaredPrefixes, budget, reference), ...(reference ? referenceErrors(budget, reference, false, registered) : []), ...sharedErrors];
 if (errors.length) {
   console.error(`Plugin style budgets failed against ${against}:\n- ${errors.join("\n- ")}`);
   process.exit(1);

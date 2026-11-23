@@ -462,7 +462,7 @@ export { registeredBuiltinText } from "./ui-text-provider.js";
 export { currentNamedSkills, roundSkillCatalog, type RoundSkillReaders } from "./agent-round-skills.js";
 export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";
 
-export { gatewayFactory } from "./continuity-gateway.js";
+export { gatewayFactory, hostContinuityActions } from "./continuity-gateway.js";
 export { configureMemberActions } from "./continuity-admin.js";
 export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";
 export { exportPluginData, pluginDataActionProvider, type PluginDataExportPorts } from "./plugin-data-export.js";

@@ -41,11 +41,11 @@ export function installList(page: TodoPage): void {
     page.$("[data-todo-empty-text]").textContent = emptyText;
     for (const group of groupsFor(page)) {
       if (!group.title) { for (const item of group.items) el.rowsEl.append(renderRow(page, item)); continue; }
-      const fold = make("details", "goal-collection-fold todo-group");
+      const fold = make("details", "mw-collection-fold todo-group");
       fold.open = true;
       fold.dataset.todoGroup = group.key;
       const head = make("summary");
-      head.innerHTML = `<span class="goal-collection-caret">${iconSvg("chevron-down")}</span>`;
+      head.innerHTML = `<span class="mw-collection-caret">${iconSvg("chevron-down")}</span>`;
       head.append(make("strong", "", group.title), make("span", "", String(group.items.length)));
       fold.append(head);
       for (const item of group.items) fold.append(renderRow(page, item));

@@ -220,7 +220,7 @@
       "paths": [
         "packages/contracts/src/modules/attention-resumption.ts"
       ],
-      "reason": "The Inbox plugin (its Host files are gone, FI-7); the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
+      "reason": "Historical owner reservation kept for the error-owner ratchet after inboxErrors moved into plugins/native/inbox/src/errors.ts."
     },
     "installer": {
       "paths": [
@@ -288,7 +288,7 @@
         "apps/local-host/src/web-mcp-*",
         "apps/local-host/src/external-mcp-actions.ts"
       ],
-      "reason": "The MCP server for Runtimes, its tool dispatch, grants and settings: the transport-level codes (mcp.unexpected_field, mcp.authority_denied) are the MCP owner's. Goals tools in apps/mcp raise MCP codes too."
+      "reason": "The MCP server for Runtimes, its tool dispatch, grants and settings: the transport-level codes (mcp.unexpected_field, mcp.authority_denied) are the MCP owner's. Platform and plugin-declared management tools in apps/mcp raise MCP transport codes too."
     },
     "memory": {
       "paths": [

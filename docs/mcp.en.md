@@ -18,7 +18,7 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 "$HOME/.molis-work/bin/molis-work-mcp"
 ```
 
-This MCP process starts "not connected to a project" and opens no Board. The Runtime calls `molis_work_v1_context_resolve` first:
+This MCP process starts "not connected to a project" and does not automatically open any project or plugin state. The Runtime calls `molis_work_v1_context_resolve` first:
 
 > **Host identity**: Molis Work reads per-call `_meta["molis-work/sessionId"]`, `_meta.threadId`, then `_meta.sessionId` before falling back to the host's startup identity. Availability is host-dependent; do not assume every Runtime version supplies these fields. Without a Session signal, one exact verified workspace membership may still recover read-only; otherwise follow the returned suggested/unbound state.
 

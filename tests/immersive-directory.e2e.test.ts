@@ -102,7 +102,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.ok(await evaluate("(()=>{const fold=document.querySelector('[data-goal-collection-fold=current]'),archive=document.querySelector('[data-goal-collection-fold=archive]'),trash=document.querySelector('[data-goal-collection-fold=trash]');return Boolean(fold?.open) && fold?.querySelector('strong')?.textContent==='当前' && archive && !archive.open && trash && !trash.open && fold.querySelector('[data-tree-root]');})()"), "Live Goals sit in an open Current fold above collapsed archive and trash");
   assert.ok(await evaluate(`(() => {
     const fold = document.querySelector('[data-goal-stage-list] [data-goal-collection-fold=current]');
-    const header = fold?.querySelector(':scope > summary .goal-collection-caret');
+    const header = fold?.querySelector(':scope > summary .mw-collection-caret');
     const root = fold?.querySelector('[data-tree-item][data-tree-depth="0"] :is(.tree-toggle, .tree-guide)');
     if (!header || !root) return false;
     return Math.abs((root.getBoundingClientRect().left - header.getBoundingClientRect().left) - 16) <= 2;

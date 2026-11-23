@@ -42,8 +42,8 @@ document.addEventListener("click", (event) => {
   if (demo.dataset.craftDemo === "rise") restart(target, "is-rising");
   if (demo.dataset.craftDemo === "land") craft()?.land(target);
   if (demo.dataset.craftDemo === "celebrate") {
-    const done = status.classList.toggle("goal-status--completed");
-    status.classList.toggle("goal-status--in_progress", !done);
+    const done = status.classList.toggle("mw-object-status--completed");
+    status.classList.toggle("mw-object-status--in_progress", !done);
     status.querySelector("span")!.textContent = done ? "已完成" : "正在推进";
     if (done) craft()?.celebrate(target);
   }

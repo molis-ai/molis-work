@@ -494,7 +494,7 @@ test("Feed stage list is one timeline and the source menu keeps each source's co
       ],
     }),
   });
-  assert.doesNotMatch(workbench, /data-feed-stage-group|goal-collection-fold/);
+  assert.doesNotMatch(workbench, /data-feed-stage-group|mw-collection-fold|goal-collection-fold/);
   assert.match(workbench, /data-feed-rows/);
   // Every row names the source it came from, and the menu scope it belongs to.
   assert.match(workbench, /data-feed-entry-id="entry-a"[^>]*data-feed-entry-source-id="source-a" data-feed-entry-task="source-a"/);

@@ -35,10 +35,10 @@ const CRAFT_BASE_STYLES = CRAFT_BAR_STYLES + BAR_ZONE_STYLES + CRAFT_ASSISTANT_S
 const STILL_RESET = `
   html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
-    [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
+    [data-craft-celebrate] .mw-object-status--completed, [data-craft-celebrate] .mw-object-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
   html[data-craft-still] dialog[open]::backdrop,
-  html[data-craft-still] :is(.goal-canvas-node, [data-graph-node], [data-kanban-card]) *::after { animation: none !important; }
+  html[data-craft-still] :is([data-graph-node], [data-kanban-card]) *::after { animation: none !important; }
   html[data-craft-still] [data-assistant-island] :is(*, *::before, *::after) { animation: none !important; }
   html[data-craft-still] :is(dialog, dialog::backdrop, [data-just-opened], [data-just-opened] > *, .is-arriving, .is-arriving *) { transition: none !important; animation: none !important; }
   /* Under automation nothing eases either, so a reading taken right after a change sees the settled value. */
@@ -182,7 +182,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     host.setAttribute("data-craft-celebrate", "");
     setTimeout(() => host.removeAttribute("data-craft-celebrate"), 900);
     if (reduced()) return;
-    const box = (mark.querySelector(".goal-status--completed svg") || mark).getBoundingClientRect();
+    const box = (mark.querySelector(".mw-object-status--completed svg") || mark).getBoundingClientRect();
     if (!box.width) return;
     const burst = document.createElement("div");
     burst.className = "craft-burst";
@@ -236,28 +236,18 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
 
   if (!workbench) return;
 
-  /* Something new lands once: a created Goal, a pulled message, a new Inbox entry. */
-  const LANDING = [
-    { rows: ".tree-node[data-select-goal]", id: (node) => node.dataset.selectGoal,
-      marks: (id) => '.tree-node[data-select-goal="' + CSS.escape(id) + '"], [data-kanban-card][data-goal-id="' + CSS.escape(id) + '"], [data-graph-node][data-goal-id="' + CSS.escape(id) + '"]' },
-    { rows: "[data-feed-entry-id]", id: (node) => node.dataset.feedEntryId, marks: (id) => '[data-feed-entry-id="' + CSS.escape(id) + '"]' },
-    { rows: "[data-inbox-entry-id]", id: (node) => node.dataset.inboxEntryId, marks: (id) => '[data-inbox-entry-id="' + CSS.escape(id) + '"]' },
-  ];
-  const known = LANDING.map((kind) => new Set([...document.querySelectorAll(kind.rows)].map(kind.id).filter(Boolean)));
+  /* Something new lands once: any row carrying data-craft-land="<key>" washes when it first appears after initial settle. */
+  const known = new Set([...document.querySelectorAll("[data-craft-land]")].map((node) => node.dataset.craftLand).filter(Boolean));
   const settledAt = Date.now() + 2500;
-  const landed = (kind, id) => document.querySelectorAll(kind.marks(id)).forEach(land);
+  const landed = (id) => document.querySelectorAll('[data-craft-land="' + CSS.escape(id) + '"]').forEach((node) => land(node));
 
-  /* A Goal that finishes gets its moment where you are looking at it: the open Goal's own mark. */
-  const FOCAL = "[data-workspace-goal-status], [data-frame-goal-status]";
+  /* An object that finishes gets its moment where you are looking at it: any status host carrying data-craft-focal="<key>". */
   const finished = new Map();
-  const focalKey = (mark) => mark.matches("[data-workspace-goal-status]")
-    ? "goal:" + (document.querySelector("[data-goal-node-workspace]")?.dataset.expandedGoal || document.querySelector("[data-workspace-goal-title]")?.textContent?.trim() || "")
-    : "frame:" + (document.querySelector("[data-frame-goal-title]")?.textContent?.trim() || "");
   const readFocal = () => {
-    document.querySelectorAll(FOCAL).forEach((mark) => {
-      const key = focalKey(mark);
-      if (key.endsWith(":")) return;
-      const done = !!mark.querySelector(".goal-status--completed");
+    document.querySelectorAll("[data-craft-focal]").forEach((mark) => {
+      const key = mark.dataset.craftFocal || "";
+      if (!key) return;
+      const done = mark.classList.contains("mw-object-status--completed") || !!mark.querySelector(".mw-object-status--completed");
       const before = finished.get(key);
       finished.set(key, done);
       if (done && before === false) celebrate(mark);
@@ -268,16 +258,14 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   const settle = () => {
     queued = 0;
     readFocal();
-    LANDING.forEach((kind, index) => {
-      const fresh = [];
-      document.querySelectorAll(kind.rows).forEach((node) => {
-        const id = kind.id(node);
-        if (id && !known[index].has(id)) { known[index].add(id); fresh.push(id); }
-      });
-      if (Date.now() > settledAt && fresh.length && fresh.length <= 3) fresh.forEach((id) => landed(kind, id));
+    const fresh = [];
+    document.querySelectorAll("[data-craft-land]").forEach((node) => {
+      const id = node.dataset.craftLand;
+      if (id && !known.has(id)) { known.add(id); fresh.push(id); }
     });
+    if (Date.now() > settledAt && fresh.length && fresh.length <= 3) fresh.forEach(landed);
   };
-  const QUIET = ".xterm, .terminal, [data-tui-pane], .goal-tui-pane, .craft-burst, .craft-tip";
+  const QUIET = ".xterm, .terminal, [data-tui-pane], .craft-burst, .craft-tip";
   new MutationObserver((records) => {
     if (queued) return;
     const relevant = records.some((record) => {

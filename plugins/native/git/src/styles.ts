@@ -1,5 +1,6 @@
 export const GIT_STYLES = `
 .git-browser { min-height:0; flex:0 1 auto; overflow:auto; padding:8px; }
+.companion-directory .git-browser { border:0; overflow:visible; }
 .git-browser[hidden],.git-results[hidden] { display:none; }
 .git-directory-toolbar { padding:4px 0; }
 .git-directory-toolbar .mw-dir__label { padding-left:4px; }
@@ -39,4 +40,8 @@ export const GIT_STYLES = `
 .git-sc-pick { display:flex; flex-wrap:wrap; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
 .git-sc-log li[data-outcome=succeeded] { color:var(--green); }
 .git-sc-log li[data-outcome=failed], .git-sc-log li[data-outcome=unknown] { color:var(--amber); }
+@container coding-companion (max-width:600px) {
+  .git-reader-head { flex-wrap:wrap; }
+  .git-reader-head > div { flex-basis:100%; }
+}
 `;

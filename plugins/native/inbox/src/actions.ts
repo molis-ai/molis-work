@@ -43,13 +43,12 @@ export interface InboxStageData {
   readonly judgment?: InboxJudgmentSummary;
   readonly judgments: readonly JudgmentRecord[];
 }
-export const INBOX_STAGE_GOAL_READ = { capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1 } as const;
 
 /** Resolve only the names this stage needs; a missing subject never replaces the Inbox's original attention entry. */
 export async function readInboxStageSubjects(entries: readonly InboxActionEntry[], ports: {
   briefs(ids: { item_ids: readonly string[]; source_ids: readonly string[] }): Promise<InboxBriefs>;
   feedAvailability(): ActionAvailability;
-  goal(id: string): Promise<{ goal: { title: string } }>;
+  subject(entry: InboxActionEntry): Promise<{ title: string } | null>;
 }): Promise<readonly InboxStageSubject[]> {
   const state = ports.feedAvailability();
   const missing = !state.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(state.code ?? "");
@@ -60,10 +59,17 @@ export async function readInboxStageSubjects(entries: readonly InboxActionEntry[
     try { ({ items, sources } = await ports.briefs(ids)); }
     catch (error) { if (!(error instanceof ActionError) || !["actions.dependency_missing", "actions.plugin_disabled", "actions.missing"].includes(error.code)) throw error; }
   }
-  const goals = new Map<string, string | null>();
-  for (const id of new Set(entries.filter(entry => entry.subject_type === "goal_decision").map(entry => entry.subject_id))) {
-    try { goals.set(id, (await ports.goal(id)).goal.title); }
-    catch (error) { if (error instanceof ActionError && ["goals.not_found", "actions.dependency_missing", "actions.plugin_disabled", "actions.missing"].includes(error.code)) goals.set(id, null); else throw error; }
+  const resolved = new Map<string, string | null>();
+  for (const entry of entries) {
+    if (entry.subject_type === "feed_item" || entry.subject_type === "source_fault") continue;
+    const key = `${entry.subject_type}\n${entry.subject_id}`;
+    if (resolved.has(key)) continue;
+    try { resolved.set(key, (await ports.subject(entry))?.title ?? null); }
+    catch (error) {
+      if (error instanceof ActionError && ["goals.not_found", "actions.subject_unavailable", "actions.dependency_missing", "actions.plugin_disabled", "actions.missing", "actions.forbidden"].includes(error.code)) {
+        resolved.set(key, null);
+      } else throw error;
+    }
   }
   return entries.map(entry => {
     if (entry.subject_type === "feed_item") {
@@ -74,7 +80,7 @@ export async function readInboxStageSubjects(entries: readonly InboxActionEntry[
       const source = sources.get(entry.subject_id);
       return { entry_id: entry.entry_id, title: source?.name ?? null, source_label: source?.name ?? null };
     }
-    return { entry_id: entry.entry_id, title: goals.get(entry.subject_id) ?? null, source_label: "Molis Work" };
+    return { entry_id: entry.entry_id, title: resolved.get(`${entry.subject_type}\n${entry.subject_id}`) ?? null, source_label: "Molis Work" };
   });
 }
 
@@ -100,7 +106,7 @@ const stage = action<Record<string, never>, InboxStageData>("inbox.stage.read", 
   { type: "object", properties: { entries: { type: "array", items: entrySchema },
     subjects: { type: "array", items: { type: "object", properties: { entry_id: text, title: nullableText, source_label: nullableText }, required: ["entry_id", "title", "source_label"], additionalProperties: false } },
     judgment: { type: "object", required: ["name", "enabled", "available", "reason"] }, judgments: { type: "array", items: judgmentSchema } },
-    required: ["entries", "subjects", "judgments"], additionalProperties: false }, ["inbox:read", "feed:read", "goals:read", "evidence:read"]);
+    required: ["entries", "subjects", "judgments"], additionalProperties: false }, ["inbox:read", "feed:read", "evidence:read"]);
 export const inboxActions = {
   stage: { ...stage, action: { ...stage.action, audiences: ["user"] } },
   offers: defineSubjectOffersAction("inbox.actions.prepare", /* @version action.inbox.actions.prepare */ 1, ["inbox_entry"], "Inbox 可用动作", ["inbox:read"], [
@@ -147,7 +153,7 @@ export const inboxActions = {
 } as const;
 
 export const INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(inboxActions);
-export const INBOX_ACTION_PERMISSIONS = ["inbox:read", "inbox:write", "pages:read", "pages:write", "model:invoke", "functions:invoke", "feed:read", "attention:write", "judgments:write", "goals:read", "evidence:read"] as const;
+export const INBOX_ACTION_PERMISSIONS = ["inbox:read", "inbox:write", "pages:read", "pages:write", "model:invoke", "functions:invoke", "feed:read", "attention:write", "judgments:write", "evidence:read"] as const;
 
 export interface InboxActionPorts {
   listEntries(): readonly InboxActionEntry[];

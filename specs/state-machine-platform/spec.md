@@ -1,8 +1,12 @@
 # 状态与状态机平台能力（State Machine Platform）
 
-状态：第 26 批交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告的门禁与作者文档。用户 2026-11-08 已确认 §3 的十二个方向。Runtime 兑现、创作台合同和只读动作按 §13 由第 47 批接续，安装预演展示由第 48 批接续。
+状态：第 26 批交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告的门禁与作者文档。用户 2026-11-08 已确认 §3 的十二个方向。第 47 批交付 Runtime 兑现、平台生命周期样板、登记与只读动作（SMP-05～08、13、15、20）和生成插件必须申报（SMP-11，做法与冒烟结果见[第 47 批](../post-anticorruption-roadmap/reference/batches/47.md)）。安装预演展示由第 48 批接续。
 
 依据：[全仓隐式状态机盘点（2026-11-08）](../../docs/reviews/implicit-state-machines-2026-11-08.md)（对象 `main` 的 `5945c0271a`）、[AGENTS.md](../../AGENTS.md)、[CONTRACT-CHANGES.md](../../docs/system/CONTRACT-CHANGES.md)、[SSOT-MATRIX.md](../../docs/SSOT-MATRIX.md)、[插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md)、[第三方插件安装方案](../../docs/system/THIRD-PARTY-PLUGINS.md)。
+
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：`44B` 与 `106`～`111` 新增的全部公开状态（含 `push_lineage`、`push_operations` 等）同步登记进 `docs/platform/STATE-VOCABULARY.md` 与 Manifest 申报；创作台归纯平台 `horizontal/plugin-studio`（`#2239`），第 `48-5` 批状态展示基于统一分区插件目录实施。
 
 ## 白话说明
 
@@ -186,7 +190,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 | --- | --- | --- |
 | 内置/自研 | Manifest + registration + Runtime 兑现 | 声明与兑现核对；不变量 + 门禁强制；迁移到 SDK helper |
 | 签名第三方（方案，未实现） | 只有 `create/validate/pack/sign/verify` 与 `dev` | 安装预览显示状态/机器；签名摘要覆盖声明；升级规则；明确不做强制；沙箱形态限制写清 |
-| 创作台生成（沙箱） | 宿主用 `sandboxPluginManifest` 从设计合同生成 Manifest；[installed.ts](../../apps/local-host/src/plugin-builder/installed.ts) 构造 contribution | 设计合同、`sandboxPluginManifest`、创作台校验、代理提示词、同步形状、回放语料一起支持 `state_machines`；宿主生成的部分由创作台校验负责一致 |
+| 创作台生成（沙箱） | 宿主用 `sandboxPluginManifest` 从设计合同生成 Manifest；[installed.ts](../../apps/local-host/src/installed-plugin-sandbox-definition.ts) 构造 contribution | 设计合同、`sandboxPluginManifest`、创作台校验、代理提示词、同步形状、回放语料一起支持 `state_machines`；宿主生成的部分由创作台校验负责一致 |
 | 本地开发 `plugin dev` | `--allow-unsigned-development` 试跑 | 同一 Manifest 校验；`validate` 输出机器清单；开发态错误可读 |
 
 ### 5.4 自定义插件的情况矩阵
@@ -235,7 +239,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 | [capabilities.md](../../skills/molis-plugin-dev/capabilities.md) | 迁移仍是写动作；状态机不是权限 |
 | [placement.md](../../skills/molis-plugin-dev/placement.md)、[continuity.md](../../skills/molis-plugin-dev/continuity.md) | 跨模块移动/发布读 owner 的状态，不复制 |
 
-约束：插件创作台挂载同一批章节（[skill.ts](../../apps/local-host/src/plugin-builder/skill.ts) 的 `CHAPTERS`），改 Skill 章节或创作台提示词（[agent-prompts.ts](../../plugins/native/plugin-builder/src/agent-prompts.ts)）要跑 `pnpm studio:replay` 与隔离 Home 的 `pnpm studio:replay smoke`；`skills/` 被安装类测试拷贝比较，Skill 改动要在同批改完、先 `pnpm build` 再跑全量。
+约束：插件创作台挂载同一批章节（[skill.ts](../../apps/local-host/src/plugin-builder/skill.ts) 的 `CHAPTERS`），改 Skill 章节或创作台提示词（[agent-prompts.ts](../../horizontal/plugin-studio/src/agent-prompts.ts)）要跑 `pnpm studio:replay` 与隔离 Home 的 `pnpm studio:replay smoke`；`skills/` 被安装类测试拷贝比较，Skill 改动要在同批改完、先 `pnpm build` 再跑全量。
 
 ### 6.2 平台手册
 
@@ -405,7 +409,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 - **26 与 U5（2026-11-14 起在发行批 [REL-4](../post-anticorruption-roadmap/reference/batches/rel-4.md#rel-4-item-1)）**：U5「合同过渡与保存引用改写」在 M1 当天生效；`state_machines` 必须和 U5 放在同一份 M1 前合同形状里一起定，不能等 26 之后另开一次合同变更——否则它会变成 U5 过渡之后的新增合同面，按阶段二规则处理。
 - **门禁已批「先只报告」**：本方案的两个新检查（词表检查、声明检查）用户 2026-11-08 已批「先只报告、不挡合并」，后续是否挡合并另议；`AGENTS.md` 与开发流程文字仍先给用户看。
 - **27 的容量与「去热点」目标**：27-5 本身就是「文档和门禁去热点 + 各包清理」，再加一个新门禁、一份生成文档和 Skill 新章，与这批「降热点」的方向相反；要么压到最小（只门禁+生成表，Skill 新章另放），要么单独切一条。需要统筹定。
-- **D 轨与 E 轨的文件归属**：`platform/ui-state-rings.ts`／`platform/ui.ts`、`packages/plugin-sdk/src/ui*`、design-system 是 D 轨独占；`skills/`、`apps/local-host/src/plugin-builder/skill.ts`、`plugins/native/plugin-builder/src/agent-prompts.ts` 跨 E/统筹。26/46 是 C1 轨道，不能顺手改 D 的文件；这些改动要作为 D/E 的交付行排进去，不能只写在 C1 的批次里。
+- **D 轨与 E 轨的文件归属**：`platform/ui-state-rings.ts`／`platform/ui.ts`、`packages/plugin-sdk/src/ui*`、design-system 是 D 轨独占；`skills/`、`apps/local-host/src/plugin-builder/skill.ts`、`horizontal/plugin-studio/src/agent-prompts.ts` 跨 E/统筹。26/46 是 C1 轨道，不能顺手改 D 的文件；这些改动要作为 D/E 的交付行排进去，不能只写在 C1 的批次里。
 - **第 57 批**：合同必须在 M1 外部版本前落；晚于它就要按阶段二升版本、带读取兼容，工作量明显更大。26 加合同可能挤压 M1 准备，47 加实现可能推迟阶段 2 出口，这两处要统筹按容量决定先做多少。
 - **服务端批**：若把同步状态纳入公开词表，与 SRV-1 的同步合同协调；不作为 01～90 的前置。
 - **第三方市场**：插件市场与第三方安装（BL-058、BL-167）在暂缓项里，47／48 只做现有安装预览／插件目录；市场展示等市场开放时沿用同一投影，不在本路径排批。

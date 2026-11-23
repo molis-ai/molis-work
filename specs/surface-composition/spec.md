@@ -1,6 +1,10 @@
 # 确定组合平台服务（路线书 15 ①）
 
 状态：现行规范（2026-11-13）；第一片已随第 15 批 #2017 合入 main（2026-11-13，`b819373250`）。S-1、公共组件与 S-2 首页已交付，并有定向证据；S-2 已接回实际取词、页面授权与项目成员接口，整批验证、产品实操与本人验收未完成。IUI-20 切换后复测见 [BL-surface-home-performance](../backlog/BL-surface-home-performance.md)；全量证据与剩余项见[第 15 批合入记录](../post-anticorruption-roadmap/reference/batches/15.md#合入记录)。`batch/15` 从 main `226ce892a8` 开始；[05② 的呈现合同](../shared-sources-and-surfaces/spec.md)（C-2、C-3，#1979）与第 14 批 A 段（#1976）已进入该基线。按用户同日后续更正，本批独立开发首页与入口，最终统一同步时接回第 16 批页面授权和取词切换、第 20 批项目成员能力，再以实际采用的接口验收；不再逐文件等待交接。开工检查及证据范围见 §14；全批统一验证、产品实操与本人验收未完成。第 7 节对着[基础首页定样](../../docs/design/archive/basic-home/README.md)写，D 轨 11-04 共审过；合同缺口已由 C-2、C-3 接收，挂载位已并进 slots。早期核查保留在[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：`44B` 清理 `"shelf"` 专有槽名与任何内置插件硬编码分支，纯平台 `system.shelf` 与声明了 M4 `receive` 的普通插件共享统一接收通道；`overview.lead` 已于 `#2240` 删除。
+
 ## 0. 给人讲清楚
 
 现在首页、对话、讨论、「等你」各自决定一件东西显示成什么样、带哪几个按钮，代码散在宿主和页面里，有的还写死了插件名。这份稿子定一个专门的平台服务来做这件事：给它「谁在看、在哪个位置、看哪些东西」，它按各插件的声明和固定规则，排出该显示哪些东西、各用什么样子、显示哪几项、带哪些按钮。不调模型，同样的输入每次结果一样。
@@ -568,7 +572,7 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 **文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
 
-签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`plugin-builder/exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新。统一集成保留第 16 批对原会话、原激活、项目和取词来源的围栏。
+签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`installed-plugin-exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新。统一集成保留第 16 批对原会话、原激活、项目和取词来源的围栏。
 
 SCS-07／08／09／11／12／17 验真实空 Goals 和已签安装包从首页打开表单，打开与取消零写、提交一次；Inbox 停用及恢复、双实例主区、同对象跨组扣除、概况返回后撤权、隐藏计数零泄露、首次失败与真实旧值恢复，以及冷路径实际调用次数。拒绝反例涵盖伪 panel、跨贡献、同名不同 scope、换代、同版本不同 digest、排队期间撤权，以及懒加载期间换包。原生启用分别制造排队期间成员变化和成员 revision 不变的安装换代，均零成员写入；真实提交后切换失败返回 503，重试只读。不改门禁算法、阈值或 CI，不用 Mock 的状态常量代替最终首页实操。2026-11-08 的两处设计 P1（Goals 必填输入无入口、旧卡缺安装绑定）按上述方案处理，仍须实现复核与公共合同合审后关闭。
 

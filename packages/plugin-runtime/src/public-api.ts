@@ -87,3 +87,5 @@ export type {
   PluginResolutionInput,
 } from "./resolution.js";
 export { pluginPublisherIdentity, assertPluginPackagePath, parsePluginPackage, pluginPackageSigningBytes, signPluginPackage, verifyPluginPackage, verifyPluginPackageSignature } from "./package-verification.js";
+export { PLUGIN_LIFECYCLE_MACHINE, assertLifecycleStep, lifecycleGuarded } from "./lifecycle-machine.js";
+export { projectStateMachines, stateMachineActionProvider, type StateMachineRegistryPorts, type StateMachineRegistrySources, type StateMachineRegistryStore } from "./state-machine-registry.js";

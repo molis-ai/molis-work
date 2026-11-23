@@ -113,7 +113,8 @@ export default definePlugin({
       },
     };
     const polling = definePollingIntegrationPlugin({ manifest, createProvider: () => provider });
-    return { ...await polling.start(context), actions: [
+    // The machines this code runs; the platform checks them against the Manifest's state_machines before the plugin starts.
+    return { ...await polling.start(context), state_machines: [resultMachine.describe()], actions: [
       defineAction(healthAction, () => provider.health()).handler,
       bindOwnerPluginAction(context, readAction, () => { const count = savedCount(); return { count, latest: count ? resultAt(count) : null }; }),
       bindOwnerPluginAction(context, publishAction, () => publishResult()),

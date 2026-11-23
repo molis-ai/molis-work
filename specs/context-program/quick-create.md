@@ -238,7 +238,7 @@ W4-6b 排在 BL-174 后面的理由：Inbox 不声明 `fits`。有了 BL-174，�
 - 创作台回放的语料 `tests/fixtures/studio-replay/recorded.json` 只记了能力 id，没有版本。
 - 只有测试替身写死了版本：`tests/workflows-stop-and-token.test.ts:18-19`。
 - 放置的「转成」每次都按当前目录找 `receive`（`horizontal/placement/src/index.ts:361-364`），不固定版本。
-- 创作台生成的插件调不到 `receive`：它的受众里没有 `plugin`，所以创作台的目录（`apps/local-host/src/plugin-builder/catalog.ts:60-90`）不把它开放给插件，理由写「提供方没有开放给插件」（:86）。
+- 创作台生成的插件调不到 `receive`：它的受众里没有 `plugin`，所以创作台的目录（`apps/local-host/src/installed-plugin-catalog.ts:60-90`）不把它开放给插件，理由写「提供方没有开放给插件」（:86）。
 
 **还会跟着变的东西：MCP 工具名带版本号。** 工具名是 `<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts:8-21`），所以八个 `…content.receive__v1` 会变成 `__v2`。按 CONTRACT-CHANGES §3.5 这是产品决定，已定，见 11.9 第 2 条。（2026-11-08 审计更正：这是 2026-10 的设计；现行对外工具名是 `molis_work_v1_action_<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts` 的 `MOLIS_WORK_ACTION_TOOL_PREFIX` 与 `molisWorkActionToolName`），第 02 批版本归一后八个 `content.receive` 都是 @1（`tooling/gates/actions/actions.tsv`），即 `molis_work_v1_action_<插件>.content.receive__v1`，不是 `__v2`。）
 

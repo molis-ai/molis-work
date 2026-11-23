@@ -1,4 +1,8 @@
-export { STATE_MACHINE_DECLARATION_LIMITS, type StateMachineDeclaration } from "./plugin-state-machines.js";
+export {
+  STATE_MACHINE_DECLARATION_LIMITS, STATE_MACHINES_PROVIDER_ID, stateMachineActions,
+  type StateMachineDeclaration, type StateMachineGetResult, type StateMachineListResult, type StateMachineRegistryEntry,
+} from "./plugin-state-machines.js";
+import type { StateMachineDeclaration } from "./plugin-state-machines.js";
 import type { STATE_VOCABULARIES } from "./state-vocabulary.js";
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
@@ -97,6 +101,8 @@ export interface PluginIntegrationContribution {
   };
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
+  /** The machines the code runs (`machine.describe()`); checked both ways against the Manifest's `state_machines`. */
+  state_machines?: readonly StateMachineDeclaration[];
 }
 
 /**
@@ -110,6 +116,8 @@ export interface PluginAppContribution {
   sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
+  /** The machines the code runs (`machine.describe()`); checked both ways against the Manifest's `state_machines`. */
+  state_machines?: readonly StateMachineDeclaration[];
   /** Renderers for the views the Manifest declares. */
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */

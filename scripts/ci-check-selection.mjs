@@ -15,7 +15,7 @@ const GATE_RULE_TEST_INPUTS = [
   "tests/fixtures/feed-content-home-v1.sql",
 ];
 const STUDIO_INPUTS = [
-  ".github/", "skills/molis-plugin-dev/", "plugins/native/plugin-builder/",
+  ".github/", "skills/molis-plugin-dev/", "horizontal/plugin-studio/",
   "packages/plugin-sandbox/", "packages/plugin-sdk/", "packages/contracts/", "packages/storage/", "horizontal/agent-host/",
   "apps/local-host/src/plugin-builder/", "apps/local-host/src/web-locale.ts", "apps/local-host/src/ui-text-provider.ts",
   "apps/local-host/src/configured-models.ts", "apps/local-host/src/model-provider-store.ts",

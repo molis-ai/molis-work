@@ -714,7 +714,7 @@ PF-05再次核对：`packages/contracts/src/platform/settings.ts:58`仍明确无
 
 ### QF-47 / P1：未打包生成插件的恢复顺序阻断无关插件启动（已实施、定向通过）
 
-位置：`apps/local-host/src/surface-installation.ts:71-96`；实际正常安装链`plugins/native/plugin-builder/src/agent-workflow.ts:757` → `apps/local-host/src/plugin-builder/studio-ports.ts:113` → `installed-plugin-lifecycle.ts:154`，重启由`installed-plugin-host.ts:144`恢复。未打包生成插件在恢复reader前已有安装事实，声明目录对该无关项直接抛错；Feed仅引用自身呈现动作也因此启动失败、缺后台wake。两次Home启动的SYS-15原断言稳定失败，诊断确认Feed监督器declaration_invalid且无数据库拒绝；没有用加等待或捏造archive替代修复。处置为只承认实际可证明动作，缺声明项不冒充可用；真实引用缺失仍拒绝，且已装同ID覆盖pending的规则保留。低成本，纳入本轮QEA-81/82并验证安装/信任/包零新增及原安全套件。
+位置：`apps/local-host/src/surface-installation.ts:71-96`；实际正常安装链`horizontal/plugin-studio/src/agent-workflow.ts:757` → `apps/local-host/src/plugin-builder/studio-ports.ts:113` → `installed-plugin-lifecycle.ts:154`，重启由`installed-plugin-host.ts:144`恢复。未打包生成插件在恢复reader前已有安装事实，声明目录对该无关项直接抛错；Feed仅引用自身呈现动作也因此启动失败、缺后台wake。两次Home启动的SYS-15原断言稳定失败，诊断确认Feed监督器declaration_invalid且无数据库拒绝；没有用加等待或捏造archive替代修复。处置为只承认实际可证明动作，缺声明项不冒充可用；真实引用缺失仍拒绝，且已装同ID覆盖pending的规则保留。低成本，纳入本轮QEA-81/82并验证安装/信任/包零新增及原安全套件。
 
 PF-03 补正：`specs/backlog/BL-memory-session-kinds.md`已有用户2026-11-12的明确延后决定，触发条件是第三个真实会话记忆消费者。实际Coding/Assistant绑定通过各自公开reader，无直接跨表读取；形成前后核来源与SDK写围栏有真实职责。保留该已批例外和BL，不报已通用化，不为猜想第三消费者新增架构。未来迁移除公开绑定类型/Host映射外，还涉及`horizontal/memory/src/session-clear.ts`的持久恢复计划，须按合同整体处理。其他未获延后决定的PF候选不适用此例外。
 
@@ -1002,7 +1002,7 @@ QF-58 实施和验收记录。`apps/local-host/src/installed-plugin-lifecycle.ts
 | `tests/security-invariants-sandbox-home-instance.test.ts:32,57` 直接调用 Home 安装端口生成正例和冷启动记录，绕过 `plugin-install-service.ts:380` 本人固定发布者。收尾复核 `installed-plugin-lifecycle.ts:192` 是正常拒绝，旧准备让测试到不了想验证的冷启动 | 第 63 批经实际预览、确认和动作写入准备三份记录，再独立制造冷启动的撤销与缺失固定。原五种拒绝保留，补缺固定时不留安装和公开动作。冷启动核对两份已有原件及第三份继续可写。 |
 | `tests/security-invariants-sandbox-permission-switches.test.ts:97` 原来直走已经退役的写入口，撞上 `plugin-builder/installed.ts:33` 的原动作校验。另三条签名表单用例在进入原页面交错前，被未开启的 `capabilities:call` 拦下。两组在干净 main 复现 | 第 65 批用实际签名组件和 `plugin-page-actions.ts:41` 验开关关闭零执行、开启后退役入口仍拒、原页只执行一次。准备表单时从真实设置开启该许可，再验证原拒绝、停用、依赖替换及实际数据。安装权、权限和页面范围的生产规则继续归原 owner。 |
 
-Home 签名包 6/6、沙箱开关 5/5、签名表单 3/3 通过。Home 签名表单撤下原项目使用真实设置读取的成员修订，并在原操作到达写入之前验证拒绝。保留安全表的测试定位和原拒绝条件。原页面失败反馈还会显示技术许可名。`installed-permission-projection.ts:69` 生成动作原因，`plugins/native/plugin-builder/src/agent-studio.ts:191` 交给当前传输，`packages/design-system/src/plugin-component-part.ts:51` 直接显示错误文字。正文语言和设置的许可标签需要同一套平台展示合同，列为后续体验事项，具体名称仍由插件授权 owner 提供。
+Home 签名包 6/6、沙箱开关 5/5、签名表单 3/3 通过。Home 签名表单撤下原项目使用真实设置读取的成员修订，并在原操作到达写入之前验证拒绝。保留安全表的测试定位和原拒绝条件。原页面失败反馈还会显示技术许可名。`installed-permission-projection.ts:69` 生成动作原因，`horizontal/plugin-studio/src/agent-studio.ts:191` 交给当前传输，`packages/design-system/src/plugin-component-part.ts:51` 直接显示错误文字。正文语言和设置的许可标签需要同一套平台展示合同，列为后续体验事项，具体名称仍由插件授权 owner 提供。
 
 ### 隐藏问题收集的首屏取舍
 

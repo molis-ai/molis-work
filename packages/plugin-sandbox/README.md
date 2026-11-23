@@ -141,7 +141,7 @@ only in the trusted host, and each secret specifies its header and permitted dom
 Responses containing the secret or common URI/JSON/base64/hex encodings are rejected.
 Approved upstreams necessarily receive the injected credential: approve only trusted APIs;
 the scanner cannot prove absence of every possible upstream transformation of a secret.
-The generated-plugin Host currently supplies its own `plugin-builder/network.ts` adapter
+The generated-plugin Host currently supplies its own `installed-plugin-network.ts` adapter
 for preview policy and its existing fake-IP DNS allowance. That adapter also preserves
 invocation guards; its address policy is distinct from this package's strict proxy.
 

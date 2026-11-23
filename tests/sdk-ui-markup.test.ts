@@ -211,7 +211,7 @@ test("no plugin but Plugin Studio imports the design system, in source or in its
     if (!statSync(groupDirectory).isDirectory()) continue;
     for (const name of readdirSync(groupDirectory)) {
       const directory = join(groupDirectory, name);
-      if (!statSync(directory).isDirectory() || `plugins/${group}/${name}` === "plugins/native/plugin-builder") continue;
+      if (!statSync(directory).isDirectory() || `plugins/${group}/${name}` === "horizontal/plugin-studio") continue;
       if (!existsSync(join(directory, "package.json"))) continue;
       const manifest = JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as { dependencies?: Record<string, string> };
       if (manifest.dependencies?.["@molis-ai/molis-work-design-system"]) offenders.push(`plugins/${group}/${name}/package.json`);

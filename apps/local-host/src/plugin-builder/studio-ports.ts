@@ -16,11 +16,12 @@ import { builderAgentInLanguage, studioDesignLanguages } from './studio-language
 import { buildManifest, createBuildProject, copyBuildRevision } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
-import { slowOperations } from './capabilities.js';
-import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog } from './catalog.js';
+import { slowOperations } from '../installed-plugin-capabilities.js';
+import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog } from '../installed-plugin-catalog.js';
 import { buildEffects, type BuildExecution, type StudioPreview } from './studio-preview.js';
 import type { StudioModels } from './studio-models.js';
 import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';
+import { installedStageSurface } from '../installed-stage-section.js';
 
 /** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
 const settledFor = (directory: string) => directory + '.settled';
@@ -109,7 +110,12 @@ export function builderPorts(inputs: {
     choose: choice.choose, selectionAvailable: () => choice.selectionAvailable(),
     browserAcceptance: (build, signal) => inTrial(build, signal, options => runBuilderBrowserAcceptance(build, options)),
     publish: createStudioPublisher(home, studio.root),
-    installations: async () => installed.installations(),
-    lifecycle: installed.lifecycle,
+    // Where the studio's own packages are installed, in this project and in the Home: read from the installations, never kept by the studio.
+    installations: async () => {
+      const home = (await options.homeInstallations?.() ?? []).map(({ record, error }) => ({ pluginId: record.plugin_id, publisher: record.publisher_signature, version: Number(record.version.split('.')[0]),
+        state: error ? 'failed' : record.state, scope: 'home', surface: record.plugin_id, ...(error ? { error } : {}) }));
+      return [...installed.installations().map(({ pluginId, publisher, version, state, error }) => { const release = installed.releaseFor(pluginId);
+        return { pluginId, publisher, version, state, scope: 'project', ...(release ? { surface: installedStageSurface(release) } : {}), ...(error ? { error } : {}) }; }), ...home];
+    },
   };
 }

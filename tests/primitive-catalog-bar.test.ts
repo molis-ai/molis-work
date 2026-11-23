@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
-import { expandDesign } from "@molis-ai/molis-work-plugin-builder";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
+import { expandDesign } from "@molis-ai/molis-work-plugin-studio";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { uiHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -34,10 +34,10 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   assert.ok(BACKBONE.length > 0, "the Manifests declare a backbone");
   for (const id of BACKBONE) assert.ok(bright.includes(id), `${id} is the backbone and stays bright`);
   for (const id of bright) assert.ok(enabled.has(id), `${id} is bright because the sample project has it enabled`);
-  // The plugin studio is a personal plugin, so the sample project has it enabled — but the rail draws it as the switcher's
-  // own 创作台 button (renderPickerExtend), not as a tile: the mechanism a real new project uses, not a hand-written name.
+  // The plugin studio is the platform's framed surface (47-1 C), in every project: the rail never draws it as a tile, and the
+  // switcher's head carries it as its own 创作台 button (renderPickerExtend), read from its declaration.
   assert.ok(!tiles(html).includes("plugin-builder"), "the plugin studio is not a rail tile");
-  assert.match(html, /class="[^"]*plugin-picker-extend-btn[^"]*"[^>]*data-plugin-id="plugin-builder"/, "the enabled studio is the picker's 创作台 button");
+  assert.match(html, /class="[^"]*plugin-picker-extend-btn[^"]*"[^>]*data-plugin-id="plugin-builder"/, "the studio is the picker's 创作台 button");
   for (const id of enabled) if (directory.includes(id) && id !== "plugin-builder") assert.ok(bright.includes(id), `${id} is an enabled directory plugin and is drawn bright`);
   assert.deepEqual(grey.slice().sort(), directory.filter(id => !enabled.has(id)).sort(),
     "the grey cells are exactly the directory's plugins the sample project has not added");
@@ -73,14 +73,17 @@ test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help s
 test("VUX-55 VUX-58: every native built-in plugin manifest declares valid bilingual ui.help with all zh/en keys", () => {
   const wbZh = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
   const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
-  assert.ok(BUILTIN_PLUGIN_CATALOG.length >= 23, `expected at least 23 built-in plugins, got ${BUILTIN_PLUGIN_CATALOG.length}`);
+  // The platform's own framed surface (the studio, 47-1 C) declares its help the same way.
+  const declared = [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES];
+  assert.ok(declared.length >= 23, `expected at least 23 built-in plugins and platform surfaces, got ${declared.length}`);
   const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  for (const entry of declared) {
     const help = entry.manifest.ui.help;
     assert.ok(help && help.topics.length > 0, `${entry.project_plugin_id}: manifest.ui.help must be declared`);
     assert.deepEqual(uiHelpDeclarationProblems(entry.manifest), [], `${entry.project_plugin_id}: ui.help must pass SDK validation`);
-    const zhPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/zh.json`, import.meta.url);
-    const enPath = new URL(`../plugins/native/${entry.project_plugin_id}/locales/en.json`, import.meta.url);
+    const locales = HOST_FRAMED_SURFACES.includes(entry as typeof HOST_FRAMED_SURFACES[number]) ? "../horizontal/plugin-studio/locales" : `../plugins/native/${entry.project_plugin_id}/locales`;
+    const zhPath = new URL(`${locales}/zh.json`, import.meta.url);
+    const enPath = new URL(`${locales}/en.json`, import.meta.url);
     const zh = JSON.parse(readFileSync(zhPath, "utf8")).messages as Record<string, unknown>;
     const en = JSON.parse(readFileSync(enPath, "utf8")).messages as Record<string, unknown>;
     for (const topic of help.topics) {
@@ -119,6 +122,10 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
     { owner: "io.molis.work.generated.demo", page: "/projects/p/plugins/io.molis.work.generated.demo?frame=workbench" },
   );
   assert.doesNotMatch(installedHtml, /data-plugin-help|data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
+  // 47-1 C: the studio is the platform's framed surface, not a catalog plugin, and its own frame still carries the help its Manifest declares.
+  const studioHtml = renderPluginFrameSurface('<main class="as-page"></main>', "plugin-builder", "Plugin Studio", true, false, "plugin-builder");
+  assert.match(studioHtml, /<script type="application\/json" data-plugin-help>/u, "the studio frame carries its declared help");
+  assert.ok(studioHtml.includes(JSON.stringify(HOST_FRAMED_SURFACES[0]!.manifest.ui.help).replaceAll("<", "\\u003c")), "the help is the studio Manifest's own");
 
   const thirdPartyManifest: PluginManifest = {
     ...BUILTIN_PLUGIN_CATALOG[0]!.manifest,
@@ -175,6 +182,8 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
     operations: [{ id: "items.list", kind: "query", description: "List", input: {}, output: [{ id: "string", title: "string" }], effects: { storage: ["read"] }, examples: [{ input: {}, output: [] }] }],
     pages: [{ id: "home", title: "Home", parts: [{ id: "list", intent: "collection", purpose: "Show", props: { idField: "id", titleField: "title", emptyText: "Empty" }, read: "items.list" }] }],
     acceptance: [{ id: "empty", description: "Empty", steps: [{ action: "page", pageId: "home" }, { action: "expectWord", componentId: "list", word: "emptyText" }] }],
+    // Every design answers `states` (SMP-11); these items have none.
+    states: [],
   };
   const droppedValid: string[] = [];
   const validExpanded = expandDesign({

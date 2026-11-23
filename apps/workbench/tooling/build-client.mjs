@@ -47,6 +47,7 @@ const BROWSER_BUNDLES = [
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/characters/entry.ts"], outfile: "dist/characters-client.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/characters/loader.ts"], outfile: "dist/characters-loader.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/sessions/entry.ts"], outfile: "dist/sessions-client.js" },
+  { ...DEFAULT_BROWSER, entryPoints: ["src/browser/installed-plugin/entry.ts"], outfile: "dist/installed-plugin-client.js" },
   {
     ...DEFAULT_BROWSER,
     entryPoints: ["src/browser/write-checkers-factory.ts"],

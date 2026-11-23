@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HomeConsentLedger, readStudioDistribution, verifySyncPluginDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
-import { builderPrivateValueReplicationOwner, freezeStudioUi, parseModelJson, type AgentBuild, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { builderPrivateValueReplicationOwner, freezeStudioUi, parseModelJson, type AgentBuild, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { readyPublication, publicationAuthority } from './fixtures/studio-publishing.js';
 import { prepareStudioNoteWords, studioBilingualAnswer, studioBilingualNotes, studioBilingualLiteralNotes, literalStudioExcerpt, studioTestLanguages } from './fixtures/studio-bilingual.js';

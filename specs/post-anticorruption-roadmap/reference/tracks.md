@@ -14,11 +14,11 @@
 | B Coding | `plugins/native/coding/`、Git、Diff 及 Files 退役涉及的现有消费者 | harness、下一阶段、质量保证、代码现代化 | 独立片交接需明确记录 |
 | C1 合同与 SDK | `packages/contracts/src/platform/`、`packages/plugin-sdk/`（UI 子路径除外）、`packages/plugin-runtime/`、`tooling/gates/api/`、`tooling/gates/actions/` | 公共资料/目录、技能包、场景/角色/页面、授权及人审的合同，以及服务端批里的同步合同；沙箱包与 Runtime 的缺口；对抗式审查的 SDK 收拢；合同评审 | 公共合同台（C 轨）负责合同的跨批合审；批 02 由 Codex 收尾（[决定 26](decisions.md#decision-26)） |
 | C2 AI 运行时 | `horizontal/agent-host/`、`horizontal/memory/`、`vendor/prologue-sdk/` | Prologue 采用与换包窗口、记忆、Skill/Context/MCP/Tool 四份策略、子代理的 Prologue 一半 | Memory 原负责人保留；暂停已于 11-11 撤回（决定 36） |
-| C3 平台新服务 | 每项服务一个新的 `horizontal/<服务>/` 包（用户 11-01 定新的平台服务不进宿主，宿主只做装配） | 观测和采集、评测、Sessions 历史与控制、智能呈现组合服务、主线、场景与生成页面的运行时、Attention 的提醒与唤醒；按包分清主人 | 每个服务包是独立的独占文件，不同的包可以同时写 |
+| C3 平台新服务 | 每项服务一个新的 `horizontal/<服务>/` 包（用户 11-01 定新的平台服务不进宿主，宿主只做装配）及纯平台模块 `modules/shelf/`、`packages/system-skills/` | 观测和采集、评测、Sessions 历史与控制、智能呈现组合服务、主线、场景与生成页面的运行时、Attention、纯平台 `system.shelf`（`44B` 起归本轨与 D 协作）、`horizontal/person-settings`、`horizontal/evidence`、`horizontal/plugin-studio` | 每个服务包是独立的独占文件，不同的包可以同时写 |
 | D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`packages/contracts/src/ui/` 与 `ui.ts`、`packages/plugin-sdk/src/ui.ts`（字体皮肤语言 A 段落在这里）、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | D 轨合审组件板新增；负责公共视觉与 UI 文件 |
 | E 插件 | Coding 一族以外的 `plugins/native/<插件>/`、新插件包 | 体验债、风险、工作简报本体、创作台的插件侧实现、场景所需插件配置与结果落点、情境 W4～W6、插件小功能 | 插件实现与定样按已有分工 |
 | F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | 账号、证书、真实 Home 按原用户边界 |
-| G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～105 期间不开工 | personal 分支上已有的工作保留；用户定开工，C 轨评合同，F 写桌面部分 |
+| G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～111 期间不开工 | personal 分支上已有的工作保留；用户定开工，C 轨评合同，F 写桌面部分 |
 
 本文里的“C 轨”“1·C”指 C1～C3 合起来。C1～C3 各有独占的文件，按文件判断冲突：同一批文件、同一份快照同一时间一个会话在改，不同的可以同时写（[决定 26](decisions.md#decision-26)取代决定 17 的「C 轨一个写手」）。
 
@@ -44,11 +44,13 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 ### 批次与轨道对照
 
-认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表现覆盖全部 110 个活跃批、274 个交付项（覆盖 `01`～`105` 含 `36A`／`63A`／`91B`、SRV-1～SRV-8、REL-1～REL-5，不含已迁入服务端批的 10 个留号批与已并入 77 的留号批 72，共 11 个留号批；整批单轨 58 批／127 项 + 整批不占用 10 批／19 项 + 逐项明细 42 批／128 项 = 110 批／274 项），与[执行目录](../spec.md#execution-batches)逐行对齐：2026-11-04 初始确认 87 批、203 个交付项；2026-11-08 随状态机能力并入 26-7／27-6／47-2／48-5；2026-11-11 25 提前纳入 `25-3`（现共 3 项）；2026-11-12 随事项线加 32-3，第 32 批不再整批在 A 轨；2026-11-13 随插件同等地位收口新增第 44 批（原 44～89 顺延为 45～90，上面的批次号已按新号写）并加 39-2、41-2；2026-11-14 发行拆成发行批（[决定 45](decisions.md#decision-45)）：26 保留 4 项（`26-5`、`26-7`、`26-8`、`26-9`，移走 26-1～26-4、26-6），加 REL-1～REL-5 共 11 项；2026-11-18 复查（[决定 52](decisions.md#decision-52)）：加 36A（7 项）与 63A（3 项，原 64-8、64-9 移入并加常驻层），72 并入 77 只留去处不再计入活跃批；同日新增 91（4 项，对话与执行流式丝滑化，[决定 54](decisions.md#decision-54)）、补记已合入的 41-3（#2086 已在 41.md 补行），并随后合并全产品界面／布局／行为反馈打磨与开发指引（[决定 55](decisions.md#decision-55)）：91（91A）扩为 5 项并新增 91B（4 项）；同日续编 92～99 共增 8 批、15 个交付项；2026-11-20 按[决定 58](decisions.md#decision-58) 追加 `100`～`105` 共 6 批、12 个交付项；2026-11-21 逐行复核校准为 110 个活跃批、274 个交付项（同步在执行目录补回 `25-3` 并移除本表残留的 72 行）。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表现覆盖全部 117 个活跃批、296 个交付项（覆盖 `01`～`111` 含 `36A`／`44B`／`63A`／`91B`、SRV-1～SRV-8、REL-1～REL-5，不含已迁入服务端批的 10 个留号批与已并入 77 的留号批 72，共 11 个留号批；整批单轨 58 批／126 项 + 整批不占用 10 批／19 项 + 逐项明细 49 批／151 项 = 117 批／296 项），与[执行目录](../spec.md#execution-batches)逐行对齐：2026-11-04 初始确认 87 批、203 个交付项；2026-11-08 随状态机能力并入 26-7／27-6／47-2／48-5；2026-11-11 25 提前纳入 `25-3`（现共 3 项）；2026-11-12 随事项线加 32-3，第 32 批不再整批在 A 轨；2026-11-13 随插件同等地位收口新增第 44 批（原 44～89 顺延为 45～90，上面的批次号已按新号写）并加 39-2、41-2；2026-11-14 发行拆成发行批（[决定 45](decisions.md#decision-45)）：26 保留 4 项（`26-5`、`26-7`、`26-8`、`26-9`，移走 26-1～26-4、26-6），加 REL-1～REL-5 共 11 项；2026-11-18 复查（[决定 52](decisions.md#decision-52)）：加 36A（7 项）与 63A（3 项，原 64-8、64-9 移入并加常驻层），72 并入 77 只留去处不再计入活跃批；同日新增 91（4 项，对话与执行流式丝滑化，[决定 54](decisions.md#decision-54)）、补记已合入的 41-3（#2086 已在 41.md 补行），并随后合并全产品界面／布局／行为反馈打磨与开发指引（[决定 55](decisions.md#decision-55)）：91（91A）扩为 5 项并新增 91B（4 项）；同日续编 92～99 共增 8 批、15 个交付项；2026-11-20 按[决定 58](decisions.md#decision-58) 追加 `100`～`105` 共 6 批、12 个交付项；2026-11-21 逐行复核校准为 110 个活跃批、274 个交付项（同步在执行目录补回 `25-3` 并移除本表残留的 72 行）；2026-11-22 随[决定 60](decisions.md#decision-60)／[决定 64](decisions.md#decision-64)／[决定 65](decisions.md#decision-65)（`#2221`/`#2222`/`#2259`）计入 `91-0a`／`91-0b`／`91-0c` 并随[决定 66](decisions.md#decision-66) 新增 `44B` 与 `106`～`111`（+7 批、+20 项，实核总计 117 活跃批、296 交付项）。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
 
 2026-11-18 的 92～99 共新增 15 个交付项，逐项轨道接在下方明细表末尾。原有 7 条并入 6 个现有交付项，沿用 BL 上的维护人；73-3 的知识卡和权限夹具分文件执行。[排期与执行依赖](dependencies.md#deps-backlog-92-99)
 
-2026-11-20 按[决定 58](decisions.md#decision-58) 新增 `100`～`105` 共 6 批、12 个交付项（均不等 `38～89`），逐项轨道接在下方明细表末尾，见[11-20 依赖表](dependencies.md#deps-2026-11-20)。
+2026-11-20 按[决定 58](decisions.md#decision-58) 新增 `100`～`105` 共 6 批、12 个交付项（均不等 `38～89`），逐项轨道接在下方明细表末尾，见[11-20 依赖表](dependencies.md#deps-2026-11-20-harness)。
+
+2026-11-22 按[决定 64](decisions.md#decision-64)／[决定 65](decisions.md#decision-65)（`#2259`）增设 `91-0c`（+1 项），并按[决定 66](decisions.md#decision-66) 新增 `44B` 与 `106`～`111` 共 7 批、20 个交付项（`44B` 3 项 + `106`～`111` 共 17 项，连同已合入 `91-0a`/`91-0b` 实核总计 **117 个活跃批、296 个交付项**，`44B`～`111` 排在 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`/`SRV` 之前，`91-0c` 可并行/前置），逐项轨道接在下方明细表末尾，见[11-22 列表-详情依赖表](dependencies.md#deps-2026-11-22-list-detail-shared-styles)与[11-22 决定 66 依赖表](dependencies.md#deps-2026-11-22-demotion-upp)。
 
 怎样算占用：
 
@@ -184,9 +186,9 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [91-3](batches/91.md#batch-91-item-3) | 个人助理 SSE 增量流与对话流精修 | A | 是 | D |
 | [91-4](batches/91.md#batch-91-item-4) | Coding SSE 增量流、回滚稳态与过程精修 | B | 是 | C1、D |
 | [91-5](batches/91.md#batch-91-item-5) | 后续开发指引与插件创作台规范同步更新（拆入 `91-0a` 先行落地 + `91-0b` 实装校准） | D | 是 | E |
-| [91B-1](batches/91b.md#batch-91b-item-1) | 入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口 | D | 是 | F |
-| [91B-2](batches/91b.md#batch-91b-item-2) | 工作主干 9 插件 + 4 官方集成全面打磨 | E | 是 | D |
-| [91B-3](batches/91b.md#batch-91b-item-3) | 创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨 | E | 是 | B、D |
+| [91B-1](batches/91b.md#batch-91b-item-1) | 入口、账号、市场、侧栏四视图、IM、Artifacts、Sessions、纯平台 Shelf 与创作台收口 | D | 是 | C3、F |
+| [91B-2](batches/91b.md#batch-91b-item-2) | 工作主干 9 插件 + 3 个统一连接器驱动全面打磨 | E | 是 | D |
+| [91B-3](batches/91b.md#batch-91b-item-3) | 创作数据 5 + 收集知识 3 + 研发工具（Git/Diff）全面打磨 | E | 是 | B、D |
 | [91B-4](batches/91b.md#batch-91b-item-4) | 全站轻动效收口与五层自动化防回归门禁焊死 | 不归轨道 | 否 | B、D、E |
 | [92-1](batches/92.md#batch-92-item-1) | 把图片下载的漏测命令补进手册 | E | 否 | — |
 | [92-2](batches/92.md#batch-92-item-2) | 把「打开数据库会不会创建文件」写准确 | 不归轨道 | 否 | 存储包 |
@@ -215,6 +217,26 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [104-2](batches/104.md#batch-104-item-2) | 面向非技术用户的全站统一报错翻译与安全重试 | A | 是 | B、C2、D |
 | [105-1](batches/105.md#batch-105-item-1) | 防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批 | C2 | 是 | A、B、C1、D |
 | [105-2](batches/105.md#batch-105-item-2) | 双子代理终态缓存、Mainline 增量校验与日常高频交互润色 | A | 是 | C2、C3、D |
+| [44B-0](batches/44b.md#batch-44b-item-0) | P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则 | C1 | 是 | — |
+| [44B-1](batches/44b.md#batch-44b-item-1) | 合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13） | C1 | 是 | C3、E |
+| [44B-2](batches/44b.md#batch-44b-item-2) | Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零 | C3 | 是 | C1、C2、D、E、F |
+| [106-1](batches/106.md#batch-106-item-1) | 分区根 `partitionRoot()`、保留分区守卫与 `listPartitions()` 全量归类 | C1 | 是 | C3、F |
+| [106-2](batches/106.md#batch-106-item-2) | Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配 | C1 | 是 | C3、E |
+| [106-3](batches/106.md#batch-106-item-3) | 新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段 | C3 | 是 | C1、G |
+| [107-1](batches/107.md#batch-107-item-1) | 6 个独立库插件迁 `databases.partition` 并删业务表 `project_id` | E | 是 | C1 |
+| [107-2](batches/107.md#batch-107-item-2) | 当波删除 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 109-3） | C1 | 是 | E |
+| [108-1](batches/108.md#batch-108-item-1) | Todo、Jelly、Cognia、Images、Issues 迁分区作用域与 `databases.partition` | E | 是 | C1、C3 |
+| [108-2](batches/108.md#batch-108-item-2) | 个人空间总览上线（承接原 `64-3` 跨项目个人视图）与门禁 G4 | C3 | 是 | A、D、E |
+| [108-3](batches/108.md#batch-108-item-3) | 当波删除 `personal:true`、`hidden` 与 `project_reach`（`scope:"home"`、`outsideBuild` 链归 109-3） | C1 | 是 | D、E |
+| [109-1](batches/109.md#batch-109-item-1) | 主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半 | E | 是 | B、C3 |
+| [109-2](batches/109.md#batch-109-item-2) | Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类 | B | 是 | C1、C2 |
+| [109-3](batches/109.md#batch-109-item-3) | 第三方沙箱包开放 `databases.partition` + 彻底删除双实例与旧平行装配 | C1 | 是 | E |
+| [110-1](batches/110.md#batch-110-item-1) | 放置、搜索、记忆与角色去 `project_id: null` 业务双轨 | C3 | 是 | C2、E |
+| [110-2](batches/110.md#batch-110-item-2) | 同步收敛、线格式升版、分区启用清单独立同步（V4）与零唤醒发现 | G | 是 | C1、C3 |
+| [110-3](batches/110.md#batch-110-item-3) | MCP 个人空间显式绑定守卫 | C1 | 是 | — |
+| [111-1](batches/111.md#batch-111-item-1) | 星型单向版本化推送引擎、不预记补账、大快照分片与 CAS GC 保护 | C3 | 是 | C1、G |
+| [111-2](batches/111.md#batch-111-item-2) | 全部有业务对象的插件一次完成 `push` 声明（U8）与沙箱支持 | E | 是 | C1 |
+| [111-3](batches/111.md#batch-111-item-3) | 工作台界面定样落地、G1～G5 全量焊死、清退临时白名单与文档收尾 | D | 是 | C1、C3、E、F |
 | [SRV-3-1](batches/srv-3.md#srv-3-item-1) | 团队关键协作实现 | G | 是 | C、D、E |
 | [SRV-3-2](batches/srv-3.md#srv-3-item-2) | 双身份真实协作验证 | C | 否 | D、E、G |
 | [SRV-8-1](batches/srv-8.md#srv-8-item-1) | 自动更新与回退 | F | 是 | G |

@@ -71,7 +71,7 @@ import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingR
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
 import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { computeProjectRestingFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
-import { installedPluginsActiveWorkCount, installedPluginsHaveWork, releaseInstalledPlugins } from "./installed-plugin-host.js";
+import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -87,6 +87,7 @@ import { hostBlueprints } from "./blueprint-host.js";
 import { projectRuntimeSettingProvider } from "./project-runtime-setting-actions.js";
 import { workTerminalActionProvider } from "./work-terminal-service.js";
 import { pluginDataActionProvider } from "./plugin-data-export.js";
+import { stateMachineRegistryProvider } from "./state-machine-registry.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
 import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
@@ -316,6 +317,7 @@ export class MolisWorkLocalHost {
       mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantSettingsProvider(this.assistantStore), assistantDelegationProvider({ host: this, works: this.assistantStore,
         permissions: async () => (await readyAgentHost(this.plugins))?.workDelegations("prologue") })] : []),
+      stateMachineRegistryProvider(options.homeDirectory ? { homeDirectory: options.homeDirectory, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) } : undefined),
       ...(options.homeDirectory ? [acceptanceProvider(callerClient, this, projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId)), workTerminalActionProvider({ homeDirectory: options.homeDirectory, clientFor: callerClient, localHost: this, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) }), pluginDataActionProvider({ homeDirectory: options.homeDirectory, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) }), appearanceForHome(options.homeDirectory).provider(), evaluationForHome(options.homeDirectory, callerClient).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins, options.systemSkillsDirectory, options.completeText), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
@@ -638,7 +640,7 @@ export class MolisWorkLocalHost {
       const slept = await this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
         if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
         const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
-          || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsHaveWork(runtime.store, runtime.project_id));
+          || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsStarting(runtime.store, runtime.project_id));
         if (running !== false) return true;
         // What the project's own providers say is under way (a session waiting on a command, a sync), asked as the Home asks, quietly.
         return this.quietly(() => backgroundWorkUnderWay(homeAggregatePorts(this), reference));
@@ -665,7 +667,7 @@ export class MolisWorkLocalHost {
                 || Boolean(this.homePlugins?.hasProjectWork(project.project_id))
                 || agentStudioOpen(runtime.store, runtime.project_id)
                 || projectPluginsHaveWork(runtime.store, runtime.project_id)
-                || installedPluginsHaveWork(runtime.store, runtime.project_id);
+                || installedPluginsStarting(runtime.store, runtime.project_id);
               const persistable = project.state === "ready" && !this.host.isProjectBusy(project.storage_key) && !hasActiveWork;
               return {
                 reference: { project_id: project.project_id, storage_key: project.storage_key },
@@ -700,8 +702,8 @@ export class MolisWorkLocalHost {
   activeWorkCount(): number {
     let count = this.homePlugins?.activeWorkCount() ?? 0;
     for (const runtime of this.host.openRuntimes()) {
-      count += projectPluginsActiveWorkCount(runtime.store, runtime.project_id)
-        + installedPluginsActiveWorkCount(runtime.store, runtime.project_id);
+      // The installed plugins run on the project's platform, so their work is counted here once (47-1 B).
+      count += projectPluginsActiveWorkCount(runtime.store, runtime.project_id);
     }
     return count;
   }

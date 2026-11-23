@@ -4,7 +4,18 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertContract, SANDBOX_SDK_CONTRACT_DECLARATIONS } from '@molis-ai/molis-work-plugin-sandbox';
-import { BUILDER_PROMPTS, expandDesign, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign } from '@molis-ai/molis-work-plugin-builder';
+import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { BUILDER_PROMPTS, expandDesign as expandAnswer, expandType, normalizeProposal, parseModelJson, parseStep, validateAgentDesign, versionedStateMachines } from '@molis-ai/molis-work-plugin-studio';
+
+// Every design answers `states` (SMP-11). The cases below are each about another rule and their records have no state, which is
+// what an empty list says; the cases about `states` itself call `expandAnswer`.
+const stateless = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const answer = value as { design?: unknown; states?: unknown };
+  if (answer.design && typeof answer.design === 'object') return { ...answer, design: stateless(answer.design) };
+  return answer.states === undefined ? { ...answer, states: [] } : answer;
+};
+const expandDesign = (value: unknown, ...rest: Parameters<typeof expandAnswer> extends [unknown, ...infer Rest] ? Rest : never) => expandAnswer(stateless(value), ...rest);
 
 const base = { id: 'quick', title: '随手记', description: '写一句就保存', rationale: '最短路径', journey: ['写', '看'] };
 const strict = (design: ReturnType<typeof expandDesign>) => validateAgentDesign(design, [], [], contract => assertContract(contract));
@@ -14,7 +25,8 @@ test('the designer prompt example is itself a valid design once the host expands
   const start = text.indexOf('【mode = "detail" 的完整回答示例】') + '【mode = "detail" 的完整回答示例】'.length;
   const example = text.slice(start, text.indexOf('\n\nmode = "propose"', start)).trim();
   const dropped: string[] = [];
-  const design = strict(expandDesign(parseModelJson(example), base, 'io.molis.work.generated.example', 'r1', dropped));
+  const design = strict(expandAnswer(parseModelJson(example), base, 'io.molis.work.generated.example', 'r1', dropped));
+  assert.deepEqual(design.contract.state_machines, [], 'the example says its notes have no state');
   assert.deepEqual(dropped, [], 'the example must not rely on anything the host drops');
   assert.deepEqual(design.contract.operations.map(item => item.id), ['notes.list', 'notes.add', 'notes.remove']);
   assert.deepEqual(design.parts.find(part => part.id === 'remove')?.submit?.input, { id: { source: 'selection', componentId: 'notes', field: 'id' } });
@@ -48,6 +60,9 @@ test('one-line acceptance steps parse, and a single-field form needs no field na
   assert.deepEqual(parseStep('select notes #n1', parts, 's'), { action: 'select', componentId: 'notes', recordId: 'n1' });
   assert.deepEqual(parseStep('expect notes 新的一条 before 旧的一条', parts, 's'), { action: 'expectOrder', componentId: 'notes', texts: ['新的一条', '旧的一条'] });
   assert.deepEqual(parseStep({ action: 'expect', componentId: 'notes', text: '你好', absent: true }, parts, 's'), { action: 'expectAbsent', componentId: 'notes', text: '你好' });
+  // The name the written form uses is the same step when a designer writes it as an object; any other name is told the names there are.
+  assert.deepEqual(parseStep({ action: 'expect-not', componentId: 'notes', text: '你好' }, parts, 's'), { action: 'expectAbsent', componentId: 'notes', text: '你好' });
+  assert.throws(() => parseStep({ action: 'expectNot', componentId: 'notes', text: '你好' }, parts, 's'), /未知的验收步骤 expectNot；只支持 fill\/submit\/select\/expect\/expect-not\/page\/reload/u);
   assert.throws(() => parseStep('click somewhere', parts, 's'), /看不懂/);
 });
 
@@ -127,6 +142,10 @@ test('a form can take one field from another part and show a command result; the
   assert.equal(asker.submit?.outputPath, 'question');
   assert.deepEqual(answer.submit?.input, { concept: { source: 'form', field: 'concept', prefill: { componentId: 'asker', field: 'concept' } }, question: { source: 'form', field: 'question', prefill: { componentId: 'asker', field: 'question' } }, answer: { source: 'form', field: 'answer' } });
   assert.deepEqual(result.acceptance[0]!.steps[2], { action: 'expect', componentId: 'answer', text: '［模型替身］' }, '"包含" is a word of the step, not of the text');
+  // An input bound to "" is the empty text as a constant: it is read like any other constant, not a fault of the host (a real answer wrote it).
+  const blank = structuredClone(design);
+  (blank.pages[0]!.parts[1]!.submit as { input: Record<string, string> }).input = { concept: '', question: 'prefill:asker.question' };
+  assert.deepEqual(expandDesign(blank, base, 'io.molis.work.generated.x', 'r', []).parts.find(part => part.id === 'answer')!.submit?.input.concept, { source: 'literal', value: '' });
 });
 
 test('a prefilled field must exist in what it is taken from, before any code is written', () => {
@@ -837,4 +856,54 @@ test('every relative import in the SDK declarations written into a project names
       assert.ok(files.includes(target), `${file} imports ${specifier}, but ${target} is not among the project's declarations`);
     }
   }
+});
+
+test('SMP-11 a design says which field carries a record\'s state; the host checks it against the field\'s values and writes the Manifest from it', () => {
+  const status = '未读|在读|已读';
+  const books = (states: unknown) => ({ operations: [
+    { id: 'books.list', kind: 'query', input: {}, output: [{ id: 'string', title: 'string', status }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
+    { id: 'books.add', kind: 'command', input: { title: 'string(1..100) 书名' }, output: { id: 'string', title: 'string', status }, effects: { storage: ['read', 'write'] },
+      examples: [{ input: { title: '三体' }, includes: { title: '三体', status: '未读' } }] }],
+    pages: [{ id: 'home', title: '书单', parts: [
+      { id: 'editor', intent: 'input', purpose: '加一本书', props: { submitLabel: '添加' }, submit: 'books.add' },
+      { id: 'books', intent: 'collection', purpose: '看书单', props: { idField: 'id', titleField: 'title', emptyText: '还没有书' }, read: 'books.list' }] }],
+    acceptance: [{ id: 'add', description: '加一本', steps: ['fill editor.title = 三体', 'submit editor', 'expect books 三体'] }],
+    ...(states === undefined ? {} : { states }) });
+  const expand = (states: unknown) => strict(expandAnswer(books(states), base, 'io.molis.work.generated.books', 'r', []));
+  const manifest = (design: ReturnType<typeof expand>) => sandboxPluginManifest({ pluginId: design.contract.pluginId, version: '1.0.0', name: '书单', presentation: false,
+    publisher: { publisher_id: 'molis-studio', signature: 'ed25519:sha256:fixture-publisher' }, contract: design.contract });
+
+  assert.throws(() => expand(undefined), /缺少 states.*没有状态就写 "states": \[\]/u, 'an answer that leaves the declaration out goes back for it');
+  const none = expand([]);
+  assert.deepEqual(none.contract.state_machines, []);
+  assert.deepEqual(manifest(none).state_machines, [], 'and "no states" is itself declared');
+
+  const declared = { field: 'status', values: { 未读: 'unread', 在读: 'running', 已读: 'read' }, initial: '未读', terminal: ['已读'] };
+  const design = expand([declared]);
+  assert.deepEqual(design.contract.state_machines, [{ field: 'status', version: 1, states: declared.values, initial: '未读', terminal: ['已读'] }]);
+  assert.deepEqual(manifest(design).state_machines, [{ machine_id: 'io.molis.work.generated.books.status', version: 1,
+    states: { unread: 'unread', running: 'running', read: 'read' }, initial: 'unread', terminal: ['read'] }]);
+  // Two values of one family keep apart in the Manifest, in the order the field lists them.
+  const paused = expand([{ ...declared, values: { 未读: 'running', 在读: 'running', 已读: 'done' } }]);
+  assert.deepEqual(manifest(paused).state_machines![0]!.states, { running: 'running', 'running-2': 'running', done: 'done' });
+  assert.equal(manifest(paused).state_machines![0]!.initial, 'running');
+
+  for (const [wrong, refusal] of [
+    [{ ...declared, values: { 未读: 'unread', 在读: 'running' } }, /取值要和字段的枚举完全一致：字段是 未读\|在读\|已读，申报的是 未读\|在读/u],
+    [{ ...declared, values: { ...declared.values, 已读: 'finished' } }, /取值 已读 没有写可用的状态家族；可用：idle \/ /u],
+    [{ ...declared, initial: '想读' }, /initial 要是其中一个取值/u],
+    [{ ...declared, terminal: ['读完'] }, /terminal 要是不重复的取值列表/u],
+    [{ ...declared, field: 'title' }, /字段 title 在操作的输入输出里不是枚举/u],
+    [{ field: 'status', initial: '未读' }, /states 第 1 项：写成/u],
+  ] as const) assert.throws(() => expand([wrong]), refusal);
+  assert.throws(() => expand([declared, declared]), /重复申报了字段 status/u);
+
+  // A Manifest that says otherwise than its contract is not the one the Host writes: the contract is the only source.
+  assert.throws(() => assertContract({ ...design.contract, state_machines: [{ ...design.contract.state_machines![0]!, initial: '读完' }] }), /initial 要是其中一个取值/u);
+
+  // A machine's version follows what was last released: kept while nothing about it changed, one more when something did.
+  const first = design.contract.state_machines!;
+  assert.deepEqual(versionedStateMachines(first, undefined), first);
+  assert.equal(versionedStateMachines(first, [{ ...first[0]!, version: 3 }])[0]!.version, 3);
+  assert.equal(versionedStateMachines([{ ...first[0]!, terminal: [] }], [{ ...first[0]!, version: 3 }])[0]!.version, 4);
 });

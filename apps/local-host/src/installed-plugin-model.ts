@@ -1,0 +1,30 @@
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { hostTextGeneration, textModelRequired, type HostTextOptions } from './host-complete-text.js';
+import type { TextModelSelection } from './configured-models.js';
+import type { CapabilityImplementations, PluginModelCaller } from './installed-plugin-capabilities.js';
+import { PROMPT_ID, resolvePluginPrompt, type PluginPromptSource } from './installed-plugin-prompts.js';
+
+/** The Studio selects a model; the shared Host binding owns execution, credentials and cancellation. */
+export function createPluginModelGeneration(options: Pick<HostTextOptions, 'resolveInference'> & {
+  homeDirectory: string;
+  selection(): TextModelSelection | null;
+  declaredPrompts(pluginId: string, caller: PluginModelCaller | undefined): Promise<PluginPromptSource>;
+}): CapabilityImplementations['generate'] {
+  return async (pluginId, input, signal, beforeDispatch, caller) => {
+    signal.throwIfAborted();
+    if (typeof input.prompt !== 'string') throw new Error('调用模型时要指明用哪一段已声明的要求（prompt）');
+    if (!PROMPT_ID.test(input.prompt)) throw new Error('模型要求的 id 只能是小写字母、数字和连字符');
+    const source = await options.declaredPrompts(pluginId, caller);
+    await beforeDispatch?.();
+    signal.throwIfAborted();
+    const instruction = resolvePluginPrompt(options.homeDirectory, pluginId, input.prompt, source).body;
+    signal.throwIfAborted();
+    const selection = options.selection();
+    if (!selection) throw textModelRequired();
+    const generate = hostTextGeneration({ ...options, selection });
+    if (!generate) throw new ActionError('actions.connection_required', '所选文字模型已不可用，请重新检查模型设置');
+    const result = await generate(input.input || '（没有输入内容）', { system: instruction, signal, beforeDispatch,
+      timeoutMs: 110_000, maxOutputTokens: 8192 });
+    return { text: result.value };
+  };
+}

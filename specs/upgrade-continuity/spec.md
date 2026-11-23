@@ -4,6 +4,10 @@
 
 验收编号见 §9，前缀 `UPG`；U1、U2 设计新增的检查前缀 `UPG1`、`UPG2`，在各自设计里。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（U13/V7）：① 离线快照、恢复与库升级枚举全部统一经 `partitionRoot()` + `listPartitions()`（含 `<Home>/personal-space/` 与 `<分区根>/libraries/<库名>.db`）；② `44B` 与 `106`～`111` 在 M1 前按 Clean v1 拍平并每批重生 `0.1.0` 金样（v2+ 库经批准的一次性复位白名单复位并在 `111` 清退，不留旧结构兼容读取）；③ `REL-4`（U5 合同过渡）从 `111` 后的 Clean v1 合同起点生效；④ `73-3`（U7）显式排除并重建可重建的 `overview_projections` 与搜索索引。
+
 ## 1. 要解决的问题
 
 对照 main `2a582a2e9` 的现状：

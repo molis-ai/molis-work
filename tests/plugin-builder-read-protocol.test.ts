@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SandboxReadOperation } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { expandDesign, normalizeProposal, type AgentDesign, validateAgentDesign } from "@molis-ai/molis-work-plugin-builder";
+import { expandDesign, normalizeProposal, type AgentDesign, validateAgentDesign } from "@molis-ai/molis-work-plugin-studio";
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import { definePresentationValuesAction } from "@molis-ai/molis-work-plugin-sdk";
 import { packageContract, packageParts } from "./fixtures/sandbox-package.js";

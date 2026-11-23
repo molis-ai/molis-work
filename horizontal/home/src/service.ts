@@ -33,6 +33,7 @@ import {
   type HomePageVersion,
 } from "@molis-ai/molis-work-contracts/services/home";
 import { inspectHomePageDraft } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectHomePageDesign } from "./design-check.js";
 import { actionKey, type HomePagesStore } from "./store.js";
 
 export interface HomePagesPorts {
@@ -242,6 +243,13 @@ export async function previewHomePage(
   assertDirectUserOnly(caller, "只有本人可以打开生成首页草稿的试用会话");
   const store = ports.open(projectId);
   const verified = store.readFilesVerified(input);
+  const designReport = inspectHomePageDesign(verified.files);
+  if (!designReport.ok) {
+    const reasons = designReport.issues.filter(item => item.severity === "error").map(item => `${item.path}: ${item.reason}`);
+    throw homeErrors.draft_invalid(reasons.join("；") || "页面未通过安全与样式检查，不能进入预览", {
+      details: { issues: designReport.issues },
+    });
+  }
   await caller.beforeEffect();
   requireSynchronous(caller.assert_authority_current?.(), "打开首页试用会话前必须完成同步授权检查");
   caller.signal?.throwIfAborted();
@@ -260,6 +268,13 @@ export async function approveHomePage<Op extends HomePageApprovalOperation>(
   const store = ports.open(projectId);
   // Ensure the target version exists and its stored files pass SHA-256 integrity before approving.
   const verified = store.readFilesVerified({ page_id: input.page_id, version: input.version });
+  const designReport = inspectHomePageDesign(verified.files);
+  if (!designReport.ok) {
+    const reasons = designReport.issues.filter(item => item.severity === "error").map(item => `${item.path}: ${item.reason}`);
+    throw homeErrors.draft_invalid(reasons.join("；") || "页面未通过安全与样式检查，不能采用", {
+      details: { issues: designReport.issues },
+    });
+  }
   const declared = new Set(verified.version.actions.map(actionKey));
   for (const action of input.approved_actions) {
     if (!declared.has(actionKey(action))) {

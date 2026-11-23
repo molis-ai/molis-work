@@ -113,16 +113,23 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
     if (batchTarget?.dataset.orgBatchTarget && selected.size) {
       const groupId = batchTarget.dataset.orgBatchTarget;
       const ids = [...selected];
-      for (const itemId of ids) {
-        const latest = ports.read();
-        if (!latest) break;
-        const dest = latest.mainline.groups.find((g) => g.group_id === groupId);
-        await ports.call("/api/mainline/items/move", { expected_revision: latest.mainline.revision, item_id: itemId, group_id: groupId, index: dest?.items.length ?? 0 });
+      try {
+        for (const itemId of ids) {
+          const latest = ports.read();
+          if (!latest) break;
+          const dest = latest.mainline.groups.find((g) => g.group_id === groupId);
+          await ports.call("/api/mainline/items/move", { expected_revision: latest.mainline.revision, item_id: itemId, group_id: groupId, index: dest?.items.length ?? 0 });
+          await ports.refresh();
+        }
+        selected.clear();
+        await ports.notifyChanged();
+        paint();
+      } catch (error) {
+        const code = (error as { code?: string } | null)?.code;
         await ports.refresh();
+        paint();
+        ports.toast(code === "mainline.conflict" ? uiText.text("workbench.mainline.conflict-retry") : (error instanceof Error ? error.message : String(error)), true);
       }
-      selected.clear();
-      await ports.notifyChanged();
-      paint();
       return;
     }
     const up = target.closest<HTMLElement>("[data-org-up]");

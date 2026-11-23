@@ -221,9 +221,11 @@ export async function buildHomePageSrcdoc(options: {
     { page_id: options.loaded.version.page_id, version: options.loaded.version.version },
     options.isPreview,
   );
-  const allScripts = [bridgeScript, ...orderedScripts];
+  const normalizeLineEndings = (text: string): string => text.replace(/\r\n?/gu, "\n");
+  const allScripts = [bridgeScript, ...orderedScripts].map(normalizeLineEndings);
+  const normalizedStyles = inlinedStyles.map(normalizeLineEndings);
   const scriptHashes = await Promise.all(allScripts.map(sha256CspHash));
-  const styleHashes = await Promise.all(inlinedStyles.map(sha256CspHash));
+  const styleHashes = await Promise.all(normalizedStyles.map(sha256CspHash));
 
   const baseCssUrl = `${options.origin}/assets/molis-work-plugin-base.css`;
   const appearanceCssUrl = options.appearance?.stylesheet ? new URL(options.appearance.stylesheet, options.origin).href : null;
@@ -270,7 +272,7 @@ export async function buildHomePageSrcdoc(options: {
     el.textContent = text;
     return el.outerHTML;
   };
-  const styleTags = inlinedStyles.map(text => wrapRawTag("style", text)).join("");
+  const styleTags = normalizedStyles.map(text => wrapRawTag("style", text)).join("");
   const scriptTags = allScripts.map(text => wrapRawTag("script", text)).join("");
   const sprite = document.querySelector("svg.icon-sprite")?.outerHTML ?? "";
   const bodyHtml = parsed.body?.innerHTML ?? "";

@@ -301,8 +301,44 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"]'))`, WAIT_MS);
   const blockedBeforePick = await browser.evaluate<boolean>(`Boolean(document.querySelector('[data-hp-act="open-adopt"]')?.disabled)`);
   assert.equal(blockedBeforePick, true, "adopt button MUST be disabled while manual-edit conflict is unresolved");
-  await browser.evaluate(`document.querySelector('[data-hp-act="conflict-pick"][data-hp-pick="new"]').click()`);
+  // Choosing "merge" keeps adopt blocked so an unmerged AI draft cannot overwrite manual edits.
+  await browser.evaluate(`document.querySelector('[data-hp-act="conflict-pick"][data-hp-pick="merge"]').click()`);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"][data-hp-pick=""]'))`, WAIT_MS);
+  const blockedOnMerge = await browser.evaluate<boolean>(`Boolean(document.querySelector('[data-hp-act="open-adopt"]')?.disabled)`);
+  assert.equal(blockedOnMerge, true, "adopt button MUST remain disabled on 'merge' until edits are merged");
+  // Switching choice to "mine" and clicking primary MUST keep manual v1 active (NEVER adopt assistant v2)!
+  await browser.evaluate(`document.querySelector('[data-hp-act="conflict-pick"][data-hp-pick=""]').click()`);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"][data-hp-pick="mine"]'))`, WAIT_MS);
+  await browser.evaluate(`document.querySelector('[data-hp-act="conflict-pick"][data-hp-pick="mine"]').click()`);
   await browser.waitFor(`document.querySelector('[data-hp-act="open-adopt"]')?.disabled === false`, WAIT_MS);
+  await browser.evaluate(`document.querySelector('[data-hp-act="open-adopt"]').click()`);
+  await browser.waitFor(`document.querySelector('[data-home-compare]')?.hidden === true`, WAIT_MS);
+  const afterKeepMine = await client.post<HomePageOverview>(`/projects/${projectId}/api/home-pages/read`, {});
+  assert.equal(afterKeepMine.selection.kind, "page");
+  assert.equal(afterKeepMine.selection.version, 1, "choosing 'mine' MUST preserve manual v1 and never adopt assistant v2");
+
+  // 5c. Design/isolation check failure ("不过的页面不进预览"): draft with literal hex color is refused by preview backend AND opens compare alert with ZERO preview iframe!
+  const badDraft = probeDraft("检查不通过草稿", " .hp-panel { color: #ff00ff; }");
+  const badSaved = await client.post<{ version: HomePageVersion }>(`/projects/${projectId}/api/home-pages/drafts/save`, {
+    draft: badDraft,
+    page_id: v1.page_id,
+    expected_version: 2,
+  });
+  await assert.rejects(
+    () => client.post(`/projects/${projectId}/api/home-pages/preview`, { page_id: badSaved.version.page_id, version: badSaved.version.version }),
+    /home\.draft_invalid|字面颜色值/,
+    "backend home.pages.preview@1 MUST refuse drafts failing design/isolation check",
+  );
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${projectId}/` }, browser.sessionId));
+  await browser.waitFor(`Boolean(document.querySelector('[data-home-draft-banner] [data-hp-act="compare"]'))`, WAIT_MS);
+  await browser.evaluate(`document.querySelector('[data-home-draft-banner] [data-hp-act="compare"]').click()`);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-draft-stage] .mw-alert'))`, WAIT_MS);
+  const failedPreviewCheck = await browser.evaluate<{ hasIframe: boolean; adoptDisabled: boolean }>(`({
+    hasIframe: Boolean(document.querySelector('[data-hp-draft-stage] iframe')),
+    adoptDisabled: Boolean(document.querySelector('[data-hp-act="open-adopt"]')?.disabled),
+  })`);
+  assert.equal(failedPreviewCheck.hasIframe, false, `failed check draft v${badSaved.version.version} MUST NOT mount a preview iframe`);
+  assert.equal(failedPreviewCheck.adoptDisabled, true, "failed check draft MUST keep adopt disabled");
   await browser.evaluate(`document.querySelector('[data-hp-act="exit-compare"]').click()`);
   await browser.waitFor(`document.querySelector('[data-home-compare]')?.hidden === true`, WAIT_MS);
 

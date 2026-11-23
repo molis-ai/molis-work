@@ -87,7 +87,7 @@ export function mountHomePages(host: HomePagesUiHost) {
 
   const blocker = (): "check" | "conflict" | null => {
     if (compareInspect && !compareInspect.report.ok) return "check";
-    if (hasManualConflict() && !conflictChoice) return "conflict";
+    if (hasManualConflict() && (conflictChoice === null || conflictChoice === "merge")) return "conflict";
     return null;
   };
 
@@ -167,10 +167,8 @@ export function mountHomePages(host: HomePagesUiHost) {
 
     const activeRef = overview.selection.kind === "page" ? overview.selection : null;
     try {
-      const [inspect, preview, draftFiles, diff] = await Promise.all([
+      const [inspect, diff] = await Promise.all([
         host.api<InspectResponse>("/api/home-pages/inspect", "POST", ref),
-        host.api<HomePagePreviewResult>("/api/home-pages/preview", "POST", ref),
-        host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", ref),
         draft.based_on != null
           ? host.api<HomePageDiffResult>("/api/home-pages/diff", "POST", { page_id: draft.page_id, from_version: draft.based_on, to_version: draft.version }).catch(() => null)
           : Promise.resolve(null),
@@ -206,21 +204,36 @@ export function mountHomePages(host: HomePagesUiHost) {
         nowStage.innerHTML = `<p class="hp-quiet-note">${escapeHtml(uiText.text("workbench.home-pages.now-is-default"))}</p>`;
       }
 
-      compareDraftFrame = await mountHomePageFrame({
-        container: draftStage,
-        loaded: draftFiles,
-        pageSessionId: preview.page_session_id,
-        isPreview: true,
-        routePrefix: host.routePrefix,
-        headers: host.headers,
-        onCrash: reason => {
-          draftStage.innerHTML = renderAlert({
-            tone: "warning",
-            title: uiText.text("workbench.home-pages.preview-crashed-title"),
-            body: reason,
-          });
-        },
-      });
+      if (!inspect.report.ok) {
+        // Per Batch 37 design rule ("不过的页面不进预览"): never open a preview session or mount an iframe for a failed draft.
+        const firstReason = inspect.report.checks.find(c => c.severity === "error")?.issues[0]?.reason
+          ?? uiText.text("workbench.home-pages.preview-blocked-body");
+        draftStage.innerHTML = renderAlert({
+          tone: "danger",
+          title: uiText.text("workbench.home-pages.preview-blocked-title"),
+          body: firstReason,
+        });
+      } else {
+        const [preview, draftFiles] = await Promise.all([
+          host.api<HomePagePreviewResult>("/api/home-pages/preview", "POST", ref),
+          host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", ref),
+        ]);
+        compareDraftFrame = await mountHomePageFrame({
+          container: draftStage,
+          loaded: draftFiles,
+          pageSessionId: preview.page_session_id,
+          isPreview: true,
+          routePrefix: host.routePrefix,
+          headers: host.headers,
+          onCrash: reason => {
+            draftStage.innerHTML = renderAlert({
+              tone: "warning",
+              title: uiText.text("workbench.home-pages.preview-crashed-title"),
+              body: reason,
+            });
+          },
+        });
+      }
       renderCompareChrome();
       renderChrome();
     } catch (error) {
@@ -416,6 +429,18 @@ export function mountHomePages(host: HomePagesUiHost) {
         return;
       }
       if (act === "open-adopt" && comparingDraft && !blocker()) {
+        if (hasManualConflict() && conflictChoice === "mine" && comparingDraft.based_on != null) {
+          const baseRef: HomePageRef = { page_id: comparingDraft.page_id, version: comparingDraft.based_on };
+          const active = overview?.selection.kind === "page" ? overview.selection : null;
+          if (active && active.page_id === baseRef.page_id && active.version === baseRef.version) {
+            dismissedDraftKey = homePageRefKey(comparingDraft);
+            exitCompare();
+            host.receipt(uiText.text("workbench.home-pages.kept-mine-toast", { base: baseRef.version }));
+          } else {
+            void openApprovalDialog("restore", baseRef);
+          }
+          return;
+        }
         void openApprovalDialog("adopt", { page_id: comparingDraft.page_id, version: comparingDraft.version });
         return;
       }

@@ -209,7 +209,9 @@ function buildCheckItems(inspect: InspectResponse): CheckSummaryItem[] {
   };
   const items: CheckSummaryItem[] = inspect.report.checks.map(check => ({
     state: check.severity === "error" ? "blocked" : check.severity === "warning" ? "waiting" : "done",
-    text: check.issues.length ? `${labels[check.id]}：${check.issues[0]!.reason}` : labels[check.id],
+    text: check.issues.length
+      ? uiText.text("workbench.home-pages.check-item-issue", { label: labels[check.id], reason: check.issues[0]!.reason })
+      : labels[check.id],
   }));
   const missingDep = inspect.actions.filter(action => !action.available);
   if (missingDep.length) {
@@ -275,7 +277,7 @@ export function renderCompareChromeParts(options: {
           mineLabel: uiText.text("workbench.home-pages.conflict-mine", { base: draft.based_on ?? 1 }),
           mineValue: diff.files.map(f => f.path).join(uiText.text("common.list.separator")),
           nextLabel: uiText.text("workbench.home-pages.conflict-next", { v: draft.version }),
-          nextValue: `${draft.title}（${diff.files.length} 个文件变动）`,
+          nextValue: uiText.text("workbench.home-pages.conflict-next-summary", { title: draft.title, n: diff.files.length }),
           choices: [
             { label: uiText.text("workbench.home-pages.conflict-keep"), variant: "primary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "mine" } },
             { label: uiText.text("workbench.home-pages.conflict-use-new"), variant: "secondary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "new" } },
@@ -325,7 +327,9 @@ export function renderCompareChromeParts(options: {
       attrs: { "data-hp-act": "exit-compare" },
     }),
     primary: renderButton({
-      label: uiText.text("workbench.home-pages.adopt-ellipsis"),
+      label: hasManualConflict && conflictChoice === "mine"
+        ? uiText.text("workbench.home-pages.conflict-confirm-mine", { base: draft.based_on ?? 1 })
+        : uiText.text("workbench.home-pages.adopt-ellipsis"),
       variant: "primary",
       size: "sm",
       key: "↵",

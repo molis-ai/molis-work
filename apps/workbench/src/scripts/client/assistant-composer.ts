@@ -296,10 +296,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   pillClear.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    const carried = String(input.value || "");
     itemScopeDismissed = true;
     fresh = false;
     paintItemPill();
-    void switchTo(null).then(() => { syncComposer(); drawHead(); input.focus(); });
+    void switchTo(null).then(() => {
+      syncComposer();
+      drawHead();
+      if (carried && !String(input.value || "").trim()) setWords(carried);
+      input.focus();
+    });
   });
   function paintItemPill() {
     const wi = !boundPage && project ? activeWorkItem() : null;

@@ -70,11 +70,17 @@ export async function handleHomePagesHttp(
       return true;
     }
 
-    // 2. Close a live or preview home-page session (trusted outer shell only).
+    // 2. Close a live or preview home-page session (trusted outer shell only, project-scoped).
     const closeMatch = /^session\/([^/]+)$/u.exec(suffix);
     if (closeMatch && method === "DELETE") {
       refuseIfFramedPage(request, "生成页面不能直接管理首页会话");
-      pages.close(decodeURIComponent(closeMatch[1]!));
+      let sessionId: string;
+      try {
+        sessionId = decodeURIComponent(closeMatch[1]!);
+      } catch {
+        throw new ActionError("actions.input_invalid", "首页会话标识格式不正确");
+      }
+      pages.closeForProject(project.project_id, sessionId);
       sendLocalWebJson(response, 200, { closed: true });
       return true;
     }
@@ -121,6 +127,7 @@ export async function handleHomePagesHttp(
           item => item.capability_id === ref.capability_id && item.version === ref.version && item.provider.provider_id === ref.provider_id,
         );
         const pluginExplicit = Boolean(view?.action.audiences.includes("plugin"));
+        const audienceDenied = Boolean(view && !pluginExplicit);
         return {
           ...ref,
           title: view?.action.title ?? ref.capability_id,
@@ -131,9 +138,10 @@ export async function handleHomePagesHttp(
           external: Boolean(view?.action.external),
           metered: view?.action.execution?.cost === "metered",
           available: Boolean(pluginExplicit && view?.availability.available),
+          audience_denied: audienceDenied,
           unavailable_reason: !view
             ? "找不到这项动作，对应插件可能未安装"
-            : !pluginExplicit
+            : audienceDenied
               ? "这项动作未对页面开放"
               : view.availability.available
                 ? null
@@ -142,10 +150,10 @@ export async function handleHomePagesHttp(
       });
       const store = new HomePagesStore(heldHomeSqlite(homeDirectory, HOME_PAGES_HOME_STORE.path, HOME_PAGES_BASELINE), project.project_id);
       const pruned = store.prunedVersions(body.page_id);
-      const unavailableAction = actions.find(item => !item.available);
+      const forbiddenAction = actions.find(item => item.audience_denied);
       const report = inspectHomePageDesign(loaded.files, {
-        actionsValid: !unavailableAction || actions.every(item => item.unavailable_reason !== "这项动作未对页面开放"),
-        actionIssueReason: unavailableAction?.unavailable_reason ?? undefined,
+        actionsValid: !forbiddenAction,
+        actionIssueReason: forbiddenAction?.unavailable_reason ?? undefined,
       });
       sendLocalWebJson(response, 200, { version: loaded.version, actions, report, pruned });
       return true;

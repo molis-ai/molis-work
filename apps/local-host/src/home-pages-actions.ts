@@ -1,19 +1,9 @@
 import type { ActionCallContext, ActionExecutionContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { HOME_PAGE_CONTENT_TYPE, HOME_PAGE_DRAFT_SCHEMA, homePageActions, type HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
-import type { AdoptsDeclaration } from "@molis-ai/molis-work-contracts/platform/blueprints";
+import type { HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE, HomePagesStore, type HomePagesPorts } from "@molis-ai/molis-work-service-home";
 import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
-
-/** Content adoption declaration for `molis.home-page.v1` (scene-and-page-contract §6.5). */
-export const HOME_PAGE_ADOPTS_DECLARATION: AdoptsDeclaration = {
-  type: HOME_PAGE_CONTENT_TYPE,
-  title: { key: "workbench.project-home.project-home" },
-  schema: HOME_PAGE_DRAFT_SCHEMA,
-  adopt: { capability_id: homePageActions.saveDraft.capability_id, version: homePageActions.saveDraft.version },
-  read: { capability_id: homePageActions.read.capability_id, version: homePageActions.read.version },
-};
 
 /**
  * Host wiring for `horizontal/home`: borrows the Home's held SQLite connection (`home-pages/home-pages.db`), inspects

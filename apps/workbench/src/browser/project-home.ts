@@ -328,7 +328,7 @@ export function mountHome(host: HomeHost) {
     if (!visible() || clicking) return;
     if (key === "refresh") {
       if (display) caption("refreshing");
-      await sync();
+      await syncAll();
       return;
     }
     if (key === "market") { host.market(); return; }

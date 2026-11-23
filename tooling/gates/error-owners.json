@@ -254,6 +254,7 @@
     },
     "home": {
       "paths": [
+        "apps/local-host/src/home-page-authority.ts",
         "apps/local-host/src/home-pages-actions.ts",
         "apps/local-host/src/home-pages-http.ts",
         "horizontal/home/",

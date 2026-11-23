@@ -112,7 +112,7 @@ export function inspectHomePageDesign(
         designIssues.push({
           code: "literal_color",
           path: file.path,
-          severity: "warning",
+          severity: "error",
           reason: "样式里出现了字面颜色值，请改用工作台语义变量（如 var(--paper)、var(--ink)、var(--accent)、var(--amber)）",
         });
       }
@@ -152,7 +152,11 @@ export function inspectHomePageDesign(
     {
       id: "design_tokens",
       ok: designIssues.length === 0,
-      severity: designIssues.length === 0 ? "ok" : "warning",
+      severity: designIssues.some(item => item.severity === "error")
+        ? "error"
+        : designIssues.length === 0
+          ? "ok"
+          : "warning",
       issues: designIssues,
     },
   ];

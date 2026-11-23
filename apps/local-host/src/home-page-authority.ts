@@ -133,6 +133,13 @@ export class HomePageSessionRegistry {
     session.requests.clear();
   }
 
+  /** Closes a session only when it belongs to `projectId` (prevents cross-project session teardown). */
+  closeForProject(projectId: string, id: string): void {
+    const session = this.sessions.get(id);
+    if (!session || session.subject.project_id !== projectId) return;
+    this.close(id);
+  }
+
   /** Revokes every live adopted `home-page` session in `projectId` (called immediately on adopt / restore / select basic). */
   revokeLiveProject(projectId: string): void {
     for (const [id, session] of [...this.sessions]) {

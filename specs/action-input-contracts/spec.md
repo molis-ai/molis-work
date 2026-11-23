@@ -4,6 +4,10 @@
 
 验收编号前缀 `AIC`，见 §12。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：§8.2 N22 迁移矩阵按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)校准（排在 `111` 之后收口）：① Shelf 收归纯平台 `modules/shelf` 单套动作，解除原 `T06/S6` 双快照锁；② 删除已彻底移除的 Alchemist（原 `N22-Z`）、已退役的 Files 与已于 `#2243` 删除的 Text Stats；③ `T09/S5` 扩展覆盖 `109`（D6=B）迁入 `plugins/native/git` 的工作区 Git 与 `projects.workspace.writers.*` 动作；④ `T12/T13/S8/S9` 映射到终态 20 个平等 UPP 分区插件与纯平台 `system.*`。
+
 ## 0. 给人讲清楚
 
 这份设计管两件小而散的事，都关于「动作收到的输入」。

@@ -15,6 +15,10 @@
 
 Goal 事件协议、Artifact 版本语义、Module 事实所有权、MCP 工具契约不变。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：平台彻底废除个人插件/项目插件/Home 插件/双实例/常开插件之分（`always_on = 0`、`dual_instance = 0`、普通 `scope:"home" = 0`）；内置 20 个插件与第三方签名沙箱包完全共享同一套分区装配、单张 Home 安装表、`partition_plugins`、`databases.partition`、`services.personSettings` 与星型 `push` 契约；所有非宿主包禁用 `io.molis.work.*` 前缀（`S-reserved-host-prefix`）。
+
 ## 背景与目标
 
 我们有两套已经跑通的插件体系，强项正交：

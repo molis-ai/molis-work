@@ -65,23 +65,21 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   assert.deepEqual(env.host.callLog!.find(cliId).map(row => [row.capability_id, row.ok, row.actor_id]), [["project.approvals.request.read", true, LOCAL_PERSON_ACTOR_ID]],
     "the review read is settled once, as the platform's review action: the owner's own query under it leaves no row");
   const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] } };
-  const initialize = listed.result.tools.find(tool => tool.name === "molis_work_v1_initialize");
-  assert.ok(initialize, "management discovery does not require a Runtime gateway grant");
-  // PLIB-15 (S8): the tool keeps its name and no longer asks for a title: the project's name is the directory's, not Goals'.
-  assert.deepEqual(initialize.inputSchema.required, ["project_id", "idempotency_key"]);
-  assert.equal("title" in (initialize.inputSchema.properties ?? {}), false);
-  const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-    arguments: { database_path: alias, project_id: env.project.project_id, idempotency_key: `project-catalog-create-${env.project.project_id}` },
+  // 44B: management lists the platform's review and connection tools only; no plugin declares management tools.
+  assert.ok(listed.result.tools.some(tool => tool.name === "molis_work_v1_review_request"), "management discovery does not require a Runtime gateway grant");
+  assert.equal(listed.result.tools.some(tool => tool.name === "molis_work_v1_initialize"), false);
+  const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_review_request",
+    arguments: { database_path: alias, project_id: env.project.project_id, ...draft },
     _meta: { call_id: FORGED_CALL, "molis-work/callId": FORGED_CALL } } }) as { result: McpToolResult };
   assert.notEqual(reply.result.isError, true, JSON.stringify(reply.result));
-  const replay = JSON.parse(reply.result.content.find(block => block.type === "text")!.text);
-  assert.equal(replay.replayed, true, "management replays the Catalog initialization rather than creating a second Board");
-  oneRecord(env.host, env.project.project_id, reply.result._meta?.["molis-work/callId"], "goals.board.initialize");
+  const viaMcp = JSON.parse(reply.result.content.find(block => block.type === "text")!.text) as ReviewRequest;
+  assert.equal((viaMcp.reference as { owner: { project_id: string } }).owner.project_id, env.project.project_id, "the resident read the review in the alias's project");
+  oneRecord(env.host, env.project.project_id, reply.result._meta?.["molis-work/callId"], "project.approvals.request.read");
   assert.deepEqual(env.host.callLog!.find(FORGED_CALL), []);
   assert.deepEqual(fallbackOpened, [], "neither entry opens another project executor");
   assert.deepEqual(env.opened, [env.reference.storage_key], "the resident reuses its already-open catalog path");
-  const direct = await env.post({ ...env.body({ idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias });
-  assert.equal(direct.status, 200, "the gateway also canonicalizes an alias supplied directly");
+  const direct = await env.post({ ...env.body(), database_path: alias });
+  assert.equal(direct.body.code, "actions.missing", "the gateway also canonicalizes an alias supplied directly: the call reaches the platform");
 });
 
 test("W3-07-7-01 a stopped resident and a standalone database retain the original in-process management path", async t => {

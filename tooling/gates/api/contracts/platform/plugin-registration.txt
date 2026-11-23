@@ -166,16 +166,6 @@ export type PluginDistributionVerifier = (release: {
 
 export type PluginFrameStyleFeature = "coding-basics" | "coding-companions" | "composer" | "context-toolbar" | "detail-reading" | "input-receipts" | "interaction" | "keep-edits" | "presentation-form" | "settings-document" | "source-ladder";
 
-export interface PluginManagementActionDeclaration {
-    readonly capability_id: string;
-    readonly version: number;
-    readonly refused_identity_fields?: readonly string[];
-    readonly mcp_tool?: {
-        readonly name: string;
-        readonly opens_new_database?: true;
-    };
-}
-
 export interface PluginObservationCoverageDeclaration {
     readonly fact: string;
     readonly entries: readonly ("plugin" | "workbench" | "cli" | "mcp" | "agent" | "workflow" | "schedule" | "background" | "host" | "desktop")[];
@@ -190,7 +180,6 @@ export interface PluginRegistration {
     readonly observation?: {
         readonly coverage?: readonly PluginObservationCoverageDeclaration[];
     };
-    readonly management_actions?: readonly PluginManagementActionDeclaration[];
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;

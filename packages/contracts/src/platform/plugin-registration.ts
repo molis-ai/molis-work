@@ -166,18 +166,6 @@ export interface PluginObservationCoverageDeclaration {
   readonly record_kind?: "flow" | "content";
 }
 
-/** One management-entry action declared by a built-in plugin registration (resolved without hardcoding plugin IDs in Host). */
-export interface PluginManagementActionDeclaration {
-  readonly capability_id: string;
-  readonly version: number;
-  /** Additional identity fields refused in management payload input alongside `actor_id` and `actor_kind`. */
-  readonly refused_identity_fields?: readonly string[];
-  /**
-   * The management MCP tool this action is offered as (`molis_work_v1_<name>`, unique across the build). The tool's description and
-   * business fields are the action's own; `opens_new_database` lets a standalone management call create the project database it names.
-   */
-  readonly mcp_tool?: { readonly name: string; readonly opens_new_database?: true };
-}
 
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
 /**
@@ -196,8 +184,6 @@ export interface PluginRegistration {
   readonly observation?: {
     readonly coverage?: readonly PluginObservationCoverageDeclaration[];
   };
-  /** Optional actions exposed through the Host's management entry (e.g. management MCP). */
-  readonly management_actions?: readonly PluginManagementActionDeclaration[];
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
   readonly project_plugin_id: string;
   /** Position in the catalog, unique across the build; the derived lists keep this order. */

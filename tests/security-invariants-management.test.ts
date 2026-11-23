@@ -12,7 +12,9 @@ import { createMolisWorkLocalHost, runV1Cli } from "@molis-ai/molis-work-app-loc
 import { residentManagement } from "./fixtures/resident-management.js";
 
 test("S-03/S-07 W3-07-7-02 management HTTP refuses missing Origin, foreign Origin, token and key before any business write", async t => {
-  const env = await residentManagement(t), original = await env.facts();
+  const env = await residentManagement(t);
+  // A review the person can read, made before the facts below are taken.
+  const draft = await proposeChildGoal(managementGoals(env.host.actionClient(env.reference), env.project.project_id), "gate"), original = await env.facts();
   const refusals: Array<[Record<string, string | undefined>, number]> = [
     [{ origin: undefined }, 403], [{ origin: "http://evil.example" }, 403],
     [{ "x-molis-work-control-token": undefined }, 403], [{ "x-molis-work-control-token": "x".repeat(env.token.length) }, 403],
@@ -24,12 +26,12 @@ test("S-03/S-07 W3-07-7-02 management HTTP refuses missing Origin, foreign Origi
     assert.deepEqual(env.host.callLog!.find(body.call_id), []);
     assert.deepEqual(await env.facts(), original);
   }
-  const replayInput = { idempotency_key: `project-catalog-create-${env.project.project_id}` };
-  const key = randomUUID(), body = env.body(replayInput);
-  const replay = await env.post(body, { "x-molis-work-idempotency-key": key });
-  assert.equal(replay.status, 200); assert.equal((replay.body.result as { replayed: boolean }).replayed, true);
+  // Past the gate, the person's read of the review is answered; it writes nothing, and its key then belongs to that body.
+  const key = randomUUID(), body = env.body(draft);
+  const reached = await env.post(body, { "x-molis-work-idempotency-key": key });
+  assert.equal(reached.status, 200, JSON.stringify(reached.body));
   const accepted = await env.facts(), other = env.body();
-  assert.deepEqual(accepted, original, "a replay adds no second Board or event");
+  assert.deepEqual(accepted, original, "a read adds no event");
   assert.equal((await env.post(other, { "x-molis-work-idempotency-key": key })).status, 409);
   assert.deepEqual(env.host.callLog!.find(other.call_id), []);
   assert.deepEqual(await env.facts(), accepted);
@@ -47,7 +49,7 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
     [{ ...base, database_path: other.database_path }, "actions.scope_mismatch"],
     [{ ...base, project_id: other.project_id }, "actions.scope_mismatch"],
     [{ ...base, capability: { ...base.capability, provider_id: "forged" } }, "actions.input_invalid"],
-    // S8 (PLIB-15): the reset action is at 1; the previously served version 2 and the unused version 3 are both refused.
+    // Only the platform's review operations at their current version (44B: no plugin declares management actions).
     [{ ...base, capability: { ...base.capability, version: 2 } }, "actions.dependency_missing"],
     [{ ...base, capability: { ...base.capability, version: 3 } }, "actions.dependency_missing"],
     [{ ...base, capability: { capability_id: "goals.progress.record", version: 1 } }, "actions.dependency_missing"],
@@ -57,15 +59,16 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
     assert.equal("call_id" in reply.body, false); assert.deepEqual(await env.facts(), original);
   }
   assert.deepEqual(env.host.callLog!.find(base.call_id), []);
-  const identity = env.body({ idempotency_key: "forged", actor_id: "other-user" });
+  const identity = env.body({ ...base.input as object, actor_id: "other-user" });
   const refused = await env.post(identity); assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");
   assert.equal(refused.body.call_id, identity.call_id, "an action schema refusal has its original findable operation number");
   const diagnostic = env.host.callLog!.find(identity.call_id);
   assert.equal(diagnostic.length, 1);
-  assert.deepEqual([diagnostic[0]!.capability_id, diagnostic[0]!.actor_id, diagnostic[0]!.ok, diagnostic[0]!.code], ["goals.board.initialize", LOCAL_PERSON_ACTOR_ID, false, "actions.input_invalid"]);
+  assert.deepEqual([diagnostic[0]!.capability_id, diagnostic[0]!.actor_id, diagnostic[0]!.ok, diagnostic[0]!.code], ["project.approvals.request.read", LOCAL_PERSON_ACTOR_ID, false, "actions.input_invalid"]);
   assert.deepEqual(await env.facts(), original);
   const alias = join(env.home, "same-owner.db"); await symlink(env.project.database_path, alias);
-  assert.equal((await env.post({ ...env.body({ idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias })).status, 200);
+  // An alias of the catalog's database is the same project: the call reaches the platform instead of being refused as another one.
+  assert.equal((await env.post({ ...env.body(), database_path: alias })).body.code, "actions.missing");
 });
 
 for (const mode of ["cancel", "disconnect"] as const) {

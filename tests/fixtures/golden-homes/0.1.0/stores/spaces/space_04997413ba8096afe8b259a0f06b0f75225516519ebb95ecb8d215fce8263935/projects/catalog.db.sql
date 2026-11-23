@@ -208,7 +208,6 @@ INSERT INTO "project_catalog_replica_changes"("seq","key") VALUES(10,'project-ad
 INSERT INTO "project_catalog_replica_state"("id","device","cursor","applying") VALUES(1,'8e3e01ba15303331292d99fb71fe0893',0,0);
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-00b27ae7-6285-4eb9-bc32-b9e8003af5d2','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"goals"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-01b44781-d6ba-40f4-92d8-53f7d2bda12c','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"work-brief"}','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-0dd2cddd-f5d1-4cf4-ae32-77e793913085','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"text-stats"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-1e655f44-2253-4c1d-9fb8-ccdf73d346e0','personal','project.created','web-user','{"project_id":"personal"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-5333720d-6858-4223-9233-93b527dc3ab7','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"inbox"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-5e7c043d-545a-49f1-9ba6-b3ff38bc3e94','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"diff"}','2026-01-15T09:00:00.000Z');
@@ -226,7 +225,6 @@ INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('proje
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','inbox','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','risk','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','schedule','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','text-stats','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','work-brief','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('personal','schedule');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','coding');
@@ -237,7 +235,6 @@ INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','inbox');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','risk');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','schedule');
-INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','text-stats');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','work-brief');
 INSERT INTO "projects"("project_id","display_name","source","data_class","created_at","updated_at") VALUES('personal','个人空间','created','user','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');
 INSERT INTO "projects"("project_id","display_name","source","data_class","created_at","updated_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','金样账号项目','created','user','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');

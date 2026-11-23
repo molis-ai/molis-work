@@ -51,8 +51,13 @@ function currentWords(record: PluginInstanceRecord, supervisors: readonly (Plugi
 type ScopeSnapshot = { reference?: LocalHostProjectReference; installations: ScopeInstallation[] };
 
 export async function scopeInstallations(source: ProjectPluginHost, caller: ActionCallContext): Promise<ScopeSnapshot> {
-  const reference = caller.project_id ? source.host.projects().find(project => project.project_id === caller.project_id) : undefined;
-  if (caller.project_id && !reference) throw new ActionError("actions.scope_mismatch", "需要当前项目");
+  return scopeInstallationsFor(source, caller.project_id);
+}
+
+/** Scope installations for either a project (`projectId` non-null) or the personal Home (`projectId` null/undefined). */
+export async function scopeInstallationsFor(source: ProjectPluginHost, projectId?: string | null): Promise<ScopeSnapshot> {
+  const reference = projectId ? source.host.projects().find(project => project.project_id === projectId) : undefined;
+  if (projectId && !reference) throw new ActionError("actions.scope_mismatch", "需要当前项目");
   const home = source.homePlugins(), homeRows = await installedHomePlugins(home);
   const projectRows = reference ? await installedPluginsInProject(source, reference.project_id) : [];
   return collectInstallations(source, homeRows, reference, projectRows);

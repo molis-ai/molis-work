@@ -21,7 +21,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 
 const PROBE = "io.molis.work.example.fixture-probe";
 const SECOND = "io.molis.work.example.fixture-second";
-const SHIPPED = "io.molis.work.text-stats";
+const SHIPPED = "io.molis.work.diff";
 
 const shape = { scope: "project" as const, audiences: ["user" as const], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } };
 function hello(id: string): ActionDefinition<Record<string, never>, string> {

@@ -143,7 +143,9 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const named = manifest.ui.views?.[0]?.icon;
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
-    presentation: presentation !== undefined, upgradeCompatibility: manifest.upgrade_compatibility, stateMachines: manifest.state_machines, runtime: manifest.runtime, effects: permissions, contract,
+    presentation: presentation !== undefined, upgradeCompatibility: manifest.upgrade_compatibility, stateMachines: manifest.state_machines, runtime: manifest.runtime,
+    ...(manifest.memory_scene === undefined ? {} : { memoryScene: manifest.memory_scene }),
+    effects: permissions, contract,
     homeDatabase: manifest.databases?.home, projectDatabase: manifest.databases?.project, connections: manifest.connections, ownerFiles: manifest.owner_files?.entries,
     ...(icon ? { icon } : {}), textDeclarations: manifest, stageTitleText: manifest.ui.views?.[0]?.title_text });
   const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;

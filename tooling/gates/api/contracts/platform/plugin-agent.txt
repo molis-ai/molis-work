@@ -112,6 +112,14 @@ export declare const MAX_SKILL_BODY_CHARS = 20000;
 
 export declare const PLATFORM_SCENE_NAMES: readonly ["assistant", "common", "agent", "both"];
 
+export declare const PLUGIN_SCENE_SCHEMA: {
+    readonly type: "string";
+    readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+    readonly not: {
+        readonly enum: readonly ["assistant", "common", "agent", "both"];
+    };
+};
+
 export interface PluginMethodDeclaration extends AgentSkillDeclaration {
     description: string;
     applies_to: SkillAppliesTo;

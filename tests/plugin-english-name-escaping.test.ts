@@ -29,7 +29,7 @@ test("RAC-1727 RAC-2732-1 the shell's title data cannot terminate its inert JSON
 });
 
 test("RAC-1727 RAC-2732-3 the production market heading escapes the publisher title", () => {
-  const market = withHostileBuiltinView(() => renderPluginMarket(primitives, { developerMode: true }));
+  const market = withHostileBuiltinView(() => renderPluginMarket(primitives));
   assert.match(market, /<h2>&lt;\/script&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;<\/h2>/u);
   assert.doesNotMatch(market, /<img src=x/u);
 });

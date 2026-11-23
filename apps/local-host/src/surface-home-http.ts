@@ -207,8 +207,7 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
         requireSynchronous(transport.assert_authority_current?.());
         const deliverCurrent = (result: unknown) => { requireSynchronous(transport.assert_authority_current?.()); deliver(result); };
         if (intent.kind === "read") {
-          const display = await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport),
-            (entry, lead) => stageNavigation(entry, { kind: "stage", installation: lead.installation, view_id: lead.view_id }, prefix));
+          const display = await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport));
           sample.assertCurrent();
           const words = homeDirectory ? grantSurfaceHomeText(sample, display, { home: homeDirectory, project_id: reference.project_id, actor_id: caller.actor_id,
             record: installation => installation.scope === "home" ? owner.homePlugins?.installation(installation.install_id)

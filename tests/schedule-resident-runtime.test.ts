@@ -73,8 +73,8 @@ test("W2-18-SCHEDULE-01: persistent and gateway-created public jobs execute with
       const clock = scheduleServiceFor(runtime.store.db), reminders = clock.list(SCHEDULE_PLUGIN_ID);
       assert.equal(reminders.length, 2);
       assert.ok(reminders.every(job => !job.enabled && job.last_wakeup?.status === "ok"));
-      // Feed's own wakeup is the clock's one recurring job (FI-6): it stays on.
-      assert.deepEqual(clock.list().filter(job => job.enabled).map(job => [job.plugin_id, job.capability_id]), [[FEED_PLUGIN_ID, "feed.sources.wake"]]);
+      // With no auto-pull Feed sources, Feed registers no enabled wakeup job so the project can idle-sleep.
+      assert.deepEqual(clock.list().filter(job => job.enabled).map(job => [job.plugin_id, job.capability_id]), []);
     });
   } finally {
     await served.close(); await host.close();

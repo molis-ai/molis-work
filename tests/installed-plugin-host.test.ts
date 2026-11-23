@@ -260,26 +260,22 @@ test(`QEA-81 SYS-15-S1 Host restores ${installation} installed actions and sched
     assert.equal(await host.actionClient(ref).invoke(caller, action('read'), null), 'original data');
     await host.withProject(ref, async runtime => {
       const clock = scheduleServiceFor(runtime.store.db);
-      // Feed asks the clock for its own wakeup in the background (runtime-wake.ts:52-64); wait for it, for up to its own retry budget.
-      const feedJobs = () => clock.list(FEED_PLUGIN_ID).filter(job => job.capability_id === 'feed.sources.wake');
-      for (let waited = 0; !feedJobs().length && waited < 5_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
-      const own = clock.list(SCHEDULE_PLUGIN_ID).filter(job => job.capability_id === SCHEDULE_OPERATION_WAKEUP), feed = feedJobs();
+      // Demo Feed sources are manual: without an enabled auto-pull source, Feed leaves no enabled wakeup on the clock.
+      const feedJobs = clock.list(FEED_PLUGIN_ID).filter(job => job.capability_id === 'feed.sources.wake' && job.enabled);
+      const own = clock.list(SCHEDULE_PLUGIN_ID).filter(job => job.capability_id === SCHEDULE_OPERATION_WAKEUP);
       assert.equal(own.length, 1, JSON.stringify(clock.list()));
-      assert.equal(feed.length, 1, JSON.stringify(clock.list()));
-      // The tick happens late enough for both due tasks: whichever of them was registered later is not this test's contract,
-      // so compare against the tick's own moment instead of the two due times against each other.
-      const tickAt = new Date(Math.max(at + 1000, Date.parse(feed[0]!.next_due_at) + 1));
+      assert.equal(feedJobs.length, 0, JSON.stringify(clock.list()));
+      const tickAt = new Date(at + 1000);
       // RAC-1170: the tick reaches this test's own one-shot task, which is due and enabled at that moment; its operation's side
       // effect is the `read` answering 'scheduled' below, and the tick marks its last_wakeup done.
       assert.equal(own[0]!.enabled, true, JSON.stringify(clock.list()));
       assert.ok(Date.parse(own[0]!.next_due_at) <= tickAt.getTime(), JSON.stringify(clock.list()));
-      // RAC-1171: the receipt still counts every due task of the whole project clock — this one and Feed's wakeup.
+      // RAC-1171: the receipt counts every due task of the whole project clock (here only this one-shot operation).
       const due = clock.list().filter(job => job.enabled && Date.parse(job.next_due_at) <= tickAt.getTime());
-      assert.deepEqual(due.map(job => job.job_id).sort(), [own[0]!.job_id, feed[0]!.job_id].sort(), JSON.stringify(clock.list()));
-      assert.deepEqual(await clock.tick(tickAt), { invoked: 2, failed: 0, skipped: 0 }, JSON.stringify(clock.list()));
+      assert.deepEqual(due.map(job => job.job_id), [own[0]!.job_id], JSON.stringify(clock.list()));
+      assert.deepEqual(await clock.tick(tickAt), { invoked: 1, failed: 0, skipped: 0 }, JSON.stringify(clock.list()));
       assert.equal(clock.get(own[0]!.job_id)?.last_wakeup?.status, 'ok');
-      assert.equal(clock.get(feed[0]!.job_id)?.last_wakeup?.status, 'ok');
-      assert.deepEqual(clock.list().filter(job => job.enabled).map(job => [job.plugin_id, job.capability_id]), [[FEED_PLUGIN_ID, 'feed.sources.wake']]);
+      assert.deepEqual(clock.list().filter(job => job.enabled).map(job => [job.plugin_id, job.capability_id]), []);
       const builder = new AgentBuilderStore(studioStorage(runtime.store.db, DEMO_PROJECT_ID));
       assert.deepEqual(builder.get(fixture.draft.id), fixture.draft, 'restoring or executing an install does not resume the authoring Workflow');
       assert.equal(new SqlitePluginRuntimeRepository(runtime.store.db).get(fixture.install.install_id)?.manifest_digest, fixture.install.manifest_digest, 'no same-version manifest rewrite');

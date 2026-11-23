@@ -20,7 +20,8 @@ import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistr
 import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedRunsActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, missedPullRunId, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
+import { nextScheduleDueAt } from "@molis-ai/molis-work-service-scheduler";
 import { artifactsActions, ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -628,19 +629,203 @@ test("FI-C-04 an item synced from a research library is read by every read actio
   await assert.rejects(f.client.invoke(caller(BODIES, 1).context, feedQueryActions.item, { item_id: itemId }), { code: "actions.forbidden" });
 });
 
-test("RAC-518 the platform's clock wakes Feed: its job is set once, and a wakeup pulls what is due", async t => {
+test("RAC-518 the platform's clock wakes Feed on the exact earliest source due time, stays idle without auto-pull sources, and pulls what is due", async t => {
   const f = await syncing(t, { clock: true });
-  const jobs = () => f.clock().list(FEED_PLUGIN_ID).filter(job => job.capability_id === "feed.sources.wake");
-  // Feed asks from a job it keeps, once the installation is recorded as running.
-  for (let waited = 0; jobs().length === 0 && waited < 3_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
-  assert.equal(jobs().length, 1, "Feed asked for its own wakeup when it started");
-  assert.deepEqual([jobs()[0]!.recurrence, jobs()[0]!.enabled], [{ kind: "interval", interval_ms: 30_000 }, true]);
-  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 30 });
-  dueNow(f.store, f.sourceId);
-  const woke = await f.clock().tick(new Date(Date.now() + 60_000));
+  const wakeJobs = () => f.clock().list(FEED_PLUGIN_ID).filter(job => job.capability_id === "feed.sources.wake");
+  const enabledWakeJobs = () => wakeJobs().filter(job => job.enabled);
+  // With only manual sources, Feed registers no enabled wakeup job so the project can idle-sleep.
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.deepEqual(enabledWakeJobs(), [], "Feed leaves no enabled wake job when no source needs auto-pull");
+  assert.equal(nextScheduleDueAt(f.store.db), null);
+  const scheduled = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 30,
+  }) as { source: { schedule: { mode: "interval"; next_pull_at: string } } };
+  const firstDue = scheduled.source.schedule.next_pull_at;
+  assert.ok(Date.parse(firstDue) > Date.now() + 2 * 30_000, "the scheduled due time is well beyond two scheduler rounds");
+  assert.equal(enabledWakeJobs().length, 1, "scheduling a source registers one exact one-shot wake job atomically");
+  assert.deepEqual([enabledWakeJobs()[0]!.recurrence, enabledWakeJobs()[0]!.next_due_at], [{ kind: "once" }, firstDue]);
+  assert.equal(nextScheduleDueAt(f.store.db), firstDue);
+  // Ticking before the due time does not wake Feed.
+  assert.deepEqual(await f.clock().tick(new Date(Date.now() + 60_000)), { invoked: 0, failed: 0, skipped: 0 });
+  const woke = await f.clock().tick(new Date(Date.parse(firstDue) + 1));
   assert.deepEqual([woke.invoked, woke.failed], [1, 0]);
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 2, "the wakeup pulled the due source as the plugin");
-  assert.ok(jobs()[0]!.last_wakeup && jobs()[0]!.last_wakeup!.status === "ok");
+  assert.ok(wakeJobs().some(job => job.last_wakeup?.status === "ok"), "the completed wake job keeps its receipt");
+  const nextSchedule = JSON.parse((f.store.db.prepare("SELECT schedule_json FROM feed_sources WHERE source_id = ?").get(f.sourceId) as { schedule_json: string }).schedule_json) as { next_pull_at: string };
+  assert.ok(Date.parse(nextSchedule.next_pull_at) > Date.parse(firstDue), "the source's next pull advanced");
+  assert.equal(enabledWakeJobs().length, 1, "one next wake job is armed immediately after the pull");
+  assert.equal(nextScheduleDueAt(f.store.db), nextSchedule.next_pull_at);
+});
+
+test("BL-feed-precise-wakeup recomputes the exact earliest wake job across source create, schedule, update, pause, resume, disable, delete, and manual mode", async t => {
+  const f = await syncing(t, { clock: true });
+  const second = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, {
+    kind: "custom_rss", feed_url: "https://example.com/second-feed.xml", name: "Second Feed",
+  }) as { source: { source_id: string } };
+  const enabledWake = () => f.clock().list(FEED_PLUGIN_ID).filter(job => job.capability_id === "feed.sources.wake" && job.enabled);
+  assert.equal(nextScheduleDueAt(f.store.db), null);
+
+  const far = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 60,
+  }) as { source: { schedule: { next_pull_at: string } } };
+  const farDue = far.source.schedule.next_pull_at;
+  assert.equal(nextScheduleDueAt(f.store.db), farDue);
+  assert.ok(Date.parse(farDue) > Date.now() + 2 * 30_000, "a source due in 60 minutes allows idle sleep");
+
+  const nearer = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: second.source.source_id, mode: "interval", enabled: true, interval_minutes: 10,
+  }) as { source: { schedule: { next_pull_at: string } } };
+  const nearDue = nearer.source.schedule.next_pull_at;
+  assert.ok(Date.parse(nearDue) < Date.parse(farDue));
+  assert.equal(nextScheduleDueAt(f.store.db), nearDue, "adding an earlier source moves the wake time earlier");
+  assert.equal(enabledWake().length, 1);
+
+  await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.update, { source_id: second.source.source_id, name: "Second Feed Renamed" });
+  assert.equal(nextScheduleDueAt(f.store.db), nearDue, "updating metadata preserves the exact earliest wake time");
+
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: second.source.source_id, enabled: false });
+  assert.equal(nextScheduleDueAt(f.store.db), farDue, "pausing the earlier source moves the wake time to the remaining active source");
+
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: second.source.source_id, enabled: true });
+  assert.equal(nextScheduleDueAt(f.store.db), nearDue, "resuming the earlier source restores its earlier wake time");
+
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: second.source.source_id, mode: "interval", enabled: false, interval_minutes: 10,
+  });
+  assert.equal(nextScheduleDueAt(f.store.db), farDue, "disabling a source's interval schedule drops it from the wake computation");
+
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: second.source.source_id, mode: "interval", enabled: true, interval_minutes: 10,
+  });
+  await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: second.source.source_id, history_decision: "retain_history" });
+  assert.equal(nextScheduleDueAt(f.store.db), farDue, "deleting the earlier source moves the wake time back to the remaining source");
+
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: f.sourceId, mode: "manual" });
+  assert.deepEqual(enabledWake(), [], "switching the last scheduled source to manual disables the wake job");
+  assert.equal(nextScheduleDueAt(f.store.db), null);
+});
+
+test("BL-feed-precise-wakeup updates the exact wake time on pull failure, connector rate-limit backoff, account disconnect, and missed-run decisions", async t => {
+  const f = await syncing(t, { clock: true });
+  // 1) RSS failure consumes the slot and advances the wake job to the next interval rather than polling every 30s.
+  f.feeds.delete(f.entry.feed_url);
+  const scheduled = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 20,
+  }) as { source: { schedule: { next_pull_at: string } } };
+  const firstDue = scheduled.source.schedule.next_pull_at;
+  const failedWake = await f.clock().tick(new Date(Date.parse(firstDue) + 1));
+  assert.deepEqual([failedWake.invoked, failedWake.failed], [1, 0]);
+  const afterFailure = JSON.parse((f.store.db.prepare("SELECT schedule_json FROM feed_sources WHERE source_id = ?").get(f.sourceId) as { schedule_json: string }).schedule_json) as { next_pull_at: string };
+  assert.ok(Date.parse(afterFailure.next_pull_at) > Date.parse(firstDue));
+  assert.equal(nextScheduleDueAt(f.store.db), afterFailure.next_pull_at, "pull failure advances the wake job to the next scheduled interval");
+
+  // 2) Missed-run detection -> run_now moves the wake job back to the missed instant; skip & expired keep the future instant.
+  f.feeds.set(f.entry.feed_url, feedXml([{ id: "missed-recovered", title: "Recovered after run_now" }]));
+  const overdueDue = new Date(Date.now() - 30 * 60_000).toISOString();
+  f.store.db.prepare("UPDATE feed_sources SET schedule_json = json_set(schedule_json, '$.next_pull_at', ?) WHERE source_id = ?").run(overdueDue, f.sourceId);
+  f.store.db.prepare("UPDATE schedule_jobs SET next_due_at = ? WHERE plugin_id = ? AND enabled = 1").run(overdueDue, FEED_PLUGIN_ID);
+  const missedTick = await f.clock().tick(new Date());
+  assert.deepEqual([missedTick.invoked, missedTick.failed], [1, 0]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 0, "overdue slot is recorded as missed, not pulled immediately");
+  const afterMissed = JSON.parse((f.store.db.prepare("SELECT schedule_json FROM feed_sources WHERE source_id = ?").get(f.sourceId) as { schedule_json: string }).schedule_json) as { next_pull_at: string };
+  assert.equal(nextScheduleDueAt(f.store.db), afterMissed.next_pull_at, "missed slot advances the wake job to the future interval");
+
+  const runId = missedPullRunId(f.sourceId, overdueDue);
+  const decided = await f.client.invoke(caller(WRITE).context, feedRunsActions.decide, { run_id: runId, decision: "run_now" });
+  assert.deepEqual(decided, { state: "started" });
+  assert.equal(nextScheduleDueAt(f.store.db), overdueDue, "run_now immediately re-arms the wake job to the missed instant");
+  const runNowTick = await f.clock().tick(new Date());
+  assert.deepEqual([runNowTick.invoked, runNowTick.failed], [1, 0]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 1, "run_now wakes and pulls the missed slot once");
+  const afterRunNow = JSON.parse((f.store.db.prepare("SELECT schedule_json FROM feed_sources WHERE source_id = ?").get(f.sourceId) as { schedule_json: string }).schedule_json) as { next_pull_at: string };
+  assert.equal(nextScheduleDueAt(f.store.db), afterRunNow.next_pull_at);
+
+  // Recording another missed slot and skipping/expiring it keeps the source's future wake time intact.
+  const skippedDue = new Date(Date.now() - 45 * 60_000).toISOString();
+  const expiredDue = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  for (const due of [skippedDue, expiredDue]) {
+    f.store.db.prepare("INSERT INTO feed_missed_pulls (project_id, run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(DEMO_PROJECT_ID, missedPullRunId(f.sourceId, due), f.sourceId, "Feed", due, new Date().toISOString());
+  }
+  assert.deepEqual(await f.client.invoke(caller(WRITE).context, feedRunsActions.decide, { run_id: missedPullRunId(f.sourceId, skippedDue), decision: "skip" }), { state: "skipped" });
+  assert.equal(nextScheduleDueAt(f.store.db), afterRunNow.next_pull_at, "skip keeps the source's future wake time");
+  assert.deepEqual(await f.client.invoke(caller(WRITE).context, feedRunsActions.decide, { run_id: missedPullRunId(f.sourceId, expiredDue), decision: "run_now" }), { state: "gone" });
+  assert.equal(nextScheduleDueAt(f.store.db), afterRunNow.next_pull_at, "an expired missed run leaves the future wake time untouched");
+});
+
+test("BL-feed-precise-wakeup honors connector rate-limit retry_after_at backoff and account disconnect on the wake clock", async t => {
+  const retryAfterAt = new Date(Date.now() + 47 * 60_000).toISOString();
+  const f = await platform(t, {
+    clock: true, ledger: true,
+    provider: () => ({
+      type: "github",
+      async health() { return { ok: true, status: "connected", message: "ok" }; },
+      async sync() { return { ok: false, mode: "live", failure: "rate_limited", message: "Rate limited", action: "Wait", retryAfterAt }; },
+    }),
+  });
+  const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "RateLimit", token: "secret-rate-limit-token" }));
+  const sourceId = "feed-source-github-backoff";
+  const now = new Date().toISOString();
+  f.store.db.prepare(`INSERT INTO feed_sources (project_id, source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
+    credential_ref, account_label, last_sync_at, last_outcome, last_error_code, imported_at, updated_at)
+    VALUES (?, ?, 'github', 'github', 'github', 'GitHub Backoff', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(DEMO_PROJECT_ID, sourceId, now, now);
+  const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: sourceId });
+  withConnectorConnections(f.home, store => store.bind({ scopeId: scope, pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id }));
+  const scheduled = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
+    source_id: sourceId, mode: "interval", enabled: true, interval_minutes: 15,
+  }) as { source: { schedule: { next_pull_at: string } } };
+  const dueAt = scheduled.source.schedule.next_pull_at;
+  assert.equal(nextScheduleDueAt(f.store.db), dueAt);
+  const woke = await f.clock().tick(new Date(Date.parse(dueAt) + 1));
+  assert.deepEqual([woke.invoked, woke.failed], [1, 0], "rate-limited connector backoff is handled cleanly without tripping feed.source_changed");
+  assert.equal(nextScheduleDueAt(f.store.db), retryAfterAt, "wake clock arms the exact connector retry_after_at backoff timestamp");
+  await f.client.invoke(caller([...WRITE, "connections:use"]).context, feedSourceActions.disconnect, { source_id: sourceId });
+  assert.equal(nextScheduleDueAt(f.store.db), null, "disconnecting the last active scheduled source clears the wake clock");
+});
+
+test("BL-feed-precise-wakeup cleans up a legacy 30s interval wake job on plugin startup/recovery", async () => {
+  for (const mode of ["no-sources", "scheduled-source"] as const) {
+    const home = mkdtempSync(join(tmpdir(), `feed-legacy-wake-${mode}-`)), file = join(home, "project.db");
+    seedDemoBoard(file);
+    const store = new LocalProjectDatabase(file);
+    const futureDue = new Date(Date.now() + 45 * 60_000).toISOString();
+    const now = new Date().toISOString();
+    // Seed a legacy 30s interval wake row as written by older installations.
+    store.db.prepare(`INSERT INTO schedule_jobs (job_id, plugin_id, capability_id, object_ref, title, recurrence_kind, interval_ms, next_due_at, enabled, created_at, updated_at)
+      VALUES ('legacy-feed-wake', ?, 'feed.sources.wake', 'sources', '拉取到期的 Feed 来源', 'interval', 30000, ?, 1, ?, ?)`).run(FEED_PLUGIN_ID, now, now, now);
+    if (mode === "scheduled-source") {
+      store.db.prepare(`INSERT INTO feed_sources (project_id, source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
+        credential_ref, account_label, last_sync_at, last_outcome, last_error_code, imported_at, updated_at)
+        VALUES (?, 'legacy-rss', 'custom_rss', 'custom_rss', 'public_source', 'Legacy RSS', '', 'active', 1, 0, 'molis_work', '{"feed_url":"https://example.com/legacy.xml"}', ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`)
+        .run(DEMO_PROJECT_ID, JSON.stringify({ mode: "interval", enabled: true, interval_minutes: 45, next_pull_at: futureDue }), now, now);
+    }
+    const actions = pluginActions(store, DEMO_PROJECT_ID);
+    const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
+      eventCursor: (projectId: string) => store.eventCursor(projectId) };
+    const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: HOST_ACTOR, db: store.db, journal: store,
+      artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
+      privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+      home: standIn<NonNullable<Parameters<typeof createPluginPlatform>[0]["home"]>>({ directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) }),
+      scheduler: scheduleServiceFor(store.db) });
+    try {
+      await running.start([{ definition: createFeedPlugin(), trust: { level: "host" }, dual_instance: true }]);
+      const expected = mode === "no-sources" ? null : futureDue;
+      for (let waited = 0; nextScheduleDueAt(store.db) !== expected && waited < 3_000; waited += 25) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      assert.equal(nextScheduleDueAt(store.db), expected, `startup recovery reconciles legacy 30s interval job (${mode})`);
+      if (mode === "scheduled-source") {
+        const active = scheduleServiceFor(store.db).list(FEED_PLUGIN_ID).filter(job => job.enabled);
+        assert.equal(active.length, 1);
+        assert.deepEqual(active[0]!.recurrence, { kind: "once" });
+      }
+    } finally {
+      await running.closeCoordination();
+      for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
+      store.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
 });
 
 // RAC-507 (4e-2d)

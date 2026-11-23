@@ -1,6 +1,6 @@
 import { createFeedInformationPlanHandler } from "./information-plan.js";
 import { FEED_INSTRUCTIONS } from "./prompts.js";
-import { createFeedRunsHandlers } from "./missed-pulls.js";
+import { createFeedRunsHandlers, feedRunsActions } from "./missed-pulls.js";
 import { releaseHistoryPages } from "./history-pages.js";
 import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
@@ -30,7 +30,7 @@ import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
 import { isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./runtime-actions.js";
-import { keepFeedWakeup } from "./runtime-wake.js";
+import { createFeedWakeupCoordinator } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
 import { type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
@@ -47,6 +47,16 @@ import { createConnectionWatch, FEED_RECONCILE_ACTOR, keepFeedReconcile } from "
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
 /** The source actions after which an account source holds no account any more. */
 const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, feedSourceActions.delete.capability_id]);
+/** Commands whose writes can change whether or when a Feed source needs an automatic scheduled wakeup. */
+const WAKE_SENSITIVE = new Set([
+  feedSourceActions.register.capability_id,
+  feedSourceActions.update.capability_id,
+  feedSourceActions.schedule.capability_id,
+  feedSourceActions.enabled.capability_id,
+  feedSourceActions.disconnect.capability_id,
+  feedRunsActions.decide.capability_id,
+  feedDemoSeedAction.capability_id,
+]);
 
 /**
  * Feed as a Plugin Runtime plugin, one instance per project (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
@@ -92,6 +102,11 @@ export function createFeedPlugin(): PluginDefinition {
       ...createRuntimeJudgmentTriggers({ projectId, services: judgmentServices, feed: application, hydrate, staging }) });
     assembled = feed;
     const writer = createFeedWriter(database, ports);
+    const wakeup = createFeedWakeupCoordinator({
+      grants: context.grants, scheduler: services?.scheduler, database, wake: WAKE, feed, projectId,
+      withinTransaction: (beforeEffect, body) => database.transaction(beforeEffect, transaction => ports.within(transaction, FEED_RECONCILE_ACTOR, () => body(transaction))),
+    }, (caller, afterWrite) => writer.commit(caller, () => undefined, afterWrite));
+    const commitSource = <T>(caller: ActionExecutionContext, operation: () => T) => writer.commit(caller, operation, wakeup.sync);
     const sceneRuntime = createRuntimeSceneRuntime({ projectId, services: judgmentServices, feed, hydrate, staging, commit: (caller, body) => writer.commit(caller, body) });
     const later = (what: string) => (): never => { throw new ActionError("actions.dependency_missing", `${what}还没有接到平台服务`); };
     // The source vocabulary (catalog, normalizers, the HTTP cursor) is the platform's (`services.sourcePull.vocabulary`); without the permission, describing a source fails.
@@ -121,11 +136,11 @@ export function createFeedPlugin(): PluginDefinition {
     // Writes of a sync or a deletion happen after they have waited, so each is a commit of this call's own (`commit`); the plain
     // source actions run inside the action's own transaction and need no transaction of their own.
     const sourcesFor = (caller: ActionExecutionContext) => new FeedSourceService({ feed, providers, acquireSync: lease, appendEvent, transaction: operation => operation(),
-      commit: operation => writer.commit(caller, operation),
+      commit: operation => commitSource(caller, operation),
       syncRepository: (source, input) => {
         const repository = sourcePull?.repository;
         if (!repository) throw new ActionError("actions.dependency_missing", "Feed 没有读取研究库的权限");
-        return syncResearchLibrary({ feed, read: (request, options) => repository.read(request, options), commit: operation => writer.commit(caller, operation) }, source, input);
+        return syncResearchLibrary({ feed, read: (request, options) => repository.read(request, options), commit: operation => commitSource(caller, operation) }, source, input);
       },
       sourcePull,
       holdContent: async (source, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: source.source_id, content_refs: [...contentRefs] }); },
@@ -136,10 +151,11 @@ export function createFeedPlugin(): PluginDefinition {
         forget: forget ? operationIds => forget(operationIds) : null }) }, projectId);
     const connectorSync = (caller: ActionExecutionContext) => {
       if (!connections || !connector) throw new ActionError("actions.dependency_missing", "Feed 没有使用账号来源的权限");
-      return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => writer.commit(caller, operation),
+      return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => commitSource(caller, operation),
         acquireSync: lease, appendEvent });
     };
     const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, accountSources: connector, wake: WAKE,
+      wakeAt: wakeup.wakeAt, afterWake: wakeup.afterWake,
       retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
     // The Goal is read as the caller before its linked material is, so the material of a Goal the caller cannot read is not given.
     const linkedContext = async (input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext) => {
@@ -193,12 +209,13 @@ export function createFeedPlugin(): PluginDefinition {
     ];
     const declared = new Set(FEED_PROJECT_ACTIONS.map(idOf)), own = new Set([...SELF_COMMITTING, WAKE].map(idOf));
     const mine = bindings.filter(binding => declared.has(idOf(binding)));
-    keepFeedWakeup(services?.background, { grants: context.grants, scheduler: services?.scheduler, database, wake: WAKE });
+    wakeup.start(services?.background);
     // What no call sets right: the Home's ledger names every body the library keeps, and an account source follows its account. An event
     // delivery has no action scope of its own, so it only wakes the kept job, which has.
     const watch = createConnectionWatch();
     keepFeedReconcile(services?.background, { feed, projectId, connections, commit: (control, body) => writer.commitAs(control, FEED_RECONCILE_ACTOR, body),
-      hold: dependencies ? async (sourceId, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: sourceId, content_refs: [...contentRefs] }); } : undefined }, watch);
+      hold: dependencies ? async (sourceId, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: sourceId, content_refs: [...contentRefs] }); } : undefined,
+      onSourceStateChanged: wakeup.markDirty }, watch);
     // The page's requests only adapt HTTP to Feed's own actions, called as the person who made the request (their authority, not Feed's).
     const person = services?.actions;
     const routes = (feedManifest.routes ?? []).map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
@@ -210,7 +227,8 @@ export function createFeedPlugin(): PluginDefinition {
     } }));
     return { kind: "app", sync: syncBindings(context), views: [feedUiContribution], action_scenes: [sceneRuntime.handler], routes,
       onEvent: (_event, delivery) => { delivery.beforeEffect(); watch.changed(); }, actions: [
-      ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding)))),
+      ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding))),
+        (capabilityId, transaction) => { if (WAKE_SENSITIVE.has(capabilityId)) wakeup.sync(transaction); }),
       ...mine.filter(binding => own.has(idOf(binding))),
     ] };
   } };

@@ -5,7 +5,8 @@ const PROTECTED_DOCUMENTS = ["docs/system/", "docs/releases/", "docs/platform/",
 const GATE_RULE_TEST_INPUTS = [
   "tests/health-gates-", "tests/ci-", "tests/run-tests-", "tests/first-screen-",
   "tests/fixtures/home-store-schemas/", "tests/fixtures/studio-replay/", "tests/fixtures/builder-designer/",
-  "tests/doc-reference-gates.test.ts", "tests/translation-check.test.ts", "tests/package-inventory-gate.test.ts",
+  "tests/doc-reference-gates.test.ts", "tests/doc-reference-gates-", "tests/fixtures/doc-reference-gates.ts",
+  "tests/translation-check.test.ts", "tests/package-inventory-gate.test.ts",
   "tests/vendor-provenance.test.ts", "tests/verify-release-versions.test.ts", "tests/version-source.test.ts",
   "tests/secret-scan.test.ts", "tests/cursor-skill-links.test.ts", "tests/native-checks.test.mjs",
   "tests/page-assets-budget.test.ts", "tests/plugin-styles-gate.test.ts", "tests/dom-events-contract.test.ts",
@@ -56,6 +57,11 @@ const accountLoginInput = (file) => rootConfig(file) || packageConfig(file) || s
 
 // The wide affected-test index follows explicit readers. These groups also cover indirect
 // imports and data that the rules open at runtime. Other tooling/fixtures keep the full suite.
+const DOC_REFERENCE_TESTS = [
+  "tests/doc-reference-gates.test.ts",
+  "tests/doc-reference-gates-violations-1.test.ts",
+  "tests/doc-reference-gates-violations-2.test.ts",
+];
 const GATE_INPUTS = [
   // The security invariant regressions exercise these on every code build.
   { inputs: ["scripts/check-secrets.mjs", "tooling/gates/secret-allowlist.txt", "scripts/gates/dual-instance.mjs"], tests: [] },
@@ -68,7 +74,7 @@ const GATE_INPUTS = [
     tests: ["tests/health-gates-browser-fetch.test.ts", "tests/health-gates-source-counts.test.ts", "tests/health-gates-merge-base.test.ts"] },
   { inputs: ["scripts/verify-release-versions.mjs", "scripts/generate-versions.mjs", "scripts/version-source.mjs", "scripts/gates/version-declarations.mjs",
     "tooling/versions.json", "tooling/gates/version-exceptions.json", "docs/releases/"],
-    tests: ["tests/verify-release-versions.test.ts", "tests/version-source.test.ts", "tests/doc-reference-gates.test.ts"] },
+    tests: ["tests/verify-release-versions.test.ts", "tests/version-source.test.ts", ...DOC_REFERENCE_TESTS] },
   { inputs: ["scripts/gates/page-assets.mjs", "scripts/gates/page-assets-", "scripts/gates/first-screen.mjs",
     "scripts/first-screen/", "scripts/first-screen-report.mjs", "scripts/gates/plugin-styles.mjs", "tests/fixtures/plugin-styles-build.ts",
     "tooling/gates/page-asset-budgets.json", "tooling/gates/page-asset-allowances/", "tooling/gates/first-screen.json", "tooling/gates/plugin-styles.json"],
@@ -85,7 +91,7 @@ const GATE_DATA = [
     tests: ["tests/health-gates-store-schemas.test.ts", "tests/health-gates-store-versions.test.ts"] },
   { inputs: ["tests/ci-shard-weights.json"], tests: ["tests/ci-shard-weights.test.ts", "tests/run-tests-shard.test.ts", "tests/ci-product-subset-plan.test.ts", "tests/ci-test-selection.test.ts"] },
   { inputs: ["docs/system/DEVELOPMENT-REQUIREMENTS.md"], tests: ["tests/affected-tests.test.ts", "tests/package-inventory-gate.test.ts"] },
-  { inputs: ["tooling/gates/README.md"], tests: ["tests/doc-reference-gates.test.ts", "tests/health-gates-action-input-counts.test.ts"] },
+  { inputs: ["tooling/gates/README.md"], tests: [...DOC_REFERENCE_TESTS, "tests/health-gates-action-input-counts.test.ts"] },
   { inputs: ["docs/platform/UI-PLATFORM.md", "tests/fixtures/web-route-table.snapshot.json", "tests/fixtures/goals-page-golden/golden.json"], tests: [] },
 ];
 const apiSnapshot = /^tooling\/gates\/api\/.+\.txt$/;
@@ -126,7 +132,7 @@ function decideGateRules(changed, affectedTests) {
       files.add("tests/package-inventory-gate.test.ts");
       files.add("tests/affected-tests.test.ts");
     } else if (file === "docs/SSOT-MATRIX.md" || file === "docs/system/PACKAGE-BOUNDARIES.md") {
-      files.add("tests/doc-reference-gates.test.ts");
+      for (const test of DOC_REFERENCE_TESTS) files.add(test);
       files.add("tests/package-inventory-gate.test.ts");
     } else if (file.includes("/locales/") && packageContent.test(file)) {
       files.add("tests/translation-check.test.ts");

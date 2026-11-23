@@ -329,7 +329,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | 条目 | 当前证据与可清理部分 | 应保留什么/执行方式 |
 | --- | --- | --- |
 | [BL-1039](../../docs/backlog-removed.md) | 现行首次使用按钮已区分未连接/已连接，`tests/context-onboarding-action-copy.e2e.test.ts:22` 覆盖；第27批 action-copy spec §验证已有隔离实操证据 | 可关闭“未实现”的工程记录；本人验收并入 BL-batch27-acceptance，保留原编号到墓碑，不代签本人验收 |
-| [BL-1040](../backlog/BL-1040.md) | `plugins/native/git/src/browser/source.ts:103-124` 已将状态改普通文字、缺远端隐藏 PR；`tests/git-source-controls.e2e.test.ts:18` 覆盖真实本地仓库、AX 与键盘 | 可关闭重复工程记录，剩余体验认可并入第27批验收；与 QF-03 的刷新/冲突草稿恢复不是同一问题 |
+| [BL-1040](../../docs/backlog-removed.md) | `plugins/native/git/src/browser/source.ts:103-124` 已将状态改普通文字、缺远端隐藏 PR；`tests/git-source-controls.e2e.test.ts:18` 覆盖真实本地仓库、AX 与键盘 | 可关闭重复工程记录，剩余体验认可并入第27批验收；与 QF-03 的刷新/冲突草稿恢复不是同一问题 |
 | [BL-040](../backlog/BL-040.md) | `packages/contracts/src/platform/plugin-sandbox.ts:121` 和 SDK sandbox-read-protocol 已有 subject_context；“生成插件不能声明对象读取器”过宽 | 已纠正正文：保留搜索来源与创作台草稿动作层缺口，区分read_protocol与ui.subject_context，未删除整条 |
 | [BL-055](../backlog/BL-055.md) | `packages/plugin-sandbox/src/runner.ts:31` 已是真实子进程沙箱，“当前进程内执行器”描述失效 | 已删除过时进程内括注；保留Jev质量/延迟、实际平台边界验证及跨项目草稿，负责人不变 |
 | [BL-observation-b28-known-limits](../backlog/BL-observation-b28-known-limits.md) | 正文已记录第29批补齐①②③、后续修⑥ | 完成子项移到来源 spec 的证据段，BL 只留④⑤等当前残余；不因列表里有已做项删整条 |

@@ -18,6 +18,8 @@ import { fileURLToPath } from "node:url";
 const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 const ciScript = fileURLToPath(new URL("../scripts/ci-health-base.mjs", import.meta.url));
 let repo = "";
+const quickBaseline = ".git/molis-health-baseline.json";
+let cleanBaseline = "";
 
 const gitAt = (dir: string, ...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args],
   { cwd: dir, encoding: "utf8", stdio: "pipe" });
@@ -80,6 +82,7 @@ before(() => {
   vendored("vendor/prologue-sdk/a.tgz", "a");
   git("add", "-A");
   assert.equal(gate("--update").code, 0);
+  cleanBaseline = read(quickBaseline);
   commit("base");
 });
 after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
@@ -87,7 +90,8 @@ after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 // Start a branch from the base, add one violation, commit it.
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
-  assert.equal(gate("--update").code, 0);
+  // The quick baseline lives in .git and survives checkout. Start each mutation with the bytes measured on main.
+  put(quickBaseline, cleanBaseline);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();

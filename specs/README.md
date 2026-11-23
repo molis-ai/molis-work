@@ -24,7 +24,6 @@
 - [第 35 批复核修复](batch-35-audit-fixes/spec.md) 覆盖 Sessions 接续、Coding A 期与共享附件。负责人 Codex。工程验证和本人验收进度见规格书。
 - [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
 - [第 61 批复核修复](batch-61-audit-fixes/spec.md)：Codex，在独立分支修复 #2133 的采用、触达、账号选择与搜索问题；实施与验证见该需求书。
-- [页面刷新、成果动作和固定变更的 SDK 收口](sdk-contract-closeouts/spec.md)，负责人 Codex，实施与验证见需求书。
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
@@ -168,6 +167,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-23：[页面刷新、成果动作和固定变更的 SDK 收口](archive/sdk-contract-closeouts/spec.md)归档（已实现，负责人 Codex）。[#2274](https://github.com/molis-ai/molis-work/pull/2274) 已合入 `main`（`6c2de22521`），三项验收完成。
 
 - 2026-11-13：个人同步六份、Prologue 四份、情境三份分别合并为一份总纲 + 子文档；原正文保留，子文档开头注明原路径，现行文档的入链已改到新位置，历史研究里的旧 URL 保留。工作线两份保留，见「相关 spec 族」。
 - 2026-11-13：文档收口 P0 归档五份已完成 spec：[D0002](archive/daily-quality-d0002/spec.md)（#1970）、[D0071](archive/daily-quality-d0071/spec.md)（#1972）、[D0039](archive/daily-quality-d0039/spec.md)（#1971）、[D0244](archive/daily-quality-d0244/spec.md)（#1974）与 [D0038](archive/daily-quality-d0038/spec.md)（#1982）；五份均判定已实现、无剩余。Feed 有界读取因 #2045 补修在评审，保留在「在做的」。同期立项 [documentation-consolidation](documentation-consolidation/spec.md)，记录审计结论与 P0/P1/P2。

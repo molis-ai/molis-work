@@ -625,8 +625,8 @@ test("55-3 T3-02 reopened decisions survive pagination and explicit close across
   for (const project of ["project-b", "project-a"]) {
     for (let i = 0; i < 50; i++) {
       db.run(`INSERT INTO todo_batches(batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision)
-        SELECT ?, ?, origin, method, title, ?, 'done', '2099-01-01', updated_at, 1 FROM todo_batches WHERE batch_id = ?`,
-        [project + i, project, JSON.stringify({ materials: [], candidates: [], reference_only: [], notes: [] }), batch.batch_id]);
+        SELECT ?, ?, origin, method, title, ?, ?, '2099-01-01', updated_at, 1 FROM todo_batches WHERE batch_id = ?`,
+        [project + i, project, JSON.stringify({ materials: [], candidates: [], reference_only: [], notes: [] }), project === "project-b" ? "open" : "done", batch.batch_id]);
     }
     assert.deepEqual((await f.agentA.invoke(organize.list, {})).batches, [reopened]);
     await assert.rejects(f.agentA.invoke(organize.get, { id: "project-b0" }), { code: "todo.not_found" });

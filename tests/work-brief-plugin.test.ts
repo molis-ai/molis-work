@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
-import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
+import { createHomeWorkBriefPlugin, WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
 import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
-import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
+import { createSyncConflictState, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
+import { createSqliteReplica, namespacedReplicaDatabase, homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
 // Work Brief in a project that has no Goals: its sources are whatever the directory offers (here Risk), read as the caller.
@@ -493,12 +494,25 @@ test("WBR-07 clear an interrupted step after replacement and reopen, then retry 
     const owner = briefCollection.create(db, { actorId: caller.actor_id, spaceId: "test-space", authorize() {},
       canUploadProject: () => true, hasArtifact: () => true, project: () => ({ title: "项目" }) });
     const key = JSON.stringify([here.project_id, "brief", brief_id]), value = owner.read(key);
-    assert.ok(value);
-    assert.throws(() => owner.apply(key, value), { code: "work_brief.conflict" });
+    assert.ok(value && typeof value === "object" && "brief" in value && value.brief && typeof value.brief === "object");
+    const namespace = pluginSyncNamespace(createHomeWorkBriefPlugin().manifest, "briefs");
+    const replica = createSqliteReplica(namespacedReplicaDatabase(db, namespace), { ...owner, authorize() {}, conflictState: createSyncConflictState });
+    const remoteTitle = "另一台设备的简报";
+    const event = { key, operationId: "other-device:1", base: 0, revision: 1, value: { ...value, brief: { ...value.brief, title: remoteTitle } } };
+    replica.receive(event);
+    const pending = replica.inspectConflict!(key);
+    assert.ok(pending);
+    assert.deepEqual(pending.remote, JSON.parse(JSON.stringify(event.value)));
+    assert.throws(() => replica.resolve(key, "remote", pending.revision, pending.state), { code: "work_brief.conflict" });
     assert.equal(await code(call(workBriefActions.runNext, step)), "work_brief.option_stale");
     await call(workBriefActions.setNext, { ...step, state: null });
-    owner.apply(key, value);
-    assert.deepEqual((await call<BriefView>(workBriefActions.get, { brief_id })).marks, []);
+    const reviewed = replica.inspectConflict!(key);
+    assert.ok(reviewed);
+    replica.resolve(key, "remote", reviewed.revision, reviewed.state);
+    assert.deepEqual(replica.conflicts(), []);
+    const received = await call<BriefView>(workBriefActions.get, { brief_id });
+    assert.equal(received.brief!.title, remoteTitle);
+    assert.deepEqual(received.marks, []);
     assert.equal(calls, 1);
   } finally { db.close(); }
 });

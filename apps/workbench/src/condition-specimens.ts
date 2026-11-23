@@ -48,7 +48,8 @@ export function renderConditionsSection(say: Say, lang: WebLocale = DEFAULT_WEB_
   </section>`;
 }
 
-export const CONDITIONS_SECTION_STYLES = `.mw-cond-params{display:flex;flex-wrap:wrap;gap:12px 20px;margin:0 0 16px}.mw-cond-param{display:grid;gap:6px;font-size:12px;color:var(--muted)}`
+export const CONDITIONS_SECTION_STYLES = `.mw-cond-params{display:flex;flex-wrap:wrap;gap:12px 20px;margin:0 0 16px}.mw-cond-param{display:grid;gap:6px;min-width:0;max-width:100%;font-size:12px;color:var(--muted)}`
+  + `.mw-cond-param > .mw-toggle-group{flex-wrap:wrap}`
   + `.mw-cond-frame{display:block;max-width:100%;height:1180px;border:0;border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow)}`;
 
 /** The strip's program, written in `src/browser/board/conditions-section.ts` and bundled into `dist/` when the package builds. */

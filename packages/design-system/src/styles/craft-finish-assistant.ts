@@ -290,13 +290,17 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-empty-title { margin: 10px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-empty-title:first-child { margin-top: 0; }
   ${ASSIST} .assistant-start { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   ${ASSIST} .assistant-start:hover { background: var(--nav-active); }
   ${ASSIST} .assistant-start:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-start-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-start-state { flex: none; color: var(--muted); font-size: 12px; }
-  ${ASSIST} .assistant-empty-list > :nth-child(2) { animation-delay: 30ms; } ${ASSIST} .assistant-empty-list > :nth-child(3) { animation-delay: 60ms; }
-  ${ASSIST} .assistant-empty-list > :nth-child(4) { animation-delay: 90ms; } ${ASSIST} .assistant-empty-list > :nth-child(n + 5) { animation-delay: 120ms; }
+  ${ASSIST} .assistant-empty-list > :nth-child(-n + 4 of .assistant-start) {
+    animation: craft-rise var(--dur-move) var(--ease-quint) both;
+    &:nth-child(2 of .assistant-start) { animation-delay: var(--dur-stagger); }
+    &:nth-child(3 of .assistant-start) { animation-delay: calc(var(--dur-stagger) * 2); }
+    &:nth-child(4 of .assistant-start) { animation-delay: calc(var(--dur-stagger) * 3); }
+  }
   ${ASSIST} .assistant-empty-hint { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
   ${ASSIST} .assistant-copy { align-self: flex-start; position: relative; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;

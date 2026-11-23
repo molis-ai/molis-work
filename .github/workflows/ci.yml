@@ -122,11 +122,10 @@ jobs:
     permissions:
       contents: read
       actions: read
-    name: Gates
-    needs: [test-selection, queue-check, build]
-    # Runs whenever `build` succeeded, or on a documentation-only PR/merge-group (where `build` is skipped and only the
-    # non-build checks run). Skipped on a push to main already verified by the merge queue.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (needs.build.result == 'success' || ((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only')) }}
+    name: Gates / Source
+    needs: [test-selection, queue-check]
+    # Source checks and their self-tests can start while the build runs.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -170,19 +169,66 @@ jobs:
         continue-on-error: true
         run: node scripts/check-spec-coverage.mjs
 
+      - name: Test durations
+        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      # Gate self-tests (mutation-verified on scratch repos); skipped when no gate/workflow input changed.
+      - name: Gate rules reject what they claim to
+        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/gate-node-cache
+          SELECTED_GATE_TESTS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'some' && needs.test-selection.outputs.gate_rule_files || '' }}
+        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS" --gate-rule-group source
+
+  gates-built:
+    permissions:
+      contents: read
+      actions: read
+    name: Gates / ${{ matrix.slice }}
+    needs: [test-selection, queue-check, build]
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        slice: [contracts, page-budgets]
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build.outputs.dist-artifact }}
           path: ${{ runner.temp }}/dist
-        if: ${{ needs.build.result == 'success' }}
 
       - name: Unpack build outputs
-        if: ${{ needs.build.result == 'success' }}
         run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       - name: Test durations
-        if: ${{ needs.build.result == 'success' }}
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
@@ -191,13 +237,13 @@ jobs:
 
       # Boundary rules on the shared build outputs.
       - name: Verify package contracts and boundaries
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         run: pnpm boundary:test:built && node scripts/check-package-boundaries.mjs
 
       # Route / surface payload budgets (including plugin iframe runtime & /desktop/pty-client.js) + merge-base budget ratchet.
       - name: Page asset budgets (against the merge-base)
         id: page-assets
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'page-budgets' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
@@ -207,7 +253,7 @@ jobs:
           base="$(node scripts/ci-health-base.mjs)"
           node scripts/gates/page-assets.mjs --base "$base" --output "$RUNNER_TEMP/page-assets/measurement.json"
       - name: Save measured page assets
-        if: ${{ needs.build.result == 'success' && steps.page-assets.outputs.artifact != '' }}
+        if: ${{ matrix.slice == 'page-budgets' && steps.page-assets.outputs.artifact != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.page-assets.outputs.artifact }}
@@ -217,7 +263,7 @@ jobs:
       # FSS-BG-05: real selected-Home HTTP sampling against first-screen route cold/warm ceilings + merge-base budget ratchet.
       - name: First-screen budgets (against the merge-base)
         id: first-screen
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'page-budgets' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
@@ -227,7 +273,7 @@ jobs:
           base="$(node scripts/ci-health-base.mjs)"
           node scripts/gates/first-screen.mjs --base "$base" --output "$RUNNER_TEMP/first-screen/measurement.json"
       - name: Save measured first screen
-        if: ${{ needs.build.result == 'success' && steps.first-screen.outputs.artifact != '' }}
+        if: ${{ matrix.slice == 'page-budgets' && steps.first-screen.outputs.artifact != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.first-screen.outputs.artifact }}
@@ -241,7 +287,7 @@ jobs:
       # just made, so it comes after it. tooling/gates/plugin-styles.json is compared with the merge-base's copy, so a PR
       # cannot raise a number or add a plugin to the budget by editing that file, only by changing the gate, which is reviewed.
       - name: Plugin style budgets (against the merge-base)
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'page-budgets' }}
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
@@ -251,12 +297,12 @@ jobs:
           node scripts/gates/plugin-styles.mjs --base "$base"
 
       - name: Typecheck product launchers
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         run: pnpm exec tsc --noEmit -p tsconfig.json
 
       # Batch 100-2: per-file TypeScript diagnostic ratchet for tests/ (new test files start at 0; existing files may only shrink).
       - name: Typecheck tests ratchet (against the merge-base)
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
@@ -266,21 +312,21 @@ jobs:
           node scripts/gates/test-typecheck.mjs --base "$base"
 
       - name: Verify Goal boundaries
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
           node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
       - name: Build product contracts hold
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
 
       - name: Alchemist plugin tests
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
 
       - name: Studio Skill replay
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
@@ -291,27 +337,38 @@ jobs:
 
       # Action directory, Manifest and MCP grant contracts (2 concurrent workers to avoid stdio MCP test contention).
       - name: Action and plugin contracts
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         env:
           MOLIS_WORK_TEST_JOBS: 2
         run: pnpm test:contracts
 
-      # These also prove S-19 and S-48. Every code build runs them, including PRs with no other affected gate rule.
+      - name: Build gate rules reject what they claim to
+        if: ${{ matrix.slice == 'page-budgets' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/gate-node-cache
+          SELECTED_GATE_TESTS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'some' && needs.test-selection.outputs.gate_rule_files || '' }}
+        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS" --gate-rule-group budgets
+
+      # These prove S-19 and S-48 on every code build.
       - name: Security invariant gate regressions
-        if: ${{ needs.build.result == 'success' }}
+        if: ${{ matrix.slice == 'contracts' }}
         run: node scripts/run-tests.mjs tests/secret-scan.test.ts tests/health-gates-dual-instance.test.ts
 
       - name: Studio Skill replay rules reject what they claim to
-        if: ${{ needs.build.result == 'success' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.studio_replay_mode == 'none') }}
+        if: ${{ matrix.slice == 'contracts' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.studio_replay_mode == 'none') }}
         run: node scripts/run-tests.mjs tests/studio-replay.test.ts
 
-  # Gate tool regressions use the same checkout and build as Gates. Verify waits for both.
+  # Health gate regressions share the build artifact. Verify waits for each weighted shard.
   gate-rules:
-    name: Gate rule regressions
+    name: Gates / health-${{ matrix.shard }}
     needs: [test-selection, queue-check, build]
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (needs.build.result == 'success' || ((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only')) && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && needs.build.result == 'success' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
       MOLIS_WORK_TEST_JOBS: 4
     steps:
@@ -344,11 +401,11 @@ jobs:
         if: ${{ needs.build.result == 'success' }}
         run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
-      - name: Gate rules reject what they claim to
+      - name: Health gates reject what they claim to
         env:
           NODE_COMPILE_CACHE: ${{ runner.temp }}/gate-node-cache
           SELECTED_GATE_TESTS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'some' && needs.test-selection.outputs.gate_rule_files || '' }}
-        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"
+        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS" --gate-rule-group health --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
@@ -618,10 +675,10 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [build, account-login, gates, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
+    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
-    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the consolidated gates job, secret scan, Rust/Swift/shell checks, account login, security invariants, product subset and golden replay run here.
+    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the source and build-dependent gates, secret scan, Rust/Swift/shell checks, account login, security invariants, product subset and golden replay run here.
     runs-on: ubuntu-latest
     steps:
       # The base this run's health gates and secret scan compared with, in the step's name so the GitHub API returns it (T-129): in
@@ -636,6 +693,7 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           ACCOUNT_LOGIN_RESULT: ${{ needs.account-login.result }}
           GATES_RESULT: ${{ needs.gates.result }}
+          GATES_BUILT_RESULT: ${{ needs.gates-built.result }}
           GATE_RULES_RESULT: ${{ needs.gate-rules.result }}
           GATE_RULES_MODE: ${{ needs.test-selection.outputs.gate_rules_mode }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
@@ -674,6 +732,7 @@ jobs:
             selected_skip "$ACCOUNT_LOGIN_MODE" none "$ACCOUNT_LOGIN_RESULT"
           fi
           test "$GATES_RESULT" = "success"
+          test "$GATES_BUILT_RESULT" = "success" || selected_skip "$DOCUMENTATION_MODE" only "$GATES_BUILT_RESULT"
           test "$GATE_RULES_RESULT" = "success" || selected_skip "$GATE_RULES_MODE" none "$GATE_RULES_RESULT"
           test "$SECRET_SCAN_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success" || selected_skip "$SHELL_MODE" none "$SHELL_CHECKS_RESULT"

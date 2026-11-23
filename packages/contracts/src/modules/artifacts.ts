@@ -262,8 +262,14 @@ export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
   ): ArtifactConsumptionCompatibility;
 }
 
+// The store validates and normalizes these open JSON fields when it writes a version.
+type FixedVersionRegistrationInput<I extends RecordFixedVersionInput> = Omit<I, "content" | "metadata"> & {
+  content: { kind: "inline"; payload: unknown } | ReferencedArtifactContent;
+  metadata?: unknown;
+};
+
 export interface FixedVersionCommandApi<R extends FixedVersionRecord, I extends RecordFixedVersionInput> {
-  registerVersion(input: I): FixedVersionResult<R>;
+  registerVersion(input: FixedVersionRegistrationInput<I>): FixedVersionResult<R>;
   markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R>;
   archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R>;
 }

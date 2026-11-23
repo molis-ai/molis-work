@@ -17,6 +17,8 @@
 | **对象转换 / 发送到别处** | 走 `horizontal/placement` 公开动作与统一 `host.showToast` | 不跨插件直接 import 内部模块或操作另一插件数据库表 |
 | **实时运行流（SSE）** | 经平台受控 SSE 路由 + `molisWorkRequest(..., { as: "response", signal })` + `readEventStream` | 严禁裸 `fetch` 与无法带会话凭证头的裸 `new EventSource`；撤权/切号即时断流 |
 
+已打开的插件视图跟随数据变化时，客户端用公开的 `UiClientScope.watchRevision`，服务端用 `services.ui.invalidate()`。固定版本的对比沿用选择时的引用。用法见 [UI 平台](../../docs/platform/UI-PLATFORM.md#原生客户端生命周期)。
+
 ---
 
 ## 2. 插件舞台布局选型与「列表—详情」标准方向（不要万物硬套同一套模子）

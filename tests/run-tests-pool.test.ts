@@ -208,16 +208,16 @@ test("conditional", { skip: existsSync(${JSON.stringify(marker)}) }, () => {
   }
 });
 
-test("--retries: a file that fails and then passes is listed as flaky and does not fail the run; one that fails every time still does", () => {
+test("--retries: retry in the same slot, keep going, and report recovered and permanent failures", () => {
   const made = directory();
   const write = (name: string, body: string) => { const file = path.join(made, name); writeFileSync(file, `import test from "node:test";\nimport { existsSync, writeFileSync } from "node:fs";\ntest(${JSON.stringify(name)}, () => { ${body} });\n`); return file; };
   const marker = path.join(made, "tried");
   const flaky = write("flaky.test.mjs", `if (!existsSync(${JSON.stringify(marker)})) { writeFileSync(${JSON.stringify(marker)}, ""); throw new Error("first try fails"); }`);
   const steady = write("steady.test.mjs", "");
-  const once = spawnSync(process.execPath, [runner, "--retries", "1", "--jobs", "2", flaky, steady], { encoding: "utf8", timeout: 120_000 });
+  const once = spawnSync(process.execPath, [runner, "--retries", "1", "--jobs", "1", flaky, steady], { encoding: "utf8", timeout: 120_000 });
   const output = `${once.stdout}${once.stderr}`;
   assert.equal(once.status, 0, output);
-  assert.match(output, /\[retry 1\] ok\s+\S*flaky\.test\.mjs/);
+  assert.match(output, /\[retry 1\] ok\s+\S*flaky\.test\.mjs[\s\S]*\[2\/2\] ok\s+\S*steady\.test\.mjs/);
   assert.match(output, /2 of 2 files passed \(1 only on a retry\)/);
   assert.match(output, /flaky, failed and then passed on a retry \(1\):\n\s+\S*flaky\.test\.mjs/);
   assert.doesNotMatch(output, /^failed \(/m);
@@ -357,7 +357,8 @@ test("single file with explicit --retries or --timeout-seconds enters the coordi
 
 test("strata: VISUAL_AUDIT_TESTS exist on disk, isGateMetaTest excludes only gate/CI self-tests, and --exclude-* flags filter before sharding", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
-  assert.equal(VISUAL_AUDIT_TESTS.length, 13);
+  assert.equal(VISUAL_AUDIT_TESTS.length, 26);
+  assert.equal(new Set(VISUAL_AUDIT_TESTS).size, VISUAL_AUDIT_TESTS.length, "each visual audit entry is listed once");
   for (const file of VISUAL_AUDIT_TESTS) {
     assert.equal(existsSync(path.join(root, file)), true, `${file} exists`);
     assert.equal(isVisualAuditTest(file), true, file);

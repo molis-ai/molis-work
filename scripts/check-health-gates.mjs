@@ -662,13 +662,15 @@ const api = apiSnapshots();
 const errors = [...growth(), ...limitErrors(), ...callBudgetErrors(), ...absolute(), ...storeVersions(), ...storeSchemas(), ...versionOrigin(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
-  process.exit(1);
+  // Gate self-tests capture both streams through pipes. Let Node drain them before exiting.
+  process.exitCode = 1;
+} else {
+  const lowered = METRICS.filter((metric) => metric.lowered(head[metric.id], reference[metric.id])).map((metric) => metric.id);
+  let hint = "";
+  // --base never reads the checkout-local health baseline: it may be missing, old or rewritten without changing this comparison.
+  if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in the local Git health baseline.`;
+  else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
+  const registered = Object.keys(head.giant).filter((unit) => registeredEntry(unit) !== undefined).length;
+  console.log(`Health gates passed against ${against} (${summaryOf(head)}${api.summary ? `, ${api.summary}` : ""}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
+  for (const note of api.notes) console.log(`Note: ${note}`);
 }
-const lowered = METRICS.filter((metric) => metric.lowered(head[metric.id], reference[metric.id])).map((metric) => metric.id);
-let hint = "";
-// --base never reads the checkout-local health baseline: it may be missing, old or rewritten without changing this comparison.
-if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in the local Git health baseline.`;
-else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
-const registered = Object.keys(head.giant).filter((unit) => registeredEntry(unit) !== undefined).length;
-console.log(`Health gates passed against ${against} (${summaryOf(head)}${api.summary ? `, ${api.summary}` : ""}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
-for (const note of api.notes) console.log(`Note: ${note}`);

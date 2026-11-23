@@ -1,9 +1,11 @@
 // CIP-09: regression coverage for the workflow contract, alongside the existing install, timeout, product and runner cases.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readdirSync } from "node:fs";
 import test from "node:test";
 import { matchesGlob } from "node:path";
 import { decideChecks } from "../scripts/ci-check-selection.mjs";
+import { gateRuleFiles } from "../scripts/run-tests/strata.mjs";
 import { evaluateExpression, fullSuiteWorkflow, jobBlock, stepScript, testRunsInJob, workflowFiles } from "./fixtures/ci-workflow.js";
 
 const change = (...paths: string[]) => ({ changes: paths.map(path => ({ path })), tests: [], full: [], uncovered: [] });
@@ -31,7 +33,7 @@ test("CIP-01 CIP-02 CIP-04 documentation selection rejects mixed, protected, unk
 });
 
 test("CIP-12 VG-14: changing version rules, inputs or their test runs the version self-test", () => {
-  const job = jobBlock("gate-rules"), file = "tests/version-source.test.ts";
+  const job = jobBlock("gates"), file = "tests/version-source.test.ts";
   for (const input of ["tooling/versions.json", "scripts/version-source.mjs", "scripts/generate-versions.mjs", "scripts/gates/version-declarations.mjs", "tooling/gates/version-exceptions.json", file]) {
     const gate = decideChecks({ affected: change(input) }).gate_rules;
     assert.equal(gate.mode, "some", input);
@@ -95,6 +97,11 @@ test("CIP-12 directory walkers and indirect rule imports still run for their inp
   assert.ok(files("tests/ci-shard-weights.json").includes("tests/run-tests-shard.test.ts"));
   assert.ok(files("scripts/gates/browser-graph.mjs").includes("tests/health-gates-browser-fetch.test.ts"));
   assert.ok(files("scripts/gates/browser-graph.mjs").includes("tests/health-gates-source-counts.test.ts"));
+  for (const input of ["tooling/versions.json", "tooling/gates/README.md", "docs/system/PACKAGE-BOUNDARIES.md"]) {
+    for (const file of ["tests/doc-reference-gates.test.ts", "tests/doc-reference-gates-violations-1.test.ts", "tests/doc-reference-gates-violations-2.test.ts"]) {
+      assert.ok(files(input).includes(file), `${input} selects ${file}`);
+    }
+  }
 });
 
 test("CIP-05 shell, studio replay and account-login checks follow their own inputs", () => {
@@ -134,11 +141,18 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
       for (const result of ["failure", "cancelled", "skipped"]) assert.equal(Boolean(evaluateExpression(condition, scope(event, result))), true, `${name}: ${result} runs full`);
     }
   }
-  // On doc-only PRs / merge groups, `build` is skipped and `gates` still runs its non-build checks.
+  // The source jobs can finish without a build. Only a successful build can start its consumers.
   const gatesCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock("gates"))![1]!;
+  const built = jobBlock("gates-built");
+  const builtCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(built)![1]!;
+  assert.match(jobBlock("gates"), /^    needs: \[test-selection, queue-check\]$/m);
   for (const event of ["pull_request", "merge_group"]) {
-    assert.equal(Boolean(evaluateExpression(gatesCond, { ...scope(event), "needs.build.result": "skipped" })), true, `${event}: gates runs when build skipped on doc-only change`);
-    assert.equal(Boolean(evaluateExpression(gatesCond, { ...scope(event, "success", { documentation_mode: "code" }), "needs.build.result": "failure" })), false, `${event}: gates does not run when build failed on code change`);
+    for (const result of ["failure", "cancelled", "skipped"]) {
+      const context = { ...scope(event), "needs.build.result": result };
+      assert.equal(evaluateExpression(gatesCond, context), true, `${event}: source gates can run when build is ${result}`);
+      assert.equal(evaluateExpression(builtCond, context), false, `${event}: built gates cannot run when build is ${result}`);
+    }
+    assert.equal(evaluateExpression(builtCond, scope(event)), true, `${event}: built gates run after a successful build`);
   }
   // Non-doc merge_group always runs account-login even if account_login_mode is none.
   const accountCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock("account-login"))![1]!;
@@ -146,24 +160,50 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
   assert.equal(Boolean(evaluateExpression(accountCond, scope("pull_request", "success", { documentation_mode: "code", account_login_mode: "none" }))), false);
   const gates = jobBlock("gates");
   assert.match(gates, /node scripts\/check-health-gates.mjs --base "\$base"/);
-  const studio = gates.split("\n      - ").find(item => item.startsWith("name: Studio Skill replay rules reject"))!;
-  const studioCondition = /if: \$\{\{ (.*) \}\}/.exec(studio)![1]!;
-  assert.equal(evaluateExpression(studioCondition, scope("pull_request")), false);
-  assert.equal(evaluateExpression(studioCondition, scope("schedule")), true);
+  for (const [prefix, block, slice] of [
+    ["name: Gate rules reject", gates, ""],
+    ["name: Build gate rules reject", built, "page-budgets"],
+    ["name: Studio Skill replay rules reject", built, "contracts"],
+  ] as const) {
+    const step = block.split("\n      - ").find(item => item.startsWith(prefix))!;
+    const cond = /if: \$\{\{ (.*) \}\}/.exec(step)![1]!;
+    assert.equal(evaluateExpression(cond, { ...scope("pull_request"), "matrix.slice": slice }), false, prefix);
+    assert.equal(evaluateExpression(cond, { ...scope("schedule"), "matrix.slice": slice }), true, prefix);
+  }
+  assert.match(built, /^        slice: \[contracts, page-budgets\]$/m);
+  const rules = jobBlock("gate-rules");
+  assert.match(rules, /^        shard: \[1, 2\]$/m);
+  assert.match(rules, /--gate-rule-group health --shard \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}/);
+  const rulesCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(rules)![1]!;
+  for (const event of ["pull_request", "merge_group", "schedule"]) {
+    const context = scope(event, "success", { gate_rules_mode: "whole" });
+    assert.equal(evaluateExpression(rulesCond, context), true);
+    for (const result of ["failure", "cancelled", "skipped"]) {
+      assert.equal(evaluateExpression(rulesCond, { ...context, "needs.build.result": result }), false);
+    }
+  }
   const selection = jobBlock("test-selection");
   assert.match(selection, /PUSH_BEFORE: \$\{\{ github.event.merge_group.base_sha \}\}/);
   assert.match(selection, /base="\$\(node scripts\/ci-health-base.mjs\)"/);
 });
 
 test("CIP-12 the workflow narrows gate self-tests only for a successful PR or merge group selection", () => {
-  const security = jobBlock("gates").split("\n      - ").find(item => item.startsWith("name: Security invariant gate regressions"))!;
-  assert.ok(security.includes("if: ${{ needs.build.result == 'success' }}"));
+  const built = jobBlock("gates-built");
+  const security = built.split("\n      - ").find(item => item.startsWith("name: Security invariant gate regressions"))!;
+  assert.ok(security.includes("if: ${{ matrix.slice == 'contracts' }}"));
   assert.ok(security.includes("run: node scripts/run-tests.mjs tests/secret-scan.test.ts tests/health-gates-dual-instance.test.ts"));
   const rules = jobBlock("gate-rules");
-  const step = rules.split("\n      - ").find(item => item.startsWith("name: Gate rules reject"))!;
-  const environment = /SELECTED_GATE_TESTS: \$\{\{ (.*) \}\}/.exec(step)![1]!;
   const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(rules)![1]!;
-  assert.ok(step.includes('run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"'));
+  const steps = [
+    ["source", jobBlock("gates"), "name: Gate rules reject"],
+    ["budgets", built, "name: Build gate rules reject"],
+    ["health", rules, "name: Health gates reject"],
+  ] as const;
+  const environments = steps.map(([group, block, name]) => {
+    const step = block.split("\n      - ").find(item => item.startsWith(name))!;
+    assert.ok(step.includes(`run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS" --gate-rule-group ${group}`));
+    return /SELECTED_GATE_TESTS: \$\{\{ (.*) \}\}/.exec(step)![1]!;
+  });
   const files = '["tests/ci-install.test.ts"]';
   for (const event of ["pull_request", "merge_group", "push", "schedule", "workflow_dispatch"]) {
     const scoped = event === "pull_request" || event === "merge_group";
@@ -171,21 +211,35 @@ test("CIP-12 the workflow narrows gate self-tests only for a successful PR or me
       for (const mode of ["none", "some", "whole", "unknown", ""]) {
         const context = scope(event, result, { gate_rules_mode: mode, gate_rule_files: files });
         assert.equal(evaluateExpression(condition, context), !(scoped && result === "success" && mode === "none"));
-        assert.equal(evaluateExpression(environment, context), scoped && result === "success" && mode === "some" ? files : "");
+        for (const environment of environments) {
+          assert.equal(evaluateExpression(environment, context), scoped && result === "success" && mode === "some" ? files : "");
+        }
       }
     }
+  }
+  const checkout = readdirSync(new URL("./", import.meta.url)).map(name => `tests/${name}`);
+  const all = gateRuleFiles(checkout, "");
+  const groups = steps.map(([group]) => gateRuleFiles(checkout, "", group));
+  assert.deepEqual(groups.flat().sort(), [...all].sort());
+  for (const [index, [group]] of steps.entries()) {
+    assert.deepEqual(gateRuleFiles(checkout, '["outside.ts"]', group), groups[index]);
+    assert.deepEqual(gateRuleFiles(checkout, files, group), group === "source" ? ["tests/ci-install.test.ts"] : []);
   }
 });
 
 test("CIP-03 CIP-14 Verify executes the real shell verdict and rejects unauthorized skips, failures and cancellation", () => {
   const step = jobBlock("verify").split("\n      - ").find(step => step.startsWith("name: Required package gate"))!;
   const script = stepScript(step);
-  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "GATE_RULES", "SECRET_SCAN", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "GATES_BUILT", "GATE_RULES", "SECRET_SCAN", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
   const skippedNames = names.filter(name => !["GATES", "SECRET_SCAN"].includes(name));
   const env = { ...process.env, GITHUB_EVENT_NAME: "merge_group", QUEUE_CHECK_RESULT: "skipped", QUEUE_VERIFIED: "", TEST_SELECTION_RESULT: "success", ...Object.fromEntries(Object.entries(modes).map(([k,v]) => [k.toUpperCase(),v])), ...Object.fromEntries(names.map(name => [`${name}_RESULT`, skippedNames.includes(name) ? "skipped" : "success"])) };
   const verdict = (over: Record<string,string> = {}) => spawnSync("bash", ["-eo", "pipefail", "-c", script], { env: { ...env, ...over }, encoding: "utf8" }).status;
   assert.equal(verdict(), 0);
   assert.equal(verdict({ GITHUB_EVENT_NAME: "pull_request" }), 0);
+  const green = Object.fromEntries(names.map(name => [`${name}_RESULT`, "success"]));
+  assert.equal(verdict({ ...green, DOCUMENTATION_MODE: "code", GATES_BUILT_RESULT: "skipped" }), 1, "code changes require every built gate slice");
+  assert.equal(verdict({ ...green, DOCUMENTATION_MODE: "code", GATE_RULES_MODE: "some", GATE_RULES_RESULT: "skipped" }), 1, "selected health tests must run");
+  assert.equal(verdict({ ...green, DOCUMENTATION_MODE: "code", GATE_RULES_MODE: "none", GATE_RULES_RESULT: "skipped" }), 0, "successful empty selection skips the health shards");
   assert.notEqual(verdict({ GITHUB_EVENT_NAME: "merge_group", DOCUMENTATION_MODE: "code" }), 0, "non-doc merge_group cannot skip account-login/security/product");
   for (const result of ["failure", "cancelled", "skipped"]) assert.notEqual(verdict({ TEST_SELECTION_RESULT: result }), 0, result);
   for (const name of names) for (const result of ["failure", "cancelled"]) assert.notEqual(verdict({ [`${name}_RESULT`]: result }), 0, name);
@@ -193,16 +247,17 @@ test("CIP-03 CIP-14 Verify executes the real shell verdict and rejects unauthori
   for (const event of ["push", "schedule", "workflow_dispatch"]) assert.notEqual(verdict({ GITHUB_EVENT_NAME: event }), 0, event);
 });
 
-test("CIP-06 Full builds once and runs 24 shards in one wave while preserving worker caps and failure semantics", () => {
+test("CIP-06 Full builds once and requests 60 shards together with worker caps and failure semantics", () => {
   const build = jobBlock("build", fullSuiteWorkflow);
   assert.match(build, /run: pnpm build/);
   const block = jobBlock("shard", fullSuiteWorkflow);
   assert.match(block, /^    needs: \[build\]$/m);
   const shardExpr = /shard: \$\{\{ (.*) \}\}/.exec(block)![1]!;
-  assert.ok(shardExpr.includes("'[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]'"));
-  assert.match(block, /max-parallel: 24/);
-  assert.match(block, /MOLIS_WORK_TEST_JOBS: 2/);
-  assert.match(block, /MOLIS_WORK_TEST_BROWSER_JOBS: 1/);
+  const fullMatrix = Array.from({ length: 60 }, (_, index) => index + 1).join(", ");
+  assert.deepEqual(shardExpr.match(/'\[[0-9, ]+\]'/g), ["'[1]'", `'[${fullMatrix}]'`]);
+  assert.match(block, /^      max-parallel: 60$/m);
+  assert.match(block, /^      MOLIS_WORK_TEST_JOBS: 3$/m);
+  assert.match(block, /^      MOLIS_WORK_TEST_BROWSER_JOBS: 1$/m);
   assert.match(block, /--shard \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}/);
   assert.match(block, /--retries 1 \$BAIL/);
   const result = jobBlock("result", fullSuiteWorkflow);
@@ -210,7 +265,7 @@ test("CIP-06 Full builds once and runs 24 shards in one wave while preserving wo
   const evidence = result.split("\n      - ").find(step => step.startsWith("name: Verify every shard on a retry"))!;
   assert.ok(evidence.includes("if: ${{ success() && github.run_attempt > 1 }}"));
   assert.ok(evidence.includes("BUILD_ARTIFACT: ${{ needs.build.outputs.dist-artifact }}"));
-  assert.ok(evidence.includes("EXPECTED_SHARDS: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' && 1 || 24 }}"));
+  assert.ok(evidence.includes("EXPECTED_SHARDS: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' && 1 || 60 }}"));
   assert.ok(evidence.includes("run: node scripts/ci-full-retry.mjs"));
   // The nightly run, integration branches and roadmap batch pull requests (decision 31) run every file; everything else stops
   // at the first failure. `fail-fast` and `--bail` must use the same condition.

@@ -1,5 +1,6 @@
 import type {
   ArtifactScope,
+  FixedVersionCommandApi,
   FixedVersionRecord,
   RecordFixedVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -15,8 +16,9 @@ interface RegistrationContext {
 }
 
 /** A registration checked and shaped into the version it will be written as; the store's own rules (identity, order) apply after. */
-export function normalizeRegistration<R extends FixedVersionRecord, I extends RecordFixedVersionInput>(
-  input: I, { library, readOwner }: RegistrationContext,
+export function normalizeRegistration<R extends FixedVersionRecord>(
+  input: Parameters<FixedVersionCommandApi<R, RecordFixedVersionInput>["registerVersion"]>[0],
+  { library, readOwner }: RegistrationContext,
 ): Omit<R, "created_at"> {
   const projectId = requiredText(input.project_id, "project_id");
   const artifactId = requiredText(input.artifact_id, "artifact_id");
@@ -116,7 +118,7 @@ export function normalizeRegistration<R extends FixedVersionRecord, I extends Re
  * Who a registration belongs to: the owner it names, else its producer. In a Home that names its owner every personal 成果
  * belongs to that person, so a registration naming anyone else as the owner of a personal version is refused.
  */
-function ownerOf(input: RecordFixedVersionInput, scope: ArtifactScope, actorId: string,
+function ownerOf(input: Pick<RecordFixedVersionInput, "owner_actor_id">, scope: ArtifactScope, actorId: string,
   readOwner: RegistrationContext["readOwner"]): string {
   const named = input.owner_actor_id === undefined ? undefined : requiredText(input.owner_actor_id, "owner_actor_id");
   const owner = readOwner(named ?? actorId, scope);

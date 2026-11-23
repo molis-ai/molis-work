@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
+import {setImmediate} from 'node:timers/promises';
 import type {SyncConflictInspection} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type {SyncRegistration} from './index.js';
-import {blobReference,blobTransfer,type BlobChannel} from './blob-transfer.js';
+import {blobReference,blobTransfer,isBlobBudgetExhausted,type BlobChannel} from './blob-transfer.js';
 import {pinSyncProtection} from './local-protection.js';
 import {syncError} from './sync-errors.js';
 
@@ -27,10 +28,37 @@ export async function retainConflict(options:{home:string;namespace:string;key:s
     pinSyncProtection(home,namespace,()=>channel.assert(),registration.protection);
     const encoded=registration.content&&inspection.local!==null?registration.content.encode(key,inspection.local):{value:inspection.local,blobs:[]};
     const operationId='conflict-'+createHash('sha256').update(JSON.stringify([namespace,key,inspection.revision,inspection.state,choice])).digest('hex');
-    const transfer=blobTransfer(home,channel);
-    for(const source of encoded.blobs)await transfer.upload(namespace,operationId,source);
+    const attachments=encoded.blobs.map(blobReference);
+    channel.onProgress?.({done:0,total:attachments.reduce((sum,attachment)=>sum+attachment.size,0)});
+    let received=0,reported=0;
+    const report=(done:number)=>{
+      if(done<=reported)return;
+      channel.onProgress?.({done:done-reported,total:0});
+      reported=done;
+    };
+    const trackedChannel:BlobChannel={...channel,onProgress:({done})=>{
+      received+=done;
+      report(received);
+    }};
+    let transfer=blobTransfer(home,trackedChannel);
+    for(const source of encoded.blobs){
+      received=0;
+      reported=0;
+      try{
+        await transfer.upload(namespace,operationId,source);
+      }catch(error){
+        if(!isBlobBudgetExhausted(error))throw error;
+        await setImmediate();
+        channel.assert();
+        received=0;
+        // A full window fits any single blob. Resume only this blob using its cloud receipt.
+        transfer=blobTransfer(home,trackedChannel);
+        await transfer.upload(namespace,operationId,source);
+      }
+      report(source.size);
+    }
     try{
-      const receipt=await channel.json<{accepted:boolean;revision:number}>('/v1/history/archive',{namespace,policyRevision:options.policyRevision,mutation:{operationId,key,base:inspection.revision,value:encoded.value},attachments:encoded.blobs.map(blobReference)});
+      const receipt=await channel.json<{accepted:boolean;revision:number}>('/v1/history/archive',{namespace,policyRevision:options.policyRevision,mutation:{operationId,key,base:inspection.revision,value:encoded.value},attachments});
       channel.assert();
       if(receipt.accepted!==true||!Number.isSafeInteger(receipt.revision)||receipt.revision<=inspection.revision)throw syncError('invalid','保留版本回执无效，原件已保留');
     }finally{transfer.forget(namespace,operationId);}

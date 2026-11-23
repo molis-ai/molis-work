@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {runInNewContext} from 'node:vm';
-import {renderPersonalAccountEntry} from '@molis-ai/molis-work-app-workbench';
+import {renderPersonalAccountEntry, renderUpgradeOpeningPage} from '@molis-ai/molis-work-app-workbench';
+import type {WorkbenchAppearance} from '@molis-ai/molis-work-ui-host';
 import {withPageText} from './fixtures/page-text.js';
 
 async function openEntry(desktop:boolean, state:Record<string,unknown>, browserState:Record<string,unknown>={identity:null}, failAttach=false) {
@@ -55,4 +56,31 @@ test('failed native attachment stays retryable and never starts another account 
   assert.equal(result.retry.hidden,false);
   result.retry.onclick?.();
   assert.deepEqual(result.destinations,['reload'],'retry obtains a fresh document and page proof instead of reusing a revoked entry');
+});
+test('upgrade opening page honors desktopShell inset flag and personal account entry emits optional appearance head',()=>{
+  const desktopUpgrade=withPageText('zh',[],()=>renderUpgradeOpeningPage('zh-CN',undefined,true));
+  const browserUpgrade=withPageText('zh',[],()=>renderUpgradeOpeningPage('zh-CN'));
+  assert.match(desktopUpgrade,/<body[^>]*data-native-desktop="true"/);
+  assert.doesNotMatch(browserUpgrade,/data-native-desktop="true"/);
+  const appearance:WorkbenchAppearance={
+    snapshot:{
+      revision:'rev-1',
+      spec:{id:'molis-ui',revision:1},
+      locale:{tag:'zh',direction:'ltr',source:'explicit',formatting:'zh-CN'},
+      skin:{id:'warm-atelier',revision:1},
+      font:{scheme:{id:'system-sans',revision:1},mono:{id:'system-sans',revision:1},policy:'follow-skin'},
+      device:null,
+      problems:[],
+    },
+    selection:{
+      skin:{id:'warm-atelier',revision:1},
+      font:{policy:'follow-skin'},
+      mono:null,
+    },
+    selection_revision:1,
+    stylesheet:'/assets/ui-skin/warm-atelier-1.css',
+  };
+  const accountHtml=withPageText('zh',[],()=>renderPersonalAccountEntry('token',false,undefined,undefined,'',false,undefined,appearance));
+  assert.match(accountHtml,/data-ui-appearance-sheet href="\/assets\/ui-skin\/warm-atelier-1\.css"/);
+  assert.match(accountHtml,/"uiSkin":"warm-atelier@1"/);
 });

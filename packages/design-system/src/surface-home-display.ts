@@ -23,11 +23,6 @@ export interface SurfaceHomeDisplay extends SurfaceDescription {
   surface_text?: readonly SurfaceHomeText[];
   position?: { kind: SurfaceSlot["kind"]; forms: readonly FormKind[]; pin: boolean; reasons?: readonly (OwnedTextRef | null | undefined)[] };
   object_restore_available?: true;
-  /**
-   * The main-area page the home shows in place of its groups: the `lead` group's view as the Host's own stage navigation, which the
-   * shell proves against the mounted page exactly as it does a card's open. Absent when that page cannot be opened now.
-   */
-  lead?: { owner_plugin_id: string; target: unknown };
   display: {
     owners: Record<string, PresentationFormValues["ownerDisplay"]>;
     /** Where each owner's own page is in the shell (the key of its row on the start page), for the owners that have one. */

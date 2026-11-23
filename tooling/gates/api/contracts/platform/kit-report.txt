@@ -107,6 +107,7 @@ export type KitPackId = string;
 export interface KitReport {
     entries: KitReportedEntry[];
     packs?: KitReportedPack[];
+    scenes?: SkillSceneChoice[];
 }
 
 export type KitReportInput = Record<string, never>;

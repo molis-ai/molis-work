@@ -14,8 +14,8 @@ export const TOAST_STYLES = `
     > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 14px; top: 16.5px; }
     &.is-error { animation: mw-toast-in var(--dur-move) var(--ease-quint) both, mw-toast-nudge var(--dur-arrive) var(--ease-quint) var(--dur-hover); }
     .mw-btn[data-molis-call-id] { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); color: inherit; text-decoration: underline; }
-    @media (prefers-reduced-motion: reduce) { &, &.is-error { animation: none; } }
   }
+  @media (prefers-reduced-motion: reduce) { .mw-toast, .mw-toast.is-error { animation: none; } }
   .mw-toast--host { position: fixed; inset-inline: 0; bottom: calc(var(--dock-h, var(--helm-h, 74px)) + 14px); margin-inline: auto; z-index: 90; pointer-events: none; }
   .mw-date-input { font-variant-numeric: tabular-nums; }
   .mw-date-wrap { position: relative; display: inline-flex; align-items: center; max-width: 100%; > .mw-date-input { padding-inline-end: 28px; } }

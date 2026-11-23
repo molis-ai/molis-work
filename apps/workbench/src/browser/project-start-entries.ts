@@ -1,6 +1,6 @@
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
-import { homeLeadWord, homeWord, type HomeControl } from "./project-home-render.js";
+import { homeNamedWord, homeWord, type HomeControl } from "./project-home-render.js";
 
 /**
  * What each plugin of this project lets a person begin (its overview's `start`), on that plugin's row of the start page under ＋.
@@ -52,7 +52,7 @@ export function mountStartEntries(host: StartHost) {
         const button = Object.assign(document.createElement("button"), { type: "button", tabIndex: -1, title: homeWord("start-new"),
           className: "mw-btn mw-btn--secondary mw-btn--sm mw-btn--icon mw-btn--icon-only rail-start", innerHTML: icon("edit") });
         button.dataset.railStart = key;
-        button.setAttribute("aria-label", homeLeadWord("start-new-in", name));
+        button.setAttribute("aria-label", homeNamedWord("start-new-in", name));
         ops.prepend(button);
       });
     }

@@ -10,7 +10,7 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 
   .tree-create {
-    height: var(--control-h); min-height: var(--control-h);
+    height: var(--control-h);
     border: 1px solid transparent; border-radius: var(--radius-control);
     background: var(--control-fill); color: var(--ink); box-shadow: none; font-weight: var(--weight-control);
     &:hover { background: var(--nav-hover); color: var(--ink); }
@@ -20,13 +20,12 @@ export const PLUGIN_COSS_CONTROL_STYLES = `
   :where(dialog) {
     transition-property: opacity, transform, overlay, display; transform: translateY(8px) scale(.98);
     &, &::backdrop { transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint); transition-behavior: allow-discrete; opacity: 0; }
-    &[open] { opacity: 1; transform: none; transition-duration: var(--dur-move); &::backdrop { opacity: 1; transition-duration: var(--dur-move); } }
+    &[open] { transform: none; &, &::backdrop { opacity: 1; transition-duration: var(--dur-move); } }
     &::backdrop { background: var(--scrim); transition-property: opacity, overlay, display; }
   }
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); &::backdrop { opacity: 0; } } }
   [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-actions { --control-h: 36px; > button { min-height: 36px; } }
-  :is(button, input, textarea, select, a, summary):focus-visible:not([class^="mw-"]),
   body.immersive-workbench :focus-visible:not([class^="mw-"]) {
     outline: var(--focus-stroke);
     outline-offset: var(--focus-stroke-inset);

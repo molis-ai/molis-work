@@ -38,6 +38,7 @@ export function createAppearanceOwner<Locale extends string>(home: string, optio
     current: selection.current,
     snapshot: selection.snapshot,
     preview: selection.preview,
+    replica: selection.replica,
     subscribe(listener: (revision: number) => void): () => void {
       assertOpen();
       listeners.add(listener);

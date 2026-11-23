@@ -47,7 +47,8 @@ try{
  await close(server);server=boot();await listen(server,Number(new URL(origin).port));assert.equal((await(await fetch(origin+'/api/personal/status',{headers:{Cookie:cookie}})).json()).identity,null);const native=await json('/api/personal/status',undefined,200,{[NATIVE_SESSION_HEADER]:proof,'x-molis-work-control-token':rootToken});assert.equal(native.identity.userId,a.identity.userId);assert.equal(native.ready,true);assert.equal(native.viewToken,undefined);const attached=await request('/api/personal/native-attach?ticket='+native.browserSessionTicket,{},200,{'x-molis-work-control-token':rootToken});assert.ok(attached.headers.get('set-cookie'));await readControl();assert.equal((await json('/api/account/session')).data.session.loginSessionId,savedSession);
  // The installation owns logout, including preparation and clearing the browser's account cookie.
  const split=cookie.indexOf('=');await page.command('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,sameSite:'Lax'});
- await Promise.all([browser.event('Page.domContentEventFired'),page.command('Page.navigate',{url:origin})]);
+ // The Host just restarted, so this is a cold first page (see account-authentication.test.mjs): 45 s, not the CDP default 15 s.
+ await Promise.all([browser.event('Page.domContentEventFired',undefined,45000),page.command('Page.navigate',{url:origin})]);
  await page.wait("Boolean(document.querySelector('[data-unified-account-link]')) && document.querySelector('[data-personal-action=logout]')?.hidden===false");
  // Registration paints account controls before it releases the document's inert state.
  await page.wait("!document.body.inert && !document.body.hasAttribute('data-account-registering')");

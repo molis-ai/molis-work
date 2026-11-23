@@ -8,7 +8,7 @@ const errors = defineErrorCodes('storage', { document_invalid: 'invalid' });
 const utf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 /** Opaque owner document. The trusted composition chooses the path; no business format or Home discovery here. */
-export function createAtomicFileDocument(filename: string, authorize: () => void): {
+export function createAtomicFileDocument(filename: string, authorize: () => void, options: { durable?: boolean } = {}): {
   read(): string | null;
   compareAndSet(expected: string | null, value: string): boolean;
   compareAndSetChecked(expected:string|null,value:string,validate:()=>void):boolean;
@@ -39,7 +39,7 @@ export function createAtomicFileDocument(filename: string, authorize: () => void
     if(utf8.decode(Buffer.from(value,'utf8'))!==value)throw errors.document_invalid('文件条件存储要求完整 Unicode，原内容已保留');
     regular(lock);
     return withFileLock(lock,()=>{
-      authorize();if(read()!==expected)return false;validate?.();authorize();atomicWriteFileSync(target,value);return true;
+      authorize();if(read()!==expected)return false;validate?.();authorize();atomicWriteFileSync(target,value,options);return true;
     });
   };
   return {

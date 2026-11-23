@@ -1,6 +1,7 @@
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
 import type { FrameScope } from "./types.js";
 import type { ContextDown, ContextUp } from "./context.js";
+import { isMacPlatform } from "./navigation.js";
 
 /** Surface events stay in the child; only their data and callbacks for a choice the shell actually offered cross the port. */
 export function childContext(port: MessagePort, scope: FrameScope, root: HTMLElement): void {
@@ -11,11 +12,11 @@ export function childContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   scope.own(() => { for (const entry of pending.values()) entry.reject(new Error("View closed")); pending.clear(); });
   scope.listen(document, "keydown", event => {
     const key = event as KeyboardEvent;
-    const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-    const mac = typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0 ? nav.userAgentData.platform === "macOS" : /Mac|iPhone|iPad|iPod/.test(nav.platform || "");
+    if (key.repeat || key.isComposing || key.defaultPrevented) return;
+    const mac = isMacPlatform();
     const mod = mac ? (key.metaKey && !key.ctrlKey) : (key.ctrlKey !== key.metaKey);
     const inTerminal = key.target instanceof Element && Boolean(key.target.closest("[data-tui-pane],.xterm"));
-    if (!key.defaultPrevented && !inTerminal && !document.querySelector("dialog[open],:popover-open") && mod && !key.shiftKey && !key.altKey && key.key === ".") {
+    if (!inTerminal && !document.querySelector("dialog[open],:popover-open") && mod && !key.shiftKey && !key.altKey && key.key === ".") {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       key.preventDefault(); send({ type: "context-key" });
     }

@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { isMainScript } from "./script-paths.mjs";
 
-// GitHub retains successful job outputs on a partial retry. Compare actual job attempts
-// with the exact build artifact the shard steps download, including shards cancelled by fail-fast.
+// A partial retry can reuse successful jobs. Check that the full matrix finished on the
+// build that produced the artifact consumed by the shard jobs.
 export function verifyFullRetry(jobs, { runId, artifact, count }) {
   if (!/^\d+$/.test(runId) || !Number.isSafeInteger(count) || count < 1) throw new Error("Invalid Full suite plan");
   const latest = new Map();
@@ -14,7 +14,12 @@ export function verifyFullRetry(jobs, { runId, artifact, count }) {
     else if (previous.run_attempt === job.run_attempt) throw new Error(`Ambiguous job: ${job.name}`);
   }
   const build = latest.get("Build workspace");
-  if (build?.conclusion !== "success" || artifact !== `full-suite-dist-${runId}-${build.run_attempt}`) {
+  // GitHub can copy a passed job into later attempts with a new ID and run_attempt,
+  // while retaining its execution timestamps and outputs. The pack step names its actual attempt.
+  const producer = jobs.find(job => job.name === "Build workspace" && artifact === `full-suite-dist-${runId}-${job.run_attempt}`);
+  const buildEnd = Date.parse(producer?.completed_at);
+  if (producer?.conclusion !== "success" || build?.conclusion !== "success" || !(Date.parse(producer.started_at) <= buildEnd)
+    || build.started_at !== producer.started_at || build.completed_at !== producer.completed_at) {
     throw new Error("The current successful build does not match the shard artifact");
   }
   latest.delete("Build workspace");
@@ -22,7 +27,11 @@ export function verifyFullRetry(jobs, { runId, artifact, count }) {
   for (let index = 1; index <= count; index++) {
     const name = `Full suite (${index}/${count})`;
     const shard = latest.get(name);
-    if (shard?.conclusion !== "success" || shard.run_attempt < build.run_attempt) incomplete.push(name);
+    const start = Date.parse(shard?.started_at);
+    if (shard?.conclusion !== "success" || shard.run_attempt < producer.run_attempt
+      || !(start >= buildEnd && Date.parse(shard.completed_at) >= start)) {
+      incomplete.push(name);
+    }
     latest.delete(name);
   }
   if (incomplete.length || latest.size) throw new Error(`Incomplete or different Full suite plan: ${[...incomplete, ...latest.keys()].join(", ")}`);
@@ -38,7 +47,7 @@ export function verifyBuildArtifact(response, expected) {
 if (isMainScript(import.meta.url)) {
   const runId = process.env.GITHUB_RUN_ID;
   const endpoint = `repos/{owner}/{repo}/actions/runs/${runId}`;
-  const output = execFileSync("gh", ["api", "--paginate", `${endpoint}/jobs?filter=all&per_page=30`, "--jq", ".jobs[] | {name, run_id, run_attempt, conclusion} | @json"], { encoding: "utf8" });
+  const output = execFileSync("gh", ["api", "--paginate", `${endpoint}/jobs?filter=all&per_page=30`, "--jq", ".jobs[] | {name, run_id, run_attempt, conclusion, started_at, completed_at} | @json"], { encoding: "utf8" });
   const jobs = output.trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
   const artifact = process.env.BUILD_ARTIFACT;
   verifyFullRetry(jobs, { runId, artifact, count: Number(process.env.EXPECTED_SHARDS) });

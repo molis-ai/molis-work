@@ -150,7 +150,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 **第一份入库的实际数字（2026-11-08，`0.1.0`，Node 24.15.0，带两个签名样本）：** `0.1.0` 目录 4,459,450 字节，门禁量的金样目录工作树字节是 4,459,745（多出目录根的 `tests/fixtures/golden-homes/.gitattributes` 295 字节），低于上面的 4.47 MB 估算（多了 Home 库样本，少了一点转储）。其中 `stores/` 2,385,791，`files/module-sources/` 24 份 1,582,387，`files/release-manifests/` 21 份 247,245，其余文件 98,448，`manifest.json` 145,037，README 542（第 05 批集成时在 main + SQLite + U1 + U1-f 上重新生成，2026-11-08）。离 50 MiB 还能放十来份。覆盖面的缺口（必须备份、这份金样里没有的路径和原因）列在 `tooling/gates/golden-coverage.json` 的 `uncovered`：第一份入库时 19 条，其中 18 条是 `HOME-DATA.md` 的「必备份」路径（原插件创作台、`computer/`、`security/evidence`、`runtime-integrations`、`spaces/<spaceId>/sync/device.json` 等），各自补齐或降登记的决定与负责人见 [BL-golden-coverage-uncovered](../backlog/BL-golden-coverage-uncovered.md)；`feed-content/feed-content.db` 有结构没有业务行，原因在同一文件的 `writes`。
 
-这里原来还写了一条理由，写错了：当时说不能只留校验值，因为「新版和已安装版本不兼容时，宿主要用存着的旧代码继续跑（`packages/plugin-runtime/src/supervisor.ts:500-532`），这条路回放要测」。用户 2026-10-08 已定内置插件一律跟当前构建（`packages/plugin-runtime/README.md:104`），这条路今天用不上。用户重新定：**回放不测这条路，代码照存**，这样金样才和真实 Home 的库一样。代价：这条路没人测，真要启用时再补。产品是否继续存这些代码登在 [`BL-plugin-release-module-source`](../backlog/BL-plugin-release-module-source.md)。
+这里原来还写了一条理由，写错了：当时说不能只留校验值，因为「新版和已安装版本不兼容时，宿主要用存着的旧代码继续跑（`packages/plugin-runtime/src/supervisor.ts:500-532`），这条路回放要测」。用户 2026-10-08 已定内置插件一律跟当前构建（`packages/plugin-runtime/README.md:104`），这条路今天用不上。用户重新定：**回放不测这条路，代码照存**，这样金样才和真实 Home 的库一样。代价：这条路没人测，真要启用时再补。产品是否继续存这些代码曾登在 `BL-plugin-release-module-source`（已由第 103 批 103-1 #2205 结清：`HOST_BUILD_TRUST` 内置插件停写 `module_source`，旧金样行照旧合法，见 [backlog-removed.md](../../docs/backlog-removed.md)）。
 
 ## 7. 本设计新增的检查
 

@@ -101,7 +101,7 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
     upcoming.push(...rows.upcoming); missed.push(...rows.missed); owners.push(expiredOwnerKey(scope, providerId));
     if (rows.expired) expired.set(rows.title, (expired.get(rows.title) ?? 0) + rows.expired);
   };
-  // The project owners, in every open project (their list is a `home_aggregate` query), and the Home's own owners, at the same time.
+  // The project owners, in open and resting projects (their list is a `home_aggregate` query), and the Home's own owners, at the same time.
   const [projects] = await Promise.all([
     collectHomeAggregate<RunsOverview>(ports.aggregate, RUNS_OVERVIEW_OUTPUT_TYPE, new HomeAggregateInputEach((projectId, source) => window(projectId, source.provider_id),
       // A sleeping project's last overview holds while the person has not marked its expired runs seen since, and for the hour it was read in.

@@ -60,13 +60,13 @@ export function renderShelfWorkbench(model: ShelfListModel): string {
         <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${uiText("shelf.ui.search-materials")}" aria-label="${uiText("shelf.ui.search-materials")}" autocomplete="off"></label>
         <span class="shelf-side-op shelf-side-op--add" role="button" tabindex="0" data-shelf-pick aria-label="${uiText("shelf.ui.add-files")}" title="${uiText("shelf.ui.add-files")}">${SHELF_GLYPH.plus}<b>${uiText("shelf.ui.add-files")}</b></span>
         <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${uiText("shelf.ui.more")}" title="${uiText("shelf.ui.more")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
-        <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
+        <div class="mw-popover shelf-side-menu" data-shelf-side-menu role="menu" hidden>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-receive-open>${uiText("shelf.ui.receive-project-results")}</span>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-paste-clip>${uiText("shelf.ui.paste-current-clipboard")}</span>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-multi aria-pressed="false">${uiText("shelf.rows.select-multiple-files")}</span>
         </div>
         <input data-shelf-file hidden type="file" multiple>
-        <ul class="shelf-find" data-shelf-find hidden></ul>
+        <ul class="mw-popover shelf-find" data-shelf-find hidden></ul>
       </header>
       <div class="shelf-side-scroll">
       ${stageFold(uiText.text("shelf.preview.material"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || `<li class="shelf-empty-line shelf-drop-line" data-shelf-empty role="button" tabindex="0" data-shelf-pick>${SHELF_GLYPH.tray}<span>${uiText("shelf.ui.drop-files-here-or-press")}</span></li>`}</ul>`)}
@@ -152,7 +152,7 @@ export function renderShelfWorkbench(model: ShelfListModel): string {
 }
 
 function renderDropOverlay(_p: ShelfUiPrimitives): string {
-  return `<div class="shelf-drop" data-shelf-drop aria-hidden="true"><div class="shelf-drop-veil"></div><div class="shelf-drop-frame"></div><div class="shelf-drop-card">${SHELF_GLYPH.tray}<b>${uiText("shelf.bar.add-to-materials")}</b><p>${uiText("shelf.ui.to-send-a-terminal-drop")}</p></div></div>`;
+  return `<div class="shelf-drop" data-shelf-drop data-drop-target aria-hidden="true"><div class="shelf-drop-veil"></div><div class="shelf-drop-frame"></div><div class="shelf-drop-card">${SHELF_GLYPH.tray}<b>${uiText("shelf.bar.add-to-materials")}</b><p>${uiText("shelf.ui.to-send-a-terminal-drop")}</p></div></div>`;
 }
 
 /** DropAgent colours the group's type mark and keeps the label neutral. */
@@ -162,10 +162,10 @@ export function stageFold(label: string, id: "materials" | "results" | "clipboar
     : id === "results"
       ? { glyph: SHELF_GLYPH.markdown, tone: "slate" }
       : { glyph: SHELF_GLYPH.folder, tone: "ochre" };
-  return `<details class="goal-collection-fold shelf-group" data-shelf-stage-group="${id}" open>
+  return `<details class="mw-collection-fold shelf-group" data-shelf-stage-group="${id}" open>
     <summary>
-      <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
-      <span class="goal-collection-mark shelf-group-mark tone-${mark.tone}" aria-hidden="true">${mark.glyph}</span>
+      <span class="mw-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
+      <span class="mw-collection-mark shelf-group-mark tone-${mark.tone}" aria-hidden="true">${mark.glyph}</span>
       <strong>${label}</strong>
       <small data-shelf-count="${id}">${count}</small>
     </summary>

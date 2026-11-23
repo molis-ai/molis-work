@@ -100,7 +100,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-inbox-list>
       <header class="plugin-stage-chrome"></header>
-      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${uiText("inbox.ui.suggested-next-step")}</summary><p>${p.escape(model.judgment.name || uiText.text("inbox.ui.no-rule-selected"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(model.judgment.reason)}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${uiText("inbox.ui.configure-judgment-rule")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${uiText("inbox.ui.update-suggestions-first-20-open-items")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
+      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="mw-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${uiText("inbox.ui.suggested-next-step")}</summary><p>${p.escape(model.judgment.name || uiText.text("inbox.ui.no-rule-selected"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(model.judgment.reason)}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${uiText("inbox.ui.configure-judgment-rule")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${uiText("inbox.ui.update-suggestions-first-20-open-items")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
       ${renderInboxFold("active", uiText.text("inbox.ui.open"), "alert", active, p)}
       ${renderInboxFold("history", uiText.text("inbox.ui.history"), "check", history, p)}
       <button class="mw-btn mw-btn--ghost inbox-compose-trigger" type="button" data-inbox-compose-open="" aria-haspopup="dialog">${p.icon("note")}<span>${uiText("inbox.ui.write-materials-pages")}</span></button>
@@ -109,7 +109,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
       ${details}
       <div class="mw-detail-empty mw-empty" data-inbox-detail-empty>${p.icon("inbox")}<h1>${uiText("inbox.ui.nothing-needs-attention-right-now")}</h1></div>
     </div>
-    <dialog class="inbox-compose-dialog" data-inbox-compose aria-labelledby="inbox-compose-title">
+    <dialog class="mw-dialog inbox-compose-dialog" data-inbox-compose aria-labelledby="inbox-compose-title">
       <form data-inbox-compose-form>
         <header><h2 id="inbox-compose-title">${uiText("inbox.ui.write-materials-pages")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-inbox-compose-close aria-label="${uiText("inbox.ui.close")}">${p.icon("x")}</button></header>
         <p>${uiText("inbox.ui.select-original-materials-inbox-add-instructions-then-continue")}</p>
@@ -133,20 +133,20 @@ function renderInboxFold(
 ): string {
   const tone = mark === "check" ? "ready" : "attention";
   const rows = entries.map((entry) => renderInboxStageRow(entry, p)).join("");
-  return `<details class="goal-collection-fold" data-inbox-stage-group="${id}" open>
+  return `<details class="mw-collection-fold" data-inbox-stage-group="${id}" open>
     <summary>
-      <span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>
-      <span class="goal-collection-mark is-${tone}" aria-hidden="true">${p.icon(mark)}</span>
+      <span class="mw-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>
+      <span class="mw-collection-mark is-${tone}" aria-hidden="true">${p.icon(mark)}</span>
       <strong>${p.escape(label)}</strong>
       <small data-inbox-stage-group-count>${entries.length}</small>
     </summary>
-    <div class="inbox-stage-group-body" role="list" aria-label="${p.escape(label)}">${rows}<p class="goal-collection-empty" data-inbox-stage-group-empty${entries.length ? " hidden" : ""}>${uiText(id === "history" ? "inbox.ui.no-completed-ignored-items" : "inbox.ui.nothing-needs-attention-right-now")}</p></div>
+    <div class="inbox-stage-group-body" role="list" aria-label="${p.escape(label)}">${rows}<p class="mw-collection-empty" data-inbox-stage-group-empty${entries.length ? " hidden" : ""}>${uiText(id === "history" ? "inbox.ui.no-completed-ignored-items" : "inbox.ui.nothing-needs-attention-right-now")}</p></div>
   </details>`;
 }
 
 function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   return `<article class="inbox-stage-item mw-stage-item" role="listitem" data-inbox-item-wrap="${p.escape(entry.entry_id)}">
-    <button class="mw-stage-entry directory-list-row" type="button" aria-selected="false" data-frame-asset="inbox" data-frame-subject-kind="inbox_entry" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.reason_label)}" data-frame-reading-reason="${p.escape(entry.reason_label)}" data-frame-reading-relation="${p.escape(entry.relation_label)}" data-frame-reading-next="${p.escape(entry.next_action)}" data-frame-reading-status="${p.escape(entry.status_label)}" data-inbox-row data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}" data-inbox-status="${p.escape(entry.status)}" data-inbox-subject-type="${p.escape(entry.subject_type)}" data-inbox-subject-id="${p.escape(entry.subject_id)}" data-inbox-reason="${p.escape(entry.reason)}">
+    <button class="mw-stage-entry directory-list-row" type="button" aria-selected="false" data-frame-asset="inbox" data-frame-subject-kind="inbox_entry" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.reason_label)}" data-frame-reading-reason="${p.escape(entry.reason_label)}" data-frame-reading-relation="${p.escape(entry.relation_label)}" data-frame-reading-next="${p.escape(entry.next_action)}" data-frame-reading-status="${p.escape(entry.status_label)}" data-craft-land="inbox:${p.escape(entry.entry_id)}" data-inbox-row data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}" data-inbox-status="${p.escape(entry.status)}" data-inbox-subject-type="${p.escape(entry.subject_type)}" data-inbox-subject-id="${p.escape(entry.subject_id)}" data-inbox-reason="${p.escape(entry.reason)}">
       <span class="mw-stage-leading"><span data-frame-drag-slot aria-hidden="true" style="display:inline-block;width:24px;height:24px;flex:0 0 24px;vertical-align:middle"></span><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong></span>
       <span class="mw-entry-source">${p.escape(entry.reason_label)}</span>
       <span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"} mw-status--plain mw-entry-status" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span>
@@ -163,11 +163,11 @@ function renderInboxDetail(entry: InboxUiEntry, p: InboxUiPrimitives, locale: st
   const ownTitle = entry.available && isActiveInboxStatus(entry.status) ? renderPresentationForm(inboxObject, "chip", {
     locale, ownerDisplay: inboxOwner, read: { state: "ok", values: { title: entry.title, status: entry.status } },
   }) : "";
-  return `<article class="mw-detail mw-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" hidden>
+  return `<article class="mw-detail mw-detail--attention mw-reference-detail inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" hidden>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${uiText("inbox.ui.back-inbox-list")}" title="${uiText("inbox.ui.back-inbox-list")}">${p.icon("chevron-right")}</button><div class="mw-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span></div></header>
     <header class="mw-detail-header"><h1${ownTitle ? ' class="mw-sr-only"' : ""}>${p.escape(entry.title)}</h1>${ownTitle ? `<div class="inbox-object-title" aria-hidden="true">${ownTitle}</div>` : ""}</header>
-    <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="mw-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="mw-action-status" data-inbox-action-status role="status" hidden></p></div>
-    <div class="inbox-reference-body"><div data-inbox-origin-slot data-origin-kind="${p.escape(origin.kind)}" data-origin-id="${p.escape(origin.id)}"></div><section class="inbox-attention-context" aria-label="${uiText("inbox.ui.processing-context")}"><dl><div><dt>${uiText("inbox.ui.why-entered-inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${uiText("inbox.ui.related-object")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${uiText("inbox.ui.next")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${uiText("inbox.ui.current-state")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${uiText("inbox.ui.processed-result")}"></section></div>
+    <div class="mw-reference-footer inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="mw-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="mw-action-status" data-inbox-action-status role="status" hidden></p></div>
+    <div class="mw-reference-body inbox-reference-body"><div data-inbox-origin-slot data-origin-kind="${p.escape(origin.kind)}" data-origin-id="${p.escape(origin.id)}"></div><section class="mw-detail-context inbox-attention-context" aria-label="${uiText("inbox.ui.processing-context")}"><dl><div><dt>${uiText("inbox.ui.why-entered-inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${uiText("inbox.ui.related-object")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${uiText("inbox.ui.next")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${uiText("inbox.ui.current-state")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${uiText("inbox.ui.processed-result")}"></section></div>
   </article>`;
 }
 

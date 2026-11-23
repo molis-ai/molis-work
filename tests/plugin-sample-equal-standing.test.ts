@@ -134,7 +134,8 @@ test("PEQ-05: in a project the sample's declarations are the person's to use, an
   const afterClear = await call<{ focus: unknown }>("resume.summary", {});
   assert.equal(afterClear.focus, null, "notes.clear atomically emptied sample notes under trusted decision");
 
-  // P1-1: dynamic Workbench settings discovery exposes the sample plugin without hardcoding BUILTIN_PLUGIN_CATALOG.
+  // P1-1: dynamic Workbench settings discovery exposes the sample plugin without hardcoding BUILTIN_PLUGIN_CATALOG,
+  // and the person can write its setting and redeem its trusted decision via Workbench HTTP (PEQ-05).
   const appearancePage = await fetch(`${home.origin}/settings/appearance?project=${encodeURIComponent(project.project_id)}`);
   assert.equal(appearancePage.status, 200);
   const appearanceHtml = await appearancePage.text();
@@ -142,6 +143,30 @@ test("PEQ-05: in a project the sample's declarations are the person's to use, an
   const sampleSettingsPage = await fetch(`${home.origin}/settings/${PLUGIN}?project=${encodeURIComponent(project.project_id)}`);
   assert.equal(sampleSettingsPage.status, 200);
   assert.match(await sampleSettingsPage.text(), /Hello/);
+  const currentSetting = await call<{ values: Array<{ key: string; revision: string; value: unknown }> }>("settings.read", { keys: ["greeting"] });
+  const writtenSetting = await home.web.post<{ values: Array<{ key: string; value: unknown }> }>("/api/settings/plugin-entries/write", {
+    plugin_id: PLUGIN, project_id: project.project_id,
+    key: "greeting", layer: "project", change: { set: "Workbench Greeting" },
+    expected_revision: currentSetting.values[0]!.revision, request_id: "sample-wb-set-1",
+  });
+  assert.equal(writtenSetting.values[0]?.value, "Workbench Greeting", "PEQ-05: sample plugin setting writable via Workbench HTTP");
+  const updatedSettingsPage = await fetch(`${home.origin}/settings/${PLUGIN}?project=${encodeURIComponent(project.project_id)}`);
+  assert.equal(updatedSettingsPage.status, 200);
+  assert.match(await updatedSettingsPage.text(), /Workbench Greeting/, "PEQ-05: updated sample setting rendered on Workbench settings page");
+
+  await call("notes.create", {});
+  const webReview = await home.web.post<ReviewRequest>(`/projects/${project.project_id}/api/project-approvals/request`, {
+    action: { capability_id: clearView.capability_id, version: clearView.version, provider_id: clearView.provider.provider_id },
+    request_id: "clear-via-web",
+  });
+  assert.equal(webReview.choices[0]?.id, "clear", "PEQ-05: sample trusted decision request served via Workbench HTTP");
+  const webDecided = await home.web.post<{ record?: { decision?: string }; replayed?: boolean }>(`/projects/${project.project_id}/api/project-approvals/decide`, {
+    reference: webReview.reference, choice_id: "clear", request_key: "sample-web-clear-1",
+  });
+  assert.equal(webDecided.record?.decision, "clear", "PEQ-05: sample trusted decision redeemed via Workbench HTTP");
+  assert.equal(webDecided.replayed, false);
+  const afterWebClear = await call<{ focus: unknown }>("resume.summary", {});
+  assert.equal(afterWebClear.focus, null, "PEQ-05: Workbench HTTP trusted decision atomically cleared sample notes");
 });
 
 const SIGNED_SANDBOX_ID = "io.molis.work.example.sandbox-standing";

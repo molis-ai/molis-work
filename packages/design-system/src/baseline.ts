@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiFileProblem, UiFileResult, UiFontSchemeFile, UiResourceRegistry, UiSkinFile, UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
-import { fontFaceRules, fontTokenDeclarations, parseFontScheme, parseResourceRegistry, parseSkinFile, parseUiSpecFile, resolveFontScheme, resolveSkin, skinTokenDeclarations, type UiResolvedFont, type UiResolvedSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { fontFaceRules, parseFontScheme, parseResourceRegistry, parseSkinFile, parseUiSpecFile, resolveFontScheme, resolveSkin, skinTokenDeclarations, type UiResolvedFont, type UiResolvedSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The interface as files (specs/font-and-skin-system/a-section-contract.md §7): every token's value is in `resources/`, read once when this module is
 // first imported and through the same SDK parsers an author's skin goes through. `palette.ts`, `typeface.ts` and the token blocks of the styles take
@@ -81,9 +81,4 @@ export function baselinePackageFile(id: string): string {
 /** The six terminal tokens of one of its three values, one declaration a line, indented as the foundation's blocks are. */
 export function baselineTerminal(axis: "unset" | "light" | "dark"): string {
   return BASELINE_SKIN.roles.filter((role) => role.varies_by === "terminal").map(({ name }) => skinTokenDeclarations(BASELINE_SKIN, { terminal: axis, names: [name] })).join("\n    ");
-}
-
-/** The declarations of these font tokens, in this order, one space between them. */
-export function baselineFontToken(names: readonly string[]): string {
-  return fontTokenDeclarations(BASELINE_FONT, names);
 }

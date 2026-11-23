@@ -58,4 +58,4 @@ node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-
   - 记录按项目隔离：同一个对象在别的项目里读不到这里的任何内容。
 - 改动后必跑：`node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-invariants-acceptance.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`，改了库结构跑 `pnpm schemas:update`。
 - 相关手册：[specs/proactive-assistant/spec.md](../../specs/proactive-assistant/spec.md) §7.3.1；[specs/agent-approval/spec.md](../../specs/agent-approval/spec.md) §3.5；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
-- 现在的边界（记在 [待办](../../specs/backlog/BL-acceptance-first-slice-limits.md)）：只有项目范围；「另一个会话复查」这一层级还没有（共用合同里没有这一档）。Goals 从第 44 批起用这里的要求与认可，只记每项要求的来处。
+- 现在的边界（记在 [待办](../../specs/backlog/BL-acceptance-first-slice-limits.md)）：只有项目范围（「另一个会话复查」`peer_reviewed` 已进入共用合同与状态计算）。Goals 从第 44 批起用这里的要求与认可，只记每项要求的来处。

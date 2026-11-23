@@ -1,9 +1,9 @@
 /** The Goal document: header, status, hero and workspace panels, relations and factors in the detail decks, the tree's status chip. */
 export const GOALS_DOCUMENT_STYLES = `
   .goal-status,
-  body[data-desktop-shell="true"] .goal-status { min-height: 22px; max-width: 100%; padding: 1px 8px; border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line)); line-height: 1.2; }
+  body[data-desktop-shell="true"] .goal-status { min-height: 22px; max-width: 100%; padding: 1px 8px; border: 1px solid color-mix(in srgb, var(--mw-object-status-tone) 28%, var(--line)); line-height: 1.2; }
   .goal-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .tree-node.is-selected .goal-status { color: var(--goal-status-tone); }
+  .tree-node.is-selected .goal-status { color: var(--mw-object-status-tone); }
   body[data-desktop-shell="true"] .goal-title-kicker,
   .goal-title-kicker { margin: 0 0 8px; }
   body[data-desktop-shell="true"] .goal-title-row h1,

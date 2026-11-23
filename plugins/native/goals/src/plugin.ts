@@ -1,11 +1,13 @@
 import { syncBindings } from "./sync-binding.js";
 import { MATERIALS_PROVIDER_ID, materialsActions, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { setTimeout } from "node:timers/promises";
-import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { ActionError, bindActionHandler, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutionControl, PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalEntryActions } from "./contract/goal-actions.js";
 import { createGoalItemHandlers, createGoalsPresentationHandlers } from "./presentation.js";
 import { createGoalsActionHandlers } from "./actions.js";
+import { DEMO_ACTOR, goalsDemoSeedAction, seedGoalsDemo, type GoalsDemoAct } from "./demo-seed.js";
 import { createGoalSourceReviewHandlers, type GoalsInputPorts } from "./input-actions.js";
 import { createGoalsAttachActionHandlers } from "./attach-actions.js";
 import { confirmedGoalDeliverables } from "./deliverable-actions.js";
@@ -215,9 +217,28 @@ export function createGoalsPlugin(): PluginDefinition {
     });
 
     const running = handlers.map(windowed);
+    const byKey = new Map(running.map(binding => [`${binding.capability_id}@${binding.version}`, binding]));
+    const demoSeedBinding = bindActionHandler(goalsDemoSeedAction, async (_input, caller) => {
+      await ready;
+      const demoCaller: ActionExecutionContext = { ...caller, actor_id: DEMO_ACTOR, actor_kind: "user", audience: "user" };
+      const act: GoalsDemoAct = async (capability, version, input) => {
+        if (capability === acceptanceActions.deliver.capability_id && version === acceptanceActions.deliver.version) {
+          return await directory.invoke(acceptanceActions.deliver, input, controlOf(caller)) as never;
+        }
+        const target = byKey.get(`${capability}@${version}`);
+        if (!target) throw new ActionError("actions.unredeemed", `演示初始化找不到动作 ${capability}@${version}`);
+        return await target.handle(demoCaller, input) as never;
+      };
+      return seedGoalsDemo({
+        act,
+        providerId: context.provider_id ?? context.plugin_id,
+        storage: services?.storage,
+        hasExistingDemoGoal: () => window.read(() => goals.query.listGoals(projectId).some(goal => goal.goal_id === "V1")),
+      });
+    });
     return { kind: "app", sync: syncBindings(context), views: [goalsTreeUiContribution, goalsStageUiContribution],
       // 「挂到…」 (batch 44 C1): the platform-shaped parts, each over Goals' own handlers in their own windows.
-      actions: [...running, ...createGoalsAttachActionHandlers(running), ...createGoalsPresentationHandlers(projectId, goals.query, application.goalEvents, window.read, ready, acceptance.read),
+      actions: [...running, demoSeedBinding, ...createGoalsAttachActionHandlers(running), ...createGoalsPresentationHandlers(projectId, goals.query, application.goalEvents, window.read, ready, acceptance.read),
         // 「建成目标」 is Goals' own create, in its own write window; the next step is a read like the presentation values.
         ...createGoalItemHandlers(projectId, windowed(handlers.find(binding => binding.capability_id === goalEntryActions.create.capability_id)!), goals.query, application.goalEvents,
           window.read, ready)],

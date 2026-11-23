@@ -17,6 +17,5 @@ const codes = defineErrorCodes('storage', {
   replica_journal_invalid: 'invalid',
 });
 export function replicaError(reason: keyof typeof codes) {
-  const message = reason.includes('limit') ? '项目 Goal 记录超过同步容量限制，请保留本机数据并联系管理员' : 'Goal 同步数据校验失败，已保留原内容';
-  return codes[reason](message + '（' + reason + '）');
+  return codes[reason]('项目同步数据校验失败，已保留原内容（' + reason + '）');
 }

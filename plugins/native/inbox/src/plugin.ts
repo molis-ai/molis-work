@@ -6,8 +6,8 @@ import { inboxErrors } from "./errors.js";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createInboxActionHandlers, readInboxStageSubjects, INBOX_STAGE_GOAL_READ, type InboxActionEntry } from "./actions.js";
-import { createInboxContentHandlers, type InboxContentPorts, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
+import { createInboxActionHandlers, readInboxStageSubjects, type InboxActionEntry } from "./actions.js";
+import { createInboxContentHandlers, inboxOrigin, type InboxContentPorts, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
 import { createInboxPresentationHandlers } from "./presentation.js";
 import { inboxManifest } from "./manifest.js";
 import { createInboxPagesHandlers } from "./pages.js";
@@ -158,10 +158,15 @@ export function createInboxPlugin(): PluginDefinition {
     };
     const actions = [...createInboxActionHandlers({ ...sceneRuntime.ports, ...pages,
       listEntries: () => attention.listInbox().map(recordOf),
-      stageSubjects: (entries, caller) => readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
-        feedAvailability: () => own.availability(FEED.briefs),
-        goal: id => own.invokeQuery<{ goal_id: string }, { goal: { title: string } }>(INBOX_STAGE_GOAL_READ, { goal_id: id }),
-      }),
+      stageSubjects: (entries, caller) => {
+        // N42–N56: lazily discover once per inbox.stage.read call when non-Feed subjects exist (0 discovers for Feed-only).
+        let discovered: readonly ActionView[] | Promise<readonly ActionView[]> | undefined;
+        const directoryOnce = () => (discovered ??= subjects.discover(caller));
+        return readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
+          feedAvailability: () => own.availability(FEED.briefs),
+          subject: async entry => (await resolveActionSubject(subjects, caller, inboxOrigin(entry), await directoryOnce())).context,
+        });
+      },
       setStatus: async (entryId, status, revision, caller) => {
         const entry = entryOf(entryId);
         // Reopening is admission too: an ignored item's entries stay closed until the person restores the item, and only Feed can say so.

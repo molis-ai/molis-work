@@ -3,16 +3,14 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
   .tree-chrome,
   body[data-desktop-shell="true"] .tree-chrome { gap: 8px; }
   .tree-node { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-  .tree-copy strong,
-  .navigator-goal-copy strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.35; letter-spacing: -.008em; }
+  .tree-copy strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.35; letter-spacing: -.008em; }
   .tree-node.is-selected .tree-copy small { color: var(--muted); }
   .tree-relations > summary strong { font-size: 11px; }
   .tree-relations > summary em { min-height: 19px; padding: 1px 4px; border: 1px solid color-mix(in srgb, currentColor 24%, var(--line)); border-radius: 5px; background: color-mix(in srgb, currentColor 6%, var(--rail)); display: inline-flex; align-items: center; font-size: 11px; font-weight: 400; }
   .tree-footer { padding: 0 16px; border: 0; border-top: 1px solid var(--line); background: var(--rail); color: var(--muted); }
   @media (min-width: 761px) {
     html[data-density="compact"] body[data-board-view] .tree-chrome { padding-block: 4px 8px; }
-    html[data-density="compact"] body[data-board-view] .tree-node,
-    html[data-density="compact"] body[data-board-view] .navigator-goal-row { min-height: 32px; }
+    html[data-density="compact"] body[data-board-view] .tree-node { min-height: 32px; }
     html[data-density="compact"] body[data-board-view] .tree-node { padding-block: 4px; }
     html[data-density="compact"] body[data-board-view] .tree-progress > span { display: none; }
     html[data-density="compact"] body[data-board-view] .tree-progress > i { width: 24px; display: block; }
@@ -70,23 +68,23 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     white-space: nowrap;
   }
 
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-row {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-row {
     min-height: 0;
     align-items: flex-start;
     border-radius: 0;
     background: transparent;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-row:hover,
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-row:has(.tree-node.is-selected) {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-row:hover,
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-row:has(.tree-node.is-selected) {
     background: transparent;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-toggle,
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-guide {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-toggle,
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-guide {
     width: 16px;
     height: 40px;
     flex: 0 0 16px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-entry {
     min-width: 0;
     flex: 1 1 auto;
     display: grid;
@@ -94,19 +92,19 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     grid-template-rows: auto auto;
     align-items: center;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry:hover {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-entry:hover {
     color: var(--ink);
     background: var(--nav-hover);
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry.is-selected {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-entry.is-selected {
     color: var(--ink);
     background: var(--paper);
     box-shadow: var(--lift-1);
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry:has(.tree-relations[open]) {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-entry:has(.tree-relations[open]) {
     grid-template-rows: auto auto;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-node {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-node {
     width: auto;
     min-height: 22px;
     padding: 4px 0 0 8px;
@@ -119,29 +117,29 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     grid-row: 1;
     align-items: center;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-node:hover,
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-node.is-selected {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-node:hover,
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-node.is-selected {
     color: inherit;
     background: transparent;
     box-shadow: none;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-node:focus-visible {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-node:focus-visible {
     outline: var(--focus-stroke);
     outline-offset: var(--focus-stroke-inset);
     box-shadow: none;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-copy {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-copy {
     min-width: 0;
     display: block;
     overflow: hidden;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-title-line,
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-title-line,
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-meta-line {
     min-width: 0;
     display: flex;
     align-items: center;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-title-line strong {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-title-line strong {
     min-width: 0;
     overflow: hidden;
     color: inherit;
@@ -153,35 +151,35 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     text-overflow: var(--tree-title-overflow, clip);
     white-space: var(--tree-title-space, normal);
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-toggle {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-toggle {
     height: 30px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node {
     min-height: 30px;
     padding-block: 4px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node .tree-title-line {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node .tree-title-line {
     /* Passed to the title: a :has() rule ending in a bare tag makes the browser check that tag on every node put anywhere in the page. */
     --tree-title-wrap: normal;
     --tree-title-overflow: ellipsis;
     --tree-title-space: nowrap;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-meta-line > .tree-progress {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-meta-line > .tree-progress {
     display: none;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry:not(:has(> .tree-meta-line .tree-relations)) {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry:not(:has(> .tree-meta-line .tree-relations)) {
     grid-template-rows: auto;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry:not(:has(> .tree-meta-line .tree-relations)) > .tree-meta-line {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry:not(:has(> .tree-meta-line .tree-relations)) > .tree-meta-line {
     display: none;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry:not(:has(> .tree-meta-line .tree-relations)) > .directory-row-state {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry:not(:has(> .tree-meta-line .tree-relations)) > .directory-row-state {
     grid-row: 1;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry.is-selected .tree-title-line strong {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-entry.is-selected .tree-title-line strong {
     font-weight: var(--weight-control, 500);
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-meta-line {
     min-width: 0;
     padding: 0 0 4px 8px;
     gap: 8px;
@@ -189,11 +187,11 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     grid-column: 1;
     grid-row: 2;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line:has(.tree-relations[open]) {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-meta-line:has(.tree-relations[open]) {
     padding-right: 8px;
     flex-wrap: wrap;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line > small {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-meta-line > small {
     min-width: 0;
     max-width: 92px;
     flex: 1 1 42px;
@@ -207,7 +205,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-progress {
     width: auto;
     margin: 0;
     color: var(--muted);
@@ -217,24 +215,24 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     font-size: 11px;
     font-variant-numeric: tabular-nums;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress > i {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-progress > i {
     width: 26px;
     height: 2px;
     display: block;
     overflow: hidden;
     background: var(--line-strong);
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress > i > b { background: var(--blue); }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress.is-blocked,
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress.is-blocked > span { color: var(--red); }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress.is-blocked > i > b { background: var(--red); }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-progress > i > b { background: var(--blue); }
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-progress.is-blocked,
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-progress.is-blocked > span { color: var(--red); }
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-progress.is-blocked > i > b { background: var(--red); }
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .directory-row-state {
     margin-right: 8px;
     grid-column: 2;
     grid-row: 1 / 3;
     justify-self: end;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .directory-row-state > .mw-object-status {
     width: auto;
     min-width: 0;
     min-height: 0;
@@ -244,7 +242,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     background: transparent;
     font-size: 12px;
   }
-  html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
+  html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:where(:not(.immersive-workbench)) .desktop-tree-directory .directory-row-state > .mw-object-status {
     min-height: 0;
     padding: 0;
     border: 0;
@@ -252,25 +250,25 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     background: transparent;
     font-size: 12px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations {
     width: auto;
     min-width: 0;
     margin: 0;
     color: var(--muted);
     flex: 0 1 auto;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations > summary {
     max-width: 100%;
     min-height: 14px;
     padding: 0;
     border-radius: 4px;
     gap: 4px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary:hover {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations > summary:hover {
     color: var(--ink-soft);
     background: transparent;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary em {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations > summary em {
     min-height: 0;
     padding: 0;
     border: 0;
@@ -278,17 +276,17 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     background: transparent;
     font-size: 11px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary strong {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations > summary strong {
     font-size: 11px;
     font-weight: var(--weight-control, 500);
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary .tree-relations-mark {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations > summary .tree-relations-mark {
     display: none;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations[open] {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-relations[open] {
     flex-basis: 100%;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-deps {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .tree-deps {
     width: min(206px, calc(100vw - 90px));
     margin: 4px 0 4px;
     padding: 4px 0 4px 8px;
@@ -298,7 +296,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .navigator-project,
     body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .personal-sidebar-footer,
     body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-directory-secondary,
-    body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .desktop-directory-heading { display: none !important; }
+    body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-tree-directory .desktop-directory-heading { display: none !important; }
   }
 `;
 

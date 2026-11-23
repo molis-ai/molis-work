@@ -81,11 +81,12 @@ export function workFrameClient(host: WorkFrameHost) {
     const item = getState().goals.find(entry => entry.goal.goal_id === goalId);
     const title = frame.querySelector("[data-workspace-goal-title]");
     if (title) title.textContent = item?.goal.title || "";
-    const status = frame.querySelector("[data-workspace-goal-status]");
+    const status = frame.querySelector<HTMLElement>("[data-workspace-goal-status]");
     const source = documentPane.querySelector(".goal-info-popover > summary .goal-status");
     if (status) {
-      status.className = source?.className || "goal-status";
+      status.className = source?.className || "mw-object-status goal-status";
       status.setAttribute("data-workspace-goal-status", "");
+      status.dataset.craftFocal = goalId ? "goal:" + goalId : "";
       status.innerHTML = source?.innerHTML || "";
     }
     const saved = modes[goalId] || {};

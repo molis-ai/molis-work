@@ -78,10 +78,10 @@ function directory({ view, routePrefix, primitives: p, typeTitle, languagePrevie
     }).join("");
     const titles = new Set(versions.map(version => typeTitle?.(version)));
     const title = titles.size === 1 ? titles.values().next().value : undefined;
-    return `<details class="goal-collection-fold" data-artifact-type-fold="${p.escape(typeId)}" open>
+    return `<details class="mw-collection-fold" data-artifact-type-fold="${p.escape(typeId)}" open>
       <summary>
-        <span class="goal-collection-caret" aria-hidden="true">${glyph("chevron-down")}</span>
-        <span class="goal-collection-mark is-${tone}" aria-hidden="true">${glyph(mark)}</span>
+        <span class="mw-collection-caret" aria-hidden="true">${glyph("chevron-down")}</span>
+        <span class="mw-collection-mark is-${tone}" aria-hidden="true">${glyph(mark)}</span>
         <strong>${p.escape(title ?? typeIdLabel(typeId))}</strong>
         <small>${versions.length}</small>
       </summary>

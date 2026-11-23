@@ -18,6 +18,10 @@ function mountLingguang(): void {
   const life = host.mountPluginClient(workbench);
   if (!life) return;
   const page = createPage(host, life, workbench);
+  if (typeof host.surfaceFor === "function" && !host.surfaceFor("goal")) {
+    const goalButton = workbench.querySelector<HTMLElement>("[data-lingguang-to-goal]");
+    if (goalButton) goalButton.hidden = true;
+  }
   installEditor(page);
   installList(page);
   installLoad(page);

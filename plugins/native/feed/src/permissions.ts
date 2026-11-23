@@ -13,8 +13,8 @@ const OWN = "读写 Feed 内容、捕捉规则与首页事项，处理消息去�
 export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "feed:read", required: true, reason: OWN },
   { permission: "feed:write", required: true, reason: OWN },
-  { permission: "goals:read", required: true, reason: OWN },
-  { permission: "goals:write", required: true, reason: OWN },
+  { permission: "goals:read", required: false, reason: "可选：读取与目标关联的来源正文或把消息转为目标" },
+  { permission: "goals:write", required: false, reason: "可选：把 Feed 消息转为项目目标" },
   { permission: "model:invoke", required: true, reason: OWN },
   { permission: "inbox:read", required: true, reason: OWN },
   { permission: "inbox:write", required: true, reason: OWN },

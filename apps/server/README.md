@@ -30,4 +30,4 @@ Migration: `goal-reorg-f2`
 - 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts tests/server-cli.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-已有成员需由本机管理员重跑 `molis-work server authorize …`，显式授权新增 `goals.states.read@1`；不自动扩大旧授权。
+已有成员需由本机管理员重跑 `molis-work server authorize …`，显式授权按 `WORK_PROGRESS_CONTINUITY_PROTOCOL` 发现的接续动作；不自动扩大旧授权。

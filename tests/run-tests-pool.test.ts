@@ -313,7 +313,8 @@ test("single file with explicit --retries or --timeout-seconds enters the coordi
 
 test("strata: VISUAL_AUDIT_TESTS exist on disk, isGateMetaTest excludes only gate/CI self-tests, and --exclude-* flags filter before sharding", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
-  assert.equal(VISUAL_AUDIT_TESTS.length, 13);
+  assert.equal(VISUAL_AUDIT_TESTS.length, 21);
+  assert.equal(new Set(VISUAL_AUDIT_TESTS).size, VISUAL_AUDIT_TESTS.length, "each visual audit entry is listed once");
   for (const file of VISUAL_AUDIT_TESTS) {
     assert.equal(existsSync(path.join(root, file)), true, `${file} exists`);
     assert.equal(isVisualAuditTest(file), true, file);

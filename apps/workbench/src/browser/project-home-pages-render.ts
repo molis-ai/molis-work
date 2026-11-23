@@ -273,7 +273,7 @@ export function renderCompareChromeParts(options: {
           title: uiText.text("workbench.home-pages.conflict-title", { v: draft.version }),
           body: uiText.text("workbench.home-pages.conflict-body", { base: draft.based_on ?? 1 }),
           mineLabel: uiText.text("workbench.home-pages.conflict-mine", { base: draft.based_on ?? 1 }),
-          mineValue: diff.files.map(f => f.path).join("、"),
+          mineValue: diff.files.map(f => f.path).join(uiText.text("common.list.separator")),
           nextLabel: uiText.text("workbench.home-pages.conflict-next", { v: draft.version }),
           nextValue: `${draft.title}（${diff.files.length} 个文件变动）`,
           choices: [

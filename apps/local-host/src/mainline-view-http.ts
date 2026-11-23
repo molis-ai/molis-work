@@ -47,7 +47,7 @@ const subjectKey = (subject: ActionSubject): string => `${subject.kind}:${subjec
 
 function errorState(error: unknown): "missing" | "denied" {
   const code = error instanceof ActionError ? error.code : "";
-  if (code === "actions.forbidden" || code === "actions.unauthorized" || code === "placement.forbidden") {
+  if (code === "actions.forbidden" || code === "placement.forbidden") {
     return "denied";
   }
   return "missing";

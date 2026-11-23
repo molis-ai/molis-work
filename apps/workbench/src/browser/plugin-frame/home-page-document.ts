@@ -98,7 +98,7 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
         if (msg.ok) waiter.resolve(msg.result);
         else {
           const err = new Error(msg.message || "动作调用失败");
-          err.code = msg.code || "actions.failed";
+          err.code = msg.code || "actions.execution_failed";
           waiter.reject(err);
         }
       } else if (msg.type === "theme" && msg.dataset) {
@@ -364,7 +364,7 @@ export async function mountHomePageFrame(options: {
             type: "reply",
             id: msg.id,
             ok: false,
-            code: typeof data.code === "string" ? data.code : "actions.failed",
+            code: typeof data.code === "string" ? data.code : "actions.execution_failed",
             message: typeof data.error === "string" ? data.error : typeof data.message === "string" ? data.message : "动作调用被拒",
           });
         } else {
@@ -376,7 +376,7 @@ export async function mountHomePageFrame(options: {
             type: "reply",
             id: msg.id,
             ok: false,
-            code: "actions.failed",
+            code: "actions.execution_failed",
             message: error instanceof Error ? error.message : "动作请求失败",
           });
         }

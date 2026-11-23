@@ -37,7 +37,7 @@ export interface InboxContentPorts {
   admit(itemId: string, caller: ActionCallContext): Promise<{ entry_id: string }>;
 }
 export const inboxOrigin = (entry: Pick<ContentEntry, "subject_type" | "subject_id">): ActionSubject => ({
-  kind: entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source", id: entry.subject_id,
+  kind: entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : entry.subject_type === "source_fault" ? "source" : entry.subject_type, id: entry.subject_id,
 });
 export const sameInboxEntry = (current: ContentEntry, previous: ContentEntry) => current.revision === previous.revision
   && current.owner_plugin_id === previous.owner_plugin_id && current.subject_type === previous.subject_type

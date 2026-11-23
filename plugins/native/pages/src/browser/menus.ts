@@ -80,10 +80,19 @@ export function openMove(page: PagesPage, trigger: HTMLElement, id: string) {
   moveMenu.style.top = top + "px";
 }
 
+const hasGoalSurface = (page: PagesPage) => (typeof page.host.surfaceFor === "function" ? Boolean(page.host.surfaceFor("goal")) : true);
+
 export function fillGoalSelect(page: PagesPage) {
   const { goalSelect } = page;
   if (!goalSelect) return;
   const current = page.sel?.goal_id || "";
+  const visible = hasGoalSurface(page) || page.goals.length > 0;
+  const field = goalSelect.closest?.("label");
+  if (field) {
+    field.hidden = !visible;
+    const divider = field.nextElementSibling;
+    if (divider?.tagName === "HR") (divider as HTMLElement).hidden = !visible;
+  }
   goalSelect.replaceChildren();
   const none = document.createElement("option");
   none.value = "";
@@ -101,6 +110,11 @@ export function fillGoalSelect(page: PagesPage) {
 interface GoalsAnswer { readonly goals?: readonly { readonly goal?: { readonly goal_id?: string; readonly title?: string }; readonly goal_id?: string; readonly title?: string }[] }
 
 export async function loadGoals(page: PagesPage) {
+  if (!hasGoalSurface(page)) {
+    page.goals = [];
+    fillGoalSelect(page);
+    return;
+  }
   try {
     const payload = await page.host.invokeAction<GoalsAnswer>({ capability_id: "goals.collection.read", version: /* @version action.goals.collection.read */ 1 }, {});
     page.goals = (payload.goals || []).map((item) => ({

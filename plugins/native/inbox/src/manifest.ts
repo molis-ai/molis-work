@@ -4,7 +4,7 @@ import { inboxWorkEventsAction } from "./work-events.js";
 import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { INBOX_UI_CONTRIBUTION_ID } from "./ui.js";
-import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, INBOX_STAGE_GOAL_READ, inboxActions } from "./actions.js";
+import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, inboxActions } from "./actions.js";
 import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
@@ -43,6 +43,7 @@ export const inboxManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [...[...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])]
     .filter(permission => !PLATFORM_PERMISSIONS.some(platform => platform.permission === permission)).map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
+    { permission: "goals:read", required: false, reason: "可选：读取来自目标插件的待决定事项标题" },
     { permission: "storage:private", required: true, reason: "项目里 Inbox 下一步的绑定" },
     ...PLATFORM_PERMISSIONS],
   presentation: inboxPresentation,
@@ -62,7 +63,7 @@ export const inboxManifest: PluginManifest = {
     { route_id: "inbox.judgment.evaluate", method: "POST", path: "/judgment/evaluate", permission: "inbox:read" },
   ],
   databases: { project: INBOX_PROJECT_DATABASE },
-  capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
+  capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content"] },
   artifacts: { produces: [], consumes: [] },
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:/* @version sync.collection.inbox.attention */ 1,requires:[],sections:attentionSections}]},
   ui: { locales: { default: "zh", available: ["zh", "en"] },

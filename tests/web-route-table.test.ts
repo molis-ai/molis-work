@@ -258,6 +258,9 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
     return;
   }
   assert.deepEqual(actual, JSON.parse(readFileSync(SNAPSHOT, "utf8")));
+  // PEQ-13: the retired Goals-only Desktop capsule web route is gone (404).
+  const capsule = await fetch(`${origin}/desktop/capsule`, { headers: { origin, accept: "text/html" }, redirect: "manual" });
+  assert.equal(capsule.status, 404, "PEQ-13: /desktop/capsule route is removed");
 });
 
 test("RAC-2561 PEQ-17 retired panel and Goals terminal routes are gone; the platform work-terminals route answers for any object", () => {

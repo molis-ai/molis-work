@@ -34,11 +34,6 @@ const goals = defineErrorCodes("goals", {
   not_found: "invalid",
 });
 
-const goals_policy = defineErrorCodes("goals.policy", {
-  confirmation_required: "invalid",
-  invalid: "invalid",
-});
-
 const goals_relation = defineErrorCodes("goals.relation", {
   already_exists: "invalid",
   deactivation_reason_required: "invalid",
@@ -72,8 +67,6 @@ export const commandErrors = {
   "goals.goal_tree_proposal.relation_not_active": goals_goal_tree_proposal.relation_not_active,
   "goals.goal_tree_proposal.relation_type_invalid": goals_goal_tree_proposal.relation_type_invalid,
   "goals.not_found": goals.not_found,
-  "goals.policy.confirmation_required": goals_policy.confirmation_required,
-  "goals.policy.invalid": goals_policy.invalid,
   "goals.relation.already_exists": goals_relation.already_exists,
   "goals.relation.deactivation_reason_required": goals_relation.deactivation_reason_required,
   "goals.relation.not_active": goals_relation.not_active,

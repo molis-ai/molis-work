@@ -2,6 +2,7 @@ import { goalSectionsDeclaration, goalSectionsTracking } from "./sync-sections.j
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, PROJECT_JOURNAL_PERMISSION, type PluginManifest, type PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
+import { goalsDemoSeedAction } from "./demo-seed.js";
 import { goalsWorkPromptAction } from "./work-prompt.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
@@ -46,11 +47,7 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
 ];
 
 /**
- * Declarative placement for this first-party Plugin.
- *
- * `native` rather than `app`: the shell derives navigation from these
- * declarations, while this Plugin is still composed at build time instead of
- * being started and isolated by Plugin Runtime.
+ * Declarative placement for the built-in Goals plugin (`project_runtime` via Plugin Runtime).
  */
 export const goalsManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1,
@@ -65,7 +62,7 @@ export const goalsManifest: PluginManifest = {
   // Every permission is required and written out here. The first four are what its actions ask of the caller
   // (`actionPermissionDeclarations` over `GOALS_ACTIONS`, which `tests/goals-project-database.test.ts` holds
   // this list to); the rest are what Goals asks of the platform's services: its own tables, the journal, Attention, the Context Ledger,
-  // other plugins' actions as the caller, and the Goal's work terminals (also asked by `GOALS_TERMINAL_ACTIONS`).
+  // and other plugins' actions as the caller.
   permissions: [
     { permission: "goals:read", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
     { permission: "goals:write", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
@@ -84,7 +81,8 @@ export const goalsManifest: PluginManifest = {
   ],
   // A Goal's requirements are the platform's (contract-design §10.3): Goals reads them, and hangs a new Goal's, as the subject's provider.
   capabilities: { provides: [], consumes: [acceptanceActions.read.capability_id, acceptanceActions.set.capability_id] },
-  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, ...goalsPresentationActions],
+  demo_seed: { capability_id: goalsDemoSeedAction.capability_id, version: goalsDemoSeedAction.version },
+  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, goalsDemoSeedAction, ...goalsPresentationActions],
   presentation: goalsPresentation,
   work_terminals: [{ subject_kind: "goal", prompt_action: goalsWorkPromptAction.capability_id }],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).

@@ -6,7 +6,7 @@ Goals 保存 Goal 身份、当前结果约定、要求、工作事件和父子�
 
 所有新建入口使用 `GoalEventApplication.createIntent`：网页新建、首次引导、Feed/Inbox 升格（经 `goals.create` 动作，Feed 不直接写 Goals）、Runtime 和已批准的树提案。普通笔记无需类型、规划模板或验收要求。类型配置、普通事实和进展可逐步补充；一批报告与其进展说明共同提交，任何非法事实都会使本批次回滚。
 
-当前约定独立于历史 Draft/accepted 字段。要求可以新增、修订、退休；退休保留原要求和报告。报告是报告者自己的话：执行者的「支持」不能单独满足任何要求（PWA-144，用户 2026-11-04 定），每条当前要求都要有仍然有效的可信用户验收，一次决定可以验收多条。`human_decision_required` 默认为 false，为 true 表示这条要求始终要人验收；为 false 的要求以后可由第 24-3 批的证据合同用可查证据满足，在那之前同样要人验收。实质承诺变化须引用对具体变化的有效授权，不能通过改类型绑定或自填操作者绕过。
+当前约定独立于历史 Draft/accepted 字段。要求可以新增、修订、退休；退休保留原要求和报告。要求的核验与本人认可由平台 [Acceptance](../../modules/acceptance/README.md) 持有（第 44 批）：报告是报告者自己的话，执行者的「支持」不能单独满足任何要求（PWA-144，用户 2026-11-04 定）；`human_decision_required` 为 true 表示这条要求始终要人验收，为 false 时可由平台核验过的证据（`machine_checked` / `peer_reviewed`）或可信用户认可满足。实质承诺变化须引用对具体变化的有效授权（平台 `horizontal/project-approvals`），不能通过改类型绑定或自填操作者绕过。
 
 显式收尾读取当前约定、配置、要求、依赖和适用决定。项目规定完成要人批准时，还须当前这一轮里可信用户的完成批准（`authorize_action complete`）；要求的认可不算这一批准，点完成的人自己也不算（用户 2026-11-05 定：两件事分开）。版本缺失或过期在正式副作用前拒绝；版本正确但条件不足时可以保存收尾报告，完成效果仍为 false。普通报告不会自动完成；无关笔记或报告不会重开 completed/cancelled。有效反证可以使原完成退出当前生效，原始完成记录仍保留。要求的认可之后出现反证或「不确定」的报告，这份认可即作废，执行者再报满足也只回到「待你认可」，要用户重新认可；用户不认可的要求以 `requirement_rejected` 拦下收尾（用户 2026-11-05 定）。继续工作统一使用 `resumeWork`，必须说明开启下一轮的原因。状态判断和差距计算留在本模块，UI 与 MCP 不复制算法。
 
@@ -15,8 +15,8 @@ Goals 保存 Goal 身份、当前结果约定、要求、工作事件和父子�
 | 入口 | 用途 |
 | --- | --- |
 | `events` | 意图归属、局部类型版本、笔记、批量事实、进展、当前约定与要求、Concern、决定请求／引用、收尾、取消和继续 |
-| `query` | Goal、关系、归档／回收站、指导、上级约定覆盖、项目规则及其历史、工作事件所属 Goal 的读取 |
-| `commands` | 底层建库、Goal／关系物化和项目指导；由实际应用用例调用，不构成第二套 Runtime 创建协议 |
+| `query` | Goal、关系、归档／回收站、上级约定覆盖、工作事件所属 Goal 的读取（项目指导归 `modules/projects`，项目审批规则归 `horizontal/project-approvals`） |
+| `commands` | Goal／关系物化；由实际应用用例调用，不构成第二套 Runtime 创建协议 |
 | `lifecycle` | 当前仍使用的归档、回收站和恢复行为 |
 | `planning` | 关系图合法性、当前状态下的变化影响分析（拆解方法是技能目录里的技能，不在这里） |
 
@@ -26,15 +26,15 @@ Goals 保存 Goal 身份、当前结果约定、要求、工作事件和父子�
 
 ## 存储
 
-Goal schema 与事件 schema 由 Goals 维护：Goals 交出自己的当前建表语句，由 Host 合成项目库基线（带版本）；版本不符的库在打开层直接拒绝、不就地升级；低版本由启动升级过程先升（[U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §3、§4），第一段就是项目库 1→2（`apps/local-host/src/project-database-schema.ts`）。
+Goal schema 与事件 schema 由 Goals 插件自己声明（`databases.project`，`plugins/native/goals/src/project-database.ts` 的 `GOALS_PROJECT_DATABASE` v1），仅在项目启用 Goals 时挂进项目库（停用或移除插件后数据保留）；不属于平台项目库基线（`apps/local-host/src/project-database-schema.ts`）。版本不符时由打开层直接拒绝、不就地升级；低版本由启动升级过程先升（[U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §3、§4）。
 
-输入绑定保留原来源、确认状态、作者、时间及必要的内容版本。可解析的跨模块来源通过 Context Ledger 关联；Goals 不读取其他 Module 的表，也不把 URL 自动注册为 Artifact。项目规则（policy）及其历史可读；风险与 Contract 修订已删除（#272），风险记录另由 [risk-plugin](../../specs/risk-plugin/spec.md) 规划。
+输入绑定保留原来源、确认状态、作者、时间及必要的内容版本。可解析的跨模块来源通过 Context Ledger 关联；Goals 不读取其他 Module 的表，也不把 URL 自动注册为 Artifact。项目审批规则及可信用户决定归平台 `horizontal/project-approvals`，项目指导归 `modules/projects`，要求与逐项认可归 `modules/acceptance`；风险记录归 `plugins/native/risk`。
 
 ## 应用与 UI 边界
 
-`plugins/native/goals` 拥有事件正文、时间索引、说明／要求阅读器、有限树提案和实际表单。当前目录和正文直接消费事件状态；归档和回收站遵守 Goal 的实际记录。日志按工作事件自己的 id 记录报告与状态记录，Goal 文档集合经 `query.listWorkEventGoalLinks` 把它们挂到所属 Goal，动量与工作胶囊由此读到活动；完成只认 `completion_applied` 为真的收尾。历史只由事件工作与 Journal 记录组成，不需要构造空 action token 或旧操作列表。
+`plugins/native/goals` 拥有事件正文、时间索引、说明／要求阅读器、有限树提案和实际表单。当前目录和正文直接消费事件状态；归档和回收站遵守 Goal 的实际记录。日志按工作事件自己的 id 记录报告与状态记录，Goal 文档集合经 `query.listWorkEventGoalLinks` 把它们挂到所属 Goal；完成只认 `completion_applied` 为真的收尾。历史只由事件工作与 Journal 记录组成，不需要构造空 action token 或旧操作列表。
 
-真实 Runtime Session、终端进程和文件服务由 Work/Host 负责；切换 Goal 不会自动发送消息或改变终端绑定。Planning 不自行批准树变化；可信用户决定由 Governance 保存，Goals 只在相应应用事务中修改自己的事实。
+真实 Runtime Session、终端进程和文件服务由 Work/Host 负责；切换 Goal 不会自动发送消息或改变终端绑定。Planning 不自行批准树变化；平台可信用户决定由 `horizontal/project-approvals` 保存，Goal Tree 提案记录由 Goals 自己的 Governance 持存，Goals 只在相应应用事务中修改自己的事实。
 
 真正干活的无限画布是 GoalFrame：挂在 Goals 组，按 `goal_id` 记构图。点 Goal 打开这条 Goal 的 Frame；树、关系画布、看板和记录页仍归 Goals。
 

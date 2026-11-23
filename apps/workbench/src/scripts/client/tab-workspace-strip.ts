@@ -89,10 +89,11 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     const chrome = Number.parseFloat(cs.paddingLeft) + Number.parseFloat(cs.paddingRight) + Number.parseFloat(cs.borderLeftWidth) + Number.parseFloat(cs.borderRightWidth);
     return Math.min(TAB_SHARE_MAX, Math.ceil(chrome + inner));
   };
-  const shareTabStrip = (scroll) => {
+  const shareTabStrip = (scroll, settled = false) => {
     if (!scroll) return;
     const strip = scroll.parentElement;
     if (!strip || strip.clientWidth < 1) return;
+    const prevStripWidth = strip.clientWidth;
     // Scroll padding aligns a clipped active tab; it is not reserved content
     // for the next layout. Reusing it can alternate between sharing and hug.
     const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
@@ -166,12 +167,15 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     // The titlebar's strip is as wide as its tabs want (＋ follows them). Its box takes that from here, not from its content, so
     // sharing the widths below cannot move the box it was measured in. Measured after the all-tabs button settles, using exact non-scroll chrome
     // so a cover chip arriving in a narrow strip gets its full width on the first pass.
+    let hugChanged = false;
     if (strip.hasAttribute("data-titlebar-tabs")) {
       const lacking = [...strip.querySelectorAll(":scope > .tab-view-chip > span")].reduce((sum, name) => sum + Math.max(0, name.scrollWidth - name.clientWidth), 0);
       const around = reserved + chrome + (strip.clientWidth - innerWidth) + 1 + lacking;
       const sizes = { "--tabs-hug": hugs.reduce((sum, hug) => sum + hug, 0), "--tabs-floor": floor };
-      for (const name in sizes) { const value = Math.ceil(around + sizes[name]) + "px"; if (strip.style.getPropertyValue(name) !== value) strip.style.setProperty(name, value); }
+      for (const name in sizes) { const value = Math.ceil(around + sizes[name]) + "px"; if (strip.style.getPropertyValue(name) !== value) { strip.style.setProperty(name, value); hugChanged = true; } }
     }
+    // Expanding --tabs-hug (e.g. phone cover → desktop) widens the strip synchronously; re-measure allotted before writing scroll.style.width.
+    if (hugChanged && !settled && strip.clientWidth !== prevStripWidth) return shareTabStrip(scroll, true);
     const share = tabShareWidth(allotted - reserved, hugs, min);
     if (share == null) {
       if (!(scroll.style.getPropertyValue("--tab-share-width") || scroll.style.width)) return;

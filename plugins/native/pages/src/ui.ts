@@ -156,7 +156,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
             <button class="mw-menu__item" type="button" data-pages-export="html">${icon("download")}${uiText("pages.export.html")}</button>
             <button class="mw-menu__item" type="button" data-pages-print>${icon("download")}${uiText("pages.export.print")}</button>
             <hr>
-            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${uiText("pages.action.delete")}</button>
+            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete data-stage-danger>${icon("trash")}${uiText("pages.action.delete")}</button>
           </div>
         </div>
       </div>

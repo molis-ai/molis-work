@@ -115,7 +115,7 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   assert.match(directory, /<strong>report<\/strong>/);
   assert.match(directory, /mw-stage-entry directory-list-row/);
   assert.match(directory, /artifact-version-list/);
-  assert.match(directory, /goal-collection-mark is-ready/);
+  assert.match(directory, /mw-collection-mark is-ready/);
   assert.match(directory, /<strong>Original report<\/strong>/);
   assert.match(directory, /<strong>Later report<\/strong>/);
   const detail = await surface(exactPath(1));

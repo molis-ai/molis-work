@@ -54,16 +54,16 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.doesNotMatch(workbench, /plugin-market-grid article \{ padding: 24px;/);
   assert.match(withPlugins, /\.feed-workbench\.plugin-stage-shell\[data-feed-stage-shell\] \{[^}]*padding: 0;[^}]*overflow: hidden;/);
   assert.match(withPlugins, /> \.feed-column > \.mw-stage-list \{[^}]*overflow: auto; overscroll-behavior: contain;/);
-  assert.match(withPlugins, /mw-stage-list .goal-collection-fold > summary/);
-  assert.match(withPlugins, /plugin-stage-list \.goal-collection-fold \.mw-stage-entry \{ padding-left: 24px; \}/);
-  assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
-  assert.match(withPlugins, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
+  assert.match(withPlugins, /mw-stage-list \.mw-collection-fold > summary/);
+  assert.match(withPlugins, /plugin-stage-list \.mw-collection-fold \.mw-stage-entry \{ padding-left: 24px; \}/);
+  assert.match(workbench, /plugin-stage-list \.mw-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
+  assert.match(withPlugins, /\[data-shelf\] \.mw-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
   assert.doesNotMatch(withPlugins, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
   // An open file takes the whole stage: the directory is not kept beside it at any width.
   assert.doesNotMatch(withPlugins, /\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
-  assert.match(withPlugins, /mw-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
+  assert.match(withPlugins, /mw-stage-list \.mw-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
   // No region draws a scrollbar; one design-system rule hides them all (tests/scrollbars-hidden.test.ts).
   assert.ok(workbench.includes("@media not (forced-colors:active){*{scrollbar-width:none}*::-webkit-scrollbar{display:none;width:0;height:0}}"));
   // The shell lays out its own tree; Feed's source list is laid out by Feed's stylesheet (BL-b44-feed-home-dir-and-styles).
@@ -132,7 +132,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
 
 test("feed stage search keeps a single frame", () => {
   const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
-  assert.match(workbench, /:not\(\[data-feed-search\]\)/);
+  assert.match(workbench, /:not\(\[data-mw-plain-input\]\)/);
   assert.match(workbench, /\.feed-search-row \{[^}]*box-shadow: inset 0 0 0 1px var\(--line\)/);
   assert.match(workbench, /\.feed-search-row \.feed-stage-search \{[^}]*border: 0;/);
   assert.match(workbench, /\.feed-search-row \.feed-stage-search input \{[^}]*border: 0; appearance: none; -webkit-appearance: none; background: transparent; box-shadow: none; outline: 0;/);

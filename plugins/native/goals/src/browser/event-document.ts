@@ -134,7 +134,7 @@ export function eventDocumentClient(host: EventDocumentHost) {
     article.querySelectorAll<HTMLElement>("[data-event-form]").forEach((form) => { form.hidden = true; });
     const sheet = article.querySelector<HTMLElement>("[data-event-sheet]");
     if (sheet) sheet.hidden = !reading.item;
-    article.classList.remove("is-editing-goal");
+    article.classList.remove("is-editing-goal", "is-editing-record");
     syncPanelPresence();
     if (restoreFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
       if (root() !== article || article.classList.contains("is-editing-goal")) return;
@@ -230,7 +230,7 @@ export function eventDocumentClient(host: EventDocumentHost) {
     reading.reader = isReader ? name : "";
     reading.form = isReader ? "" : name;
     hidePanels();
-    article.classList.add("is-editing-goal");
+    article.classList.add("is-editing-goal", "is-editing-record");
     syncPanelPresence();
     const sheet = article.querySelector<HTMLElement>("[data-event-sheet]");
     if (sheet) sheet.hidden = true;

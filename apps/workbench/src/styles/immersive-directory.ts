@@ -24,19 +24,19 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .tree-guide { width: 16px; height: 28px; min-height: 28px; flex: 0 0 16px; }
   body.immersive-workbench .tree-pane .tree-children { margin-left: 8px; padding-left: 8px; }
   body.immersive-workbench .tree-pane .tree-entry > .directory-row-state { display: inline-flex; align-items: center; flex: none; width: auto; height: 22px; min-height: 0; margin: 0 4px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
-  body.immersive-workbench .tree-pane .tree-entry .goal-status { padding: 0; border: 0; background: transparent; box-shadow: none; gap: 4px; font-size: 12px; line-height: 18px; white-space: nowrap; }
-  body.immersive-workbench .tree-pane .tree-entry .goal-status > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  body.immersive-workbench .tree-pane .tree-entry .mw-object-status { padding: 0; border: 0; background: transparent; box-shadow: none; gap: 4px; font-size: 12px; line-height: 18px; white-space: nowrap; }
+  body.immersive-workbench .tree-pane .tree-entry .mw-object-status > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 
 
   body.immersive-workbench .tree-pane [data-directory-list-actions] { position: static; display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap; gap: 4px; margin: 0; padding: 0 8px; background: transparent; border: 0; width: 100%; box-sizing: border-box; }
-  body.immersive-workbench .tree-pane .goal-collection-fold { margin: 0; border-top: 0; }
-  body.immersive-workbench .tree-pane .goal-collection-fold > summary { height: var(--dir-row-h, 28px); min-height: var(--dir-row-h, 28px); padding: 0 4px; border-radius: 5px; color: var(--muted); }
-  body.immersive-workbench .tree-pane .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
-  body.immersive-workbench .tree-pane .goal-collection-fold > summary[aria-current="page"] { color: var(--ink); }
-  body.immersive-workbench .tree-pane .goal-collection-fold > summary strong { font-size: 11px; font-weight: var(--weight-control, 500); }
-  body.immersive-workbench .tree-pane .goal-collection-empty { padding: 4px 8px 8px 24px; font-size: 11px; }
-  body.immersive-workbench .tree-pane .goal-collection-fold .goal-tree { padding-inline-start: 16px; }
-  body.immersive-workbench .tree-pane .goal-collection-fold > .goal-collection-empty { padding: 4px 8px 8px 24px; }
+  body.immersive-workbench .tree-pane .mw-collection-fold { margin: 0; border-top: 0; }
+  body.immersive-workbench .tree-pane .mw-collection-fold > summary { height: var(--dir-row-h, 28px); min-height: var(--dir-row-h, 28px); padding: 0 4px; border-radius: 5px; color: var(--muted); }
+  body.immersive-workbench .tree-pane .mw-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
+  body.immersive-workbench .tree-pane .mw-collection-fold > summary[aria-current="page"] { color: var(--ink); }
+  body.immersive-workbench .tree-pane .mw-collection-fold > summary strong { font-size: 11px; font-weight: var(--weight-control, 500); }
+  body.immersive-workbench .tree-pane .mw-collection-empty { padding: 4px 8px 8px 24px; font-size: 11px; }
+  body.immersive-workbench .tree-pane .mw-collection-fold .mw-tree { padding-inline-start: 16px; }
+  body.immersive-workbench .tree-pane .mw-collection-fold > .mw-collection-empty { padding: 4px 8px 8px 24px; }
   body.immersive-workbench .tree-pane .tree-filter-control { position: static; }
   body.immersive-workbench .tree-pane .tree-tool:hover { color: var(--ink); background: var(--nav-active); }
   body.immersive-workbench .tree-pane .tree-tool[aria-expanded="true"],
@@ -59,18 +59,18 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .mw-stage-tree { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px clamp(16px, 3vw, 40px) 24px; }
   body.immersive-workbench .mw-stage-list { width: 100%; min-width: 0; max-width: 1104px; margin-inline: auto; padding-top: 8px; }
   body.immersive-workbench .plugin-stage-shell > .mw-stage-list { max-width: none; margin-inline: 0; }
-  body.immersive-workbench .mw-stage-list .goal-collection-fold { margin: 0 0 12px; border: 0; }
-  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary {
+  body.immersive-workbench .mw-stage-list .mw-collection-fold { margin: 0 0 12px; border: 0; }
+  body.immersive-workbench .mw-stage-list .mw-collection-fold > summary {
     display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px;
     border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer;
   }
-  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
-  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary strong {
+  body.immersive-workbench .mw-stage-list .mw-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
+  body.immersive-workbench .mw-stage-list .mw-collection-fold > summary strong {
     flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 12px; font-weight: var(--weight-control, 500);
   }
-  body.immersive-workbench .mw-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
-  body.immersive-workbench .mw-stage-list .goal-collection-empty { margin: 0; padding: 8px 8px 12px 24px; font-size: 12px; color: var(--muted); }
+  body.immersive-workbench .mw-stage-list .mw-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
+  body.immersive-workbench .mw-stage-list .mw-collection-empty { margin: 0; padding: 8px 8px 12px 24px; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .mw-stage-item { width: 100%; min-width: 0; border: 0; border-radius: 0; }
   body.immersive-workbench .mw-stage-item.is-open { margin-block: 0; border: 0; background: transparent; }
   body.immersive-workbench .mw-stage-entry {

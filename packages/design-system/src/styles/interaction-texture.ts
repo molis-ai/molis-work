@@ -8,10 +8,10 @@ import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
 /** Menus, popovers and compact dialogs that share one raised-surface recipe. */
 // `.tui-menu.tui-menu` matches what `.tui-menu` does; it keeps the list's weight at two classes, as it was while Feed's two-class filter row
 // selector was in it, so the rules that use it still win where they did (BL-b44-feed-home-dir-and-styles).
-const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog, .tui-menu.tui-menu)";
+const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .runtime-plan-dialog, dialog.mw-dialog--alert, .tui-menu.tui-menu)";
 
 /** Modals that dim the app behind them. */
-const SCRIMMED = ":is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog)";
+const SCRIMMED = ":is(.global-search-dialog, .runtime-plan-dialog, dialog.mw-dialog--alert)";
 
 
 export const INTERACTION_TEXTURE_STYLES = `
@@ -20,7 +20,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  body :is(small, time, kbd, .goal-status, .tab-item, .immersive-plugin-link, .tree-entry, .directory-row-state) {
+  body :is(small, time, kbd, .mw-object-status, .tab-item, .immersive-plugin-link, .tree-entry, .directory-row-state) {
     font-variant-numeric: tabular-nums;
   }
   ::selection { background: color-mix(in srgb, var(--focus) 26%, transparent); color: var(--ink); }
@@ -51,7 +51,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   /* Icons sit one step quieter than their label and resolve on interaction.
    * Lucide draws on a 24 grid, so 2 keeps a 16px glyph at a Linear-weight 1.33px stroke. */
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) svg { stroke-width: 2; }
-  body.immersive-workbench :is(.tui-empty-mark, .goal-canvas-empty, .work-empty) svg { stroke-width: 1.6; }
+  body.immersive-workbench :is(.tui-empty-mark, .work-empty) svg { stroke-width: 1.6; }
   body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .tab-item-close, .workspace-history-button) svg {
     transition: color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint);
   }
@@ -153,27 +153,27 @@ export const INTERACTION_TEXTURE_STYLES = `
   body :is(input, textarea)::placeholder { color: var(--faint); }
 
   /* Status marks read as tone, not as a second bordered container.
-   * Keep the default token on .goal-status only. Putting it on
-   * body[data-desktop-shell=true] .goal-status would beat every
-   * .goal-status--* family rule and collapse all statuses to idle. */
-  .goal-status { --goal-status-tone: var(--tone-idle); }
-  .goal-status,
-  body[data-desktop-shell="true"] .goal-status {
+   * Keep the default token on .mw-object-status only. Putting it on
+   * body[data-desktop-shell=true] .mw-object-status would beat every
+   * .mw-object-status--* family rule and collapse all statuses to idle. */
+  .mw-object-status { --mw-object-status-tone: var(--tone-idle); }
+  .mw-object-status,
+  body[data-desktop-shell="true"] .mw-object-status {
     border-color: transparent;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent);
-    color: var(--goal-status-tone);
+    background: color-mix(in srgb, var(--mw-object-status-tone, var(--muted)) 11%, transparent);
+    color: var(--mw-object-status-tone);
     font-size: 12px;
     font-weight: 400;
     letter-spacing: 0;
   }
-  .goal-status svg {  flex: none; }
-  .goal-status--in_progress { --goal-status-tone: var(--tone-progress); }
-  .goal-status--waiting_user { --goal-status-tone: var(--tone-attention); }
-  .goal-status--waiting { --goal-status-tone: var(--tone-hold); }
-  .goal-status--blocked { --goal-status-tone: var(--tone-blocked); }
-  .goal-status--completed { --goal-status-tone: var(--tone-done); }
-  .goal-status--archived { --goal-status-tone: var(--tone-quiet); }
+  .mw-object-status svg {  flex: none; }
+  .mw-object-status--in_progress { --mw-object-status-tone: var(--tone-progress); }
+  .mw-object-status--waiting_user { --mw-object-status-tone: var(--tone-attention); }
+  .mw-object-status--waiting { --mw-object-status-tone: var(--tone-hold); }
+  .mw-object-status--blocked { --mw-object-status-tone: var(--tone-blocked); }
+  .mw-object-status--completed { --mw-object-status-tone: var(--tone-done); }
+  .mw-object-status--archived { --mw-object-status-tone: var(--tone-quiet); }
 
   .mw-dir-row[data-settings-section="appearance"] { --plugin-tint: var(--tone-attention); }
   .mw-dir-row[data-settings-section="runtimes"] { --plugin-tint: var(--tone-progress); }
@@ -236,7 +236,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
 
   /* Directory empty states share one calm block instead of six paddings and three alignments. */
-  body.immersive-workbench .tree-pane :is(.artifact-empty, .goal-collection-empty, .tree-filter-empty) {
+  body.immersive-workbench .tree-pane :is(.artifact-empty, .mw-collection-empty, .tree-filter-empty) {
     margin: 0;
     padding: 16px 12px;
     border: 0;

@@ -23,7 +23,7 @@ const FOUNDATION_BASE_BODY = `
 
   svg { stroke-width: 2; }
   :is(button, input, textarea, select, a, summary):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
-  input:not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .global-search-query, [data-feed-search]),
+  input:not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .global-search-query, [data-mw-plain-input]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
   .dialog-shell { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
@@ -192,7 +192,7 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}${FOUND
   body[data-desktop-shell="true"] .tree-tool span,
   body[data-desktop-shell="true"] .tree-tool small { display: none; }
   body[data-desktop-shell="true"] .tree-scroll { padding: 8px 12px 16px; }
-  body[data-desktop-shell="true"] .goal-status { min-height: 19px; padding: 0 4px; font-size: 12px; }
+  body[data-desktop-shell="true"] .mw-object-status { min-height: 19px; padding: 0 4px; font-size: 12px; }
   body[data-desktop-shell="true"] .tree-relations { margin-bottom: 4px; }
   body[data-desktop-shell="true"] .tree-relations > summary { min-height: 21px; padding-block: 1px; }
 
@@ -348,7 +348,7 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}${FOUND
     box-shadow: none;
   }
   .tree-node.is-selected .tree-copy small { color: var(--muted); }
-  .tree-node.is-selected .goal-status { color: inherit; }
+  .tree-node.is-selected .mw-object-status { color: inherit; }
   .tree-copy { grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; }
   .tree-copy strong { font-size: 13px; font-weight: var(--weight-control, 500); }
   .tree-copy > small {
@@ -413,7 +413,7 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}${FOUND
   .tree-dep.is-waiting > em { color: var(--amber); }
   .tree-dep.is-ready > em { color: var(--green); }
   .tree-dep.is-blocked > em { color: var(--red); }
-  .goal-status {
+  .mw-object-status {
     min-height: 19px;
     padding: 1px 4px;
     gap: 4px;
@@ -436,8 +436,7 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}${FOUND
     gap: 8px;
   }
   .navigator-group > header > span { min-width: 0; display: inline-flex; align-items: center; gap: 8px; }
-  .navigator-group > header i,
-  .navigator-goal-leading i {
+  .navigator-group > header i {
     width: 7px;
     height: 7px;
     border: 1.5px solid currentColor;
@@ -448,56 +447,20 @@ export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}${FOUND
   .navigator-group > header small { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
   .navigator-group > header > svg { width: 12px; height: 12px; color: var(--faint); }
   .navigator-group > ul { list-style: none; margin: 0 0 8px; padding: 0; }
-  .navigator-goal { min-width: 0; }
-  .navigator-goal-row {
-    width: 100%;
-    min-width: 0;
-    min-height: 44px;
-    padding: 8px 8px 8px calc(8px + var(--navigator-depth, 0) * 14px);
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--ink-soft);
-    display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 8px;
-    text-align: left;
-    cursor: pointer;
-  }
-  .navigator-goal-row:hover { color: var(--ink); background: color-mix(in srgb, var(--paper) 64%, transparent); }
-  .navigator-goal-row.is-selected {
-    color: var(--ink);
-    background: var(--nav-active);
-    box-shadow: inset 2px 0 0 var(--ink);
-  }
-  .navigator-goal-leading { color: var(--faint); display: grid; place-items: center; }
-  .navigator-goal-leading i { width: 8px; height: 8px; border-width: 1.5px; }
-  .navigator-goal-row.is-selected .navigator-goal-leading { color: var(--ink); }
-  .navigator-goal-copy { min-width: 0; display: flex; align-items: center; gap: 8px; }
-  .navigator-goal-copy > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--weight-control, 500); letter-spacing: -.008em; }
-  .navigator-goal-copy .tree-progress { flex: 0 0 auto; margin: 0; }
-  .navigator-goal-copy .tree-progress > i { display: none; }
   .navigator-relation-count { color: var(--faint); display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
   .navigator-relation-count svg { width: 12px; height: 12px; }
   .navigator-relation-count b { font-weight: var(--weight-control, 500); }
-  .navigator-goal > .tree-relations { display: none; }
   .navigator-group--ready > header i { color: var(--green); background: var(--green); border-color: var(--green); }
   .navigator-group--active > header i { color: var(--amber); background: var(--amber); border-color: var(--amber); }
   .navigator-group--waiting > header i { color: var(--faint); }
   .navigator-group--blocked > header i { color: var(--red); background: var(--red); border-color: var(--red); }
   .navigator-group--done > header i { color: var(--faint); background: var(--faint); border-color: var(--faint); }
 
-  html[data-resolved-theme="dark"] .navigator-goal-row:hover { background: color-mix(in srgb, var(--paper) 78%, var(--rail)); }
-  html[data-resolved-theme="dark"] .navigator-goal-row.is-selected {
-    background: color-mix(in srgb, var(--blue-soft) 88%, var(--paper));
-  }
-
   .tree-pane[data-navigator-view="graph"] .tree-scroll { padding: 0; overflow: hidden; }
 
   /* Form fields and floating surfaces: one border, corner and ground. */
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not([data-feed-search]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not([data-mw-plain-input]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
   .theme-menu,

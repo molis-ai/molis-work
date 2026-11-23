@@ -4,7 +4,7 @@ export { Identity, memberClientId } from "./identity.js";
 export type { Session, Member, Role } from "./identity.js";
 export { ServerEvents } from "./events.js";
 export { ContinuityService, progressInput } from "./continuity/service.js";
-export { CONTINUITY_ACTIONS } from "./continuity/actions.js";
+export { CONTINUITY_BASE_ACTIONS, continuityActionsFrom } from "./continuity/actions.js";
 export type { ActionFactory, ProjectScope, ProgressCommand } from "./continuity/types.js";
 export { ImError } from "./errors.js";
 export type { ServerOptions } from "./http.js";

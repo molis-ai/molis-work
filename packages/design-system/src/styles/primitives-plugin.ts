@@ -286,7 +286,7 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
   .mw-choice__check { width: 12px; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); svg { width: 12px; height: 12px; stroke-width: 2; } }
   .mw-collapsible { padding-top: 4px; summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; padding: 12px 0; &:hover { color: var(--ink); } } }
   /* One disclosure grammar: a rotating chevron instead of the OS triangle. Summaries that bring their own mark keep it. */
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .coding-material, .coding-checkpoints) {
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates) {
     > summary:not(:has(svg)) {
       display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
       &::-webkit-details-marker { display: none; }

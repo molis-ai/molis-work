@@ -11,7 +11,7 @@ export type Message = LingguangMessage;
 export type Scope = UiClientScope;
 
 /** What the workbench hands 灵光's client: the shared host fields it uses, the mount scope and the closing registration. */
-export interface LingguangHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "route" | "pluginRoute" | "pluginId" | "readRefusal"> {
+export interface LingguangHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "route" | "pluginRoute" | "pluginId" | "readRefusal" | "surfaceFor"> {
   mountPluginClient(root: HTMLElement): Scope | null;
   readonly view: Pick<UiPageView<HTMLElement>, "onClosing">;
 }

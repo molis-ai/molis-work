@@ -9,7 +9,6 @@ export const MORE_STYLES = `
   .fact-row { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .fact-row:last-child { border-bottom: 0; }
   .fact-icon { flex: 0 0 auto; margin-top: 4px; color: var(--blue); }
-  .fact-icon--risk { color: var(--amber); }
   .fact-row > span:last-child { min-width: 0; display: grid; }
   .fact-row small { color: var(--muted); overflow-wrap: anywhere; }
   .history-list { list-style: none; margin: 0; padding: 0; }

@@ -6,7 +6,14 @@ import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
+import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { inboxActions, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
+import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { acceptanceActions, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
 
@@ -90,23 +97,26 @@ test("PEQ-01 PEQ-02 PEQ-07 PEQ-12 a new project does not enable Goals, opens on 
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "PEQ-12: new project does not enable Goals");
   catalog.close();
   const controlToken = resolveWebControlToken({ homeDirectory: home });
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken });
   await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
   const address = server.address(); assert.ok(address && typeof address === "object");
   t.after(async () => {
     server.closeAllConnections();
     await new Promise<void>(done => server.close(() => done()));
+    await host.close();
     await rm(home, { recursive: true, force: true });
   });
   const origin = `http://127.0.0.1:${address.port}`;
   const prefix = `${origin}/projects/${project.project_id}`;
+  const writeHeaders = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   const revision = async () => {
     const data = await fetch(`${origin}/api/settings/project-plugins`).then(r => r.json()) as { projects: Array<{ project_id: string; revision: string }> };
     return data.projects.find(item => item.project_id === project.project_id)!.revision;
   };
   const changePlugin = async (method: "POST" | "DELETE", pluginId: string) => fetch(`${origin}/api/settings/projects/${project.project_id}/plugins`, {
     method,
-    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() },
+    headers: writeHeaders(),
     body: JSON.stringify({ plugin_id: pluginId, expected_revision: await revision() }),
   });
   const initialHtml = await fetch(prefix + "/").then(r => r.text());
@@ -114,14 +124,67 @@ test("PEQ-01 PEQ-02 PEQ-07 PEQ-12 a new project does not enable Goals, opens on 
   assert.doesNotMatch(initialHtml, /data-plugin-shell-style="goals"|molis-work-plugins\/goals\.css/, "PEQ-08: goals.css is not linked when Goals is absent");
   assert.doesNotMatch(initialHtml, /id="molis-work-data"/, "PEQ-01: no Goals bootstrap when Goals is absent");
 
-  // Add Goals, create a Goal, verify goals.css and Goal data appear.
-  assert.equal((await changePlugin("POST", "goals")).status, 200);
-  const created = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals`, {
+  // Save platform project guidance before adding Goals (PEQ-01).
+  const guidanceText = "这是一个移除 Goals 后依然正常运作的平台项目";
+  const guidanceWrite = await fetch(`${prefix}/api/project-guidance`, {
     method: "POST",
-    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() },
-    body: JSON.stringify({ goal_id: "PEQ-KEEP-1", title: "移除后保留的目标" }),
+    headers: writeHeaders(),
+    body: JSON.stringify({ kind: "context", content: guidanceText, reason: "PEQ-01 核对项目指导独立于 Goals", user_confirmed: true }),
   });
-  assert.equal(created.status, 201, "Goals action succeeds once added");
+  assert.equal(guidanceWrite.status, 200, "PEQ-01: platform project guidance write succeeds without Goals");
+
+  // Add co-installed project plugins alongside Goals (PEQ-01: Pages, Coding, Feed, Inbox).
+  for (const pluginId of ["pages", "coding", "feed", "inbox", "goals"]) {
+    const added = await changePlugin("POST", pluginId);
+    assert.equal(added.status, 200, `enable ${pluginId}: ${await added.text()}`);
+  }
+
+  // Create 2 Goals, a depends_on relation, a work note event, and a platform acceptance requirement + person acceptance (PEQ-02).
+  for (const goal of [{ goal_id: "PEQ-KEEP-1", title: "移除后保留的目标" }, { goal_id: "PEQ-KEEP-2", title: "被依赖的目标" }]) {
+    const created = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals`, {
+      method: "POST",
+      headers: writeHeaders(),
+      body: JSON.stringify(goal),
+    });
+    assert.equal(created.status, 201, `Goals create ${goal.goal_id} succeeds once added`);
+  }
+  const relRes = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/PEQ-KEEP-1/relations`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ direction: "outgoing", type: "depends_on", target_goal_id: "PEQ-KEEP-2", reason: "PEQ-02 验证关系在移除重装后保留" }),
+  });
+  assert.equal(relRes.status, 200, `Goals relation add succeeds: ${await relRes.text()}`);
+  const noteText = "PEQ-02 移除 Goals 前记录的工作事件笔记";
+  const noteRes = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/PEQ-KEEP-1/event-note`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ note: noteText }),
+  });
+  assert.equal(noteRes.status, 200, `Goals event-note succeeds: ${await noteRes.text()}`);
+
+  const acceptanceSubject = { provider_id: "io.molis.work.goals", subject: { kind: "goal", id: "PEQ-KEEP-1" } };
+  const reqSetRes = await fetch(`${prefix}/api/acceptance/requirements`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({
+      subject: acceptanceSubject,
+      requirements: [{ id: "req-keep-1", statement: "PEQ-02 验证验收要求与认可记录保留", requires_person: true }],
+    }),
+  });
+  assert.equal(reqSetRes.status, 200, `Platform acceptance requirements set: ${await reqSetRes.text()}`);
+  const projectRef = { project_id: project.project_id, storage_key: project.database_path };
+  const personCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, project_id: project.project_id, audience: "user" as const, permissions: ["acceptance:report", "acceptance:read", "goals:read"] };
+  await host.actionClient(projectRef).invoke(personCaller, acceptanceActions.deliver, { subject: acceptanceSubject, version: "v1", summary: "初次交付" });
+  const decideRes = await fetch(`${prefix}/api/acceptance/decide`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ subject: acceptanceSubject, version: "v1", accepts: [{ id: "req-keep-1", version: 1 }], returns: [] }),
+  });
+  const decideBody = await decideRes.text();
+  assert.equal(decideRes.status, 200, `Platform acceptance decide: ${decideBody}`);
+  const decidedView = JSON.parse(decideBody) as AcceptanceView;
+  assert.equal(decidedView.requirements[0]?.person, "accepted", "PEQ-02: requirement accepted before removing Goals");
+
   const withGoalsHtml = await fetch(prefix + "/").then(r => r.text());
   assert.match(withGoalsHtml, /href="\/assets\/molis-work-plugins\/goals\.css" data-plugin-shell-style="goals"/, "PEQ-08: goals.css linked when Goals is enabled");
   assert.match(withGoalsHtml, /移除后保留的目标/);
@@ -132,13 +195,75 @@ test("PEQ-01 PEQ-02 PEQ-07 PEQ-12 a new project does not enable Goals, opens on 
   assert.doesNotMatch(removedHtml, /data-plugin-shell-style="goals"|id="molis-work-data"/, "PEQ-08: goals.css and bootstrap leave when Goals is removed");
   assert.equal((await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/directory`)).status, 403, "PEQ-01: Goals routes refused after removal");
 
-  // Re-add Goals: previous Goal is still there intact (PEQ-02).
+  // PEQ-01: Project arrival brief, platform guidance, co-installed plugins (Pages/Coding/Feed/Inbox), and MCP context_resolve all work after removing Goals.
+  const briefRes = await fetch(`${origin}/api/projects/${project.project_id}/brief`);
+  assert.equal(briefRes.status, 200, "PEQ-01: project arrival brief works after removing Goals");
+  assert.match(await briefRes.text(), new RegExp(guidanceText), "PEQ-01: project brief carries platform guidance without Goals");
+  const guidanceRead = await fetch(`${prefix}/api/project-guidance`);
+  assert.equal(guidanceRead.status, 200);
+  const guidanceJson = await guidanceRead.json() as { entries: Array<{ content: string; active: boolean }> };
+  assert.ok(guidanceJson.entries.some(entry => entry.active && entry.content === guidanceText), "PEQ-01: platform project guidance survives Goals removal");
+  for (const [label, path] of [
+    ["Pages", "/api/plugins/io.molis.work.pages/pages"],
+    ["Coding", "/api/plugins/io.molis.work.coding/state"],
+    ["Feed", "/api/plugins/io.molis.work.feed/snapshot"],
+    ["Inbox", "/api/plugins/io.molis.work.inbox/entries"],
+  ] as const) {
+    const res = await fetch(prefix + path);
+    const bodyText = await res.text();
+    assert.equal(res.status, 200, `PEQ-01: ${label} route (${path}) still works after removing Goals: ${bodyText.slice(0, 200)}`);
+  }
+  const runtimeContext = { runtime_id: "codex", stable_work_context_id: "peq01-no-goals-ctx", host_declares_stable: true };
+  await host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home }, c => {
+    c.bindRuntimeContext({ context: runtimeContext, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+  });
+  const mcpServer = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: origin },
+    { homeDirectory: home, runtimeContext }, host);
+  t.after(() => mcpServer.close());
+  const resolved = JSON.parse(await mcpServer.callTool("molis_work_v1_context_resolve", {})) as { status: string; project?: { project_id: string } };
+  assert.equal(resolved.status, "bound", "PEQ-01: MCP context_resolve succeeds on project after removing Goals");
+  assert.equal(resolved.project?.project_id, project.project_id);
+
+  // Re-add Goals: Goals, relation, work event history, and platform acceptance + decision are all intact (PEQ-02).
   assert.equal((await changePlugin("POST", "goals")).status, 200, "PEQ-02: Goals can be re-added");
   const restoredDir = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/directory`);
   assert.equal(restoredDir.status, 200);
   const restoredJson = await restoredDir.json() as { goals: Array<{ goal_id: string; title: string }> };
-  assert.ok(restoredJson.goals.some(g => g.goal_id === "PEQ-KEEP-1" && g.title === "移除后保留的目标"), "PEQ-02: Goal preserved across remove and re-add");
+  assert.ok(restoredJson.goals.some(g => g.goal_id === "PEQ-KEEP-1" && g.title === "移除后保留的目标"), "PEQ-02: primary Goal preserved across remove and re-add");
+  assert.ok(restoredJson.goals.some(g => g.goal_id === "PEQ-KEEP-2" && g.title === "被依赖的目标"), "PEQ-02: second Goal preserved across remove and re-add");
+
+  const boardJson = await fetch(`${prefix}/api/board`).then(r => r.json()) as {
+    stage_data?: { goals?: { collection?: { snapshot?: { relations?: Array<{ from_goal_id: string; to_goal_id: string; type: string; state: string }> } } } };
+  };
+  const relations = boardJson.stage_data?.goals?.collection?.snapshot?.relations ?? [];
+  assert.ok(relations.some(rel => rel.from_goal_id === "PEQ-KEEP-1" && rel.to_goal_id === "PEQ-KEEP-2" && rel.type === "depends_on" && rel.state === "active"),
+    `PEQ-02: Goal relation preserved across remove and re-add (got ${JSON.stringify(relations)})`);
+
+  const timelineRes = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/PEQ-KEEP-1/event-timeline`);
+  assert.equal(timelineRes.status, 200);
+  assert.match(await timelineRes.text(), new RegExp(noteText), "PEQ-02: Goal event note history preserved across remove and re-add");
+
+  const accReadRes = await fetch(`${prefix}/api/acceptance/read`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ subjects: [acceptanceSubject] }),
+  });
+  assert.equal(accReadRes.status, 200);
+  const accRead = await accReadRes.json() as { views: AcceptanceView[] };
+  assert.equal(accRead.views[0]?.requirements[0]?.id, "req-keep-1", "PEQ-02: platform acceptance requirement preserved");
+  assert.equal(accRead.views[0]?.requirements[0]?.person, "accepted", "PEQ-02: platform acceptance decision preserved");
+  assert.equal(accRead.views[0]?.requirements[0]?.satisfied, true, "PEQ-02: platform acceptance remains satisfied");
+
   const restoredHtml = await fetch(prefix + "/").then(r => r.text());
   assert.match(restoredHtml, /PEQ-KEEP-1/, "PEQ-02: Goal id restored after re-adding Goals");
   assert.match(restoredHtml, /移除后保留的目标/, "PEQ-02: Goal title restored after re-adding Goals");
+});
+
+test("PEQ-01 sibling built-in plugins keep Goals permissions optional and Inbox consumes no hardcoded goals.contract.read", () => {
+  for (const manifest of [pagesManifest, codingManifest, feedManifest, inboxManifest]) {
+    const requiredGoals = manifest.permissions.filter(entry => entry.required && entry.permission.startsWith("goals:"));
+    assert.deepEqual(requiredGoals, [], `${manifest.plugin_id} must not require goals:* permissions`);
+  }
+  assert.equal(inboxManifest.capabilities.consumes.includes("goals.contract.read"), false, "Inbox consumes no hardcoded goals.contract.read");
+  assert.equal(inboxActions.stage.action.permissions.includes("goals:read"), false, "inbox.stage.read does not require goals:read");
 });

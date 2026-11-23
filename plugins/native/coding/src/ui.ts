@@ -310,7 +310,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <header class="mw-form__header"><h2>${p.escape(uiText.text("coding.progress.title"))}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-progress-close":""}})}</header>
       <section class="mw-form__body"><p>${p.escape(uiText.text("coding.progress.note"))}</p>
         <section class="coding-material" data-coding-progress-facts></section>
-        <details class="coding-material"><summary>${p.escape(uiText.text("coding.progress.source"))}</summary><pre data-coding-progress-source></pre></details>
+        <details class="mw-disclosure coding-material"><summary>${p.escape(uiText.text("coding.progress.source"))}</summary><pre data-coding-progress-source></pre></details>
         <label class="mw-form__field">${p.escape(uiText.text("coding.progress.summary"))}<textarea class="mw-textarea" data-coding-progress-summary maxlength="10000" rows="4" placeholder="${p.escape(uiText.text("coding.progress.summary-placeholder"))}"></textarea></label>
         <label class="mw-form__field">${p.escape(uiText.text("coding.progress.next"))}<textarea class="mw-textarea" data-coding-progress-next maxlength="10000" rows="2"></textarea></label>
         <p data-coding-progress-status role="status"></p>
@@ -339,7 +339,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     </form></dialog>
     <div class="coding-layout">${renderCodingDirectory(model)}
     <div class="coding-stage" data-coding-stage>
-      <section class="coding-start" aria-label="Coding"><div class="coding-start-hero"><span class="coding-start-mark">${p.icon("code")}</span><h2>${p.escape(uiText.text("coding.start.title"))}</h2><p>${p.escape(uiText.text("coding.start.lede"))}</p>${renderButton({label:uiText.text("coding.start.new"),variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}<small>${p.escape(uiText.text("coding.start.existing"))}</small></div></section>
+      <section class="coding-start" aria-label="Coding"><div class="coding-start-hero"><span class="mw-empty__mark coding-start-mark">${p.icon("code")}</span><h2>${p.escape(uiText.text("coding.start.title"))}</h2><p>${p.escape(uiText.text("coding.start.lede"))}</p>${renderButton({label:uiText.text("coding.start.new"),variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}<small>${p.escape(uiText.text("coding.start.existing"))}</small></div></section>
       <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
         <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
           <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="${p.escape(uiText.text("coding.dialogue.back-to-list"))}" title="${p.escape(uiText.text("coding.dialogue.session-list"))}">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>${p.escape(uiText.text("coding.dialogue.empty-title"))}</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
@@ -413,7 +413,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <section class="coding-result coding-commands" data-coding-commands aria-labelledby="coding-commands-title" hidden><h3 id="coding-commands-title">${p.escape(uiText.text("coding.commands.title"))}</h3></section>
         <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">${p.escape(uiText.text("coding.outcomes.title"))}</h3><div data-coding-outcome-list></div></section>
         <section class="coding-result" data-coding-checkpoints aria-label="${p.escape(uiText.text("coding.checkpoints.title"))}">
-          <details class="coding-checkpoints"><summary>${p.escape(uiText.text("coding.checkpoints.title"))}</summary><p>${p.escape(uiText.text("coding.checkpoints.note"))}</p>
+          <details class="mw-disclosure coding-checkpoints"><summary>${p.escape(uiText.text("coding.checkpoints.title"))}</summary><p>${p.escape(uiText.text("coding.checkpoints.note"))}</p>
           <button class="mw-btn" type="button" data-coding-checkpoints-refresh>${p.escape(uiText.text("coding.checkpoints.refresh"))}</button>
           <p data-coding-checkpoints-status role="status">${p.escape(uiText.text("coding.checkpoints.choose-session"))}</p><div data-coding-checkpoints-list></div></details>
         </section>

@@ -5,11 +5,6 @@ export function apiOAuthConnectionId(ref?: string): string | undefined {
   return ref ? /^connector-protocol:([0-9a-f-]{36}):access$/u.exec(ref)?.[1] : undefined;
 }
 
-/** The access reference a connection of the shape the generic flow replaced holds (`connector-connection:<id>:access`). */
-export function replacedOAuthAccessRef(ref: string): boolean {
-  return /^connector-connection:[0-9a-f-]{36}:access$/u.test(ref);
-}
-
 /**
  * An OAuth connection made before its service joined the generic flow (Gmail, Notion, GitHub's device authorization): `auth_method: "oauth"` with
  * credentials that are not the generic flow's. It is not read, not refreshed and not sent anywhere; the person adds a new connection (user decision of 2026-10-27, Q2).

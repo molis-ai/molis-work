@@ -12,6 +12,7 @@
 //     to bring up (the replay itself is the `golden-replay` job, which `Verify` requires, so it blocks the merge). A golden records each
 //     library's version where its owner keeps it (`PRAGMA user_version`, the catalog's `catalog_meta`) and, for a project library, each
 //     plugin's tables at the version of its ledger row (`plugin_tables`; scripts/golden/formats.mjs); a row `<library>#<plugin_id>` is read there.
+//   - an existing replay sample for a supported older version must survive later changes, even when the store version stays the same.
 //
 // A new library (no row on the merge-base) and a library that is gone pass here; what a library that is gone means for a Home is another gate's
 // question. A file that cannot be read is a problem, never a pass: on the head when the merge-base has one, and on either side when a row
@@ -74,15 +75,15 @@ export function goldenHolds(store, version) {
 
 /** Each golden's recorded libraries, from its manifest; one that cannot be read holds nothing. */
 function goldenStores(tree) {
-  return goldenManifests(tree).map(({ golden, manifest }) => ({ golden, stores: Array.isArray(manifest?.stores) ? manifest.stores : [] }));
+  return goldenManifests(tree).flatMap(({ manifest }) => Array.isArray(manifest?.stores) ? manifest.stores : []);
 }
 
 /**
- * `tree`: { files (tracked), read(file) gives the head's text or null }; `readBase(file)` the merge-base's (absent without --base).
+ * Each tree is { files (tracked), read(file) gives its text or null }. The merge-base tree is absent without --base.
  * Returns the problems.
  */
-export function storeSchemaProblems({ files, read }, readBase) {
-  const headText = read(SCHEMAS_FILE), baseText = readBase ? readBase(SCHEMAS_FILE) : null;
+export function storeSchemaProblems(tree, baseTree) {
+  const headText = tree.read(SCHEMAS_FILE), baseText = baseTree?.read(SCHEMAS_FILE) ?? null;
   if (headText === null && baseText === null) return [];
   if (headText === null) return [`${SCHEMAS_FILE} is gone; the merge-base has it, and it is how a changed creation statement is caught (UPG-01). Write it with \`pnpm schemas:update\``];
   const head = parseStoreSchemas(headText);
@@ -90,9 +91,9 @@ export function storeSchemaProblems({ files, read }, readBase) {
   if (baseText === null) return [];
   const base = parseStoreSchemas(baseText, `merge-base:${SCHEMAS_FILE}`);
   if (base.why) return [base.why];
-  const problems = [], goldens = goldenStores({ files, read });
+  const problems = [], goldens = goldenStores(tree), baseGoldens = goldenStores(baseTree);
   // A same-version change the user approved names its exact pair of hashes in ${EXCEPTIONS_FILE}; any other change still fails.
-  const exceptions = parseExceptions(read(EXCEPTIONS_FILE));
+  const exceptions = parseExceptions(tree.read(EXCEPTIONS_FILE));
   if (exceptions.why) {
     return [exceptions.why];
   }
@@ -100,6 +101,11 @@ export function storeSchemaProblems({ files, read }, readBase) {
   for (const [store, now] of head.rows) {
     const before = base.rows.get(store);
     if (!before) continue;
+    for (const from of before.froms) {
+      if (from >= before.version || from >= now.version || !now.froms.includes(from)) continue;
+      const holds = goldenHolds(store, from);
+      if (baseGoldens.some(holds) && !goldens.some(holds)) problems.push(`UPG-01 ${store}: the last golden Home at ${from} was removed, but the upgrade step from ${from} is still supported. Keep a golden at ${from} under ${GOLDENS}`);
+    }
     if (now.version === before.version) {
       if (now.structure !== before.structure && !excepted(store, now.version, before.structure, now.structure)) problems.push(`UPG-01 ${store}: its creation statements changed and its version is still ${now.version}. A Home in use keeps the old structure, so raise the version and add the step from ${now.version}, then \`pnpm schemas:update\``);
       continue;
@@ -112,7 +118,7 @@ export function storeSchemaProblems({ files, read }, readBase) {
     for (let from = before.version; from < now.version; from += 1) if (!now.froms.includes(from)) missing.push(from);
     if (missing.length) problems.push(`UPG-01 ${store}: its version went up, ${before.version} → ${now.version}, with no upgrade step from ${missing.join(", ")}`);
     const holds = goldenHolds(store, before.version);
-    if (!goldens.some(({ stores }) => stores.some(holds))) problems.push(`UPG-01 ${store}: its version went up, ${before.version} → ${now.version}, and no golden Home under ${GOLDENS} holds it at ${before.version}, so the replay would not bring an old one up. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)`);
+    if (!goldens.some(holds)) problems.push(`UPG-01 ${store}: its version went up, ${before.version} → ${now.version}, and no golden Home under ${GOLDENS} holds it at ${before.version}, so the replay would not bring an old one up. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)`);
   }
   return problems;
 }

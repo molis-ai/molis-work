@@ -156,7 +156,6 @@ export function leaveBarSection(say: Say): string {
 /* 11–14 · Making a Skill better (batch 42, docs/design/skill-improvement scheme B): adopting a draft, the replay's results, telling the
    Assistant what to change, and the placeholders of a copy of a general Skill. */
 const improve = (say: Say, key: string, values?: Record<string, string | number>) => say(`workbench.skill-improve.${key}`, values);
-const SAMPLE_SKILL_VERSION = 2;
 export function adoptBarSection(say: Say): string {
   const discard = renderButton({ label: improve(say, "discard"), variant: "ghost", size: "sm" });
   const adopt = (variant: "primary" | "secondary") => renderButton({ label: improve(say, "adopt-version"), variant, size: "sm", icon: "check" });
@@ -181,7 +180,7 @@ function verdictCell(say: Say, column: string, verdict: ReplayCell["verdict"], d
   return { column, verdict, mark, differences, ...(verdict === "none" ? {} : { action: renderButton({ label: improve(say, "see-result"), variant: "link", size: "sm" }) }) };
 }
 export function replayGridSection(say: Say): string {
-  const current = improve(say, "col-current", { v: SAMPLE_SKILL_VERSION }), draft = improve(say, "col-draft");
+  const current = improve(say, "col-current", { v: 2 }), draft = improve(say, "col-draft");
   const grouped = say("workbench.catalog-kit.sample-difference-grouping");
   const both = renderReplayGrid({ label: improve(say, "replay-results"), columns: [current, draft], rows: [
     { entry: say("workbench.common.assistant"), icon: "message", cells: [verdictCell(say, current, "differs", [grouped]), verdictCell(say, draft, "match")] },

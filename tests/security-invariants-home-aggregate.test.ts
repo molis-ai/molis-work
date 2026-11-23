@@ -332,6 +332,7 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   assert.equal((await lstat(restingCacheFile(home, p2.storage_key))).mode & 0o777, 0o600, "clean Host shutdown also persists open project readings");
 
   // Host 2 (fresh restart): both p1 and p2 answer immediately as resting with ZERO project opens and ZERO plugin calls.
+  const noOpens: string[] = [];
   const plugin2 = aggregatePlugin();
   const opened2: string[] = [];
   const { host: host2, withHostCatalog: withHost2Catalog } = startHost(plugin2, opened2);
@@ -339,13 +340,13 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   const restartedPlain = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
   assert.deepEqual(labelOf(restartedPlain.answers), ["p1:resting", "p2:resting"]);
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2, [], "restarted Host opens zero projects when persisted resting snapshots match");
+  assert.deepEqual(opened2, noOpens, "restarted Host opens zero projects when persisted resting snapshots match");
   assert.deepEqual(plugin2.calls, [], "restarted Host invokes zero plugin queries when persisted snapshots match");
 
   const restartedKeyed = await collectHomeAggregate<{ project: string }>(ports2, TYPE, each);
   assert.deepEqual(labelOf(restartedKeyed.answers), ["p1:resting", "p2:resting"]);
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2, [], "keyed query with unchanged keyOf also opens zero projects");
+  assert.deepEqual(opened2, noOpens, "keyed query with unchanged keyOf also opens zero projects");
 
   // Direct in-place SQLite commit on closed p1 invalidates p1 immediately while p2 remains resting with zero opens.
   const db = new DatabaseSync(p1.storage_key);
@@ -431,7 +432,7 @@ test("S-49 resting readings persist across Host restarts with zero project opens
     }
     return realFingerprints(references);
   };
-  opened2.length = 0;
+  opened2.splice(0);
   const sleepRace = host2.sleepIfIdle(p1, 0);
   await persistEntered;
   assert.equal(host2.projectRest(p1.storage_key).state, "asleep", "p1 is already asleep while persistence is in flight");
@@ -457,7 +458,7 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   const ports3 = homeAggregatePorts(host3);
   assert.deepEqual(labelOf((await collectHomeAggregate<{ project: string }>(ports3, TYPE, each)).answers), ["p1:resting", "p2:resting"]);
   await ports3.resting!.readings.pass;
-  assert.deepEqual(opened3, [], "matching keyOf serves from disk with zero opens");
+  assert.deepEqual(opened3, noOpens, "matching keyOf serves from disk with zero opens");
 
   key = "k2";
   assert.deepEqual((await collectHomeAggregate<{ project: string }>(ports3, TYPE, each)).answers, [], "changed keyOf invalidates persisted snapshot");
@@ -469,7 +470,7 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   // Purposeful close deletes persisted cache file and excludes the project from both answers and background wakes.
   await host3.closeProject(p1);
   assert.equal(existsSync(restingCacheFile(home, p1.storage_key)), false, "purposeful close removes persisted cache file");
-  opened3.length = 0;
+  opened3.splice(0);
   const afterPurposefulClose = await collectHomeAggregate<{ project: string }>(ports3, TYPE, {});
   assert.ok(!afterPurposefulClose.answers.some(answer => answer.project_id === p1.project_id));
   await ports3.resting!.readings.pass;

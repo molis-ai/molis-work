@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -388,7 +388,7 @@ test("RAC-417 S-82 an enable asks too: a second owner that got in cannot be swit
   // A second owner of the name, put into B by a Runtime that was not asked (a record from before the rule, or a hand-made one).
   const y = plugin(OTHER, "1.0.0", ["example.note"]);
   new SqlitePluginRuntimeReleaseArtifactRepository(pb.store.db).save(createPluginRuntimeReleaseArtifact(y.manifest, "export {}"));
-  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: y, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: y, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   const state = await pa.supervisor.enable(PRODUCER);
   assert.equal(state.status, "failed", "the enable is refused");
   assert.equal(state.code, "plugin.definition_conflict");
@@ -397,7 +397,7 @@ test("RAC-417 S-82 an enable asks too: a second owner that got in cannot be swit
 
   // An installation whose Manifest was never kept cannot be read for its names, so it holds every name.
   const z = plugin("com.example.unkept", "1.0.0", ["example.unkept"]);
-  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: z, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: z, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   assert.throws(() => pa.install(plugin("com.example.third", "1.0.0", ["example.third"])), { ...refusal, message: /读不到已装插件 com\.example\.unkept 的 Manifest/ });
   assert.equal(heldInstalls(home).some(held => held.record.plugin_id === z.manifest.plugin_id && held.manifest === null), true);
 });

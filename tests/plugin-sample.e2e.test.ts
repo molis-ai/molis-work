@@ -1,6 +1,6 @@
 import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { connectorControl } from "./fixtures/connector-control.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -407,7 +407,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     // The Host's text context and the plugin's own words, as `createPluginPlatform` gives them (§8.3): the page the Host mounts says them.
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
       artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest),
-      localePacks: given => pluginLocaleReader(given.manifest, path => existsSync(join(project, path)) ? readFileSync(join(project, path), "utf8") : null) }), { hostIds: ISOLATED_HOST_IDS, actions });
+      localePacks: given => pluginLocaleReader(given.manifest, path => existsSync(join(project, path)) ? readFileSync(join(project, path), "utf8") : null) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");

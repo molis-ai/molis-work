@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -52,7 +52,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const first = runtime.install({ trust: { level: "unsigned" }, definition: make("com.example.own-agent"), deployment: "local", grants: [] }).install;
   const second = runtime.install({ trust: { level: "unsigned" }, definition: make("com.example.other-agent"), deployment: "local", grants: [] }).install;
   try {

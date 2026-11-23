@@ -1,5 +1,5 @@
 import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
@@ -44,7 +44,7 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
     project_id: DEMO_PROJECT_ID, actor_id: "user", dependencyCheck: reference => port.availability(reference, { consumer: "plugin" }),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-  }), { hostIds: ISOLATED_HOST_IDS });
+  }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const base = githubFixture();
   const definition: PluginDefinition = { ...base,
     manifest: { ...base.manifest, plugin_id: "com.example.protected-adapter",
@@ -81,7 +81,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const ui = new UiHost();
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "author",
-    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
+    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   let failStart = false;
   let failStop = false;
   const contexts: PluginStartContext[] = [];
@@ -207,12 +207,12 @@ test("compatible Host execution and crash recovery use the implementation versio
     },
   });
   try {
-    const first = new PluginRuntime(repository, executor(), { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
+    const first = new PluginRuntime(repository, executor(), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
     const old = make("1.0.0");
     const installed = first.install({ trust: { level: "unsigned" }, definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
     await first.start(installed.install_id);
     await first.stop(installed.install_id);
-    const runtime = new PluginRuntime(repository, executor(), { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
+    const runtime = new PluginRuntime(repository, executor(), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
     const next = make("2.0.0");
     runtime.install({ trust: { level: "unsigned" }, definition: next, deployment: "local", grants: installed.grants });
     await runtime.start(installed.install_id);
@@ -269,7 +269,7 @@ test("MEM-V0-C2 current owner invocation discovers its plugin-only command, reta
   const executor = new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "author", record: id => runtime.list().find(record => record.install_id === id) ?? null,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }) });
-  runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
+  runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: "com.example.memory-owner", kind: "app", integrations: undefined, connection_services: undefined, permissions: [],
     actions: [ownerAction], capabilities: { provides: [], consumes: [child.capability_id] } }, async start(context) {
     const { bindOwnerPluginAction } = await import("@molis-ai/molis-work-plugin-sdk");

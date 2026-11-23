@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -53,7 +53,7 @@ test("compatible code can restore an older install without changing its version 
     async start(context) { v2Starts += 1; return original.start(context); },
   };
 
-  const firstRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const firstRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const firstSupervisor = new PluginSupervisor(firstRuntime);
   const first = await firstSupervisor.start([{ definition: old }]);
   assert.deepEqual(first.running, [old.manifest.plugin_id]);
@@ -61,7 +61,7 @@ test("compatible code can restore an older install without changing its version 
   const generation = firstRuntime.get(installId).installation_generation;
   assert.equal(v1Starts, 1);
 
-  const reopenedRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const reopenedRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const reopenedSupervisor = new PluginSupervisor(reopenedRuntime);
   const reopened = await reopenedSupervisor.start([{ definition: next }]);
   assert.deepEqual(reopened.running, [next.manifest.plugin_id]);
@@ -90,11 +90,11 @@ test("an undeclared newer Manifest cannot start or alter the older installation"
   const repository = new MemoryPluginRuntimeRepository();
   const old: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
   const next: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "2.0.0" } };
-  const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const installed = first.install({ trust: { level: "unsigned" }, definition: old, deployment: "local", grants: ["network:github.com", "secret:github"] });
   await first.start(installed.install.install_id);
 
-  const reopened = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const reopened = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const supervisor = new PluginSupervisor(reopened);
   const report = await supervisor.start([{ definition: next }]);
   assert.deepEqual(report.running, []);
@@ -109,7 +109,7 @@ test("a same-version Manifest change is usable only with an exact compatibility 
   const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const repository = new MemoryPluginRuntimeRepository();
   const old: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
-  const initialRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const initialRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const installed = initialRuntime.install({ trust: { level: "unsigned" }, definition: old, deployment: "local", grants: ["network:github.com", "secret:github"] });
   await initialRuntime.start(installed.install.install_id);
 
@@ -122,7 +122,7 @@ test("a same-version Manifest change is usable only with an exact compatibility 
       upgrade_compatibility: { compatible_from_versions: ["1.0.0"] },
     },
   };
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const report = await supervisor.start([{ definition: changed }]);
   assert.deepEqual(report.running, [changed.manifest.plugin_id]);
@@ -130,7 +130,7 @@ test("a same-version Manifest change is usable only with an exact compatibility 
   assert.equal(runtime.get(installed.install.install_id).manifest_digest, installed.install.manifest_digest);
   assert.deepEqual(supervisor.upgradeCandidates(), []);
 
-  const deniedRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const deniedRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const denied = new PluginSupervisor(deniedRuntime);
   const undeclared = { ...changed, manifest: { ...changed.manifest, upgrade_compatibility: undefined } };
   const rejected = await denied.start([{ definition: undeclared }]);
@@ -149,7 +149,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
       ...currentDefinition,
       manifest: { ...currentDefinition.manifest, version: "0.9.0", upgrade_compatibility: undefined },
     };
-    const oldRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, assertPresentation: admitPresentation });
+    const oldRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, assertPresentation: admitPresentation });
     const oldInstall = oldRuntime.install({ trust: { level: "host" },
       definition: olderDefinition,
       deployment: "local",
@@ -172,7 +172,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
     // Coding ships with the Host (2026-10-04): its 0.9.0 install moved up to the Host's version when the project started.
     assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined);
-    assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
+    assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
   } finally {
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
@@ -198,7 +198,7 @@ for (const shape of ["above the build's version", "at the build's version with a
           : { ...currentDefinition.manifest, name: "An earlier build of the same version", upgrade_compatibility: undefined },
       };
       assert.notEqual(pluginManifestDigest(earlierDefinition.manifest), pluginManifestDigest(currentDefinition.manifest));
-      const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, assertPresentation: admitPresentation }).install({ trust: { level: "host" },
+      const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, assertPresentation: admitPresentation }).install({ trust: { level: "host" },
         definition: earlierDefinition,
         deployment: "local",
         grants: currentDefinition.manifest.permissions.filter(item => item.required).map(item => item.permission),
@@ -232,7 +232,7 @@ for (const shape of ["above the build's version", "at the build's version with a
 
 test("SKC-10 S-skill-import cancellation during Runtime upgrade validation restores the old release without recording a failed new version", async () => {
   const original = createGithubIntegrationPlugin({ providerFor: () => provider });
-  const repository = new MemoryPluginRuntimeRepository(), runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const repository = new MemoryPluginRuntimeRepository(), runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const old: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: old }]);
@@ -260,7 +260,7 @@ test("SKC-10 a cancelled Runtime start waits out the lock but cannot write runni
   let entered!: () => void, resume!: () => void, holdStop = false;
   const reached = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { resume = resolve; });
   const definition: PluginDefinition = { ...original, async stop(context) { if (holdStop) { entered(); await held; } await original.stop?.(context); } };
-  const repository = new MemoryPluginRuntimeRepository(), runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const repository = new MemoryPluginRuntimeRepository(), runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const supervisor = new PluginSupervisor(runtime); await supervisor.start([{ definition }]);
   const id = runtime.list()[0]!.install_id, controller = new AbortController(), cancelled = new Error("cancelled queued start");
   holdStop = true;

@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
@@ -248,7 +248,7 @@ test('FSS-36 unknown plugin results keep their original words beside English con
     async start() { return { kind: 'app', actions: [action.handler] }; } });
   const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: b.projectId! });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined,
-    { hostIds: ISOLATED_HOST_IDS, actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
+    { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: 'local', grants: [] }).install;
   await runtime.start(installed.install_id);
   try {

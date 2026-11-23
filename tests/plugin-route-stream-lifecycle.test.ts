@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 // RAC-24: finished, failed and cancelled dispatches release their instance watcher.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -10,7 +10,7 @@ import { streamProbe } from "./fixtures/plugin-stream.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("W5-01-STREAM-05 repeated success, throw, cancellation and stop release every instance watcher", async () => {
-  const probe = streamProbe(), runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
+  const probe = streamProbe(), runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }), supervisor = new PluginSupervisor(runtime);
   // This test exercises the Runtime router alone; it needs no Host action registry or business storage binding.
   const definition = { ...probe.definition, manifest: { ...probe.definition.manifest, actions: [],
     routes: probe.definition.manifest.routes!.filter(route => route.route_id === "direct") },
@@ -62,7 +62,7 @@ test("W5-01-STREAM-05 repeated success, throw, cancellation and stop release eve
 // When the activation's contribution is withdrawn, a plain request still waiting is answered 403 at once, while a stream in progress
 // is not cut short by that 403: the router's instance watch cancels it, and its late tail applies no effect.
 test("W5-01-STREAM-06 withdrawing a contribution answers a waiting plain request 403 at once and cancels a stream in progress", async () => {
-  const probe = streamProbe(), runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
+  const probe = streamProbe(), runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }), supervisor = new PluginSupervisor(runtime);
   const plainEntered = deferred(), streamEntered = deferred(), release = deferred();
   let streamEffects = 0;
   const plain = async () => { plainEntered.resolve(); await release.promise; return { status: 200, body: "done" }; };

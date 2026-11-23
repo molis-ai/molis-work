@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -69,7 +69,7 @@ test("RAC2865 a permission switch waiting behind an upgrade cannot grant against
 
 /** A running plugin of the Host's build in a bare Runtime, the way a switch finds it. */
 async function running(probe: Probe, permissions: PluginManifest["permissions"] = [REQUIRED, OPTIONAL, OTHER]) {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const installId = runtime.install({ definition: build("1.0.0", permissions, probe, false), deployment: "local", trust: { level: "host" } }).install.install_id;
   await runtime.start(installId);
   return { runtime, installId };

@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -99,7 +99,7 @@ test("DUAL-12 a sandboxed definition is no half: a fixture refuses it, and the R
   const { host } = await openHost(t, { home: [{ definition: sandboxed, dual_instance: true }], project: [dual.project] });
   await assert.rejects(host.homePlugins!.ready(), /是沙箱执行的/u);
   assert.equal(dual.services.home, undefined);
-  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: { ...dual.project, execution: "sandbox" }, deployment: "local", trust: { level: "host" }, grants: [dual.read] }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: { ...dual.project, execution: "sandbox" }, deployment: "local", trust: { level: "host" }, grants: [dual.read] }),
     { code: "plugin.grant_denied" });
 });
 

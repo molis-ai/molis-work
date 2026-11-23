@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import { ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -143,7 +143,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     return packagedStudioRelease(home, value, publisher, { upgradesFrom: options.upgradesFrom ?? Array.from({ length: version - 1 }, (_, index) => index + 1) });
   };
   storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, permissionDeclarations: projectedPermissionDeclarations });
   // The person switched on what the operations use (BL-701): the platform capabilities.
   const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local',
     grants: ['storage:private', 'capabilities:call', ...(secretRefs.length ? ['network:request', 'secret:use'] : [])] });
@@ -737,7 +737,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
   let store = new LocalProjectDatabase(databasePath);
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, permissionDeclarations: projectedPermissionDeclarations });
     const publisher = newPublisher();
     const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('studio.' + buildId + '\u0000' + publisher.identity).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
@@ -1240,7 +1240,7 @@ for (const [order, gonePluginId, keptPluginId] of [
       design: { id: 'one', catalog: 'actions/1', title: 'Second fixture', description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
       nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() } satisfies AgentRelease, newPublisher());
     storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, permissionDeclarations: projectedPermissionDeclarations });
+    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, permissionDeclarations: projectedPermissionDeclarations });
     const { install } = runtime.install({ trust: release.packaged!.trust, definition: sandboxedPluginDefinition(release, release.permissions, release.packaged!.manifest), deployment: 'local', grants: ['storage:private'] });
     second = { pluginId, installId: install.install_id };
   } finally { store.close(); }

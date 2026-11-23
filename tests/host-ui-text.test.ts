@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -159,7 +159,7 @@ function projectRig(t: TestContext, localePacks?: (definition: PluginDefinition)
   const executor = new CapturingExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "user",
     artifacts: new ArtifactsModule({ db: store.db, ...events }), processItems: new ProcessItemsModule({ db: store.db, ...events }), ui,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), ...(localePacks ? { localePacks } : {}) });
-  const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS, actions });
+  const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   t.after(async () => {
     try { for (const item of runtime.list()) if (item.state === "running") await runtime.stop(item.install_id); }
     finally { store.close(); rmSync(directory, { recursive: true, force: true }); }

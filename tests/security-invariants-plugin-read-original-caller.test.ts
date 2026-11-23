@@ -7,7 +7,7 @@ import { PluginHostExecutor, readMcpToolPreference } from "@molis-ai/molis-work-
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { openTestHome } from "./fixtures/test-home.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 // BL-943 / BCC-10 (S-plugin-read-original-caller): a plugin's read of its own library asks the action's original caller, not only the
 // installation's grants. A real MCP client already inside the handler loses its exact action grant; the next native read is refused
@@ -79,7 +79,7 @@ async function probeHome(t: TestContext) {
     projectLibrary: { db: owner.store.db, path: project.reference.storage_key, journal: { project_id: project.project_id, actor_id: "owner", writer: owner.store } },
     privateStorageFor: () => ({ get: () => null, set: () => assert.fail("no private values declared"), delete: () => false }),
   });
-  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   const record = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants }).install;
   t.after(async () => { release.resolve(); await runtime.stop(record.install_id); });
   await runtime.start(record.install_id);

@@ -62,7 +62,7 @@ test("RAC-2636/2639 signed text projection preserves bodies and full boundary na
     assert.deepEqual(read.manifest.methods![0]!.tools, []); assert.equal(read.manifest.methods![0]!.skill_id, METHOD); assert.ok(!read.manifest.permissions.some(item => item.permission === "agent:run"));
   }
   const read = readSandboxPackage(signedText().payload);
-  assert.equal(sandboxRoleIdentity(PACKAGE_PLUGIN_ID, ROLE).entry_id, "role-a99066b8be157dc558927071122d01da8e7d79a7a97a1f1d3dd78af9beffcd46");
+  assert.equal(sandboxRoleIdentity(PACKAGE_PLUGIN_ID, ROLE).entry_id, "role-4ad526df4b99c95c02066a6c1157f7105359a72e34c086a671ea34669a31fd57");
   assert.equal(readSandboxPackage(signedText(undefined, (_manifest, files) => { files["agent/role.md"] = "\uFEFF" + BODY; }).payload).agentBodies[0]!.body, "\uFEFF" + BODY);
   assert.equal(read.agentBodies[0]!.body, BODY);
   // SKP-08 SKC-03: a method's id is the package's own skill_id; nothing is derived for it.
@@ -237,7 +237,7 @@ async function modelConsumer(t: TestContext, withOther = false) {
   await h.install(signedText(publisher));
   if (withOther) await h.install(signedAgentPackage(newPublisher(), { pluginId: "com.example.other-agent" }));
   const requests: string[] = [], queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.signed-material-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "test-sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "com.example.signed-material-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "test-sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
   t.mock.method(globalThis, "fetch", answeringEndingReviews(text => cogniaModelResponse(text), async (_url: unknown, init: RequestInit) => {
@@ -377,7 +377,7 @@ test("RAC-2641/2642 S-105 on-demand signed JSON is data and cannot authorize a p
   await writeFile(target, secret);
   await h.install(signedAgentPackage(publisher, { bodies: { "agent/role.md": malicious } }));
   const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.signed-actions-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "test-sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "com.example.signed-actions-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "test-sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
   const { service } = assistantServiceFor({ localHost: h.host, homeDirectory: h.home, agentHost, agentReady: async () => {}, projectTitle: async () => "权限项目", pages: async () => [] });
@@ -428,7 +428,7 @@ for (const boundary of ["run.start", "run.control"] as const) {
     await h.install(signedAgentPackage(publisher));
     const agentHost = new AgentHost({ reviews: new AgentReviewQueue() });
     const { service } = assistantServiceFor({ localHost: h.host, homeDirectory: h.home, agentHost, agentReady: async () => {}, projectTitle: async () => "执行方项目", pages: async () => [] });
-    const pluginId = "io.molis.work.signed-test-executor", definitions = roleDefinitions(pluginId, "fixture_session").map(definition => ({ ...definition, action: { ...definition.action, scheduling: "concurrent" as const } }));
+    const pluginId = "com.example.signed-test-executor", definitions = roleDefinitions(pluginId, "fixture_session").map(definition => ({ ...definition, action: { ...definition.action, scheduling: "concurrent" as const } }));
     const runs: AgentRunView[] = [], accepted: unknown[] = [], entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let pause = false, atHandoff = false;
     const dispose = h.host.actionRegistry(h.reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "测试执行方", kind: "plugin", project_id: h.reference.project_id }, definitions,

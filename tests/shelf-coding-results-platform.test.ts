@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
@@ -37,7 +37,7 @@ async function consumer(t: Parameters<typeof openTestHome>[0], home: TestHome, p
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
     project_id: project.project_id, actor_id: OWNER, artifacts: owner.artifacts, processItems: owner.processItems,
-    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, actions }));
+    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions }));
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.fixture.${declared.name}`, version: "1.0.0", name: declared.name, kind: "app",
     publisher: { publisher_id: "fixture", signature: declared.name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [...declared.permissions], capabilities: { provides: [], consumes: [...declared.consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },

@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -50,7 +50,7 @@ function definitionOf(manifest: PluginManifest, delivered: (() => unknown) | und
 }
 
 const record = (state: PluginLifecycleState): PluginInstanceRecord => ({
-  install_id: "install-1", installation_generation: "g1", plugin_id: "io.molis.work.lifecycle-step", version: "1.0.0", publisher_id: "p",
+  install_id: "install-1", installation_generation: "g1", plugin_id: "com.example.lifecycle-step", version: "1.0.0", publisher_id: "p",
   publisher_signature: "s", manifest_digest: "d", deployment: "local", selected_entrypoint: "./entry.mjs", grants: [], execution: "host",
   publisher_trust: "unsigned", state, recovery_count: 0, last_error_code: null, installed_at: "2026-11-21T00:00:00.000Z",
   updated_at: "2026-11-21T00:00:00.000Z", uninstalled_at: null, retain_private_data: false,
@@ -79,7 +79,7 @@ test("SMP-05 SMP-20 S-state-machine-lifecycle-steps a lifecycle step the platfor
 });
 
 test("SMP-06 S-state-machine-redemption a built-in plugin whose code runs other machines than its Manifest declares does not start; the others do", async () => {
-  const id = "io.molis.work.redeem-probe", other = "io.molis.work.redeem-other", declared = machineOf(id);
+  const id = "com.example.redeem-probe", other = "com.example.redeem-other", declared = machineOf(id);
   const wrong: Array<[string, (() => unknown) | undefined]> = [
     ["a different family", () => [{ ...declared, states: { open: "running", closed: "done" } }]],
     ["a different version", () => [{ ...declared, version: 2 }]],
@@ -92,7 +92,7 @@ test("SMP-06 S-state-machine-redemption a built-in plugin whose code runs other 
   ];
   for (const [label, delivered] of wrong) {
     const starts: string[] = [];
-    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
     const broken = runtime.install({ trust: HOST_BUILD_TRUST, definition: definitionOf(manifestOf(id, [declared]), delivered, starts), deployment: "local" }).install.install_id;
     const sound = runtime.install({ trust: HOST_BUILD_TRUST, definition: definitionOf(manifestOf(other, [machineOf(other)]), () => [machineOf(other)], starts), deployment: "local" }).install.install_id;
     await assert.rejects(runtime.start(broken), error => error instanceof Error && (delivered === undefined || !Array.isArray(delivered()) || error.message.includes(id + ".")), label);
@@ -101,19 +101,19 @@ test("SMP-06 S-state-machine-redemption a built-in plugin whose code runs other 
     await runtime.start(sound);
     assert.equal(runtime.get(sound).state, "running", label + ": another plugin still starts");
   }
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const matching = runtime.install({ trust: HOST_BUILD_TRUST, definition: definitionOf(manifestOf(id, [declared]), () => [declared]), deployment: "local" }).install.install_id;
   await runtime.start(matching);
   assert.equal(runtime.get(matching).state, "running");
 });
 
 test("SMP-06 SMP-15 a development plugin is checked when its code gives machines, and starts when it gives none", async () => {
-  const id = "io.molis.work.redeem-dev", declared = machineOf(id);
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const id = "com.example.redeem-dev", declared = machineOf(id);
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const silent = runtime.install({ trust: { level: "unsigned" }, definition: definitionOf(manifestOf(id, [declared]), undefined), deployment: "local" }).install.install_id;
   await runtime.start(silent);
   assert.equal(runtime.get(silent).state, "running", "a form with no code declaration is not checked against code");
-  const second = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const second = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const lying = second.install({ trust: { level: "unsigned" }, deployment: "local",
     definition: definitionOf(manifestOf(id, [declared]), () => [{ ...declared, states: { open: "blocked", closed: "done" } }]) }).install.install_id;
   await assert.rejects(second.start(lying), error => error instanceof Error && error.message.includes(declared.machine_id));
@@ -124,7 +124,7 @@ function registryFixture() {
   const db = openTestSqlite(":memory:");
   db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL);
   const repository = new SqlitePluginRuntimeRepository(db), releases = new SqlitePluginRuntimeReleaseArtifactRepository(db);
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const starts: string[] = [];
   const install = (manifest: PluginManifest, archive = true) => {
     const id = runtime.install({ trust: { level: "unsigned" }, definition: definitionOf(manifest, undefined, starts), deployment: "local" }).install.install_id;
@@ -132,7 +132,7 @@ function registryFixture() {
     return id;
   };
   let opened = 0, closed = 0;
-  const builtin = manifestOf("io.molis.work.registry-builtin", [machineOf("io.molis.work.registry-builtin")]);
+  const builtin = manifestOf("com.example.registry-builtin", [machineOf("com.example.registry-builtin")]);
   const ports: StateMachineRegistryPorts = {
     builtin: () => [builtin],
     open: async projectId => { opened += 1; return { stores: projectId === "p1" ? [{ scope: "project", db }] : [], close() { closed += 1; } }; },
@@ -149,8 +149,8 @@ function registryFixture() {
 test("SMP-08 SMP-13 the registry reads stopped, switched-off and never-started installations from their stored release and says unknown instead of guessing", async () => {
   const f = registryFixture();
   try {
-    const stopped = "io.molis.work.registry-stopped", off = "io.molis.work.registry-off", bare = "io.molis.work.registry-bare",
-      lost = "io.molis.work.registry-lost", gone = "io.molis.work.registry-gone";
+    const stopped = "com.example.registry-stopped", off = "com.example.registry-off", bare = "com.example.registry-bare",
+      lost = "com.example.registry-lost", gone = "com.example.registry-gone";
     f.install(manifestOf(stopped, [machineOf(stopped)]));
     const offId = f.install(manifestOf(off, [machineOf(off), { ...machineOf(off), machine_id: off + ".second" }]));
     await f.runtime.start(offId);
@@ -191,7 +191,7 @@ test("SMP-08 SMP-13 the registry reads stopped, switched-off and never-started i
 test("SMP-07 SMP-08 S-state-machine-registry-metadata stored declarations are data: no entrypoint runs, nothing is granted, and only the five declared fields leave", async () => {
   const f = registryFixture();
   try {
-    const sound = "io.molis.work.registry-sound", forged = "io.molis.work.registry-forged", stuffed = "io.molis.work.registry-stuffed";
+    const sound = "com.example.registry-sound", forged = "com.example.registry-forged", stuffed = "com.example.registry-stuffed";
     f.install(manifestOf(sound, [machineOf(sound)]));
     // A stored release is not trusted to be well formed: these two rows are written the way a damaged or forged library would hold them.
     const plant = (pluginId: string, machines: readonly unknown[]) => {
@@ -287,7 +287,7 @@ test("SMP-08 the provider stays registered without a Home and answers an empty l
     return handler.handle(caller, input) as Promise<T>;
   };
   assert.deepEqual(await call<StateMachineListResult>("state_machines.list", {}), { entries: [], empty_reason: "no_home" });
-  assert.deepEqual(await call<StateMachineGetResult>("state_machines.get", { machine_id: "io.molis.work.any.item" }), { entry: null });
+  assert.deepEqual(await call<StateMachineGetResult>("state_machines.get", { machine_id: "com.example.any.item" }), { entry: null });
   const empty = stateMachineActionProvider({ builtin: () => [], open: async () => ({ stores: [], close() {} }) });
   const handler = empty.handlers.find(one => one.capability_id === "state_machines.list")!;
   const listed = await handler.handle(caller, {}) as StateMachineListResult;

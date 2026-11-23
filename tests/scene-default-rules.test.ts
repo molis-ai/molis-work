@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
@@ -97,7 +97,7 @@ test("RAC-501 the keys the Host's own scenes declare are reserved: any other plu
   assert.deepEqual(withFunctionsService(home.home, service => service.list(), OPTIONS), [], "a refused registration writes nothing");
 
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, reservedRuleKeys: () => new Set(reserved) });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, reservedRuleKeys: () => new Set(reserved) });
   const base = ownerFilesProbe("reservedkeys", "project").withoutFiles();
   // A pinned install is only a pinned one when the Manifest's signature is its key (S-75.1); the reserved key is then what refuses it.
   const declaring = (key: string, suffix = "", signature = `${base.manifest.publisher.signature}${suffix}`): PluginDefinition => ({ ...base, manifest: { ...base.manifest, plugin_id: `${base.manifest.plugin_id}${suffix}`,

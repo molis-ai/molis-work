@@ -6,7 +6,7 @@ import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginMani
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PluginRuntime,
   SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 const FINGERPRINT = `ed25519:sha256:${"a".repeat(64)}`;
 const OTHER_KEY = `ed25519:sha256:${"b".repeat(64)}`;
@@ -141,7 +141,7 @@ test("RAC-396 S-75 an installation's actions are registered under its install id
   const id = "com.example.provider";
   for (const trust of [UNSIGNED_TRUST, PINNED, HOST_BUILD_TRUST]) {
     const service = new ActionService(), calls: string[] = [], fixture = actionable(id, trust.level === "pinned" ? FINGERPRINT : "label", calls);
-    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: "p", providerId: () => id } });
+    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: "p", providerId: () => id } });
     const installed = runtime.install({ definition: fixture.plugin, deployment: "local", trust, grants: [] }).install;
     if (trust.level !== "host") {
       await assert.rejects(runtime.start(installed.install_id), code("plugin.id_namespace_conflict"));
@@ -173,7 +173,7 @@ test("RAC-395 RAC-399 S-75 normally loaded existing conflicts crash before activ
       if (conflict === "host") hostIds.add(nestedId);
       else {
         // Existing records arrive unchanged through the repository port. Each record is from a real public install, never a forged state/trust shape.
-        const source = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
+        const source = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
         const existing = install(source, nestedId, conflict === "pinned" ? OTHER_KEY : conflict === "unsigned-other" ? "other-label" : "same-label",
           conflict === "pinned" ? { level: "pinned", publisher_key_id: OTHER_KEY } : UNSIGNED_TRUST).install;
         repository.save(existing);
@@ -192,7 +192,7 @@ test("RAC-395 RAC-399 S-75 normally loaded existing conflicts crash before activ
       // Removing the conflict permits explicit recovery on the same public path, without reinstalling or losing data.
       if (conflict === "host") hostIds.clear();
       else { const other = repository.list().find(r => r.install_id !== installed.install_id)!;
-        const source = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS }); await source.uninstall(other.install_id); }
+        const source = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }); await source.uninstall(other.install_id); }
       await runtime.recover(installed.install_id);
       assert.equal(await service.invoke(caller, { ...old.action, provider_id: installed.install_id }, {}), id);
       await runtime.stop(installed.install_id);

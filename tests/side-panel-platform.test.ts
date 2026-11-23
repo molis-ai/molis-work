@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -150,7 +150,7 @@ test("real Host: the file tab lists and previews plugin files through the action
         { ...content, handle: () => fileContentOf({ subject: { kind: "newcomer-file", id: "f1" }, revision: "1", title: "说明.txt", media_type: "text/plain", text: "新插件自己的文件内容" }) },
       ] }; } });
     const repository = await host.withProject(ref, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
     const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     const joined = ((await get("/api/side/files/sources")).body.sources as typeof sources).find(source => source.kinds.some(kind => kind.kind === "newcomer-file"));
@@ -222,7 +222,7 @@ test("BSH-13 one request answers every source's first page: a failing source doe
     type Listed = { id: string; kinds: Array<{ kind: string }>; state?: string; page?: Page; error?: string; reason?: string };
     const get = async <Body>(path: string) => { const response = await fetch(`${origin}/projects/${a.project_id}${path}`); return { status: response.status, body: await response.json() as Body }; };
     const repository = await host.withProject(ref, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
     for (const name of ["good", "broken", "unset"] as const) {
       const sourceKinds = [{ kind: `${name}-file`, title: name, surface: name }];
       const entries = defineFileEntriesAction(`${name}.files.entries`, 1, sourceKinds, `${name} 来源`, [`${name}:read`]);

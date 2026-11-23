@@ -15,7 +15,7 @@ import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-wo
 import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 const ID = "com.example.switches";
 
@@ -179,7 +179,7 @@ test("B27-PERM-04 BL-701 the Runtime counts projected rows in every grant ceilin
     publisher: { publisher_id: "fixture", signature: "agent-built:ceiling" }, entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     ...(version === "1.0.0" ? {} : { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } }),
     permissions: [{ permission: "storage:private", required: true, reason: "x" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] } });
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS,
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS,
     permissionDeclarations: definition => projected.get(definition.manifest.version)!.map(permission => ({ permission, required: false, reason: "projected" })) });
   const { install } = runtime.install({ definition: definitionOf("1.0.0"), deployment: "local", trust: { level: "unsigned" }, grants: ["storage:private"] });
   await runtime.regrant(install.install_id, "network:request", true);

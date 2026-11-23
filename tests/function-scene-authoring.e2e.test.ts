@@ -1,5 +1,5 @@
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -74,7 +74,7 @@ test("PFG-19: unknown registered scenes can be authored in the real editor, supp
     async start() { return { kind: "app", actions: [{ ...read, handle: () => note() }, { ...write, handle: (_caller, value) => {
       store.db.prepare("UPDATE fixture_review_notes SET state = ? WHERE id = 'note-1'").run((value as { state: string }).state); return note();
     } }], action_scenes: [handler(scene), handler(nextVersion), handler(other)] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const draft = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "审核新笔记", function_key: "review_note" }), functions);

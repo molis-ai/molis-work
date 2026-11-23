@@ -125,7 +125,7 @@ test("FSS-35 FSS-38 a produced Artifact type may name one short word from its ow
   assert.equal(manifestProblems(withLocales(LOCALES, {}, withTitle(reference, " "))), "成果类型 io.example.note@1 缺少显示名（title）");
   for (const invalid of [
     { key: "notes.artifacts.type-title" }, { key: "common.control.retry" }, { literal: "Original" },
-    { ...reference, owner: "io.molis.work.declaration-rules" }, { ...reference, args: [] }, { ...reference, fallback: "Original" }, null,
+    { ...reference, owner: "com.example.declaration-rules" }, { ...reference, args: [] }, { ...reference, fallback: "Original" }, null,
   ]) assert.match(manifestProblems(withLocales(LOCALES, {}, withTitle(invalid))), refusal, JSON.stringify(invalid));
   const inheritedKey = Object.assign(Object.create(reference), { args: undefined });
   assert.match(manifestProblems(withLocales(LOCALES, {}, withTitle(inheritedKey))), refusal);

@@ -147,7 +147,7 @@ test("SKC-10 S-skill-import the preview lists every Skill found, each that canno
     assert.equal(by.get("leaky")!.file_count, 1, "a resource linking out of its Skill is not read");
     assert.equal(by.get("leaky")!.compatibility, "native-only", "and the Skill says it is incomplete");
     assert.deepEqual([preview.package.version, preview.package.installed_version], ["1.0.0", null]);
-    assert.match(preview.package.plugin_id, /^io\.molis\.work\.imported-skills\.claude-code-[0-9a-f]{12}$/u);
+    assert.match(preview.package.plugin_id, /^imported\.claude-code-[0-9a-f]{12}$/u);
     h.nothingWritten();
 
     // Confirming a Skill the preview did not find importable, someone else's preview, or another project's: refused, nothing written.

@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { homeAggregatePorts, homeBackgroundTasks, LOCALE_COOKIE, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { BACKGROUND_TASKS_OUTPUT_TYPE, LOCAL_PERSON_ACTOR_ID, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASKS_OUTPUT_TYPE, LOCAL_PERSON_ACTOR_ID, type ActionClient, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import * as codingPackage from "@molis-ai/molis-work-plugin-coding";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
@@ -37,12 +38,12 @@ test("WLHR-01: Coding reports pending IDs for its bound Agent session; the workb
     await sessions.setState(noEffect, project_id, sessionId, "waiting-approval", at);
   } finally { store.close(); }
   const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, project_id, permissions: ["artifact:read"] };
-  const client = home.host.actionClient(project.reference);
+  const client: ActionClient = home.host.actionClient(project.reference);
   const view = (await client.discover(caller)).find(action => action.capability_id === "coding.background.tasks");
   assert.ok(view?.provider.plugin_id && view.provider.plugin_install_id);
   const agents = home.host.ensureAgentService(home.home, () => { throw new Error("The served Home owns the Agent service"); });
   await agents.ready;
-  const queue = agents.agentHost.reviews;
+  const queue: AgentReviewQueue = agents.agentHost.reviews;
   const owner = { kind: "agent-review" as const, project_id, plugin_id: view.provider.plugin_id, install_id: view.provider.plugin_install_id };
   for (const [id, session_id, install_id] of [["edit-quote", runtimeSessionId, owner.install_id], ["edit-other", "other-session", owner.install_id], ["edit-old", runtimeSessionId, "other-install"]]) {
     queue.request({ review_id: id, reference: { owner: { ...owner, install_id }, id, version: "proposal-1" }, project_id, plugin_id: owner.plugin_id,

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ComputerDesk } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MAINLINE_CONTROL_PERMISSION, MAINLINE_PROVIDER_ID, MAINLINE_READ_PERMISSION, mainlineActions, type BackgroundTaskDecideRequest, type BackgroundTaskRow, type BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import type { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
@@ -33,12 +34,12 @@ test("S-49 WLHR-01 WLHR-02: only the page gets the original proposal and only th
   const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [plugin.definition] } } });
   const project = await home.createProject("Review ownership"), other = await home.createProject("Other project");
   await startProjectPlugins(home.host, project.reference);
-  const me = person(project.project_id), client = home.host.actionClient(project.reference);
+  const me = person(project.project_id), client: ActionClient = home.host.actionClient(project.reference);
   const view = (await client.discover(me)).find(row => row.capability_id === "homebg.tasks");
   assert.ok(view?.provider.plugin_id && view.provider.plugin_install_id);
   const agents = home.host.ensureAgentService(home.home, () => { throw new Error("The served Home owns the Agent service"); });
   await agents.ready;
-  const queue = agents.agentHost.reviews;
+  const queue: AgentReviewQueue = agents.agentHost.reviews;
   const owner = { kind: "agent-review" as const, project_id: project.project_id, plugin_id: view.provider.plugin_id, install_id: view.provider.plugin_install_id };
   const cases = [
     ["owned", owner, session],
@@ -83,7 +84,7 @@ test("S-49 WLHR-01 WLHR-02: only the page gets the original proposal and only th
   assert.deepEqual(copy.tasks.find(task => task.subject.id === "held")?.asks, [], "the Assistant's reading copy sees the waiting task without the original proposal title");
   assert.doesNotMatch(JSON.stringify(copy), /owned\.md|review content from the queue/);
   const imitatingPage = { ...me, user_action: { source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: "web:copied" } };
-  const unprotected = await client.invoke(imitatingPage, mainlineActions.tasks, {});
+  const unprotected = await bindActionClient(client, () => imitatingPage).invoke(mainlineActions.tasks, {});
   assert.deepEqual(unprotected.tasks.find(task => task.subject.id === "held")?.decisions, [], "web-shaped provenance alone does not reveal the proposal");
   const postTable = await home.web.post<BackgroundTasksReadResult>(route, {});
   assert.deepEqual(postTable.tasks.find(task => task.subject.id === "held")?.decisions.map(decision => decision.id), ["owned"]);

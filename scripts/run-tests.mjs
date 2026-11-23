@@ -3,10 +3,11 @@ import { readdir } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { acquireSlot } from "./machine-slot.mjs";
 import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 
 // node scripts/run-tests.mjs [options] [files…]       without files: every test file, the `.mjs` boundary checks included
-//   --jobs <n>              files at once (default: MOLIS_WORK_TEST_JOBS, else half the cores, at most 6)
+//   --jobs <n>              files at once (default: MOLIS_WORK_TEST_JOBS, else 1 locally or half the cores up to 6 in CI)
 //   --browser-jobs <n>      of those, browser files at once (default: MOLIS_WORK_TEST_BROWSER_JOBS, else 2)
 //   --timeout-seconds <n>   ceiling per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
 //   --verbose               print every file's output, not only the failing ones'
@@ -25,8 +26,9 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
-// A run with a browser file first takes the machine's browser slot (scripts/machine-slot.mjs) and waits its turn for it.
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [--exclude-gate-meta] [--exclude-visual-audit] [node --test options] [files…]";
+// All local batches share the machine slot with builds and health checks.
+// --gate-rules <JSON> runs the selected CI self-tests. An empty string requests the complete gate suite.
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [--gate-rules <JSON>] [--gate-rule-group <source|health|budgets>] [--exclude-gate-meta] [--exclude-visual-audit] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -45,6 +47,8 @@ const options = {
   shard: undefined,
   skipMacosOnly: false,
   excludeGateMeta: false,
+  gateRules: undefined,
+  gateRuleGroup: undefined,
   excludeVisualAudit: false,
 };
 const targets = [], testArgs = [];
@@ -62,6 +66,12 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--retries") options.retries = whole(name, value(), 0);
   else if (name === "--skip-macos-only") options.skipMacosOnly = true;
   else if (name === "--exclude-gate-meta") options.excludeGateMeta = true;
+  else if (name === "--gate-rules") options.gateRules = value() ?? die("--gate-rules needs a selection");
+  else if (name === "--gate-rule-group") {
+    const group = value();
+    if (!["source", "health", "budgets"].includes(group)) die("--gate-rule-group needs source, health or budgets");
+    options.gateRuleGroup = group;
+  }
   else if (name === "--exclude-visual-audit") options.excludeVisualAudit = true;
   else if (name === "--bail") options.bail = true;
   else if (name === "--shard") {
@@ -72,7 +82,22 @@ for (let index = 0; index < args.length; index++) {
   else if (name.startsWith("--")) testArgs.push(args[index]);
   else targets.push(args[index]);
 }
-if (!targets.length) targets.push(...(await readdir("tests")).filter(name => /\.test\.(ts|mjs)$/.test(name)).sort().map(name => `tests/${name}`));
+if (options.gateRules !== undefined && targets.length) die("--gate-rules takes its files from the gate suite");
+if (options.gateRuleGroup !== undefined && options.gateRules === undefined) die("--gate-rule-group requires --gate-rules");
+const label = targets.length ? targets.join(", ").slice(0, 90) : (options.gateRules === undefined ? "all tests" : "gate self-tests");
+await acquireSlot("test", { label });
+if (!targets.length) {
+  const files = (await readdir("tests")).filter(name => /\.test\.(ts|mjs)$/.test(name)).sort().map(name => `tests/${name}`);
+  if (options.gateRules === undefined) targets.push(...files);
+  else {
+    const { gateRuleFiles } = await import("./run-tests/strata.mjs");
+    targets.push(...gateRuleFiles(files, options.gateRules, options.gateRuleGroup));
+    if (!targets.length) {
+      console.log(`run-tests: no selected gate self-tests in ${options.gateRuleGroup}`);
+      process.exit(0);
+    }
+  }
+}
 const root = fileURLToPath(new URL("..", import.meta.url));
 if (options.skipMacosOnly) {
   const { classifyFile } = await import("./ci-linux-probe/select.mjs");
@@ -96,7 +121,8 @@ if (options.excludeGateMeta || options.excludeVisualAudit) {
   }
 }
 const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);
-const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));
+const defaultJobs = process.env.CI === "true" ? Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))) : 1;
+const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", defaultJobs);
 const browserJobs = Math.min(jobs, options.browserJobs ?? fromEnvironment("MOLIS_WORK_TEST_BROWSER_JOBS", 2));
 if (options.shard) {
   const { index, count } = options.shard;
@@ -108,16 +134,6 @@ if (options.shard) {
   const mine = plan.executionOrder[index];
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
-}
-
-// Up to three browser batches at a time on this machine (docs/system/PARALLEL-DEVELOPMENT.md §5): a run with a browser file takes the machine's
-// browser slot first and waits its turn when another checkout holds it (scripts/machine-slot.mjs; not in CI, not inside a test).
-{
-  const { classifyFile } = await import("./ci-linux-probe/select.mjs");
-  if (targets.some((file) => classifyFile(root, relative(root, resolve(file))).marks.includes("browser"))) {
-    const { acquireSlot } = await import("./machine-slot.mjs");
-    await acquireSlot("browser", { label: `tests ${targets.length === 1 ? targets[0] : `${targets.length} files`}` });
-  }
 }
 
 // A one-file shard, or a single file with an explicit timeout or retries, still needs the coordinator's timeout, retries and timed summary.

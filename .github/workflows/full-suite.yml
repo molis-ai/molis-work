@@ -243,6 +243,9 @@ jobs:
     needs: [build, shard]
     if: ${{ always() && (needs.build.result != 'skipped' || needs.shard.result != 'skipped') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Every shard passed
         env:
@@ -252,6 +255,26 @@ jobs:
           echo "build: $BUILD_RESULT; shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
           test "$BUILD_RESULT" = "success"
           test "$SHARDS_RESULT" = "success"
+
+      - uses: actions/checkout@v6
+        if: ${{ success() && github.run_attempt > 1 }}
+
+      - name: Verify every shard on a retry
+        if: ${{ success() && github.run_attempt > 1 }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_ARTIFACT: ${{ needs.build.outputs.dist-artifact }}
+          EXPECTED_SHARDS: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' && 1 || 60 }}
+        run: node scripts/ci-full-retry.mjs
+
+      - name: Retry this run
+        if: ${{ failure() }}
+        run: |
+          {
+            echo '先看失败分片的首个错误。修过代码后，在新提交上运行 Full。'
+            echo "同一提交遇到临时失败且原构建产物仍有效时，只补未通过的作业：\`gh run rerun $GITHUB_RUN_ID --failed\`。"
+            echo '全套分片通过后汇总才会通过。原构建过期、改过测试计划或无法补齐时，重新执行完整 Full。'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # A red night on main is somebody's to fix (user 2026-11-12): one open issue, "main 的夜间全量红了", lists every file that failed
   # twice, the run, and the pull requests merged since the last green night; the batches that merged them fix it. A later red night

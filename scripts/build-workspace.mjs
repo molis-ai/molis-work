@@ -5,7 +5,7 @@
 //   node scripts/build-workspace.mjs [--clean] [--jobs <n>] [--dry-run]
 //     --clean     forget every record, clean and build every package (what the build always did before; also MOLIS_WORK_BUILD_CLEAN=1,
 //                 and `pnpm build:clean`)
-//     --jobs <n>  packages built at once once their dependencies are built (default 4, pnpm's own default)
+//     --jobs <n>  packages built at once after dependencies finish (default 2 locally; CI keeps its existing pnpm settings)
 //     --dry-run   print which packages would be built and why; build nothing
 //
 // A package's inputs: every file of its directory that git tracks or would track (not dist/, not what .gitignore leaves out), the
@@ -15,7 +15,7 @@
 // before (`pnpm run clean`, `pnpm run build` in its directory), after the packages it depends on. The records are in
 // node_modules/.cache/molis-work-build/records.json of this checkout, never in dist/. A build that reads a file outside its package
 // without depending on that package is not seen: `pnpm build:clean` builds everything. CI starts with no records, so it builds all.
-// The build takes one of the machine's three build slots (scripts/machine-slot.mjs) and waits when all three are occupied.
+// Workspace planning and compilation share the local machine slot with the root build, tests and health checks.
 import { generateVersions } from "./generate-versions.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -37,7 +37,7 @@ const sha = (text) => createHash("sha256").update(text).digest("hex");
 const relativePath = (absolute) => path.relative(root, absolute).split(path.sep).join("/");
 
 export function parseOptions(args, environment = process.env) {
-  const options = { clean: environment.MOLIS_WORK_BUILD_CLEAN === "1", jobs: 4, dryRun: false };
+  const options = { clean: environment.MOLIS_WORK_BUILD_CLEAN === "1", jobs: environment.CI === "true" ? 4 : 2, dryRun: false };
   for (let index = 0; index < args.length; index++) {
     if (args[index] === "--clean") options.clean = true;
     else if (args[index] === "--dry-run") options.dryRun = true;
@@ -188,9 +188,9 @@ async function buildStale(order, stale, digests, records, jobs) {
 const FILTERS = PACKAGE_ROOTS.map((prefix) => ["--filter", `./${prefix.endsWith("/") ? `${prefix}**` : prefix}`]).flat();
 
 /** Every package, the way `pnpm workspace:build` always did it: clean them all, then `pnpm -r run build`. */
-const buildAll = () => new Promise((resolve) => {
+const buildAll = (concurrencyFlags) => new Promise((resolve) => {
   const run = (script, then) => {
-    const child = spawn("pnpm", ["-r", ...FILTERS, "run", script], { cwd: root, stdio: "inherit" });
+    const child = spawn("pnpm", ["-r", ...concurrencyFlags, ...FILTERS, "run", script], { cwd: root, stdio: "inherit" });
     child.once("exit", (code) => (code === 0 ? then() : resolve(false)));
   };
   run("clean", () => run("build", () => resolve(true)));
@@ -207,32 +207,33 @@ function plan(options) {
 }
 
 async function main() {
-  const options = parseOptions(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const options = parseOptions(args);
+  await acquireSlot("build", { label: `build ${path.basename(root)}` });
   // The build only refuses stale outputs. Whether a new declaration bypasses the source is the release gate's business: one more
   // `version: 1` on some branch must not stop this machine's build.
   const staleVersions = generateVersions();
   if (staleVersions.length) throw new Error(`Stale version outputs (run pnpm versions:generate):\n${staleVersions.join("\n")}`);
   const started = Date.now();
-  let current = plan(options);
+  const current = plan(options);
   console.log(`build-workspace: ${current.stale.size} of ${current.buildable} packages to build, ${current.buildable - current.stale.size} unchanged`);
   if (options.dryRun) {
     for (const [name, reason] of current.stale) console.log(`  ${name}: ${reason}`);
     return 0;
   }
   if (!current.stale.size) return 0;
-  const release = await acquireSlot("build", { label: `build ${path.basename(root)}` });
-  current = plan(options); // again: another checkout may have built, or files changed, while this one waited
   const { order, digests, records, stale, buildable } = current;
   let failed;
   if (stale.size === buildable) {
     writeRecords({});
-    const ok = await buildAll();
+    // On a cold CI runner pnpm already caps concurrency by runner capacity and reads its own settings.
+    const usePnpmDefault = process.env.CI === "true" && !args.includes("--jobs");
+    const ok = await buildAll(usePnpmDefault ? [] : [`--workspace-concurrency=${options.jobs}`]);
     failed = new Set(ok ? [] : order.map((entry) => entry.name));
     if (ok) writeRecords(Object.fromEntries(order.filter((entry) => entry.scripts.build).map((entry) => [entry.name, { input: digests.get(entry.name), output: distDigest(entry.directory) }])));
   } else {
     failed = await buildStale(order, new Set(stale.keys()), digests, records, options.jobs);
   }
-  release();
   console.log(`build-workspace: ${failed.size ? "failed" : `${stale.size} built`} in ${((Date.now() - started) / 1000).toFixed(1)} s`);
   return failed.size ? 1 : 0;
 }

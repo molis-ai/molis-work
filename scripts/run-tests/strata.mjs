@@ -2,7 +2,7 @@
  * Test suite strata for CI scheduling:
  * - VISUAL_AUDIT_TESTS: full-screen VUX multi-width/multi-surface crawl tests (~1.35 CPU-hr), run by
  *   `.github/workflows/visual-audit.yml` on UI/style PRs and nightly, and still included in nightly `full-suite.yml`.
- * - isGateMetaTest: CI/gate/health/runner self-tests already exercised by `ci.yml` (`gates`)
+ * - isGateMetaTest: CI/gate/health/runner self-tests already exercised by `ci.yml` (`gate-rules` and fixed security checks)
  *   when gate or workflow inputs change; excluded only from PR `full-suite` runs,
  *   retained in nightly/integration `full-suite` runs and local runs.
  */
@@ -38,10 +38,74 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
 
 const VISUAL_AUDIT_SET = new Set(VISUAL_AUDIT_TESTS);
 
-const GATE_META_PATTERN = /^tests\/(?:health-gates-|ci-|run-tests-|first-screen-|doc-reference-gates(?:\.|-)|translation-check\.|package-inventory-gate\.|vendor-provenance\.|verify-release-versions\.|version-source\.|secret-scan\.|cursor-skill-links\.|native-checks\.|page-assets-budget\.|plugin-styles-gate\.|studio-replay\.|affected-tests\.)/u;
-
+// These files used to be named explicitly by the blocking workflow. A missing file must still fail the job.
+const REQUIRED_GATE_RULE_FILES = [
+  "tests/affected-tests.test.ts",
+  "tests/ci-check-selection.test.ts",
+  "tests/ci-font-install.test.ts",
+  "tests/ci-full-retry.test.mjs",
+  "tests/ci-install.test.ts",
+  "tests/ci-linux-probe.test.ts",
+  "tests/ci-product-subset-plan.test.ts",
+  "tests/ci-product-subset.test.ts",
+  "tests/ci-queue-verified.test.ts",
+  "tests/ci-shard-weights.test.ts",
+  "tests/ci-test-selection.test.ts",
+  "tests/ci-timeouts.test.ts",
+  "tests/cursor-skill-links.test.ts",
+  "tests/doc-reference-gates.test.ts",
+  "tests/doc-reference-gates-violations-1.test.ts",
+  "tests/doc-reference-gates-violations-2.test.ts",
+  "tests/first-screen-budget.test.mjs",
+  "tests/first-screen-report.test.mjs",
+  "tests/package-inventory-gate.test.ts",
+  "tests/page-assets-budget.test.ts",
+  "tests/plugin-styles-gate.test.ts",
+  "tests/run-tests-pool.test.ts",
+  "tests/run-tests-shard.test.ts",
+  "tests/translation-check.test.ts",
+  "tests/vendor-provenance.test.ts",
+  "tests/verify-release-versions.test.ts",
+  "tests/version-source.test.ts",
+];
+const namedGateRules = new Set(REQUIRED_GATE_RULE_FILES);
+// S-19 and S-48 run on every code build; native checks and Studio replay have their own jobs/steps.
+const separateGateTests = new Set([
+  "tests/secret-scan.test.ts", "tests/health-gates-dual-instance.test.ts",
+  "tests/native-checks.test.mjs", "tests/studio-replay.test.ts",
+]);
+const gateRuleFamily = /^tests\/(?:health-gates-|ci-|run-tests-|first-screen-)[\w.-]+\.test\.(?:ts|mjs)$/u;
 const normalize = (file) => String(file).replaceAll("\\", "/").replace(/^\.\//u, "");
 
 export const isVisualAuditTest = (file) => VISUAL_AUDIT_SET.has(normalize(file));
+export const isGateRuleTest = (file) => !separateGateTests.has(file) && (namedGateRules.has(file) || gateRuleFamily.test(file));
 
-export const isGateMetaTest = (file) => GATE_META_PATTERN.test(normalize(file));
+export function isGateMetaTest(file) {
+  const name = normalize(file);
+  return isGateRuleTest(name) || separateGateTests.has(name);
+}
+
+function gateRuleGroup(file) {
+  if (file.startsWith("tests/health-gates-")) return "health";
+  if (file.startsWith("tests/first-screen-") || file === "tests/page-assets-budget.test.ts" || file === "tests/plugin-styles-gate.test.ts") return "budgets";
+  return "source";
+}
+
+/** Validate the selection against the entire suite so each job applies the same fallback. */
+export function gateRuleFiles(testFiles, selection, group) {
+  const suite = testFiles.filter(isGateRuleTest);
+  const missing = REQUIRED_GATE_RULE_FILES.filter(file => !suite.includes(file));
+  if (missing.length) throw new Error(`Missing gate self-tests: ${missing.join(", ")}`);
+  const groupFiles = group === undefined ? suite : suite.filter(file => gateRuleGroup(file) === group);
+  if (!groupFiles.length) throw new Error(`The ${group ?? "complete"} gate self-test suite is empty`);
+  if (!selection) return groupFiles;
+  let files;
+  try {
+    files = JSON.parse(selection);
+  } catch {
+    return groupFiles;
+  }
+  if (!Array.isArray(files) || !files.length || !files.every(file => suite.includes(file))) return groupFiles;
+  const selected = new Set(files);
+  return groupFiles.filter(file => selected.has(file));
+}

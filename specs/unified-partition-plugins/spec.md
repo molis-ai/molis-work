@@ -364,7 +364,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | `S-push-ledger-repair` | 推送被打断后，平台只按目标库已提交的上游标记补记平台账本（`outcome='repaired'`），不写任何业务内容；没有上游标记就不补 | 打断在写副本前：零写入；打断在写副本后：只补一行账本、内容为空；伪造的上游标记不被采信（标记由平台在目标库事务里写） |
 | `S-partition-wake-scope` | 推送、同步写入、到期登记、总览重建只打开相关分区的库，不起其他分区的监督器与沙箱进程 | 20 个项目 19 个休眠时做上述四件事，休眠项目的进程数为零 |
 | `S-git-plugin-command-scope` | `plugins/native/git`（D6=B）调用本机 `git` 仅经平台受限 argv-only VCS 执行器（固定二进制、禁锢于当前分区工作目录、禁止 shell 解析与外部 hook 注入、仅宿主信任签名包可用） | 非宿主包申请、越界路径参数、shell 元字符或注入 hook 参数均被拒 |
-| `S-reserved-host-prefix` | `io.molis.work.` 前缀只给宿主自己的包：非宿主安装（含创作台生成、固定公钥第三方）申请该前缀下任何 id 一律拒（`plugin.id_namespace_conflict`），不再靠容易漏项的散点名单（`44B-0`） | 非宿主包以 `io.molis.work.characters`、`io.molis.work.assistant`、`io.molis.work.shelf`、`io.molis.work.artifacts` 与一个尚未发布的 `io.molis.work.*` 各安装一次，均被拒 |
+| `S-reserved-host-prefix` | `io.molis.work.` 前缀只给宿主自己的包（前提：插件命名已按 V16 放开）：非宿主安装（含创作台生成、固定公钥第三方）申请该前缀下任何 id 一律拒（`plugin.id_namespace_conflict`），不再靠容易漏项的散点名单（`44B-0`） | 非宿主包以 `io.molis.work.characters`、`io.molis.work.assistant`、`io.molis.work.shelf`、`io.molis.work.artifacts` 与一个尚未发布的 `io.molis.work.*` 各安装一次，均被拒 |
 | `S-push-blob-handle` | 大快照句柄只对一次推送操作（`op_id`）与一个安装有效，用完或超时即失效，不能跨分区、跨安装复用（`111`） | 拿别的安装、别的分区或已用过、已超时的句柄读写，均被拒 |
 
 改写：S-31（Home 插件路由 → 分区路由）、S-48（**双实例整套退役归零**，Shelf 已于 `44B` 归纯平台 `system.shelf`）、S-49（休眠读数 → 总览索引，#2254 先合）、S-72（隐藏个人插件 → 删除，改「未启用的插件在该分区被拒」）、S-74（跨项目读取整套退役）、S-80、S-91（沙箱 Home 库 → 分区库）、S-98（证据回收归平台）。还要核对并按需改写：S-34（常开机制退役、Shelf 归平台）、S-35（推送与跨分区移动回滚的关系）、S-71（连接槽）、S-character-role-scope、S-mainline-own-line、S-evaluation-isolation、S-observation-records、S-plugin-data、S-directory-output-only。合入前对照 #2245、#2255 对 S-49、S-07 的改动。
@@ -494,6 +494,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | V12 | 个人空间五个随手记入口 | 按 15.1 定分工；用户补：**右栏讨论 = 只有自己的群聊**，与项目讨论同一套逻辑 |
 | V13 | 个人全局技能在项目里谁能用 | 用户定：**项目 AI 也能用**（R22） |
 | V14 | 排期 | 用户定：**按现在的顺序**（44B、106～111 串行，下游等 111） |
+| V16 | 插件叫什么名字（复查发现 SDK 强制所有插件用官方前缀，保留前缀会挡住全部非宿主插件） | 用户定：**别人用自己的名字**——外部插件用自己的反向域名（如 `com.acme.todo`），创作台生成的改成非官方名字 `local.generated.<id>`；SDK `PLUGIN_ID` 放开为通用反向域名形式，`io.molis.work.` 只给宿主自己的包（V16），归 `44B-0` |
 | V15 | 旧 Alchemist 在本机的旧数据 | 用户定：**44B 合入后就把开发机本机的旧 Alchemist 目录搬开（不删）**，其余真实数据仍等 111 之后；动手前再弹窗确认 |
 
 ## 15. 使用场景走查
@@ -595,3 +596,4 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
   - 补全 Platform Blob Handle >256 KiB 分片推送、CAS 附件对副本与全部 `push_superseded` 持有保护、`material-original-files`/`material-attachments` 分区化、`horizontal/person-settings` 复用 `#2231` 同步流、`overview_projection` 纯标识符防注入校验与 `95-3` 7 天漏跑保留、`projects.workspace.writers.*` 随 D6=B 迁入 `plugins/native/git` 与 `S-git-plugin-command-scope`、保留第 99 批 `#2244` `install_id` 隔离、`R21` 个人空间保留 IM、`R22` 双层自写 Skill；
   - 正式编入路线书批号 **`44B` + `106`～`111`**，并同步优化全仓下游批次、现役原需求书与 Backlog。
 - 2026-11-23 补充拍板 V9～V15（14.3）：Git 随 Coding 随启用、可单独移除；总览改为插件维护的平台定格式总览表、到期提醒从中取、写法进插件开发文档；五个随手记入口分工、右栏讨论即只有自己的群聊；项目 AI 可用个人全局技能；排期照旧；44B 后搬开本机旧 Alchemist 目录。另补插件自有文件的推送与大快照句柄 `S-push-blob-handle`，清理 Shelf 归平台后残留的「白名单 Shelf」与插件数量旧说法。
+- 2026-11-23 合并前复查（独立只读评审 + 代码核对）：Coding 对 Git 全部改随启用依赖；`project_rows`/`artifact_join` 与 `scope:"home"`/`outsideBuild` 链的删除后移到 `109`；补 `S-reserved-host-prefix`、`S-push-blob-handle` 两行；漏派项归批；用户再定 V16（插件命名放开）。

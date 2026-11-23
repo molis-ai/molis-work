@@ -188,6 +188,10 @@
 目标是让同一个 molis-work 账号在多台设备上使用完整的个人工作内容，同时保留本地 SQLite 的离线能力。本规格记录本会话逐项确认的 15 项决定；业务规则以本规格为准，未交付工作统一登记在 [BACKLOG 第 9 节](../BACKLOG.md)，阶段实施与证据在本文更新，不另开进度账本。
 
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（`44B` + `110`/`111`）校准：① 平台同步集合改为纯平台 `SyncSelection`（`owner_kind: "platform"`，`system.artifacts`/`system.shelf`/`system.characters` 非插件，清除 `#2231` `platform-sync-catalog.ts` 借用 Inbox 的缺陷）+ 声明式 `SyncTopologicalLayer`；② 插件同步范围从 10 种收敛为按分区 4 种 + 系统 Home 2 种（`project-sections`/`project-private-values` 并入分区，删除 `home-with-projects`/`projects` 与接收自动建项目/自动启用），同步键 `null` 改 `"personal"` 并升线格式版本；③ 新增独立同步种类「分区启用清单」（V4，`S-sync-enablement-own-choice`）；④ `services.personSettings` 的 `portable: true` 键复用 `#2231` `personalConfigReplica` + `assertPortableConfig` 流；⑤ 推送账本随个人空间同步、`push_superseded` 全留本机仅同步最近 1 版（V3）、同步发现直读各分区出站表零唤醒（`S-partition-wake-scope`）且拉取入休眠分区仅标总览 `dirty = 1`。
+
 ## 最新续做进展（本次 5/5 轮结束）
 
 本次增加复制持久计划/阶段回执及可重试提交编排、过期尝试与迟到回调拒绝、目标删除历史保护；接入 Images 完整原件复制，本地复制 owner 从 4 类增至 5 类；修复 Shelf 扫描游标及真实 Host 文档适配器复用。构建312通过，最后314组14/14文件、163/163测试通过，包含版本与错误合同修正；图片真实 Web/MCP 并发313单独1/1通过。310相关组原为85/88文件通过，3处失败分别为图片并发进程、具名 schema 转交规则、新错误码预期；后两项已修复复验，保留首轮失败记录，不宣称一次88/88通过。资源315与包边界315通过；完整项目文件暂存/发布、其余 owner 与界面仍未接通，整体继续为5/7。原第8、9项不在本次范围。

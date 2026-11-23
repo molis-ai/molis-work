@@ -2,6 +2,10 @@
 
 状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨；界面定样（安装预览、启用和管理）归 E 轨，两边字段在这里对齐（E 轨 2026-11-04 已回，第 5、7、8 节按它改了）；呈现相关的第 10 节请 D 轨看。合同实现等 C 轨接手（第 02 批 Codex 交接之后），按「合同先行」开小 PR（第 12 节）。第 13 节的问题统筹已于 2026-11-04 裁定，并写进了正文。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① `planning-methods` 移入纯平台 `packages/system-skills/`，清零 `plugins/content/` 系统自动启用特例；② `44B-0` 修复 `ROLE_TEMPLATE_SCHEMA` 硬编码 `^io\.molis\.work\.` 正则使第三方技能包平等可用；③ 同步落地双层自写 Skill（个人全局 + 项目分区，R22）并废除 `skill-folder.ts` 中的普通插件 `scope: "home"` 分支。
+
 ## 0. 这份稿子做什么
 
 [第 08 批](../post-anticorruption-roadmap/reference/batches/08.md#batch-08-item-1)要交「技能包基础能力」。本稿写其中的合同，共八项：

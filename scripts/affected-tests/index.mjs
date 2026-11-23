@@ -3,7 +3,7 @@
 // are read from), never runs anything. The question it answers is the one `git grep -l <name> tests` answers by hand: which
 // tests read or call this?
 import path from "node:path";
-import { marksOf, readClosureFiles } from "../ci-linux-probe/select.mjs";
+import { marksOf, createTestReader } from "../ci-linux-probe/select.mjs";
 import { REPOSITORY_FOLDERS } from "./rules.mjs";
 import { sourceOfEntry } from "./repository.mjs";
 
@@ -72,8 +72,9 @@ export function buildTestIndex(root, files, packages) {
   const tests = files.filter((file) => TEST_FILE.test(file)).sort();
   const analysed = new Map();   // closure file -> { text, refs, imported }
   const owners = new Map();     // closure file -> test files whose closure holds it
+  const reader = createTestReader(root);
   const entries = tests.map((file) => {
-    const closure = readClosureFiles(root, file);
+    const closure = reader.closure(file);
     for (const entry of closure) {
       if (!analysed.has(entry.file)) analysed.set(entry.file, { text: entry.text, ...analyse(entry, packages) });
       if (!owners.has(entry.file)) owners.set(entry.file, []);

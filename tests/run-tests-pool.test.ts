@@ -163,22 +163,49 @@ test("--shard: the same list in n jobs gives every file to exactly one of them, 
   }
 });
 
-test("--skip-macos-only: a file the Linux probe marks darwin is left out, a browser file stays, and the rest run", () => {
+test("TSA-04 --skip-macos-only runs mixed files, skips declared files, and keeps an empty selection empty", () => {
   const made = directory();
   const seen = path.join(made, "seen");
   const write = (name: string, note: string) => {
     const file = path.join(made, name);
-    writeFileSync(file, `import test from "node:test";\nimport { appendFileSync } from "node:fs";\n// ${note}\ntest(${JSON.stringify(name)}, () => { appendFileSync(${JSON.stringify(seen)}, ${JSON.stringify(`${name}\n`)}); });\n`);
+    writeFileSync(file, `// ${note}\nimport test from "node:test";\nimport { appendFileSync } from "node:fs";\ntest("runs", () => appendFileSync(${JSON.stringify(seen)}, ${JSON.stringify(name + "\n")}));\n`);
     return file;
   };
-  // The two platform words are put together at run time: written whole here they would mark this file itself macOS-only.
-  const launchAgentTool = ["launch", "ctl"].join(""), mac = ["dar", "win"].join("");
-  const files = [write("plain.test.mjs", "nothing platform-specific"), write("agent.test.mjs", `starts a ${launchAgentTool} job`), write("page.e2e.test.mjs", `skips unless the platform is "${mac}"`)];
-  const run = spawnSync(process.execPath, [runner, "--skip-macos-only", "--jobs", "2", ...files], { encoding: "utf8", timeout: 120_000 });
-  const output = `${run.stdout}${run.stderr}`;
-  assert.equal(run.status, 0, output);
-  assert.match(output, /left out 1 macOS-only files of 3/);
-  assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n").sort(), ["page.e2e.test.mjs", "plain.test.mjs"]);
+  const native = write("native.test.mjs", "@requires-platform darwin");
+  const mixed = write("mixed.test.mjs", "uses a fake Keychain");
+  const page = write("page.e2e.test.mjs", "browser");
+  const execute = (...files: string[]) => spawnSync(process.execPath, [runner, "--skip-macos-only", "--jobs", "1", ...files],
+    { encoding: "utf8", timeout: 120_000, cwd: made });
+  const run = execute(native, mixed, page);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /left out 1 macOS-only files of 3/);
+  const ran = readFileSync(seen, "utf8").trim().split("\n").sort();
+  assert.deepEqual(ran, ["mixed.test.mjs", "page.e2e.test.mjs"]);
+  const empty = execute(native);
+  assert.equal(empty.status, 0, empty.stdout + empty.stderr);
+  assert.match(empty.stdout, /0 of 0 files/);
+  assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n").sort(), ran);
+});
+
+test("TSA-04 a skipped file is reported separately and an empty retry cannot erase a failure", () => {
+  const made = directory(), file = path.join(made, "conditional.test.mjs"), marker = path.join(made, "attempted");
+  writeFileSync(file, `import test from "node:test";
+import { existsSync, writeFileSync } from "node:fs";
+test("conditional", { skip: existsSync(${JSON.stringify(marker)}) }, () => {
+  writeFileSync(${JSON.stringify(marker)}, ""); throw new Error("first attempt failed");
+});`);
+  const run = (...options: string[]) => spawnSync(process.execPath, [runner, "--jobs", "1", "--retries", "1", ...options, file],
+    { encoding: "utf8", timeout: 120_000 });
+  for (const options of [[], ["--bail"]]) {
+    rmSync(marker, { force: true });
+    const failed = run(...options);
+    assert.equal(failed.status, 1, failed.stdout + failed.stderr);
+    assert.match(failed.stdout, /failed \(1\):\n\s+fail/);
+    assert.match(failed.stdout, /first attempt failed/);
+    const skipped = run(...options);
+    assert.equal(skipped.status, 0, skipped.stdout + skipped.stderr);
+    assert.match(skipped.stdout, /0 of 1 files passed \(1 entirely skipped\)/);
+  }
 });
 
 test("--retries: a file that fails and then passes is listed as flaky and does not fail the run; one that fails every time still does", () => {

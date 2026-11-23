@@ -192,7 +192,7 @@ jobs:
       # Boundary rules on the shared build outputs.
       - name: Verify package contracts and boundaries
         if: ${{ needs.build.result == 'success' }}
-        run: pnpm boundary:test && node scripts/check-package-boundaries.mjs
+        run: pnpm boundary:test:built && node scripts/check-package-boundaries.mjs
 
       # Route / surface payload budgets (including plugin iframe runtime & /desktop/pty-client.js) + merge-base budget ratchet.
       - name: Page asset budgets (against the merge-base)

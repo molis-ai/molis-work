@@ -1,30 +1,27 @@
-import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DatabaseSync } from "node:sqlite";
-import { bindDatabaseSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
-import {
-  createScheduleTaskReplica,
-  installScheduleReplication,
-  SCHEDULE_TASKS_SCHEMA_SQL,
-} from "../src/index.js";
+import { personalStorageSpace, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { scheduleCollection, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
+import { projectPluginSyncFixture } from "./fixtures/project-plugin-sync.js";
 
 const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
 const projectId = "project-one";
 const key = JSON.stringify([projectId, "schedule_task", "task-1"]);
-const context = { spaceId: space.spaceId, projectId, title: "项目", authorize: () => {} };
 
+// TSA-03. Use the declared project library, its tracking triggers and the Runtime sync service.
 function fixture() {
-  const db = new DatabaseSync(":memory:");
-  db.exec("PRAGMA foreign_keys=ON");
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
-  db.exec(replicaSchemaSql('schedule'));bindDatabaseSpace(db, space);
-  installScheduleReplication(db, projectId);
-  const replica = createScheduleTaskReplica(db, context);
-  return { db, replica, close: () => db.close() };
+  const collectionId = "conversation_tasks";
+  return projectPluginSyncFixture({
+    space, projectId, manifest: scheduleManifest, collectionId,
+    bindings(context) {
+      const sync = context.services?.sync;
+      assert.ok(sync);
+      return [{ collection_id: collectionId, replica: sync.collection(collectionId, scheduleCollection(projectId)) }];
+    },
+  });
 }
 
-function task(db: DatabaseSync, enabled = 1, jobId: string | null = "local-job") {
+function task(db: SqliteDatabase, enabled = 1, jobId: string | null = "local-job") {
   db.prepare(`INSERT INTO schedule_conversation_tasks
     (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
@@ -48,11 +45,11 @@ test("Schedule task and turns transfer, but no destination job is started", () =
       enabled: number; job_id: string | null; title: string;
     };
     assert.deepEqual({ ...row }, { enabled: 0, job_id: null, title: "每日回顾" });
-    assert.equal(b.db.prepare("SELECT COUNT(*) AS n FROM schedule_conversation_turns").get()?.n, 1);
+    assert.equal(b.db.prepare<[], { n: number }>("SELECT COUNT(*) AS n FROM schedule_conversation_turns").get()?.n, 1);
     assert.equal(b.replica.next(), null, "remote restore does not echo");
     a.replica.receive({ ...mutation, revision: 1 });
     assert.equal(a.replica.next(), null);
-    assert.equal(a.db.prepare("SELECT enabled,job_id FROM schedule_conversation_tasks").get()?.job_id, "local-job");
+    assert.equal(a.db.prepare<[], { enabled: number; job_id: string | null }>("SELECT enabled,job_id FROM schedule_conversation_tasks").get()?.job_id, "local-job");
   } finally { a.close(); b.close(); }
 });
 
@@ -66,7 +63,7 @@ test("malformed payload cannot replace a task, and an active local task cannot b
     bad.task.hour = 99;
     b.replica.receive({ ...mutation, value: bad, revision: 1 });
     assert.equal(b.replica.conflicts().length, 1);
-    assert.equal(b.db.prepare("SELECT COUNT(*) AS n FROM schedule_conversation_tasks").get()?.n, 0);
+    assert.equal(b.db.prepare<[], { n: number }>("SELECT COUNT(*) AS n FROM schedule_conversation_tasks").get()?.n, 0);
     assert.throws(() => b.replica.resolve(key, "remote"));
 
     const c = fixture();
@@ -74,7 +71,7 @@ test("malformed payload cannot replace a task, and an active local task cannot b
       task(c.db);
       c.replica.receive({ ...mutation, revision: 1 });
       assert.equal(c.replica.conflicts().length, 1);
-      assert.equal(c.db.prepare("SELECT enabled FROM schedule_conversation_tasks").get()?.enabled, 1);
+      assert.equal(c.db.prepare<[], { enabled: number }>("SELECT enabled FROM schedule_conversation_tasks").get()?.enabled, 1);
     } finally { c.close(); }
   } finally { a.close(); b.close(); }
 });

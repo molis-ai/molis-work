@@ -5,7 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ensureStorageSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
-import { openCharacters, createCharactersReplicationBinding } from "../src/index.js";
+import { openCharacters, createCharactersReplicationBinding } from "@molis-ai/molis-work-module-characters";
+
+// TSA-03. Personal drafts have no project or artifact dependencies.
+function personalScope(spaceId: string) {
+  return {
+    spaceId, authorize() {}, canUploadProject: () => false, hasArtifact: () => false,
+    project(): never { throw new Error("Personal draft requested a project"); },
+  };
+}
 
 test("personal Character draft transfers with target-local revision, without publishing an Artifact", () => {
   const root = mkdtempSync(join(tmpdir(), "character-sync-"));
@@ -14,14 +22,14 @@ test("personal Character draft transfers with target-local revision, without pub
     const homes = [join(root, "a"), join(root, "b")];
     homes.forEach(home => ensureStorageSpace(home, space));
     const owner = openCharacters(homes[0]!, LOCAL_PERSON_ACTOR_ID);
-    const initial = owner.service.create();
+    const initial = owner.service.create({ title: "初稿", instructions: "", host_tools: null });
     const saved = owner.service.update(initial.character_id, initial.revision, {
       title: "跨设备角色", instructions: "先核对事实", host_tools: null,
     });
     owner.close();
     const a = createCharactersReplicationBinding(homes[0]!, "alice"), b = createCharactersReplicationBinding(homes[1]!, "alice");
     try {
-      const context = { spaceId: space.spaceId, authorize: () => {} };
+      const context = personalScope(space.spaceId);
       const outgoing = a.replica(context).next();
       assert.ok(outgoing);
       b.replica(context).receive({ ...outgoing, revision: 1 });
@@ -39,18 +47,18 @@ test("personal Character draft transfers with target-local revision, without pub
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("an empty new draft transfers; malformed or foreign-owner content cannot be restored", () => {
+test("a named draft with empty instructions transfers after rejecting a foreign owner", () => {
   const root = mkdtempSync(join(tmpdir(), "character-sync-"));
   try {
     const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
     const homes = [join(root, "a"), join(root, "b")];
     homes.forEach(home => ensureStorageSpace(home, space));
     const owner = openCharacters(homes[0]!, LOCAL_PERSON_ACTOR_ID);
-    const draft = owner.service.create();
+    const draft = owner.service.create({ title: "初稿", instructions: "", host_tools: null });
     owner.close();
     const a = createCharactersReplicationBinding(homes[0]!, "alice"), b = createCharactersReplicationBinding(homes[1]!, "alice");
     try {
-      const context = { spaceId: space.spaceId, authorize: () => {} };
+      const context = personalScope(space.spaceId);
       const outgoing = a.replica(context).next();
       assert.ok(outgoing);
       const foreign = structuredClone(outgoing.value) as { record: { owner_actor_id: string } };

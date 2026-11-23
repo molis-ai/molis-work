@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { assertPortAvailable, loadProperties, required, selectEnvironment } from './environment-properties.mjs';
-import { sessionGeneration } from './environment-session.mjs';
+import { assertPortAvailable, loadProperties, required, selectEnvironment } from '../scripts/environment-properties.mjs';
+import { sessionGeneration } from '../scripts/environment-session.mjs';
 
 test('ENV-01: environment selection is explicit and source startup forbids prod', () => {
   for (const args of [[], ['dev'], ['--env', 'prod'], ['--env', 'staging'], ['--env', 'dev', '--port', '1']])

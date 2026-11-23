@@ -3,8 +3,8 @@ name: Full suite
 # The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
 # 24 shards on ubuntu runners after a single shared build job, so all 24 shards run in one wave instead of two waves of 24
 # (each shard with 2 workers, at most 1 browser worker — browser files set the critical path, so 2/1 matches 4/1 wall time without CPU starvation). Wall time and queue time are measured on the actual run.
-# Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
-# Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
+# --skip-macos-only omits files explicitly declared macOS-only. Mixed files run their applicable cases;
+# native cases use node:test platform guards and live cases require opt-in.
 # It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
 # When it runs:
 #   - a pull request, once, when the label `full-suite` is added. A later push does not run it again: add the label again (remove

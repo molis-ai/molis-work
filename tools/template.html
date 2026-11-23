@@ -363,7 +363,7 @@ const rootEl=document.documentElement;
 const setTheme=v=>{rootEl.dataset.theme=v;rootEl.style.colorScheme=v};
 try{const v=localStorage.getItem(THEME_KEY);if(v==='light'||v==='dark')setTheme(v)}catch(e){}
 const D=/*DATA*/null;
-const STAGES=[['0','阶段 0','收口'],['1','阶段 1','基础路径与共同设计'],['2','阶段 2','个人工作完整可用'],['3','阶段 3','持续工作与创作'],['4','阶段 4','复杂场景与最终收口'],['S','服务端批','开工时间另定，01～105 不等它']];
+const STAGES=[['0','阶段 0','收口'],['1','阶段 1','基础路径与共同设计'],['2','阶段 2','个人工作完整可用'],['3','阶段 3','持续工作与创作'],['4','阶段 4','复杂场景与最终收口'],['S','服务端批','开工时间另定，01～111 不等它']];
 const STATUS={wait:'等前置',open:'可领',doing:'已认领',pause:'暂停',done:'已完成'};
 const OPTIONAL_STATUS=new Set(['pause']);
 const REPO='https://github.com/molis-ai/molis-work';

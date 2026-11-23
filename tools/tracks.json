@@ -1354,7 +1354,7 @@
 "basis": "记录路线（不写代码）"
 },
 "55-4": {
-"title": "TypeSafe 未连接时的判断",
+"title": "外部判断连接未连接时的判断",
 "main": "E",
 "also": [],
 "kind": "实现",
@@ -2660,7 +2660,7 @@
 "basis": "tracks.md（2026-11-18）"
 },
 "91-1": {
-"title": "Design System 流式、布局与行为反馈统一底座",
+"title": "Design System 流式、布局与行为反馈统一底座（已随 `91-0b` #2222 提前交付）",
 "main": "D",
 "also": [
 "C1"
@@ -2706,7 +2706,7 @@
 "basis": "tracks.md 逐项表"
 },
 "91-5": {
-"title": "后续开发指引与插件创作台规范同步更新",
+"title": "后续开发指引与插件创作台规范同步更新（已随 `91-0a` #2221 + `91-0b` #2222 与补清小修落稳）",
 "main": "D",
 "also": [
 "E"
@@ -2717,18 +2717,19 @@
 "basis": "tracks.md 逐项表（决定 55）"
 },
 "91B-1": {
-"title": "入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口",
+"title": "入口、账号、市场、侧栏四视图、IM、Artifacts、Sessions、纯平台 Shelf 与创作台收口",
 "main": "D",
 "also": [
+"C3",
 "F"
 ],
 "kind": "实现",
 "occupy": true,
 "status": "定",
-"basis": "tracks.md 逐项表（决定 55）"
+"basis": "tracks.md 逐项表（决定 55、决定 66）"
 },
 "91B-2": {
-"title": "工作主干 9 插件 + 4 官方集成全面打磨",
+"title": "工作主干 9 插件 + 3 个统一连接器驱动全面打磨",
 "main": "E",
 "also": [
 "D"
@@ -2739,7 +2740,7 @@
 "basis": "tracks.md 逐项表（决定 55）"
 },
 "91B-3": {
-"title": "创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨",
+"title": "创作数据 5 + 收集知识 3 + 研发工具（Git/Diff）全面打磨",
 "main": "E",
 "also": [
 "B",
@@ -2751,7 +2752,7 @@
 "basis": "tracks.md 逐项表（决定 55）"
 },
 "91B-4": {
-"title": "全站轻动效收口与确定性底线防回归门禁",
+"title": "全站轻动效收口与五层确定性底线防回归门禁",
 "main": "无",
 "also": [
 "B",
@@ -3049,5 +3050,241 @@
 "occupy": true,
 "status": "定",
 "basis": "tracks.md 逐项表（决定 58）"
+},
+"44B-1": {
+"title": "P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则",
+"main": "C1",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）；页面按位置编号，本项即路线书 44B-0"
+},
+"44B-2": {
+"title": "合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）",
+"main": "C1",
+"also": [
+"C3",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）；页面按位置编号，本项即路线书 44B-1"
+},
+"44B-3": {
+"title": "Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零",
+"main": "C3",
+"also": [
+"C1",
+"C2",
+"D",
+"E",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）；页面按位置编号，本项即路线书 44B-2"
+},
+"106-1": {
+"title": "分区根 `partitionRoot()`、保留分区守卫与 `listPartitions()` 全量归类",
+"main": "C1",
+"also": [
+"C3",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"106-2": {
+"title": "Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配",
+"main": "C1",
+"also": [
+"C3",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"106-3": {
+"title": "新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段",
+"main": "C3",
+"also": [
+"C1",
+"G"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"107-1": {
+"title": "6 个独立库插件迁 `databases.partition` 并删业务表 `project_id`",
+"main": "E",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"107-2": {
+"title": "当波删除 `databases.home.partition` 复用器；6 个插件不再用 `project_rows`／`artifact_join`",
+"main": "C1",
+"also": [
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"108-1": {
+"title": "Todo、Jelly、Cognia、Images、Issues 迁分区作用域与 `databases.partition`",
+"main": "E",
+"also": [
+"C1",
+"C3"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"108-2": {
+"title": "个人空间总览上线（承接原 `64-3` 跨项目个人视图）与门禁 G4",
+"main": "C3",
+"also": [
+"A",
+"D",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"108-3": {
+"title": "当波删除 `personal:true`、`hidden` 与 `project_reach`",
+"main": "C1",
+"also": [
+"D",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"109-1": {
+"title": "主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半",
+"main": "E",
+"also": [
+"B",
+"C3"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"109-2": {
+"title": "Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类",
+"main": "B",
+"also": [
+"C1",
+"C2"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"109-3": {
+"title": "第三方沙箱包开放 `databases.partition` + 彻底删除双实例与旧平行装配",
+"main": "C1",
+"also": [
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"110-1": {
+"title": "放置、搜索、记忆与角色去 `project_id: null` 业务双轨",
+"main": "C3",
+"also": [
+"C2",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"110-2": {
+"title": "同步收敛、线格式升版、分区启用清单独立同步（V4）与零唤醒发现",
+"main": "G",
+"also": [
+"C1",
+"C3"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"110-3": {
+"title": "MCP 个人空间显式绑定守卫",
+"main": "C1",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"111-1": {
+"title": "星型单向版本化推送引擎、不预记补账、大快照分片与 CAS GC 保护",
+"main": "C3",
+"also": [
+"C1",
+"G"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"111-2": {
+"title": "全部有业务对象的插件一次完成 `push` 声明（U8）与沙箱支持",
+"main": "E",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"111-3": {
+"title": "工作台界面定样落地、G1～G5 全量焊死、清退临时白名单与文档收尾",
+"main": "D",
+"also": [
+"C1",
+"C3",
+"E",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
 }
 }

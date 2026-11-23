@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { ActionError, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { EXTERNAL_TOOLS, type ExternalToolEntry, type ExternalToolId } from "@molis-ai/molis-work-contracts/platform/external-tools";
+import { EXTERNAL_TOOLS } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   EXTERNAL_SESSION_SUGGEST_MAX_GROUPS,
@@ -111,7 +111,7 @@ async function readOpeningMessages(
 ): Promise<string[]> {
   const adapter = getSessionAdapter(session.entry_id);
   if (!adapter?.readHistory) return [];
-  const tool = (EXTERNAL_TOOLS as readonly (ExternalToolEntry & { id: ExternalToolId })[]).find(
+  const tool = EXTERNAL_TOOLS.find(
     item => canonicalEntryId(item) === session.entry_id && !item.shares_sessions_with,
   );
   if (!tool) return [];

@@ -570,9 +570,9 @@ export class MolisWorkLocalHost {
 
   /** The catalog's projects that are not open now, the ones whose library is there; none without a catalog. */
   async closedProjects(): Promise<LocalHostProjectReference[]> {
-    const home = this.options.homeDirectory;
+    const home = this.personalPlanningHome;
     if (!home || !this.catalogRunner) return [];
-    const open = new Set(this.host.projects().map(project => project.storage_key));
+    const open = new Set(this.host.projects().filter(project => project.state !== "closing").map(project => project.storage_key));
     const rows = await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects());
     return rows.map(row => molisWorkHostProjectReference({ databasePath: row.database_path, projectId: row.project_id }))
       .filter(reference => !open.has(reference.storage_key) && fs.existsSync(reference.storage_key));
@@ -585,7 +585,7 @@ export class MolisWorkLocalHost {
   projectRest(storageKey: string) { return this.host.projectRest(storageKey); }
 
   /**
-   * Puts an open project to sleep when nobody has used it for `idleMs` and nothing of it is running (batch 103-1): no call in its
+   * Puts an open project to sleep when nobody has used it for `idleMs` and nothing of it is running: no call in its
    * line, and no plugin execution, job or terminal of the project or of a Home plugin in it that closing would end. A call that comes
    * later opens it again. Whether it was closed.
    */

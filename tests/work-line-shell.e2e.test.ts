@@ -229,6 +229,14 @@ test("WLN-04 WLN-06 POLISH-34: the input takes the next request at once while th
   );
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-stack] [data-decision-answer]')].every(b => !b.disabled)", 15_000);
+  // POLISH-54: task rows in the three lists also become disabled ("正在核对") while unreachable and recover on live attention even when tasks and events are unchanged.
+  waiting = false;
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor("[...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].some(b => !b.disabled && b.textContent.includes('核对报价单'))", 15_000);
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-unreachable', { detail: { since: new Date().toISOString() } }))");
+  await waitFor("[...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => b.disabled && b.textContent.includes('正在核对'))", 10_000);
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => !b.disabled && !b.textContent.includes('正在核对'))", 15_000);
 });
 
 test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read; pressing that asks again, and heard again it goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {

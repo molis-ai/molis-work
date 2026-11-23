@@ -328,6 +328,11 @@ test("POLISH-25 POLISH-28: 对话阅读列在 1440 不窄于 720 且左缘仍对
     return {title:dialog.querySelector('h2')?.textContent.trim()??'',model:!!model&&model.getBoundingClientRect().height>0,modelAbove:!!model&&model.getBoundingClientRect().bottom<=label.getBoundingClientRect().top,
       rules:label.textContent.trim(),groups:dialog.querySelectorAll('[data-coding-rules-body] .mw-file-group').length,fits:box.top>=0&&box.bottom<=innerHeight&&box.width<=innerWidth};})()`);
   assert.deepEqual(settings, { title: "本轮设置", model: true, modelAbove: true, rules: "规则", groups: 2, fits: true }, "POLISH-28 模型和规则合进「本轮设置」：先是模型，再是规则的两组");
+  const ruleChrome = await evaluate<{ svgFill: string; svgStroke: string; svgW: number; groupHeadDisplay: string }>(`(()=>{const dialog=document.querySelector('${coding} [data-coding-rules-dialog]'),svg=dialog.querySelector('.mw-file-group__ic svg'),head=dialog.querySelector('.mw-file-group__head');const ss=svg?getComputedStyle(svg):null,hs=head?getComputedStyle(head):null;return {svgFill:ss?.fill??'',svgStroke:ss?.stroke??'',svgW:svg?Math.round(svg.getBoundingClientRect().width):0,groupHeadDisplay:hs?.display??''};})()`);
+  assert.equal(ruleChrome.svgFill, "none", "插件框 SVG 图标须继承 reset fill:none，不糊成实黑");
+  assert.notEqual(ruleChrome.svgStroke, "none", "插件框 SVG 图标须继承 stroke:currentColor");
+  assert.ok(ruleChrome.svgW > 0 && ruleChrome.svgW <= 24, `插件框 SVG 图标尺寸应为 16px 而非默认 300px：${ruleChrome.svgW}`);
+  assert.equal(ruleChrome.groupHeadDisplay, "flex", "插件框内 .mw-file-group__head 应加载文件列表基础样式");
   // The model's rows are the SDK's settings section, set right under the title (a settings page's 32px between sections is not for here).
   const under = await evaluate<{ part: string; margin: string }>(`(()=>{const section=document.querySelector('${coding} [data-coding-rules-dialog] [data-coding-round-model]');return {part:section.dataset.slot??'',margin:getComputedStyle(section).marginTop};})()`);
   assert.deepEqual(under, { part: "settings-section", margin: "0px" }, "POLISH-28 「本轮设置」里模型那几行是 SDK 的设置区，紧接标题、上面不多空一截");

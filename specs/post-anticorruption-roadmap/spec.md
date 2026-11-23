@@ -238,16 +238,17 @@
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
 | [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（已合入 [#2221](https://github.com/molis-ai/molis-work/pull/2221)，[决定 60](reference/decisions.md#decision-60)） |
-|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（已合入 [#2222](https://github.com/molis-ai/molis-work/pull/2222) 及补清小修，[决定 60](reference/decisions.md#decision-60)） |
+|  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（已合入 [#2222](https://github.com/molis-ai/molis-work/pull/2222) + [#2230](https://github.com/molis-ai/molis-work/pull/2230)，[决定 60](reference/decisions.md#decision-60)） |
+|  | [`91-0c` · 平台统一「列表—详情」标准容器、退役插件 `workbench.directory`／`DIRECT_WORK_SURFACE_IDS`、共享样式公共 `mw-*` 去插件名与顶部标签组联动底座](reference/batches/91.md#batch-91-item-0c)（[决定 64](reference/decisions.md#decision-64)；含 `BL-b44-shared-styles-plugin-names` 片 1，[决定 65](reference/decisions.md#decision-65)） |
 |  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（已随 `91-0b` [#2222](https://github.com/molis-ai/molis-work/pull/2222) 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
 |  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5)（已随 `91-0a` [#2221](https://github.com/molis-ai/molis-work/pull/2221) + `91-0b` [#2222](https://github.com/molis-ai/molis-work/pull/2222) 与补清小修落稳，[决定 60](reference/decisions.md#decision-60)） |
 | [91B](reference/batches/91b.md) | [入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口](reference/batches/91b.md#batch-91b-item-1)（2026-11-18 加，紧接 91，不等 38～89，[决定 55](reference/decisions.md#decision-55)） |
-|  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
+|  | [工作主干 9 插件 + 4 个官方订阅源集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
 |  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
-|  | [全站轻动效收口与五层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
+|  | [全站轻动效收口与五层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4)（含 `BL-b44-shared-styles-plugin-names` 首屏共享 CSS 压降与全量零插件名防回流门禁，[决定 65](reference/decisions.md#decision-65)） |
 | [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
 |  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
 |  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |

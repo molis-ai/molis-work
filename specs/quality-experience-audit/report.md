@@ -341,7 +341,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已纠正原正文的索引前提，最终 CI 通过，可在合入后按原流程结算 |
 | [BL-home-events-endpoint-unused](../backlog/BL-home-events-endpoint-unused.md) | 第 41 批删两条无生产调用的旧 POST 转发及只读放行。隔离 Home 验旧地址 404 且触发零读取和零写入，MCP 正常使用现行动作 | 8 文件 50 项定向及最终组合通过，可在合入后结算工程遗留 |
 | [BL-first-screen-duplicate-requests](../backlog/BL-first-screen-duplicate-requests.md) | 第 62 批修复后，窄宽两条正常流只读取一次 Placement，再打开及移动同一个原件。真实首屏的旧 Home Events POST 为零 | 首屏样本及最终组合通过，两项工程部分可在合入后结算。隐藏侧栏文档的加载归原 BL |
-| [BL-plugin-release-module-source](../backlog/BL-plugin-release-module-source.md) | 已有明确待用户决定，涉及库内保留内容及恢复路径 | 保留决定；“现在通常用不到”不等于授权删库/兼容机制 |
+| BL-plugin-release-module-source（main 第 103 批已结清） | 已有明确待用户决定，涉及库内保留内容及恢复路径 | 保留决定；“现在通常用不到”不等于授权删库/兼容机制（第 103 批 103-1 #2205 已对 `HOST_BUILD_TRUST` 内置插件停写 `module_source`，保留第三方恢复与旧行合法读取） |
 | [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) | 父页受控交接及 Coding 的首次、后续、steer、未知回执、撤回与重新挂载已有实际验收 | 最终组合通过，可在合入后收口。父页身份与共享组件职责见 PF-02 和 QF-24 |
 | [BL-107](../backlog/BL-107.md) | 引导已经 Host 后台执行，缺后台任务登记 | 收窄为登记/进度/返回入口，复用现有任务贡献，不新做执行引擎；新main已注明45/57批排期，保留该归属 |
 | [BL-177](../backlog/BL-177.md) | 第 34 批已合入，原 BL 已标部分实现。索引中的「尚未实现」已按现行 spec 更新 | 保留已安排的场景与来源缺口，实际整合随后续，原本人验收继续 |

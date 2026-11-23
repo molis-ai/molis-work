@@ -287,7 +287,7 @@ export class LocalMcpServer {
       // records are authored by a Session is refused at dispatch for a call without one, wrapped or not.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
       const runtimeCall = this.runtimeContextHost ? callContext : undefined;
-      // The catalog of this connection already says which action the name is: the call looks up that one (batch 103-2).
+      // The catalog of this connection already says which action the name is: the call looks up that one.
       const listed = entry.action;
       const actions = await this.authorizedActions(runtimeCall, wanted => wanted === name && listed
         ? { capability_id: listed.capability_id, version: listed.version, provider_id: listed.provider.provider_id } : undefined);

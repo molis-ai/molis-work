@@ -330,6 +330,12 @@
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
+    "file": "plugins/native/goals/src/browser/frame-blocks.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "画布块里一份成果的版本号：块的 id 没写「#版本」时按这份成果的第 1 版去读，是数据里的取值，不是版本声明（原在外壳 frame-container 的脚本文字里）。"
+  },
+  {
     "file": "plugins/native/issues/src/store.ts",
     "name": "version",
     "values": { "1": 1 },
@@ -809,12 +815,6 @@
     "file": "plugins/native/shelf/src/ui.ts",
     "name": "io.molis.work.native.shelf.ui.v1",
     "values": { "io.molis.work.native.shelf.ui.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
-    "file": "plugins/native/text-stats/src/ui.ts",
-    "name": "io.molis.work.native.text-stats.ui.v1",
-    "values": { "io.molis.work.native.text-stats.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {

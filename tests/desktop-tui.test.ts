@@ -49,6 +49,10 @@ const PTY_CLIENT_SOURCE = terminalSource(...readdirSync(TERMINAL_DIRECTORY).filt
 const TERMINAL_PANELS_SOURCE = terminalSource("panels.ts", "panel-spawn.ts");
 const WEB_RENDER_SOURCE = readFileSync(new URL("../apps/workbench/src/renderer.ts", import.meta.url), "utf8");
 const WORKBENCH_UI_SOURCE = [WEB_RENDER_SOURCE, CLIENT_SCRIPT].join("\n");
+// The Goals page draws itself from its own page client (H4); its browser source is read where the shell used to hold it.
+const GOALS_BROWSER_DIRECTORY = new URL("../plugins/native/goals/src/browser/", import.meta.url);
+const GOALS_PAGE_SOURCE = readdirSync(GOALS_BROWSER_DIRECTORY).filter((name) => name.endsWith(".ts")).sort()
+  .map((name) => readFileSync(new URL(name, GOALS_BROWSER_DIRECTORY), "utf8")).join("\n");
 const DESKTOP_CAPABILITIES = JSON.parse(
   readFileSync(new URL("../apps/desktop/src-tauri/runtime-capabilities/default.json", import.meta.url), "utf8"),
 ) as { permissions?: string[] };
@@ -691,7 +695,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     // The phone's tab switch has had no markup since bc79f8a49; its click handler is gone too (W3-A3a), and narrow layouts
     // move between panes from the places that open them.
     assert.doesNotMatch(desktop, /data-mobile-target/);
-    assert.match(CLIENT_SCRIPT, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
+    assert.match(GOALS_PAGE_SOURCE, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
     assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
     assert.match(desktop, /data-tauri-drag-region/);
     assert.match(desktop, /\.tui-terminal \{ grid-area: terminal;/);
@@ -824,13 +828,13 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(CLIENT_SCRIPT, /navigationVersion: desktopNavigationStateVersion/);
     assert.match(CLIENT_SCRIPT, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true, intent = "open"\) =>/);
     assert.match(CLIENT_SCRIPT, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
-    assert.match(CLIENT_SCRIPT, /setDesktopWorkSurface\("goals", false, false\)/);
+    assert.match(GOALS_PAGE_SOURCE, /setWorkSurface\("goals", false, false\)/);
     assert.doesNotMatch(desktop, /pluginForSurface/, "a surface is its plugin's id; nothing turns one into the other (T-114)");
     assert.match(CLIENT_SCRIPT, /directoryPanelFor/);
     assert.match(CLIENT_SCRIPT, /let desktopDirectoryOrigin = null/);
     assert.match(CLIENT_SCRIPT, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
     assert.match(CLIENT_SCRIPT, /setDesktopDirectory\(restoredDirectory, false, false\)/);
-    assert.match(CLIENT_SCRIPT, /const directGoalRequested = .*localPathname\(\)/);
+    assert.match(GOALS_PAGE_SOURCE, /const directGoalRequested = .*localPathname\(\)/);
     assert.match(desktop, /data-directory-back/);
     assert.doesNotMatch(desktop, /class="desktop-project-context"/);
     assert.doesNotMatch(desktop, /class="project-decisions/);
@@ -1076,10 +1080,12 @@ test("TUI client rejects cross-subject and read-only writes before touching the 
 });
 
 test("Goals plugin starts on the board instead of opening a Goal", () => {
-  assert.match(CLIENT_SCRIPT, /let goalWorkspaceMode = "graph"/);
+  assert.match(GOALS_PAGE_SOURCE, /let goalWorkspaceMode = "graph"/);
   assert.match(CLIENT_SCRIPT, /if \(!restoredUi\) \{\n      setWorkspaceMode\("graph", false\)/);
-  assert.doesNotMatch(CLIENT_SCRIPT, /visibleGoals\(\)\[0\]/);
-  assert.doesNotMatch(CLIENT_SCRIPT, /state\.active_goal_id \|\| visibleGoals/);
+  for (const source of [CLIENT_SCRIPT, GOALS_PAGE_SOURCE]) {
+    assert.doesNotMatch(source, /visibleGoals\(\)\[0\]/);
+    assert.doesNotMatch(source, /state\.active_goal_id \|\| visibleGoals/);
+  }
 });
 
 test("Feed Item actions create one bound Goal and expose its source context to Terminal", async () => {

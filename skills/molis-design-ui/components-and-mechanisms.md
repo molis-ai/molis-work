@@ -18,15 +18,19 @@
 - **连续白纸（主工作面）**：`--paper`，普通内容靠留白与字重分隔，不画卡套卡。
 - **凹槽区块（`.mw-section-well`）**：`--surface-soft` + `1px solid var(--line)` + `14px` 圆角 + `4px` 内垫，用来收拢相关控制条、工具组或状态摘要，内嵌纸卡自然取 `10px` 同心圆角。
 - **内嵌分组列表（`.mw-inset-group` + `.mw-inset-row`）**：外围一张 `--paper` 卡片（`12px` 圆角 + `1px solid var(--line)` + 深色 `--edge-highlight` 顶光），内部行间 `44px` 齐线分隔，单行支持原位展开详情抽屉（`.mw-inset-row__drawer`）。
+- **壳层与插件 iframe 同享**：`.mw-section-well`、`.mw-inset-group`、`.mw-inset-row*`、`.mw-tabs__list--underline`、`.mw-badge--chip`、`.mw-glyph-status`、`.mw-signal-dot` 与 `.mw-signal` 均已纳入 `PRIMITIVE_PLUGIN_STYLES`（随 `<80 KB` `molis-work-plugin-base.css` 下发），壳层页面与所有 framed 插件直接复用，不需自写样式。
 
 ### 三层标签栏体系（不混用）
 - **T1 页面级工作标签**：顶栏方案 C「纸上的页签耳」（`.tab-item`，当前页签与纸面相连 + `2px --accent` 顶冠）。
 - **T2 视图 / 筛选切换**：`.mw-toggle-group`（带弹性滑块的紧凑分段控件，用于 2–5 项互斥视图切换）。
 - **T3 区域内平级页签**：`.mw-tabs__list--underline`（底部 `2px` 雾蓝滑条 + `1px` 底线，用于详情页内多子面板切换，避免与按钮混淆）。
 
-### 列表项换行规则与「图示+色彩优先、零状态赘字」
+### 列表项换行规则、暗淡行可读性与「图示+色彩优先、零状态赘字」
 - **何时换行**：标题单行截断（超长在聚焦/悬停通过平台提示显全）；说明文字仅在帮助用户做决定时占第二行（最多 2 行）；常规信息按三槽排布——**左槽（图标/状态环）→ 中槽（标题 + 必要的一行摘要/标签）→ 右槽（等宽元数据 + 悬停/聚焦操作）**。
-- **图示 + 色彩先于状态文字**：优先用清晰语义矢量图标（`.mw-glyph-status`、`.mw-signal-dot`、`.mw-signal`、`renderStateRing`）+ 色彩 + 克制动效表达「正常 / 进行中 / 待你处理 / 异常」，**不把「状态：运行中」「说明：当前已连接成功」这类废话铺满每一行**；解释性说明收进按需披露（内嵌详情抽屉、`<details class="mw-collapsible">` 或右上「帮助」）。
+- **暗淡行保持交互可读（`[data-dimmed]`）**：已处理/归档/停用行禁止整行写 `opacity: .5`（会把行内按钮和链接一起糊灰）；改为在行容器重定向 `--ink` / `--ink-2` 至弱化文本令牌，同时把行内 `:is(button, a, input, select, [role="button"])` 的 `--ink` 重定向回主文本色。
+- **桌面失焦两级退隐（`[data-window-active="false"]`）**：桌面窗口失焦时通过根令牌重定向柔化 `--accent`、顶栏页签顶冠与常规主按钮，浮层局部强调色用 `inherit` 让位；**刻意保留 `--amber`（「轮到你」审批信号）**以便后台余光可辨。
+- **图示 + 色彩先于状态文字**：优先用清晰语义矢量图标（`.mw-glyph-status`、`.mw-signal-dot`、`.mw-signal`、`renderStateRing`）+ 色彩 + 克制动效表达「正常 / 进行中 / 待你处理 / 异常」，**不把「状态：运行中」「说明：当前已连接成功」这类废话铺满每一行**；解释性说明收进按需披露（内嵌详情抽屉、`<details class="mw-collapsible">` 或右上「帮助」），全站非紧急首次引导走单槽 NUX 队列（同屏最多 1 条、对话页仅底部视口出现）。
+- **正文光学微缩进与可查找折叠**：AI 正文流中纯文字段落可保留 `4px` 光学微缩进，遇内嵌卡片、代码块、表格与决策卡立即归零 `0px` 与容器齐边；超长用户消息（`> 300px`）自动收拢并复用共享 `[data-overflow-fade][data-more]`（纵向 `--mw-fd: to bottom`，守 `VUX-27` 禁另写独立 `mask-image: linear-gradient(...)`）；折叠步骤/思考/代码接入 `hidden="until-found"` + `beforematch` 自动展开并标 `data-user-toggled`（守 `VUX-13`）；粘性顶栏/表头优先用纯 CSS `@property` + `animation-name` / `animation-timeline: scroll()` 长写法渐进增强 1px 接缝线（不写简写 `linear` 守时长曲线门禁，无支持引擎安全退化为 `0`）。
 
 ---
 
@@ -80,3 +84,4 @@
   - `--measure-stage: 960px`（对象目录、插件市场双列等高卡片）
   - `--measure-wide: 1152px`（Dataset 宽表、PPT 工作区、Goals 画布/看板、Workflows 链）
 - **详情顶栏 `.plugin-stage-detail-bar`**：锁死 `48px` 单行（返回 + 标题 + 最多 1 主 1 次 + `···` 更多菜单），**严禁设 `overflow-x: auto` 裁切弹层菜单**。
+- **代码对照 `.mw-diff`**：左右分栏模式（`.mw-diff-split`）故意保持同行对齐几何，不在 `@container` 下纵向折成单列，以守住代码行号与增删逐行对齐契约（`VUX-33`）。

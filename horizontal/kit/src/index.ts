@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, kitErrors,
   type KitCatalog, type KitPack, type KitPackState } from "@molis-ai/molis-work-contracts/services/kit";
-import { SKILLS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, type SkillSceneChoice } from "@molis-ai/molis-work-contracts/services/skills";
 import { CONNECTOR_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -24,6 +24,8 @@ export interface KitSystemReporter {
   readonly packs: readonly PackRule[];
   /** Only the plugin install service gives pack headers. */
   readonly headers?: true;
+  /** Only the skills catalog service reports active plugin scenes for Skill settings. */
+  readonly scenes?: true;
 }
 
 /**
@@ -31,7 +33,7 @@ export interface KitSystemReporter {
  * by their contract types; a provider named here is believed only when the Host registered it (no plugin installation behind it).
  */
 export const KIT_SYSTEM_REPORTERS: Readonly<Record<string, KitSystemReporter>> = {
-  [SKILLS_PROVIDER_ID]: { kinds: ["skill"], sources: ["plugin"], packs: ["plugin"] },
+  [SKILLS_PROVIDER_ID]: { kinds: ["skill"], sources: ["plugin"], packs: ["plugin"], scenes: true },
   [KIT_AGENT_DEFINITIONS_PROVIDER_ID]: { kinds: ["prompt", "role"], sources: ["plugin", "system"], packs: ["plugin", "system:builtin"] },
   [KIT_AGENT_TOOLS_PROVIDER_ID]: { kinds: ["tool"], sources: ["runtime", "system"], packs: ["system:builtin"] },
   [CHARACTER_PLUGIN_ID]: { kinds: ["role"], sources: ["character"], packs: ["system:characters"] },
@@ -82,17 +84,27 @@ export async function gatherKit(caller: ActionCallContext, client: ActionClient,
     }
   }));
   const headers = new Map<string, KitReportedPack>();
+  const scenes = new Map<string, SkillSceneChoice>();
+  let reportedScenes = false;
   for (const { reporter, report } of answers) {
-    if (!report?.packs?.length) continue;
-    if (!reporter.system?.headers) { issue(reporter.view, "只有插件安装服务能给出包头"); continue; }
-    for (const pack of report.packs) headers.set(pack.source.install_id, pack);
+    if (report?.packs?.length) {
+      if (!reporter.system?.headers) issue(reporter.view, "只有插件安装服务能给出包头");
+      else for (const pack of report.packs) headers.set(pack.source.install_id, pack);
+    }
+    if (report?.scenes !== undefined) {
+      if (!reporter.system?.scenes) issue(reporter.view, "只有技能服务能给出可用场景");
+      else {
+        reportedScenes = true;
+        for (const scene of report.scenes) if (!scenes.has(scene.scene)) scenes.set(scene.scene, scene);
+      }
+    }
   }
   const entries = answers.flatMap(({ reporter, report }) => (report?.entries ?? []).flatMap(entry => {
     const stamped = stamp(reporter, entry, headers);
     if (typeof stamped === "string") { issue(reporter.view, `${entry.name}：${stamped}`); return []; }
     return [stamped];
   }));
-  return assemble(systemWords, headers, entries, answers, issues);
+  return assemble(systemWords, headers, entries, answers, issues, reportedScenes ? [...scenes.values()] : undefined);
 }
 
 /** A reporter's standing: a named provider the Host registered, a plugin installation's own, or nobody that may report. */
@@ -149,7 +161,7 @@ function hostSettings(href: string): boolean {
 }
 
 /** Packs from the headers and the two system packs; entries into their packs; each pack's tools and state (§4.4, §4.6). */
-function assemble(systemWords: SystemPackWords, headers: ReadonlyMap<string, KitReportedPack>, entries: KitEntry[], answers: readonly Answer[], issues: Issue[]): KitCatalog {
+function assemble(systemWords: SystemPackWords, headers: ReadonlyMap<string, KitReportedPack>, entries: KitEntry[], answers: readonly Answer[], issues: Issue[], scenes?: SkillSceneChoice[]): KitCatalog {
   const packs = new Map<KitPackId, KitPack>();
   for (const id of [BUILTIN, CHARACTERS] as const) {
     const { name, description } = systemWords[id];
@@ -169,7 +181,7 @@ function assemble(systemWords: SystemPackWords, headers: ReadonlyMap<string, Kit
   for (const pack of packs.values()) fill(pack, kept.filter(entry => entry.pack === pack.pack_id), { assistant, tools }, headers, issues);
   for (const tool of tools) tool.in_packs = [...packs.values()].filter(pack => pack.tools.includes(tool.key)).map(pack => pack.pack_id);
   for (const pack of packs.values()) pack.state = stateOf(pack, kept, answers);
-  return { packs: [...packs.values()].sort(byAttention), entries: kept, issues };
+  return { packs: [...packs.values()].sort(byAttention), entries: kept, ...(scenes !== undefined ? { scenes } : {}), issues };
 }
 
 /** One pack's roles with their prompts, its Skills, MCP and tools (§4.2, §4.3, §4.6 steps 3–6). */

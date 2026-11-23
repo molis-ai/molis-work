@@ -1,12 +1,13 @@
 import { OWN_DIRECTORY_SURFACES, pluginSurfaceAliases } from "../../plugin-catalog.js";
+import { readClientPluginTitles } from "../../plugin-directory.js";
 
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
   const SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())};
   const canonicalSurface = (surface) => (Object.hasOwn(SURFACE_ALIASES, surface) ? SURFACE_ALIASES[surface] : surface);
-  const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: readText,
-    setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
+  const readTitles = ${readClientPluginTitles.toString()};
+  const { workspace, treePane, getSurface, translate: readText, setDirectoryCollapsed, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
     const pluginRail = document.querySelector("[data-plugin-strip]");
     const strip = pluginRail;
@@ -14,20 +15,14 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const stage = document.querySelector("[data-plugin-stage]");
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
-  const frame = document.querySelector("[data-goal-node-workspace]");
-  const workMain = document.querySelector("[data-goal-work-main]");
-  const modesScope = getState().project?.project_id || getState().snapshot.board.project_id;
-  const modesKey = "molis-work-goal-work-modes:" + modesScope;
-  let modes = {};
-  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch { /* Fall back to empty mode map on corrupt or unavailable storage. */ }
+  const directoryFilterMenus = () => [];
   const narrow = () => matchMedia("(max-width: 600px)").matches;
-  const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch { /* Ignore localStorage write failure for plugin view mode. */ } };
   const currentPlugin = () => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
     if (treePane?.dataset.desktopDirectory === "project-settings") return "project-settings";
     const surface = getSurface();
     const canonical = canonicalSurface(surface);
-    if (["goals", "home", "market"].includes(canonical)) return canonical;
+    if (["home", "market"].includes(canonical) || host.pageSurfaces?.().includes(canonical)) return canonical;
     if (canonical === "settings") return "settings";
     if (canonical === "project-settings") return "project-settings";
     if (OWN_DIRECTORY_SURFACES.includes(surface)) return canonical;
@@ -42,96 +37,16 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     treePane.toggleAttribute("inert", narrow() && !drawerOpen);
     stage.toggleAttribute("inert", drawerOpen);
     header.removeAttribute("inert");
-    const editing = Boolean(documentPane && !documentPane.hidden && documentPane.querySelector(".is-editing-goal"));
-    const overlayDetails = Boolean(frame && frame.dataset.detailsOpen === "true" && frame.clientWidth < 840);
-    workMain?.toggleAttribute("inert", editing || overlayDetails);
+    host.pagePresence?.();
   };
-  const setDetails = (open, persist = false) => {
-    if (!frame) return;
-    // The document view is the Goal's details; it stays open while that view is shown.
-    if (frame.dataset.viewMode === "document") open = true;
-    frame.dataset.detailsOpen = String(open);
-    documentPane.hidden = !open;
-    const button = frame.querySelector("[data-goal-details-toggle]");
-    button?.setAttribute("aria-expanded", String(open));
-    button?.setAttribute("aria-label", open ? globalThis.t.text("workbench.immersive-navigation.collapse-goal-info-timeline") : globalThis.t.text("workbench.immersive-navigation.expand-goal-info-timeline"));
-    if (persist && getSelected()) {
-      modes[getSelected()] = { ...modes[getSelected()], details: open };
-      persistModes();
-    }
-    syncPresence();
+  const retitle = () => {
+    const surface = getSurface(), titles = readTitles(document), label = Object.hasOwn(titles, surface) ? titles[surface] : undefined;
+    const labels = { sources: "Feed", home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"),
+      market: globalThis.t.text("workbench.immersive-navigation.plugin-market"), "project-settings": globalThis.t.text("workbench.immersive-navigation.project-settings") };
+    const title = document.querySelector("[data-immersive-plugin-title]");
+    if (title) { title.hidden = true; title.textContent = label || labels[surface] || surface; }
   };
-  const syncGoalMode = () => {
-    if (!frame) return;
-    const goalId = getSelected();
-    const item = getState().goals.find(item => item.goal.goal_id === goalId);
-    frame.querySelector("[data-workspace-goal-title]").textContent = item?.goal.title || "";
-    const status = frame.querySelector("[data-workspace-goal-status]");
-    const source = documentPane.querySelector(".goal-info-popover > summary .goal-status");
-    status.className = source?.className || "mw-object-status goal-status";
-    status.setAttribute("data-workspace-goal-status", "");
-    status.dataset.craftFocal = goalId ? "goal:" + goalId : "";
-    status.innerHTML = source?.innerHTML || "";
-    const saved = modes[goalId] || {};
-    const workMode = "terminal";
-    frame.dataset.workMode = workMode;
-    frame.querySelectorAll("[data-goal-work-mode]").forEach(button => {
-      const active = button.dataset.goalWorkMode === workMode;
-      button.setAttribute("aria-selected", String(active));
-      button.tabIndex = active ? 0 : -1;
-    });
-    const terminal = frame.querySelector("[data-tui-pane]");
-    if (terminal) { terminal.hidden = workMode !== "terminal"; terminal.setAttribute("role", "tabpanel"); terminal.setAttribute("aria-labelledby", "goal-terminal-tab"); }
-    // A Goal opens as its document unless it already has a terminal session or the person last chose the terminal.
-    viewChosenAt = Date.now();
-    if (Date.now() - workRequestedAt < 3000) { workRequestedAt = 0; setView("work", true); }
-    else setView(saved.view || (hasTerminalSession() ? "work" : "document"));
-  };
-  let viewChosenAt = 0;
-  // 打开工作区 on a Goal's frame asks for its work area: the Goal opens in its terminal, and that is remembered as its view.
-  let workRequestedAt = 0;
-  document.addEventListener("click", (event) => {
-    if (event.target?.nodeType !== 1 || !event.target.closest("[data-frame-goal-work]")) return;
-    workRequestedAt = Date.now();
-    if (getSelected()) setView("work", true);
-  }, true);
-  const hasTerminalSession = () => {
-    const empty = frame?.querySelector("[data-tui-empty]");
-    return Boolean(empty && empty.hidden);
-  };
-  const setView = (view, persist = false) => {
-    if (!frame) return;
-    frame.dataset.viewMode = view;
-    frame.querySelectorAll("[data-goal-view-tab]").forEach(button => {
-      const active = button.dataset.goalViewTab === view;
-      button.classList.toggle("is-current", active);
-      button.setAttribute("aria-pressed", String(active));
-    });
-    const info = documentPane.querySelector("[data-goal-info]");
-    if (view === "document") { if (info) info.open = true; setDetails(true); }
-    else setDetails((modes[getSelected()] || {}).details ?? frame.clientWidth >= 840);
-    if (persist && getSelected()) {
-      modes[getSelected()] = { ...modes[getSelected()], view };
-      persistModes();
-    }
-  };
-  // Sessions arrive shortly after the Goal opens: a Goal that turns out to have one moves to its terminal,
-  // unless the person has chosen a view for it.
-  // Opening a form or reader in the document view starts it at the top of the Goal.
-  const aside = frame?.querySelector("[data-goal-details-aside]");
-  if (aside) new MutationObserver(() => {
-    const editing = aside.querySelector(".goal-event-document.is-editing-goal");
-    if (!editing) return;
-    // The form covers the document from its top in either view, so neither the rail nor the document stays scrolled.
-    aside.scrollTop = 0;
-    editing.scrollTop = 0;
-  }).observe(aside, { subtree: true, attributes: true, attributeFilter: ["class"] });
-  const emptyState = frame?.querySelector("[data-tui-empty]");
-  if (emptyState) new MutationObserver(() => {
-    const goalId = getSelected();
-    if (!goalId || (modes[goalId] || {}).view || frame.dataset.viewMode !== "document") return;
-    if (hasTerminalSession() && Date.now() - viewChosenAt < 2500) setView("work");
-  }).observe(emptyState, { attributes: true, attributeFilter: ["hidden"] });
+  document.addEventListener("molis-work:language-changed", retitle);
   const sync = () => {
     const plugin = currentPlugin();
     if (heading) heading.hidden = false;
@@ -161,6 +76,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     document.querySelectorAll("[data-top-corner-list] [data-directory-open=project-settings]").forEach(row => {
       if (plugin === "project-settings") row.setAttribute("aria-current", "page"); else row.removeAttribute("aria-current");
     });
+    retitle();
     document.querySelector("[data-directory-show]")?.setAttribute("aria-expanded", String(!narrow() && !workspace.classList.contains("is-directory-collapsed")));
     syncPresence();
   };
@@ -180,29 +96,13 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   };
   document.querySelector("[data-directory-show]")?.addEventListener("click", showDirectory);
   scrim?.addEventListener("click", hideDirectory);
+  document.addEventListener("click", (event) => {
+    directoryFilterMenus().forEach((menu) => {
+      if (menu.open && !menu.contains(event.target)) menu.open = false;
+    });
+  });
   document.addEventListener("click", event => {
-    const button = event.target.closest("[data-goal-work-mode]");
-    if (button) {
-      if (button.disabled) return;
-      setWorkspaceMode("runtime");
-      return;
-    }
-    const viewTab = event.target.closest("[data-goal-view-tab]");
-    if (viewTab && frame?.contains(viewTab)) { setView(viewTab.dataset.goalViewTab, true); return; }
-    const detailsToggle = event.target.closest("[data-goal-details-toggle]");
-    if (detailsToggle) {
-      const targetFrame = detailsToggle.closest("[data-goal-node-workspace]");
-      if (targetFrame && targetFrame !== frame) {
-        const nextOpen = targetFrame.dataset.detailsOpen !== "true";
-        targetFrame.dataset.detailsOpen = String(nextOpen);
-        const cloneDoc = targetFrame.querySelector("[data-document-pane]");
-        if (cloneDoc) cloneDoc.hidden = !nextOpen;
-        detailsToggle.setAttribute("aria-expanded", String(nextOpen));
-      } else {
-        setDetails(frame.dataset.detailsOpen !== "true", true);
-      }
-    }
-    if (event.target.closest("[data-select-goal], [data-inbox-row]")) {
+    if (event.target.closest("[data-inbox-row]")) {
       if (narrow()) setMobileView("document");
       sync();
     }
@@ -252,13 +152,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     syncRailTabStop();
   }
   document.addEventListener("keydown", event => {
-    const tab = event.target.closest?.("[data-goal-work-mode]");
-    if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-      event.preventDefault();
-      const next = frame.querySelector('[data-goal-work-mode="terminal"]');
-      next.click(); next.focus();
-    }
     if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("dialog[open], .mw-help-card")) {
+      const openMenu = directoryFilterMenus().find((menu) => menu.open);
+      if (openMenu) { event.preventDefault(); openMenu.open = false; openMenu.querySelector("summary")?.focus(); return; }
       if (workspace.classList.contains("is-directory-drawer-open")) { event.preventDefault(); hideDirectory(); }
     }
     if (event.key === "Tab" && workspace.classList.contains("is-directory-drawer-open")) {
@@ -269,13 +165,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       if ((event.shiftKey && document.activeElement === controls[0]) || (!event.shiftKey && document.activeElement === controls.at(-1))) { event.preventDefault(); next?.focus(); }
     }
   });
-  if (frame) new ResizeObserver(() => {
-    const saved = modes[getSelected()] || {};
-    if (saved.details == null) setDetails(frame.clientWidth >= 840);
-    else syncPresence();
-  }).observe(frame);
-  document.addEventListener("molis-work:record-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
   document.addEventListener("molis-work:record-panel-presence", syncPresence);
   window.addEventListener("resize", sync);
-  return { sync, syncPresence, syncGoalMode, hideDirectory, showDirectory };
+  return { sync, syncPresence, hideDirectory, showDirectory };
 }`;

@@ -1,12 +1,16 @@
+import { readFileSync } from "node:fs";
 import { pagePack } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
 import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
-import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
+import { buildGoalCollectionModel, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { currentLocale, listJoin } from "@molis-ai/molis-work-app-local-host";
 import { GOAL_DISPLAY_STATUSES } from "@molis-ai/molis-work-plugin-goals";
+
+const goalsBrowserSource = (name: string) => readFileSync(new URL(`../plugins/native/goals/src/browser/${name}.ts`, import.meta.url), "utf8");
+const GOALS_TREE_CLIENT_FACTORY_SCRIPT = goalsBrowserSource("tree"), GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT = goalsBrowserSource("navigation"), GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = goalsBrowserSource("refresh");
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = goalsRenderers.tree({ translate: t.text, escapeHtml, icon, currentLocale, listJoin,

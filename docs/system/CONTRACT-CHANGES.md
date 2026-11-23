@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-22 第 36A 批第 4 项后半（逐屏打磨方案乙）。Coding 的 `coding.changesets.read@1` 输入增加可选的 `stats: true`（页面路由 `?stats=1`）：只返回 `{ stats: { added_lines, removed_lines, files: [{ path, added_lines, removed_lines }] } | null }`，即每个文件落盘后的净增减行，不带文件内容、阅读器标记和成果引用，也不固定版本；没有写入落盘（全部被拒，或这一轮没有写入）时返回 0 行和空的文件列表；有写入失败或结果不明、或同一文件多次写入之间被改过、行数说不准时返回 `stats: null`。不传该字段的调用方读到的仍是原来的完整变更，授权范围不变。按阶段一原位扩充并更新动作快照；无持久字段、状态机或兼容路径。仓内改用它的只有 Coding 页面的回合结束卡。同一批里 Coding 多了一条内置指令 `/settings`（「本轮设置」）：内置指令的名字优先，项目或个人写的同名提示词指令 `/settings` 不再出现在指令列表里，要用得改名。见[逐屏打磨 P4 记录](../../specs/screen-polish/p4-coding.md)。
+
 2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
 
 2026-11-19 第 35 批复核修复。Coding 的 `coding.runs.start@1` 与 `coding.runs.control@1` 补充项接受可选的 `command_prompt: true`。工作台发送展开后的命令时使用该字段，保留参数首尾空白。普通任务和补充在派发前去掉首尾空白，可信原文按输入回执合同保存。这个字段只决定派发文本的格式。两项动作快照随实现更新。
@@ -117,6 +119,8 @@
 
 ### 当前保留机制
 
+- **个人同步 M1-B2（用户已批准）**。项目库、Agent 定义库、蓝图库、Functions 库和外观文件各自保留一段 v1→v2 升级。四个库新增 owner 同步日志并登记已有可同步记录，外观保留选择和回执并加入同步状态。读取只认 v2，转换由既有独立升级入口执行。Attention 保留现有集合的 v1 标识和日志。
+
 以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
@@ -151,6 +155,11 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
+| `agent-definitions/agent-definitions.db` | 2 → 3 | 个人同步 M1-B2，用户 2026-11-22 批准。创建提示词改写同步流水，将已有改写按现行键登记为待同步。保留 #2209 的 1 → 2，两条升级路径均在隔离 Home 回放 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
+| `blueprints/blueprints.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE#1→2` |
+| `functions/functions.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE#1→2` |
+| `interface/state.json` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION#1→2` |
 | `projects/<project_id>/molis-work.db#risk` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留风险、引用和历史 | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE#1→2` |
 | `work-brief/work-brief.db` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留简报与操作记录 | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
 | `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | `plugins/native/dataset/src/database.ts#DATASET_DATABASE#1→2` |
@@ -281,7 +290,7 @@
 4. **消费者清单**：窗口开始时列全：仓库内的调用方（用 `git grep` 找能力 id、工具名、导出名）、外部消费者（使用 MCP 工具的 Runtime 与 Skill）、已安装的插件（用户 Home 里的发行物，创作台生成的插件）。每一项写：谁负责迁、迁移 PR、状态。
 5. **删除条件**：每个窗口写一个可检查的条件，例如「清单里的消费者全部迁完，并且已经过一个发布版本，用户 Home 的库都已升到新版本」。条件满足后，一个 PR 删除兼容代码、兼容测试和登记行。**提议：** 兼容代码旁放带窗口编号的标记，登记表（第 6 节）有对应一行，门禁据此放行（第 5 节）。这是本文的提议，没有经过用户确认；`AGENTS.md` 要求新增兼容机制先写进本文「当前保留机制」并经用户确认，所以起点之前要先过这一步。
 6. **合同测试**：窗口里每一段兼容配两个测试：旧形状被读取并映射成新形状；写入只产生新形状。关窗口时和兼容代码一起删。
-7. **插件回放**：合同或运行时的变更，用存量插件样本回放，确认它们仍能加载（解析 Manifest、校验授权声明）、升级（按 `upgrade_compatibility`）、运行（调用一个动作）。工具是 `scripts/replay-plugins.mjs`（在构建好的工作区上跑，每个样本一份临时 Home），样本集在 `tests/fixtures/replay-plugins/corpus.json`：`examples/plugin-sample`、按 `pnpm pack` 打包的内置插件 text-stats（在它自己的位置上以打包的代码升级）；W4-01 的两个真实来源样本也已入库：MiniMax 生成的计数器，以及模型生成后端加用户批准人工验收／文案适配的清单，各目录 README 保留来源与失败边界。签包样本走真实 CLI 预览／确认 pin、同安装兼容升级和 Host 关闭重开；macOS 已有两份独立回放结果，其它平台明确报告 unsupported，不能把未运行算通过。原始模型源码是 source.json 数据夹具，回放只执行已签包中的真实 bundle。`tests/replay-plugins.test.ts` 跑它，并确认坏样本会失败。把回放结果贴在 PR 里。
+7. **插件回放**：合同或运行时的变更，用存量插件样本回放，确认它们仍能加载（解析 Manifest、校验授权声明）、升级（按 `upgrade_compatibility`）、运行（调用一个动作）。工具是 `scripts/replay-plugins.mjs`（在构建好的工作区上跑，每个样本一份临时 Home），样本集在 `tests/fixtures/replay-plugins/corpus.json`：`examples/plugin-sample`、按 `pnpm pack` 打包的内置插件 Diff（在它自己的位置上以打包的代码升级）；W4-01 的两个真实来源样本也已入库：MiniMax 生成的计数器，以及模型生成后端加用户批准人工验收／文案适配的清单，各目录 README 保留来源与失败边界。签包样本走真实 CLI 预览／确认 pin、同安装兼容升级和 Host 关闭重开；macOS 已有两份独立回放结果，其它平台明确报告 unsupported，不能把未运行算通过。原始模型源码是 source.json 数据夹具，回放只执行已签包中的真实 bundle。`tests/replay-plugins.test.ts` 跑它，并确认坏样本会失败。把回放结果贴在 PR 里。
 8. **PR 里写清楚**：公开 API 有没有变（快照 diff）、版本怎么变、消费者列表、删除条件。`.github/pull_request_template.md` 有对应的栏目。
 
 ## 5. 起点之前要先有的东西
@@ -421,7 +430,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **Schedule**：`schedule.tasks.create@1`／`update@1` 多可选 `repeat`、`at`、`subject`；`tasks.list@1` 多可选 `subject`，按对象筛时输出 `reads`（含每个类别的 provider/group/state）；任务库 2→3 加四列；便携格式在原版本加列并校验；一次性任务跑完即停、错过的运行不补跑。
   - **风险复查方法**：`method.risk-review` 正文改用 `risk.list` 的 `keyword`／`linked` 查同一件事，版本 1→2；固定引用这个方法的调用方按新版本取。
   - **调用方影响**：`risk.list@1` 原版本内把 `goal_id` 换成 `linked`，`unlinked` 改为“没关联任何对象/有关联”；风险写动作的受众含 `plugin`；Goals/Schedule 库升级只由升级链做；没有读取兼容，旧 `concern_opened` 缺 `cited_subjects` 是可选字段的缺省，不是旧形状兜底。页面资源许可见 `tooling/gates/page-asset-allowances/17-risk-plugin.json`。
-- **首页主区内容：Manifest 的 `presentation.overview.lead`，`surfaces.compose@1` 的 `lead` 组**（第 19 批，WBR-22／23，2026-11-14）：声明了首页概况的插件可以再写 `lead: { view_id }`，指向本 Manifest 自己 navigator 或 stage 槽位的一个视图；装了它的项目，首页主区显示这个视图，细栏可切回基础首页，打不开或移除后回基础首页。`surfaces.compose@1` 版本不变，`home` 描述里可能多一个 `kind: "lead"` 的组（带 `lead` 与 `owner_plugin_id`，状态只有 ok，不放条目）：按 `SurfaceGroup.kind` 穷举分支的调用方要认这个值，重排描述时不能改写它。概况动作（`definePresentationOverviewAction`）的受众同时加了 `workflow`：持有 `actions:delegate` 的插件可经目录读别的插件的概况，权限检查不变。
+- **（2026-11-22 删除：项目只有一个首页，插件的页面不再顶替它；`overview.lead` 与 `lead` 组已从合同里拿掉，见 `docs/system/CONTRACT-CHANGES.md` 第 8 节、路线书决定 62 ③。以下为当时的写法，留作历史。）** **首页主区内容：Manifest 的 `presentation.overview.lead`，`surfaces.compose@1` 的 `lead` 组**（第 19 批，WBR-22／23，2026-11-14）：声明了首页概况的插件可以再写 `lead: { view_id }`，指向本 Manifest 自己 navigator 或 stage 槽位的一个视图；装了它的项目，首页主区显示这个视图，细栏可切回基础首页，打不开或移除后回基础首页。`surfaces.compose@1` 版本不变，`home` 描述里可能多一个 `kind: "lead"` 的组（带 `lead` 与 `owner_plugin_id`，状态只有 ok，不放条目）：按 `SurfaceGroup.kind` 穷举分支的调用方要认这个值，重排描述时不能改写它。**（下面这一句仍是现行事实，不随 `lead` 删除。）** 概况动作（`definePresentationOverviewAction`）的受众同时加了 `workflow`：持有 `actions:delegate` 的插件可经目录读别的插件的概况，权限检查不变。
 - **第 29 批：工作记录读取与管理合同**（#2084/#2088，2026-11-15；纯增量，无读取兼容）：`packages/contracts/src/services/observation.ts` 新增 8 个 `system.observation` `@1` 动作——只读 `observation.records.query`、`evidence.get`、`coverage.get`，本人管理 `settings.get/set`、`space.get`、`cleanup.preview/apply`——及五类记录、用途、保留、占用、覆盖视图类型；合同 `io.molis.work.service.observation.v1` 的 `maturity` 由 `partial` 升为 `implemented`。既有 `observation.report@1` 输入输出与指纹 `0dd034973bce`/`8cfd08f953ae` 未变，既有插件与调用方无需改动。动作快照记在 `tooling/gates/actions/host-actions.tsv`，API 快照在 `tooling/gates/api/contracts/services/observation.txt`。合后小修 #2088 只改界面分支/内部导出/文档与测试，不改合同；合后审计收口把 `records.query@1` 的默认模拟来源过滤从 `assistant` 扩到 `assistant`／`evaluation`／`export`（`lookback` 保留并标注 `source_class`），是行为收紧，输入输出 schema、版本与快照均不变。
 - **第 31 批：Memory P1（有界版本历史与恢复、导出 `state`、通用关联对象 `applies.objects`、账本 `2 → 3` 单一写主人）与 Coding `find-symbol` 角色覆盖**（#2047、#2081 及合后复查 #2087，2026-11-15；阶段一在原版本 @1 上改，不留读取兼容）：
   - **记忆适用情境 `applies.goal_ids` 改为 `applies.objects`**：`MemoryApplies`（`packages/contracts/src/services/memory.ts`）和相关动作（`memory.write@1`、`memory.change@1`、`memory.recall@1`、`memory.list@1`、`memory.page@1`、`memory.candidates.list@1`、`memory.candidates.accept@1`、`memory.candidates.discard@1`、`memory.history@1`）删掉 `goal_ids`，改为通用关联对象引用 `objects?: { plugin_id, kind, id }[]`（至多 20 项）；Goal 关联统一写成 `{ plugin_id: "io.molis.work.goals", kind: "goal", id }`。
@@ -496,12 +505,16 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **共用列表样式：** SDK 与组件板的共用类名 `feed-stage-list`、`feed-stage-tree`、`feed-stage-item`、`feed-stage-entry`、`feed-stage-leading`、`feed-entry-source`、`feed-entry-status`、`feed-detail*`、`feed-action-status`、`feed-action-subtle` 改为 `mw-` 前缀同名，`feed-linked-goal` 改为 `mw-detail-link`；插件页面用旧名的要改。只属于 Feed 的规则从平台共用样式搬进 Feed 自己的样式表。
   - **`information.plan` 归 Feed：** 动作改为 Feed 的 `feed.information.plan@1`，提示词键从 `system:information/information.plan` 改为 `io.molis.work.feed/feed.information-plan`，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（见「当前保留机制」）。
   - **Home 目录：** `feed/secrets.json` 与 `feed/evidence/` 改在 `security/` 下，升级时整目录改名一次；Keychain 服务名 `com.molis.work.feed.secretstore` 与证据引用前缀不变。
-- **`agent.run.reviews@1` 的结果多一类行：以这一轮为来源的整合审批**（第 99 批 99-1，DEL-07）：在原版本上改，输入输出形状不变。读一轮审批时，除了这一轮自己的审批，也带上同一插件发起、`document.source` 指向这一轮的 `git-integration` 审批；这类行的 `request.run` 是 `null`（整合由人在轮次结束后发起，没有自己的轮次）。按 `request.run` 筛行的消费者要先判空；只认 `text-edit`、`command` 的消费者不受影响。Coding 用它把子任务整合确认带回的文件（新增、修改、删除）列进本轮固定变更；会话自己独立工作树的整合不归给任何一轮，Coding 不收。
+- **`agent.run.reviews@1` 的结果多一类行：以这一轮为来源的整合审批**（第 99 批 99-1，DEL-07）：在原版本上改，输入输出形状不变。读一轮审批时，除了这一轮自己的审批，也带上同一插件、同一安装（`install_id`）发起且 `document.source` 指向这一轮的 `git-integration` 审批；这类行的 `request.run` 是 `null`（整合由人在轮次结束后发起，没有自己的轮次）。按 `request.run` 筛行的消费者要先判空；只认 `text-edit`、`command` 的消费者不受影响。Coding 用它把子任务整合确认带回的文件（新增、修改、删除）列进本轮固定变更；会话自己独立工作树的整合不归给任何一轮，Coding 不收。
 - **概况多两项可选内容、首页组合多一种分组，首页零件进 SDK**（36A 第 6 项，2026-11-22 用户定；在原版本上加可选字段，不升版本）。**对已有插件的影响**：没申报首页概况的插件不受影响；申报了概况的插件，输出 schema 由平台定、申报时要求逐字相同（`isPresentationOverviewReader`），所以要用带这两项的 SDK 重新构建才能启动。内置插件随仓库一起构建；装在 Home 里、申报了概况的旧签名包要重新打包（和第 15 批在原版本上给 `start` 加字段时一样）：
   - **`PresentationOverview.outline`**（概况处理器的返回）：`{ title: TextRef, nodes: [{ subject, depth: 0|1, progress?: { done, total } }] }`，最多 12 个节点，第一个不能是子项，同一对象只出现一次，`done ≤ total`。首页把它画成进展段（Goals 用它交「目标」）。SDK 的 `presentationOutlineProblems` 给作者自查。
   - **`PresentationOverview.lede`**：`{ label: TextRef, as_of?, sentences: [{ text, sources?: 插件 id[], mark?: "yours"|"changed"|"gap" }], invite?: { text, action } }`，最多 8 句、每句最多 4 个来源。首页把它画成标题下面的几句话和版本条（Work Brief 用它交简报开头）；`sentences` 为空且带 `invite` 时画成一个邀请框。句子是插件存下的原文，标签与邀请是它的 `TextRef`。
   - **首页组合**（`SurfaceGroup`）多一种 `kind: "outline"` 与字段 `outline`；`SurfacePluginCard` 多 `lede`。`assertSurfaceDescription` 一并校验，不合规的整份拒绝。首页显示数据多 `display.shell_keys`（来源在外壳里的位置）。
-  - **Work Brief 不再申报 `overview.lead`**（主区视图承接首页）；这项平台能力还在，现在没有内置插件用它。
+  - **Work Brief 不再申报 `overview.lead`**（主区视图承接首页）。
+  - **`overview.lead` 整项删除**（用户 2026-11-22 定，路线书决定 62 ③）：Manifest 的 `presentation.overview` 不再认 `lead`，`surfaces.compose@1` 的 `home` 描述不再有 `kind: "lead"` 的组和 `lead` 字段，SDK 的 `assertSurfaceDescription` 与动作输出 schema 一并拒绝；首页页面数据（`SurfaceHomeDisplay`）不再带 `lead`，外壳删掉收养与归还插件主区页面的代码。**对调用方的影响**：仓库内没有插件申报它；装在 Home 里、还写着 `overview.lead` 的签名包会在申报校验时被拒（「presentation.overview 不认这些字段：lead」），去掉这一行重新打包即可，不留兼容读取。固定了 `surfaces.compose@1` 的调用方不会再读到 `lead` 组，其余字段不变。没有库结构与版本变化。
   - **`@molis-ai/molis-work-plugin-sdk/browser` 新增三个读动效令牌的函数**（36A-7）：`motionCurve(name?, fallback?)`、`motionDuration(name?, fallback?)`、`durationMs(raw, fallback)`。页面脚本要自己做动画时用它们读 `--ease-quint`、`--dur-move`，不自己写曲线；时长不管样式表写 `250ms` 还是 `.25s` 都换成毫秒。只增不改，不用它们的插件不受影响。
   - **Goals 的状态接口多一个只读一行的读法**：`GoalEventStateApi.readWorkStatus(projectId, goalId)`，只回 open、completed 或 cancelled；概况一次要问很多个目标时用它，不再逐个读整份状态。
   - **`@molis-ai/molis-work-plugin-sdk/ui` 新增首页零件**：`renderFirstPageSection`、`renderFirstPageNext`、`renderFirstPageSource`、`renderFirstPageMargin`、`renderProgressSegments` 与 `FIRST_PAGE_STYLES`；`renderPresentationForm` 多一个可选项 `compactTime`（同一天只写时刻）。
+- **技能设置与能力包改读宿主运行时当前有效场景集合**（2026-11-22，`BL-skill-settings-installed-plugin-scenes`；阶段一在原版本上只加可选字段，不升版本、不改库结构、无读时兼容）：
+  - **公开合同新增可选字段**：`@molis-ai/molis-work-contracts/platform/plugin-agent` 导出 `PLUGIN_SCENE_SCHEMA`；`services/skills` 导出 `SkillSceneChoice`（`{ scene, name, scope? }`）与 `SKILL_SCENE_CHOICE_SCHEMA`；`skills.catalog.list@1`（本人查看）、`skills.import.preview@1`、`KitReport`（`KIT_REPORT_OUTPUT_SCHEMA`，仅 `system.skills` 可上报，其他提供方上报由 `horizontal/kit` 忽略并记入 `issues`）、`kit.catalog.list@1`（`KitCatalog`）增加可选 `scenes?: SkillSceneChoice[]`；`plugins.install.preview@1` 增加可选 `skill_scenes?: SkillSceneChoice[]` 并补齐 `memory_scene_after_restart?: true` 输出 schema。既有只读 `skills`／`entries`／`packs` 的调用方不受影响。
+  - **沙箱包清单支持申报场景**：`@molis-ai/molis-work-plugin-sdk` 的 `SandboxManifestInput` 增加可选 `memoryScene?: PluginManifest['memory_scene']`，`sandboxPluginManifest` 与宿主 `readSandboxPackage` 同步承接并按 `parsePluginManifest` 校验 `memory_scene`。公开 API 与动作合同快照同批刷新。

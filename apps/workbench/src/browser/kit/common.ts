@@ -1,10 +1,12 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { KitEntry, KitKind } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
+import type { SkillSceneChoice } from "@molis-ai/molis-work-contracts/services/skills";
 import { escapeHtml, renderBadge, renderButton, renderStatusMark, type AttrValue, type MwButtonOptions, type MwTone, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** 08's Skill parts (apps/workbench/src/settings-skills.ts), in the page before this program. */
 export interface SkillUi {
+  setScenes?(scenes: readonly SkillSceneChoice[]): void;
   detail(box: HTMLElement, skill: unknown, project: string, hooks: { notice: HTMLElement; redraw(): void }): HTMLElement;
   importPanel(panel: HTMLElement, project: string, reload: () => Promise<void>): void;
 }
@@ -52,6 +54,7 @@ export function linkedKitEntry(catalog: KitCatalog, link: URLSearchParams): KitE
 /** Apply only current display fields for the records this view already holds. */
 export function updateKitWords(kit: Kit, catalog: KitCatalog): void {
   const latest = kitOf(catalog);
+  if (catalog.scenes !== undefined) kit.catalog.scenes = catalog.scenes;
   for (const entry of kit.catalog.entries) {
     const words = latest.byKey.get(entry.key);
     if (!words || words.kind !== entry.kind || words.pack !== entry.pack) continue;

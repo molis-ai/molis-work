@@ -2,6 +2,7 @@ import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-repor
 import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
 import { renderAlert, renderEmpty, renderSkeleton, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, button, esc, kitOf, linkedKitEntry, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
+import { setSkillScenes } from "./scenes.js";
 import { skillWriting, type WritingFocus } from "./writing.js";
 import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
 import { mountKitPromptEditor, type PromptRecordResponse } from "./prompt-editor.js";
@@ -23,12 +24,20 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
   const selectedLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined, disposed = false;
   let savedPrompt: PromptRecordResponse | undefined;
+  setSkillScenes([]);
 
   const say = (text: string, tone: "success" | "danger" = "success", next?: { label: string; attrs: Record<string, AttrValue> }) => notify(notice, text, tone, next);
 
   const writing = skillWriting({ root, project, address, active: () => !disposed, view, kit: () => kit, load: () => load(), draw: focus => draw(focus), say,
     show(entry) { view.query = ""; search.value = ""; view.kind = "all"; kindSelect.value = "all"; view.group = "all"; groupSelect.value = "all"; open(entry.pack, entry.key); } });
-  page?.retain({ beforeReplace: writing.beforeReplace, dispose() { disposed = true; writing.dispose(); } });
+  page?.retain({
+    beforeReplace: writing.beforeReplace,
+    dispose() {
+      disposed = true;
+      setSkillScenes([]);
+      writing.dispose();
+    },
+  });
   async function load(retitle = false): Promise<void> {
     const mine = ++turn, language = selectedLanguage();
     requestedLanguage = language;
@@ -38,10 +47,12 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
       if (mine !== turn || disposed) return;
       if (retitle && kit) {
         const before = translatedView(kit, view.importing);
+        setSkillScenes(catalog.scenes ?? []);
         updateKitWords(kit, catalog);
         globalThis.molisWorkRetitleRegion?.(body, before, translatedView(kit, view.importing));
         return;
       }
+      setSkillScenes(catalog.scenes ?? []);
       kit = kitOf(catalog);
       if (followLink) {
         followLink = false;

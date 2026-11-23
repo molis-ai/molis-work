@@ -21,6 +21,7 @@ import { skillErrors, type SkillImportCandidate, type SkillImportConfirmRequest,
 import { contentPackageDraft, skillFromFolder, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { createCharacterDiscovery } from './character-import-discovery.js';
 import type { InstalledRelease } from './installed-release.js';
+import { builtinActiveSkillScenes, skillAudienceActive, skillSceneChoicesOf, type ActiveSkillScene } from './memory/memory-plugin-scene.js';
 import type { PluginInstallService } from './plugin-install-service.js';
 
 /** The name this Home's publisher is pinned under the first time the person confirms an import. */
@@ -47,6 +48,8 @@ export interface SkillImportPorts {
   retainedOf(pluginId: string): NonNullable<InstalledRelease['packaged']>[];
   sign(input: LocalPackageSignInput, caller: ActionExecutionContext): Promise<LocalPackageSignResult>;
   install: Pick<PluginInstallService, 'readPreview' | 'confirm'>;
+  /** Active plugin scenes currently registered in the target scope; without it, built-in scenes only. */
+  activeScenes?(scope: SkillScope, projectId: string, locale?: string): Promise<ReadonlyMap<string, ActiveSkillScene>>;
 }
 
 /** The person's own local Agents under `userHome`, read as Character import reads them: the Skills only, the rules are not this import's. */
@@ -104,13 +107,14 @@ export class SkillImportService {
   constructor(private readonly ports: SkillImportPorts, private readonly now: () => number = Date.now) {}
 
   /** Reads the source and says what importing it would make, with the 「给谁用」 it pre-selects; installs nothing, signs nothing. */
-  async preview(input: SkillImportPreviewRequest, who: Who): Promise<SkillImportPreview> {
+  async preview(input: SkillImportPreviewRequest, who: Who, locale?: string): Promise<SkillImportPreview> {
     if (input.source.kind !== 'runtime') throw skillErrors.import_source_unavailable('暂不支持直接从项目文件夹导入技能，请从外部 AI 工具的技能文件夹导入');
     const runtime = input.source.runtime_id, found = this.ports.scan(runtime);
     if (!found) throw skillErrors.import_source_unavailable(`这台电脑上没有 ${externalTool(runtime).display_name} 的技能目录`);
     // The source's kind and root name the plugin, so importing the same source again is its upgrade.
     const plugin_id = `io.molis.work.imported-skills.${runtime}-${createHash('sha256').update(`runtime\0${runtime}\0${found.root}`).digest('hex').slice(0, 12)}`;
     const installed = await this.ports.installed(plugin_id, 'project', who.project_id) ?? await this.ports.installed(plugin_id, 'home', who.project_id);
+    const active = this.ports.activeScenes ? await this.ports.activeScenes('project', who.project_id, locale) : builtinActiveSkillScenes();
     const applies_to = suggestedAppliesTo(input.source), skills = new Map<string, HeldSkill>(), candidates: SkillImportCandidate[] = [];
     for (const skill of found.skills) {
       const read = folderSkill(skill, applies_to), id = typeof read === 'string' ? skill.name : read.read.declaration.skill_id;
@@ -129,7 +133,7 @@ export class SkillImportService {
     // The same versions the confirmation counts up from, read without this Home's publisher metadata: a missing or unreadable
     // publisher file is recovered at signing, so a preview that fell back to 「1.0.0」 here would name a version the install never takes.
     const retained = this.ports.retainedOf(plugin_id);
-    return { preview_id, package: { plugin_id, version: nextVersion(retained), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
+    return { preview_id, package: { plugin_id, version: nextVersion(retained), installed_version: installed?.manifest.version ?? null }, applies_to, candidates, scenes: skillSceneChoicesOf(active) };
   }
 
   /**
@@ -161,6 +165,12 @@ export class SkillImportService {
       if (skill.read.declaration.native_only_reason) selected.declaration.native_only_reason = skill.read.declaration.native_only_reason;
       return selected;
     });
+    const active = this.ports.activeScenes ? await this.ports.activeScenes(input.scope, who.project_id, caller.locale) : builtinActiveSkillScenes();
+    for (const skill of chosen) {
+      if (!skillAudienceActive(skill.declaration.applies_to, active)) {
+        throw skillErrors.import_applies_to_invalid(`${skill.declaration.skill_id} 的给谁用（${skill.declaration.applies_to}）对应的场景当前不可用，请改选其他对象`);
+      }
+    }
     const installed = await this.ports.installed(held.plugin_id, input.scope, who.project_id);
     const packageFields = { plugin_id: held.plugin_id, name: held.name, scope: input.scope,
       ...(installed ? { compatible_from: [installed.manifest.version] } : {}) };

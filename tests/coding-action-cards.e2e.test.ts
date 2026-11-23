@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-import { CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_TAKEN, codingAdd, CODING_MODEL, CODING_MODELS_LISTED, codingSetting } from "./fixtures/coding-composer.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
@@ -90,8 +90,9 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
-  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
-  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
+  await child.waitFor(CODING_MODELS_LISTED);
+  await child.evaluate(codingSetting(CODING_MODEL, JSON.stringify(["local-only", "fixture-plain"])));
   await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "execute");
   // The round is given the one granted action.
   await b.evaluate(codingAdd("actions"));

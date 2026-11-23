@@ -1,6 +1,6 @@
 # 插件同等地位收口：Goals 减负与去特权（Plugin Equal Standing）
 
-状态：合后整改另有 [#2187](https://github.com/molis-ai/molis-work/pull/2187)、[#2192](https://github.com/molis-ai/molis-work/pull/2192)；原转入 Backlog 的四项中三项（BL-b44-coding-scene-enum、BL-b44-feed-home-dir-and-styles、BL-b44-information-plan-to-feed）已由 [#2209](https://github.com/molis-ai/molis-work/pull/2209)（2026-11-21）结清并删除，现留 `BL-b44-shell-goals-state`（外壳的 Goals 与 Feed/Inbox 状态与分支）；`BL-b44-shared-styles-plugin-names`（工作台与设计系统共享样式中的残余插件命名类）已于 2026-11-22 结清并加永久门禁；PEQ-11 仍待一骏本人实物验收（2026-11-22 独立复核更新）。此前：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
+状态：合后整改另有 [#2187](https://github.com/molis-ai/molis-work/pull/2187)、[#2192](https://github.com/molis-ai/molis-work/pull/2192)；原转入 Backlog 的五项已全部结清并删除（`BL-b44-coding-scene-enum`、`BL-b44-feed-home-dir-and-styles`、`BL-b44-information-plan-to-feed` 由 [#2209](https://github.com/molis-ai/molis-work/pull/2209) 结清；`BL-b44-shell-goals-state` 由 [#2219](https://github.com/molis-ai/molis-work/pull/2219) 结清；`BL-b44-shared-styles-plugin-names` 于 2026-11-22 结清并加永久门禁）；外壳剩余四处记 `BL-shell-goals-leftovers`；PEQ-11 仍待一骏本人实物验收（2026-11-22 独立复核更新）。此前：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
@@ -158,7 +158,7 @@
 - Goal 页、片段、设置、规划、胶囊：走 Runtime 的页面与路由声明（同其他插件），宿主删 `web-goals-read.ts`、`web-planning.ts` 和 `GoalsWebView` 里的 Goals 字段。
 - 宿主替 Goals 取数写数（H2）：项目简介、上手、演示数据各自改走公开动作目录（不钉死提供方）或声明式贡献。
 - 设置节（H3）：插件声明自己的设置节，外壳按声明排；Goals 只留属于 Goal 的设置。
-- 外壳启动（H4）：默认面取用户上次所在或首个已装插件，不写 `"goals"`；Goals 客户端只经 `pageClients` 装载。
+- 外壳启动（H4）：默认面取用户上次所在或首个已装插件，不写 `"goals"`；Goals 客户端只经登记的 `pageClient` 装载（[页面客户端生命周期](../page-client-lifecycle/spec.md)）。
 - 样式（H5）：随 Goals 包下发（按 PG-070 的按需 css）。
 - CLI（H6，D6b 已定）：写死的 7 个 Goals 动作及对应命令一并删掉（`apps/cli/src/command-dispatch.ts` 的 `GOALS` 与各分支、`protocol.ts` 的相应条目、宿主交给 CLI 的 Goals 动作端口、CLI README 与文档里的这些命令），不改成通用命令、不留旧名。删前核清谁在调（脚本、测试、文档）。
 - 胶囊（H7，D6 已定）：整个删掉——桌面壳的胶囊窗口（`apps/desktop/src/capsule-shell.ts` 及 Tauri 一侧的接线）、宿主的胶囊路由与 `capsule.ts`、Goals 的 `createGoalsCapsuleProjection` 与 `capsule-menu.ts`；删的同一个改动里登记一条重做待办，不留兼容。

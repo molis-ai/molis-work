@@ -85,7 +85,7 @@ before(() => {
     'declare function defineErrorCodes(prefix: string, reasons: Record<string, string>): Record<string, (message: string) => Error>;',
     'export const oneErrors = defineErrorCodes("one", { not_found: "not_found", family_item: "invalid" });',
     'export const two = () => new ActionError("one.family.reason", "家族");'));
-  put("plugins/native/text-stats/src/index.ts", lines('import { ActionError } from "../../../../packages/contracts/src/platform/action-errors.js";', 'export const stats = () => new ActionError("text_stats.invalid", "无效");'));
+  put("plugins/native/word-count/src/index.ts", lines('import { ActionError } from "../../../../packages/contracts/src/platform/action-errors.js";', 'export const stats = () => new ActionError("word_count.invalid", "无效");'));
   put("apps/local-host/src/host.ts", lines('import { ActionError } from "../../../packages/contracts/src/platform/action-errors.js";', 'export const refuse = () => new ActionError("host.request_refused", "拒绝");'));
   put("apps/local-host/src/beta-edge.ts", lines('import { ActionError } from "../../../packages/contracts/src/platform/action-errors.js";', 'export const edge = () => new ActionError("beta.refused", "拒绝");'));
   // The one place that turns a kind into a status; it may decide on the code.
@@ -185,9 +185,9 @@ const violations: Scenario[] = [
   { name: "an old-style snake code is not its owner's name", mutate: () => put("modules/alpha/src/owner6.ts", `${IMPORT_ALPHA}export const x = () => new AlphaError("alpha_not_found", "没有");\n`),
     expect: [/error codes that do not start with their owner's name in modules\/alpha\/src\/owner6\.ts 0 → 1 \(line 2: "alpha_not_found"/, /error codes that are not lower-case words joined by dots in modules\/alpha\/src\/owner6\.ts 0 → 1/] },
   { name: "a plugin directory with a hyphen is owned under its underscore name, and a Host file with an owner's glob under that owner", mutate: () => {
-    put("plugins/native/text-stats/src/owner7.ts", `${IMPORT_ACTION.replace("../../../", "../../../../")}export const x = () => new ActionError("text.invalid", "无效");\n`);
+    put("plugins/native/word-count/src/owner7.ts", `${IMPORT_ACTION.replace("../../../", "../../../../")}export const x = () => new ActionError("text.invalid", "无效");\n`);
     put("apps/local-host/src/beta-owner7.ts", `${IMPORT_ACTION}export const x = () => new ActionError("host.invalid", "无效");\n`);
-  }, expect: [/in plugins\/native\/text-stats\/src\/owner7\.ts 0 → 1 \(line 2: "text\.invalid" in text_stats's file\)/, /in apps\/local-host\/src\/beta-owner7\.ts 0 → 1 \(line 2: "host\.invalid" in beta's file\)/] },
+  }, expect: [/in plugins\/native\/word-count\/src\/owner7\.ts 0 → 1 \(line 2: "text\.invalid" in word_count's file\)/, /in apps\/local-host\/src\/beta-owner7\.ts 0 → 1 \(line 2: "host\.invalid" in beta's file\)/] },
   { name: "another foreign code in a file that already has one", mutate: () => append("modules/alpha/src/legacy.ts", 'export const foreign = () => new AlphaError("beta.refused", "拒绝");\n'), expect: [/error codes that do not start with their owner's name in modules\/alpha\/src\/legacy\.ts 1 → 2/] },
 
   // ---- the table's own rules (no baseline: they fail whatever the merge-base says) -----------------------------------------------
@@ -376,7 +376,7 @@ test("the report prints the four numbers and the table", () => {
   assert.deepEqual(report.head.errorStatusDecisions, { "modules/alpha/src/legacy.ts": 2 });
   assert.deepEqual(report.head.errorCodeOwner, { "modules/alpha/src/legacy.ts": 1 });
   assert.deepEqual(report.head.errorOwnerTable.problems, []);
-  assert.equal(report.head.errorOwnerTable.assignment.files["plugins/native/text-stats/src/index.ts"], "text_stats");
+  assert.equal(report.head.errorOwnerTable.assignment.files["plugins/native/word-count/src/index.ts"], "word_count");
   assert.equal(report.head.errorOwnerTable.assignment.files["apps/local-host/src/beta-edge.ts"], "beta");
   assert.equal(report.head.errorOwnerTable.assignment.files["apps/local-host/src/host.ts"], "host");
   assert.deepEqual(report.head.errorOwnerTable.assignment.prefixes, ["actions", "placement"]);

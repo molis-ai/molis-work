@@ -3745,6 +3745,14 @@ export declare const PLUGIN_PROJECTS_EXIST_PERMISSION = "projects:exist";
 
 export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
+export declare const PLUGIN_SCENE_SCHEMA: {
+    readonly type: "string";
+    readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+    readonly not: {
+        readonly enum: readonly ["assistant", "common", "agent", "both"];
+    };
+};
+
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
 export interface PersonIntake extends DestinationDeclaration {
@@ -4722,7 +4730,6 @@ export interface PluginManifest {
     always_on?: boolean;
     summary?: string;
     summary_text?: TextRef;
-    developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {
@@ -8062,13 +8069,6 @@ export declare const WORK_ITEM_RELATED_OUTPUT_SCHEMA: {
     readonly additionalProperties: false;
 };
 
-export declare const WORK_PROGRESS_CONTINUITY_PROTOCOL: Record<WorkProgressContinuityRole, {
-    readonly input_type: string;
-    readonly output_type: string;
-}>;
-
-export declare const WORK_PROGRESS_CONTINUITY_ROLES: readonly ["states.read", "progress.record", "progress.receipt"];
-
 export declare const WORK_TERMINAL_ACTIONS: readonly ActionDefinition[];
 
 export declare const WORK_TERMINAL_PATH = "/api/work-terminals";
@@ -8298,8 +8298,6 @@ export interface WorkItemRelatedInput {
 export interface WorkItemRelatedResult {
     subjects: ActionSubject[];
 }
-
-export type WorkProgressContinuityRole = (typeof WORK_PROGRESS_CONTINUITY_ROLES)[number];
 
 export interface WorkTerminalCloseInput {
     readonly plugin_id: string;
@@ -8974,8 +8972,6 @@ export declare function workExecutorRoleOf(action: {
 }): WorkExecutorRole | null;
 
 export declare function workItemPromotionRoleOf(action: TypedActionShape): WorkItemPromotionRole | null;
-
-export declare function workProgressContinuityRoleOf(action: TypedActionShape): WorkProgressContinuityRole | null;
 
 export declare const workTerminalActions: {
     readonly list: ActionDefinition<WorkTerminalListInput, WorkTerminalListResult>;

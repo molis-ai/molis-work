@@ -94,16 +94,16 @@ const zh = { artifacts: "成果", "plugin-builder": "插件创作工作台", ima
 test("FSS-36 RAC-1725 RAC-1728 the built-in names, market summaries and tab names follow their exact registration", () => {
   for (const [locale, names] of [["zh", zh], ["en", en]] as const) runWithLocale(locale, () => {
     const directory = builtinMarketDirectory(), titles = pluginTabTitles(directory), enabled = directory.map(item => item.id);
-    const rail = renderPluginRail(primitives, enabled, directory), market = renderPluginMarket(primitives, { developerMode: true }, directory);
+    const rail = renderPluginRail(primitives, enabled, directory), market = renderPluginMarket(primitives, {}, directory);
     const extend = renderPickerExtend(primitives, ["plugin-builder"]);
     for (const [id, name] of Object.entries(names)) {
       assert.equal(titles[id], name);
       assert.match(id === "plugin-builder" ? extend : rail, new RegExp(`<span(?: [^>]*)?>${name}</span>`, "u"), id);
-      if (pluginMarketCards({ developerMode: true }, directory).some(card => card.id === id)) assert.ok(market.includes(`<h2>${name}</h2>`), id);
+      if (pluginMarketCards({}, directory).some(card => card.id === id)) assert.ok(market.includes(`<h2>${name}</h2>`), id);
     }
     assert.equal(pluginMarketCards({}, directory).find(entry => entry.id === "todo")?.copy, locale === "en"
       ? "Write down what needs doing, what is for today, and who you are waiting for." : "记下要做的事，分清今天、在等谁。");
-    assert.equal(t.text("workbench.frame-container.result"), locale === "en" ? "Result" : "成果");
+    assert.equal(t.text("workbench.documents-state.expand-directory"), locale === "en" ? "Expand directory" : "展开目录");
   });
 });
 

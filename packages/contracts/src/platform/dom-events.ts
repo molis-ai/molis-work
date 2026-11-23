@@ -334,11 +334,6 @@ export const DOM_EVENTS = [
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
   },
   {
-    name: "molis-work:record-document-loaded", kind: "request", owner: "immersive-navigation", on: "document",
-    detail: "{ recordId }",
-    summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.",
-  },
-  {
     name: "molis-work:record-gone", kind: "request", owner: "tab-workspace", on: "document",
     detail: "{ plugin, itemId }",
     summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404.",

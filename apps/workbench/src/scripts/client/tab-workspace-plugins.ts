@@ -14,13 +14,11 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       if (plugin === "home" || plugin === "market") return "root"; const directory = plugin;
       return document.querySelector('[data-directory-panel="' + directory + '"]') ? directory : "root";
     };
-  const supportsGoalFrames = () => document.body.dataset.boardView === "current";
   const findTopLevelSurface = (plugin) => {
-    if (plugin === "goals") {
-      return document.querySelector("[data-goal-canvas-shell]:not([data-pane-clone])") || document.querySelector("[data-document-pane]:not([data-pane-clone])");
-    }
-    const candidates = [...document.querySelectorAll('[data-work-surface="' + plugin + '"]')]
-      .filter((node) => !node.closest("[data-goal-canvas-shell]"));
+    const page = pageClient?.(plugin);
+    if (page?.topLevel) return page.topLevel();
+    // A surface held inside another plugin's stage, or a pane's copy, is not the plugin's own page.
+    const candidates = [...document.querySelectorAll('[data-work-surface="' + plugin + '"]')].filter((node) => !node.closest("[data-surface-host]"));
     return candidates.find((node) => !node.hasAttribute("data-pane-clone")) || candidates[0] || null;
   };
   const paneSurface = (pane, plugin) => {
@@ -33,7 +31,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   };
   const topLevelSurface = plugin => { const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface, "restore"); return surface; };
   const titleForItem = (plugin, itemId, fallback) => {
-    if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
+    const page = pageClient?.(plugin);
+    if (page?.itemTitle) return page.itemTitle(itemId, fallback);
     const row = ((spec) => spec && [...document.querySelectorAll(spec[1])].find((el) => el.dataset[spec[2]] === itemId))(RECORD_ROWS.find(([id]) => id === plugin));
     return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
@@ -56,28 +55,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     shellCollapse.add(plugin);
     queueMicrotask(() => shellCollapse.delete(plugin));
     selectItem(targetSurface || topLevelSurface(plugin), null, readView(ops.focused(state).id));
-    if (plugin === "goals") {
-      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-plugins.collapse-goal-return-canvas"));
-      (restoreBoard || showCanvas)?.();
-      return;
-    }
+    if (pageClient?.(plugin)?.showDefault?.()) return;
     collapsePluginStage(plugin);
-  };
-  // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
-  // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
-  const declareGoal = (goalId, fallback, targetNode) => {
-    const title = goalId ? titleForItem("goals", goalId, fallback) : "";
-    const surface = document.querySelector('[data-work-surface="goals"]'), tui = document.querySelector("[data-tui-pane]");
-    const pluginId = tui?.dataset.tuiPluginId || PLUGIN_MANIFEST_IDS.goals || "";
-    const subjectKind = tui?.dataset.tuiSubjectKind || "goal";
-    const surfaceTitle = surface?.dataset.workSurfaceLabel || "";
-    const nodes = targetNode ? [targetNode] : [...document.querySelectorAll("[data-goal-frame-surface]:not([data-pane-clone]), [data-document-pane]:not([data-pane-clone])")];
-    nodes.forEach((node) => {
-      if (goalId && pluginId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: pluginId, surface_title: surfaceTitle,
-        object: { kind: subjectKind, id: goalId, ...(title ? { title } : {}) },
-        belongs_to: { plugin_id: pluginId, kind: subjectKind, id: goalId, title: title || "" } }));
-      else node.removeAttribute("data-assistant-context");
-    });
   };
   const forgetRecord = (plugin) => {
     if (!plugin || !openRecords[plugin]) return false;
@@ -242,7 +221,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (openInSide(plugin, itemId, title) || openItemInSide(plugin, itemId, title, from) || recall(plugin, itemId)) return;
     column = "main";
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
-    if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
+    if (view !== undefined) ops.writeView(state, ops.focused(state).id, pageClient?.(plugin)?.itemView ? pageClient(plugin).itemView(view) : view, tab.id);
     const current = paneSurface(ops.focused(state), plugin);
     if (current) delete current.dataset.paneKey;
     apply();
@@ -269,12 +248,13 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (openRecords[plugin] === itemId) forgetRecord(plugin);
     if (closed) { apply(); persist(); }
   };
-  const openGoalWork = (paneId) => {
+  // An item tab's view, asked by the plugin it belongs to (its work area, or back to its default), in the pane it is shown in.
+  const setItemView = (plugin, view, paneId) => {
     const pane = (paneId && paneById(paneId)) || ops.focused(state);
     const tab = pane?.tabs.find((item) => item.id === pane.activeTabId);
-    if (tab?.plugin !== "goals" || tab.kind !== "item") return;
-    writeView(pane.id, "work", tab.id);
-    if (embedded) notifyParent("workbench-pane-view", { view: "work" });
+    if (tab?.plugin !== plugin || tab.kind !== "item") return;
+    writeView(pane.id, view, tab.id);
+    if (embedded) notifyParent("workbench-pane-view", { view });
   };
   // The mount names its owner and surface. Layout remains the only owner of pane/tab selection.
   const ownSurfaces = (origin) => origin.dataset.pluginOwner && origin.dataset.pluginContribution
@@ -282,7 +262,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   const invalidateLocal = () => { host.refreshHome?.(); return [...document.querySelectorAll('[data-plugin-contribution][data-ui-client-state="ready"]')].forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }))); };
   const invalidateView = (origin, relay = true) => {
     if (!origin?.isConnected) return;
-    invalidateLocal(origin);
+    invalidateLocal();
     if (!relay) return;
     if (embedded) { notifyParent("workbench-pane-invalidate"); return; }
     document.querySelectorAll('#side-panel iframe[data-pane-owner="side"]').forEach(frame => {
@@ -363,33 +343,10 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     return [mount, ...mount.querySelectorAll("[data-plugin-producer]")].find(node => node.dataset.pluginOwner === result.owner_plugin_id
       && node.dataset.pluginProducer === result.producer && node.dataset.pluginSlot === "workbench.main") || null;
   };
-  // The home shows one plugin's main page in place of its groups (a \`lead\` group). The page is found by the same proof as a home
-  // navigation and moved into the home's box; the panes take it back by mounting it when that plugin's own page is opened.
-  const adoptHomeLead = (box, result) => {
-    if (!box?.isConnected || !result || result.kind !== "stage" || !result.installation || typeof result.shell_key !== "string"
-      || typeof result.owner_plugin_id !== "string") return null;
-    const plugin = result.shell_key, mount = findTopLevelSurface(plugin);
-    if (!mount || removedPlugin(plugin)) return null;
-    const proved = result.frame_path ? typeof result.frame_path === "string" && signedHomeStage(mount, result.owner_plugin_id, new URL(result.frame_path, location.origin).href)
-      : nativeHomeMount(mount, result);
-    if (!proved) return null;
-    // A page that is showing in a pane stays there: the home does not take it from under the person (it shows the basic home instead).
-    if (mount.parentElement !== box && mount.parentElement !== pool && !mount.hidden) return null;
-    if (mount.parentElement !== box) box.append(mount);
-    mount.hidden = false;
-    host.prepareSurface?.(mount, "restore");
-    if (surfaceShows.get(plugin) !== "page") { surfaceShows.set(plugin, "page"); selectItem(mount, null, undefined); }
-    return mount;
-  };
-  // A page with a live frame stays where it is, hidden, as in the panes: moving it would reload it.
-  const releaseHomeLead = (node) => {
-    if (!node?.parentElement?.hasAttribute("data-home-lead")) return;
-    if (node.querySelector("iframe[data-plugin-frame]")) node.hidden = true; else { node.hidden = true; pool.append(node); }
-  };
   // Only the shell calls this with the protected homepage's reply. It binds the reply back to this pane and its actual mount.
   const openHomeNavigation = (result, pane, home = true) => {
     if (!result || !pane || state.exclusive || pane !== ops.focused(state) || home && ops.shownPlugin(pane) !== "home") return false;
-    if (embedded) { notifyParent(home ? "workbench-home-navigation" : "workbench-position-navigation", { result }); return true; }
+    if (embedded) return false;
     if (home && result.kind === "settings" && result.section === "plugins") { openSettingsPage(result.section); return true; }
     if (result.kind !== "stage" || !result.selection || !result.installation || typeof result.shell_key !== "string"
       || typeof result.owner_plugin_id !== "string") return false;

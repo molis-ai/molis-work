@@ -349,6 +349,27 @@ test("RAC-769 a missing build is exit 2, never a pass", () => {
   assert.match(missing.out, /apps\/workbench\/dist\/plugin-workbench\.js is missing \(the registered plugin packs\); build the workspace first/);
 });
 
+test("RAC-769 a plugin the build no longer registers takes its remembered prefixes with it, with and without base", () => {
+  for (const args of [[], ["--base", "main"]]) {
+    const fixture = pluginStylesBuildFixture(work);
+    try {
+      fixture.writeBuild({ prefixes: ["legacy-"] });
+      assert.equal(run(fixture.root, "--update").code, 0);
+      fixture.commit("main remembers legacy");
+      fixture.git("checkout", "-q", "-b", "retire-probe");
+      // The plugin is deleted: no pack, so no sheet whose rules could come back into the shared ones.
+      fixture.writeBuild({ removed: true });
+      fixture.writeBudget({});
+      if (args.length) fixture.commit("retire the plugin and its budget entry");
+      const checked = run(fixture.root, ...args);
+      assert.equal(checked.code, 0, checked.out);
+      const updated = run(fixture.root, "--update", ...args);
+      assert.equal(updated.code, 0, updated.out);
+      assert.deepEqual(JSON.parse(fixture.budgetText()), { note: JSON.parse(fixture.budgetText()).note, plugins: {}, prefixes: {} });
+    } finally { fixture.cleanup(); }
+  }
+});
+
 test("RAC-769 this repository's own build freezes the few declared-shared leftovers with no Goals special case", () => {
   const reported = run(repoRoot, "--report", "--json");
   assert.equal(reported.code, 0, reported.out);
@@ -357,7 +378,6 @@ test("RAC-769 this repository's own build freezes the few declared-shared leftov
     "on-demand plugins (including Goals, Feed and Inbox) keep zero namespace rules in the shared sheet; only declared-shared leftovers remain");
   assert.deepEqual(report.budgetPrefixes?.["goals"], ["goal-"], "Goals' prefix stays remembered so its rules cannot fall back to the shared sheet");
   assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
-  assert.deepEqual(report.budgetPrefixes?.["text-stats"], ["stats-"], "Text Stats' prefix stays remembered so its rules cannot fall back to the shared sheet");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);
   assert.deepEqual(findSharedStylePluginSelectors(repoRoot), [], "PEQ-08: platform shared stylesheets contain zero plugin-owned class/attribute/token selectors");
   const passed = run(repoRoot);

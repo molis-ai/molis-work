@@ -281,11 +281,26 @@ test("S-59 RAC-205 a read that runs past its time is killed and answered with a 
 });
 
 test("S-59 RAC-207 a statement that takes more than the memory limit is killed while it grows, and a refusal for it comes with a code", async t => {
-  const { sandbox } = await library(t, 1500, 8, { rssMb: 200, readMs: 20_000 });
+  const { sandbox, file } = await library(t, 1500, 8, { rssMb: 200, readMs: 20_000 });
   assert.deepEqual(await read(sandbox, "SELECT 1 AS one"), [{ one: 1 }]);
+  const [warmPid] = workers();
+  assert.ok(warmPid);
+  const warmRssMb = Math.round(Number(execFileSync("ps", ["-o", "rss=", "-p", String(warmPid)], { encoding: "utf8" }).trim()) / 1024);
   // Ten megabytes of text per row, 1500 rows into one string: SQLite's own memory, which no V8 limit sees.
   await assert.rejects(read(sandbox, "SELECT length(group_concat(hex(zeroblob(5000000)))) AS n FROM sbxlimit_rows"), MEMORY);
   assert.deepEqual(await read(sandbox, "SELECT count(*) AS n FROM sbxlimit_rows"), [{ n: 1500 }], "and the next statement runs");
+
+  // 102-2 audit (S-59): a fast request that crosses rssMb before the periodic sampler ticks must still be killed in worker.on("message") before forwarding ok.
+  const child = fork(fileURLToPath(new URL("./project-statement-worker.js", import.meta.resolve("@molis-ai/molis-work-app-local-host"))), [], {
+    execArgv: ["--max-old-space-size=96"], stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  t.after(() => { child.kill("SIGKILL"); });
+  const replyPromise = once(child, "message");
+  const thresholdMb = Math.max(60, Math.floor(warmRssMb * 0.75));
+  assert.ok(warmRssMb > thresholdMb, `warm worker RSS (${warmRssMb} MB) must exceed threshold (${thresholdMb} MB)`);
+  child.send({ op: "open", id: 1, deadline: Date.now() + 5_000, path: file, record, limits: { heapMb: 96, rssMb: thresholdMb, sampleMs: 60_000 } });
+  const [fatal] = await replyPromise;
+  assert.equal((fatal as { fatal?: string }).fatal, "memory", "post-completion RSS check kills fast RSS bloat before replying ok");
 });
 
 test("S-59 RAC-208 a write cancelled or revoked before its COMMIT commits nothing; cancelling stops a running statement at once", async t => {

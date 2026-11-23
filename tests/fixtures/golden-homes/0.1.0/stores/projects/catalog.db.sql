@@ -213,9 +213,7 @@ INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-613e545f-a06c-4b54-9af7-7e00dc05c675','molis-work-v1-demo','project.plugin_added','web-user','{"plugin_id":"risk"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-9551f23c-d3f5-478c-b7fe-3c2edf485a92','molis-work-v1-demo','project.plugin_added','web-user','{"plugin_id":"feed"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-a270282c-f4d0-4239-8e8a-a3b968dac323','personal','project.created','web-user','{"project_id":"personal"}','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-ac8118f7-916e-4d74-9086-0a72a4b4a12c','project-ae076f4f-3257-40a5-be48-38652812f188','project.plugin_added','web-user','{"plugin_id":"text-stats"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-bae49332-c477-4173-841f-516d9c3dfcc4','molis-work-v1-demo','project.plugin_added','web-user','{"plugin_id":"inbox"}','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-c60c2a37-dcca-41ba-983e-5bf47e19c92a','goalboard-v1-demo','project.plugin_added','fixture-restore','{"plugin_id":"text-stats"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-ce3760fc-526d-4c78-9de4-68dd5ce9e44c','goalboard-v1-demo','project.plugin_added','fixture-restore','{"plugin_id":"diff"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-e6e4058b-5ed1-4840-8168-1d70259ad0e4','goalboard-v1-demo','project.plugin_added','fixture-restore','{"plugin_id":"risk"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-e85d6842-9d1b-48d6-94a2-54f9ad8e8532','goalboard-v1-demo','project.plugin_added','fixture-restore','{"plugin_id":"git"}','2026-01-15T09:00:00.000Z');
@@ -232,7 +230,6 @@ INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('goalb
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('goalboard-v1-demo','inbox','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('goalboard-v1-demo','risk','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('goalboard-v1-demo','schedule','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('goalboard-v1-demo','text-stats','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('goalboard-v1-demo','work-brief','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('molis-work-v1-demo','coding','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('molis-work-v1-demo','feed','2026-01-15T09:00:00.000Z');
@@ -249,7 +246,6 @@ INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('proje
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','inbox','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','risk','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','schedule','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','text-stats','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','work-brief','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','coding');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','diff');
@@ -259,7 +255,6 @@ INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboa
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','inbox');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','risk');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','schedule');
-INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','text-stats');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('goalboard-v1-demo','work-brief');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('molis-work-v1-demo','coding');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('molis-work-v1-demo','feed');
@@ -276,7 +271,6 @@ INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','inbox');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','risk');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','schedule');
-INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','text-stats');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188','work-brief');
 INSERT INTO "projects"("project_id","display_name","source","data_class","created_at","updated_at") VALUES('goalboard-v1-demo','金样历史项目','created','user','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');
 INSERT INTO "projects"("project_id","display_name","source","data_class","created_at","updated_at") VALUES('molis-work-v1-demo','Molis Work 示例项目','created','regenerable_demo','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');

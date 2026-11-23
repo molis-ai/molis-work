@@ -158,7 +158,7 @@ test("the lists name exactly what exists: no id, route file or Runtime plugin is
  * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
  * Runtime shape (declarations only) nor the build-time shape of the approved exceptions, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
- * PG-036 C9: Coding left with coding-surface.ts. Its page and its Files/Git/Diff/Text stats companion stages are the plugins' own
+ * PG-036 C9: Coding left with coding-surface.ts. Its page and its Git/Diff companion stages are the plugins' own
  * contributions, which the Host draws through the generic stage channel (project-plugin-stages.ts).
  * W5-01-GIT-04: Git left with G5. What ran git for it in the Host is the platform's workspace Git service (workspace-git*.ts,
  * the projects.workspace.git.* and projects.workspace.writers.* actions only plugins call); the next test pins what is left.

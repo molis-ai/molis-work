@@ -1,52 +1,7 @@
-import { pluginPageClients } from "../../plugin-workbench.js";
 import { directoryWidth } from "../../directory-width.js";
 
-const GOALS_PAGE = pluginPageClients("goals");
-/** AP3 Workbench client segment: documents-state. */
+/** AP3 Workbench client segment: documents-state. Deep links, the directory and terminal widths, and the saved UI state, with each page client's own part asked by hook (specs/page-client-lifecycle). */
 export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) => error instanceof DOMException && error.name === "AbortError";
-
-    let reloadGoalEventDocument = async (_goalId, _restore) => false;
-    let pendingEventRestore = null;
-    const createGoalEventDocument = ${GOALS_PAGE.goalsEventDocument};
-    const goalEventDocumentApi = goalData ? createGoalEventDocument({
-      documentPane, route, translate: globalThis.t.text, isAbortError,
-      showError: (message) => showToast(message, true),
-      showStatus: (message) => showToast(message, false),
-      reloadDocument: (goalId, restore) => reloadGoalEventDocument(goalId, restore),
-      controlHeaders: () => (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" }),
-    }) : null;
-    const bindGoalEventDocument = (...args) => goalEventDocumentApi?.bindGoalEventDocument(...args);
-    const openEventReader = (name) => goalEventDocumentApi?.openEventReader(name);
-
-    const activateFocusSection = (trigger) => {
-      const card = trigger?.closest?.("[data-focus-section-card]");
-      const deck = card?.closest?.("[data-focus-section-deck]");
-      if (!card || !deck) return false;
-      const sectionKey = card.dataset.focusSectionCard;
-      deck.dataset.activeSection = sectionKey;
-      deck.querySelectorAll("[data-focus-section-card-row] > [data-focus-section-card]").forEach((candidate) => {
-        const active = candidate === card;
-        candidate.classList.toggle("is-active", active);
-        const candidateTrigger = candidate.querySelector(":scope > [data-focus-section-trigger]");
-        candidateTrigger?.setAttribute("aria-expanded", String(active));
-      });
-      deck.querySelectorAll(":scope > [data-focus-section-stage] > [data-focus-section-body]").forEach((body) => {
-        const active = body.dataset.focusSectionBody === sectionKey;
-        body.classList.toggle("is-active", active);
-        body?.setAttribute("aria-hidden", String(!active));
-        body?.toggleAttribute("inert", !active);
-      });
-      return true;
-    };
-
-    const revealFocusTarget = (target) => {
-      const card = target?.closest?.("[data-focus-section-card]");
-      const body = target?.closest?.("[data-focus-section-body]");
-      const deck = card?.closest?.("[data-focus-section-deck]") || body?.closest?.("[data-focus-section-deck]");
-      const sectionKey = card?.dataset?.focusSectionCard || body?.dataset?.focusSectionBody;
-      const trigger = sectionKey ? deck?.querySelector?.('[data-focus-section-trigger="' + CSS.escape(sectionKey) + '"]') : null;
-      return trigger ? activateFocusSection(trigger) : false;
-    };
 
     const revealDeepLinkTarget = (target) => {
       let disclosure = target?.matches?.("details") ? target : target?.closest?.("details");
@@ -54,7 +9,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         disclosure.open = true;
         disclosure = disclosure.parentElement?.closest?.("details");
       }
-      revealFocusTarget(target);
+      pages.forEach((page) => page.reveal?.(target));
       return target;
     };
 
@@ -65,15 +20,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       requestAnimationFrame(() => target.scrollIntoView({ behavior, block: "start" }));
       return target;
     };
-
-    const { openEventReaderFromHash, eventReaderFromTargetId,
-      setGoalFactor, goalFactorFromTargetId, goalFactorFromHash,
-      handleGoalFactorClick, handleGoalFactorKeyboard,
-    } = (${GOALS_PAGE.goalsPanels})({
-      documentPane, activateFocusSection,
-      queueSave: () => queueSave(),
-      openEventReader,
-    });
 
     const setTuiWidth = (value, persist = true) => {
       if (!tuiResizer || !workspace.classList.contains("is-desktop-tui")) return;
@@ -92,7 +38,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       treeResizer.setAttribute("aria-valuemin", String(minimum));
       treeResizer.setAttribute("aria-valuemax", String(maximum));
       treeResizer.setAttribute("aria-valuenow", String(width));
-      scheduleGoalGraphLayout();
+      pages.forEach((page) => page.layout?.());
       if (persist) queueSave();
     };
 
@@ -111,22 +57,16 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       });
       treeResizer?.setAttribute("aria-hidden", String(nextCollapsed));
       immersiveNavigation?.sync();
-      scheduleGoalGraphLayout();
+      pages.forEach((page) => page.layout?.());
       if (persist) queueSave();
     };
 
     const readUiState = () => {
       return ({
-      ...(goalData ? {
-        selected, collapsed: getCollapsedTreeGoals(), treeTop: treeScroll?.scrollTop || 0,
-        documentTop: activeDesktopSurface === "goals" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goals || 0),
-        statuses: getSelectedStatuses(), ...readMomentumState(),
-        workspaceMode: activeDesktopSurface === "goals" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
-        goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "relations",
-      } : {}),
+      ...Object.assign({}, ...pages.map((page) => page.readUiState?.() || {})),
       disclosures: [...document.querySelectorAll("[data-persist-open][open]")].map((item) => item.dataset.persistOpen),
       workSurface: activeDesktopSurface,
-      surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goals" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
+      surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: scrollPaneOf(activeDesktopSurface)?.scrollTop || 0 },
       treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || (treePane.getBoundingClientRect().width > 44 ? treePane.getBoundingClientRect().width : 240),
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
@@ -146,8 +86,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
 
     const applyUiState = (ui) => {
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
-      if (ui?.documentTop != null && desktopSurfaceScroll.goals == null) desktopSurfaceScroll.goals = Number(ui.documentTop || 0);
-      goalWorkspaceMode = ui?.workspaceMode || "graph";
+      pages.forEach((page) => page.applyUiState?.(ui, "start", desktopSurfaceScroll));
       const requestedDesktopSurface = ui?.workSurface ? canonicalSurface(ui.workSurface) : "home";
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
@@ -162,31 +101,12 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
       }
-      if (goalData) restoreTreeCollapsed(ui?.collapsed);
+      pages.forEach((page) => page.applyUiState?.(ui, "tree", desktopSurfaceScroll));
       restoreDisclosures(document, ui?.disclosures);
-      if (goalData) {
-        syncGoalCollectionFolds();
-        setSelectedStatuses(ui?.statuses || []);
-        restoreMomentumState({ canvasView: ui?.canvasView });
-        filterTree("");
-      }
+      pages.forEach((page) => page.applyUiState?.(ui, "filters", desktopSurfaceScroll));
       setWorkspaceMode(ui?.workspaceMode || "graph", false, true);
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false, "restore");
-      let hashTargetId = "";
-      if (goalData) {
-        restoreGoalGraphViewport();
-        bindGoalEventDocument();
-        openEventReaderFromHash();
-        setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "relations"), false);
-        hashTargetId = decodeURIComponent(location.hash.slice(1));
-        const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
-        if (treeScroll) treeScroll.scrollTop = Number(ui?.treeTop || 0);
-        documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goals"
-        ? 0
-        : activeDesktopSurface === "goals" && ui?.selected === selected
-          ? Number(ui?.documentTop || 0)
-          : Number(desktopSurfaceScroll[activeDesktopSurface] || 0);
-      }
+      pages.forEach((page) => page.applyUiState?.(ui, "surface", desktopSurfaceScroll));
       const restoredMobileView = ui?.mobileView === "tui" || ui?.mobileView === "document" || ui?.mobileView === "tree"
         ? ui.mobileView
         : "tree";

@@ -58,6 +58,9 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // on this branch and compared token by token: the 16 whole pages differ by the same 65 tokens, all inside `data-work-surface="home"`
 // (besides the language resource's file hash, which the recorded markup leaves out), a uniform +383 (zh) / +395 (en) characters; the
 // other records are byte for byte the same. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Removing `overview.lead` (decision 62 ③) took the home's empty lead box (`data-home-lead`) out of the same 16 pages, and only it:
+// drawn on the 36A-6 branch and on this one and compared token by token, each page loses that one element, a uniform -56 characters
+// in both languages; the other records are byte for byte the same. The 16 were recorded again.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
@@ -346,6 +349,10 @@ const pages: Record<string, Draw> = {
 // one of the 16 `page-*` whole-page records); all 36 fragment/settings records and JSON data blocks stayed byte-identical.
 // BL-b44-feed-home-dir-and-styles (on main 263d50061b): the shared list class `feed-stage-tree` is `mw-stage-tree`. Drawn independently
 // from that main, the 16 `page-*` records differ only on the artifact directory's class (-2 each); the other 36 records are unchanged.
+// BL-b44-shell-goals-state (PCL-01, on main 2d8244c287): the shell finds its panes by generic marks instead of Goals' ids, and the
+// page client reads the project title from the page. Drawn independently from that main, the 16 `page-*` records differ only by
+// ` data-project-title="Golden project"` on <body> (+36), ` data-directory-pane` on the tree pane (+20), ` data-surface-stage` on each
+// stage (+19 each) and ` data-surface-host` on the canvas shell (+18): +75 on archive/trash, +131 on current. The other 36 records are unchanged.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

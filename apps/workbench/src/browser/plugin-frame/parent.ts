@@ -166,8 +166,24 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
 
 /** A WindowProxy can survive navigation. Only the document that knows this mount and holds its hello port gets the business channel. */
 function bindFrameDocument(frame: HTMLIFrameElement, root: HTMLElement, scope: FrameScope, documentFor: (challenge: string) => string,
-  port: MessagePort, config: () => Promise<FrameConfig>, fail: (error: Error) => void): void {
+  port: MessagePort, config: () => Promise<FrameConfig>, fail: (error: Error) => void, connected: () => void): void {
   let loaded = false;
+  const transition = accountTransition();
+  // A view whose document asks to connect while the account is being prepared (signing out or switching) has nothing to save
+  // yet. It joins once the preparation is over; failing it here would close the view, and a view closing mid-preparation
+  // cancels the very sign-out or switch the person asked for.
+  const settledConfig = async (): Promise<FrameConfig> => {
+    for (;;) {
+      while (scope.alive && transition.preparing) await new Promise(resolve => setTimeout(resolve, 50));
+      try {
+        const prepared = await config();
+        scope.assertCurrent();
+        return prepared;
+      } catch (error) {
+        if (!scope.alive || !transition.preparing) throw error;
+      }
+    }
+  };
   const reject = (error: Error) => { fail(error); scope.dispose(); };
   frame.onload = () => {
     if (loaded) { reject(new Error("Plugin page navigated")); return; }
@@ -180,10 +196,10 @@ function bindFrameDocument(frame: HTMLIFrameElement, root: HTMLElement, scope: F
       || event.data.challenge !== challenge || event.ports.length !== 1) return;
     unlisten();
     const reply = event.ports[0]!;
-    void config().then(prepared => {
-      scope.assertCurrent();
+    void settledConfig().then(prepared => {
       if (!frame.isConnected || prepared.text.language.tag !== pageLanguage()) throw new Error("View closed or language changed");
       reply.postMessage({ type: "molis:plugin-connect", config: { ...prepared, text: forOpeningFrame(root, original, prepared.text) } }, [port]);
+      connected();
     }).catch(error => reject(error instanceof Error ? error : new Error(String(error)))).finally(() => reply.close());
   });
   frame.srcdoc = documentFor(challenge);
@@ -279,8 +295,16 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   let draftsPrepared = false;
   const draftWork = new Set<Promise<void>>();
   const flushes = new Map<number, {resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}>();
+  // Until its document is connected the view holds no drafts, and it cannot answer a flush (its port is not handed over yet).
+  let childConnected = false;
   const flush = () => new Promise<void>((resolve, reject) => {
-    scope.assertCurrent(); draftsPrepared = false; const id = ++flushSequence;
+    scope.assertCurrent();
+    draftsPrepared = false;
+    if (!childConnected) {
+      resolve();
+      return;
+    }
+    const id = ++flushSequence;
     const timer = setTimeout(() => { flushes.delete(id); reject(new Error(uiText.text("common.parent.draft-could-not-be-saved-return-page-try"))); }, 10000);
     flushes.set(id, {resolve, reject, timer}); port.postMessage({type: "draft-flush", id});
   });
@@ -303,7 +327,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   let childExpanded: string | null = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
-  const deadline = setTimeout(() => readyReject(new Error(uiText.text("common.parent.view-not-ready"))), 10000);
+  // A running account preparation holds the view's connection back (bindFrameDocument), so it does not count against the view.
+  const notReady = () => {
+    if (transition.preparing) deadline = setTimeout(notReady, 10000);
+    else readyReject(new Error(uiText.text("common.parent.view-not-ready")));
+  };
+  let deadline = setTimeout(notReady, 10000);
   scope.own(() => {
     if (closing) collapsePage(root);
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
@@ -354,7 +383,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     }
     // Preserve the last already-submitted unsaved declaration before the child's FIFO flush acknowledgement.
     if (transition.preparing && !draftsPrepared && message.type === "context-report") { void contextMessage(message); return; }
-    if (transition.preparing && !["draft", "storage", "fetch", "abort", "pull"].includes(message.type)) return;
+    if (transition.preparing && !["draft", "storage", "fetch", "abort", "pull", "ready"].includes(message.type)) return;
     if (message.type === "document-cancel") { documentReads.get(message.id)?.abort(); documentReads.delete(message.id); return; }
     if (message.type === "frame-asset-layout") { assetLayout(message); return; }
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
@@ -503,7 +532,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     sideHelp: !host.side && (Boolean(document.querySelector('[data-side-tab="help"]')) || document.body.hasAttribute("data-pane-embedded")),
     page: page ?? host.page?.() ?? null,
     storage,
-  }), fail);
+  }), fail, () => { childConnected = true; });
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
   frame.hidden = Boolean(root.dataset.previewTab);

@@ -56,7 +56,9 @@ try {
  const noControl=await fetch(origin+'/api/account/auth/transactions',{method:'POST',headers:{Origin:origin,'content-type':'application/json'},body:JSON.stringify({purpose:'LOGIN',method:'EMAIL_PASSWORD'})});assert.equal(noControl.status,403);
  process.stdout.write('PASS WORK-03 HTTP: email signup/login/reset, phone auto-registration, wrong credentials, cancellation, injection guards\n');
  assert.equal((await api('/auth/login/password',{identifier:email,password:replacement})).account.user.userId,user);await end();
- browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser,'Chrome is required for this explicit UI verification');const page=await browser.page();await page.command("Page.enable");const navigate=action=>Promise.all([browser.event("Page.domContentEventFired"),action()]);await navigate(()=>page.command("Page.navigate",{url:origin}));
+ // The first page of a fresh Home is its cold start (1-3 s to DOMContentLoaded on a development machine, several times that on a
+ // loaded CI runner), so the page loads get the 45 s the other account scripts give a cold Home, not the CDP helper's 15 s default.
+ browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser,'Chrome is required for this explicit UI verification');const page=await browser.page();await page.command("Page.enable");const navigate=action=>Promise.all([browser.event("Page.domContentEventFired",undefined,45000),action()]);await navigate(()=>page.command("Page.navigate",{url:origin}));
  // The server-rendered exit button exists before onboarding installs its client interaction.
  await page.viewport(1440,900);await page.wait("document.readyState==='complete'");
  await page.wait("!document.querySelector('#cx-app') || document.querySelector('#cx-app').getAttribute('aria-busy')==='false'");

@@ -33,7 +33,7 @@
 | 槽 | 放哪 | 例子 |
 | --- | --- | --- |
 | `navigator` | 一级入口：出现在底栏的插件切换列表里，可以被人钉进 Dock（技术标识沿用 `navigator`） | Feed、Inbox、Pages、Goals、Sessions |
-| `stage` | 工作区里的工具面，不进插件切换列表 | Diff、Text stats |
+| `stage` | 工作区里的工具面，不进插件切换列表 | Diff |
 | `settings` | 全局设置目录 | Shelf、Coding 偏好 |
 | `island` | 个人常驻入口：底栏右侧，项目圆钮旁 | 灵光 |
 | `side` | 侧栏里的一个标签：在工作旁边打开，与讨论、浏览器、文件并列（specs/archive/side-panel） | 需要边工作边看的小工具面 |

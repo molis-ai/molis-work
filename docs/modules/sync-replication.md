@@ -10,6 +10,8 @@ Workflows 已注册流程定义与运行历史；从其他设备恢复的实例�
 
 本机个人同步当前实际注册：Goals、Pages、Artifacts、Form（含答卷）、Dataset（含保存版本）、PPT、Lingguang（含完整对话）、Workflows（流程及运行历史）、Jelly（日历及笔记）、Todo（待办及历史）、Issues（问题记录及图片）、Schedule 会话任务、Character 草稿、Feed 捕捉规则、Images 保存结果及 Cognia 知识。Goals 按项目恢复目标、关系、规则、工作记录、结构提案、可信决定及关联引用；本机历史序号通过稳定事件 ID 转换。新增 owner 的 `AggregateDefinition` 或自有适配器指定字段、子记录、领域校验、编辑版本和恢复依赖，公共 storage 处理事务日志及冲突，Host 只做身份与目录装配。仍不包含全部插件或运行任务，未接入的附件 owner 不获得隐式路径扫描；逐项覆盖见 [当前实现清单](../../specs/personal-cloud-sync/plugin-replication.md)。
 
+**平台个人配置。** 本人可单独选择外观、呈现组合、提示词改写、个人蓝图、判断规则、注意事项六个集合，默认均不传输。Attention 继续使用原 Inbox 集合的同意记录和远端历史，由平台目录提供服务。呈现组合只传项目内本人保存的形态、位置与移走纠正。蓝图只传个人草稿，提示词只传本人改写，规则只传定义。设备语言、应用回执、浏览器布局、连接凭据、执行状态与试跑结果留在设备上。收到的内容先校验身份、字段和大小，再由 owner 与同步回执一起提交。
+
 **定位：** 本地对象的发布意图、Personal/Team replica 关系、冲突和用户可见同步状态的唯一 owner。
 
 **拥有：** publication intent、目标 Team Project、local/remote/materialized version、replica relationship、冲突、等待 consumer 和用户处置决定。

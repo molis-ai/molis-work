@@ -99,6 +99,7 @@ export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
+export { personalConfigRegistrations } from './personal-config-sync.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
@@ -118,7 +119,7 @@ export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, 
 export { ownerLabel } from "./web-project-deletion.js";
 export {
   BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
-  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, shownProjectPlugins, type ProjectRuntimeDeclaration,
+  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, shownProjectPlugins, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";

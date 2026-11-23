@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 import { openCoding } from "./fixtures/coding-browser.js";
-import { CODING_BOX, CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_SEND, codingControl } from "./fixtures/coding-composer.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_MODEL, CODING_SEND } from "./fixtures/coding-composer.js";
 
 // Coding A3 (docs/design/coding-daily-basics scheme A): pictures pasted into the bar while a Coding session is on show sit in the
 // composer's row of thumbnails with their size and 「已存一份」; one over 5 MB says so and the line above the box offers to shrink it;
@@ -52,7 +52,7 @@ test("A3 pictures in Coding's composer: thumbnails, the too-large shrink, the vi
   const { owner, evaluate, waitFor, command, sessionId } = opened;
   await opened.start("照这张图改首屏");
   await evaluate(modelsAre(UNMARKED));
-  await owner.waitFor(`document.querySelector(${JSON.stringify(codingControl("model"))})?.value.includes('fixture')`, 30_000);
+  await waitFor(`document.querySelector(${JSON.stringify(CODING_MODEL)})?.value.includes('fixture')`, 30_000);
   const shot = async (name: string) => {
     const directory = join(process.cwd(), ".impeccable/qa/review/35-coding-images"); await mkdir(directory, { recursive: true });
     const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
@@ -120,9 +120,10 @@ test("A3 pictures in Coding's composer: thumbnails, the too-large shrink, the vi
   // 换成能看图的模型 chooses the one marked as seeing them, and the line goes.
   await owner.click(`${NOTICE} [data-composer-notice]:not([data-composer-notice=also])`);
   // (the session is in 「讨论」, so the read-only line is what stays)
-  await owner.waitFor(`JSON.parse(document.querySelector(${JSON.stringify(codingControl("model"))}).value)[1]==='sighted' && !document.querySelector(${JSON.stringify(NOTICE)})?.textContent.includes('看不到图片')`, 10_000);
+  await waitFor(`JSON.parse(document.querySelector(${JSON.stringify(CODING_MODEL)}).value)[1]==='sighted'`, 10_000);
+  await owner.waitFor(`!document.querySelector(${JSON.stringify(NOTICE)})?.textContent.includes('看不到图片')`, 10_000);
   // Back on the model that cannot see: 不带图发 sends the words with no picture.
-  await owner.evaluate(`(()=>{const s=document.querySelector(${JSON.stringify(codingControl("model"))});s.value=[...s.options].find(o=>!o.value.includes('sighted')).value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await evaluate(`(()=>{const s=document.querySelector(${JSON.stringify(CODING_MODEL)});s.value=[...s.options].find(o=>!o.value.includes('sighted')).value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await owner.waitFor(`document.querySelector(${JSON.stringify(NOTICE)})?.textContent.includes('看不到图片')`, 10_000);
   await owner.click(`${NOTICE} [data-composer-notice=also]`);
   await owner.waitFor(`!document.querySelector(${JSON.stringify(NOTICE)})?.textContent.includes('看不到图片')`, 10_000);
@@ -162,7 +163,7 @@ test("A3 B35-R6 a round forwards the exact pasted and dropped pictures and reads
   const opened = await openCoding(t, "", prepareHome); if (!opened) return;
   const { owner, evaluate, waitFor } = opened;
   await opened.start("照这张图改首屏");
-  await owner.waitFor(`document.querySelector(${JSON.stringify(codingControl("model"))})?.value.includes('fixture-plain')`, 30_000);
+  await opened.waitFor(`document.querySelector(${JSON.stringify(CODING_MODEL)})?.value.includes('fixture-plain')`, 30_000);
   await owner.evaluate(putPicture("首屏.png", 48));
   await owner.evaluate(putPicture("参考稿.png", 96, false, true));
   await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(ROWS)})].filter(row=>row.querySelector('small')?.textContent.includes('已存一份')).length===2`, 30_000);

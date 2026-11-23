@@ -10,7 +10,7 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 //   --browser-jobs <n>      of those, browser files at once (default: MOLIS_WORK_TEST_BROWSER_JOBS, else 2)
 //   --timeout-seconds <n>   per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
 //   --verbose               print every file's output, not only the failing ones'
-//   --retries <n>           run a failed file again, up to n more times (default 0; passing >0 on a single file enables coordinator mode);
+//   --retries <n>           run a failed file again in its slot, up to n more times (default 0; passing >0 on a single file enables coordinator mode);
 //                           one that then passes is listed as flaky and does not fail the run (the CI full suite uses 1)
 //   --bail                  stop at the first file that fails (after its retries, run at once): nothing more starts and the files
 //                           still running are stopped; the CI full suite uses it, so a red shard ends early

@@ -4,6 +4,10 @@
 
 本需求承接 BL-377。用户 2026-10-27 决定：场景组装是平台能力，与插件创作工作台重做一起交付；Alchemist 的独立重做需求 BL-376 取消并入本文，不再单独排期。此前讨论的场景／能力组合设置、秘书与助理团的渐进式引导、首次／项目／通用任务 Onboarding 三项独立推进，不是本需求的范围、前置条件或验收门槛。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① 创作台归纯平台 `horizontal/plugin-studio`（`#2239` 主体 + `44B` 收口 `agent-host/adapters/plugin-builder.ts` 与宿主目录拆分），不再作为插件或带插件呈现声明；② 旧 `plugins/native/alchemist` 及其 `studio.sqlite`/`search.sqlite`（`better-sqlite3`）已于 `44B` 按 Clean v1 彻底删除，第 `82` 批在创作台上按纯 UPP 场景插件（`databases.partition` + `node:sqlite` + 声明 `push`/`overview_projection`）从零重写，不做旧库迁移；③ 第 `48`、`68` 批新生成插件与 14 个角色样例一律产出统一分区 UPP 形态，禁止生成 `runtime.scope: "home"` 或 `dual_instance`，且场景组装统一调用 `partitions.plugins.set@1`（覆盖个人空间与项目）。
+
 ## 1. 目标与保留边界
 
 **首要问题与证据：一骏 2026-10-27 明确反馈，至今还没有通过工作台完整跑通一次。** 因此工作台的真实用户端到端交付仍未通过，不能把旧文档的“已实现／已验收”、局部测试或生成答卷通过当作整条用户旅程已成立。具体卡点及根因尚未重新诊断；实施时须从真实任务复现，沿实际调用链定位，不能预设只是模型、提示词或 UI 的单点问题。

@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| <a id="bl-risk-sync"></a>BL-risk-sync | 已完成并删除 | 2026-11-22，M1-B1 随 [#2223](https://github.com/molis-ai/molis-work/pull/2223) 将项目风险接入个人空间同步。Risk 拥有 `risks` 集合及其版本 1 的便携格式，传递项目内风险、业务状态、历史和带类型的引用。项目目录负责项目的身份和删除。Schedule 管理复查任务和执行状态，接收风险只写风险记录、引用和历史。[AC-M1-01](../specs/personal-cloud-sync/plugin-replication.md#verification) 在两个隔离的个人 Home 上验证了首次接收、增量更新、并发冲突、显式解决和删除标记，以及收到无效字段、重复历史事件或跨项目标识时保留原记录和历史。[Risk 回归用例](../tests/risk-plugin.test.ts#L13)。2026-11-23 用户确认结项。 |
 | BL-586 | 已完成并删除 | 2026-11-22：第 47 批 47-1（子分支 `47/one-platform`）。用户定范围为「Home 一份＋项目一份」：另一位发布者用同一插件编号签的包是另一个插件，范围按「插件编号＋发布者」记（S-80），项目页的舞台、目录、语言文件与「隐藏」各按自己的安装；验收用例 `tests/home-installed-plugins.test.ts`「BL-586 …」。同一范围里两家并存另记 BL-same-id-same-range |
 | BL-925 | 随决定 66 退役并删除 | 2026-11-22，[决定 66](../specs/post-anticorruption-roadmap/reference/decisions.md#decision-66)（[特殊逻辑平民化](../specs/plugin-specials-demotion/spec.md)、[统一工作分区](../specs/unified-partition-plugins/spec.md)）：Shelf 收归纯平台 `modules/shelf`（`system.shelf`），`dual_instance` 双实例机制整体废除归零，「第 3 个双实例插件出现时重评 Manifest 实例分节」的触发条件永不成立，直接关闭删除。 |
 | BL-plugin-release-module-source | 已完成并删除 | 2026-11-21 第 103 批 103-1（[#2205](https://github.com/molis-ai/molis-work/pull/2205)，`1faf24dbf0`）：`HOST_BUILD_TRUST` 内置插件在 `persistReleaseArtifact` 不再捕获与写入 `module_source`（仅保留 Manifest），第三方原生安装包仍保留 `module_source` 与回退恢复，旧库既有行继续合法读取不做迁移；见 [103.md](../specs/post-anticorruption-roadmap/reference/batches/103.md) |

@@ -43,7 +43,7 @@ function hostIntegration(file: IntegrationBody["files"][number], locale: ActionL
   return renderDiff({ labels: DIFF_LABELS, view, fold_context: 3, sides: false, primitives: pagePrimitives(locale) });
 }
 
-test("PG062-09: Coding's change reader and integration preview draw their own markup and patch, as the Host drew them, in the page's language", async () => {
+test("SCC-04 PG062-09: Coding's change reader and integration preview draw their own markup and patch, as the Host drew them, in the page's language", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-change-html-")), path = join(root, "board.db");
   await seedConfiguredModels(root); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), sessions = codingSessions(store);
@@ -144,7 +144,7 @@ test("PG062-09: the Host no longer draws Coding's change reader or integration p
   }
 });
 
-test("DEL-06: multi-step net change handles delete-then-recreate as modified and refuses create-then-delete contradiction", async () => {
+test("SCC-04 DEL-06: multi-step net change handles delete-then-recreate as modified and refuses create-then-delete contradiction", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-change-html-del-")), path = join(root, "board.db");
   await seedConfiguredModels(root); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), sessions = codingSessions(store);

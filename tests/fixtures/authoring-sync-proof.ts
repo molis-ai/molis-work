@@ -65,9 +65,7 @@ export async function proveAuthoringSync(t:TestContext,o:Options):Promise<void>{
   assert.equal(o.storage.get(owner.key),raw,'the actual running preview protects the original authoring document');
   call.release();await call.settled;
   const inspected=client.inspectConflict(namespace,key);assert.ok(inspected);uploads.push(...o.codec.encode(key,inspected.local).blobs);
-  // Keeping the local copy uploads every author file, and one press has a bounded number of requests (32): past that the answer is
-  // "continue", with what was sent remembered, and the next press goes on from there (BL-sync-conflict-keep-one-press). Any other answer fails.
-  for(let press=1;;press++){try{await client.resolve(namespace,key,'remote',100);break;}catch(error){const again=error as {code?:string;details?:{sync_resume?:boolean}};if(press>=4||again.code!=='sync_replication.sync_busy'||again.details?.sync_resume!==true)throw error;}}
+  await client.resolve(namespace,key,'remote',inspected.revision,inspected.state);
   assert.equal(client.status().error,null,'a settled cached runner is not an active operation');
   const adopted=JSON.parse(o.storage.get(owner.key)!) as typeof original;assert.equal(adopted.builds.find(b=>b.id===o.itemId)!.revision,original.builds.find(b=>b.id===o.itemId)!.revision+1);
  }finally{call.release();await call.settled.catch(()=>undefined);client.close();download.mock.restore();}

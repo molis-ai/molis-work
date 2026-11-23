@@ -1,4 +1,4 @@
-import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import type { CodingChangeSet, TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { alignSplitRows, compareTexts, textDiffRow } from "./text-diff.js";
 import { hunkRows, parseUnifiedDiff } from "./unified-diff.js";
 
@@ -108,6 +108,32 @@ export function compareChange<Group extends string>(group: Group | null, sides: 
     empty: diff.empty,
     rows: diff.ops.map(textDiffRow),
   };
+}
+
+/** One entry of a fixed Coding change set by index, or the first entry matching a path. An unavailable selection still lists the files. */
+export function compareCodingChangeSet(
+  change: CodingChangeSet,
+  source: Pick<DiffSide, "source_plugin_id" | "content_version">,
+  selection: number | string,
+  messages: { empty: string; missing: string; recovery: string },
+): DiffView<"change-set"> {
+  const group = "change-set";
+  const files = change.files.map(({ path, kind, added_lines, removed_lines }) => ({ path, kind, added_lines, removed_lines }));
+  if (files.length === 0) return emptyDiffView(group, messages.empty, "ready", messages.recovery);
+  const chosen = typeof selection === "number" ? change.files[selection] : change.files.find(file => file.path === selection);
+  if (!chosen) return { ...emptyDiffView(group, messages.missing, "unavailable", messages.recovery), files };
+
+  const side: DiffSide = {
+    workspace_id: change.origin.workspace_id,
+    workspace_name: change.origin.workspace_name,
+    path: chosen.path,
+    source_plugin_id: source.source_plugin_id,
+    content_version: source.content_version,
+  };
+  return { ...compareChange(group, { before: side, after: { ...side } }, {
+    before: chosen.review.before_text ?? "", after: chosen.review.after_text,
+    created: chosen.review.before_text === null, removed: chosen.kind === "deleted",
+  }), files };
 }
 
 /**

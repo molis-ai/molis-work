@@ -342,9 +342,18 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${WORKBENCH} .immersive-home .home-erow:active { background: var(--nav-press); }
   /* Arrival plays once per surface (\`is-arriving\`, set on its first reveal); showing Home again does not replay it. */
   ${WORKBENCH} .immersive-home.is-arriving .home-focus { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  /* The cascade marks arrival — the list's first load or another day — never a background refresh or a click. */
-  ${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > * { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > :nth-child(${index + 1}) { animation-delay: ${30 + index * 24}ms; }`).join("\n  ")}
+  /* These lists cascade on first arrival (or a new timeline day). After four rows, the rest are already visible. */
+  :is(
+    ${WORKBENCH} .immersive-home .home-tl__rows[data-arrive],
+    ${WORKBENCH} .is-arriving .plugin-market-list,
+    ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list,
+    .mw-catalog .mw-motion-list.is-arriving
+  ) > :nth-child(-n + 4) {
+    animation: craft-rise var(--dur-arrive) var(--ease-quint) both;
+    &:nth-child(2) { animation-delay: var(--dur-stagger); }
+    &:nth-child(3) { animation-delay: calc(var(--dur-stagger) * 2); }
+    &:nth-child(4) { animation-delay: calc(var(--dur-stagger) * 3); }
+  }
 
   /* ─── Feed: a lone source tab is not a choice (the column itself lives in the Feed plugin stylesheet) ─── */
 
@@ -429,11 +438,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${WORKBENCH} .plugin-market-body .mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn) > .plugin-market-copy { flex: 1 1 calc(100% - 64px); }
   ${WORKBENCH} .plugin-market-icon { border-radius: 8px; background: var(--nav-hover); color: var(--ink-soft); }
   ${WORKBENCH} .plugin-market-installed-row > * { transition: border-color var(--dur-hover) var(--ease-quint); }
-  ${WORKBENCH} .is-arriving .plugin-market-list > * { animation: craft-rise 420ms var(--ease-quint) both; }
-  ${[...Array(10).keys()].map((index) => `${WORKBENCH} .is-arriving .plugin-market-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
-  /* A plugin's list arrives once, the first rows in order (at most 12); a refresh or a return never replays it. */
-  ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
 
   /* ─── Drag and drop ─── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
@@ -527,8 +531,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   .mw-catalog .mw-motion-tabs .tab-item[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   .mw-catalog .mw-motion-list { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
   .mw-catalog .mw-motion-list > li { padding: 8px 12px; border-radius: 8px; background: var(--surface-soft); font-size: 13px; }
-  .mw-catalog .mw-motion-list.is-arriving > li { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  ${[...Array(5).keys()].map((index) => `.mw-catalog .mw-motion-list.is-arriving > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
   .mw-catalog .mw-motion-row-detail > summary { cursor: pointer; font-size: 13px; }
   .mw-catalog .mw-motion-row-detail > p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
   .mw-catalog .mw-motion-pages > section { padding: 16px; border-radius: 12px; background: var(--surface-soft); font-size: 13px; }

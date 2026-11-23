@@ -1,18 +1,11 @@
-import type { UiPageDrafts } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { UiClientTranslate, UiPageReviews, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientScope, UiClientTranslate, UiPageDrafts, UiPageReviews, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export type Translate = UiClientTranslate;
 
 /** The mounted root's lifetime (packages/ui-host client-lifecycle): what Git uses of it. */
-export interface GitLifetime {
-  readonly alive: boolean;
-  readonly visible: boolean;
+export interface GitLifetime extends Pick<UiClientScope, "alive" | "visible" | "whenVisible" | "assertCurrent" | "signal" | "watchRevision"> {
   listen(target: EventTarget, name: string, callback: (event: Event) => void): void;
-  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
-  assertCurrent(signal?: AbortSignal): void;
-  readonly signal: AbortSignal;
-  watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
 }
 
 /** How a Host review ended, as the review list tells the page. */

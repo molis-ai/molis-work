@@ -295,7 +295,7 @@ export interface SkillImportConfirmResult {
  * imported from this machine. Saving a Skill makes the package's next version; nothing else is kept. Each scope has its own id: a
  * plugin id keeps the scope it was first installed in, so one id for both would shut the second scope out for good.
  */
-export const SKILL_AUTHORED_PLUGIN_IDS = { home: "io.molis.work.my-skills.home", project: "io.molis.work.my-skills.project" } as const satisfies Record<SkillScope, string>;
+export const SKILL_AUTHORED_PLUGIN_IDS = { home: "my-skills.home", project: "my-skills.project" } as const satisfies Record<SkillScope, string>;
 /** What the person writes about a Skill of their own: the form's fields, nothing the Host fills in. */
 export interface SkillAuthoredFields {
   name: string;

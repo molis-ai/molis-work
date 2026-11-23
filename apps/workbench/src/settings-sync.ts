@@ -86,12 +86,13 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       };
       const poll=async()=>{
         if(control.signal.aborted)return;
-        const syncing=readText("workbench.settings-sync.syncing");
-        if(progress.hidden){
-          progress.textContent=syncing;
-          progress.hidden=false;
-        }
         try{
+          if(document.hidden)return;
+          const syncing=readText("workbench.settings-sync.syncing");
+          if(progress.hidden){
+            progress.textContent=syncing;
+            progress.hidden=false;
+          }
           const value=await molisWorkRequest('/api/sync?view=indicator',{headers:{'x-molis-sync-space':spaceId},signal:control.signal});
           const transfer=value?.transfer;
           if(control.signal.aborted||state?.policy?.spaceId!==spaceId||!value?.running||!(transfer?.total>0))return;

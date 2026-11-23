@@ -45,7 +45,7 @@ async function loadHead(page: BriefPage, options: { quiet?: boolean; finishWrite
     if (state.head === head && compared.version?.version === head.version?.version) { state.head = { ...head, changes: compared.changes ?? [] }; page.render(); }
   } catch (error) {
     state.loading = false;
-    // A failed background read leaves what is on show; only a first read with nothing to show says so in place.
+    // A background read can keep the last view. A failed reread after a write must offer a retry before enabling the old controls.
     if (state.head && options.quiet && !(options.finishWrite && state.busy)) return;
     if (options.finishWrite) state.busy = "";
     state.error = error instanceof Error && error.message ? error.message : text("error.failed");
@@ -177,7 +177,7 @@ async function onAct(page: BriefPage, action: string, value: string): Promise<vo
     case "pop": state.pop = state.pop === value ? "" : value; page.render(); return;
     case "then-now": state.thenNow = value === "now" ? "now" : "then"; page.render(); return;
     case "back": state.old = null; state.pop = ""; page.render(); return;
-    case "reload": state.error = ""; await loadHead(page); return;
+    case "reload": if (!state.loading) await loadHead(page); return;
     case "reload-personal": state.personalError = ""; state.personal = null; page.render(); await loadPersonal(page); return;
     case "refresh": await refresh(page); return;
     case "refresh-personal": {

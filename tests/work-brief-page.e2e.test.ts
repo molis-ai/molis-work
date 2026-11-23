@@ -38,7 +38,11 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
     target[key] = key === "work-brief" ? host => {
       const invoke = host.invokeAction.bind(host);
       host.invokeAction = async (action, input) => {
-        if (window.holdBriefRead && action.capability_id === "work-brief.briefs.get") {
+        if (action.capability_id === "work-brief.briefs.get" && !input.compare_with && window.failBriefRead) {
+          window.failBriefRead = false;
+          throw new Error("brief read interrupted");
+        }
+        if (window.holdBriefRead && action.capability_id === "work-brief.briefs.get" && !input.compare_with) {
           window.briefReadStarted = true;
           await window.holdBriefRead;
         }
@@ -207,7 +211,15 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
     assert.equal(await evaluate(`${has(act("run-next", freshStep))}.disabled`), true);
   } finally { await evaluate("window.holdBriefRead = null; window.releaseBriefRead()"); }
   await waitFor(has(act("undo-next", freshStep)));
+  await evaluate("window.failBriefRead = true");
   await click(act("undo-next", freshStep));
+  await waitFor(has(act("reload")));
+  await evaluate("window.briefReadStarted = false; void (window.holdBriefRead = new Promise(resolve => { window.releaseBriefRead = resolve; }))");
+  await click(act("reload"));
+  await waitFor("window.briefReadStarted === true");
+  try {
+    assert.equal(await evaluate(`Boolean(${has(act("undo-next", freshStep))} || ${has(act("skip-next", freshStep))})`), false, "retry keeps the error view until the latest card arrives");
+  } finally { await evaluate("window.holdBriefRead = null; window.releaseBriefRead()"); }
   await waitFor(has(act("skip-next", freshStep)));
   await call(workBriefActions.runNext, step);
   await click(act("skip-next", freshStep));

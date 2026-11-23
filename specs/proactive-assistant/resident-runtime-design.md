@@ -4,6 +4,10 @@
 
 验收编号用 `RES-` 前缀，在 §9 列出；它们细化 PWA-27、PWA-137。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（`106`/`108`）：休眠分区的到期工作（Todo 提醒、Jelly 日程、Images 队列及对齐 `#2257` 的 Feed 唤醒）统一改走平台 `horizontal/scheduler` 到期登记，到点只唤醒单分区的单插件实例（`S-partition-wake-scope`）；个人空间总览读声明式 `overview_projection` 索引取代 `home_aggregate` 与 `#2254` 过渡静息读数，同时严格保留第 `95-3` 批 7 天漏跑过期语义。
+
 ## 0. 给人讲清楚
 
 Molis Work 关掉窗口后还在后台跑，可你看不到它在做什么；电脑睡一觉醒来，定时任务会悄悄补跑一次，错过了什么你也不知道；退出时不提醒哪些事不会再做。这一步做五件事：

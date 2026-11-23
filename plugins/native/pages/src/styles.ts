@@ -403,9 +403,14 @@ export const PAGES_STYLES = `
   }
   .pages-move-menu .mw-menu__item.is-current { font-weight: 600; }
   .pages-folder-group { margin-block-end: 12px; }
-  @media (min-width: 761px) {
+  body.immersive-workbench [data-pages="directory"] .pages-folder-group .pages-doc-row > .pages-doc-cell > .mw-stage-entry {
+    padding-inline-start: 24px;
+  }
+  @container plugin-stage (min-width: 761px) {
     .pages-folder-group { margin-block-end: 16px; }
-    .pages-folder-group .mw-stage-entry { padding-inline-start: 32px; }
+    body.immersive-workbench [data-pages="directory"] .pages-folder-group .pages-doc-row > .pages-doc-cell > .mw-stage-entry {
+      padding-inline-start: 32px;
+    }
   }
   .pages-folder-row {
     display: flex; align-items: center; gap: 4px;

@@ -67,6 +67,8 @@ function startEngine(limits: StatementMemoryLimits, upgrade: boolean): Worker {
     const request = pending;
     if (ending || !request || request.id !== reply.id) return;
     if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
+    checkMemory();
+    if (ending) return;
     if ("ready_to_commit" in reply) {
       if (request.op !== "commit" || !request.decision || !transaction || reviewPrepared) {
         end({ fatal: "process", message: "意外的事务提交请求" });

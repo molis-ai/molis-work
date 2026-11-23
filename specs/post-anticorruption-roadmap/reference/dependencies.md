@@ -257,7 +257,7 @@ flowchart LR
 | 36 | 角色和主线服务已合入（[#2111](https://github.com/molis-ai/molis-work/pull/2111)，`bdfcc36454`）。前置 03、05、13、15、28、32 均已合入，层次合同已先于 20 合入；37 的事项切换与 53、64 的事项来源接主线服务。ROLE-14 待本人验收 | [36](batches/36.md) |
 | 35-2、41、43-1 | SDK 缺口已由 24 核实：只有 LSP、自动选用、子代理与续跑入口那一部分等 31-1，其余先做 | [35](batches/35.md)、[41](batches/41.md)、[43](batches/43.md) |
 | 37-1 | 不再写死等 19：基础首页回退已由 15-3 做完；19 的综合首页只在页面要挂上去时才等 | [37](batches/37.md) |
-| 37-1、52-1 | 19 的实现已给出首页主区内容（`overview.lead`）与简报的保存、刷新动作：37-1 定「已采用的生成页面优先于主区内容」；52-1 用 `work-brief.briefs.save@1`、`refresh@1`，不另建存储（2026-11-14，随第 19 批的 PR） | [19](batches/19.md)、[37](batches/37.md)、[52](batches/52.md) |
+| 37-1、52-1 | 19 的实现给过首页主区内容（`overview.lead`，2026-11-22 已删，决定 62 ③，37-1 不再需要定它与生成页面谁优先）与简报的保存、刷新动作；52-1 用 `work-brief.briefs.save@1`、`refresh@1`，不另建存储（2026-11-14，随第 19 批的 PR） | [19](batches/19.md)、[37](batches/37.md)、[52](batches/52.md) |
 | 44-6 | 加上批前置里的 41-2（删 Goals Home 半实例，已合入 [#2078](https://github.com/molis-ai/molis-work/pull/2078)）与 06 的宿主调用结论；截止说明改为片 1 与片 7 | [44](batches/44.md) |
 | 47-2 | 等 26-5 的 U4、26-7 的 Manifest 状态声明、26-8 的只报告词汇检查 | [47](batches/47.md) |
 | 48 | 57 只再验正式产物，不是本批前置 | [48](batches/48.md) |
@@ -528,7 +528,7 @@ flowchart LR
 
 | 批次／项 | 真实前置与精确范围 | 文件 |
 | --- | --- | --- |
-| `91-0a`（新） | 无前置，立即可做（纯文档 / Skill / 设计稿归档与统一样板 `docs/design/kit/`）：新增仓内 Skill `skills/molis-design-ui/` 与多代理接线；对齐 `DESIGN.md`／`taste.md`／`shell-page-exceptions` 等规范文档；`docs/design/` 59→9 归档与 `screen-polish` 定稿六屏刷新 | [91](batches/91.md#batch-91-item-0a) |
-| `91-0b`（新） | 等 `91-0a`（不依赖 `36A-3`、`37-2` 或 Prologue 窗口 A；与 `102-1` 的 `<80 KB` 插件基础样式表正交协同）：落 4 套内置皮肤＋暗色 `on-accent` 修复、F1 Sans＋思源黑体三字重、纸感边框／6px 状态标签与 CSS 漂移清扫（含 40 批 `on-demand-help.ts` 与 `im-ui` 补齐）、交付原 `91-1` 全站体验共用底座、重构 `/__ui/catalog` 93 节、统一全部 30 个设置页到 P5，并同步校准 `skills/molis-design-ui/` 与 `skills/molis-plugin-dev/`（`studio:replay`＋隔离 `smoke`） | [91](batches/91.md#batch-91-item-0b) |
+| `91-0a`（新） | **已合入**（[#2221](https://github.com/molis-ai/molis-work/pull/2221)，`51bf5e1f02`，2026-11-22）：新增仓内 Skill `skills/molis-design-ui/` 与多代理接线；对齐 `DESIGN.md`／`taste.md`／`shell-page-exceptions` 等规范文档；`docs/design/` 59→9 归档与唯一 `docs/design/kit/` | [91](batches/91.md#batch-91-item-0a) |
+| `91-0b`（新） | **已合入**（[#2222](https://github.com/molis-ai/molis-work/pull/2222)，`57a6fad615` 及补清小修，2026-11-22）：落 4 套内置皮肤＋暗色 `on-accent` 修复、F1 Sans＋思源黑体三字重、纸感边框／6px 状态标签与 CSS 漂移清扫（含 40 批 `on-demand-help.ts` 与 `im-ui` 补齐）、交付原 `91-1` 全站体验共用底座（同步纳入 `<80 KB` 插件基础样式表）、重构 `/__ui/catalog` 93 节、统一全部 30 个设置页到 P5，并同步校准 `skills/molis-design-ui/` 与 `skills/molis-plugin-dev/`（`studio:replay`＋隔离 `smoke`）；`91B` 与 `91A` 对 `91-0b` 的前置已满足 | [91](batches/91.md#batch-91-item-0b) |
 | `91A`（`91-2`～`91-4`） | 保持等 `91-0b`（含 `91-1` 底座）、`101`、`36A-3`/`4b`/`7`、`37-2` 与 Prologue 窗口 A，专注纯流式内核、Agent Host 热路径止血、Assistant 与 Coding SSE 接入 | [91](batches/91.md) |
 | `91B` | 紧接 `91-0b` 可并行推进 `91B-1`～`3`（补齐决定 60 漏接的 6 处平台入口／壳层／静默吞错断缝，不重复 `101` 已修的 5 个 P0）；`91B-4` 收口五层防回退门禁（含无未定义 `--*`、无遗留 `--dock-h`、无裸 `style=`、`on-accent` 暗色对比度 AA、目录与样板门禁） | [91B](batches/91b.md) |

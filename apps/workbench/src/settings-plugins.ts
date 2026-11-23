@@ -313,7 +313,7 @@ panel.append(el("p", "settings-muted", readText(shown.runtime_scope === "home" ?
 const was = (shown.runtime_scope === "home" ? personal : current).find((plugin) => plugin.plugin_id === view.plugin_id);
 if (was) panel.append(el("span", "", readText("workbench.settings-plugins.installed-installing-upgrades-its-data-kept", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));
-globalThis.molisSkillUI?.preview(panel, shown.skills);
+globalThis.molisSkillUI?.preview(panel, shown.skills, shown.skill_scenes);
 if (shown.requires?.length) panel.append(group(readText("workbench.settings-plugins.required-capabilities"), "", shown.requires.map(item => row(item.capability_id, item.reason, readText(item.satisfied ? "workbench.settings-agent-diagnostics.present" : "workbench.settings-plugins.not-available")))));
 if (shown.origins?.length) panel.append(group(readText("workbench.settings-plugins.service-addresses-may-access"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
 if (shown.memory_scene_after_restart) panel.append(el("p", "settings-muted", readText("workbench.settings-plugins.memory-scene-after-restart")));

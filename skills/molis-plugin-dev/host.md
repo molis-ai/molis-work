@@ -203,7 +203,7 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 
 已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
 
-`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Git、Diff、Text stats（Shelf 是 `native`，同样由监督器启动）。启动按各自登记的 `project_runtime`；Coding 族的工作面由 `project-plugin-stages.ts` 按声明画（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，也不接受调用方塞进路由前后的步骤；工作区的变化（含项目设置里换目录）经 `host.workspace.changed@1` 广播给订阅的插件，Git 收到后重新确认要看的文件夹。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
+`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Git、Diff（Shelf 是 `native`，同样由监督器启动）。启动按各自登记的 `project_runtime`；Coding 族的工作面由 `project-plugin-stages.ts` 按声明画（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，也不接受调用方塞进路由前后的步骤；工作区的变化（含项目设置里换目录）经 `host.workspace.changed@1` 广播给订阅的插件，Git 收到后重新确认要看的文件夹。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
 
 `start(context)` 返回 `kind: "app"`，并且：
 
@@ -221,7 +221,7 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 
 路由也是一次调用（BL-403）：Plugin Runtime 派发路由时给它记一个和动作同样的作用域，处理器答复以后这次调用结束。激活撤下时（停用、崩溃、重启），还在等的请求由 Runtime 当场答 403（`actions.forbidden`），这次调用随之结束，处理器之后再调服务照上一段什么也不做；谁留着旧激活的路由再调，也是 403，处理器不会跑。流式路由（`stream: "ndjson"`）不提前答，由路由器取消那次调用（`actions.cancelled`）。路由处理器抛出带我们的码的错误（`defineErrorCodes` 声明的、`ActionError`，别的包里同样形状的也算），Runtime 按它的 kind 答，响应体带码和 `details`（BL-404），手写路由不用自己写 catch；没有码的错误交给宿主，答通用的「请求未能完成」，不带原消息。
 
-Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 `system.materials` 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
+最小的端口消费者形状在测试夹具 `tests/fixtures/snapshot-reader-plugin.ts`：一个必选输入口、一个读取状态的动作，无界面、无存储、无事件（它只给测试用，不进内置目录）；完整的插件样板是 `examples/plugin-sample`。新端口消费者先抄夹具的声明形状，再抄 Diff 的 `input_groups`。输入口声明 `default_source` 时，默认连线把它接到那个来源（夹具与 Diff 都接 `system.materials` 的快照）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
 宿主动作由 Module/Host 自己登记（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，宿主动作（模型起草 `agent.draft-text`、工作区读取、Git 的暂存与操作准备及两项读取、Agent Host 的会话与轮次）和调别的动作一样经 `services.actions.invoke` 调，调用之前可用 `services.actions.availability` 只读查它在不在，按本插件自己的授权（起草要 `model:invoke`，Git 的暂存与操作要 `review:git-index`、`review:git-operation`）；宿主那边只有 `registerAction` 一个登记口（R8 删掉了 typed 的 `register` / `registerCapability` 与 `services.capabilities`）。
 

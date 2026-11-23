@@ -54,7 +54,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | kind | 何时 | 现在 |
 | --- | --- | --- |
 | `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（登记上的 `project_runtime` 或 `runtime`，例如 Shelf 两个都写）；构建期装配只剩用户批过的两个例外（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | Runtime 装配：两个例外以外的全部内置插件（以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）；构建期（批过的例外）：Alchemist、插件创作台 |
-| `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Git、Diff、Text stats |
+| `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Git、Diff |
 | `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
 
 没跑在 Runtime 里就不要标 `app`。插件不 import 另一个插件的 implementation。
@@ -68,7 +68,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 判断该亮哪颗按钮 | 消费判断场景 | Feed 捕捉、Inbox 下一步（判断规则本身是系统能力，编辑器在「能力」） |
 | 还没想清楚的一条 | 岛 | 灵光（`island`） |
 | 到点跑任务 | 定时 | Schedule（native + agent） |
-| 工作区文件/对比 | 端口图 | Text stats（最小）、Diff、Git；文件快照的来源是平台资料服务 `system.materials` |
+| 工作区文件/对比 | 端口图 | Diff、Git（最小形状见测试夹具 `tests/fixtures/snapshot-reader-plugin.ts`）；文件快照的来源是平台资料服务 `system.materials` |
 | Agent 写代码 | Runtime app | Coding |
 | GitHub 通知 | 接入 | GitHub；有 OAuth 再看 Gmail |
 
@@ -116,7 +116,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 给别的插件打招呼 | 仅经 Plugin Runtime 启动的插件：`events` + `onEvent` | 给构建期 Native 抄 `events:` 块；把正文塞进事件 |
 | 留下人要留存、引用的结果 | `artifacts.produces`（成果，进成果库） | 用 Artifact 当页面 RPC；把交给别的插件的数据也写成成果 |
 | 把数据交给别的插件 | `process_items.produces` + `ports.outputs`（过程项，不进成果库） | 写进成果库让人看到 |
-| 消费别人产出的类型 | `ports.inputs`（Text stats） | 指定生产者插件 |
+| 消费别人产出的类型 | `ports.inputs`（Diff） | 指定生产者插件 |
 | 拉外部世界 | integration + Signals/Feed | 在 native 里写死 provider |
 
 ## 接到哪里（写完声明立刻看）

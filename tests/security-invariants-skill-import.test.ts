@@ -17,7 +17,7 @@ import { MemoryPluginConsentLedger, signPluginPackage, verifyPluginPackageSignat
 import { contentPackageDraft, contentPackagePayload, parseContentPackage, skillDeclarationFromFrontmatter, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions, pluginInstallProvider, suggestedAppliesTo } from "@molis-ai/molis-work-app-local-host";
-import { newPublisher } from "./fixtures/sandbox-package.js";
+import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 
 // S-skill-import (batch 08, 08-8): importing Skills from this machine reads only the chosen local Agent's Skills folders (Character
@@ -476,4 +476,49 @@ test("SKC-10 imported versions span projects, selections and uninstall without o
     assert.equal(upgraded.version, "5.0.0");
     assert.deepEqual(h.packages.load(upgraded.plugin_id, first.publisher_key_id, upgraded.version).packaged!.manifest.upgrade_compatibility?.compatible_from_versions, ["2.0.0"]);
   } finally { await h.done(); }
+});
+
+test("BL-skill-settings-installed-plugin-scenes S-skill-import: local Skill import lists active third-party sandbox scenes, binds them in scope, and refuses them immediately after disable", mac, async () => {
+  const userHome = await mkdtemp(join(tmpdir(), "molis-work-import-scenes-")), was = process.env.HOME;
+  process.env.HOME = userHome;
+  try {
+    await writeSkill(join(userHome, ".claude", "skills"), "plain", skillMd(["name: plain", "description: 整理田野记录时使用。"]));
+    const h = await installedPackageHost();
+    try {
+      const person: ActionCallContext = { ...h.person, permissions: [...h.person.permissions, SKILLS_MANAGE_PERMISSION, SKILLS_READ_PERMISSION] };
+      const previewRef = { capability_id: skillImportActions.preview.capability_id, version: skillImportActions.preview.version };
+      const input = { source: { kind: "runtime", runtime_id: "claude-code" } };
+
+      await h.install(signedPackage(newPublisher(), undefined, { pluginId: "io.molis.work.example.import-scene", name: "Import Scene", memoryScene: "import-scene" }));
+
+      const preview = await h.client.invoke(person, previewRef, input) as { preview_id: string; scenes?: Array<{ scene: string; name: string; scope?: string }> };
+      assert.ok(preview.scenes?.some(row => row.scene === "import-scene" && row.name === "Import Scene" && row.scope === "project"));
+
+      // Binding to a project-only scene when confirming into `home` scope is refused.
+      await assert.rejects(
+        h.client.invoke(person, confirming, { preview_id: preview.preview_id, skill_ids: ["plain"], scope: "home", applies_to: [{ skill_id: "plain", applies_to: "import-scene" }] }),
+        refused("skills.import_applies_to_invalid"),
+      );
+
+      // Binding to the active scene in `project` scope succeeds.
+      const preview2 = await h.client.invoke(person, previewRef, input) as { preview_id: string };
+      const imported = await h.client.invoke(person, confirming, {
+        preview_id: preview2.preview_id, skill_ids: ["plain"], scope: "project", applies_to: [{ skill_id: "plain", applies_to: "import-scene" }],
+      }) as { plugin_id: string };
+      const catalog = await h.client.invoke(person, { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as { skills: SkillCatalogEntry[] };
+      assert.equal(catalog.skills.find(skill => skill.pack.plugin_id === imported.plugin_id && skill.ref.skill_id === "plain")?.applies_to, "import-scene");
+
+      // Disabling the plugin immediately removes the scene from preview and refuses confirm.
+      await h.control("disable", { plugin_id: "io.molis.work.example.import-scene" });
+      const preview3 = await h.client.invoke(person, previewRef, input) as { preview_id: string; scenes?: Array<{ scene: string }> };
+      assert.equal(preview3.scenes?.some(row => row.scene === "import-scene"), false);
+      await assert.rejects(
+        h.client.invoke(person, confirming, { preview_id: preview3.preview_id, skill_ids: ["plain"], scope: "project", applies_to: [{ skill_id: "plain", applies_to: "import-scene" }] }),
+        refused("skills.import_applies_to_invalid"),
+      );
+    } finally { await h.close(); }
+  } finally {
+    if (was === undefined) delete process.env.HOME; else process.env.HOME = was;
+    await rm(userHome, { recursive: true, force: true });
+  }
 });

@@ -41,7 +41,7 @@ test('PCSYNC-22 current built-in bindings all name a declared collection exactly
 });
 
 test('AC-M1-03 all 21 persistent built-ins resolve through static bindings or an active Runtime owner', {timeout: 120_000}, async t => {
- const excluded = new Set(['diff', 'git', 'text-stats']);
+ const excluded = new Set(['diff', 'git']);
  const expected = ['alchemist', 'coding', 'cognia', 'dataset', 'feed', 'form', 'goals', 'images', 'inbox', 'issues', 'jelly',
   'lingguang', 'pages', 'plugin-builder', 'ppt', 'risk', 'schedule', 'shelf', 'todo', 'work-brief', 'workflows'];
  const catalog = BUILTIN_PLUGIN_CATALOG.filter(entry => !excluded.has(entry.project_plugin_id));

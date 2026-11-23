@@ -254,7 +254,32 @@ test("91-0b layout measure/master tokens and plugin-frame dependencies stay avai
     "--celebrate-a:",
     "--celebrate-b:",
     "--celebrate-c:",
+    ".mw-badge--chip",
+    ".mw-glyph-status",
+    ".mw-signal-dot",
+    ".mw-signal",
+    ".mw-tabs__list--underline",
+    ".mw-section-well",
+    ".mw-inset-group",
+    ".mw-inset-row",
   ]) {
     assert.ok(base.includes(token), `molis-work-plugin-base.css must keep ${token}`);
   }
+  const hoistedReducedMotion = base.slice(base.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(!/>\s*summary::before/.test(hoistedReducedMotion),
+    "nested > summary::before rule must not be hoisted to top-level @media(prefers-reduced-motion)");
+  assert.ok(base.indexOf(":is(.mw-input-group, .mw-number):focus-within") > base.indexOf(".mw-input-group {"),
+    ".mw-input-group:focus-within must follow .mw-input-group hover rules in cascade");
+  assert.ok(base.indexOf('&[aria-invalid="true"]') > base.indexOf(":is(.mw-input-group, .mw-number):focus-within"),
+    "field aria-invalid/disabled rules must follow FIELD_FOCUS in cascade");
+  assert.ok(base.indexOf(".mw-input-group .mw-input, .mw-number .mw-input") > base.indexOf('&[aria-invalid="true"]'),
+    "nested input reset must follow field aria-invalid rules in cascade");
+  assert.ok(base.lastIndexOf(".mw-pagination__page, .mw-choice, .mw-calendar__day, .mw-dir-row):focus-visible") > base.indexOf(".mw-choice {"),
+    ".mw-choice:focus-visible must follow .mw-choice selected rules in cascade");
+  assert.ok(base.includes("--mw-fs:0px") && base.includes("--mw-fe:0px"),
+    "overflow-fade length tokens must retain px unit so calc(100% - var(--mw-fe)) never becomes IACVT");
+  assert.ok(
+    base.lastIndexOf(".mw-diff-rows, .mw-diff-file-n, .mw-diff-counts { font-variant-numeric:tabular-nums; }") > base.indexOf("font:11px/18px var(--font-mono)"),
+    "diff tabular-nums must follow font shorthands in cascade so font: does not reset font-variant-numeric",
+  );
 });

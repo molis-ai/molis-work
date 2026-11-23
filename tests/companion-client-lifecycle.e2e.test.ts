@@ -215,7 +215,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   assert.deepEqual(await page.evaluate("errors"), []);
 });
 
-for (const name of ["git", "diff", "text-stats"]) {
+for (const name of ["git", "diff"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
     const body = name === "git" ? gitMarkup() : fixedMarkup;
     const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `

@@ -19,7 +19,7 @@ import {
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
-import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { SNAPSHOT_READER, snapshotReaderPlugin } from "./fixtures/snapshot-reader-plugin.js";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -78,7 +78,7 @@ test("四个插件在真平台上一起起来，没有一个被依赖挡住", as
     const report = await platform.start([
       { definition: createDiffPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } },
-      { definition: createTextStatsPlugin(), trust: { level: "host" } },
+      { definition: snapshotReaderPlugin(), trust: { level: "host" } },
       { definition: createCodingPlugin(), trust: { level: "host" } },
     ]);
     assert.deepEqual(report.failed, []);
@@ -86,7 +86,7 @@ test("四个插件在真平台上一起起来，没有一个被依赖挡住", as
     assert.equal(report.running.includes("io.molis.work.workspace"), false);
     assert.equal(report.running.includes(DIFF_PLUGIN_ID), true);
     assert.equal(report.running.includes(GIT_PLUGIN_ID), true);
-    assert.equal(report.running.includes(TEXT_STATS_PLUGIN_ID), true);
+    assert.equal(report.running.includes(SNAPSHOT_READER.plugin_id), true, "an app with a required input starts before anything is bound");
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -104,7 +104,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
       { definition: capturing(createCodingPlugin(), context => { coding = context; }), trust: { level: "host" } },
       { definition: createShelfPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } },
-      { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
+      { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
@@ -130,7 +130,7 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
   try {
     await platform.start([
       { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } },
-      { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
@@ -156,14 +156,13 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
 });
 
 test("端口声明里的类型两两对得上，连线才可能是合法的", () => {
-  // The platform's materials source hands on what the person fixes from the project's folders (Diff's and Text Stats' snapshots).
+  // The platform's materials source hands on what the person fixes from the project's folders (Diff's snapshots).
   const outputs = new Map<string, { type: string; version: number }>(SYSTEM_MATERIALS_SOURCE.outputs.map(port =>
     [`${SYSTEM_MATERIALS_SOURCE.plugin_id}:${port.port}`, { type: port.artifact_type_id, version: port.schema_version }]));
   const manifests = [
     createShelfPlugin().manifest,
     createDiffPlugin().manifest,
     createGitPlugin().manifest,
-    createTextStatsPlugin().manifest,
     createCodingPlugin().manifest,
   ];
   for (const manifest of manifests) {
@@ -192,7 +191,6 @@ test("每个插件声明的视图都有对应的 contribution", () => {
   for (const definition of [
     createDiffPlugin(),
     createGitPlugin(),
-    createTextStatsPlugin(),
   ]) {
     const manifest = definition.manifest;
     const declared = new Set(manifest.ui.contributions);

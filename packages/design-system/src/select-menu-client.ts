@@ -13,7 +13,6 @@ export const SELECT_MENU_STYLES = `
       padding-right: 22px;
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236d6d76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E") right 4px center/12px 12px no-repeat;
     }
-    [data-mw-select-label] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   .mw-select-picker__menu {
     position: fixed; margin: 0; inset: unset; box-sizing: border-box;

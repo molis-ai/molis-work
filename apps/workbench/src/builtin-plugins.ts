@@ -21,7 +21,6 @@ import { registration as pptRegistration } from "@molis-ai/molis-work-plugin-ppt
 import { registration as riskRegistration } from "@molis-ai/molis-work-plugin-risk/registration";
 import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugin-schedule/registration";
 import { registration as shelfRegistration } from "@molis-ai/molis-work-plugin-shelf/registration";
-import { registration as textStatsRegistration } from "@molis-ai/molis-work-plugin-text-stats/registration";
 import { registration as todoRegistration } from "@molis-ai/molis-work-plugin-todo/registration";
 import { registration as workBriefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
 import { registration as workflowsRegistration } from "@molis-ai/molis-work-plugin-workflows/registration";
@@ -49,7 +48,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   codingRegistration,
   gitRegistration,
   diffRegistration,
-  textStatsRegistration,
   riskRegistration,
   workBriefRegistration,
 ];

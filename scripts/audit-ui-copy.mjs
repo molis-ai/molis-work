@@ -9,7 +9,7 @@ import { isMainScript } from "./script-paths.mjs";
 const CATALOG_SPECIMEN_KEY = /(?:^workbench\.env\.|\b(?:catalog|specimens?|board-frame|style-probe)\b)/u;
 
 // Developer-focused surfaces (Tier B in text-and-appearance.md): retain standard developer nouns (Git, MCP, CLI, API Key) while banning internal/retired jargon.
-const TIER_B_FILE = /^(?:plugins\/native\/(?:coding|git|diff|text-stats)\/|plugins\/official-integrations\/|plugins\/content\/)/u;
+const TIER_B_FILE = /^(?:plugins\/native\/(?:coding|git|diff)\/|plugins\/official-integrations\/|plugins\/content\/)/u;
 const TIER_B_KEY = /^(?:common\.connector\.|workbench\.(?:mcp-access|settings-agent-diagnostics|settings-call-diagnostics|settings-work-records|settings-connector|connector-|connection-service|call-row|agent-[a-z-]+-prompt|settings-prompts)\.)/u;
 
 const ZH_RULES = [

@@ -55,8 +55,11 @@ on macOS; application packaging must verify its bundled Node against the same te
 
 Limits cover admission, in-flight SDK calls, rolling call/event budgets, channel size,
 V8 heap, external resident memory, operation/startup/service wall time, and total process
-CPU. CPU is a process-lifetime budget, not a per-operation allocation. The host samples RSS
-and CPU every 200 ms; OS scheduling can exceed that interval. Limits terminate the process
+CPU. CPU is a process-lifetime budget, not a per-operation allocation. All active sandbox
+runners share one host-wide `BatchProcessMonitor` (`src/process-monitor.ts`) that runs a
+single batched `/bin/ps` poll every 200 ms while at least one runner is registered (zero
+idle timers when none are active) and isolates per-runner callback faults; OS scheduling
+can exceed that interval. Limits terminate the process
 group, reject queued calls, abort host services and clean staged files. A new instance must
 be explicitly started by the lifecycle host after a crash.
 
@@ -197,7 +200,7 @@ answers and validates every resulting address; it does not change production def
   - 本机页面与原文件（S-65）：地址只当数据交给宿主、答复只有抽出的文字；原文件只有插件自己起的键，一段至多 256 KiB，每段是一次完整的宿主读取，版本在段间带回去；两种效果都不能出现在查询里。
   - 主人文件（`ownerFiles`，S-64）：只转 `stat`、`read`、`list`、`write` 四个成员，不转 `rootPath` 与 writer 回调；路径只许相对路径，形状与大小（256 KiB 一个文件、一次 512 KiB、16 步、列 1000 项）先在 broker 一侧查；写在 `beforeEffect()` 之后；查询不能写。
   - 项目库（`projectDatabase`）：跨通道的语句先有界再交给宿主，宿主的客户端逐句对照本插件的表；一个事务在宿主一侧整个提交或整个不写；操作声明了、人也批准了才放行。语句不在宿主的线程上执行：宿主把它们交给一个自己能杀的子进程（`services.project_statements`），超时或超内存就杀进程、答带码的错误，`get` 与 `all` 的结果字节都在 SQL Worker 中检查（超限不交给宿主），`all` 另按行数停止，递归查询不开始（S-59）。子进程控制器独立限时、测总 RSS、处理宿主断线，含提交的事务总时限是 3 秒；提交在途被中断返回结果未知。
-  - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。
+  - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。RSS 与 CPU 采样经单一宿主批量监控器 `BatchProcessMonitor`（`process-monitor.ts`，200 ms 单次 `/bin/ps`、无活跃进程零定时器、单回调故障隔离），不得退化回每插件各自起 `/bin/ps` 轮询，亦不得弱化 `S-15` 堆外 `Buffer` RSS 与返回后 CPU 死循环截断。
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
   - 一次操作发起的 SDK 服务调用，在调起这次 `call()` 当时的异步上下文里运行（`AsyncResource`），不在进程启动时的上下文里，所以宿主按调用上下文给出的东西（调用编号）跟着这次操作走；沙箱不读、不传这些值，也不依赖提供它们的包。
   - 沙箱不能直接联网，Host 必须显式装配网络适配器。`createHttpsProxy` 要求精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；fake-IP 需注入批准的 DoH 解析器。现有生成式 Host 适配器的代理策略见上文，不能把两者误写成同一实现。

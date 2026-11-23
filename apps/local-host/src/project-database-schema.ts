@@ -1,13 +1,13 @@
 import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
-import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, personalConfigJournal, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL, SINGLE_PROJECT_ROOT_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
 import { ACCEPTANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-acceptance";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
-import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
+import { SURFACE_CORRECTIONS_SCHEMA_SQL, SURFACE_CONFIG_JOURNAL, surfaceConfigJournal } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
 import { PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL } from "./project-runtime-settings.js";
 import {
@@ -23,7 +23,7 @@ import {
 /**
  * A project's database (`projects/<id>/molis-work.db`) as one current schema (repository-anti-corruption §4.1): every
  * platform and Module owner that keeps tables there hands over its creation statements, and the host creates them all at
- * once with the version. A database at another version is refused, never upgraded in place. Owners still create their own
+ * once with the version. The Host upgrade process runs the declared steps before the normal owner opens the database. Owners still create their own
  * tables when they open (`IF NOT EXISTS`), which is a no-op here; changing any of them means a new version.
  *
  * No plugin's table is here (PLIB-01): a plugin declares its own in its Manifest (`databases.project`), and the platform makes
@@ -32,6 +32,9 @@ import {
  * Goals' and Governance's tables are not here either: Goals declares them (S8), and Feed declares the Feed items, Sources, Signals and
  * Listener Host tables along with its out rules.
  */
+const surfaceTracking = surfaceConfigJournal(SINGLE_PROJECT_ROOT_SQL);
+const SURFACE_CONFIG_TRACKING = personalConfigJournal(SURFACE_CONFIG_JOURNAL, surfaceTracking.table, surfaceTracking.key, surfaceTracking.eligible);
+
 const PROJECT_DATABASE_SCHEMA = [
   STORAGE_SPACE_SCHEMA_SQL,
   PROJECT_ROOT_SCHEMA_SQL,
@@ -52,6 +55,7 @@ const PROJECT_DATABASE_SCHEMA = [
   MATERIAL_RECENT_USES_SCHEMA_SQL,
   PROJECT_REPLICATION_SCHEMA_SQL,
   SURFACE_CORRECTIONS_SCHEMA_SQL,
+  SURFACE_CONFIG_TRACKING.schema,
   PROJECT_APPROVALS_SCHEMA_SQL,
   PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL,
   PROJECT_GUIDANCE_SCHEMA_SQL,
@@ -59,7 +63,7 @@ const PROJECT_DATABASE_SCHEMA = [
 ].join("\n");
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 1,
+  version: /* @version database.project_database_baseline */ 2,
   schema: PROJECT_DATABASE_SCHEMA,
-  upgrades: [],
+  upgrades: [{ from: 1, sql: SURFACE_CONFIG_TRACKING.upgrade }],
 };

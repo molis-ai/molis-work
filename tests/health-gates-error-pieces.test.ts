@@ -267,13 +267,13 @@ test("ownerLookup: a glob does not cross a slash, is anchored at both ends and t
 });
 
 test("ownerLookup: plugins/native/<dir>/ is owned by the directory's name with hyphens as underscores, unless the table has a path that is at least as specific", () => {
-  const { ownerOf, tiesOf } = lookupOf({ short: ["plugins/native/"], explicit: ["plugins/native/text-stats/"], inside: ["plugins/native/work/http/"], file: ["plugins/native/work/src/one.ts"] });
-  assert.equal(ownerOf("plugins/native/text-stats/src/a.ts"), "explicit", "an explicit path as long as the rule wins");
+  const { ownerOf, tiesOf } = lookupOf({ short: ["plugins/native/"], explicit: ["plugins/native/word-count/"], inside: ["plugins/native/work/http/"], file: ["plugins/native/work/src/one.ts"] });
+  assert.equal(ownerOf("plugins/native/word-count/src/a.ts"), "explicit", "an explicit path as long as the rule wins");
   assert.equal(ownerOf("plugins/native/work/src/a.ts"), "work", "the rule is longer than plugins/native/");
   assert.equal(ownerOf("plugins/native/feed-reader/src/a.ts"), "feed_reader");
   assert.equal(ownerOf("plugins/native/work/http/a.ts"), "inside", "a longer path inside the plugin directory");
   assert.equal(ownerOf("plugins/native/work/src/one.ts"), "file");
-  assert.deepEqual(tiesOf("plugins/native/text-stats/src/a.ts"), ["explicit"], "an explicit path is not a tie with the rule");
+  assert.deepEqual(tiesOf("plugins/native/word-count/src/a.ts"), ["explicit"], "an explicit path is not a tie with the rule");
   assert.deepEqual(tiesOf("plugins/native/work/src/a.ts"), ["work"]);
   assert.deepEqual(tiesOf("nothing/here.ts"), []);
 });

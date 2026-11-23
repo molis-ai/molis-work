@@ -4,7 +4,7 @@
 // the durations the last runs on this checkout recorded.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { readWeights } from "./shard.mjs";
+import { nextRunnableTest, readWeights } from "./shard.mjs";
 import { classifyFile } from "../ci-linux-probe/select.mjs";
 import { runOnce, statusOf, stopRunning } from "../ci-linux-probe/run.mjs";
 
@@ -51,7 +51,7 @@ export function runQueue(queue, { jobs, browserJobs, runFile, onStart, onDone, h
   return new Promise((resolve, reject) => {
     const schedule = () => {
       while (!stopped && !halted() && running < jobs) {
-        const index = waiting.findIndex((entry) => !entry.browser || browsers < browserJobs);
+        const index = nextRunnableTest(waiting, browsers, browserJobs);
         if (index < 0) break;
         const [entry] = waiting.splice(index, 1);
         running += 1;
@@ -101,14 +101,14 @@ async function retryFailed(failed, { retries, jobs, browserJobs, runFile, verbos
   return { flaky, failed: still };
 }
 
-export async function runParallel(root, targets, { jobs, browserJobs, timeoutSeconds, testArgs, verbose, retries = 0, bail = false }) {
+export async function runParallel(root, targets, { jobs, browserJobs, timeoutSeconds, testArgs, verbose, retries = 0, bail = false, inOrder = false }) {
   const started = Date.now();
   // The files as the caller named them (relative to where it stands, or absolute), from the root the files run in.
   const files = targets.map((target) => path.relative(root, path.resolve(target)).split(path.sep).join("/"));
   const store = durationsFile(root);
   const durations = readDurations(store);
   const entries = files.map((file) => ({ file, browser: classifyFile(root, file).marks.includes("browser") }));
-  const queue = plan(entries, durations, readWeights(root));
+  const queue = inOrder ? entries : plan(entries, durations, readWeights(root));
   const browserCount = entries.filter((entry) => entry.browser).length;
   console.log(`run-tests: ${files.length} files, ${Math.min(jobs, files.length)} at a time (at most ${Math.min(browserJobs, browserCount)} of the ${browserCount} browser files), each with its own MOLIS_WORK_HOME`);
 

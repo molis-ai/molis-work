@@ -18,6 +18,7 @@ import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fix
 import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
   feedCaptureArtifactId,
+  feedManifest,
   createFeedRuleHandlers, feedRuleActions,
 } from "@molis-ai/molis-work-plugin-feed";
 import {
@@ -48,7 +49,7 @@ function close(data: ReturnType<typeof harness>): void {
   rmSync(data.directory, { recursive: true, force: true });
 }
 
-test("a capture line replays its newest version: unchanged content adds nothing, however far the line has gone", async () => {
+test("FVR-01 FVR-02 a capture line adds a version only when the captured content changes, including after a Feed upgrade", async () => {
   const data = harness();
   try {
     const rule = data.feed.outRules.create(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
@@ -63,7 +64,8 @@ test("a capture line replays its newest version: unchanged content adds nothing,
     });
     const { item } = ingest(1, "Launch notes");
     const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
-    const line = () => data.app.artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(version => [version.version, version.supersedes_version]);
+    const versions = () => data.app.artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId);
+    const line = () => versions().map(version => [version.version, version.supersedes_version]);
     const tryRules = async () => { for (let run = 0; run < 3; run++) await data.feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]); };
 
     // The message is edited once: the line reaches v2, and stays there when the rules are tried by hand or the source re-sends the same content.
@@ -74,12 +76,29 @@ test("a capture line replays its newest version: unchanged content adds nothing,
     assert.equal(ingest(3, "Launch notes revised").updated, true);
     assert.deepEqual(line(), [[1, null], [2, 1]], "a source re-sending the same content writes nothing");
 
-    // Versions an earlier Feed wrote keep its version, so the 成果库 no longer takes a replay as the same: one more version, then steady again.
-    data.store.db.prepare("UPDATE library_artifact_versions SET producer_plugin_version = ? WHERE artifact_id = ?").run("0.0.1", artifactId);
+    // Simulate opening a project whose capture versions were written before the product upgrade.
+    const previousVersion = "0.0.1";
+    assert.notEqual(feedManifest.version, previousVersion);
+    data.store.db.prepare("UPDATE library_artifact_versions SET producer_plugin_version = ? WHERE artifact_id = ?").run(previousVersion, artifactId);
+    const beforeUpgradeReplay = versions();
     await tryRules();
-    assert.deepEqual(line(), [[1, null], [2, 1], [3, 2]], "a new Feed version adds one version, not one per run");
+    assert.deepEqual(versions(), beforeUpgradeReplay, "trying the rules under a newer Feed leaves the stored versions intact");
     assert.equal(ingest(4, "Launch notes revised").updated, true);
+    assert.deepEqual(versions(), beforeUpgradeReplay, "a source re-sending the same captured content after an upgrade writes nothing");
+    assert.equal(data.feed.listInboxEntries(DEMO_PROJECT_ID).some(entry =>
+      entry.subject_id === item.item_id && entry.reason === "artifact_out_failed"), false);
+
+    assert.equal(ingest(5, "Launch notes final").updated, true);
     assert.deepEqual(line(), [[1, null], [2, 1], [3, 2]]);
+    const afterContentChange = versions();
+    assert.deepEqual(afterContentChange.slice(0, 2), beforeUpgradeReplay);
+    const newest = afterContentChange[2];
+    assert.ok(newest);
+    assert.equal(newest.producer_plugin_version, feedManifest.version);
+    assert.equal(newest.title, "Launch notes final");
+    assert.equal((newest.payload as { title: string }).title, "Launch notes final");
+    await tryRules();
+    assert.deepEqual(versions(), afterContentChange);
   } finally {
     close(data);
   }

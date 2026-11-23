@@ -530,3 +530,5 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **第 36A 批合后独立复核（2026-11-22，用户确认 POLISH-49）**：DOM 事件 `molis:assistant-open`（`packages/contracts/src/platform/dom-events.ts`）的 `detail` 原位增加可选字段 `open?: boolean`（缺省或 `true` 照旧展开助理面板；传 `false` 时只把手上的东西放进情境条并聚焦输入框，保持对话当前开合状态不变，供浮条「✦ 助理」与「带到助理」使用）。纯可选扩展，既有调用方零影响；公开 API 快照 `tooling/gates/api/contracts/platform/dom-events.txt` 同步刷新。
 
 - **已装沙箱包看得到的拒绝码改名；`start` 可交 `state_machines`**（第 47 批，2026-11-22）：沙箱调用结果里的能力拒绝码从 `plugin_builder.capability_refused`／`capability_unavailable` 改为 `plugin.capability_refused`／`plugin.capability_unavailable`（类别仍是 invalid），发布身份拒绝码改为 `plugin.publisher_identity_invalid`、`plugin.publisher_revoked`（HTTP 从 403 变 400）；按旧码判断的插件要改。已装包页面与调用路由的拒绝按动作形状回、状态码按类别。插件的 `start` 返回值可以多交 `state_machines`（代码运行的状态机），与 Manifest 的 `state_machines` 对不上时不启动；随宿主发布的双向核对，本地开发的交出才核对。不留兼容期。
+
+- **`PluginArtifactWriter.head` 返回固定成果的原始修订**（BL-feed-product-version-replay）。事务内读取自己成果线的最新版本时，`origin_revision` 是保存时的字符串，导入成果返回 `null`。`artifact:write`、原调用者和生产者签名仍由现有事务授权检查。已有调用方可继续使用 `version` 和数字投影 `source_revision`，自行实现写入者的调用方需补齐新字段。Feed 用原始修订判断捕捉内容是否变化。

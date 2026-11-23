@@ -3919,7 +3919,9 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
 }
 
 export interface PluginArtifactWriter {
-    head(artifactId: string): ArtifactLineHead | null;
+    head(artifactId: string): (ArtifactLineHead & {
+        origin_revision: string | null;
+    }) | null;
     publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
 }
 

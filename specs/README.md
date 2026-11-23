@@ -80,6 +80,7 @@
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
 - [daily-quality-low-a1](daily-quality-low-a1/spec.md)：2026-11-08 日评低优先级 A-1 的 50 项修复；2026-11-09 获批，主体已随 [#1999](https://github.com/molis-ai/molis-work/pull/1999) 于 2026-11-10 合入 main；D0328 暂缓，D0069 与 D0205/D0229/D0238 的剩余见 [BL-daily-a1-residuals](backlog/BL-daily-a1-residuals.md)。
 - [feed-bounded-reads](feed-bounded-reads/spec.md)：Feed 完整快照改为分页与按需读取；#2026 已合入（2026-11-11，`96a1c70c37`）；#2045 的 FBR-08～11 补修在评审，待验收，不归档。
+- [feed-product-version-replay](feed-product-version-replay/spec.md) 记录产品升版后 Feed 捕捉成果的重放规则与回归验证。
 - [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-302、BL-306～308；A5 已按 main 重核（2026-11-11，[A5 重核](prologue-adoption/a5-recheck-2026-11.md)）。
 - [context-program](context-program/spec.md)：情境动作完整总纲与分期；三份子需求书已并入本目录：[情境浮条](context-program/context-toolbar.md)、[快速创建](context-program/quick-create.md)、[Side Shelf](context-program/side-shelf.md)。W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。
 - [personal-cloud-sync](personal-cloud-sync/spec.md)：联网个人版同步总纲，记录每账号 100 MB、删除保留 30 天的约定；五份子文档（Goals、关联资产、Pages、插件复制、同步基础）已并入本目录，见总纲的「子文档」。

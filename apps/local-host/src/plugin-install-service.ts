@@ -1,5 +1,7 @@
 import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
-import { skillAudienceDeclared } from './memory/memory-plugin-scene.js';
+import { isPluginSceneName } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
+import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
+import { builtinActiveSkillScenes, SKILL_SCENES_MAX, skillAudienceActive, skillSceneChoicesOf, type ActiveSkillScene } from './memory/memory-plugin-scene.js';
 import { directoryWordResolver } from './ui-text-provider.js';
 import { activeLocale } from './web-locale.js';
 /**
@@ -14,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
-import type { SkillInstallPreview } from '@molis-ai/molis-work-contracts/services/skills';
+import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, PluginUninstallTarget, ProjectPluginInstalledView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
@@ -55,8 +57,8 @@ export interface PluginInstallPorts {
   skillStates?(scopeRef: string, installId: string): ReadonlyMap<string, import("@molis-ai/molis-work-contracts/services/skills").SkillState>;
   /** Whether a scene the package declares is one this running Home's memory does not list yet (BL-b44-coding-scene-enum). */
   sceneAfterRestart?(scene: unknown): boolean;
-  /** Whether a Skill's `applies_to` names someone this Home has (`skillAudienceDeclared`); without it, the built-in plugins' scenes and the package's own. */
-  skillAudienceDeclared?(appliesTo: unknown, own: unknown): boolean;
+  /** Active plugin scenes registered in the target scope (`null` for Home, or a project id); without it, built-in scenes only. */
+  activeSkillScenes?(projectId: string | null, locale?: string): Promise<ReadonlyMap<string, ActiveSkillScene>>;
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
   /** Installs a release in the current project. The owner runs `complete` synchronously after refresh and authority checks, inside its compensation window. */
@@ -135,6 +137,8 @@ export interface PluginInstallPreviewResult {
   agent_bodies?: Array<{ kind: 'role'; name: string; excerpt: string; body: string; total_chars: number; truncated: boolean; change?: 'added' | 'changed' | 'removed' }>;
   /** Every Skill the package declares (its Manifest's `methods`), and in an upgrade what changed (specs/skill-packs/contract-design.md §5). */
   skills?: SkillInstallPreview[];
+  /** Active plugin scenes (plus this package's own declared scene, if any) for formatting `skills` in the install review. */
+  skill_scenes?: SkillSceneChoice[];
   /** The actions the Manifest `requires`, each with whether a provider offers it in this project now. */
   requires?: PluginRequirementPreview[];
   /**
@@ -150,7 +154,7 @@ export interface PluginInstallPreviewResult {
 export interface PluginRequirementPreview { capability_id: string; version: number; optional: boolean; reason: string; satisfied: boolean }
 
 type PreviewOwner = { project_id: string; actor_id: string };
-type InstallAuthority = Pick<ActionExecutionContext, 'beforeEffect' | 'signal' | 'assert_authority_current'>;
+type InstallAuthority = Pick<ActionExecutionContext, 'beforeEffect' | 'signal' | 'assert_authority_current'> & { locale?: string };
 
 interface Held extends PreviewOwner {
   bundle: PluginPackageBundle;
@@ -310,11 +314,6 @@ export class PluginInstallService {
     this.assertPublisherStanding(key_id);
     const { manifest } = pkg, runtime_scope = scopeOf(manifest), dual = isDualPackage(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
-    for (const method of manifest.methods ?? []) {
-      if (!(this.ports.skillAudienceDeclared ?? ((appliesTo, own) => skillAudienceDeclared(appliesTo, undefined, own)))(method.applies_to, manifest.memory_scene)) {
-        throw pluginErrors.declaration_invalid(`方法 ${method.skill_id} 的 applies_to「${method.applies_to}」不是这里有的场景：只能是 assistant、both，或这个插件或已有插件申报的场景名`);
-      }
-    }
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
@@ -326,6 +325,20 @@ export class PluginInstallService {
     // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
     const installed = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged : undefined;
     const skills = skillInstallPreviews(pkg, installed), agent_bodies = rolePreviews('agentBodies' in pkg ? pkg.agentBodies : [], installed && (installed.agentBodies ?? []));
+    const locale = caller?.locale ?? activeLocale();
+    const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
+    let skill_scenes: SkillSceneChoice[] | undefined;
+    if ((manifest.methods?.length ?? 0) > 0 || skills.length > 0) {
+      const activeScenes = await this.activeSkillScenesFor(runtime_scope, who.project_id, locale ?? undefined);
+      this.assertMethodsAudienceActive(manifest, installed, activeScenes);
+      if (skills.length > 0) {
+        skill_scenes = skillSceneChoicesOf(activeScenes);
+        if (isPluginSceneName(manifest.memory_scene) && !activeScenes.has(manifest.memory_scene)) {
+          const ownChoice: SkillSceneChoice = { scene: manifest.memory_scene, name: cutHead(name.trim(), 200) || manifest.memory_scene, scope: runtime_scope };
+          skill_scenes = [...skill_scenes.slice(0, SKILL_SCENES_MAX - 1), ownChoice];
+        }
+      }
+    }
     if (current) {
       // A pack's Skills keep their state in the scope the pack installs into: the personal space for a home pack, this project otherwise.
       const states = this.ports.skillStates?.(runtime_scope === "home" ? "home" : who.project_id, current.record.install_id);
@@ -339,9 +352,7 @@ export class PluginInstallService {
     const word = connectorWords(manifest.plugin_id, pkg.localePacks);
     const preview_id = randomUUID();
     const refs = pkg.permissions.secretRefs ?? [], saved = refs.length && current ? await this.ports.savedSecrets?.(runtime_scope === 'home' ? null : who.project_id, manifest.plugin_id) ?? [] : [];
-    const locale = activeLocale();
-    const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
-    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
+    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(skill_scenes ? { skill_scenes } : {}), ...(requires.length ? { requires } : {}),
       ...(this.ports.sceneAfterRestart?.(manifest.memory_scene) ? { memory_scene_after_restart: true as const } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null, ...(this.ports.localSigner?.keyId() === key_id ? { local: true as const } : {}) },
       ...(refs.length ? { secrets: refs.map(name => ({ name, saved: saved.includes(name) })) } : {}),
@@ -384,6 +395,25 @@ export class PluginInstallService {
     if (kept !== undefined && kept !== range) {
       const label = kept === 'dual' ? '双实例' : kept === 'home' ? 'Home' : '项目';
       throw refuse(`插件 ${manifest.plugin_id} 已经以「${label}」范围装过，它的范围不能更换：请给这个包换一个插件 ID`);
+    }
+  }
+
+  private async activeSkillScenesFor(runtimeScope: 'home' | 'project', projectId: string, locale?: string): Promise<ReadonlyMap<string, ActiveSkillScene>> {
+    return this.ports.activeSkillScenes
+      ? await this.ports.activeSkillScenes(runtimeScope === 'home' ? null : projectId, locale)
+      : builtinActiveSkillScenes();
+  }
+
+  private assertMethodsAudienceActive(
+    manifest: KeptPackage['manifest'],
+    installed: NonNullable<InstalledRelease['packaged']> | undefined,
+    activeScenes: ReadonlyMap<string, ActiveSkillScene>,
+  ): void {
+    for (const method of manifest.methods ?? []) {
+      const preserved = installed?.manifest.methods?.some(old => old.skill_id === method.skill_id && old.applies_to === method.applies_to) ?? false;
+      if (!preserved && !skillAudienceActive(method.applies_to, activeScenes, manifest.memory_scene)) {
+        throw pluginErrors.declaration_invalid(`方法 ${method.skill_id} 的 applies_to「${method.applies_to}」不是这里有的场景：只能是 assistant、both，或这个插件或当前已启用插件申报的场景名`);
+      }
     }
   }
 
@@ -443,9 +473,17 @@ export class PluginInstallService {
     const homePresent = inHome ? checkExistingInstall(homeEntries, held.pkg.manifest, key_id, true, dual) : undefined;
     const projectPresent = (!inHome || dual) ? checkExistingInstall(projectEntries, held.pkg.manifest, key_id, false, false) : undefined;
     const upgraded = homePresent && homePresent.record.version !== held.pkg.manifest.version ? homePresent : projectPresent;
+    const currentInstalled = upgraded
+      ? this.ports.packages.load(upgraded.record.plugin_id, upgraded.record.publisher_signature, upgraded.record.version).packaged
+      : undefined;
     if (upgraded) {
       // The installed package may have moved since the preview: its Skills' versions are asked again against the one installed now (SKC-04).
-      skillInstallPreviews(held.pkg, this.ports.packages.load(upgraded.record.plugin_id, upgraded.record.publisher_signature, upgraded.record.version).packaged);
+      skillInstallPreviews(held.pkg, currentInstalled);
+    }
+    if ((held.pkg.manifest.methods?.length ?? 0) > 0) {
+      // A scene plugin active at preview may have been disabled, uninstalled, or revoked before confirmation.
+      const activeScenes = await this.activeSkillScenesFor(runtime_scope, held.project_id, caller?.locale ?? activeLocale() ?? undefined);
+      this.assertMethodsAudienceActive(held.pkg.manifest, currentInstalled, activeScenes);
     }
     const catalog = held.pkg.manifest.presentation === undefined ? undefined : await this.presentationCatalog(inHome ? null : held.project_id);
     await caller?.beforeEffect();

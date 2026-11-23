@@ -7,6 +7,7 @@ import {
   type KitEntry, type KitEntryKey, type KitKind, type KitManageLink, type KitPackId, type KitReportedEntry, type KitSource, type KitVersion,
 } from "../platform/kit-report.js";
 import type { PromptOverridesFile, SkillRef } from "./agent-definitions.js";
+import { SKILL_SCENE_CHOICE_SCHEMA, type SkillSceneChoice } from "./skills.js";
 
 /**
  * The AI kit (能力包, specs/capability-pack/contract-design.md §4): packs and what each holds — roles with their prompts, Skills, MCP
@@ -77,6 +78,8 @@ export interface KitCatalog {
   packs: KitPack[];
   /** Each entry once; packs refer to them by key. */
   entries: KitEntry[];
+  /** Active plugin scenes currently registered for Skill binding in this scope (reported only by `system.skills`). */
+  scenes?: SkillSceneChoice[];
   /** Reporters that were unavailable, refused, timed out or answered out of contract, and entries dropped while stamping. */
   issues: Array<{ provider_id: string; title: string; message: string }>;
 }
@@ -141,5 +144,6 @@ export const kitCatalogActions = {
     kind: "query", scope: "home", effect: "read", scheduling: "concurrent", audiences: ["user"], permissions: [KIT_READ_PERMISSION], subject_kinds: [],
     input_schema: inputSchemaFor<KitCatalogListRequest>()(object({})),
     output_schema: object({ packs: { type: "array", items: KIT_PACK_SCHEMA }, entries: { type: "array", items: KIT_ENTRY_SCHEMA },
-      issues: { type: "array", items: object({ provider_id: id, title: { ...id, maxLength: KIT_LIMITS.nameChars }, message: text }) } }) } } as ActionDefinition<KitCatalogListRequest, KitCatalog>,
+      scenes: { type: "array", maxItems: 200, items: SKILL_SCENE_CHOICE_SCHEMA },
+      issues: { type: "array", items: object({ provider_id: id, title: { ...id, maxLength: KIT_LIMITS.nameChars }, message: text }) } }, ["packs", "entries", "issues"]) } } as ActionDefinition<KitCatalogListRequest, KitCatalog>,
 };

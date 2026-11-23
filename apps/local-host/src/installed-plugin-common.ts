@@ -138,10 +138,11 @@ export async function recoverInstalledRecords(ctx: {
       if (!approved) throw new Error(ctx.unapproved);
       ctx.admit?.(release);
       const blocked = ctx.blocked?.(record);
-      ctx.registerPrompts(release, blocked || heldOff(record) || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
+      const heldBack = ctx.heldBack?.(record, release) === true;
+      ctx.registerPrompts(release, blocked || heldOff(record) || heldBack || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
       if (blocked) throw blocked;
       const trust = release.packaged ? { trust: release.packaged.trust } : {};
-      if (heldOff(record) || ctx.heldBack?.(record, release)) {
+      if (heldOff(record) || heldBack) {
         const restored = ctx.definition(release, approved);
         ctx.platform.runtime.register(restored);
         await ctx.platform.start([{ definition: restored, grants: record.grants, enabled: false, ...trust }]);
@@ -150,7 +151,10 @@ export async function recoverInstalledRecords(ctx: {
       // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
       const report = await ctx.platform.start([{ definition: ctx.definition(release, approved), grants: record.grants, ...trust }]);
       if (report.running.includes(record.plugin_id)) await ctx.expose(release);
-      else throw new Error(ctx.platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
+      else {
+        ctx.registerPrompts(release, 'disabled');
+        throw new Error(ctx.platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
+      }
     } catch (error) { ctx.recoveryErrors.set(record.plugin_id, error); }
   }
 }

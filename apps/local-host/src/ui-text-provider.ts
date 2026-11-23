@@ -101,6 +101,11 @@ function platformLocaleReader(row: UiResourceRow): PluginTextReader {
 let platformText: readonly PluginTextReader[] | null = null;
 const registeredWords = new WeakMap<PluginManifest, PluginLocaleReader | null>();
 
+/** Whether the Host's UI text provider has been installed in this process. */
+export function hasHostUiText(): boolean {
+  return platformText !== null;
+}
+
 /** Only the actual build registration has this source. A Manifest with the same id is not that registration. */
 export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleReader | null {
   if (registeredWords.has(manifest)) return registeredWords.get(manifest)!;

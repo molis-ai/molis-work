@@ -28,7 +28,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
+  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, PLUGIN_MANIFEST_IDS = ${JSON.stringify(pluginManifestIds())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
   // The Host's plugin directory on the page: each plugin's group colour (the hue its Manifest declares), what ＋ lists (口径 8) and
@@ -651,13 +651,6 @@ ${TAB_WORKSPACE_DRAG_PART}
       const ask = panes.recordAsk(event);
       if (ask) { document.querySelector('[data-work-surface="' + CSS.escape(ask.plugin) + '"]')?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: ask.itemId, quiet: ask.quiet } })); return; }
       if (event.data.type !== "workbench-view") return;
-      const signed = event.data.signedHomeTarget;
-      if (signed) {
-        if (typeof signed.plugin !== "string" || typeof signed.href !== "string" || !signed.selection || ops.shownPlugin(ops.focused(state)) !== signed.plugin) return;
-        const target = signedHomeStage(findTopLevelSurface(signed.plugin), signed.owner, signed.href);
-        if (target) signedHomeSelection(target, signed.href, { panel: signed.selection.panel, itemId: signed.selection.itemId });
-        return;
-      }
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); if (tab) projectOwnSurface(ops.focused(state), tab.plugin, { id: event.data.view, surface: event.data.surface, panel: event.data.panel, intent: event.data.intent }, tab); }
       return;
@@ -737,7 +730,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (page?.withItem) page.withItem(itemId, () => { apply(); persist(); });
     else { apply(); persist(); }
   });
-  return { apply, readView, writeView, openView, focusPane, syncHomeClones, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, setItemView, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, focusPane, syncHomeClones, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, setItemView, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     // The plugin whose own page the focused pane shows: none while a tab or a cover is what shows.

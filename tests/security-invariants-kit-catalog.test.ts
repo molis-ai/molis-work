@@ -214,3 +214,17 @@ test("S-content-package: installing a content package changes no prompt's effect
   assert.deepEqual((await h.invoke<PromptOverridesFile>(promptOverrideActions.export, {})).overrides, before.overrides);
   assert.deepEqual((await bodies()).filter(row => was.some(old => old[0] === row[0])), was);
 });
+
+test("S-kit-catalog BL-skill-settings-installed-plugin-scenes: only system.skills may report kit scenes; plugin and other system reporters are ignored and logged", { timeout: 120_000 }, async t => {
+  const { h } = await withPluginReporter(t, () => ({ entries: [], scenes: [{ scene: "spoofed-plugin", name: "Spoofed" }] }));
+  const live = await h.kit();
+  assert.equal(live.scenes?.some(row => row.scene === "spoofed-plugin"), false, "a plugin reporter cannot inject scenes");
+  assert.equal(fakeIssues(live).length, 1);
+
+  const gathered = await gather({
+    "system.agent-tools": { entries: [], scenes: [{ scene: "spoofed-system", name: "Spoofed System" }] },
+    "system.skills": { entries: [], scenes: [{ scene: "coding", name: "Coding", scope: "home" }, { scene: "field-notes", name: "Field Notes", scope: "project" }] },
+  });
+  assert.deepEqual(gathered.scenes, [{ scene: "coding", name: "Coding", scope: "home" }, { scene: "field-notes", name: "Field Notes", scope: "project" }]);
+  assert.equal(gathered.issues.some(row => row.provider_id === "system.agent-tools"), true);
+});

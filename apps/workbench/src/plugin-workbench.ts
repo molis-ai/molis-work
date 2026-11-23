@@ -151,7 +151,7 @@ export function pluginFrameServedStylesheet(id: string, packs: readonly BuiltinP
   const split = splitOf(pack);
   if (!pack.clientFactory) return split?.scoped || null;
   const extra = (pack.frameStyleFeatures ?? []).map(feature => FRAME_STYLE_FEATURES[feature] ?? "").join("");
-  if (!split?.scoped && !extra) return null;
+  if (!split?.scoped && !split?.shared && !extra) return null;
   return `${extra}${split?.shared ?? ""}${split?.scoped ?? ""}`;
 }
 

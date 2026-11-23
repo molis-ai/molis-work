@@ -1,5 +1,6 @@
 import { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
-import { sceneAfterRestart, skillAudienceDeclared } from './memory/memory-plugin-scene.js';
+import { activeScopeSkillScenes } from "./agent-definitions/skill-catalog-host.js";
+import { sceneAfterRestart, skillAudienceActive } from './memory/memory-plugin-scene.js';
 import { hostLog } from "./host-log.js";
 import { homedir } from "node:os";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -103,7 +104,8 @@ function skillPackagePorts(home: string, source: ProjectPluginHost, install: Plu
       const rows = scope === "home" ? await installedHomePlugins(source.homePlugins()) : await installedPluginsInProject(source, projectId);
       const row = rows.find(({ record }) => record.plugin_id === pluginId && record.state !== "uninstalled" && record.publisher_trust === "pinned");
       return row && packages.load(pluginId, row.record.publisher_signature, row.record.version).packaged;
-    } };
+    },
+    activeScenes: (scope, projectId, locale) => activeScopeSkillScenes(home, source, scope === "home" ? null : projectId, locale) };
 }
 
 /**
@@ -125,7 +127,10 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
         return rows.find(({ record }) => record.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[scope] && record.state !== "uninstalled" && record.publisher_trust === "pinned")?.record.publisher_signature;
       } }),
     drafts: homeAgentDefinitions(home).skillDrafts,
-    draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills"), appliesTo => skillAudienceDeclared(appliesTo, home)),
+    draft: async (intent, caller) => {
+      const scenes = await activeScopeSkillScenes(home, source, caller.project_id, caller.locale);
+      return draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills"), appliesTo => skillAudienceActive(appliesTo, scenes));
+    },
     draftAvailability: () => textModelAvailability(model, "起草技能"),
   };
 }
@@ -141,7 +146,7 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 }
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
-  return new PluginInstallService({ sceneAfterRestart: scene => sceneAfterRestart(home, scene), skillAudienceDeclared: (appliesTo, own) => skillAudienceDeclared(appliesTo, home, own), skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
+  return new PluginInstallService({ sceneAfterRestart: scene => sceneAfterRestart(home, scene), activeSkillScenes: (projectId, locale) => activeScopeSkillScenes(home, source, projectId, locale), skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
     installInProject: (projectId, release, check, complete, choices) => installPackageInProject(source, projectId, release, check, complete, choices),
     installInHome: (release, check, complete, choices) => installPackageInHome(source, release, check, complete, choices),
     savedSecrets: (projectId, pluginId) => savedPackageSecrets(source, projectId, pluginId),

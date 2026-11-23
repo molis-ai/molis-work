@@ -3,7 +3,7 @@ import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platf
 import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget, type ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 export { PLUGIN_INSTALL_PROVIDER_ID };
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_INSTALL_PREVIEW_SCHEMA, skillAuthoringActions, skillDraftActions, skillImportActions, type SkillAuthoredFields } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_INSTALL_PREVIEW_SCHEMA, SKILL_SCENE_CHOICE_SCHEMA, skillAuthoringActions, skillDraftActions, skillImportActions, type SkillAuthoredFields } from "@molis-ai/molis-work-contracts/services/skills";
 import { PROJECT_INSTALLATION } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { BundledPluginList, PluginInstallConfirmInput, PluginInstallConfirmResult, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService, ProjectPackageControl } from "./plugin-install-service.js";
@@ -79,6 +79,7 @@ export const pluginInstallActions = {
         kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 8000 }, total_chars: { type: "integer", minimum: 0, maximum: 8000 }, truncated: { type: "boolean" }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
       // An upgrade lists the Skills it removes besides the package's own, so twice the most one package declares.
       skills: { type: "array", maxItems: 2 * SKILL_LIMITS.skillsPerPackage, items: SKILL_INSTALL_PREVIEW_SCHEMA },
+      skill_scenes: { type: "array", maxItems: 200, items: SKILL_SCENE_CHOICE_SCHEMA },
       requires: { type: "array", items: { type: "object", additionalProperties: false, required: ["capability_id", "version", "optional", "reason", "satisfied"], properties: {
         capability_id: text, version: { type: "integer", minimum: 1 }, optional: { type: "boolean" }, reason: text, satisfied: { type: "boolean" } } } },
       origins: { type: "array", items: { type: "object", additionalProperties: false, required: ["service_id", "title", "origins"], properties: { service_id: text, title: text, origins: { type: "array", items: text } } } },
@@ -261,7 +262,7 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
     ...imports ? [
       bindActionHandler(skillImportActions.preview, async (input, caller) => {
         const who = pluginInstallPerson(caller); await caller.beforeEffect();
-        return imports.preview(input, who);
+        return imports.preview(input, who, caller.locale);
       }),
       bindActionHandler(skillImportActions.confirm, async (input, caller) => {
         const who = pluginInstallPerson(caller); await caller.beforeEffect();

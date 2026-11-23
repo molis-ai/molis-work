@@ -1,4 +1,5 @@
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
+import { forgetHomeInstalledMemoryScene, forgetHomeInstalledMemoryScenes, rememberHomeInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 /**
  * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
  * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle (`installed-plugin-common.ts`) and the same sandboxed definition, over the Home's Runtime
@@ -164,14 +165,35 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions); declared.set(value, record.install_id, state);
+    rememberHomeInstalledMemoryScene(home, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
     updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
-  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
+  const stops = publisherStops({
+    standing, platform, recoveryErrors,
+    withdraw: id => {
+      withdraw(id);
+      declared.release(id);
+      forgetHomeInstalledMemoryScene(home, id);
+    },
+    records,
+  });
   const lifecycleContext: InstalledLifecycleContext = { platform, home, library: null, project_id: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId, "uninstalled"); } };
+    async forget(pluginId, installId) {
+      declared.release(pluginId);
+      forgetHomeInstalledMemoryScene(home, pluginId);
+      forgetPluginAgentDefinitions(pluginHomeFor(home), installId);
+      forgetDefinitions(pluginId);
+      await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId, "uninstalled");
+    } };
   const lifecycle = installedLifecycle(lifecycleContext);
-  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); declared.releaseAll(); };
+  const close = () => {
+    closed = true;
+    for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id);
+    disposePlatform();
+    declared.releaseAll();
+    forgetHomeInstalledMemoryScenes(home);
+  };
 
   try {
     // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).

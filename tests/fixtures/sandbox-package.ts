@@ -43,10 +43,11 @@ export interface PackageFiles { [path: string]: string | undefined }
 
 /** The files of a sandbox package that is in the format; `change` edits them (undefined removes one) before the Manifest is written. */
 /** `change` edits the files and the Manifest in place, or returns the Manifest that replaces it. */
-export function packageFiles(publisher: string, change?: (files: PackageFiles, manifest: PluginManifest) => void | PluginManifest, options: { pluginId?: string; version?: string } = {}): { files: PackageFiles; manifest: PluginManifest } {
+export function packageFiles(publisher: string, change?: (files: PackageFiles, manifest: PluginManifest) => void | PluginManifest, options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project" } = {}): { files: PackageFiles; manifest: PluginManifest } {
   const pluginId = options.pluginId ?? PACKAGE_PLUGIN_ID, contract = packageContract(pluginId), parts = packageParts();
   const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
-  const manifest = sandboxPluginManifest({ pluginId, version: options.version ?? "1.0.0", name: "Example notes", publisher: { publisher_id: "example", signature: publisher }, presentation: false });
+  const manifest = sandboxPluginManifest({ pluginId, version: options.version ?? "1.0.0", name: options.name ?? "Example notes", publisher: { publisher_id: "example", signature: publisher }, presentation: false,
+    ...(options.scope === "home" ? { runtime: { scope: "home" } } : {}), ...(options.memoryScene === undefined ? {} : { memoryScene: options.memoryScene }) });
   const files: PackageFiles = {
     [SANDBOX_PACKAGE_FILES.entrypoint]: CODE, [SANDBOX_PACKAGE_FILES.contract]: JSON.stringify(contract),
     [SANDBOX_PACKAGE_FILES.interface]: JSON.stringify({ parts, nodes }), [SANDBOX_PACKAGE_FILES.prompts]: "[]",
@@ -62,7 +63,7 @@ export function payloadOf(manifest: PluginPackageManifest, files: PackageFiles):
 }
 
 /** A signed package in the format, made by `publisher`; `change` edits its files and Manifest before signing. */
-export function signedPackage(publisher = newPublisher(), change?: (files: PackageFiles, manifest: PluginManifest) => void | PluginManifest, options: { pluginId?: string; version?: string } = {}): PluginPackageBundle {
+export function signedPackage(publisher = newPublisher(), change?: (files: PackageFiles, manifest: PluginManifest) => void | PluginManifest, options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project" } = {}): PluginPackageBundle {
   const { files, manifest } = packageFiles(publisher.identity, change, options);
   return signPluginPackage({ payload: payloadOf(manifest, files), signature: null, publisher_key: null }, publisher.signer);
 }
@@ -77,7 +78,7 @@ export function packageMethod(skillId: string, name: string, summary: string, ov
 }
 
 /** A genuine signed text package for consumer, lifecycle and browser acceptance. */
-export function signedAgentPackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; scope?: "home" | "project"; broken?: boolean;
+export function signedAgentPackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; name?: string; memoryScene?: string; scope?: "home" | "project"; broken?: boolean;
   roles?: SandboxAgentBodyDeclaration[]; methods?: PluginMethodDeclaration[]; bodies?: Record<string, string>; compatibleFrom?: string[] } = {}): PluginPackageBundle {
   const { manifest, files } = packageFiles(publisher.identity, undefined, options);
   const roles = options.roles ?? [{ name: "审稿", purpose: "检查论据和结论", body: "agent/role.md" }], methods = options.methods ?? [packageMethod("proofread", "校对", "逐项核对事实")];

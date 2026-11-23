@@ -17,7 +17,8 @@ import { HomeConsentLedger } from "../home-plugin-store.js";
 import { SandboxPackageStore } from "../sandbox-package-store.js";
 import { homeAgentDefinitions } from "./builtin-registrations.js";
 import { skillCatalogProvider } from "./skill-catalog-actions.js";
-import { scopeInstallations } from "../scope-installations.js";
+import { scopeInstallations, scopeInstallationsFor } from "../scope-installations.js";
+import { activeSkillScenePlugins, type ActiveSkillScene } from "../memory/memory-plugin-scene.js";
 import { SkillCatalog, type SkillCatalogPorts } from "./skill-catalog.js";
 import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { isDeepStrictEqual } from "node:util";
@@ -49,6 +50,14 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost,
   return skillCatalogProvider(ports, workshop);
 }
 
+/** Active plugin scenes registered in the caller's scope (`projectId` non-null for project + Home, `null` for Home only). */
+export async function activeScopeSkillScenes(home: string, source: ProjectPluginHost, projectId: string | null | undefined, locale?: string): Promise<ReadonlyMap<string, ActiveSkillScene>> {
+  const open = projectId ? source.host.projects().some(project => project.project_id === projectId) : false;
+  const { installations } = await scopeInstallationsFor(source, open ? projectId : null);
+  const pins = new Map(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin]));
+  return activeSkillScenePlugins(installations, pins, locale);
+}
+
 export function observedSkillCatalog(home: string, source: ProjectPluginHost, definitions: AgentDefinitions, installations: Awaited<ReturnType<typeof scopeInstallations>>,
   pins: ReadonlyMap<string, PluginPublisherPin>) {
   return new SkillCatalog(skillCatalogPorts(home, source, definitions, async () => installations, false, pins));
@@ -60,12 +69,13 @@ function skillCatalogPorts(home: string, source: ProjectPluginHost, definitions:
   const publishers = () => new Map((prepare ? ledger.publishers() : ledger.observedPublishers()).map(pin => [pin.key_id, pin]));
   // The observation catalog is reserved for candidates with a current installation to pin.
   const systemPacks = () => prepare ? systemSkillPacks(systemSkillsDirectory) : [];
-  const withSkills = async <Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result> => {
+  const withSkills = async <Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[], scenes?: ReadonlyMap<string, ActiveSkillScene>) => Result): Promise<Result> => {
     const { reference, installations } = await list(source, caller);
     const directory = await source.host.inspectActions(caller, reference, prepare);
     const localKey = localPublisherKeyId(home);
     // A publisher can be revoked during inspection while its installation still runs. Take one snapshot and use it synchronously.
     const pins = observedPins ?? publishers();
+    const activeScenes = activeSkillScenePlugins(installations, pins, caller.locale);
     // The person's accounts by connector category, read once and only when a Skill here declares one (ASC-38～40).
     const declaresCategories = installations.some(({ manifest }) => manifest?.methods?.some(method => method.connector_categories?.length))
       || systemPacks().some(pack => pack.manifest.methods?.some(method => method.connector_categories?.length));
@@ -136,7 +146,7 @@ function skillCatalogPorts(home: string, source: ProjectPluginHost, definitions:
           assertCurrent: () => {}, assertPublisher: () => {} });
       }
     }
-    return use(result);
+    return use(result, activeScenes);
   };
   return { definitions, withSkills, resource: (skill, path) => {
     const system = systemPacks().find(pack => systemPackInstallId(pack.manifest.plugin_id) === skill.ref.install_id);

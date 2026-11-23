@@ -8,7 +8,7 @@ import { TAB_SHARE_MAX } from "../tab-strip-share.js";
 export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-workspace { --tab-split-edge-x: ${TAB_SPLIT_EDGE_X_CSS}; --tab-split-edge-y: ${TAB_SPLIT_EDGE_Y_CSS}; --tab-sash-gutter: ${TAB_SASH_GUTTER}px; --tab-sash-hit: ${TAB_SASH_HIT}px; }
   body.immersive-workbench .immersive-plugin-stage > .tab-workspace { position: absolute; inset: 0; min-width: 0; min-height: 0; display: flex; overflow: hidden; background: var(--canvas); }
-  body.immersive-workbench .tab-workspace-panes { flex: 1; min-width: 0; min-height: 0; display: grid; gap: 1px; background: var(--line); }
+  body.immersive-workbench .tab-workspace-panes { flex: 1; min-width: 0; min-height: 0; display: grid; position: relative; gap: 0; background: var(--canvas); }
   body.immersive-workbench .tab-workspace-pool { display: none; }
   body.immersive-workbench .tab-workspace-exclusive { display: none; container: plugin-stage / inline-size; }
   body.immersive-workbench .tab-workspace[data-exclusive] .tab-workspace-panes { visibility: hidden; }
@@ -57,7 +57,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-body > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 32px; }
-  body.immersive-workbench .tab-pane-empty-hint, body.immersive-workbench .tab-pane-mirror { margin: 0; padding: 12px 8px 12px; color: var(--muted); font-size: 12px; }
+  body.immersive-workbench .tab-pane-empty-hint { margin: 0; padding: 12px 8px 12px; color: var(--muted); font-size: 12px; }
   body.immersive-workbench .tab-drop-edges { display: none; position: absolute; inset: 0; pointer-events: none; }
   body.immersive-workbench .tab-workspace.is-tab-dragging .tab-drop-edges { display: block; }
   body.immersive-workbench .tab-workspace[data-split] .tab-drop-edges { top: var(--tab-strip-h); }
@@ -122,9 +122,6 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
   body.immersive-workbench .tab-add-button:is(:hover, [aria-expanded=true]) { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench .tab-add-button svg { width: 16px; height: 16px; }
-  body.immersive-workbench .tab-split { display: grid; min-width: 0; min-height: 0; }
-  body.immersive-workbench .tab-sash { position: relative; background: transparent; cursor: col-resize; touch-action: none; z-index: 5; }
-  body.immersive-workbench .tab-split[data-direction="column"] > .tab-sash { cursor: row-resize; }
   body.immersive-workbench .tab-sash:focus-visible { outline: none; }
   body.immersive-workbench .tab-workspace:is(.is-tab-dragging, .is-resizing) iframe { pointer-events: none; }
   body.immersive-workbench .tab-workspace.is-resizing .tab-pane-body { pointer-events: none; }
@@ -147,10 +144,9 @@ export const TAB_WORKSPACE_STYLES = `
   }
 
   /* Single-document CSS Grid split: each pane is a Grid item; split dividers overlay the exact 8px gutter without reparenting iframes. */
-  body.immersive-workbench .tab-workspace-panes { display: grid; position: relative; gap: 0; background: var(--canvas); }
   body.immersive-workbench .tab-workspace-panes > .tab-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
   body.immersive-workbench .tab-workspace-panes > .tab-split { display: block; position: absolute; pointer-events: none; z-index: 4; }
-  body.immersive-workbench .tab-sash { position: absolute; pointer-events: auto; background: transparent; }
+  body.immersive-workbench .tab-sash { position: absolute; pointer-events: auto; background: transparent; touch-action: none; z-index: 5; }
   body.immersive-workbench .tab-split[data-direction="row"] > .tab-sash { width: var(--tab-sash-hit); height: 100%; cursor: col-resize; }
   body.immersive-workbench .tab-split[data-direction="column"] > .tab-sash { height: var(--tab-sash-hit); width: 100%; cursor: row-resize; }
   body.immersive-workbench .tab-sash::before {
@@ -183,8 +179,6 @@ export const TAB_WORKSPACE_STYLES = `
   }
   body.immersive-workbench .tab-sash:is(:hover, :focus-visible, .is-dragging) { background: transparent; }
   body.immersive-workbench .tab-sash:focus-visible .tab-sash-handle { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
-  body.immersive-workbench .tab-window-select { align-self: center; flex: none; max-width: 200px; min-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 12px; color: var(--muted); border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; }
-  body.immersive-workbench .tab-window-select[aria-pressed="true"] { color: var(--ink); background: var(--nav-active); }
   body.immersive-workbench .tab-pane > .tab-strip { position: relative; z-index: 2; }
   /* 独看 (07-S2, 口径 2) & narrow stage (VUX-24): the focused pane takes the sole Grid cell; siblings stay attached, hidden. */
   body.immersive-workbench .tab-workspace:is([data-split-narrow], [data-solo]) .tab-workspace-panes {

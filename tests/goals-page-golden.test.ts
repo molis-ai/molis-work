@@ -58,6 +58,9 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // on this branch and compared token by token: the 16 whole pages differ by the same 65 tokens, all inside `data-work-surface="home"`
 // (besides the language resource's file hash, which the recorded markup leaves out), a uniform +383 (zh) / +395 (en) characters; the
 // other records are byte for byte the same. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Removing `overview.lead` (decision 62 ③) took the home's empty lead box (`data-home-lead`) out of the same 16 pages, and only it:
+// drawn on the 36A-6 branch and on this one and compared token by token, each page loses that one element, a uniform -56 characters
+// in both languages; the other records are byte for byte the same. The 16 were recorded again.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
@@ -130,6 +133,9 @@ const pages: Record<string, Draw> = {
 // On the merge of main f19f4100da (#2243 retires Text Stats) the batch's tab-title map, which reads one placement registry, lost its
 // `,"text-stats":"Text Stats"` row: a uniform -26 characters on the 16 pages in both languages, the only change between the drawn
 // pages of ee4a3c0a03 and the merge (token diff); they were recorded again with MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main 5bfd52b87b (#2240 removes `overview.lead`, its -56 noted above) the 16 were recorded once more: each is exactly
+// 56 characters shorter than this batch's record in both languages, the other 50 records are unchanged, and against main each stays
+// the batch's own +4982 (zh) / +5338 (en), as before the merge.
 // RAC-2680 / RAC-2508 (T402): the Goals-only view no longer draws the hidden Sources stage of an unshown Feed owner.
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.

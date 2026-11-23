@@ -24,6 +24,14 @@ on:
       - "integration/**"
   workflow_dispatch:
     inputs:
+      comparison:
+        description: "Same-SHA benchmark on the current Ubuntu runners"
+        type: choice
+        options:
+          - normal
+          - before
+          - after
+        default: normal
       only_files:
         description: "Optional space-separated test files to run on a single shard instead of all 24 shards"
         required: false
@@ -34,6 +42,11 @@ on:
 
 permissions:
   contents: read
+
+run-name: Full suite ${{ github.event_name == 'workflow_dispatch' && inputs.comparison || github.event_name }}
+
+env:
+  FULL_SUITE_BASELINE: 1ab4eb5b6b32be7e80b93de32db3a21c05b23acb
 
 # A new run cancels the older one in its group (the label added again on the same pull request, a newer push to an integration
 # branch). A `labeled` event for another label skips its shards and gets a group of its own (its run id), so it cannot cancel a
@@ -57,6 +70,15 @@ jobs:
       dist-artifact: ${{ steps.pack.outputs.artifact-name }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Use baseline test harness
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'before' }}
+        shell: bash
+        run: |
+          git diff --name-only -z "$FULL_SUITE_BASELINE" HEAD -- scripts tests .github/workflows/visual-audit.yml |
+            git --literal-pathspecs restore --source "$FULL_SUITE_BASELINE" --staged --worktree --pathspec-from-file=- --pathspec-file-nul
 
       - name: Setup Node, pnpm and dependencies
         uses: ./.github/actions/setup-work
@@ -102,22 +124,29 @@ jobs:
       # whole batch is tested once, so one run should list all its failures (user 2026-11-07, decision 31). Pushing a `batch/**`
       # branch does not start a run; it is pushed as a backup. The same condition drops `--bail` in "Run this shard"; change both
       # together.
-      fail-fast: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
+      fail-fast: ${{ !(github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.comparison != 'normal') || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
       # CIP-06: 24 runners run 24 shards in a single wave (eliminating second-wave queueing). Each 4-core runner keeps
       # 1 browser worker plus 1 non-browser worker busy (`MOLIS_WORK_TEST_JOBS=2`, `MOLIS_WORK_TEST_BROWSER_JOBS=1`), matching
       # 4/1 browser-bound wall time while avoiding CPU starvation and timer races on 4-core runners.
-      max-parallel: 24
+      max-parallel: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && 40 || 24 }}
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.only_files != '' && '[1]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]') }}
+        shard: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.only_files != '' && '[1]' || github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]') }}
     env:
       # Four cores per runner: one browser worker plus one non-browser worker leaves headroom for Chrome/Host and avoids timer races.
-      MOLIS_WORK_TEST_JOBS: 2
-      MOLIS_WORK_TEST_BROWSER_JOBS: 1
+      MOLIS_WORK_TEST_JOBS: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && '3' || '2' }}
+      MOLIS_WORK_TEST_BROWSER_JOBS: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'after' && '2' || '1' }}
     steps:
       # The whole history, as on a development machine: some tests read git (the merge-base of a gate, the history of a file).
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Use baseline test harness
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.comparison == 'before' }}
+        shell: bash
+        run: |
+          git diff --name-only -z "$FULL_SUITE_BASELINE" HEAD -- scripts tests .github/workflows/visual-audit.yml |
+            git --literal-pathspecs restore --source "$FULL_SUITE_BASELINE" --staged --worktree --pathspec-from-file=- --pathspec-file-nul
 
       - name: Setup Node, pnpm and dependencies
         uses: ./.github/actions/setup-work
@@ -195,7 +224,7 @@ jobs:
       - name: Run this shard
         shell: bash
         env:
-          BAIL: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
+          BAIL: ${{ !(github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.comparison != 'normal') || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
           # PR full-suite skips gate-meta self-tests (covered by ci.yml) and full-screen VUX crawls (covered by visual-audit.yml);
           # nightly schedule, integration branches and manual runs still run every file.
           STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}

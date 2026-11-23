@@ -7,6 +7,7 @@ import {
   CODING_BASICS_STYLES,
   COMPOSER_STYLES,
   CONTEXT_TOOLBAR_STYLES,
+  FILE_LIST_STYLES,
   INPUT_RECEIPTS_STYLES,
   INTERACTION_STYLES,
   KEEP_EDITS_STYLES,
@@ -121,7 +122,7 @@ export function pluginOnDemandStylesheet(id: string, packs: readonly BuiltinPlug
  * live in `molis-work-plugin-base.css` for all plugins; no plugin IDs are hardcoded here.
  */
 const FRAME_STYLE_FEATURES: Readonly<Record<PluginFrameStyleFeature, string>> = {
-  "coding-basics": CODING_BASICS_STYLES,
+  "coding-basics": `${CODING_BASICS_STYLES}${FILE_LIST_STYLES}`,
   "coding-companions": CODING_COMPANION_STYLES,
   composer: COMPOSER_STYLES,
   "context-toolbar": CONTEXT_TOOLBAR_STYLES,

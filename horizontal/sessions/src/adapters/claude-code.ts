@@ -22,7 +22,7 @@ const DISCOVERY_BATCH_SIZE = 50;
 const DISCOVERY_SCAN_BYTES = 2 * 1024 * 1024;
 
 /**
- * A session file, or a subagent's trajectory beside its session (`<project>/<session>/subagents/agent-<id>.jsonl`, batch 103-2): a
+ * A session file, or a subagent's trajectory beside its session (`<project>/<session>/subagents/agent-<id>.jsonl`): a
  * subagent is kept with the session it belongs to (`parent`), and the list leaves it out. Any other `agent-` file is not a session.
  */
 function isClaudeSessionJsonl(relative: string, fileName: string): { candidate: boolean; stem: string; parent?: string } {

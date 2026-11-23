@@ -44,7 +44,7 @@ export interface ProjectLineHost {
 /**
  * Whether a registered action runs beside the project's line instead of waiting in it. One declared `scheduling: "concurrent"` owns its
  * transactions across its awaits; a pure read (a query whose effect is `read`) changes nothing another operation relies on, so it does not
- * wait behind a long command (batch 103-1). Every other command stays in line. Read from the registered descriptor, never from the caller.
+ * wait behind a long command. Every other command stays in line. Read from the registered descriptor, never from the caller.
  * A pure read is not cancelled when the project starts closing (`callSignal` is for declared concurrent work): it is short, and close waits for it.
  */
 export function runsBesideLine(descriptor: Pick<HostCapabilityDescriptor, "capability_id" | "operation" | "action"> | undefined): boolean {
@@ -65,7 +65,7 @@ export function normalizeReference(reference: LocalHostProjectReference): LocalH
 }
 
 function assertSameIdentity(current: LocalHostProjectReference, next: LocalHostProjectReference): void {
-  if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
+  if (current.project_id !== next.project_id || current.storage_key !== next.storage_key) {
     throw hostErrors.project_identity_conflict(`同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`);
   }
 }
@@ -94,7 +94,7 @@ export class ProjectLine<Runtime> {
   /** How many times each project was closed on purpose, so a sleep that ends after one does not mark it asleep again. */
   private readonly purposeful = new Map<string, number>();
   /** Projects being put to sleep: a call that comes meanwhile waits for it, then opens the project again (`awake`). */
-  private readonly sleeping = new Map<string, Promise<unknown>>();
+  private readonly sleeping = new Map<string, { closing: Promise<unknown>; usedAt: number }>();
   /** Projects put to sleep and not opened since, with when they had last been used then: what the Home read of them before still holds. */
   private readonly rested = new Map<string, number>();
   /** Projects closed on purpose (not put to sleep) and not opened since: the Home does not open them to read them. */
@@ -155,10 +155,13 @@ export class ProjectLine<Runtime> {
    * opened since the Host started (`never`). An open one is `open`, with when it was last used.
    */
   rest(storageKey: string): { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined } {
+    if (this.dismissed.has(storageKey)) return { state: "closed", usedAt: undefined };
+    const sleeping = this.sleeping.get(storageKey);
+    if (sleeping) return { state: "asleep", usedAt: sleeping.usedAt };
     const entry = this.entries.get(storageKey);
     if (entry) return { state: "open", usedAt: entry.lastUsedAt };
     if (this.rested.has(storageKey)) return { state: "asleep", usedAt: this.rested.get(storageKey) };
-    return { state: this.dismissed.has(storageKey) ? "closed" : "never", usedAt: undefined };
+    return { state: "never", usedAt: undefined };
   }
 
   isClosing(storageKey: string): boolean {
@@ -365,7 +368,7 @@ export class ProjectLine<Runtime> {
    * is awaited otherwise: a call enters the project in the same turn it was made, as before.
    */
   awake(reference: LocalHostProjectReference): Promise<void> | undefined {
-    const key = reference.storage_key.trim(), sleeping = this.sleeping.get(key);
+    const key = reference.storage_key.trim(), sleeping = this.sleeping.get(key)?.closing;
     // A call from the project's own work, which its close may be waiting for, is refused as closing, as before: waiting would never end.
     if (!sleeping || this.scope.getStore()?.entry.reference.storage_key === key) return undefined;
     // Nor does any other call wait longer than a close takes; past that it is refused as closing too.
@@ -381,7 +384,7 @@ export class ProjectLine<Runtime> {
   }
 
   /**
-   * Closes a project nobody has used for `idleMs` and that has nothing running (batch 103-1): no call in it or waiting for it, and
+   * Closes a project nobody has used for `idleMs` and that has nothing running: no call in it or waiting for it, and
    * `hasLiveWork` (asked last, it may wait) says no work of it would end. Checked again just before closing; a call that comes while it
    * closes waits and opens it again (`awake`). Whether it was put to sleep.
    */
@@ -400,9 +403,10 @@ export class ProjectLine<Runtime> {
       }
       return closed;
     });
-    this.sleeping.set(storageKey, closing);
+    const sleepingEntry = { closing, usedAt };
+    this.sleeping.set(storageKey, sleepingEntry);
     try { return await closing; }
-    finally { if (this.sleeping.get(storageKey) === closing) this.sleeping.delete(storageKey); }
+    finally { if (this.sleeping.get(storageKey) === sleepingEntry) this.sleeping.delete(storageKey); }
   }
 
   /** Closes every project that is open now. */

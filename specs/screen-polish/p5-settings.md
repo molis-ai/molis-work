@@ -80,7 +80,7 @@
 | 小修 | 结果 |
 | --- | --- |
 | 「更多筛选」弹层按 Esc、点外面要能关上 | 不用改代码：弹层是绝对定位的 `<details>` 内容，平台已有的浮层关闭程序（`packages/design-system/src/browser/floating-details.ts`）管所有这样的 `<details>`，设置页的三个外壳都带着它。真实界面里按 Esc 会关上并把焦点还给按钮，点外面也会关上；加了一条浏览器用例钉住（`tests/memory-settings-walkthrough-fixes.e2e.test.ts`，POLISH-29） |
-| 「今天的用量」一行的名字和下面那句说明重复 | 说明不再以「今天助理用了」开头，只写数。多出来的那条词（`workbench.settings-assistant.assistant-used-today`）留在词包里没删：删它会让工作台中英文词包换名，首屏门禁把换名的词包记成新增资源、要用户批准，为一条没人用的词不值得；等词包因别的原因换名时一并删 |
+| 「今天的用量」一行的名字和下面那句说明重复 | 说明不再以「今天助理用了」开头，只写数。多出来的那条词（`workbench.settings-assistant.assistant-used-today`）当时留在词包里避开词包换名，后续已随工作台词包更新清理 |
 | 加完「不提醒」规则后，焦点落到新加的那条规则上 | 加完以后焦点落在新规则那一行的开关上 |
 | 英文走查用例里钉住演示项目名的正则，换成按结构找那一行 | `tests/english-surfaces.e2e.test.ts`：按 `data-coding-project-line` 找到那一行单独核对，其余标记里不许有汉字（VUX-40），没有放宽 |
 | `SETTINGS_DOCUMENT_STYLES` 的下发位置 | 条件没触发，不挪（见上） |
@@ -97,7 +97,7 @@
 | 插件页「随安装包提供」那一块贴着卡的下边线 | 用卡里整块的留白（`mw-settings-section__block`），小标题用行名的字号 |
 | 调用记录两张卡的空状态，标题和说明挤在同一行 | 空状态「标题在上、说明在下」的规则原来只认带 `settings-section` 类名的节，补上 SDK 的节 |
 
-没有修、记作后续的一处：界面与语言页的「主题」「界面密度」「终端外观」，如果是从别的设置页切过来（这一页是后装进页面的），当前选中的那一项没有标出来，点一下以后才标。第一段的版本（4aae9decfa）同样如此；标记是 `packages/design-system/src/preferences.ts` 在页面装好时做的，后装进来的面板没有人再叫它一次。这是行为上的缺口，不是版式，留给后面单独修。
+当时记作后续的一处（已在 36A 合后复核修复）：界面与语言页的「主题」「界面密度」「终端外观」，从别的设置页切过来（后装进页面）时没有标出当前选中项；现由 `settings-directory.ts` 展示设置面板时调用 `molisWorkPreferences.sync()` 同步选中状态。
 
 ### 页面体积
 

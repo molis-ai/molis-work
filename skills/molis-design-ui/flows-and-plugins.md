@@ -19,13 +19,18 @@
 
 ---
 
-## 2. 插件舞台布局选型（不要万物硬套同一套模子）
+## 2. 插件舞台布局选型与「列表—详情」标准方向（不要万物硬套同一套模子）
 
-- **主从列表 + 详情**（如 Inbox、Feed、Issues、Risk、Workflows、Todo）：复用 `renderPluginStageShell` + 两档左栏（`240 / 280px` `--surface-soft`）+ `@container plugin-stage` 三档断点，不另套外框。
-- **文档 / 阅读 / 对话主轴**（如 Pages、灵光、Jelly、Work Brief、Coding）：以 `--measure-reading`（`680–720px`）或 `--measure-form`（`760–880px`）单轴居中，目录或参考栏按 `@container` 折叠。
-- **画布 / 看板 / 宽表 / 演示**（如 Goals、Dataset、PPT、Shelf）：选用 `--measure-wide`（`1152px`）或专属画布结构，但按钮、弹窗、空态、状态标、Toast、忙碌态与动效仍 100% 遵守本 Skill。
+- **现役基线（`91-0c` 底座合入 `main` 前，当前写代码按此执行）**：
+  - 主从列表 + 详情插件统一复用现役 `renderPluginStageShell`（`@molis-ai/molis-work-plugin-sdk/ui`）+ 两档左栏（`240 / 280px` `--surface-soft`）+ `@container plugin-stage` 三档断点，不另套外框；
+  - **禁止继续扩大分裂**：新插件与改造页面**严禁再向全局 `workbench.directory` 返回非空面板**，严禁在外壳新增插件 ID 分流分支或 `[data-*-delete]` 样式硬编码，列表多选一律用标准 `aria-multiselectable="true"`。
+- **目标架构（[决定 64](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-64)，随 `91-0c` 落地后按实装同步切换本节 API）**：
+  - 全部带条目列表插件统一收归各自窗格（`workbench.main`/`workbench.side`）内的标准容器 **`.mw-stage-list-detail`**（`[data-stage-list-detail]`，避免与设置页既有 `.mw-list-detail` 冲突），经 Manifest 可选声明 `ui.views[].stage_layout` 区分默认 `detail_mode: "focus"`（承接 `36A-3` 一件事一页，舒展档 `≥960px` 母页提供轻量「展开列表」`⌘\` 切换键）与 `detail_mode: "split"`（高频分拣/连续流 `240/280px` 可拖拽、可一键折叠左轨；窄窗格自动逐层推进与四路返回归一）。
+  - 顶部以 `kind: "item"` 打开的独立条目标签一律默认隐藏主列表轨呈现纯净单页；母页普通点击原地开、非多选列表 `⌘/Ctrl`+点击与全列表鼠标中键均后台组内新开标签（`openBehind`）；多选列表（`aria-multiselectable="true"`）`⌘/Ctrl` 归多选、中键照开，配套 APG 键盘多选与 `.mw-selection-bar`。
+- **文档 / 阅读 / 对话主轴**（如 Pages 正文、灵光、Jelly、Work Brief、Coding 对话）：以 `--measure-reading`（`680–720px`）或 `--measure-form`（`760–880px`）单轴居中，目录或参考栏按 `@container` 折叠。
+- **画布 / 看板 / 宽表 / 演示**（如 Goals、Dataset、PPT、Shelf、Plugin Builder）：选用 `--measure-wide`（`1152px`）或专属画布结构，但按钮、弹窗、空态、状态标、Toast、忙碌态与动效仍 100% 遵守本 Skill。
 - **工作台标签条已经写了插件名**：舞台内不要再重复放一行插件名大标题（仅在独立打开或试用页时显示）。
-- **插件同等地位**：内置插件、创作台生成插件与第三方签名插件用同一套 `mw-*` 原语、布局规则与质量线（`skills/molis-plugin-dev/ui.md` `studio-quality-bar`）。
+- **插件同等地位**：内置插件、创作台生成插件与第三方签名插件用同一套 `mw-*` 原语、舞台容器、标签组合同与质量线（`skills/molis-plugin-dev/ui.md` `studio-quality-bar`）。
 
 ---
 

@@ -165,7 +165,7 @@ const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLL
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
   let sheet = `@layer reset, tokens, foundation;
-@layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
+@layer reset { *, *::before, *::after { box-sizing: border-box; } button, input, textarea, select { font: inherit; } button { color: inherit; } svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
 @layer tokens { ${PLUGIN_TYPEFACE_STYLES}${PLUGIN_MOTION_STYLES} }
 @layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
 ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES}${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}

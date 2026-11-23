@@ -28,9 +28,9 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + FIRST_PAGE_STYLES 
   .home-groups > .surface-correction-reason { margin-block-start: 10px; font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }
   .home-groups > .surface-correction-reason > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .7rem; min-inline-size: 0; }
   .home-rows:empty { display: none; }
-  .home-row .mw-presentation__row-title[aria-haspopup] { cursor: pointer; }
+  .home-row .mw-presentation__row-title:is([aria-haspopup], [role="button"]) { cursor: pointer; }
   @media (max-width: 760px), (pointer: coarse) {
-    .home-row .mw-presentation__row-title[aria-haspopup] { display: inline-flex; align-items: center; min-block-size: 28px; }
+    .home-row .mw-presentation__row-title:is([aria-haspopup], [role="button"]) { display: inline-flex; align-items: center; min-block-size: 28px; }
   }
   .home-row .mw-presentation__more { z-index: 1; }
   .home-row .mw-presentation__more[open] { z-index: 2; }

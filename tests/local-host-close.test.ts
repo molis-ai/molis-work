@@ -57,6 +57,7 @@ test("B103-01 an idle project is put to sleep only when nothing of it runs; a ca
     holdClose = true;
     const sleeping = host.sleepIfIdle(reference.storage_key, 0, async () => false);
     await new Promise(resolve => setImmediate(resolve));
+    assert.equal(host.projectRest(reference.storage_key).state, "asleep", "while sleep is closing the runtime, rest already reports asleep");
     const call = host.withRuntime(reference, runtime => runtime.id);
     releaseClose();
     assert.equal(await sleeping, true);
@@ -77,9 +78,13 @@ test("B103-01 an idle project is put to sleep only when nothing of it runs; a ca
     const asleep = host.sleepIfIdle(reference.storage_key, 0, async () => false);
     await new Promise(resolve => setImmediate(resolve));
     const purposeful = host.closeProject(reference.storage_key);
+    assert.equal(host.projectRest(reference.storage_key).state, "closed", "purposeful close overrides mid-sleep state immediately");
     releaseClose();
     await Promise.all([asleep, purposeful]);
     assert.equal(host.projectRest(reference.storage_key).state, "closed");
     assert.deepEqual(closed, ["p1"]);
-  } finally { releaseClose(); await host.close(); }
+  } finally {
+    releaseClose();
+    await host.close();
+  }
 });

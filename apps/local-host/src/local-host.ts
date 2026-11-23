@@ -301,8 +301,11 @@ export class LocalHost<Runtime> {
         } catch (error) { return refuseCall(this.reports, bound, capability, error); }
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.reports, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
-        bound = { ...bound, ...callSignal(descriptor, () => this.line.ensureEntry(project), bound.signal) };
-        return this.line.enqueue(project, descriptor, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
+        return this.line.enqueue(project, descriptor, () => {
+          bound = { ...bound, ...callSignal(descriptor, () => this.line.currentScope()?.entry, bound.signal) };
+          dispatched = true;
+          return this.actionService.invoke(bound, capability, input);
+        }, step)
           .catch(error => { if (dispatched) throw error; return refuseCall(this.reports, bound, capability, error); });
       },
     };

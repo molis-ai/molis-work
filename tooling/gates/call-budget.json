@@ -1,98 +1,98 @@
 {
   "projectHome": {
-    "prepareContext": 3,
+    "prepareContext": 2,
     "inspectActions": 0,
     "discover": 3,
     "discoverScenes": 0,
-    "projectPluginReads": 18,
-    "sqliteOpens": 17,
-    "actionDirectoryRows": 180,
+    "projectPluginReads": 16,
+    "sqliteOpens": 16,
+    "actionDirectoryRows": 111,
     "sceneDirectoryRows": 0,
-    "ownerResolutions": 113,
-    "shippedRegistrationRows": 3432
+    "ownerResolutions": 31,
+    "shippedRegistrationRows": 3288
   },
   "projectBrief": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 3,
-    "discoverScenes": 4,
-    "projectPluginReads": 14,
-    "sqliteOpens": 14,
-    "actionDirectoryRows": 2367,
-    "sceneDirectoryRows": 4,
-    "ownerResolutions": 1441,
-    "shippedRegistrationRows": 840
+    "discoverScenes": 1,
+    "projectPluginReads": 12,
+    "sqliteOpens": 12,
+    "actionDirectoryRows": 5,
+    "sceneDirectoryRows": 1,
+    "ownerResolutions": 4,
+    "shippedRegistrationRows": 744
   },
   "rightSide": {
     "prepareContext": 4,
     "inspectActions": 0,
     "discover": 6,
-    "discoverScenes": 6,
+    "discoverScenes": 0,
     "projectPluginReads": 30,
     "sqliteOpens": 35,
-    "actionDirectoryRows": 4734,
-    "sceneDirectoryRows": 6,
-    "ownerResolutions": 2889,
-    "shippedRegistrationRows": 1728
+    "actionDirectoryRows": 252,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 231,
+    "shippedRegistrationRows": 1704
   },
   "contextual": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
-    "discoverScenes": 1,
+    "discoverScenes": 0,
     "projectPluginReads": 3,
     "sqliteOpens": 3,
-    "actionDirectoryRows": 789,
-    "sceneDirectoryRows": 1,
-    "ownerResolutions": 479,
-    "shippedRegistrationRows": 240
+    "actionDirectoryRows": 19,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 17,
+    "shippedRegistrationRows": 216
   },
   "sideFileSources": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
-    "discoverScenes": 1,
+    "discoverScenes": 0,
     "projectPluginReads": 4,
     "sqliteOpens": 4,
-    "actionDirectoryRows": 789,
-    "sceneDirectoryRows": 1,
-    "ownerResolutions": 479,
+    "actionDirectoryRows": 9,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 6,
     "shippedRegistrationRows": 216
   },
   "sideFileFirstPages": {
     "prepareContext": 1,
     "inspectActions": 0,
-    "discover": 2,
-    "discoverScenes": 1,
+    "discover": 1,
+    "discoverScenes": 0,
     "projectPluginReads": 13,
     "sqliteOpens": 14,
-    "actionDirectoryRows": 2141,
-    "sceneDirectoryRows": 1,
-    "ownerResolutions": 485,
+    "actionDirectoryRows": 9,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 12,
     "shippedRegistrationRows": 720
   },
   "sideFileEntries": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
-    "discoverScenes": 1,
+    "discoverScenes": 0,
     "projectPluginReads": 6,
     "sqliteOpens": 6,
-    "actionDirectoryRows": 789,
-    "sceneDirectoryRows": 1,
-    "ownerResolutions": 480,
+    "actionDirectoryRows": 9,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 7,
     "shippedRegistrationRows": 336
   },
   "sideFilePreview": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
-    "discoverScenes": 1,
+    "discoverScenes": 0,
     "projectPluginReads": 6,
     "sqliteOpens": 6,
-    "actionDirectoryRows": 789,
-    "sceneDirectoryRows": 1,
-    "ownerResolutions": 480,
+    "actionDirectoryRows": 38,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 30,
     "shippedRegistrationRows": 336
   },
   "sideFileMissingSource": {
@@ -153,7 +153,7 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 72
+    "shippedRegistrationRows": 48
   },
   "memoryUnknown": {
     "prepareContext": 0,
@@ -165,18 +165,18 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 72
+    "shippedRegistrationRows": 48
   },
   "goalPanes": {
-    "prepareContext": 10,
+    "prepareContext": 4,
     "inspectActions": 0,
-    "discover": 6,
+    "discover": 2,
     "discoverScenes": 0,
-    "projectPluginReads": 60,
-    "sqliteOpens": 58,
-    "actionDirectoryRows": 360,
+    "projectPluginReads": 21,
+    "sqliteOpens": 22,
+    "actionDirectoryRows": 2,
     "sceneDirectoryRows": 0,
-    "ownerResolutions": 242,
-    "shippedRegistrationRows": 5376
+    "ownerResolutions": 6,
+    "shippedRegistrationRows": 3168
   }
 }

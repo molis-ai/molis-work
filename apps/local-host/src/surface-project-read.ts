@@ -39,9 +39,15 @@ export function projectSurfaceContext(host: LocalHost<MolisWorkProjectRuntime>, 
     const transport = pluginRouteControl(signal, () => {
       if (owner.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭");
     }, assertSource);
-    // A project that went to sleep while its page stayed open is woken for the person looking at it (batch 103-1); a project closed on
+    // A project that went to sleep while its page stayed open is woken for the person looking at it; a project closed on
     // purpose or never opened stays as it is, so a display position still never prepares plugins of its own accord.
-    const wake = host.projectRest(reference.storage_key).state === "asleep" ? owner.withProject(reference, () => undefined) : undefined;
+    const wake = host.projectRest(reference.storage_key).state === "asleep"
+      ? Promise.resolve().then(() => {
+        retained?.assertCurrent();
+        requireSynchronous(transport.assert_authority_current?.());
+        return owner.withProject(reference, () => undefined);
+      })
+      : undefined;
     return Promise.resolve(wake).then(() => host.withExistingRuntime(reference, async runtime => {
       requireSynchronous(transport.assert_authority_current?.());
       if (!homeDirectory) throw new ActionError("actions.unavailable", "呈现需要 Home 目录");

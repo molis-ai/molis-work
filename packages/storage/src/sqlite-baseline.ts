@@ -434,7 +434,7 @@ export function clearInExistingHomeSqlite<T>(homeDirectory: string, storeName: s
   } finally { db.close(); }
 }
 
-// Held Home connections (batch 103-1). They live here, beside `openBaselineHomeSqlite`, because they only pass on the baseline their
+// Held Home connections. They live here, beside `openBaselineHomeSqlite`, because they only pass on the baseline their
 // caller names: the release check reads the named baseline at each caller (scripts/verify-release-versions.mjs).
 
 interface Held { db: DatabaseSync; dev: number; ino: number; data: number; schema: number }
@@ -471,7 +471,7 @@ function stillHeld(file: string): DatabaseSync | undefined {
 }
 
 /**
- * The one connection this process keeps to a Home store (batch 103-1): the first call opens it the way `openBaselineHomeSqlite` does (version,
+ * The one connection this process keeps to a Home store: the first call opens it the way `openBaselineHomeSqlite` does (version,
  * structure and space checked, the structure compared once), runs `prepare` on it once, and every later call borrows the same connection instead
  * of opening and closing the file again. A file that was removed or replaced since (its device and inode changed) is opened again, so a borrower
  * never writes into a file that is no longer the store; one another connection wrote to or changed since it was checked is checked again
@@ -480,7 +480,7 @@ function stillHeld(file: string): DatabaseSync | undefined {
  * releases a Home's connections when it gives the Home up (`releaseHeldHomeSqlite`).
  */
 export function heldHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): DatabaseSync {
-  const file = homeSqlitePath(home, storeName);
+  const file = resolve(homeSqlitePath(home, storeName));
   const reused = stillHeld(file);
   if (reused) return reused;
   const db = openBaselineHomeSqlite(home, storeName, baseline);
@@ -510,11 +510,12 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
   options: { prepare?: (db: DatabaseSync) => void; existingOnly: true }): T | undefined;
 export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync) => T,
   { prepare, existingOnly = false }: { prepare?: (db: DatabaseSync) => void; existingOnly?: boolean }): T | undefined {
-  const file = homeSqlitePath(home, storeName);
+  const file = resolve(homeSqlitePath(home, storeName));
   if (existingOnly && (!existsSync(file) || statSync(file).size === 0)) return undefined;
   const current = held.get(file);
   if (current?.db.isOpen && current.db.isTransaction) {
-    const own = existingOnly ? openExistingBaselineHomeSqlite(home, storeName, baseline)! : openBaselineHomeSqlite(home, storeName, baseline);
+    const own = existingOnly ? openExistingBaselineHomeSqlite(home, storeName, baseline) : openBaselineHomeSqlite(home, storeName, baseline);
+    if (!own) return undefined;
     try {
       prepare?.(own);
       return work(own);
@@ -523,7 +524,11 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
   const reused = stillHeld(file);
   if (reused) return work(reused);
   // Whenever a connection is opened again (first borrow, replaced file, or another connection changed the store), a read checks it read-only first.
-  if (existingOnly) openExistingBaselineHomeSqlite(home, storeName, baseline)?.close();
+  if (existingOnly) {
+    const checked = openExistingBaselineHomeSqlite(home, storeName, baseline);
+    if (!checked) return undefined;
+    checked.close();
+  }
   return work(heldHomeSqlite(home, storeName, baseline, prepare));
 }
 

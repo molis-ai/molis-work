@@ -19,7 +19,7 @@ export const CONNECTORS_BASELINE: SqliteBaseline = { version: /* @version databa
 const prepareConnectors = (db: ConnectorsDatabase) => db.exec("PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
 
 /**
- * Runs `work` on the Home's one held connection to the connectors store (batch 103-1), created at its baseline when missing; the caller
+ * Runs `work` on the Home's one held connection to the connectors store, created at its baseline when missing; the caller
  * borrows it synchronously and never closes it. `existingOnly`: a Home without the store answers `undefined` and stays without it.
  */
 export function withConnectorsStore<T>(home: string, work: (db: ConnectorsDatabase) => T): T;

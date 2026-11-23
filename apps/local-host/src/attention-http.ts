@@ -6,7 +6,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 /** Where each part of what waits on the person is read; every reader belongs to the part's owner. */
 export interface AttentionSources {
   /**
-   * Background tasks running or waiting on the person, in every open project, as the plugins that own them say (`home-background-tasks.ts`).
+   * Background tasks running or waiting on the person, in open and resting projects, as the plugins that own them say (`home-background-tasks.ts`).
    * Only on the Home page, whose title bar lists them; a project page reads its own tasks with its line (specs/work-line §4.5).
    */
   backgroundTasks?(): HomeBackgroundTasksReadResult | Promise<HomeBackgroundTasksReadResult>;

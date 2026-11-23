@@ -16,6 +16,6 @@
 
 受保护的用户操作可以要求独立权限和 Host 注入的 `ActionCallContext.user_action` 出处。会话/消息引用本身不授予权限，不接受业务参数或 MCP 请求自填；Host 在排队时保留调用者与出处快照。例如 `goals.decisions.record` 只允许 user audience 和 `goals:decide`，普通模型仍只能请求或引用决定。Goals 的管理、网页和模型调用走同一份动作合同，由真实调用上下文与独立权限区分谁能做用户决定；旧 Goals 管理 typed 桥和插件开发 typed 入口已经删除。插件开发通过隔离 Host 的 `developInPrivateHost` 函数运行，插件的 consumes 声明或伪造描述符不能恢复旧入口。Plugin SDK 的依赖检查与调用始终保留真实插件身份。
 
-持续任务继续复用 Images、Alchemist 等业务 owner 的原记录。平台不另造任务表来复制其状态，也不将每次轻量调用升级为 Goal。合同包里曾有一个只含描述符的 `modules/actions` 占位子路径，W2-01 已删；它从来没有对应实现，不要据此再创建第二套动作执行服务。
+持续任务继续复用 Images 等业务 owner 的原记录。平台不另造任务表来复制其状态，也不将每次轻量调用升级为 Goal。合同包里曾有一个只含描述符的 `modules/actions` 占位子路径，W2-01 已删；它从来没有对应实现，不要据此再创建第二套动作执行服务。
 
 当前为迁移中，未达到整体内部完整。授权界面、MCP Client 接入、全部存量插件、通用工作流及调用记录仍有未完成项。唯一范围和验证记录见 [架构规格](../../specs/action-architecture/spec.md) 与 [迁移清单](../../specs/action-architecture/migration.md)。

@@ -36,7 +36,7 @@ let hostOwners: ReadonlySet<string> | undefined;
  * (`forgetPluginAgentDefinitions`, PG-051 Q1 b).
  *
  * This is the one way a plugin's Agent definitions reach the register (PG-051): built-in or installed, a plugin's come with its
- * definition. A definition for an owner the Host registers itself (the assistant, Plugin Builder, Alchemist) is refused, as is one
+ * definition. A definition for an owner the Host registers itself (the assistant, Plugin Builder) is refused, as is one
  * that names an owner other than itself.
  */
 export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string,

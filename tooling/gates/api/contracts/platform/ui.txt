@@ -620,7 +620,7 @@ export declare const UI_ROLE_TYPES: readonly ["color", "shadow", "length", "dura
 
 export declare const UI_ROLE_VARIES_BY: readonly ["theme", "none", "terminal"];
 
-export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
+export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "code"];
 
 export declare const UI_VIEW_HUES: readonly ["gray", "brown", "orange", "yellow", "green", "mint", "cyan", "blue", "indigo", "purple", "pink", "red", "steel", "slate"];
 

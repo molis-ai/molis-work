@@ -283,7 +283,7 @@ flowchart LR
 | Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 53 接挂载；Shelf 自有声明归 64 |
 | Files | 无；第 06 批已退役，目录和内容改由平台资料服务（`system.materials`，[`system-materials-actions.ts`](../../apps/local-host/src/system-materials-actions.ts)）给，它不是 subject reader | 06-1 退役交 knowledge 与平台资料服务，不给旧包新增呈现 |
 | 插件创作台 | 无；[自身页面](../../horizontal/plugin-studio/src/surface.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 68-4，不能把生成页面布局当创作台对象声明 |
-| Alchemist | [`alchemist-direction`、`alchemist-idea`、`alchemist-playbook`](../../plugins/native/alchemist/src/studio/server/services/workspace-operations.ts)，仍走现存 Host 特例 | 64 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
+| Alchemist | `alchemist-direction`、`alchemist-idea`、`alchemist-playbook`，仍走现存 Host 特例 | 64 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
 | 文本统计 | 插件 2026-11-22 退役删除（原 `text-stats.state`/`text-stats.count` 读固定快照或计算输入文本） | 不再需要：64 的独立身份与 15 的首页处理都随插件撤销 |
 
 排期依据：[53](../post-anticorruption-roadmap/reference/batches/53.md)、[64](../post-anticorruption-roadmap/reference/batches/64.md)、[68](../post-anticorruption-roadmap/reference/batches/68.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 62／64，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。

@@ -32,7 +32,7 @@
 | 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（`plugins/native/schedule/src/runtime-wakeups.ts` 经 Runtime 的 `services.agents.run`）。Coding 或助理向 `modules/characters` 的宿主提供方取角色稳定引用。Agent 宿主在一轮开始时固定当时的版本 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
-宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（只剩用户批过的两个例外 Alchemist、插件创作台，`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`；词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定只剩 `apps/local-host/src/alchemist-prologue.ts` 一处，登记为例外，删除条件是 Alchemist 重做并进 Plugin Runtime（统筹 2026-10-26 定，不再挂在 W5-11 上）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
+宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（第 44B 批起已没有，`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS` 为空；词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定已没有（最后一处 `alchemist-prologue.ts` 随旧炼金术士在第 44B 批删除）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
 
 不要为了统一把单次调用塞进 Agent 循环，也不要在插件或 Host 里直接依赖 `@prologue/sdk`——只有 `horizontal/agent-host` 声明了这个依赖（`scripts/workspace-packages.mjs`），其他包经它的公开入口使用。
 
@@ -61,9 +61,9 @@ Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompt
 
 Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`plugins/native/cognia/src/plugin.ts` 从 Home Runtime 的 `services.model` 读取可用性和实际提供方/模型标签，调用同一个 Host/Prologue 服务；证据角色与回答指令由插件登记，原指令覆盖键保持。模型返回后经 Runtime 数据库事务复查原调用授权，才存审阅草稿。发现只读元数据，执行才解析凭据；不建立第二个 Runtime。项目上手仍用自己的配置模型 helper 和主人。
 
-Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Plugin SDK 的 `createExecutionLifetime`（`@molis-ai/molis-work-plugin-sdk`，Kernel 不转出它）取三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
+首次授权等待与模型执行复用 Plugin SDK 的 `createExecutionLifetime`（`@molis-ai/molis-work-plugin-sdk`，Kernel 不转出它）取三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
 
-Alchemist 六类固定指令在 `src/prompts.ts` 登记为 `ALCHEMIST_INSTRUCTIONS`：方向生成、Copilot、研究交叉检查/综合、成果适用性和格式纠正。`systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
+`systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
 
 Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实计划内容（1 至 30 个动作，每项有标题）。现在 Jelly 只剩「拆解计划」一条登记指令，没有分段摘要或合并调用；拆解在派出前复查原 Action 的 `beforeEffect`，返回后再复查一次，不把取消或撤权写成成功拆解。
 
@@ -75,7 +75,7 @@ Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实�
 
 SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象字段、数组项、字符串/数组长度及数值上下限。未知关键字发出前拒绝；native 不支持不会暗降级 local。领域校验和是否允许付费格式纠正由业务 owner 决定，默认没有格式自动重试。
 
-可执行示例：`tests/coding-commit-draft.test.ts`、`tests/cognia-prologue.test.ts`、`tests/alchemist-host.test.ts`、`tests/prologue-inference-native.test.ts`，均有真实 SDK 路径；本地模型服务不代表商业供应商质量验收。
+可执行示例：`tests/coding-commit-draft.test.ts`、`tests/cognia-prologue.test.ts`、`tests/prologue-inference-native.test.ts`，均有真实 SDK 路径；本地模型服务不代表商业供应商质量验收。
 
 ### Agent 轮次（以 Coding 为例）
 
@@ -104,7 +104,7 @@ Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定
 
 **动作定义**：写明 `model:invoke` 权限；等模型的动作一律 `scheduling: "concurrent"`，否则它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
 
-提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
+提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
 
 ```ts
 message: define("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -154,7 +154,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
 - **显式受理的后台工作**：并发 command 声明 `background_job` 后，可在活跃处理器内通过 `services.background.start` 接受一次执行。该回调拥有保留原身份、项目、注册和可撤销授权的新控制，模型仍走同一入口；正常 HTTP/MCP 结束不取消已受理工作，原 MCP 撤权、插件停用或后台执行结束后的结果和文字回调仍拒绝。原处理器的 caller 不延寿，任务持久化与恢复由插件负责，详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「已受理的后台执行」。
-- **只收自己登记的指令**：`complete(instructed(指令, 数据), { system?, output?, timeout_ms?, max_output_tokens? })`。`owner_id` 必须是本插件（`system` 也是），裸字符串、别人的指令、没登记的指令以 `plugin.model_instruction_refused` 拒绝；发送的是用户在设置 › 提示词里改过的版本。内置的与安装的插件同一条路（PG-051）：指令在 `PluginDefinition.instructions` 里声明，随实例启动由 `registerPluginAgentDefinitions` 登记，最后一个运行它的实例停止后按「未运行」留在设置里；调用只能发送调用者定义里带的指令。主人是平台自己登记的（助理、`system:*`、插件创作台、Alchemist）的，插件定义不能再登记，启动失败；同一个插件的两个安装（两个发布者签名）可以并排登记。
+- **只收自己登记的指令**：`complete(instructed(指令, 数据), { system?, output?, timeout_ms?, max_output_tokens? })`。`owner_id` 必须是本插件（`system` 也是），裸字符串、别人的指令、没登记的指令以 `plugin.model_instruction_refused` 拒绝；发送的是用户在设置 › 提示词里改过的版本。内置的与安装的插件同一条路（PG-051）：指令在 `PluginDefinition.instructions` 里声明，随实例启动由 `registerPluginAgentDefinitions` 登记，最后一个运行它的实例停止后按「未运行」留在设置里；调用只能发送调用者定义里带的指令。主人是平台自己登记的（助理、`system:*`、插件创作台）的，插件定义不能再登记，启动失败；同一个插件的两个安装（两个发布者签名）可以并排登记。
 - **限额**：`timeout_ms` 默认 120 秒、至多 600 秒，`max_output_tokens` 默认 5000、至多 12000（`PLUGIN_MODEL_LIMITS`），超出以 `plugin.model_limit_exceeded` 拒绝，不截断。`output: "json"` 用 agent-host 的 `decodePrologueJsonOutput` 解码（允许代码围栏），解不出是 `plugin.model_output_invalid`；它只解码，结构由插件自己校验。结果的 `usage` 只在供应商报告了才有。
 - **生成中预览**：可选的 `onText(delta)` 按模型原顺序接收文字增量，不含运行、模型信息或用量事件。每次交给插件之前，Runtime 同步复查原动作、安装授权和取消状态；请求结束即关闭回调，即使动作还在继续也不再交文字。插件自行把文字变为页面或动作进度；预览不表示结果已通过末尾检查或已保存。回归见 `tests/security-invariants-plugin-model-progress.test.ts`。
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
@@ -261,7 +261,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 - **等外面的结果**（Coding 的执行角色，P3c）：一步要等的东西在宿主之外（一个作业跑完、一个结果文件写好），模型用 `board-wait` 登记 `{ kind: "external", checker, params }` 后这一轮结束；之后由宿主的检查器按 SDK 的节奏去看（第一次约 1 秒后，间隔逐次加倍，至多 1 小时），不经模型、不花 token。现有两个通用检查器，都在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`：`molis.action-query@1` 调一个只读查询动作（`params.tool` 写这一轮的动作工具名，宿主按这一轮冻结的动作换回精确引用），把回答里 `status.path` 那一项按给定的 `satisfied`、`failed`、`pending` 对上，对不上、查询出错都算 unknown，不算结果；`molis.file-present@1` 看授权目录里的一个相对路径，比登记那一轮旧的、空的（`non_empty`）、缺完成标记（`marker`）的都还在等，有失败标记（`failed_marker`）就是失败，「在」只说明文件在，不证明内容对。要判断好坏的条件（「测试都过了」「结果合理」）不能这样等：判断要问模型，是命令；声明了 `model:invoke` 的查询也拒，因为每看一次就调一次模型。能等什么、每次看都怎样复核、什么一律拒绝，见 `docs/system/SECURITY-INVARIANTS.md` 的 S-27；等完之后照常是一条接续，由插件起下一轮。
 
 接入本人操作的等待使用 `molis.connector-setup@1`，参数仅 `{ authorization_id }`，来自本会话的 `connectors.setup.prepare`。Host 在登记与每次读取前后检查请求的原会话、用户、项目及当前助理查询权限；重启后只恢复这项窄读取，不恢复通用动作或文件授权。检查只证明请求和连接状态，等待满足后还须按最新任务调用真实业务能力。已有连接的跨入口修复使用 `molis.connection-ready@1`：稳定连接、真实账号要求与精确能力引用由原任务提供，检查当前工作和授权后只读连接事实；不会在检查器里联网、启用连接或执行业务动作。设置页检查、其他会话修复、Host 重启沿用同一 owner 事实；换账号或缺权限仍等待。App-tools 业务角色使用同一个 SDK 持久等待，只允许其 App 登记的只读外部检查器；命令、信封、节点及待答问题条件不向此模式开放。无绑定、其他会话与已撤权检查均拒绝。真实 SDK 与本机协议替身已验证等待、最新请求、单次接续及重启，真实模型和服务账号的验收仍见 `specs/assistant-service-connections/spec.md` §11。
-- **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
+- **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何业务记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
 - **超时**（按场景，数字都以代码为准，这里只是列清楚；W3-06 E 没有改任何一个）：
@@ -272,7 +272,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
   | 生成插件的 `model.generate` | 110 秒（内部调用超时；动作声明是 120 秒） | `apps/local-host/src/installed-plugin-model.ts` |
   | Shelf 的自动处理 | 600 秒、12000 个输出 token | `plugins/native/shelf/src/ai.ts`（Home 实例经 `services.model`） |
-  | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
+  | Cognia | 180 秒 | `plugins/native/cognia/src/plugin.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
   | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |
   | 创作台的角色 | designer 600 秒、coder 300 秒 | `horizontal/agent-host/src/adapters/plugin-builder.ts`（`MODEL_CALL_LIMIT_MS`） |
@@ -549,7 +549,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send` 与 `agent.inputs.withdraw` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
-| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |
+| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |
 | 回复语言 | 一轮用哪种语言回复，不靠模型猜 | `apps/local-host/src/reply-language.ts` 的 `replyLanguagePrompt`；只有宿主放进 `AgentStartAuthority.reply_language`，`composeRolePrompts` 接在各层之后 | **例外：和上一行一样是代码里的固定文字，不登记、不进「设置 › 提示词」。** 它只说用哪种语言，要换语言去换界面语言；能改这句，改出来的只是回复和所选语言对不上。版本仍记进这一轮的 `frozen.prompts`（`prompt.reply-language`） | 第 16 批已接个人助理、Coding 与创作台（`apps/local-host/src/reply-language.ts`、`plugin-builder/studio-language.ts`、轮次 authority）；它之后的子角色说明、侧栏浏览器和桌面说明、步骤板仍可能带中文，真实模型下两份英文纪要正文仍为中文（FSS-71，[BL-assistant-minimax-english-minutes](../../specs/backlog/BL-assistant-minimax-english-minutes.md)） | 确定性：`tests/reply-language.test.ts`、`tests/security-invariants-ui-locale-memory.test.ts` |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`horizontal/plugin-studio/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/installed-plugin-model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |

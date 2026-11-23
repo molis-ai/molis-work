@@ -88,8 +88,8 @@ test("RAC-1721 RAC-1722 RAC-1723 RAC-1724 navigation uses the view's own title, 
   assert.equal(clean?.ui.views.length, 1);
 });
 
-const en = { artifacts: "Artifacts", "plugin-builder": "Plugin Studio", images: "Images", lingguang: "Lingguang", todo: "Todo", alchemist: "Alchemist", workflows: "Workflows" };
-const zh = { artifacts: "成果", "plugin-builder": "插件创作工作台", images: "图片", lingguang: "灵光", todo: "待办", alchemist: "炼金术士", workflows: "工作流程" };
+const en = { artifacts: "Artifacts", "plugin-builder": "Plugin Studio", images: "Images", lingguang: "Lingguang", todo: "Todo", workflows: "Workflows" };
+const zh = { artifacts: "成果", "plugin-builder": "插件创作工作台", images: "图片", lingguang: "灵光", todo: "待办", workflows: "工作流程" };
 
 test("FSS-36 RAC-1725 RAC-1728 the built-in names, market summaries and tab names follow their exact registration", () => {
   for (const [locale, names] of [["zh", zh], ["en", en]] as const) runWithLocale(locale, () => {

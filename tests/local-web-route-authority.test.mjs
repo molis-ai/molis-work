@@ -51,12 +51,11 @@ function directWebClients(name, text) {
 
 // PG-008: this checks the actual entrypoints, independently of bindLocalWebActions' mechanism tests (RAC-651).
 // Formatting, parentheses and import aliases do not hide a direct binding. Goals' separate binding is outside this check.
-test("RAC-651-ROUTES Web entrypoints do not bind raw Host action clients outside Alchemist (BL-376)", async () => {
+test("RAC-651-ROUTES Web entrypoints do not bind raw Host action clients", async () => {
   const names = (await readdir(sources)).filter(name => name.startsWith("web-") && name.endsWith(".ts")).sort();
   assert.ok(names.length > 0, "scan the production Web entrypoints");
   const clients = (await Promise.all(names.map(async name => directWebClients(name, await readFile(new URL(name, sources), "utf8"))))).flat();
-  const retained = clients.filter(client => client.file === "web-request.ts" && client.route === "alchemist");
-  assert.ok(retained.length <= 1, "BL-376 retains only the existing Alchemist binding");
-  assert.deepEqual(clients.filter(client => !retained.includes(client)), [],
+  // The last one, the old Alchemist's (BL-376), left with it in 44B.
+  assert.deepEqual(clients, [],
     "Web entrypoints must resolve the person's authority from installation grants before invoking an action");
 });

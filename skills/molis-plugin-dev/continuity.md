@@ -64,7 +64,7 @@ Shelf 文字副本用 `shelf.items.read@1` 的完整 `content_hash` 作为 `shel
 
 个人同步会产生“修订数字相同、内容不同”的并发分支。版本前提必须标识所读内容，不能只比较本机递增数字。Cognia 的 `cognia.material.get@1` 返回完整资料的 `etag`，`cognia.material.update@1` 强制携带它，owner 在同一事务核对并保存；网页与 MCP 共用处理器，旧编辑被拒绝而不覆盖新内容。对应 MCP 名为 cognia.material.get__v1、cognia.material.update__v1。
 
-炼金术士的 `alchemist.directions.editing@1` 和 `alchemist.memory.playbook.editing@1` 是编辑读取入口，返回对象及完整内容 `etag`；`alchemist.directions.update@1`、`alchemist.memory.playbook.revise@1` 必须携带该次读取的 `expectedEtag`，方法另带 `expectedVersion`。旧编辑在同步选择另一分支后也必须拒绝；不能临保存时重取最新指纹替旧内容补前提。MCP 修改工具与动作同版（__v1）。
+编辑读取入口返回对象及完整内容 `etag`；对应的修改动作必须携带该次读取的 `expectedEtag`。旧编辑在同步选择另一分支后也必须拒绝；不能临保存时重取最新指纹替旧内容补前提。MCP 修改工具与动作同版（__v1）。
 
 - 完整样例：Pages（`plugins/native/pages`：`pages.subject.read`、`result_subject`、`expected_version`、页面声明与刷新）和 Coding（`plugins/native/coding`：`coding.subject.read` 路由、页面声明、方式同步、两个入口同一会话）。
 - 测试：`tests/assistant-work-continuity.test.ts`（关系、手动修改被感知、版本前提、相关工作查询、Home 作用域声明）、`tests/assistant-executor.test.ts`（两个入口、接续会话、交接与回到助理）。

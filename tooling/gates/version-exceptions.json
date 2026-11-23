@@ -222,42 +222,6 @@
     "reason": "解析规则：字符串引用没写 @ 时指第 1 版。这是读法的约定，换数字会改变存量引用的含义。"
   },
   {
-    "file": "plugins/native/alchemist/src/studio/domain/discovery/idea-card.ts",
-    "name": "currentVersion",
-    "values": { "1": 1 },
-    "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/domain/discovery/idea-card.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/db/idea-repository.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/services/calibration-memory.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/services/idea-card-actions.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/services/workspace-operations.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
     "file": "plugins/native/coding/src/change-html.ts",
     "name": "content_version",
     "values": { "1": 1 },
@@ -644,12 +608,6 @@
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/alchemist/src/ui.ts",
-    "name": "io.molis.work.native.alchemist.ui.v1",
-    "values": { "io.molis.work.native.alchemist.ui.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
     "file": "plugins/native/coding/src/ui.ts",
     "name": "io.molis.work.native.coding.ui.v1",
     "values": { "io.molis.work.native.coding.ui.v1": 1 },
@@ -836,16 +794,10 @@
     "reason": "账号会话在密钥库里的引用名，后面是 Home 与账号环境的摘要；只按整串取，改它就找不到已存的会话。记录本身的格式版本是 format.account.session，这里不是版本号。"
   },
   {
-    "file": "apps/local-host/src/alchemist-search.ts",
-    "name": "materials_v1",
-    "values": { "materials_v1": 1 },
-    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
-  },
-  {
     "file": "apps/local-host/src/connector-web-search.ts",
     "name": "materials_v1",
     "values": { "materials_v1": 1 },
-    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本（与 alchemist-search.ts 同一次 AnySearch 请求写法）。"
+    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
   },
   {
     "file": "apps/local-host/src/demo-project-id.ts",
@@ -948,24 +900,6 @@
     "name": "molis-work-feed-cas-v1.X",
     "values": { "molis-work-feed-cas-v1.X": 1 },
     "reason": "乐观并发令牌的固定前缀，后面是随机数；令牌只按整串相等比较，不解析版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/db/idea-repository.ts",
-    "name": "activity_X_v1",
-    "values": { "activity_X_v1": 1 },
-    "reason": "Alchemist 活动记录的 id，按 idea 拼成，写进记录后不升，不是版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/runtime/fixture-ai-runtime.ts",
-    "name": "fixture-research-v1",
-    "values": { "fixture-research-v1": 1 },
-    "reason": "Alchemist 演示运行时的模型 id，演示用，不被比较，不是版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/studio/server/services/decision-workspace.ts",
-    "name": "mvpScopeVersion",
-    "values": { "1": 1 },
-    "reason": "还没有 MVP 范围时默认的修订号：这是 Alchemist 记录自身的修订，不是产品声明的版本。"
   },
   {
     "file": "plugins/native/diff/src/board-specimens.ts",

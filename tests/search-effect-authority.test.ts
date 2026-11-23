@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSearchOpaqueBlobStore, createSearchSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { searchMemorySecrets } from "./fixtures/alchemist-search-network.js";
+import { searchMemorySecrets } from "./fixtures/search-memory-secrets.js";
 
 test("W5-01-ALC-RES03: each opaque storage mutation checks current authority at its SQL effect", async t => {
   const home = mkdtempSync(join(tmpdir(), "search-effects-")), storage = new LocalSqliteStorage(join(home, "search.sqlite"));

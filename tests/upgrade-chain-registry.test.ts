@@ -50,10 +50,6 @@ test("UPG1-12: a store is listed once, and comparing the fingerprint opens nothi
   assert.match(upgradeFingerprint(counting), /^[0-9a-f]{64}$/);
 });
 
-test("UPG1-12: left out on purpose: the old Alchemist's two stores (user 2026-11-08) keep version 1 and their own refusal until the plugin is redone", () => {
-  assert.equal(homeUpgradeDescriptors().some(({ pattern }) => pattern.startsWith("alchemist")), false);
-});
-
 test("UPG-07: the last-used language is a versioned file in the chain, with the reading and the golden location the format table names", () => {
   const descriptor = homeUpgradeDescriptors().find(item => "file" in item && item.pattern === join("config", "ui-locale.json"));
   assert.ok(descriptor && "file" in descriptor, "config/ui-locale.json is a descriptor of the upgrade process");

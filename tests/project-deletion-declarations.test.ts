@@ -36,12 +36,12 @@ test("RAC-563 a plugin's project data is what it declares, and the confirmation 
     // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending.
     assert.deepEqual(owners.map(owner => owner.id), [
       "pages", "form", "dataset", "ppt", "work-brief", "workflows", "todo", "functions", "lingguang", "images",
-      "characters", "artifacts", "alchemist", "plugin-builder", "assistant", "mainline", "knowledge", "plugin-originals", "conversation-attachments", "plugin-connections", "plugin-project-reach", "task-grants", "automation-recommendations", "observation", "blueprints", "evaluation", "external-sessions", "memory", "search",
+      "characters", "artifacts", "plugin-builder", "assistant", "mainline", "knowledge", "plugin-originals", "conversation-attachments", "plugin-connections", "plugin-project-reach", "task-grants", "automation-recommendations", "observation", "blueprints", "evaluation", "external-sessions", "memory", "search",
     ]);
     assert.deepEqual(runWithLocale("zh", () => owners.flatMap(owner => owner.label ? [ownerLabel(owner)] : [])), [
       "Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "Dataset 数据表", "PPT 演示稿", "简报、它的版本与修改", "工作流程及其运行记录", "放在这个项目里的待办",
       "判断规则在这个项目里的场景绑定和判断记录", "灵光里的想法与对话", "图片生成记录和已生成的图片",
-      "这个项目的角色、默认角色与角色的执行记录", "成果库保存的大文件原件", "炼金术士的研究空间", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目主线上的事项与排列", "项目资料的卡片与整理记录", "这个项目的工作记录与核验备份", "这个项目的外部会话 AI 读取许可与归属建议", "这个项目及其角色的记忆",
+      "这个项目的角色、默认角色与角色的执行记录", "成果库保存的大文件原件", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目主线上的事项与排列", "项目资料的卡片与整理记录", "这个项目的工作记录与核验备份", "这个项目的外部会话 AI 读取许可与归属建议", "这个项目及其角色的记忆",
     ]);
     // Rows a library declares in its Manifest (`project_rows`, PG-024); no catalog entry carries code that clears a project's data
     // (the 成果库's originals are its module's, which the Host names).
@@ -76,8 +76,8 @@ test("declarations without an order run after every numbered one, in catalog ord
     await withFreshHome(async home => {
       const ids = projectDeletedHooksFor(home).owners().map(owner => owner.id);
       assert.equal(ids[0], "early");
-      const [a, b, images, alchemist] = [ids.indexOf("unordered-a"), ids.indexOf("unordered-b"), ids.indexOf("images"), ids.indexOf("alchemist")];
-      assert.ok(images < a && a < b && b < alchemist, `${ids.join(",")}`);
+      const [a, b, images, studio] = [ids.indexOf("unordered-a"), ids.indexOf("unordered-b"), ids.indexOf("images"), ids.indexOf("plugin-builder")];
+      assert.ok(images < a && a < b && b < studio, `${ids.join(",")}`);
     });
   } finally { catalog.splice(catalog.length - 3, 3); }
 });

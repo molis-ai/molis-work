@@ -12,11 +12,11 @@ import { ORDER_SKIP as SKIP, orderAudit } from "./fixtures/order-audit.js";
 // Light at 1440 reads every page; dark, compact density and a touch phone read the pages whose layout they change.
 
 const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "feed", "issues",
-  "jelly", "coding", "alchemist", "artifacts", "cognia", "diff", "git", "schedule", "plugin-builder"];
+  "jelly", "coding", "artifacts", "cognia", "diff", "git", "schedule", "plugin-builder"];
 // What light at 1440 also opens and reads: the header's create on the pages where it opens a new item's editor or the dialog
 // that asks for it in place (the others create in a sheet, or have none), and the Pages template list.
 const OPENS = [
-  ...["pages", "ppt", "workflows", "lingguang", "form", "dataset", "images", "alchemist", "cognia", "schedule"].map((page) => ["create", ".plugin-stage-chrome .tree-create", page]),
+  ...["pages", "ppt", "workflows", "lingguang", "form", "dataset", "images", "cognia", "schedule"].map((page) => ["create", ".plugin-stage-chrome .tree-create", page]),
   ["templates", "[data-pages-templates]", "pages"],
 ];
 const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "feed", "jelly", "coding"];

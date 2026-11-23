@@ -104,7 +104,6 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes("functions" as never), false, "判断已迁入系统服务");
   for (const id of ["form", "dataset", "ppt"]) assert.ok(PERSONAL_PLUGIN_IDS.includes(id));
   assert.equal([...PERSONAL_PLUGIN_IDS, ...PROJECT_SCOPED_PLUGIN_IDS].includes("characters"), false, "角色是宿主设置的一节，不是插件（CHR-1）");
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("alchemist"), false, "炼金术士不该要项目添加");
   for (const id of ["form", "dataset", "ppt"]) {
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
   }

@@ -19,7 +19,7 @@
 //
 // This gate does not decide whether a version may go above 1 at all, nor the maintenance row a raised version needs: those are
 // scripts/gates/initial-versions.mjs and scripts/gates/store-versions.mjs (upgrade-chain-design §11). It covers the libraries those two do not
-// list as well: every Home library, the project database, each built-in plugin's project tables and the old Alchemist's two stores.
+// list as well: every Home library, the project database, and each built-in plugin's project tables.
 import { goldenManifests } from "../golden/formats.mjs";
 
 export const SCHEMAS_FILE = "tooling/gates/schemas/stores.tsv";

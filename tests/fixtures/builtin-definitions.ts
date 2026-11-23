@@ -30,7 +30,6 @@ export const BUILTIN_DEFINITIONS: readonly PluginDefinition[] = [createCogniaPlu
 
 /** Catalog plugins with no runtime definition to carry Agent texts, and why; with BUILTIN_DEFINITIONS they are the whole catalog. */
 export const BUILTIN_WITHOUT_DEFINITION: Readonly<Record<string, string>> = {
-  "io.molis.work.alchemist": "Host 承载（PG-051：它的指令在 Host 自己的列表里）",
   "io.molis.work.goals": "包里没有 PluginDefinition",
   "io.molis.work.inbox": "包里没有 PluginDefinition",
 };

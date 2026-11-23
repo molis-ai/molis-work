@@ -6,7 +6,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, releaseHeldHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
-import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, PLATFORM_PLUGIN_REGISTRATIONS, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, PLATFORM_PLUGIN_REGISTRATIONS, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
@@ -38,14 +38,12 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // Frozen fixtures describe each owner's complete current schema (repository-anti-corruption §4.1). Some began as
 // schema-only real-Home records; connectors, Pages, Form, Issues, Memory and Characters now freeze current DDL (the work records, new in batch 28, from the start),
 // without claiming another real-Home inspection. The independently frozen Runtime schema is checked by its Host test below.
-// The Alchemist search store's is what the previous build created, since no real Home had one; it lives inside the
-// Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
-// new version and a new fixture, never a silent drift.
+// Changing a baseline means a new version and a new fixture, never a silent drift.
 const HOME_STORE_FIXTURE_VERSIONS = new Map([
   ["agent-definitions", 3], ["blueprints", 2], ["dataset", 2], ["external-sessions", 2],
   ["functions", 2], ["sync", 2], ["work-brief", 2],
 ]);
-for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
+for (const [name, baseline] of libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime")) {
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
     assert.equal(baseline.version, HOME_STORE_FIXTURE_VERSIONS.get(name) ?? 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);

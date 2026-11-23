@@ -183,7 +183,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
  * What the upgrade process looks after (upgrade-chain-design §2.3), in the order they upgrade: the catalog first, then each project's library,
  * then each built-in plugin's tables in it (§2.4), then the libraries and files of the Home. Only the plugins this
  * build ships are here. An installed plugin's library keeps its own check until U4 opens that door. The search index is rebuilt, so it is not
- * here. Nor are the old Alchemist's two stores: they stay at version 1 with their own refusal until the plugin is redone (user 2026-11-08, BL-377).
+ * here.
  */
 export function platformUpgradeDescriptors(): readonly HomeUpgradeDescriptor[] {
   return [

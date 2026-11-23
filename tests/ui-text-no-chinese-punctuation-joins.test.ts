@@ -124,8 +124,6 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "apps/workbench/src/browser/knowledge/detail.ts": 2,
   "packages/design-system/src/baseline.ts": 1,
   "packages/design-system/src/primitives/catalog-appearance-looks.ts": 1,
-  "plugins/native/alchemist/src/studio/server/services/calibration-memory.ts": 2,
-  "plugins/native/alchemist/src/studio/server/services/create-research-plan.ts": 1,
   "plugins/native/coding/src/continuation.ts": 1,
   "plugins/native/coding/src/history-digest.ts": 3,
   "plugins/native/coding/src/report-inputs.ts": 2,

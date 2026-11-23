@@ -68,12 +68,6 @@
       ],
       "reason": "The Host's registry of Agent definitions, its HTTP edge, and its contract, where the refusals callers outside the Host see are declared (specs/capability-pack/contract-design.md §4.11): its codes already start with agent_definitions."
     },
-    "alchemist": {
-      "paths": [
-        "apps/local-host/src/alchemist-*"
-      ],
-      "reason": "The Alchemist plugin and the Host files that serve it; its UPPER_CASE codes become alchemist.* (spec W3-02 J5)."
-    },
     "artifacts": {
       "paths": [
         "modules/artifacts/",

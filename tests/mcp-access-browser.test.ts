@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { alchemistActions as a } from "@molis-ai/molis-work-plugin-alchemist";
+import { pagesActions as pages } from "@molis-ai/molis-work-plugin-pages";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
@@ -59,15 +59,15 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   await click('.mcp-access-scope button[type=submit]');
   await shown("document.querySelector('[data-mcp-access]').dataset.clientId === 'runtime:ui-alpha'");
   assert.equal(await evaluate("document.querySelector('[data-mcp-access]').dataset.clientId"), "runtime:ui-alpha");
-  await search(a.directionCreate.capability_id);
-  assert.equal(await status(a.directionCreate.capability_id), "ungranted");
+  await search(pages.create.capability_id);
+  assert.equal(await status(pages.create.capability_id), "ungranted");
   // POLISH-30: a search that matches nothing says so in two lines, a title over one sentence (the empty state the first step's
   // row does not replace), and the search still finds the capability afterwards.
   await search("no-capability-is-called-this");
   assert.deepEqual(await evaluate(`(() => { const empty = document.querySelector('[data-mcp-access] .settings-empty'), title = empty.querySelector('strong').getBoundingClientRect(), note = empty.querySelector('span').getBoundingClientRect();
     return [title.width > 0 && note.width > 0, note.top >= title.bottom - 0.5]; })()`), [true, true], "nothing matches: a title over a sentence on its own line");
-  await search(a.directionCreate.capability_id);
-  assert.equal(await status(a.directionCreate.capability_id), "ungranted");
+  await search(pages.create.capability_id);
+  assert.equal(await status(pages.create.capability_id), "ungranted");
   // Changing the visible scope must never leave the old scope actionable.
   const savedBeforeScopeChange = await readMcpToolPreference(homeDirectory);
   for (const select of ['[data-mcp-client]', '[name=project]']) {
@@ -75,36 +75,36 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
     assert.equal(await evaluate("document.querySelector('[data-mcp-access-result]').hidden"), true);
     assert.equal(await evaluate("document.querySelector('[data-mcp-scope-pending]').hidden"), false);
     // Even a synthetic click against the stale hidden DOM cannot mutate its former scope.
-    await evaluate(`document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))}).querySelector('[data-grant-enabled=true]').click()`);
+    await evaluate(`document.querySelector(${JSON.stringify(row(pages.create.capability_id))}).querySelector('[data-grant-enabled=true]').click()`);
     assert.deepEqual(await readMcpToolPreference(homeDirectory), savedBeforeScopeChange);
     await evaluate("scopeInput.value=previousScope;scopeInput.dispatchEvent(new Event('change'))");
     assert.equal(await evaluate("document.querySelector('[data-mcp-access-result]').hidden"), false);
   }
   const alpha = await connect("ui-alpha"), beta = await connect("ui-beta");
-  const createName = molisWorkActionToolName(a.directionCreate);
+  const createName = molisWorkActionToolName(pages.create);
   assert.equal((await alpha.listTools()).tools.some(tool => tool.name === createName), false);
-  await grant(a.directionCreate.capability_id, true);
-  assert.equal(await status(a.directionCreate.capability_id), "enabled");
-  assert.equal((await readMcpToolPreference(homeDirectory)).action_grants?.find(item => item.capability_id === a.directionCreate.capability_id)?.client_id, "runtime:ui-alpha");
+  await grant(pages.create.capability_id, true);
+  assert.equal(await status(pages.create.capability_id), "enabled");
+  assert.equal((await readMcpToolPreference(homeDirectory)).action_grants?.find(item => item.capability_id === pages.create.capability_id)?.client_id, "runtime:ui-alpha");
   assert.equal((await alpha.listTools()).tools.some(tool => tool.name === createName), true);
   assert.equal((await beta.listTools()).tools.some(tool => tool.name === createName), false);
-  const created = await alpha.callTool({ name: createName, arguments: { description: "通过实际授权界面写入的探索方向" } });
+  const created = await alpha.callTool({ name: createName, arguments: { title: "通过实际授权界面写入的文档" } });
   assert.equal(created.isError, false, JSON.stringify(created));
-  const workspace = await localHost.actionClient(ref).invoke({ actor_id: "browser-test", project_id: projectId, audience: "user", permissions: ["alchemist:read"] }, a.bootstrap, {});
-  assert.ok(JSON.stringify(workspace).includes((created.structuredContent as any).direction.id));
+  const workspace = await localHost.actionClient(ref).invoke({ actor_id: "browser-test", project_id: projectId, audience: "user", permissions: [...pages.list.action.permissions] }, pages.list, {});
+  assert.ok(JSON.stringify(workspace).includes((created.structuredContent as any).document.id));
   await reloadPage();
-  await shown(`!!document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))})`);
-  assert.equal(await status(a.directionCreate.capability_id), "enabled");
+  await shown(`!!document.querySelector(${JSON.stringify(row(pages.create.capability_id))})`);
+  assert.equal(await status(pages.create.capability_id), "enabled");
   // The write reaches the real server, then its response is lost. UI must not claim success.
   await evaluate(`globalThis.originalFetch=globalThis.fetch;globalThis.fetch=async(...args)=>{const response=await originalFetch(...args);if(new URL(String(args[0]),location.origin).pathname==='/api/settings/mcp/actions'&&args[1]?.method==='POST'){globalThis.fetch=originalFetch;throw new TypeError('simulated response loss');}return response;}`);
-  await grant(a.directionCreate.capability_id, false);
+  await grant(pages.create.capability_id, false);
   // The shared request helper sends the full URL and, for a write whose answer was lost, says it may or may not have happened.
   assert.match(await evaluate<string>("document.querySelector('[data-mcp-access-feedback]').textContent"), /不知道这次操作有没有完成/);
-  assert.equal(await status(a.directionCreate.capability_id), "enabled", "uncertain result must not optimistically repaint the grant");
-  assert.equal((await alpha.callTool({ name: createName, arguments: { description: "撤销后拒绝写入" } })).isError, true);
+  assert.equal(await status(pages.create.capability_id), "enabled", "uncertain result must not optimistically repaint the grant");
+  assert.equal((await alpha.callTool({ name: createName, arguments: { title: "撤销后拒绝写入" } })).isError, true);
   await click('[data-mcp-access-refresh]');
   await waitFor(`document.querySelector('[data-mcp-access]').getAttribute('aria-busy')==='false'`);
-  assert.equal(await status(a.directionCreate.capability_id), "disabled");
+  assert.equal(await status(pages.create.capability_id), "disabled");
 
   // A previously unknown provider enters the same production registry, with no UI/Host whitelist.
   const id = `fixture.${randomUUID()}`; let online = true;
@@ -146,7 +146,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   assert.equal((await alpha.callTool({ name: queryName, arguments: {} })).isError, false);
 
   // Capture the real access surface, after choosing a client and a useful provider filter.
-  await visit(`?client=runtime:ui-alpha&project=${projectId}&q=alchemist`);
+  await visit(`?client=runtime:ui-alpha&project=${projectId}&q=pages`);
   await mkdir(artifacts, { recursive: true });
   for (const width of [1440, 390]) for (const theme of ["light", "dark"]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -163,14 +163,14 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   await writeFile(`${artifacts}/access-390-pending-scope-dark.png`, Buffer.from(pendingScopeCapture.data, "base64"));
   await evaluate(`document.querySelector('[name=project]').value=${JSON.stringify(projectId)};document.querySelector('[name=project]').dispatchEvent(new Event('change'))`);
   // Keyboard operation of the disclosure remains available on narrow screens.
-  await evaluate(`document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))}).querySelector('summary').focus()`);
+  await evaluate(`document.querySelector(${JSON.stringify(row(pages.create.capability_id))}).querySelector('summary').focus()`);
   assert.equal(await evaluate("document.activeElement.tagName"), "SUMMARY");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r", unmodifiedText: "\r", windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))}).querySelector('details').open`), true);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(pages.create.capability_id))}).querySelector('details').open`), true);
   const detail = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${artifacts}/access-390-detail-dark.png`, Buffer.from(detail.data, "base64"));
-  await evaluate("document.cookie='molis_work_locale=en; Path=/'"); await reloadPage(); await shown(`!!document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))})`);
+  await evaluate("document.cookie='molis_work_locale=en; Path=/'"); await reloadPage(); await shown(`!!document.querySelector(${JSON.stringify(row(pages.create.capability_id))})`);
   assert.match(await evaluate<string>("document.querySelector('.mcp-access-scope').innerText"), /Access scope/);
-  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))}).innerText`), /Access revoked/);
+  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(row(pages.create.capability_id))}).innerText`), /Access revoked/);
 });

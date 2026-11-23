@@ -9,16 +9,16 @@ import path from "node:path";
 
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "./atomic-write.js";
-import { HOME_SECURITY_DIRNAME, resolveHomeSecurityDirectory } from "./local-security-paths.js";
+import { resolveHomeSecurityDirectory } from "./local-security-paths.js";
 import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
 
 const errors = defineErrorCodes("storage.evidence_content", { key_unavailable: "unavailable" });
 /**
  * The content key is not there (or is not a key). Bodies sealed with it stay as they are and no replacement key is made while any
- * remains, so new bodies are refused until the original key is back (BL-1065).
+ * remains in this store's directory, so new bodies are refused until the original key is back (BL-1065).
  */
 const keyMissing = () => errors.key_unavailable(
-  "保存正文的钥匙找不到了。已有的动态和研究正文原样保留；找回原钥匙之前，新的正文不会保存。请找回原来的钥匙后重启 Molis Work。",
+  "保存正文的钥匙找不到了。已有的正文原样保留；找回原钥匙之前，新的正文不会保存。请找回原来的钥匙后重启 Molis Work。",
 );
 
 const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";
@@ -95,14 +95,14 @@ export function createEvidenceContentStore(options: {
     const state = inspectKey();
     if (state.kind === "ready") return "ready";
     if (state.kind === "corrupted") return "missing";
-    return keySharingRoots(root).some(hasBlobFile) ? "missing" : "creatable";
+    return hasBlobFile(root) ? "missing" : "creatable";
   };
 
   const keyForWrite = (): Buffer => {
     const state = inspectKey();
     if (state.kind === "ready") return state.key;
     if (state.kind === "corrupted") throw keyMissing();
-    if (keySharingRoots(root).some(hasBlobFile)) throw keyMissing();
+    if (hasBlobFile(root)) throw keyMissing();
     const key = randomBytes(32);
     if (secretStore.createIfAbsent(CONTENT_KEY_REF, key.toString("base64"))) return key;
     const current = readKey();
@@ -250,38 +250,6 @@ function openSealed(data: Buffer, contentRef: string, key: Buffer): string | nul
   } catch {
     return null;
   }
-}
-
-/** The directory, inside an Alchemist project's own directory, that holds the bodies its research read. */
-export const RESEARCH_EVIDENCE_DIRECTORY = "search-content";
-
-/**
- * Every directory of the Home whose bodies are sealed with the one content key (BL-1065, user 2026-11-19): Feed's
- * `security/evidence` and each Alchemist project's `alchemist/projects/<project>/search-content`. The Home is read off the
- * store's own root, so a store at either place sees all the others; a root elsewhere (a test directory, an archive being
- * checked) answers for itself alone. A new place that seals with this key is added here, not at its caller.
- */
-function keySharingRoots(root: string): string[] {
-  const resolved = path.resolve(root);
-  const parent = path.dirname(resolved), grandparent = path.dirname(parent);
-  const projects = path.dirname(parent);
-  const home = path.basename(resolved) === "evidence" && path.basename(parent) === HOME_SECURITY_DIRNAME
-    ? grandparent
-    : path.basename(resolved) === RESEARCH_EVIDENCE_DIRECTORY && path.basename(projects) === "projects"
-      && path.basename(path.dirname(projects)) === "alchemist"
-      ? path.dirname(path.dirname(projects))
-      : undefined;
-  if (home === undefined) return [resolved];
-  const researchProjects = path.join(home, "alchemist", "projects");
-  let entries: fs.Dirent[] = [];
-  try {
-    entries = fs.readdirSync(researchProjects, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  const research = entries.filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(researchProjects, entry.name, RESEARCH_EVIDENCE_DIRECTORY));
-  return [...new Set([resolved, path.join(home, HOME_SECURITY_DIRNAME, "evidence"), ...research])];
 }
 
 /** Whether `root` still holds any sealed body; stops at the first one. */

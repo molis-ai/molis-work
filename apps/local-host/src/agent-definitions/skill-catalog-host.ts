@@ -46,7 +46,7 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost,
   const workshop = new SkillWorkshop({ drafts: definitions.skillDrafts, withSkills: ports.withSkills,
     release: (pluginId, keyId, version) => { try { return packages.load(pluginId, keyId, version).packaged; } catch { return undefined; } },
     savedAt: (pluginId, keyId) => new Map(packages.retainedVersions(pluginId, keyId).map(row => [row.version, row.saved_at])),
-    model, resolve: prompt => resolveModelPrompt(home, prompt, SKILLS_PROVIDER_ID) });
+    model, resolve: prompt => resolveModelPrompt(home, prompt, SKILLS_PROVIDER_ID) }, home);
   return skillCatalogProvider(ports, workshop);
 }
 

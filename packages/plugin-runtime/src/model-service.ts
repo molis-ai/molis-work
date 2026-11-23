@@ -1,4 +1,4 @@
-import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, requireSynchronous, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isInstructedPrompt, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, pluginErrors, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult, type PluginModelSelection, type PluginModelImage, type PluginModelChoice, type PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction, holdPluginResult, inPluginInstance, type PluginInstance } from "./action-scope.js";
@@ -29,6 +29,8 @@ export const pluginModelErrors = defineErrorCodes("plugin", {
 
 /** What the Host hands the model for one call: everything the plugin may not decide is settled here already. */
 export interface PluginModelDispatch {
+  /** The admitted action's caller and the installation spending model usage, as resolved by the Runtime. */
+  readonly origin: ActionCallContext;
   readonly images?: readonly PluginModelImage[];
   /** Copied before the first wait; the caller cannot change this request's target while authority is checked. */
   readonly selection?: PluginModelSelection;
@@ -135,7 +137,8 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       await authority(caller);
       validateCall();
       let receiving = true;
-      const dispatch: PluginModelDispatch = { signal, ...(images ? { images } : {}), ...(selection ? { selection } : {}),
+      const dispatch: PluginModelDispatch = { origin: { ...caller, plugin_install_id: gate.install_id }, signal,
+        ...(images ? { images } : {}), ...(selection ? { selection } : {}),
         beforeDispatch: () => authority(caller), timeout_ms: checked.timeout_ms, max_output_tokens: checked.max_output_tokens,
         ...(onText ? { onText: (delta: string) => {
           if (!receiving) throw new ActionError("actions.expired", "这次模型请求已结束，不能继续发送文字");

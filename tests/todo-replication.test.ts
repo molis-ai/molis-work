@@ -192,3 +192,30 @@ test("Todo concurrent edits conflict and malformed payload cannot replace valid 
   f.replicas[1]!.receive({ ...first, operationId: "bad", revision: 3, value: bad });
   assert.equal(b!.get(item.id, access).title, "设备 B");
 });
+
+test("Todo titles use the same 200 code points for ordinary writes and replica reads and writes", async t => {
+  const f = fixture(t), [a] = f.stores, client = actionsFor(a!);
+  const title = "😀".repeat(200), oversized = title + "😀";
+  const { item } = await client.invoke(todoActions.create, { title });
+  const first = f.take();
+  f.replicas[1]!.receive(first);
+  const reopened = openTodoStore(f.homes[1]!);
+  try {
+    const original = reopened.get(item.id, access), history = reopened.history(item.id, access);
+    assert.equal(original.title, title);
+    const before = a!.history(item.id, access);
+    await assert.rejects(client.invoke(todoActions.create, { title: oversized }));
+    await assert.rejects(client.invoke(todoActions.update, { id: item.id, title: oversized }));
+    assert.equal(a!.get(item.id, access).title, title);
+    assert.deepEqual(a!.history(item.id, access), before);
+    const bad = structuredClone(first.value) as { item: { title: string } };
+    bad.item.title = oversized;
+    f.replicas[1]!.receive({ ...first, revision: 2, operationId: "oversized-title", value: bad });
+    assert.equal(f.replicas[1]!.counts().conflicts, 1);
+    assert.deepEqual(reopened.get(item.id, access), original);
+    assert.deepEqual(reopened.history(item.id, access), history);
+    const shorter = "😀".repeat(101);
+    await client.invoke(todoActions.update, { id: item.id, title: shorter });
+    assert.equal((f.take().value as { item: { title: string } }).item.title, shorter);
+  } finally { reopened.close(); }
+});

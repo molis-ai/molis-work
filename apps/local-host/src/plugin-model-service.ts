@@ -10,6 +10,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { declaredInstructionBody } from "./agent-definitions/instructions.js";
 import { hostTextGeneration, textModelAvailability, textModelMissing, textModelRequired, type HostTextRequestOptions, type HostTextGenerationFailure } from "./host-complete-text.js";
+import { observeHostTextUsage } from "./host-text-observation.js";
 import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
 import { withPluginModelImages } from "./plugin-model-images.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
@@ -86,6 +87,7 @@ export function createPluginModelPort(home: PluginPlatformHome, carried: readonl
         const { text, system } = resolved(home.directory, owner, primary, prompt.data, systemPrompt, locale);
         const options: HostTextRequestOptions = { ...(images ? { images } : {}), signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
           timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }),
+          onReceipt: observeHostTextUsage(home.directory, dispatch.origin, primary.prompt_id),
           ...(dispatch.onText ? { onProgress: event => { if (event.type === "text-delta") dispatch.onText!(event.text); } } : {}) };
         if (injected) return { text: await injected(text, options), validateResult: () => {} };
         const generate = configured(dispatch.selection);

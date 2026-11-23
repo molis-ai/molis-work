@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hostCompleteText, type HostTextOptions } from "@molis-ai/molis-work-app-local-host";
+import { hostCompleteText, type HostTextOptions, type HostTextReceipt } from "@molis-ai/molis-work-app-local-host";
+import { PrologueInferenceError, type PrologueTextResult } from "@molis-ai/molis-work-service-agent-host";
 import { markDispatchRefusal } from "../horizontal/agent-host/dist/inference.js";
 import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -9,6 +10,34 @@ type Resolver = NonNullable<HostTextOptions["resolveInference"]>;
 type Client = Awaited<ReturnType<Resolver>>;
 const resolver = (completeText: Client["completeText"]): Resolver => async () => ({ completeTextResult: async input => ({ value: await completeText(input), configuredModel: input.model,
   state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] }) } as Client);
+
+test("B42-F01 HostCompleteText hands back the complete model and usage receipt once, without the text", async () => {
+  const { value, ...execution } = {
+    value: "  private answer  ", configuredModel: "chosen-model", reportedModels: ["provider-model"],
+    run_ref: { kind: "run", id: "fixture", revision: 1 }, state: "completed", usage: [{
+      input: { source: "reported", tokens: 25 }, output: { source: "estimated", tokens: 4 },
+      cacheRead: { source: "reported", tokens: 0 }, cacheWrite: { source: "unknown", tokens: undefined },
+      cost: { source: "unknown", amount: undefined, currency: undefined },
+    }],
+  } satisfies PrologueTextResult;
+  const complete = hostCompleteText({ env: env(), resolveInference: async () => ({
+    async completeTextResult(input) {
+      if (input.prompt === "failed") throw new PrologueInferenceError("agent.inference.failed", "failed", 502, { ...execution, state: "failed" });
+      return { ...execution, value };
+    },
+    async completeText() { assert.fail("the Host must request the receipt"); },
+    async generateImages() { assert.fail("text inference must not generate images"); },
+    async evaluateTypeSafe() { assert.fail("text inference must not invoke TypeSafe"); },
+  }) })!;
+  const receipts: HostTextReceipt[] = [];
+  const onReceipt = (receipt: HostTextReceipt) => { receipts.push(receipt); };
+  assert.equal(await complete("private request", { onReceipt }), "private answer");
+  await assert.rejects(complete("failed", { onReceipt }), /502/);
+  await assert.rejects(complete("refused", { onReceipt, beforeDispatch() { throw new Error("authority denied"); } }), /authority denied/);
+  const expected = { ...execution, protocol: "openai-compatible", prompt_includes_cache: true };
+  assert.deepEqual(receipts, [expected, { ...expected, state: "failed" }]);
+  assert.equal(await complete("bookkeeping failed", { onReceipt() { throw new Error("fixture ledger unavailable"); } }), "private answer");
+});
 
 // The environment is an explicit development configuration (repository-anti-corruption §1, 2026-10-04): the generic key names
 // no provider, so it is not completed with MiniMax; MINIMAX_API_KEY is MiniMax by name.

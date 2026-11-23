@@ -1,5 +1,5 @@
 import { bothWord, sceneWord } from "./scenes.js";
-import type { SkillDraft, SkillDraftSummary, SkillTrialCell, SkillTrialConsumer, SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillDraft, SkillDraftSummary, SkillScope, SkillTrialCell, SkillTrialConsumer, SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderAdoptBar, renderAskRow, renderPlaceholderList, renderReplayGrid, type ReplayCell } from "@molis-ai/molis-work-design-system/capability-pack";
 import { renderTabs, renderToggleGroup } from "@molis-ai/molis-work-design-system/navigation";
 import { compareChange, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
@@ -152,7 +152,7 @@ function statusOf(w: Workshop): { text: string; state?: "owed" | "saving" | "fai
 /** Adopting needs a replay of this revision first: the draft has known answers and none was replayed since the last change. */
 export const owed = (w: Workshop) => nextUntried(w) !== undefined;
 
-export function adoptBar(w: Workshop): string {
+export function adoptBar(w: Workshop, overwrites: boolean): string {
   const status = statusOf(w), busy = Boolean(w.adopting || w.asking || w.running), label = w.next ? improve("adopt-version", { v: w.next }) : improve("adopt-new");
   const blocked = w.save.kind !== "saved";
   let primary: string;
@@ -163,7 +163,8 @@ export function adoptBar(w: Workshop): string {
   const failed = w.adoptFailure ? renderAlert({ title: improve("adopt-failed"), body: w.adoptFailure, tone: "danger", role: "alert", className: "au-failure", attrs: { tabindex: -1 },
     actions: [{ label: readText("common.control.retry"), variant: "secondary", size: "sm", attrs: act("sk-adopt") }] }) : "";
   const differs = (draft: SkillDraft) => draft.trial?.cells.filter(cell => cell.side === "draft" && cell.verdict === "differs").reduce((sum, cell) => sum + Math.max(1, cell.differences.length), 0) ?? 0;
-  return `<div class="sk-work__bar" data-sk-bar>${failed}${renderAdoptBar({ primary, actions: button(improve("discard"), { variant: "ghost", attrs: act("sk-discard"), disabled: busy }), status: status.text,
+  return `<div class="sk-work__bar" data-sk-bar>${failed}${renderAdoptBar({ primary, actions: button(improve("discard"), { variant: "ghost", attrs: act("sk-discard"), disabled: busy }),
+    status: overwrites ? improve("adopt-overwrites", { status: status.text }) : status.text,
     ...(status.state ? { state: status.state } : {}),
     ...(w.confirm ? { confirm: { id: "sk-confirm", text: improve("confirm-differs", { n: typeof w.confirm === "number" ? w.confirm : Math.max(1, differs(w.draft)) }),
       actions: button(improve("go-back"), { variant: "ghost", attrs: act("sk-confirm-back") }) + button(improve("adopt-anyway"), { variant: "primary", attrs: act("sk-adopt-anyway") }) } } : {}) })}</div>`;
@@ -176,21 +177,25 @@ export function sideMarkup(w: Workshop): string {
   return `${side}<div class="sk-panel" role="tabpanel" aria-labelledby="sk-side-${w.side}">${w.side === "try" ? tryPanel(w) : comparePanel(w)}</div>`;
 }
 
-export function workshopMarkup(w: Workshop, limits: SkillWritingLimits): string {
+export function workshopMarkup(w: Workshop, limits: SkillWritingLimits, overwrites: boolean): string {
   const narrow = renderTabs({ label: improve("work-label"), className: "sk-narrow-tabs", tabs: (["edit", "try", "compare"] as const).map(value => (
     { id: value, label: improve(`tab-${value}`), selected: w.tab === value, attrs: { id: `sk-tab-${value}`, ...act("sk-tab", value) } })) });
   return `<div class="sk-work" data-sk-work data-tab="${w.tab}">${head(w)}${narrow}<div class="sk-work__cols"><div class="sk-col sk-col--edit">${editor(w, limits)}</div>
-    <aside class="sk-col sk-col--side" data-sk-side aria-label="${esc(improve("side-label"))}">${sideMarkup(w)}</aside></div>${adoptBar(w)}</div>`;
+    <aside class="sk-col sk-col--side" data-sk-side aria-label="${esc(improve("side-label"))}">${sideMarkup(w)}</aside></div>${adoptBar(w, overwrites)}</div>`;
 }
 
 /** Open drafts without a Skill row holding them (new Skills, drafts of deleted Skills, or extra drafts), plus discarded drafts. */
-export function draftsStrip(drafts: readonly SkillDraftSummary[], linked?: ReadonlySet<string>): string {
+export function draftsStrip(drafts: readonly SkillDraftSummary[], linked: ReadonlySet<string> | undefined,
+  missingOwnSkill: (scope: SkillScope, skillId: string) => boolean): string {
   const fresh = drafts.filter(draft => !draft.discarded_at && (linked ? !linked.has(draft.draft_id) : draft.target.kind === "new"));
   const dropped = drafts.filter(draft => draft.discarded_at);
   const verdict = (draft: SkillDraftSummary) => draft.verdict === "match" ? renderStatusMark({ label: improve("verdict-match"), tone: "done", state: "done" })
     : draft.verdict === "differs" ? renderStatusMark({ label: improve("verdict-differs-short"), tone: "attention", state: "verify" }) : "";
+  const badge = (draft: SkillDraftSummary) => draft.target.kind === "own" && missingOwnSkill(draft.scope, draft.target.skill_id)
+    ? renderBadge({ label: improve("draft-skill-deleted"), tone: "neutral" })
+    : renderBadge({ label: improve("draft-badge"), tone: "info" });
   const open = fresh.length ? `<section class="kit-sec sk-drafts"><h4>${esc(improve("drafts-title"))}</h4><ul class="mw-items">${fresh.map(draft => `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" data-kit-act="sk-open" data-kit-v="${esc(draft.draft_id)}"><span class="mw-mark" aria-hidden="true">${icon("sparkles")}</span><span><strong>${
-    esc(draft.name.trim() || improve("draft-untitled"))}</strong><small>${esc(improve(draft.origin.by === "assistant" ? "from-assistant" : "from-person"))} · ${esc(improve("updated-at", { at: dateArg(draft.updated_at, "date") }))}</small></span><span class="mw-item__end">${verdict(draft)}${renderBadge({ label: improve("draft-badge"), tone: "info" })}</span></button></li>`).join("")}</ul></section>` : "";
+    esc(draft.name.trim() || improve("draft-untitled"))}</strong><small>${esc(improve(draft.origin.by === "assistant" ? "from-assistant" : "from-person"))} · ${esc(improve("updated-at", { at: dateArg(draft.updated_at, "date") }))}</small></span><span class="mw-item__end">${verdict(draft)}${badge(draft)}</span></button></li>`).join("")}</ul></section>` : "";
   const restored = dropped.length ? `<section class="kit-sec sk-drafts sk-drafts--discarded"><h4>${esc(improve("discarded"))}</h4><ul class="mw-items">${dropped.map(draft => `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" data-kit-act="sk-undiscard" data-kit-v="${esc(draft.draft_id)}"><span class="mw-mark" aria-hidden="true">${icon("undo")}</span><span><strong>${
     esc(draft.name.trim() || improve("draft-untitled"))}</strong></span><span class="mw-item__end">${esc(improve("open-draft"))}</span></button></li>`).join("")}</ul></section>` : "";
   return open + restored;

@@ -26,7 +26,7 @@ export function draftEditing(c: WritingContext) {
   function redrawBar(w: Workshop): void {
     const bar = root.querySelector<HTMLElement>("[data-sk-bar]"), kept = bar?.contains(document.activeElement);
     if (!bar || view.workshop !== w) return;
-    bar.outerHTML = adoptBar(w);
+    bar.outerHTML = adoptBar(w, c.adoptionOverwrites(w.draft));
     if (kept) root.querySelector<HTMLElement>("[data-sk-bar] .mw-btn")?.focus();
   }
   function redrawSide(w: Workshop): void {

@@ -1,5 +1,5 @@
 import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
-import type { SkillCatalogEntry, SkillDraftSummary, SkillScope, SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillCatalogEntry, SkillDraft, SkillDraftSummary, SkillScope, SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SkillWritingLimits } from "./authoring.js";
 import { readText, type Kit } from "./common.js";
@@ -48,6 +48,7 @@ export interface WritingContext extends WritingPage {
   reload(): Promise<void>;
   /** Drafts not adopted yet; each own Skill's versions; a source's differences being shown. */
   drafts: SkillDraftSummary[];
+  adoptionOverwrites(draft: SkillDraft): boolean;
   versions: Map<string, SkillVersion[] | "failed">;
   upstream: Map<string, string>;
 }
@@ -63,6 +64,12 @@ export function writingContext(page: WritingPage): WritingContext {
     root, project, address: page.address, active: page.active, view: page.view, kit: () => page.kit(), load: () => page.load(), draw: focus => page.draw(focus), say: (text, tone, next) => page.say(text, tone, next), show: entry => page.show(entry),
     limits: JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, pageScope: project ? "project" : "home",
     isMine, skills, ownSkills,
+    adoptionOverwrites({ draft_id, scope, target, base }) {
+      if (target.kind !== "own" || !base) return false;
+      return base.version > target.base_version || context.drafts.some(other =>
+        other.draft_id !== draft_id && other.scope === scope && !other.discarded_at
+        && other.target.kind === "own" && other.target.skill_id === target.skill_id);
+    },
     skillOf: key => { const entry = key ? page.kit()?.byKey.get(key) : undefined; return entry?.kind === "skill" ? entry : undefined; },
     showOwn(scope, skillId) {
       const entry = ownSkills(scope).find(candidate => candidate.skill.ref.skill_id === skillId);

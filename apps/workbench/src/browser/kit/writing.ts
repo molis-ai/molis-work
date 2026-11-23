@@ -1,4 +1,4 @@
-import type { SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, type SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
 import { askingMarkup, draftFromSentence } from "./authoring.js";
 import { draftEditing, type DraftEditing } from "./draft-editing.js";
 import { draftTurns, type DraftTurns } from "./draft-turns.js";
@@ -133,7 +133,13 @@ export function skillWriting(page: WritingPage) {
     return true;
   }
 
-  const strip = () => draftsStrip(c.drafts, c.kit() ? new Set(c.skills().map(entry => entry.skill.draft?.draft_id).filter((id): id is string => Boolean(id))) : undefined);
+  const strip = () => {
+    const catalog = c.kit()?.catalog, skills = catalog && c.skills();
+    const linked = skills && new Set(skills.flatMap(({ skill }) => skill.draft ? [skill.draft.draft_id] : []));
+    const skillsRead = catalog?.scenes !== undefined && !catalog.issues.some(issue => issue.provider_id === SKILLS_PROVIDER_ID);
+    return draftsStrip(c.drafts, linked, (scope, skillId) => Boolean(skillsRead && skills && !skills.some(({ skill }) =>
+      c.isMine(skill) && skill.pack.scope === scope && skill.ref.skill_id === skillId)));
+  };
 
   /** A draft named in the address (a receipt's 「打开草稿」 link) opens once the page has read the kit. */
   async function fromAddress(): Promise<void> {
@@ -156,6 +162,6 @@ export function skillWriting(page: WritingPage) {
     run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
     strip,
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
-    workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),
+    workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits, c.adoptionOverwrites(view.workshop.draft)),
   };
 }

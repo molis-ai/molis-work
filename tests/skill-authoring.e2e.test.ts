@@ -21,7 +21,7 @@ const judge = (prompt: string) => JSON.stringify({ results: [...prompt.matchAll(
     ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] }
     : { index: Number(index), verdict: "match", differences: [] }) });
 
-test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparing, adopting, restoring and copying a Skill on the 「能力包」 page", { timeout: 300_000 }, async t => {
+test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 B42-F02 B42-F05 B42-F06 B42-F07 Skill authorship on the 「能力包」 page", { timeout: 300_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis42-improve-"));
   let browser: ChromeHarness | undefined;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
@@ -217,19 +217,48 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-close"));
   await page.wait("!document.querySelector('[data-sk-work]') && !!document.querySelector('.mw-list-detail')", { describe: state });
 
-  // 删除带撤销，且被删技能的未放弃草稿在顶部草稿区仍可打开和放弃。
+  // B42-F06 / B42-F07: the deleted skill's draft stays visible, and the receipt describes exactly what can be restored.
   await page.click(act("skill-delete"));
-  await page.wait(noticeHas("删除了「每周周报」"), { describe: state });
+  await page.wait(noticeHas("已删除「每周周报」"), { describe: state });
   assert.deepEqual(await mine(), []);
-  assert.ok(await page.evaluate(`!!document.querySelector('.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]')`), "an orphaned draft of a deleted Skill stays visible in the top drafts strip");
+  const orphan = `.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]`;
+  assert.match(await text(orphan), /技能已删除/);
+  assert.match(await text("[data-kit-notice]"), /从第 1 版开始.*已知答案和来源无法找回/);
+  assert.equal((await text('[data-kit-notice] [data-kit-act="au-undelete"]')).trim(), "只恢复内容");
   await page.click(`[data-kit-notice] [data-kit-act="au-undelete"]`);
-  await page.wait(noticeHas("恢复了"), { describe: state });
+  await page.wait(noticeHas("已恢复「每周周报」的内容"), { describe: state });
   [skill] = await mine();
-  assert.deepEqual([skill?.name, skill?.state], ["每周周报", "auto"]);
-  await page.click(`.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]`);
+  assert.deepEqual([skill?.name, skill?.state, skill?.ref.version, skill?.based_on], ["每周周报", "auto", 1, undefined]);
+  await page.click(orphan);
   await page.wait("!!document.querySelector('[data-sk-work]')", { describe: state });
   await page.click(act("sk-discard"));
   await page.wait(noticeHas("已放弃草稿"), { describe: state });
+
+  // B42-F05: two live drafts can be adopted in order. An extra draft of a live skill is still a normal draft.
+  const competing = async (body: string) => {
+    const opened = await api<SkillDraft>("drafts/create", { scope: "project", target: { kind: "own", skill_id: skill!.ref.skill_id } });
+    assert.deepEqual(opened.cases, [], "the deleted skill's known answers were not restored");
+    const updated = await api<{ revision: number }>("drafts/update", {
+      draft_id: opened.draft_id, expected_revision: opened.revision, fields: { ...opened.fields, body },
+    });
+    assert.equal(updated.revision, opened.revision + 1);
+    return opened.draft_id;
+  };
+  const firstCompeting = await competing("# 第一份草稿的做法"), secondCompeting = await competing("# 第二份草稿的做法");
+  const kitPath = `${f.origin}/projects/${project.project_id}/settings/kit`;
+  await page.command("Page.navigate", { url: kitPath });
+  await page.wait(`!!document.querySelector('.sk-drafts [data-kit-act="sk-open"]')`, { describe: state });
+  assert.doesNotMatch(await text(".sk-drafts [data-kit-act=sk-open]"), /技能已删除/);
+  for (const [draftId, body, version] of [[firstCompeting, "第一份", 2], [secondCompeting, "第二份", 3]] as const) {
+    await page.command("Page.navigate", { url: `${kitPath}?draft=${draftId}` });
+    await page.wait(`document.querySelector('#au-body')?.value === '# ${body}草稿的做法'`, { describe: state });
+    assert.match(await text("[data-sk-bar]"), /后采用的版本会覆盖先采用的版本/);
+    await page.click(act("sk-adopt"));
+    await page.wait(noticeHas(`已采用为第 ${version} 版`), { describe: state });
+    [skill] = await mine();
+    const source = await api<SkillAuthoredSource>("source", { ref: skill!.ref });
+    assert.equal(source.body, `# ${body}草稿的做法`);
+  }
 
   // 改一份通用技能：说明不能直接改；「改一份我的」开草稿；写进占位符就列出来让你换成自己用的；采用时把原来的关掉。
   const systemSkill = "[...document.querySelectorAll('.kit-detail [data-kit-act=item]')].find(node => node.innerText.includes('分析与决策'))";
@@ -393,6 +422,27 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.equal(installedCopy.argument_hint, "补充目标");
   assert.match(installedCopy.body, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
   assert.deepEqual([duringRevise, duringAdoption], [[true, true], [true, true]], "companion fields are protected for the same operation as the main fields");
+
+  // B42-F02: a newer switch setting arrives before the page can turn the original off; the copy has already been adopted.
+  const original = (await all()).find(item => item.name === "分析与决策" && item.pack.plugin_id !== SKILL_AUTHORED_PLUGIN_IDS.project)!;
+  const changeOriginal = (entry: SkillCatalogEntry, state: "auto" | "manual") => api<SkillCatalogEntry>("set", {
+    scope: "project", install_id: entry.ref.install_id, skill_id: entry.ref.skill_id, expected_revision: entry.settings_revision, state,
+  });
+  const enabled = await changeOriginal(original, "auto");
+  const nextCopy = await api<SkillDraft>("drafts/create", { scope: "project", target: { kind: "custom", ref: enabled.ref },
+    fields: { ...settledCopy.fields, name: "另一份分析方法" } });
+  await page.command("Page.navigate", { url: `${kitPath}?draft=${nextCopy.draft_id}` });
+  await page.wait("document.querySelector('#au-name')?.value === '另一份分析方法'", { describe: state });
+  await holdReceipt("/api/plugin-trust/skills/drafts/adopt");
+  try {
+    await page.click(act("sk-adopt"));
+    await page.wait("window.__qeaCopyReceipt.status === 200", { describe: state });
+    assert.equal((await changeOriginal(enabled, "manual")).state, "manual");
+  } finally { await page.evaluate("window.__qeaCopyReceipt.release()"); }
+  await page.wait(noticeHas("已采用「另一份分析方法」，原技能关闭失败"), { describe: state });
+  assert.match(await text("[data-kit-notice]"), /技能状态已变化/);
+  assert.ok((await mine()).some(item => item.name === "另一份分析方法"));
+  assert.equal((await all()).find(item => item.ref.install_id === original.ref.install_id && item.ref.skill_id === original.ref.skill_id)?.state, "manual");
 
   // 1024 与 390、深色：1024 时两栏变成页签；390 没有横向滚动。
   const draft = await (await f.request(`/projects/${project.project_id}/api/skills/drafts/create`, { method: "POST", body: { scope: "project", target: { kind: "own", skill_id: copy!.ref.skill_id } } })).json() as { draft_id: string };

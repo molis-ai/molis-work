@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MAINLINE_CONTROL_PERMISSION, MAINLINE_PROVIDER_ID, MAINLINE_READ_PERMISSION, mainlineActions, type BackgroundTaskRow } from "@molis-ai/molis-work-contracts/services/mainline";
+import { ComputerDesk } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MAINLINE_CONTROL_PERMISSION, MAINLINE_PROVIDER_ID, MAINLINE_READ_PERMISSION, mainlineActions, type BackgroundTaskDecideRequest, type BackgroundTaskRow, type BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import type { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
+import { deferred } from "./fixtures/home-runtime.js";
+import { startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 /*
  * The mainline service's task table (specs/work-line §6, WLN-39): `background.tasks.read@1` lists what every task provider of the
@@ -17,6 +22,116 @@ const task = (id: string, extra: Record<string, unknown> = {}, commands: unknown
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 const person = (projectId: string, permissions: readonly string[] = [MAINLINE_READ_PERMISSION, MAINLINE_CONTROL_PERMISSION, "homebg:read"], change: Partial<ActionCallContext> = {}): ActionCallContext =>
   ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: [...permissions], ...change });
+
+test("S-49 WLHR-01 WLHR-02: only the page gets the original proposal and only the current task can answer it outside the quiet period", { timeout: 90_000 }, async t => {
+  const ids = ["owned", "other-project", "other-plugin", "other-install", "other-session", "cancelled"];
+  let reportedIds = ids;
+  let session = "original-session", substitute = false;
+  const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [task("held", { waiting: true, state: "approval",
+    ...(substitute ? { decisions: [{ id: "owned", ask: "Another question", changes: [], answers: [
+      { role: "approve", action: { capability_id: "homebg.answer", version: 1 }, input: { job: "held", verdict: "approve" }, summary: "" },
+    ] }] } : { held_reviews: { session_id: session, ids: reportedIds, ask: "Invented proposal" } }) }, [])] }));
+  const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [plugin.definition] } } });
+  const project = await home.createProject("Review ownership"), other = await home.createProject("Other project");
+  await startProjectPlugins(home.host, project.reference);
+  const me = person(project.project_id), client: ActionClient = home.host.actionClient(project.reference);
+  const view = (await client.discover(me)).find(row => row.capability_id === "homebg.tasks");
+  assert.ok(view?.provider.plugin_id && view.provider.plugin_install_id);
+  const agents = home.host.ensureAgentService(home.home, () => { throw new Error("The served Home owns the Agent service"); });
+  await agents.ready;
+  const queue: AgentReviewQueue = agents.agentHost.reviews;
+  const owner = { kind: "agent-review" as const, project_id: project.project_id, plugin_id: view.provider.plugin_id, install_id: view.provider.plugin_install_id };
+  const cases = [
+    ["owned", owner, session],
+    ["other-project", { ...owner, project_id: other.project_id }, session],
+    ["other-plugin", { ...owner, plugin_id: "com.example.other" }, session],
+    ["other-install", { ...owner, install_id: "uninstalled" }, session],
+    ["other-session", owner, "other-agent-session"],
+    ["cancelled", owner, session],
+  ] as const;
+  let beforeCommit: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
+  t.after(() => beforeCommit?.release.resolve());
+  let injected = false;
+  t.mock.method(ComputerDesk.prototype, "holding", () => ({ sessionId: "original-session", projectId: project.project_id, lastInjectAt: injected ? Date.now() : null }));
+  const delivered: string[] = [];
+  for (const [id, reviewOwner, session_id] of cases) {
+    queue.request({ review_id: id, reference: { owner: reviewOwner, id, version: "proposal-1" }, project_id: reviewOwner.project_id, plugin_id: reviewOwner.plugin_id,
+      kind: "text-edit", run: { session_id, run_id: "test-run" }, requested_at: new Date().toISOString(), expires_at: null,
+      document: { kind: "text-edit", target_path: `${id}.md`, exists: true, before_text: "old", after_text: "review content from the queue" } });
+    queue.registerDecisionHandler(id, async (_input, commit) => {
+      if (id === "owned" && beforeCommit) { beforeCommit.entered.resolve(); await beforeCommit.release.promise; }
+      const receipt = await commit();
+      reportedIds = reportedIds.filter(item => item !== id);
+      await commit.effect(async () => { delivered.push(id); });
+      return receipt;
+    });
+  }
+  queue.cancel("cancelled", "The original run stopped");
+  const projectRoute = `/projects/${project.project_id}`, route = projectRoute + "/api/mainline/tasks";
+  const attention = projectRoute + "/api/attention";
+  const summary = await home.web.get<{ tasks: BackgroundTasksReadResult }>(attention);
+  assert.deepEqual(summary.tasks.tasks.find(task => task.subject.id === "held")?.decisions, [], "an unauthenticated read only gets the task summary");
+  const read = await fetch(home.origin + attention, { headers: { "x-molis-work-control-token": home.controlToken } });
+  assert.equal(read.status, 200);
+  const { tasks: table }: { tasks: BackgroundTasksReadResult } = await read.json();
+  const row = table.tasks.find(row => row.subject.id === "held");
+  assert.ok(row);
+  assert.deepEqual(row.decisions.map(decision => decision.id), ["owned"]);
+  assert.match(JSON.stringify(row), /review content from the queue/);
+  assert.doesNotMatch(JSON.stringify(row), /other-(?:project|plugin|install|session)\.md|Invented proposal|held_reviews/);
+  const assistant = person(project.project_id, [], { audience: "agent", actor_kind: "runtime", skill_round: { consumer: "assistant", named: [] } });
+  const copy = await client.invoke(assistant, { capability_id: "assistant.background.read", version: 1 }, {}) as { tasks: Array<{ subject: { id: string }; asks: string[] }> };
+  assert.deepEqual(copy.tasks.find(task => task.subject.id === "held")?.asks, [], "the Assistant's reading copy sees the waiting task without the original proposal title");
+  assert.doesNotMatch(JSON.stringify(copy), /owned\.md|review content from the queue/);
+  const imitatingPage = { ...me, user_action: { source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: "web:copied" } };
+  const unprotected = await bindActionClient(client, () => imitatingPage).invoke(mainlineActions.tasks, {});
+  assert.deepEqual(unprotected.tasks.find(task => task.subject.id === "held")?.decisions, [], "web-shaped provenance alone does not reveal the proposal");
+  const postTable = await home.web.post<BackgroundTasksReadResult>(route, {});
+  assert.deepEqual(postTable.tasks.find(task => task.subject.id === "held")?.decisions.map(decision => decision.id), ["owned"]);
+  const answer: BackgroundTaskDecideRequest = { source: row.source, subject: row.subject, decision: "owned", role: "approve", review_version: "proposal-1" };
+  const post = (input: BackgroundTaskDecideRequest) => home.web.post(route + "/decide", input);
+  await assert.rejects(client.invoke(me, mainlineActions.decide, answer), { code: "actions.forbidden" }, "a user-shaped invocation needs the actual page entry");
+  for (const id of ids.slice(1, -1)) await assert.rejects(post({ ...answer, decision: id }), { code: "mainline.decision_changed" }, id);
+  await assert.rejects(post({ ...answer, decision: "cancelled" }), { code: "agent.review_already_decided" });
+  await assert.rejects(post({ ...answer, review_version: "earlier" }), { code: "mainline.decision_changed" });
+  await assert.rejects(post({ ...answer, review_version: undefined }), { code: "mainline.decision_changed" });
+  session = "a-new-session";
+  await assert.rejects(post(answer), { code: "mainline.decision_changed" }, "the provider is asked again");
+  session = "original-session";
+  substitute = true;
+  await assert.rejects(post(answer), { code: "mainline.decision_changed" }, "a click on the original proposal never answers another question with the same ID");
+  assert.deepEqual(plugin.state.answers, []);
+  substitute = false;
+  assert.deepEqual(delivered, []);
+
+  const refuseAfterOwnerWaits = async (change: () => void, error: string) => {
+    const entered = deferred(), release = deferred();
+    beforeCommit = { entered, release };
+    const response = post(answer);
+    const refused = assert.rejects(response, { code: error });
+    try {
+      await Promise.race([entered.promise, refused.then(() => assert.fail("the original decision owner must be reached"))]);
+      change();
+    } finally {
+      beforeCommit = undefined;
+      release.resolve();
+    }
+    await refused;
+    assert.equal(queue.receipt("owned")?.status, "pending");
+    assert.equal((await queue.readMany(["owned"]))[0]?.decision, undefined);
+    assert.deepEqual(delivered, []);
+  };
+  await refuseAfterOwnerWaits(() => { session = "a-new-session"; }, "mainline.decision_changed");
+  session = "original-session";
+  await refuseAfterOwnerWaits(() => { injected = true; }, "computer.self_approval");
+  injected = false;
+  await post(answer);
+  await assert.rejects(post(answer), { code: "mainline.decision_changed" });
+  reportedIds = ids;
+  await assert.rejects(post(answer), { code: "agent.review_already_decided" });
+  assert.deepEqual(delivered, ["owned"]);
+  assert.equal(queue.receipt("owned")?.decided_by, LOCAL_PERSON_ACTOR_ID);
+});
 
 test("WLN-39 background.tasks.read lists the project's task providers through the caller's own client: rows keep their provider, a provider off in the project says nothing, one that cannot answer is an issue by its code, and what the caller may not read is not asked", { timeout: 60_000 }, async t => {
   const plugin = backgroundPlugin(project => ({ source: SOURCE, tasks: [task(`job-${project}`, { step: { text: "跑了 3 项" }, serves: [{ kind: "note", id: "n1" }] }), task("late", { updated_at: "2026-11-14T09:00:00.000Z" }, [])] }));

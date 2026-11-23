@@ -28,6 +28,15 @@ function hasUnderWayTasks(result: HomeAggregateResult<BackgroundTaskCollection>)
   return result.answers.some(answer => backgroundTaskRows(answer.output, answer.source, answer.subject_kinds)?.some(row => UNDER_WAY.has(row.state)) ?? false);
 }
 
+function summarizeTaskOutput(output: BackgroundTaskCollection): BackgroundTaskCollection {
+  if (!Array.isArray(output?.tasks)) return output;
+  return { ...output, tasks: output.tasks.map(row => {
+    if (row?.held_reviews === undefined) return row;
+    const { held_reviews: _heldReviews, ...task } = row;
+    return task;
+  }) };
+}
+
 export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: ReadonlyArray<{ project_id: string; display_name: string }>, signal?: AbortSignal): Promise<HomeBackgroundTasksReadResult> {
   const names = new Map(projects.map(project => [project.project_id, project.display_name]));
   const { answers, issues } = await collectHomeAggregate<BackgroundTaskCollection>(
@@ -36,6 +45,7 @@ export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: R
     {},
     signal,
     {
+      projectOutput: summarizeTaskOutput,
       persistable: result => !hasUnderWayTasks(result),
       stillValid: result => !hasUnderWayTasks(result),
     },
@@ -80,6 +90,8 @@ export async function backgroundWorkUnderWay(ports: HomeAggregatePorts, referenc
     { ...ports, openProjects: () => [reference], whileOpen: enter, resting: undefined },
     BACKGROUND_TASKS_OUTPUT_TYPE,
     {},
+    undefined,
+    { projectOutput: summarizeTaskOutput },
   );
   const underWay = hasUnderWayTasks(result);
   if (!underWay && resting && entered && resting.rest(reference).usedAt === usedAt) {

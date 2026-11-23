@@ -20,6 +20,7 @@ export interface RecoverScheduledOperationInput {
 export function createScheduledOperationManagement(options: {
   db: ScheduleTaskDatabase; projectId: string; schedule: ScheduledOperationScheduler;
   currentInstallation(pluginId: string): OperationRecoveryInstallation | null; now?(): Date;
+  listedOperations?: readonly ScheduledOperation[];
 }) {
   const { db, projectId, schedule } = options, now = options.now ?? (() => new Date());
   const view = (run: ScheduledOperation): ScheduledOperationView => {
@@ -30,7 +31,7 @@ export function createScheduledOperationManagement(options: {
     return { ...run, job, installation, occurrences, revision };
   };
   return {
-    list: () => listScheduledOperations(db, projectId).map(view),
+    list: () => (options.listedOperations ?? listScheduledOperations(db, projectId)).map(view),
     recover(input: RecoverScheduledOperationInput): ScheduledOperationView {
       return db.transaction(() => {
         const run = getScheduledOperation(db, projectId, input.operation_id);

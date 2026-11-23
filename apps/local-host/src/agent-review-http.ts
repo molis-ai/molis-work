@@ -2,11 +2,13 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest, AgentReviewDecisionAvailability } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest, AgentReviewDecisionAvailability, AgentReviewRow } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
-import { renderAgentReviewSurface, renderAgentReviewRecovery, reviewSourceSummary } from "@molis-ai/molis-work-app-workbench";
-export { reviewSourceSummary };
-import { format, icon, say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { BackgroundTaskHeldReview } from "@molis-ai/molis-work-contracts/services/mainline";
+import { isDecidable, isReviewDocumentReadable, renderAgentReviewDocument, renderAgentReviewSurface, renderAgentReviewRecovery, reviewSourceSummary } from "@molis-ai/molis-work-app-workbench";
+export { isReviewDocumentReadable, reviewSourceSummary };
+import { escapeHtml, format, icon, say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { actionErrorKind, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 import { ActionError, requireSynchronous, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -131,6 +133,18 @@ export const agentReviewActions = {
   }),
 };
 export const agentReviewProvider = () => webEntryProvider("system.agent-reviews", "审批", Object.values(agentReviewActions));
+
+/** Give an authorized event card the same original document and available answers as the review surface. */
+export function projectReviewForTask(row: AgentReviewRow): BackgroundTaskHeldReview | null {
+  if (!isDecidable(row)) return null;
+  const { request, decisions } = row;
+  const summary = cutHead(reviewSourceSummary(row).title.trim(), 1000);
+  return { id: request.review_id, reference: request.reference, ask: summary || uiText.text("workbench.agent-review.tool"),
+    ...(!decisions.approve.available ? { why: say.text(decisions.approve.reason) } : {}),
+    changes: [], review_html: renderAgentReviewDocument(request.document, { escape: value => escapeHtml(String(value)), icon }),
+    answers: (["approve", "reject"] as const).filter(role => decisions[role].available).map(role => ({ role })) };
+}
+
 const asPerson = (request: IncomingMessage, ports: AgentReviewHttpPorts, signal: AbortSignal) => ({ host: ports.host, request, entry: { ports, page: pluginPageRequest(request) }, signal });
 /** What went wrong, answered with the status its kind gives (gone 404, conflict 409, refused 403): it must not read as success. */
 const refuse = (response: ServerResponse, error: unknown) => { const refusal = actionErrorResponse(error); sendLocalWebJson(response, refusal.status, refusal.body); };

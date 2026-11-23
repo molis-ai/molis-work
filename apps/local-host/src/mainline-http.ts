@@ -7,9 +7,10 @@ import { homePageRequestBound } from "./home-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
-import { handlePersonActionRoutes } from "./person-action-http.js";
+import { handlePersonActionRoutes, invokePersonPageAction } from "./person-action-http.js";
 import { handleMainlineViewHttp } from "./mainline-view-http.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { webManagementAuthenticated } from "./web-sessions.js";
 
 const ROUTES = new Map<string, ActionDefinition>([
   ["line", mainlineActions.line as ActionDefinition],
@@ -45,30 +46,34 @@ const DAY = 86_400_000;
 /**
  * The line, with the task table it was placed with, for the page's one attention read (`attention-http.ts`) and the event card's
  * check: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), optionally
- * scoped to one work item (`?item=`), so the table is read once for both (N42). A plugin's or generated home's page gets neither.
+ * scoped to one work item (`?item=`), so the table is read once for both (N42). The attention response may present original
+ * reviews. A plugin's or generated home's page gets neither, as on the routes below.
  */
 export function mainlineAttention(
   request: IncomingMessage,
   host: MolisWorkLocalHost,
   project: LocalHostProjectReference,
+  presentReviews = false,
 ): {
   line(item?: string | null): Promise<WorkLineReadResult>;
   summary(): Promise<{ has_items: boolean; current: string | null }>;
 } | null {
   if (pluginPageRequest(request) || homePageRequestBound(request)) return null;
-  const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS);
   return {
     line: (item?: string | null) => {
       const now = Date.now();
-      return client.invoke(mainlineActions.line, {
+      const window = {
         from: new Date(now - 30 * DAY).toISOString(),
         to: new Date(now + 2 * DAY).toISOString(),
         now: new Date(now).toISOString(),
         ...(item ? { item } : {}),
-      });
+      };
+      return presentReviews && webManagementAuthenticated(request)
+        ? invokePersonPageAction(host, project, mainlineActions.line, window)
+        : bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineActions.line, window);
     },
     summary: async () => {
-      const state = await client.invoke(mainlineItemActions.read, {});
+      const state = await bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineItemActions.read, {});
       return { has_items: state.mainline.items.length > 0, current: state.mainline.current };
     },
   };

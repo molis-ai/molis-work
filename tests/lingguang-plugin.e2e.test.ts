@@ -280,9 +280,12 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
       }, sessionId);
     }
   };
-  await browser.setViewport(1440, 960);
+  await browser.setViewport(390, 960);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=lingguang` }, sessionId));
+  const directoryPath = `/projects/${projectId}/?openPlugin=lingguang`;
+  const englishDirectoryUrl = `${origin}/locale?lang=en&next=${encodeURIComponent(directoryPath)}`;
+  await navigate(() => command("Page.navigate", { url: englishDirectoryUrl }, sessionId));
+  await waitFor("document.documentElement.lang.startsWith('en')");
   await waitFor("document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]').length === 3 && document.querySelector('[data-lingguang-rows] [tabindex=\"0\"]')", 15_000);
 
   assert.deepEqual(await evaluate(`(() => {
@@ -351,6 +354,11 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   for (const control of [help, "[data-lingguang-dispatch]", "[data-lingguang-brainstorm]", "[data-lingguang-discard]"]) {
     await key("Tab", "Tab", 9, 8);
     await waitFor(`document.activeElement?.matches(${JSON.stringify(control)})`);
+    assert.equal(await evaluate(`(() => {
+      const bounds = document.activeElement.getBoundingClientRect();
+      return document.activeElement.matches(":focus-visible")
+        && bounds.width > 0 && bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth;
+    })()`), true, `BL-340 ${control} stays visible with keyboard focus at 390 px`);
   }
   await key("Enter", "Enter", 13);
   await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");

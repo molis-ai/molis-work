@@ -2,10 +2,10 @@ export const LINGGUANG_STYLES = `
   [data-work-surface="lingguang"] { --plugin-tint: var(--ink-soft); }
   .lingguang-stage-chrome { pointer-events: auto; }
   .lingguang-selection-bar {
-    display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; max-width: 100%;
   }
   .lingguang-selection-bar span {
-    margin: 0 4px 0 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+    margin: 0 4px 0 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
   }
   .lingguang-selection-bar .mw-btn { flex: none; width: auto; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }

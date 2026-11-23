@@ -63,7 +63,7 @@ function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { h
 /** Received code remains paused until the user chooses this device's model and explicitly requests all local gates. */
 async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:string,projectId:string,itemId:string){
   const token=randomUUID()+randomUUID(),mutations=new Map<string,LocalMutationState>();
-  const options={store,homeDirectory,projectId,routePrefix:'/projects/'+projectId,...agentStudioFixture(0)};
+  const options={store,homeDirectory,projectId,routePrefix:'/projects/'+projectId,browserExecutable:dedicatedBuilderBrowser(),...agentStudioFixture(0)};
   const server=studioServer(options,token,mutations);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+(server.address() as {port:number}).port;
   const get=async()=>await(await fetch(origin+'/api/plugin-builder/studio/builds/'+itemId)).json() as {build:{phase:string;revision:number;active:unknown;error:string|null;history:unknown[]}};
@@ -398,14 +398,16 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
 
     // Publish the preceding presentation as v2: the 安装 tab offers it as the upgrade of what is installed, on the same sheet, and the data stays.
     await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish')})()`);
+    await page.command('Page.bringToFront');
     await page.command('Page.reload');
-    await page.wait(`document.querySelector('[data-as-tab="install"]')?.disabled===false`);
+    await page.wait(`(() => { const tab = document.querySelector('[data-as-tab="install"]'); return tab?.checkVisibility() && !tab.disabled; })()`);
     await page.click('[data-as-tab="install"]');
     await sheet.staged('review');
     assert.match(await sheet.text(), /1\.0\.0[\s\S]*2\.0\.0|2\.0\.0[\s\S]*1\.0\.0/, 'the sheet says which version it upgrades');
     await sheet.ready(); await sheet.shot('upgrade-review'); await sheet.press('confirm'); await sheet.staged('done');
     await refuseOldStage(framedStagePath);
     const upgradedStagePath = await currentStagePath();
+    await installedPage.command('Page.bringToFront');
     await installedPage.command('Page.navigate', { url: gatewayOrigin + upgradedStagePath });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await installedPage.evaluate(`!!document.querySelector('[data-pc-open="editor"]')`), false, 'v2 uses the preceding inline form');
@@ -414,15 +416,19 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     // The open plugin is the one chosen in the studio's own picker (in the workbench the address does not name it).
     const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`);
     assert.match(buildId, /^[a-f0-9-]{36}$/);
-    const standalone = await framedStudioPage(t, browser, await browser.page());
+    const standaloneOuter = await browser.page();
+    await standaloneOuter.command('Page.bringToFront');
+    const standalone = await framedStudioPage(t, browser, standaloneOuter, 'plugin-builder-preview');
     await standalone.command('Page.enable');
     const directPreview = await fetch(origin + '/plugin-builder/studio/preview/' + buildId, { redirect: 'manual' });
     assert.equal(directPreview.status, 302); assert.equal(directPreview.headers.get('location'), options.routePrefix + '/?openPlugin=plugin-builder'); await directPreview.text();
     await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId + '?frame=workbench' });
+    await standaloneOuter.wait(`document.querySelector('iframe[data-plugin-frame="plugin-builder-preview"]')?.checkVisibility()`);
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);
     await releaseAgentStudio(store, projectId);
+    await installedPage.command('Page.bringToFront');
     await installedPage.command('Page.reload');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await ensureInstalledPlugins(options), installedOwner, 'closing authoring does not close or recreate installed execution');
@@ -452,7 +458,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
     await observed(() => liveSubscriptions === 0);
 
-    // S-119 PCSYNC-22/23: real generated/published files, actual preview operation, actual Host sync registration.
+    // S-119 PCSYNC-22/23 SCKP-03: real generated/published files, actual preview operation, actual Host sync registration.
     const post=async(componentId:string,binding:'read'|'submit',payload:unknown)=>{const response=await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId+'/call',{method:'POST',headers:{'content-type':'application/json',origin,'x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify({componentId,binding,payload})});assert.equal(response.status,200,await response.clone().text());return (await response.json() as {value:unknown}).value;};
     // Earlier assertions deliberately undo every visual revision. Create one new real revision, not synthetic history.
     const saved=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as {build:{revision:number;active:unknown;phase:string;error:string|null;history:unknown[]}};

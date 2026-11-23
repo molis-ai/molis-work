@@ -6,7 +6,7 @@ import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-age
 import { SKILL_INSTALL_PREVIEW_SCHEMA, SKILL_SCENE_CHOICE_SCHEMA, skillAuthoringActions, skillDraftActions, skillImportActions, type SkillAuthoredFields } from "@molis-ai/molis-work-contracts/services/skills";
 import { PROJECT_INSTALLATION } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
-import type { BundledPluginList, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService, ProjectPackageControl } from "./plugin-install-service.js";
+import type { BundledPluginList, PluginInstallConfirmInput, PluginInstallConfirmResult, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService, ProjectPackageControl } from "./plugin-install-service.js";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { adoptDraft, type SkillAuthoringService } from "./skill-authoring.js";
 import type { SkillDraftStore } from "./agent-definitions/skill-drafts.js";
@@ -71,13 +71,15 @@ export const pluginInstallActions = {
     oneOf: [{ required: ["bundle"] }, { required: ["bundled"] }], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, dual_instance: { const: true }, effects,
-      publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
+      publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] }, local: { const: true } } },
+      secrets: { type: "array", maxItems: 64, items: { type: "object", additionalProperties: false, required: ["name", "saved"], properties: { name: text, saved: { type: "boolean" } } } },
+      // The package declares a memory scene this running Molis Work lists only after a restart (BL-b44-coding-scene-enum).
+      memory_scene_after_restart: { const: true },
       agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt", "body", "total_chars", "truncated"], properties: {
         kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 8000 }, total_chars: { type: "integer", minimum: 0, maximum: 8000 }, truncated: { type: "boolean" }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
       // An upgrade lists the Skills it removes besides the package's own, so twice the most one package declares.
       skills: { type: "array", maxItems: 2 * SKILL_LIMITS.skillsPerPackage, items: SKILL_INSTALL_PREVIEW_SCHEMA },
       skill_scenes: { type: "array", maxItems: 200, items: SKILL_SCENE_CHOICE_SCHEMA },
-      memory_scene_after_restart: { const: true },
       requires: { type: "array", items: { type: "object", additionalProperties: false, required: ["capability_id", "version", "optional", "reason", "satisfied"], properties: {
         capability_id: text, version: { type: "integer", minimum: 1 }, optional: { type: "boolean" }, reason: text, satisfied: { type: "boolean" } } } },
       origins: { type: "array", items: { type: "object", additionalProperties: false, required: ["service_id", "title", "origins"], properties: { service_id: text, title: text, origins: { type: "array", items: text } } } },
@@ -98,12 +100,13 @@ export const pluginInstallActions = {
         signed_here: { const: true } } } },
       refused: { type: "array", items: { type: "object", additionalProperties: false, required: ["file", "code", "message"], properties: { file: text, code: text, message: text } } } } } } } as ActionDefinition<Record<string, never>, BundledPluginList>,
   confirm: { capability_id: "plugins.install.confirm", version: /* @version action.plugins.install.confirm */ 1, operation: "command", action: { ...metadata, scope: "project",
-    title: "确认安装插件包", description: "安装一次预览里看过的包：确认它要的权限；这个发布者还没被固定时，给出名称才会固定它（固定是本人对这个发布者的信任，之后它签的包都按这个信任安装）。预览用过一次就作废。",
+    title: "确认安装插件包", description: "安装一次预览里看过的包：确认它要的权限；这个发布者还没被固定时，给出名称才会固定它（固定是本人对这个发布者的信任，之后它签的包都按这个信任安装）。可以同时给出装好后要开着的可选权限（`optional_permissions`，只能是预览里列为可选且请求了的）：第一次安装就带着它们启动，升级则把和现在不一样的开关改过去，没改成的在结果里列出，升级本身不受影响。预览用过一次就作废。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
-    input_schema: { type: "object", properties: { preview_id: { type: "string", minLength: 1, maxLength: 80 }, consent: { type: "boolean" }, pin_label: { type: "string", minLength: 1, maxLength: 80 } },
+    input_schema: { type: "object", properties: { preview_id: { type: "string", minLength: 1, maxLength: 80 }, consent: { type: "boolean" }, pin_label: { type: "string", minLength: 1, maxLength: 80 },
+      optional_permissions: { type: "array", maxItems: 64, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } } },
       required: ["preview_id", "consent"], additionalProperties: false },
-    output_schema: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "publisher_key_id"], properties: { plugin_id: text, version: text, publisher_key_id: text } } } } as ActionDefinition<
-    { preview_id: string; consent: boolean; pin_label?: string }, { plugin_id: string; version: string; publisher_key_id: string }>,
+    output_schema: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "publisher_key_id"], properties: { plugin_id: text, version: text, publisher_key_id: text,
+      permission_changes_failed: { type: "array", minItems: 1, items: text } } } } } as ActionDefinition<PluginInstallConfirmInput, PluginInstallConfirmResult>,
   publishers: { capability_id: "plugins.publishers.list", version: /* @version action.plugins.publishers.list */ 1, operation: "query", action: { ...metadata, scope: "home",
     title: "查看已固定的发布者", description: "列出本人固定过的插件发布者（含已撤销的）：公钥指纹、名称、固定与撤销的时间。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
@@ -212,7 +215,7 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
     bindActionHandler(pluginInstallActions.bundled, () => service.bundled()),
     { capability_id: pluginInstallActions.confirm.capability_id, version: pluginInstallActions.confirm.version, handle: async (caller, input) => {
       const who = pluginInstallPerson(caller); await caller.beforeEffect();
-      return await service.confirm(input as { preview_id: string; consent: boolean; pin_label?: string }, who, caller);
+      return await service.confirm(input as PluginInstallConfirmInput, who, caller);
     } },
     { capability_id: pluginInstallActions.publishers.capability_id, version: pluginInstallActions.publishers.version, handle: () => ({ publishers: service.publishers() }) },
     { capability_id: pluginInstallActions.revokePublisher.capability_id, version: pluginInstallActions.revokePublisher.version, handle: async (caller, input) => {

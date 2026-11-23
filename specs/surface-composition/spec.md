@@ -572,7 +572,7 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 **文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
 
-签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`plugin-builder/exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新。统一集成保留第 16 批对原会话、原激活、项目和取词来源的围栏。
+签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`installed-plugin-exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新。统一集成保留第 16 批对原会话、原激活、项目和取词来源的围栏。
 
 SCS-07／08／09／11／12／17 验真实空 Goals 和已签安装包从首页打开表单，打开与取消零写、提交一次；Inbox 停用及恢复、双实例主区、同对象跨组扣除、概况返回后撤权、隐藏计数零泄露、首次失败与真实旧值恢复，以及冷路径实际调用次数。拒绝反例涵盖伪 panel、跨贡献、同名不同 scope、换代、同版本不同 digest、排队期间撤权，以及懒加载期间换包。原生启用分别制造排队期间成员变化和成员 revision 不变的安装换代，均零成员写入；真实提交后切换失败返回 503，重试只读。不改门禁算法、阈值或 CI，不用 Mock 的状态常量代替最终首页实操。2026-11-08 的两处设计 P1（Goals 必填输入无入口、旧卡缺安装绑定）按上述方案处理，仍须实现复核与公共合同合审后关闭。
 

@@ -73,8 +73,9 @@ test("DOCK-01 every plugin the market offers is listed once, and the Dock has no
 });
 
 test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the head of the switcher, beside search and above the project's own entry", () => {
-  const enabled = ["goals", "plugin-builder"];
-  const bar = renderImmersiveHeader(primitives, false, [], { rail: renderPluginRail(primitives, enabled), projectChrome: "", enabled });
+  // 47-1 C: the studio is the platform's framed surface, offered whenever the page carries the host surfaces, not a plugin the project picks.
+  const enabled = ["goals"];
+  const bar = renderImmersiveHeader(primitives, false, [], { rail: renderPluginRail(primitives, enabled), projectChrome: "", enabled, hostSurfaces: true });
   const head = bar.slice(bar.indexOf('<div class="plugin-picker-head">'), bar.indexOf('class="plugin-rail-items"'));
   assert.match(head, /data-global-search-open[\s\S]*<div class="plugin-picker-extend" data-global-menu[^>]*>[\s\S]*data-plugin-id="market"[\s\S]*data-plugin-id="plugin-builder"/, "search, then the market, then the studio");
   for (const id of ["market", "plugin-builder"]) {
@@ -85,7 +86,7 @@ test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the he
   assert.match(head, /data-plugin-id="market"[\s\S]*?data-market-update-count hidden[^>]*><\/b><\/button>/, "the market's update count is inside its button");
   assert.ok(bar.indexOf('class="plugin-picker-extend"') < bar.indexOf('data-plugin-id="home"'), "above the project's own entry");
   assert.doesNotMatch(bar, /dock-settings|personal-sidebar-footer/, "nothing at the foot");
-  // Without the studio plugin there is one button, not an empty slot.
+  // Without the host surfaces there is one button, not an empty slot.
   const without = renderImmersiveHeader(primitives, false, [], { rail: renderPluginRail(primitives, ["goals"]), projectChrome: "", enabled: ["goals"] });
   assert.match(without, /data-plugin-id="market"/);
   assert.doesNotMatch(without, /data-plugin-id="plugin-builder"/);
@@ -132,7 +133,8 @@ const probe = (id: string, over: Record<string, unknown>, chosen = true) => ({ i
 const zoneOf = (html: string, zone: string) => [...html.matchAll(new RegExp(`<button data-rail-zone="${zone}"[^>]*data-plugin-id="([^"]+)"`, "g"))].map(match => match[1]!).filter(id => id !== "home");
 
 test("RAC-694 the tables are gone: the backbone and the extend entry come out as before, read from the views", () => {
-  assert.deepEqual([...extendPluginIds()], ["plugin-builder"]);
+  // 47-1 C: the studio left the catalog for a platform package, so no shipped plugin declares an extend place now.
+  assert.deepEqual([...extendPluginIds()], []);
   const html = renderPluginRail(primitives, ["goals", "inbox", "feed", "plugin-builder", "pages"]);
   assert.deepEqual(zoneOf(html, "core"), ["goals", "inbox", "feed"], "the backbone, in the views' order");
   assert.ok(!zoneOf(html, "tool").includes("plugin-builder") && !html.includes('data-plugin-tile="plugin-builder"'), "the studio is not among the tools");

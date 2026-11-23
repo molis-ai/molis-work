@@ -1,6 +1,7 @@
-import type { PluginFrameStyleFeature, PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { HostSurfaceRegistration, PluginFrameStyleFeature, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { drawCatalogText } from "./plugin-text.js";
 import { splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
 import {
@@ -50,7 +51,7 @@ const bundleUrl = (id: string): string => `/assets/molis-work-plugins/${encodeUR
  * bundle of its own, which the page loads beside this one (`bundleUrl`); its factory takes the ports of the panel it is mounted
  * in and is given its own plugin's identity, so what it asks of its own plugin it asks as that plugin, never as this one.
  */
-function withUsedClients(user: Registered, factory: string, all: readonly Registered[], catalog: readonly PluginRegistration[]): string {
+function withUsedClients(user: Registered, factory: string, all: readonly Registered[], catalog: readonly HostSurfaceRegistration[]): string {
   const used = (user.clientUses ?? []).map(id => {
     const lent = all.find(candidate => candidate.project_plugin_id === id), manifest = catalog.find(entry => entry.project_plugin_id === id)?.manifest;
     if (!lent?.clientFactory || !manifest) throw new Error(`${user.project_plugin_id} uses the client of ${id}, which has none`);
@@ -60,10 +61,14 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
   return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} } })`;
 }
 
-/** Derive the registered UI and assets from the same entries used by the Host catalog. */
-export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
+/**
+ * Derive the registered UI and assets from the same entries used by the Host catalog. The shipped catalog's packs also carry the
+ * platform's own framed surfaces (the studio, 47-1 C): drawn and served like a plugin's page, listed nowhere a plugin is.
+ */
+export function pluginWorkbenchPacks(catalog: readonly HostSurfaceRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
+  const shipped = catalog === BUILTIN_PLUGIN_CATALOG || catalog === WORKBENCH_SURFACE_CATALOG;
+  if (shipped) catalog = WORKBENCH_SURFACE_CATALOG;
   const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest]));
-  const shipped = catalog === BUILTIN_PLUGIN_CATALOG;
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
     .map((registered, _at, all) => {
@@ -222,11 +227,11 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 /** A surface's client: the bundle that carries its factory and what it prepares first (the bundles of the clients it uses among them). */
 export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly styles: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
 
-const pluginIdOf = (catalog: readonly PluginRegistration[], projectPluginId: string): string =>
+const pluginIdOf = (catalog: readonly HostSurfaceRegistration[], projectPluginId: string): string =>
   catalog.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? "";
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
-export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): PluginSurfaceClient[] {
+export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, catalog: readonly HostSurfaceRegistration[] = WORKBENCH_SURFACE_CATALOG): PluginSurfaceClient[] {
   return packs.flatMap((pack) => pack.clientFactory
     ? [{ id: pack.project_plugin_id, plugin_id: pluginIdOf(catalog, pack.project_plugin_id), bundle: pack.project_plugin_id, assets: pack.clientAssets ?? [], styles: framedStyles(pack, packs), factory: pack.clientFactory, searchRow: pack.searchRow, recordRow: pack.recordRow }]
     : []);

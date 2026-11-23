@@ -134,13 +134,14 @@
 |  | [官方场景包：行业观察与写作、写代码](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [情境 W4 创建与准备声明](reference/batches/46.md#batch-46-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/46.md#batch-46-item-2) |
-| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../backlog/BL-586.md) |
+| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../../docs/backlog-removed.md) |
 |  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2) |
 | [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) · [BL-plugin-cli-dev-uncoded-errors](../../docs/backlog-removed.md) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/48.md#batch-48-item-2) |
 |  | [依赖、来源与权限可见](reference/batches/48.md#batch-48-item-3) |
 |  | [首次可用率与返修评测样本](reference/batches/48.md#batch-48-item-4) |
 |  | [安装预演与插件目录的状态展示](reference/batches/48.md#batch-48-item-5) |
+|  | [创作能力经动作目录提供](reference/batches/48.md#batch-48-item-6)（由 47 挪来，用户 2026-11-22 定） |
 | [49](reference/batches/49.md) | [个人同步核心 → SRV-2](reference/batches/49.md#batch-49-item-1) |
 | [50](reference/batches/50.md) | [团队关键协作 → SRV-3](reference/batches/50.md#batch-50-item-1) |
 | [51](reference/batches/51.md) | [双身份协作实证 → SRV-3](reference/batches/51.md#batch-51-item-1) |

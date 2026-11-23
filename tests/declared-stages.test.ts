@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 
-import { BUILTIN_PLUGIN_CATALOG, renderStagePage, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, renderStagePage, stageContributionId } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -156,7 +156,8 @@ function stage(html: string, surface: string): string {
 }
 
 /** The plugins whose Manifest view opens a stage drawn by their own contribution's `workbench` surface in the main slot. */
-const declaredStagePlugins = () => BUILTIN_PLUGIN_CATALOG.filter(entry => {
+// The platform's own framed surface (the studio, 47-1 C) declares its stage the same way.
+const declaredStagePlugins = () => [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].filter(entry => {
   const id = stageContributionId(entry.manifest);
   const contribution = entry.workbench.contributions.find(item => item.descriptor.contribution_id === id);
   return contribution?.descriptor.surfaces?.find(surface => surface.surface_id === "workbench")?.target_slot_id === "workbench.main";

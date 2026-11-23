@@ -1,0 +1,69 @@
+# 插件创作工作台
+
+用自然语言描述想要的插件，由 Agent 设计方案、编写后端代码与测试，Local Host 做类型检查、打包并在 [plugin-sandbox](../../packages/plugin-sandbox/README.md) 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`）后才安装；前端由平台渲染器按规格板零件渲染，插件没有自己的前端代码。路线见 [agent-built-plugins](../../specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md)。
+
+创作台只画在工作台的主区里（`?openPlugin=plugin-builder`），没有自己的整页，也不嵌框架（[artifact-positioning](../../specs/archive/artifact-positioning/spec.md) S4）。客户端是插件包的 `AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT`，接口在 `/api/plugin-builder/studio/*`（`apps/local-host/src/plugin-builder/agent-surface.ts`）。生成的插件安装后在工作台打开，身份为 `io.molis.work.generated.<id>`，每个插件有独立安装身份和数据。先配置模型并关联工作区。
+
+已安装页的组件提交由 Host 页面动作网关解析原发行物的绑定。客户端只送组件 ID 和表单值。未安装的试用仍在创作台预览执行，安装后的组件读取仍走已安装页的读取入口。
+
+设计可选的 `ui.slots`、`surfaceSlot` 部件和 `surface-slot` 节点随草稿、同步与签名发行物一起保存。装好后组件把当前只读查询的引用交给原舞台的父区域；创作预览和隔离子页不代读跨插件对象。不声明挂载位的第 1 版数据继续按原形状读取，错误版本或非法挂载位拒绝，不改写原数据。
+
+旧的「设计数据 + 固定解释器 v1」创作台（独立页面 `/projects/<project>/plugin-builder`、`builder.builds.*` 动作、灵感库示例）已随 S1b 删除，不留兼容；旧路线的设计与验收留在 [specs/archive/plugin-builder](../../specs/archive/plugin-builder/)。
+
+- Migration: `goal-reorg-f2`
+- Contract: `@molis-ai/molis-work-contracts/platform/plugin`
+
+不带真模型的本地预览：`pnpm exec tsx scripts/preview-agent-studio.mts --fixture`，打开输出地址。它用独立临时项目、真实构建门槛与沙箱，只把模型换成标明替身的设计者与编码 Agent；预览和浏览器用例经 `scripts/agent-studio-harness.mts` 按工作台的方式挂载创作台。
+
+## 开发要求
+
+创作 owner 的当前私有 KV 文档：草稿、发布记录及草稿编辑高水位在同一个原子 CAS 中保存。删除保留高水位，旧编辑不能重新写入；修订溢出在业务回调之前拒绝。旧文档、坏 JSON、重复身份或不匹配高水位明确拒绝并保留原字节，不清空或就地转换。真实 Home 的备份与维护仍须单独批准。这只是个人同步接入的 owner 前置保护，不表示源码、发布文件、同步目录或公网验收已完成。
+
+`builderPrivateValueReplicationOwner` 显式选择逐份创作的完整草稿/设计/历史、作者源码、测试、辅助文件及五个发布文件和对应的签名发行包，由 Runtime 在同一 CAS 事务记逐项日志。`authoring` 集合通过 `project-private-values` 注册，默认未选；`builderSyncProjection` 把明确的文件原字节交给共同 R2 codec，空文件不创建零字节对象。不传目录、运行 token、批准或其他私有 key；独立创作不因共用一个文档而相互覆盖。被动导入提高目标本机编辑高水位，不执行 JS 或自动安装。宿主核验 Ed25519 签名、发布者、版本、运行范围及发行包的五个原文件。固定发布版本不同内容、发布 JSON 与元数据不符、越界/符号链接、坏摘要、缺件及迟到撤权拒绝。真实 Host/编译 Rust/WASM/临时 D1/R2 已验证一份原 KV 草稿的大文件及空文件、无回传和后续编辑；实际浏览器创作/发布旅程另外验证完整生成文件恢复、真实预览活动时拒绝覆盖，以及选用目标模型后明确继续和撤回。模型答复是标明的替身，不是真实厂商模型证据；合同、组件、历史与待继续决策的深层纯校验已有隔离验证；文件 GC 和真实设备上线验收仍未完成。非现行项目库拒绝且不改写，真实 Home 维护须另行批准。
+
+收到的源码与历史文件是不可变原件。明确继续/撤回时，Host 创建本机可编辑副本；没有本机 bundle 的历史和待调整界面先重跑原 G1–G6，不能把源设备的通过记录当执行许可。公共 SDK 类型只是构建输入，G1 仍与目标自己的 SDK 比较；不携带能力授权快照。正常修订保留共享源码/测试及依赖声明，再由原安装器重新校验依赖，不复制 node_modules。门禁后的落盘失败仍须返回失败及真实原因，不能保留误导的通过结果。
+
+- 负责：插件创作台：用自然语言设计、生成、试用并发布独立插件。它是平台能力，不是插件（第 47 批 47-1 C，用户 2026-11-22）：不在插件目录、设置、市场与项目成员里；`src/surface.ts` 的 `studioSurface` 是宿主与外壳的「宿主界面」名单读的申报（页面请求、界面文字、草稿同步集合、舞台），地址与编号仍是 `plugin-builder`，草稿与发布版本原地不迁。它产出的插件与其他插件走同一套机制。
+- 不负责：模型凭据、运行时所有权、任意代码执行。
+- 公开入口：`@molis-ai/molis-work-plugin-studio`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）与宿主界面申报 `@molis-ai/molis-work-plugin-studio/surface`；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-plugin-sdk`（共同同步内容编解码）、`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、平台基础包 `@molis-ai/molis-work-plugin-sandbox`（复用严格合同校验，不启动沙箱）。不导入另一个插件、App、Horizontal Service 或 Module 的实现（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - resetPreview 的旧 job 在 stopRunner 等待后再次核原 token，才能清预览数据或改构建。升级的授权表单传秘密值到 Host；只对本 release 声明的名称分批验证后切换，失败恢复本次秘密与原版本，较新的安装或启停选择优先。公开清单和批准记录不含秘密正文。
+  - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计分三份挂载，体验、界面、复查与代码各一份；每份不超过 20,000 字符，和阶段指令合计超过现行 64,000 字符上限时在发送前拒绝）。
+  - Agent 写的代码由 Local Host 做类型检查、打包并在 plugin-sandbox 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`），通过后才发布。
+  - 再次编辑产生新草稿，不影响正在使用的版本；发布产出的是签名包，安装与升级都由平台的安装单完成（`host.packageInstall`，见 `docs/platform/UI-PLATFORM.md`），新版本新增的权限、联网域名和密钥在安装单里由用户确认；已装的插件只能换到更新的版本，没有回到旧版本的入口（要用旧版本：先卸载，再装那个包）；停用、启用、卸载在「设置」的「插件」里。
+  - 费用、时限和频率取自 Action 提供方的 `execution` 声明；目录适配不再按 `model.generate` 名称推断。收费能力不能用于页面自动触发的 query。生成插件只走统一目录：目录之前的工作室能力清单（`goals.*`、`reminders.*`、`schedules.*` 的旧形状）和直接写在代码里的模型要求都已删除（2026-10，防腐第二步）。
+  - 不执行模型给出的 HTML 或 JavaScript，不自动连接外部账号。
+  - 挑零件时问判断服务（Jev）的两句说明（选能力、选组件，`src/choice-prompts.ts`）登记在创作台名下，用户可在“设置 › 提示词”里改；工作流经端口 `instruction` 取有效文字，默认文字逐字不变。候选、设计状态和“答案必须是合法候选”留在代码里。
+  - 创作台标签、状态、空态和固定请求反馈由 `plugin-builder.*` 稳定键和自己的 [中文](locales/zh.json)、[英文](locales/en.json)词包提供。草稿的协作步骤和失败提示按 Studio 的准确来源读取，支持本机保存与同步时验证的引用。原有字符串、详细诊断和模型答复按原文显示。组件板和生成界面共用设计系统的控件，发布时只带插件自己的词包与稳定引用。改动后跑 `tests/studio-english.test.ts` 与相应的浏览器路径。
+  - 改创作台挂载的 Skill 章节、设计者提示词或宿主对设计答卷的整理与校验，要过 `pnpm studio:replay`：录下的答卷原来被接受的仍被接受（基线不退），再在隔离 Home 里用 `pnpm studio:replay smoke` 看真实模型的修复轮数；回放只证明宿主检查，不证明 Skill 文字对模型的影响；提交的语料含 380 份真实设计答卷（2026-10-08 从用户 Home 的拷贝里只读导出、审过个人信息，防腐 spec §1），首轮完整设计一次通过率 42/80，是设计者的答卷过现在的宿主检查，不是 Skill 的效果（[手册](../../docs/platform/STUDIO-SKILL-REPLAY.md)）。
+- 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-studio run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/agent-studio.e2e.test.ts tests/plugin-builder-model-json.test.ts tests/agent-built-plugins-agent.test.ts tests/agent-built-plugins-authoring.test.ts tests/agent-built-plugins-capabilities.test.ts tests/agent-built-plugins-catalog.test.ts tests/agent-built-plugins-checks.test.ts tests/agent-built-plugins-components.test.ts tests/agent-built-plugins-dependencies.test.ts tests/agent-built-plugins-network.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-workbench.test.ts tests/agent-built-plugins-workflow.test.ts tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-host.test.ts tests/installed-plugin-policy.test.ts tests/studio-replay.test.ts tests/prompt-registration.test.ts tests/studio-english.test.ts tests/network-notices.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/agent-studio.e2e.test.ts tests/plugin-builder-stage.e2e.test.ts tests/plugin-builder-diagnostics.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（最后一个：创作台在没有模型时的提示，在模型设置页宣布第一个模型后重读）
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；[docs/platform/STUDIO-SKILL-REPLAY.md](../../docs/platform/STUDIO-SKILL-REPLAY.md)（Skill 与提示词的回放和冒烟）；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。
+
+## 整页设计与复查
+
+支持该能力的宿主在首次生成时，先让体验阶段重组所选方案的部件草图、规划使用路径并给出代表性内容，再由主线细化绑定与验收。完整设计校验并冻结后调用 UI 阶段，输出版本化的 `presentation` 与合法展示属性；Jev 获得整页结构、相邻部件和设计偏好，失败时沿用合法偏好。创作台的「只调整界面」复用已通过的后端与合同；可撤回并独立发布布局变化。旧插件保持原布局。
+
+组件交互说明随呈现词表进入 UI 和评审：弹层入口用输入部件的 title、提交用 submitLabel；行内动作自动选中当前记录，成功反馈是临时消息。有全文路径的组合目录使用两行摘要，正文保留原文。主线验收使用符合任务的内容长度；短样本和静态截图不能证明全文、动效或未展示状态的质量。
+
+G7 与截图复查使用独立验收存储，不读取或清空人的试用内容。宽窄屏结构检查发现溢出与操作遮挡；当前模型声明图片输入能力时，经 Prologue 查看画布截图，最多一轮修订、一次确认。无图片能力如实显示「功能已验证；视觉未复查」。结构故障仍阻止完成。实际截图与真实模型记录须和手写样例分开判断。
+
+负向验收用显式 `submitBlocked`（必填字段 `valueMissing`）、`faultRead`（当前 trial 的绑定 query 单次失败）、`retry` 与 `expectValue`；普通 `submit` 仍只接受成功。表单 `requiredText` 由真实 invalid 事件显示，读取失败由真实组件显示错误和重试，不由执行器写 DOM。每例独立重置，断言失败先收齐其余独立例，再将整批实际失败交原有限修复流程；环境或 reset 失败标明未执行并停止修复。详情见 [生成设计 DSL](../../skills/molis-plugin-dev/generated-design.md)。
+
+实施与验收：[整页设计与视觉复查](../../specs/archive/plugin-builder/work-items/visual-composition/spec.md)。
+
+设计、UI 生成和截图复查共同读取 [体验与审美标准](../../skills/molis-plugin-dev/generated-experience.md)，其中用户动线进入 journey/purpose，空间与信息取舍进入 UI summary。标准参考 Impeccable 的 Operate/Read、动效和评审原则，按 Molis 的组件目录改写，随插件规范一起发行。动效由宿主实现，不开放模型脚本；静态截图不用于断言动画、焦点或未展示状态。复查同时获得实际渲染节点、字段映射与合法候选，建议必须有具体截图证据并保持冻结合同。
+
+界面生成与复查都收到用户原始需求；旧旅程里的位置描述不冻结布局。复查挂载独立章节，不混入生成 JSON 的要求；集中修订收到同批截图，并自行核对模型建议是否有证据、是否能用当前组件表达。无图片能力时仍保持原有结构检查与文字修订路径。
+
+体验阶段使用 `experience/1`，复用设计 Runtime，通常增加一次模型调用，不在恢复已冻结构建或纯视觉修订时重跑。体验草图不得改操作和已选平台能力，主线负责最终引用一致性；代表性场景进入 detail 和后续 UI/评审，但不是正式存储的预置记录。初始体验上下文随历史和发布保留，后续用户修改要求优先。
+
+截图评审返回范围、截图、目标、证据、影响与改法；可定位且属性受支持的 presentation 意见才触发自动修订，design/host/unverified 意见保留显示。未知截图、部件或属性也保留为未自动修改；这只能防止部分错误返工，不证明模型判断正确。旧 visualResult 字符串结果继续可读。
+
+体验草图的 uses 可引用一个或多个既有操作，由 detail 再落实为运行时部件及绑定。G7 失败诊断读取渲染器已接受的结果/错误，保留当时选择和筛选，不再发空输入查询；填写了不存在的枚举选项时交回设计修改验收或显示映射，复用业务实现。
+
+首用试用版暂不开放草稿删除：owner 直接拒绝并保留完整草稿及文件，界面禁用删除入口；完整删除恢复机制验收前不开放。

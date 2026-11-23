@@ -39,10 +39,14 @@ export function trustedPluginPage(context: WebRequestContext, project: LocalHost
   return { page, project };
 }
 
-/** The person's own action client, fenced by the page: every call's authority check asks the page again, and its effect boundary too. */
-export async function pageOwnerClient(context: WebRequestContext, project: LocalHostProjectReference, page: TrustedPage) {
+/**
+ * The person's own action client, fenced by the page: every call's authority check asks the page again, and its effect boundary too.
+ * `press` stamps the calls as one press of the person in a trusted Host control (S-58); the fence stays the page's either way.
+ */
+export async function pageOwnerClient(context: WebRequestContext, project: LocalHostProjectReference, page: TrustedPage,
+  press?: Pick<ActionCallContext, "actor_kind" | "user_action">) {
   const original = await localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, page.signal);
-  const caller: ActionCallContext = { ...original,
+  const caller: ActionCallContext = { ...original, ...press,
     validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },
     assert_authority_current: (...args) => { original.assert_authority_current?.(...args); page.assertCurrent(); } };
   return bindActionClient(context.localHost.actionClient(project), () => caller);

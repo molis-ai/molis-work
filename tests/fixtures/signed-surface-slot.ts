@@ -59,10 +59,10 @@ operations["references.context"] = async ({ subject_id }, sdk) => {
   return { contract, surface, code };
 }
 
-export async function packSignedObjectSlot(t: TestContext, scope: "home" | "project", pluginId: string, kind: string, reader?: ReaderFixture) {
+export async function packSignedObjectSlot(t: TestContext, scope: "home" | "project", pluginId: string, kind: string, reader?: ReaderFixture, publisher = newPublisher()) {
   const directory = await mkdtemp(join(tmpdir(), "signed-object-slot-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const publisher = newPublisher(), { contract, surface, code } = authoredObjectSlot(pluginId, kind, reader);
+  const { contract, surface, code } = authoredObjectSlot(pluginId, kind, reader);
   await Promise.all([
     writeFile(join(directory, SANDBOX_PACKAGE_FILES.contract), JSON.stringify(contract)),
     writeFile(join(directory, SANDBOX_PACKAGE_FILES.interface), JSON.stringify(surface)),
@@ -73,5 +73,5 @@ export async function packSignedObjectSlot(t: TestContext, scope: "home" | "proj
     name: "Original references " + scope, version: scope === "project" ? "1.0.0" : "2.0.0",
     publisherId: "test-author", publisherKeyId: publisher.identity, scope,
   });
-  return { surface, bundle: signPluginPackage(packed, publisher.signer) };
+  return { surface, publisher, bundle: signPluginPackage(packed, publisher.signer) };
 }

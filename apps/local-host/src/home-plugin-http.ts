@@ -25,7 +25,7 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
 import { installedStageSection } from "./workbench-renderer.js";
-import { installedPluginWords } from "./plugin-builder/installed-page.js";
+import { installedPluginWords } from "./installed-plugin-page.js";
 import { assertStageInstallation, installedStageIdentity, installedStagePath, requestedStageInstallation } from "./installed-stage-identity.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";

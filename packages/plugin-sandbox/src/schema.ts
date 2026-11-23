@@ -1,7 +1,7 @@
 import { sandboxHelpDeclarationProblems, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { compileActionSchema } from '@molis-ai/molis-work-kernel';
 import { sandboxActionProtocolAction, sandboxReadProtocolAction } from '@molis-ai/molis-work-plugin-sdk/presentation';
-import { assertSandboxJson, assertSandboxMatches, assertSandboxSchema, sandboxBackgroundProblems, sandboxLocaleProblems, sandboxStartProblems, type SandboxSchemaFailure } from '@molis-ai/molis-work-plugin-sdk';
+import { assertSandboxJson, assertSandboxMatches, assertSandboxSchema, sandboxBackgroundProblems, sandboxLocaleProblems, sandboxStartProblems, sandboxStateMachineProblems, type SandboxSchemaFailure } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export class SandboxError extends Error {
@@ -101,7 +101,7 @@ export function checkSandboxContract(contract: unknown, proposal = false, snapsh
   }
   // A background run is a command of the contract with no background work of its own: one level, so a run cannot start more than the person approved.
   // A starting point is a command's, its operation id the intake's (contract-design §2.4).
-  const declarationProblems = [...sandboxBackgroundProblems(c), ...sandboxStartProblems(c), ...sandboxLocaleProblems(c), ...sandboxHelpDeclarationProblems(c)];
+  const declarationProblems = [...sandboxBackgroundProblems(c), ...sandboxStartProblems(c), ...sandboxLocaleProblems(c), ...sandboxHelpDeclarationProblems(c), ...sandboxStateMachineProblems(c)];
   if (declarationProblems.length) throw new SandboxError('sandbox.invalid_contract', declarationProblems.join('; '));
   for (const entity of c.entities) { if (!id(entity.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid entity id'); assertSchema(entity.schema); }
   if (!unique(c.entities.map(e => e.id)) || !unique(c.pages.map(p => p.id)) || !unique(c.acceptance.map(a => a.id))) throw new SandboxError('sandbox.invalid_contract', 'Duplicate structural ids');

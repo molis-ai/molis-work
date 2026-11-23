@@ -10,7 +10,7 @@ import { withSurfaceRestoration } from './surface-installation.js';
 import { logInstalledUpgradeRefusal } from './home-unavailable-owners.js';
 
 /** Runtime owns the version switch; this Host operation owns consent values and its exposure of the new release. */
-export async function changeInstalledVersion(c: InstalledLifecycleContext, action: 'upgrade' | 'rollback', release: AgentRelease,
+export async function changeInstalledVersion(c: InstalledLifecycleContext, release: AgentRelease,
   record: PluginInstanceRecord, nextApproval: SandboxEffects, inputs: Array<{ name: string; header: string; value: string }>, control?: InstalledPackageControl): Promise<void> {
   const assertStanding = () => {
     if (c.closed() || control?.scopeOpen?.() === false) throw new ActionError('actions.host_closed', '原插件安装范围已经关闭');
@@ -18,7 +18,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
   };
   const assertAuthority = () => { control?.assertCurrent?.(); assertStanding(); };
   assertAuthority();
-  const pluginId = release.pluginId, verb = action === 'upgrade' ? '升级' : '回滚', off = record.state === 'disabled';
+  const pluginId = release.pluginId, verb = '升级', off = record.state === 'disabled';
   const earlier = c.releaseFor(pluginId), earlierApproval = c.approvedFor(pluginId), approval = c.storage.get(APPROVED_KEY + pluginId), next = c.definition(release, nextApproval);
   const epoch = off ? undefined : c.platform.supervisor.generation(pluginId);
   const ownsScope = () => !c.closed() && control?.scopeOpen?.() !== false && (off || c.platform.supervisor.generation(pluginId) === epoch);
@@ -44,8 +44,8 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
   const assertCurrent = () => { control?.assertCurrent?.(); assertScope(); };
   let moved: PluginInstanceRecord | undefined;
   try {
-    const state = action === 'upgrade' ? await c.platform.upgrade(pluginId, next, { assertCurrent, previousManifest, persistApproval,
-      assertCommitted: databaseVersionChanged ? assertScope : undefined }) : await c.platform.rollback(pluginId, next);
+    const state = await c.platform.upgrade(pluginId, next, { assertCurrent, previousManifest, persistApproval,
+      assertCommitted: databaseVersionChanged ? assertScope : undefined });
     const current = c.recordFor(pluginId);
     if (ownsScope() && current?.installation_generation === record.installation_generation && current.install_id === record.install_id
       && current.version === next.manifest.version && current.manifest_digest === pluginManifestDigest(next.manifest)) moved = current;
@@ -63,7 +63,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
       if (databaseVersionChanged) assertScope(); else assertCurrent();
       if (!same(candidate)) throw new ActionError('actions.provider_replaced', '插件安装已变化，不能继续采用旧切换结果');
     }, () => {
-      c.registerPrompts(release, off ? 'disabled' : 'enabled', action === 'rollback');
+      c.registerPrompts(release, off ? 'disabled' : 'enabled');
       c.recoveryErrors.delete(pluginId);
     });
   } catch (error) {

@@ -124,6 +124,18 @@ const pages: Record<string, Draw> = {
 // Use separate TMPDIR directories for those two runs: compare their goals-golden-recorded and goals-golden-drawn directories with
 // diff -rq (66 full HTML files, including scripts, styles and JSON). On this machine, wrap builds in the build slot and all test runs
 // in the browser slot using scripts/machine-slot.mjs; set TMPDIR inside the slot so both checkouts share the machine's slot directory.
+// Batch 47-1 C (user 2026-11-22: the plugin studio is the platform's, in every project, not a plugin): main 2caa6fe38b and batch 47
+// merged with it were both built and drawn with MOLIS_WORK_GOLDEN_DUMP=1; diff -rq found 22 files changed. Each of the 16 page-* draws
+// differs in exactly six places: the studio's 创作台 button at the switcher's head, its (hidden, deferred) stage frame, its market
+// card gone, its row moved to the end of the directory JSON and of the tab titles, and the workbench language file's hash (its words
+// changed). The six settings and planning pages differ only in that hash, which their records already leave out. No Goals markup or
+// JSON changed; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// On the merge of main f19f4100da (#2243 retires Text Stats) the batch's tab-title map, which reads one placement registry, lost its
+// `,"text-stats":"Text Stats"` row: a uniform -26 characters on the 16 pages in both languages, the only change between the drawn
+// pages of ee4a3c0a03 and the merge (token diff); they were recorded again with MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main 5bfd52b87b (#2240 removes `overview.lead`, its -56 noted above) the 16 were recorded once more: each is exactly
+// 56 characters shorter than this batch's record in both languages, the other 50 records are unchanged, and against main each stays
+// the batch's own +4982 (zh) / +5338 (en), as before the merge.
 // RAC-2680 / RAC-2508 (T402): the Goals-only view no longer draws the hidden Sources stage of an unshown Feed owner.
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.

@@ -28,7 +28,7 @@ export function mainlineHeldReviews(queueFor: () => Promise<AgentReviewQueue | u
   return {
     async read(caller, provider, tasks) {
       const result = new Map<string, BackgroundTaskHeldReview[]>(), owner = ownerOf(caller, provider);
-      if (!owner) return result;
+      if (!owner || !hasProtectedWebAction(caller.user_action)) return result;
       const queue = await queueFor();
       if (!queue) return result;
       const hints = tasks.flatMap(task => task.held_reviews ? [{ task: task.id, ...task.held_reviews }] : []);
@@ -46,7 +46,7 @@ export function mainlineHeldReviews(queueFor: () => Promise<AgentReviewQueue | u
       }
       return result;
     },
-    async decide(caller, provider, review, sourceAuthority) {
+    async decide(caller, provider, review, source) {
       const assertPerson = () => {
         if (!isPerson(caller) || !hasProtectedWebAction(caller.user_action)) throw new ActionError("actions.forbidden", uiText.text("workbench.agent-review.entry-refused"));
       };
@@ -58,7 +58,7 @@ export function mainlineHeldReviews(queueFor: () => Promise<AgentReviewQueue | u
         assertPerson();
         caller.signal?.throwIfAborted();
         requireSynchronous(caller.assert_authority_current?.());
-        sourceAuthority.assertCurrent();
+        source.authority.assertCurrent();
         if (!matches(request, owner, review.sessionId) || request.reference.version !== review.version || !isReviewDocumentReadable(request.document)) throw changed();
         assertHumanReview(computerHolder(), review.sessionId);
       };
@@ -67,8 +67,9 @@ export function mainlineHeldReviews(queueFor: () => Promise<AgentReviewQueue | u
       return await queue.respond({ review_id: review.id, version: review.version, decision: review.role, actor_id: caller.actor_id }, {
         beforeEffect: async () => {
           await caller.beforeEffect();
-          await sourceAuthority();
+          await source.authority();
         },
+        beforeSave: source.checkTask,
         assertCurrent,
       });
     },

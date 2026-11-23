@@ -91,7 +91,7 @@ type SourceTaskRow = Omit<BackgroundTaskRow, "decisions"> & Pick<BackgroundTask,
 export interface TaskReviewPorts {
   read(caller: ActionCallContext, provider: ActionProvider, tasks: readonly SourceTaskRow[]): Promise<ReadonlyMap<string, BackgroundTaskHeldReview[]>>;
   decide(caller: ActionExecutionContext, provider: ActionProvider, review: { id: string; sessionId: string; version: string; role: "approve" | "reject" },
-    sourceAuthority: RetainedActionAuthority): Promise<unknown>;
+    source: { authority: RetainedActionAuthority; checkTask(): Promise<void> }): Promise<unknown>;
 }
 
 function heldReviewsOf(task: Record<string, unknown>): BackgroundTask["held_reviews"] {
@@ -210,13 +210,19 @@ export async function decideBackgroundTask(caller: ActionExecutionContext, clien
   if (!view?.availability.available) throw mainlineErrors.source_changed("这个任务的提供方已不可用，请重新读取后台任务");
   const source = referenceOf(view);
   const sourceAuthority = request.review_version && caller.retainAuthority?.([source]);
-  const rows = await rowsFrom(caller, client, view, views);
-  const task = rows?.find(row => row.subject.kind === request.subject.kind && row.subject.id === request.subject.id);
+  const readTask = async () => (await rowsFrom(caller, client, view, views))?.find(row => sameSubject(row.subject, request.subject));
+  const task = await readTask();
   const changed = () => mainlineErrors.decision_changed("任务已不再问这一件，或不再给出这种回答，请重新读取后再操作");
   const held = task?.held_reviews;
   if (request.review_version !== undefined || held?.ids.includes(request.decision)) {
     if (!held?.ids.includes(request.decision) || !reviews || !sourceAuthority || !request.review_version || request.role === "revise" || request.note !== undefined) throw changed();
-    const output = await reviews.decide(caller, view.provider, { id: request.decision, sessionId: held.session_id, version: request.review_version, role: request.role }, sourceAuthority);
+    const output = await reviews.decide(caller, view.provider, { id: request.decision, sessionId: held.session_id, version: request.review_version, role: request.role }, {
+      authority: sourceAuthority,
+      async checkTask() {
+        const current = (await readTask())?.held_reviews;
+        if (current?.session_id !== held.session_id || !current.ids.includes(request.decision)) throw changed();
+      },
+    });
     return { role: request.role, output };
   }
   const answer = task?.decisions.find(decision => decision.id === request.decision)?.answers.find(offered => offered.role === request.role);

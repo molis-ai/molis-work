@@ -33,7 +33,12 @@ export interface ReviewDecisionCommit {
   assertCurrent(): void;
   effect<T>(write: () => Promise<T>, assertOwnerCurrent?: () => void): Promise<T>;
 }
-interface DecisionBoundary { beforeEffect?(): Promise<void>; assertCurrent?(request: AgentReviewRequest): void }
+interface DecisionBoundary {
+  beforeEffect?(): Promise<void>;
+  /** A source can check that it still offers the pending decision when it is about to be saved. */
+  beforeSave?(): Promise<void>;
+  assertCurrent?(request: AgentReviewRequest): void;
+}
 
 /**
  * The installation that started a plugin's person-reviewed Host operation (PG-009). It must declare and hold `review:<kind>`
@@ -394,10 +399,18 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     const commit: ReviewDecisionCommit = Object.assign(async (assertOwnerCurrent?: () => void) => {
       if (committed) throw agentErrors.review_already_decided("本次决定已经保存");
       const saved = await store.save({ reference: request.reference, decision: input.decision, actor_id: input.actor_id,
-        decided_at: this.#now().toISOString(), note: input.note ?? null, source }, request, { ...control, assertCurrent: () => {
-          assertCurrent(); requireSynchronous(assertOwnerCurrent?.()); this.#pending(input.review_id);
+        decided_at: this.#now().toISOString(), note: input.note ?? null, source }, request, {
+        beforeEffect: async () => {
+          await control.beforeEffect();
+          await boundary?.beforeSave?.();
+        },
+        assertCurrent: () => {
+          assertCurrent();
+          requireSynchronous(assertOwnerCurrent?.());
+          this.#pending(input.review_id);
           if (this.#claims.get(input.review_id) !== claim || this.#deciders.get(input.review_id) !== handler || answerable && !answerable()) throw agentErrors.pending_not_open("原执行等待已经结束");
-        } });
+        },
+      });
       if (saved.state === "not-saved") throw saved.error;
       if (saved.state === "unknown") {
         claim.unknown = true; row.receipt.decision_save_error = "决定保存待核对，不能再次批准或拒绝";

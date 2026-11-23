@@ -281,7 +281,8 @@ const TASK_TABLE_SCHEMA = { type: "object", properties: { tasks: { type: "array"
 export const mainlineActions = {
   /**
    * The line of one project: every registrant asked once in parallel, the task table read once in the same call, each event placed
-   * and ordered; the task table comes with it, so a page that shows both reads once. The Assistant and an outside Agent read this same answer; there is no second, textual form of it.
+   * and ordered; the task table comes with it, so a page that shows both reads once. The same shape serves an Agent, while only the
+   * person's protected page may get original held review proposals in the table.
    */
   line: { capability_id: "mainline.line.read", version: /* @version action.mainline.line.read */ 1, operation: "query", action: { ...metadata,
     title: "事项线", description: "从这个项目里已授权的登记方读取当前窗口里的事件，标出每件在线上的位置、先后和背后在办或等你的任务（只算调用方自己读得到的任务）；只读，不会执行事件上的动作。",

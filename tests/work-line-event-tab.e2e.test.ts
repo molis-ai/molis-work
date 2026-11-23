@@ -86,6 +86,10 @@ test("WLHR-02 WLHR-03: the real event card shows each Agent proposal and records
     await writeFile(new URL(name, directory), Buffer.from(screenshot.data, "base64"));
   };
   await capture("held-review-event-card.png");
+  await setViewport(1024, 800);
+  await waitFor(`innerWidth === 1024 && document.querySelector(${JSON.stringify(rejection)})?.getClientRects().length`);
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, "1024px: the event card fits the page");
+  await capture("held-review-event-card-1024.png");
   // The same open card gets its new words from the workbench after a language change in another window.
   await evaluate(`(async () => {
     await molisWorkRequest('/api/ui/locale', { body: { preference: 'en' } });

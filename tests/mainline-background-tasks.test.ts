@@ -22,13 +22,14 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 const person = (projectId: string, permissions: readonly string[] = [MAINLINE_READ_PERMISSION, MAINLINE_CONTROL_PERMISSION, "homebg:read"], change: Partial<ActionCallContext> = {}): ActionCallContext =>
   ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: [...permissions], ...change });
 
-test("WLHR-01 WLHR-02: held reviews stay with the exact project, installation and session, and the protected click still observes the computer quiet period", { timeout: 90_000 }, async t => {
+test("S-49 WLHR-01 WLHR-02: only the page gets the original proposal and only the current task can answer it outside the quiet period", { timeout: 90_000 }, async t => {
   const ids = ["owned", "other-project", "other-plugin", "other-install", "other-session", "cancelled"];
+  let reportedIds = ids;
   let session = "original-session", substitute = false;
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [task("held", { waiting: true, state: "approval",
     ...(substitute ? { decisions: [{ id: "owned", ask: "Another question", changes: [], answers: [
       { role: "approve", action: { capability_id: "homebg.answer", version: 1 }, input: { job: "held", verdict: "approve" }, summary: "" },
-    ] }] } : { held_reviews: { session_id: session, ids, ask: "Invented proposal" } }) }, [])] }));
+    ] }] } : { held_reviews: { session_id: session, ids: reportedIds, ask: "Invented proposal" } }) }, [])] }));
   const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [plugin.definition] } } });
   const project = await home.createProject("Review ownership"), other = await home.createProject("Other project");
   await startProjectPlugins(home.host, project.reference);
@@ -47,8 +48,8 @@ test("WLHR-01 WLHR-02: held reviews stay with the exact project, installation an
     ["other-session", owner, "other-agent-session"],
     ["cancelled", owner, session],
   ] as const;
-  const entered = deferred(), release = deferred();
-  t.after(() => release.resolve());
+  let beforeCommit: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
+  t.after(() => beforeCommit?.release.resolve());
   let injected = false;
   t.mock.method(ComputerDesk.prototype, "holding", () => ({ sessionId: "original-session", projectId: project.project_id, lastInjectAt: injected ? Date.now() : null }));
   const delivered: string[] = [];
@@ -57,20 +58,35 @@ test("WLHR-01 WLHR-02: held reviews stay with the exact project, installation an
       kind: "text-edit", run: { session_id, run_id: "test-run" }, requested_at: new Date().toISOString(), expires_at: null,
       document: { kind: "text-edit", target_path: `${id}.md`, exists: true, before_text: "old", after_text: "review content from the queue" } });
     queue.registerDecisionHandler(id, async (_input, commit) => {
-      if (id === "owned") { entered.resolve(); await release.promise; }
+      if (id === "owned" && beforeCommit) { beforeCommit.entered.resolve(); await beforeCommit.release.promise; }
       const receipt = await commit();
-      delivered.push(id);
+      reportedIds = reportedIds.filter(item => item !== id);
+      await commit.effect(async () => { delivered.push(id); });
       return receipt;
     });
   }
   queue.cancel("cancelled", "The original run stopped");
-  const route = `/projects/${project.project_id}/api/mainline/tasks`;
-  const table = await home.web.post<BackgroundTasksReadResult>(route, {});
+  const projectRoute = `/projects/${project.project_id}`, route = projectRoute + "/api/mainline/tasks";
+  const attention = projectRoute + "/api/attention";
+  const summary = await home.web.get<{ tasks: BackgroundTasksReadResult }>(attention);
+  assert.deepEqual(summary.tasks.tasks.find(task => task.subject.id === "held")?.decisions, [], "an unauthenticated read only gets the task summary");
+  const read = await fetch(home.origin + attention, { headers: { "x-molis-work-control-token": home.controlToken } });
+  assert.equal(read.status, 200);
+  const { tasks: table }: { tasks: BackgroundTasksReadResult } = await read.json();
   const row = table.tasks.find(row => row.subject.id === "held");
   assert.ok(row);
   assert.deepEqual(row.decisions.map(decision => decision.id), ["owned"]);
   assert.match(JSON.stringify(row), /review content from the queue/);
   assert.doesNotMatch(JSON.stringify(row), /other-(?:project|plugin|install|session)\.md|Invented proposal|held_reviews/);
+  const assistant = person(project.project_id, [], { audience: "agent", actor_kind: "runtime", skill_round: { consumer: "assistant", named: [] } });
+  const copy = await client.invoke(assistant, { capability_id: "assistant.background.read", version: 1 }, {}) as { tasks: Array<{ subject: { id: string }; asks: string[] }> };
+  assert.deepEqual(copy.tasks.find(task => task.subject.id === "held")?.asks, [], "the Assistant's reading copy sees the waiting task without the original proposal title");
+  assert.doesNotMatch(JSON.stringify(copy), /owned\.md|review content from the queue/);
+  const imitatingPage = { ...me, user_action: { source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: "web:copied" } };
+  const unprotected = await client.invoke(imitatingPage, mainlineActions.tasks, {});
+  assert.deepEqual(unprotected.tasks.find(task => task.subject.id === "held")?.decisions, [], "web-shaped provenance alone does not reveal the proposal");
+  const postTable = await home.web.post<BackgroundTasksReadResult>(route, {});
+  assert.deepEqual(postTable.tasks.find(task => task.subject.id === "held")?.decisions.map(decision => decision.id), ["owned"]);
   const answer: BackgroundTaskDecideRequest = { source: row.source, subject: row.subject, decision: "owned", role: "approve", review_version: "proposal-1" };
   const post = (input: BackgroundTaskDecideRequest) => home.web.post(route + "/decide", input);
   await assert.rejects(client.invoke(me, mainlineActions.decide, answer), { code: "actions.forbidden" }, "a user-shaped invocation needs the actual page entry");
@@ -87,17 +103,30 @@ test("WLHR-01 WLHR-02: held reviews stay with the exact project, installation an
   substitute = false;
   assert.deepEqual(delivered, []);
 
-  const response = post(answer);
-  const refused = assert.rejects(response, { status: 409, code: "computer.self_approval" });
-  await Promise.race([entered.promise, response.then(() => assert.fail("the original decision owner must be reached"))]);
-  injected = true;
-  release.resolve();
-  await refused;
-  assert.equal(queue.receipt("owned")?.status, "pending");
-  assert.equal((await queue.readMany(["owned"]))[0]?.decision, undefined);
-  assert.deepEqual(delivered, []);
+  const refuseAfterOwnerWaits = async (change: () => void, error: string) => {
+    const entered = deferred(), release = deferred();
+    beforeCommit = { entered, release };
+    const response = post(answer);
+    const refused = assert.rejects(response, { code: error });
+    try {
+      await Promise.race([entered.promise, refused.then(() => assert.fail("the original decision owner must be reached"))]);
+      change();
+    } finally {
+      beforeCommit = undefined;
+      release.resolve();
+    }
+    await refused;
+    assert.equal(queue.receipt("owned")?.status, "pending");
+    assert.equal((await queue.readMany(["owned"]))[0]?.decision, undefined);
+    assert.deepEqual(delivered, []);
+  };
+  await refuseAfterOwnerWaits(() => { session = "a-new-session"; }, "mainline.decision_changed");
+  session = "original-session";
+  await refuseAfterOwnerWaits(() => { injected = true; }, "computer.self_approval");
   injected = false;
   await post(answer);
+  await assert.rejects(post(answer), { code: "mainline.decision_changed" });
+  reportedIds = ids;
   await assert.rejects(post(answer), { code: "agent.review_already_decided" });
   assert.deepEqual(delivered, ["owned"]);
   assert.equal(queue.receipt("owned")?.decided_by, LOCAL_PERSON_ACTOR_ID);

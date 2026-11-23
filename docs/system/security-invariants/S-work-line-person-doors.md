@@ -1,6 +1,6 @@
 # S-work-line-person-doors
 
-待审操作的卡片只接受当前项目、任务提供插件及其精确安装、Agent 会话都匹配的队列记录。提交需携带页面看到的版本和受保护 Web 入口签发的本人操作，提交前会重核任务提供方的授权。见 `apps/local-host/src/mainline-held-reviews.ts` 及 `tests/mainline-background-tasks.test.ts` 的 WLHR-01／02。
+待审操作的卡片只接受当前项目、任务提供插件及其精确安装、Agent 会话都匹配的队列记录。读取原提案及提交决定都要有受保护 Web 入口签发的本人操作，提交还需携带页面看到的版本。保存决定前重核任务提供方的授权和任务当前关联。见 `apps/local-host/src/mainline-held-reviews.ts` 及 `tests/mainline-background-tasks.test.ts` 的 WLHR-01／02。
 
 事项线的标签页暂存只保存事件和读取状态。待审记录的引用和正文需从受保护的入口重读，见 `tests/work-line-event-tab.e2e.test.ts` 的 WLHR-02。
 

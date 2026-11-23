@@ -1,8 +1,10 @@
 # 事项线卡片审批与工作台脚本去重
 
-状态：本地验收通过，待合入（2026-11-23）。负责人 Codex（本机）。完成程度为功能可用，卡片至原审批回执的链路已在隔离 Home 验证。
+> 归档（2026-11-23）：判定为**已实现**。[#2286](https://github.com/molis-ai/molis-work/pull/2286) 经[队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/45278234511/job/138063028711) 合入 main `a02584604d`。
 
-接续 BL-work-line-held-review-on-card 与 BL-work-line-bundle-duplicate-sdk-text。第 32 批的 [任务合同](../work-line/contract-design.md#4-后台任务总表) 已支持插件自己的决定，Agent 的待审操作另由宿主登记和执行。Coding 的业务会话 ID 与 Agent 会话 ID 分立，任务提供方负责报出两者的关联。
+负责人 Codex（本机）。完成程度为功能可用，卡片至原审批回执的链路已在隔离 Home 验证。
+
+接续 BL-work-line-held-review-on-card 与 BL-work-line-bundle-duplicate-sdk-text。第 32 批的 [任务合同](../../work-line/contract-design.md#4-后台任务总表) 已支持插件自己的决定，Agent 的待审操作另由宿主登记和执行。Coding 的业务会话 ID 与 Agent 会话 ID 分立，任务提供方负责报出两者的关联。
 
 任务行可为所绑定的 Agent 会话报告一组待审 ID。Coding 只在会话确实等审批时，经 Agent Host 的只读入口批量取得自己安装范围内的 ID。平台收到行后，从 Agent 待审队列核对项目、插件、安装、会话、状态和可决定性，取原提案的显示内容。卡片沿用已有的决定区域和按钮，只有本人在受保护的工作台入口提交时才可记录同意或拒绝。提交携带卡片所显示的提案版本，平台现读提供方和队列，沿用 Agent Host 的原决定、回执和计算机操作静默期。常规插件决定、助理的修改意见、会话内审批和后续许可仍走各自现行入口。未能显示的提案可回会话处理。
 
@@ -57,7 +59,12 @@
 
 工作台路由预算从 2,800,000 B 收紧到 2,782,142 B。
 
+合并前以主干 `381fc7b9a1` 为基线重测。工作台脚本 1,461,502 B → 1,443,641 B，gzip 478,368 B → 469,144 B。证据对应合并前的主干与本次交付树。
+
 ### 验收证据
+
+- 最终提交 `18002b7c4b` 的[全量 CI](https://github.com/molis-ai/molis-work/actions/runs/45270292737) 60 个分片全部通过，Git 目录切换用例所在分片在同一提交上补跑通过。[PR CI](https://github.com/molis-ai/molis-work/actions/runs/45270309033)、[界面审计](https://github.com/molis-ai/molis-work/actions/runs/45270308978)和[队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/45278234511/job/138063028711)通过。
+- 本机同步 main 后通过测试类型、健康、边界、资源和密钥门禁。事项线与定时列表 18 个文件、135 个用例通过。动作与插件合同 68 个文件、980 个用例通过。最终试合的事件卡浏览器和项目首页调用预算测试共 8 个用例通过。
 
 - **WLHR-01 / WLHR-02** 通过 `tests/mainline-background-tasks.test.ts` 和 `tests/coding-background-tasks.test.ts` 的收口用例。真实 Host 拒绝所有错归属、旧版本和无本人凭据的决定。等执行方时触发静默期后，原决定仍待审。Coding 的原提案从队列投影，休眠缓存只留任务摘要。
 - **WLHR-02 / WLHR-03** 通过 `tests/work-line-event-tab.e2e.test.ts` 的收口用例。隔离 Chrome 实际在 1440 像素宽点同意，在 390 像素宽打开信息抽屉后点拒绝，验证了两笔本人回执、卡片刷新、中英切换、浅深色和标签页暂存。使用可控的原决定处理器与电脑静默期替身。

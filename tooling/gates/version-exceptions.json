@@ -398,14 +398,8 @@
   {
     "file": "server/tooling/continuity-demo.mts",
     "name": "version",
-    "values": { "2": 2 },
+    "values": { "2": 1 },
     "reason": "跨设备接续演示脚本里示例成果的修订号，只在本机演示时写入。"
-  },
-  {
-    "file": "server/tooling/continuity-demo.mts",
-    "name": "plugin_version",
-    "values": { "1.0.0": 1 },
-    "reason": "跨设备接续演示脚本里示例成果的生产者版本，只在本机演示时写入。"
   },
   {
     "file": "tooling/plugin-cli/src/create.ts",

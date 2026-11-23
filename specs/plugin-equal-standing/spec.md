@@ -4,6 +4,10 @@
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：本规范是第 44 批（及在途复核清扫 `#2258`）的收口基线；全仓剩余特殊插件与平台特例已由后续[特殊逻辑平民化](../plugin-specials-demotion/spec.md)（[`44B`](../post-anticorruption-roadmap/reference/batches/44b.md)）与[统一工作分区](../unified-partition-plugins/spec.md)（[`106`～`111`](../post-anticorruption-roadmap/reference/batches/106.md)）按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)进一步彻底清零：Shelf 剥离插件外衣收归纯平台 `modules/shelf`（`always_on = 0`、`dual_instance = 0`）、旧 Alchemist 彻底删除、`text-stats` 已于 `#2243` 退役、`planning-methods` 迁入 `packages/system-skills/`，全仓收敛为 20 个完全平等的统一分区插件。
+
 ## 白话说明
 
 **这件事做什么。** 让 Goals 回到和 Todo、Pages 一样的普通插件；顺带把其他插件在平台里被点名、被特殊照顾的地方一起清掉。只有之前明确定为平台部件的几样（第 3 节）保留特殊地位。
@@ -57,7 +61,7 @@
 | Shelf | 常开（`always_on`）、右栏第一格 | `docs/system/GLOSSARY.md`「常开插件」；S-34 |
 | 成果库（Artifacts） | 平台事实，不算插件 | 防腐 spec §1 2026-10-18「四个构建期例外」 |
 | Sessions | 平台事实（已清理，BL-177 重做） | 同上 |
-| 插件创作台 | 平台能力；构建期接线例外，防腐收尾后删除重做 | 同上，2026-10-21 改；`AGENTS.md`、BL-377 |
+| 插件创作台 | 平台能力，不是插件（`horizontal/plugin-studio`）：不进插件目录、设置、市场与项目成员；外壳按平台「宿主界面」名单（`apps/local-host/src/host-surfaces.ts`、`apps/workbench/src/host-surfaces.ts`）把它画进自己的框架。只有它产出的才是插件，走同一套机制 | 同上，2026-10-21 改；第 47 批 47-1 C（用户 2026-11-22 定）；BL-377 |
 | Alchemist | 构建期接线例外，删除重做 | `AGENTS.md`（2026-10-21）、BL-377 |
 | Characters | Module（`modules/characters`） | 防腐 spec §1 2026-10-18 |
 

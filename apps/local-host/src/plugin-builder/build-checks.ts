@@ -7,7 +7,7 @@ import { dirname, join, relative, resolve, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import ts from 'typescript';
-import { readPluginPrompts } from './prompts.js';
+import { readPluginPrompts } from '../installed-plugin-prompts.js';
 import * as esbuild from 'esbuild';
 import { assertContract, createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import type { SandboxRunner, SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';

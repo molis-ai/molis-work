@@ -1,4 +1,4 @@
-import { freezeStudioUi, type AgentDesign } from '@molis-ai/molis-work-plugin-builder';
+import { freezeStudioUi, type AgentDesign } from '@molis-ai/molis-work-plugin-studio';
 
 export const studioTestLanguages = { current: 'zh', available: [{ tag: 'zh', name: '简体中文' }, { tag: 'en', name: 'English' }] };
 export const studioBilingualAnswer = () => ({ default: 'zh', locales: {

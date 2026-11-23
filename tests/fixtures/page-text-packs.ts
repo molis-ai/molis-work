@@ -8,13 +8,16 @@ import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 
 const ROOT = new URL("../../", import.meta.url);
 const cache = new Map<string, UiLocalePack>();
+/** Framed surfaces a platform package owns (47-1 C: the plugin studio), whose packs sit in that package. */
+const PLATFORM_SURFACE_DIRS: Record<string, string> = { "plugin-builder": "horizontal/plugin-studio/locales/" };
 
 /** Real packs for source-level tests that cannot also load the built Workbench and its plugin registry. */
 export function shippedPagePack(owner: string, locale: string): UiLocalePack {
   const key = owner + "/" + locale;
   const found = cache.get(key);
   if (found) return found;
-  const dir = owner === "workbench" ? "apps/workbench/resources/locales/" : "plugins/native/" + owner + "/locales/";
+  const dir = owner === "workbench" ? "apps/workbench/resources/locales/"
+    : PLATFORM_SURFACE_DIRS[owner] ?? "plugins/native/" + owner + "/locales/";
   const path = dir + locale + ".json", checked = parseLocalePack(readFileSync(new URL(path, ROOT), "utf8"), { file: path });
   assert.ok(checked.ok, path);
   assert.equal(textKeyPrefix(checked.value.owner), owner);

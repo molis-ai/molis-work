@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseModelJson } from "@molis-ai/molis-work-plugin-builder";
+import { parseModelJson } from "@molis-ai/molis-work-plugin-studio";
 
 // The Studio reads every model answer as JSON (the controlled design schema and formulas of the earlier
 // interpreter-based builder went with it, specs/artifact-positioning S1b; the leftovers were removed in the

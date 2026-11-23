@@ -163,7 +163,9 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
-      "@molis-ai/molis-work-plugin-sdk"
+      "@molis-ai/molis-work-plugin-sdk",
+      // The platform's plugin studio (47-1 C): the shell frames its declared surface.
+      "@molis-ai/molis-work-plugin-studio"
     ],
     extraDependencies: {
       marked: "^18.0.11",
@@ -184,6 +186,8 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-server",
       "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-plugin-sandbox",
+      // The platform's plugin studio (47-1 C): its workflow, drafts and the surface the Host serves.
+      "@molis-ai/molis-work-plugin-studio",
       "@molis-ai/molis-work-app-cli",
       "@molis-ai/molis-work-app-mcp",
       "@molis-ai/molis-work-app-workbench",
@@ -561,6 +565,16 @@ export const WORKSPACE_PACKAGES = [
     maturity: "slice",
     capabilities: ["surfaces.compose", "surfaces.correct"],
     extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"]
+  }),
+  // The plugin studio is a platform capability (47-1 C, user 2026-11-22): only the plugins it makes are plugins.
+  entry("horizontal/plugin-studio", "@molis-ai/molis-work-contracts/platform/plugin-builder", {
+    maturity: "slice",
+    capabilities: ["plugin-builder.ui.v1", "plugin-builder.workflow.v1"],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sandbox",
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
   }),
   entry("horizontal/sessions", "@molis-ai/molis-work-contracts/services/sessions", {
     maturity: "slice",

@@ -18,7 +18,7 @@
 
 | 交付项 | 做什么、产出什么 | 该项前置 |
 | --- | --- | --- |
-| <a id="srv-1-item-1"></a>个人同步分支对账 | 对账 main 上已采用的个人同步实现（#1877，`35f808286d`：`apps/sync-worker`、`apps/local-host/src/personal-sync.ts`），列出还成立和要重写的适配；Goals 聚合按 44 之后的归属重切：项目指导、决定记录、要求认可各由平台主人声明自己的同步集合，Goals 只留 Goal 事实；引用核对与关联边分段按声明的同步集合走，不认 Goals 名字（2026-11-13，[决定 42](../decisions.md#decision-42)） | 共用本批前置 |
+| <a id="srv-1-item-1"></a>个人同步分支对账 | 对账 main 上已采用的个人同步实现（`#1877` + `#2223` + `#2231` + `#2260` + `44B` + [`110`](110.md)/[`111`](111.md)，按[决定 66](../decisions.md#decision-66)）：区分纯平台 `SyncSelection`（`owner_kind:"platform"`，`system.artifacts`/`system.shelf`/`system.characters` 非插件）与 20 个平等 UPP 分区插件的 4+2 收口同步范围；核对 `partition_plugins` 独立同步种类（V4）、`personSettings` `portable:true` 复用 `#2231` 流、`push_lineage`/`push_upstream`/仅最新 1 版 `push_superseded`（V3）与零唤醒出站发现 | [`111`](111.md)、共用本批前置 |
 | <a id="srv-1-item-2"></a>身份、访问与协作协议 | 定身份、版本、三档访问、并发、撤权、离线／冲突、项目退出 | 共用本批前置 |
 | <a id="srv-1-item-3"></a>同步合同、Outbox 与版本兼容 | 定同步合同及 Outbox（BL-070），协议接受上一版客户端，明确个人主线随后同步的边界 | 共用本批前置 |
 | <a id="srv-1-item-4"></a>团队记忆来源、用途与访问边界 | 核团队记忆的来源、用途与访问边界 | 共用本批前置 |

@@ -4,96 +4,96 @@
     "inspectActions": 0,
     "discover": 3,
     "discoverScenes": 0,
-    "projectPluginReads": 1,
-    "sqliteOpens": 0,
-    "actionDirectoryRows": 111,
+    "projectPluginReads": 16,
+    "sqliteOpens": 16,
+    "actionDirectoryRows": 113,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 31,
-    "shippedRegistrationRows": 2553
+    "shippedRegistrationRows": 2882
   },
   "projectBrief": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 3,
     "discoverScenes": 1,
-    "projectPluginReads": 0,
-    "sqliteOpens": 0,
+    "projectPluginReads": 12,
+    "sqliteOpens": 12,
     "actionDirectoryRows": 5,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 4,
-    "shippedRegistrationRows": 276
+    "shippedRegistrationRows": 682
   },
   "rightSide": {
     "prepareContext": 4,
     "inspectActions": 0,
     "discover": 6,
     "discoverScenes": 0,
-    "projectPluginReads": 0,
-    "sqliteOpens": 3,
+    "projectPluginReads": 30,
+    "sqliteOpens": 35,
     "actionDirectoryRows": 252,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 231,
-    "shippedRegistrationRows": 713
+    "shippedRegistrationRows": 1562
   },
   "contextual": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 0,
-    "sqliteOpens": 0,
+    "projectPluginReads": 3,
+    "sqliteOpens": 3,
     "actionDirectoryRows": 19,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 17,
-    "shippedRegistrationRows": 92
+    "shippedRegistrationRows": 198
   },
   "sideFileSources": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 1,
-    "sqliteOpens": 0,
+    "projectPluginReads": 4,
+    "sqliteOpens": 4,
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
-    "shippedRegistrationRows": 92
+    "shippedRegistrationRows": 198
   },
   "sideFileFirstPages": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 1,
-    "sqliteOpens": 1,
+    "projectPluginReads": 13,
+    "sqliteOpens": 14,
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 12,
-    "shippedRegistrationRows": 299
+    "shippedRegistrationRows": 660
   },
   "sideFileEntries": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 1,
-    "sqliteOpens": 0,
+    "projectPluginReads": 6,
+    "sqliteOpens": 6,
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 7,
-    "shippedRegistrationRows": 138
+    "shippedRegistrationRows": 308
   },
   "sideFilePreview": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 1,
-    "sqliteOpens": 0,
+    "projectPluginReads": 6,
+    "sqliteOpens": 6,
     "actionDirectoryRows": 38,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 30,
-    "shippedRegistrationRows": 138
+    "shippedRegistrationRows": 308
   },
   "sideFileMissingSource": {
     "prepareContext": 0,
@@ -136,12 +136,12 @@
     "inspectActions": 0,
     "discover": 0,
     "discoverScenes": 0,
-    "projectPluginReads": 0,
-    "sqliteOpens": 0,
+    "projectPluginReads": 2,
+    "sqliteOpens": 2,
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 92
+    "shippedRegistrationRows": 176
   },
   "knowledgeUnknown": {
     "prepareContext": 0,
@@ -153,7 +153,7 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 46
+    "shippedRegistrationRows": 44
   },
   "memoryUnknown": {
     "prepareContext": 0,
@@ -165,18 +165,18 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 46
+    "shippedRegistrationRows": 44
   },
   "goalPanes": {
     "prepareContext": 4,
     "inspectActions": 0,
     "discover": 2,
     "discoverScenes": 0,
-    "projectPluginReads": 1,
-    "sqliteOpens": 0,
+    "projectPluginReads": 21,
+    "sqliteOpens": 22,
     "actionDirectoryRows": 2,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
-    "shippedRegistrationRows": 2254
+    "shippedRegistrationRows": 2816
   }
 }

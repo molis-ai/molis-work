@@ -62,7 +62,7 @@ node scripts/run-tests.mjs \
   tests/menu-exit-motion.e2e.test.ts \
   --jobs 1
 
-# 改了 skills/molis-plugin-dev/ 或 plugins/native/plugin-builder/src/agent-prompts.ts 时必跑
+# 改了 skills/molis-plugin-dev/ 或 horizontal/plugin-studio/src/agent-prompts.ts 时必跑
 pnpm studio:replay
 pnpm studio:replay smoke
 ```

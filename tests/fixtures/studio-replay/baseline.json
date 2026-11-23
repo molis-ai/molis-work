@@ -3,35 +3,35 @@
   "skill": {
     "stages": {
       "design": {
-        "version": 130576285,
-        "chars": 16144
+        "version": 194761425,
+        "chars": 21737
       },
       "experience": {
-        "version": 158992762,
-        "chars": 3598
+        "version": 41885595,
+        "chars": 6402
       },
       "ui": {
-        "version": 177002631,
-        "chars": 5155
+        "version": 48035880,
+        "chars": 8045
       },
       "review": {
-        "version": 158992762,
-        "chars": 3598
+        "version": 41885595,
+        "chars": 6402
       },
       "code": {
-        "version": 115312214,
-        "chars": 8928
+        "version": 13139241,
+        "chars": 10610
       }
     },
     "prompts": {
-      "experience": "experience/1",
-      "review": "ui-review/1",
-      "ui": "ui/1",
-      "designer": "designer/1",
-      "implement": "implement/1",
-      "repair": "repair/1",
-      "revise": "revise/1",
-      "acceptance": "acceptance/1"
+      "experience": "experience/2",
+      "review": "ui-review/2",
+      "ui": "ui/2",
+      "designer": "designer/4",
+      "implement": "implement/2",
+      "repair": "repair/2",
+      "revise": "revise/2",
+      "acceptance": "acceptance/2"
     }
   },
   "entries": {
@@ -40,74 +40,74 @@
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "1f5ff5a4fca7eade"
     },
-    "detail-02678009a40c": {
+    "detail-02678009a40c-s1": {
       "pass": false,
       "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
-      "digest": "ac7cb207523c3c9d"
+      "digest": "28b0215661ca3f96"
     },
-    "detail-0377ff070011": {
+    "detail-0377ff070011-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：没有组件 结果（组件有 x、x、x）",
-      "digest": "b5a68d556f2bcf61"
+      "digest": "d3ce4778280b8c02"
     },
-    "detail-07363f5abe24": {
+    "detail-07363f5abe24-s1": {
       "pass": true,
-      "digest": "a3c6177e580e9b0d"
+      "digest": "65b0d0263abf6cfc"
     },
-    "detail-0756c3501ed1": {
+    "detail-0756c3501ed1-s1": {
       "pass": true,
-      "digest": "f28a54e7830dbbdc"
+      "digest": "c9aa921b1070a345"
     },
-    "detail-0dfa9919851f": {
+    "detail-0dfa9919851f-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：内容零件需要读取操作",
-      "digest": "1b52ee7de7c4fc95"
+      "digest": "35f6dddda8275823"
     },
-    "detail-10223cf33f6d": {
+    "detail-10223cf33f6d-s1": {
       "pass": true,
-      "digest": "a410d2c5235a6d36"
+      "digest": "feca2eea247a7159"
     },
-    "detail-1158d3e297c4": {
+    "detail-1158d3e297c4-s1": {
       "pass": true,
-      "digest": "5333789e2da34b08"
+      "digest": "4192803fa2612ba8"
     },
     "detail-13c716630b1f": {
       "pass": false,
       "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "05dc0c4ac4134d3b"
     },
-    "detail-167ea370510f": {
+    "detail-167ea370510f-s1": {
       "pass": true,
-      "digest": "c86d1b8c5b8befda"
+      "digest": "a72396cb4a967669"
     },
-    "detail-17b77be395c4": {
+    "detail-17b77be395c4-s1": {
       "pass": true,
-      "digest": "46c1dbdb913f201a"
+      "digest": "a8ea0263bb7693a4"
     },
-    "detail-17bd1532cbe5": {
+    "detail-17bd1532cbe5-s1": {
       "pass": true,
-      "digest": "1d6cc28e45c824c7"
+      "digest": "e0cdeb21e33c6631"
     },
-    "detail-183f9cce6632": {
+    "detail-183f9cce6632-s1": {
       "pass": true,
-      "digest": "5dde1ed1590ef84f"
+      "digest": "37d766a4a6a07747"
     },
-    "detail-18bd68506cdb": {
+    "detail-18bd68506cdb-s1": {
       "pass": true,
-      "digest": "25d784c913c6a077"
+      "digest": "e2e7bfc45dfd2251"
     },
-    "detail-18ec7b29ab37": {
+    "detail-18ec7b29ab37-s1": {
       "pass": true,
-      "digest": "5e888bf459fc8663"
+      "digest": "baf5dad6d88068d0"
     },
-    "detail-1a2d545377c4": {
+    "detail-1a2d545377c4-s1": {
       "pass": true,
-      "digest": "fcdad3059cb687d9"
+      "digest": "805944ce889b4a93"
     },
-    "detail-1cfb298e69ad": {
+    "detail-1cfb298e69ad-s1": {
       "pass": false,
       "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
-      "digest": "d79608b85fb5b517"
+      "digest": "83d37407291e5ae2"
     },
     "detail-1d21063bd9c9": {
       "pass": false,
@@ -119,36 +119,36 @@
       "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
       "digest": "9d45ec61f0c340e8"
     },
-    "detail-2154be7b2be4": {
+    "detail-2154be7b2be4-s1": {
       "pass": true,
-      "digest": "48b7fd2e9e4def5e"
+      "digest": "19bf7ed58fafc9a5"
     },
-    "detail-21a203db266c": {
+    "detail-21a203db266c-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 summary）。按条件筛选列表时，在 x 的 read 里写 {\"x\":",
-      "digest": "f18169c8239755fe"
+      "digest": "b8c59a89d600567e"
     },
-    "detail-2317f2646b99": {
+    "detail-2317f2646b99-s1": {
       "pass": true,
-      "digest": "43a55671a6cbde91"
+      "digest": "1cd6e9d2a801eb67"
     },
     "detail-24553ec3ad3a": {
       "pass": false,
       "reason": "组件 x：read 绑定了不存在的操作 x",
       "digest": "32ea5207d19ae022"
     },
-    "detail-24ae55c2543e": {
+    "detail-24ae55c2543e-s1": {
       "pass": true,
-      "digest": "9fd777d6269097be"
+      "digest": "143675050f8a0c5a"
     },
     "detail-254d162375d2": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "690518bba9b0654c"
     },
-    "detail-26339fe4c503": {
+    "detail-26339fe4c503-s1": {
       "pass": true,
-      "digest": "f2939309fa241c62"
+      "digest": "f6356aea18396741"
     },
     "detail-2811c60939e4": {
       "pass": false,
@@ -165,21 +165,21 @@
       "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
       "digest": "ee428c3732114363"
     },
-    "detail-2acd984f2693": {
+    "detail-2acd984f2693-s1": {
       "pass": true,
-      "digest": "e2a378490b518cbc"
+      "digest": "4280e93012d2dd30"
     },
-    "detail-2af268685f56": {
+    "detail-2af268685f56-s1": {
       "pass": true,
-      "digest": "ba81dc0b602cc2d2"
+      "digest": "7ea7408e30fcb250"
     },
-    "detail-2d72d9c41a4f": {
+    "detail-2d72d9c41a4f-s1": {
       "pass": true,
-      "digest": "eb167ec214f4f5f3"
+      "digest": "e5810a6465a9b57b"
     },
-    "detail-3042c78c89ff": {
+    "detail-3042c78c89ff-s1": {
       "pass": true,
-      "digest": "f7e4842e607a5b5f"
+      "digest": "559125535f742525"
     },
     "detail-327be8f4ac93": {
       "pass": false,
@@ -191,36 +191,36 @@
       "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
       "digest": "0a5cec3a06a190c7"
     },
-    "detail-3705c1180070": {
+    "detail-3705c1180070-s1": {
       "pass": true,
-      "digest": "76ed4661b02160d1"
+      "digest": "fc95a32975015d99"
     },
-    "detail-38251ff23969": {
+    "detail-38251ff23969-s1": {
       "pass": true,
-      "digest": "92de6d6f7e892a18"
+      "digest": "e64e00f0d56c898b"
     },
-    "detail-3965c044a5e1": {
+    "detail-3965c044a5e1-s1": {
       "pass": true,
-      "digest": "3e1a3a4ec55c798f"
+      "digest": "fe23d9744b5aa74b"
     },
-    "detail-3d27e98ced3d": {
+    "detail-3d27e98ced3d-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
-      "digest": "286f6e9037b53c75"
+      "digest": "d8896185fa8f3d86"
     },
-    "detail-3e8f7d308cac": {
+    "detail-3e8f7d308cac-s1": {
       "pass": true,
-      "digest": "e9cf412566e2ba6b"
+      "digest": "79734145b56a3a7d"
     },
-    "detail-3f6233d6210a": {
+    "detail-3f6233d6210a-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：内容零件需要读取操作",
-      "digest": "bc0302c925182aac"
+      "digest": "bd654e84b277d3d2"
     },
-    "detail-40c15a8f00c7": {
+    "detail-40c15a8f00c7-s1": {
       "pass": false,
       "reason": "操作 x 的示例输入缺少必填字段 x：可以不填的字段写成 \"x?\"（例如筛选条件），否则在示例里给出它",
-      "digest": "5c65b32c3e705ab4"
+      "digest": "0225317e9037cb15"
     },
     "detail-4256d5d7e378": {
       "pass": false,
@@ -232,73 +232,73 @@
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "e034720f19a82381"
     },
-    "detail-4384e7dce2cd": {
+    "detail-4384e7dce2cd-s1": {
       "pass": true,
-      "digest": "28dc93e6ea1614cf"
+      "digest": "209af16240ccc674"
     },
-    "detail-4393bf20199c": {
+    "detail-4393bf20199c-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：没有组件 x（组件有 x、x）",
-      "digest": "e1f3734e62a295b6"
+      "digest": "4625c11969e76747"
     },
-    "detail-45384ffdcb48": {
+    "detail-45384ffdcb48-s1": {
       "pass": false,
       "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
-      "digest": "0fde671724171353"
+      "digest": "3e066f8b47348400"
     },
-    "detail-4838b1f17434": {
+    "detail-4838b1f17434-s1": {
       "pass": true,
-      "digest": "ec64221ce34dacf4"
+      "digest": "c0f2577122a64b24"
     },
     "detail-48a76c30fa28": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "c49691fb74561986"
     },
-    "detail-4d62e96c49d6": {
+    "detail-4d62e96c49d6-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：内容零件需要读取操作",
-      "digest": "7e8a74a162f97668"
+      "digest": "3aebbc2c5afd3bd8"
     },
     "detail-4d8608837109": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "130e1e4d66c1b5fe"
     },
-    "detail-4dffbc1abf92": {
+    "detail-4dffbc1abf92-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 x）。按条件筛选列表时，在 x 的 read 里写 {\"x\": 查询, \"",
-      "digest": "42dc8de977fed418"
+      "digest": "b394de07ad16e1d2"
     },
-    "detail-4e1e4096a8ae": {
+    "detail-4e1e4096a8ae-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 summary）。按条件筛选列表时，在 x 的 read 里写 {\"x\":",
-      "digest": "7ec602a2ab9e21e5"
+      "digest": "ac989f99b115f2df"
     },
-    "detail-5143ed436f71": {
+    "detail-5143ed436f71-s1": {
       "pass": true,
-      "digest": "3202e0ad239d0f0c"
+      "digest": "983e6e648b390666"
     },
-    "detail-53223feae969": {
+    "detail-53223feae969-s1": {
       "pass": true,
-      "digest": "4a83650dca3e1779"
+      "digest": "e72d8325b741b01f"
     },
     "detail-53655c84aa7c": {
       "pass": false,
       "reason": "细化方案：操作 x、x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
       "digest": "b7fd9f0566379fab"
     },
-    "detail-571fc8fada9c": {
+    "detail-571fc8fada9c-s1": {
       "pass": true,
-      "digest": "bf7134d4f759ef9b"
+      "digest": "f605f9bb6668e91f"
     },
-    "detail-5729bac5fa0c": {
+    "detail-5729bac5fa0c-s1": {
       "pass": true,
-      "digest": "5e989166f51be29a"
+      "digest": "ed0b6e66e6bef25c"
     },
-    "detail-57d0d1311918": {
+    "detail-57d0d1311918-s1": {
       "pass": true,
-      "digest": "d3d63ada46b47ae0"
+      "digest": "f9b4f4f0dce2fbb2"
     },
     "detail-5a7c703725e6": {
       "pass": false,
@@ -310,70 +310,70 @@
       "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
       "digest": "7ddb7b8b13690c2a"
     },
-    "detail-5a987b2783b5": {
+    "detail-5a987b2783b5-s1": {
       "pass": true,
-      "digest": "6cd8813f34369eed"
+      "digest": "3917691baafec3f9"
     },
-    "detail-5b6f18bb0e38": {
+    "detail-5b6f18bb0e38-s1": {
       "pass": true,
-      "digest": "82c8174d38828f28"
+      "digest": "1c4ea3f64fb97d06"
     },
-    "detail-5dce666b443d": {
+    "detail-5dce666b443d-s1": {
       "pass": true,
-      "digest": "cb08a4d19b34f36b"
+      "digest": "f022eaa30d7d19db"
     },
-    "detail-5e795a66e434": {
+    "detail-5e795a66e434-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
-      "digest": "819a9153d913a13f"
+      "digest": "7906705d272285c0"
     },
-    "detail-5eb9f702b575": {
+    "detail-5eb9f702b575-s1": {
       "pass": true,
-      "digest": "d7596168a65ea6d3"
+      "digest": "b49e9689da24d9ba"
     },
-    "detail-61dcf20c6a76": {
+    "detail-61dcf20c6a76-s1": {
       "pass": true,
-      "digest": "8ccb6ecd86f05fac"
+      "digest": "0eb0cbea66306a94"
     },
-    "detail-63a09c894398": {
+    "detail-63a09c894398-s1": {
       "pass": true,
-      "digest": "9d660f774106afc2"
+      "digest": "fbe71ada99149f1a"
     },
-    "detail-6492083696a7": {
+    "detail-6492083696a7-s1": {
       "pass": true,
-      "digest": "e0921001f4b57448"
+      "digest": "978994fa7a48c3ae"
     },
-    "detail-64de27002543": {
+    "detail-64de27002543-s1": {
       "pass": true,
-      "digest": "a2e260477ee86b8a"
+      "digest": "f00d691e37710fad"
     },
     "detail-660d62026022": {
       "pass": false,
       "reason": "操作 x：查询（query）不能写入存储或发布事件；会改数据的操作用 command",
       "digest": "65136dd425648d5d"
     },
-    "detail-666e07ba89d6": {
+    "detail-666e07ba89d6-s1": {
       "pass": true,
-      "digest": "f7b9be924fd578f9"
+      "digest": "aa47740fd125e24f"
     },
-    "detail-66b3d0b1b636": {
+    "detail-66b3d0b1b636-s1": {
       "pass": false,
       "reason": "操作 x 的示例输入缺少必填字段 x：可以不填的字段写成 \"x?\"（例如筛选条件），否则在示例里给出它",
-      "digest": "8497403b387953d1"
+      "digest": "924831becbb65b83"
     },
     "detail-67fca7b85d41": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "d43889d442cb9e2a"
     },
-    "detail-6a7fcdbe3f2a": {
+    "detail-6a7fcdbe3f2a-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：组件 x 没有提交操作，不能 submit",
-      "digest": "d41807127a02f607"
+      "digest": "290740719e78c348"
     },
-    "detail-6c0646b25a18": {
+    "detail-6c0646b25a18-s1": {
       "pass": true,
-      "digest": "6ee524f1d4a5b3ec"
+      "digest": "9c0af9bbdd6ca958"
     },
     "detail-6ee613164fbd": {
       "pass": false,
@@ -385,43 +385,43 @@
       "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "ceebfb19a97dec81"
     },
-    "detail-73497ba42877": {
+    "detail-73497ba42877-s1": {
       "pass": true,
-      "digest": "98793eb84a3ab235"
+      "digest": "88ff3a1f4f52b881"
     },
-    "detail-73a1923f9ee7": {
+    "detail-73a1923f9ee7-s1": {
       "pass": true,
-      "digest": "254140e68cd3a208"
+      "digest": "af2eec011aa8e5b8"
     },
-    "detail-7614a2a6751c": {
+    "detail-7614a2a6751c-s1": {
       "pass": true,
-      "digest": "3b5aca99944a4f0b"
+      "digest": "c201c94c20114db1"
     },
-    "detail-76fa00f73768": {
+    "detail-76fa00f73768-s1": {
       "pass": false,
       "reason": "浏览器用例需要具体操作与断言",
-      "digest": "1780a0ee899c3d8a"
+      "digest": "bd0e558ff2cd8d42"
     },
-    "detail-78a00c8cdb82": {
+    "detail-78a00c8cdb82-s1": {
       "pass": true,
-      "digest": "5821abb978ef9174"
+      "digest": "09e5bae5800acc9c"
     },
-    "detail-7bf1499d50f3": {
+    "detail-7bf1499d50f3-s1": {
       "pass": true,
-      "digest": "3c9f081a6a6e401d"
+      "digest": "a1948380af77165b"
     },
     "detail-7c1b0a69ed98": {
       "pass": false,
       "reason": "操作 x 的 x：枚举写成 x|x|x，例如 \"餐饮|交通|购物|其他\"",
       "digest": "b4744070445e327d"
     },
-    "detail-7cdbcfec3992": {
+    "detail-7cdbcfec3992-s1": {
       "pass": true,
-      "digest": "c81beac7831a2b67"
+      "digest": "969f12e60ef9d32b"
     },
-    "detail-81f78e1bbd8a": {
+    "detail-81f78e1bbd8a-s1": {
       "pass": true,
-      "digest": "05640101838df2a3"
+      "digest": "75e4b82f2f079ee9"
     },
     "detail-823d81212221": {
       "pass": false,
@@ -433,101 +433,101 @@
       "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
       "digest": "d0c3b3e616882e15"
     },
-    "detail-84971f9ea035": {
+    "detail-84971f9ea035-s1": {
       "pass": true,
-      "digest": "354ca4b75b57e12c"
+      "digest": "aafd340f19d0fcf5"
     },
     "detail-86300ee1a250": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "941c98962b874648"
     },
-    "detail-88903adc74b1": {
+    "detail-88903adc74b1-s1": {
       "pass": true,
-      "digest": "21c81e660a1e7a9f"
+      "digest": "9932a71bb69aa7d0"
     },
     "detail-88ea75bfc908-array-projection-required": {
       "pass": false,
       "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "4a847caaa87a3118"
     },
-    "detail-8a2e4f8febaf": {
+    "detail-8a2e4f8febaf-s1": {
       "pass": true,
-      "digest": "4204e2a4d410364e"
+      "digest": "9a8b71ca54d9adc2"
     },
-    "detail-8a3efafa5aa6": {
+    "detail-8a3efafa5aa6-s1": {
       "pass": true,
-      "digest": "066d902173b53981"
+      "digest": "605d58bf4aafd478"
     },
-    "detail-8ae08f6a7733": {
+    "detail-8ae08f6a7733-s1": {
       "pass": true,
-      "digest": "546a47e3857a9a92"
+      "digest": "ad82e40b7f5fdfc3"
     },
-    "detail-8b38ae34bcca": {
+    "detail-8b38ae34bcca-s1": {
       "pass": true,
-      "digest": "4780b822b9f22711"
+      "digest": "c41f1f0f03b8c759"
     },
-    "detail-8d4168ceaa3f": {
+    "detail-8d4168ceaa3f-s1": {
       "pass": true,
-      "digest": "f60aec5ac0cac10c"
+      "digest": "9188505a95f69f57"
     },
-    "detail-8e3c9c1cb871": {
+    "detail-8e3c9c1cb871-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "88340b0ba0dd0dc4"
+      "digest": "1b929be02a30f794"
     },
     "detail-8e59e6959a92-array-projection-required": {
       "pass": false,
       "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "ef198225c169126f"
     },
-    "detail-94a4660ef511": {
+    "detail-94a4660ef511-s1": {
       "pass": false,
       "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
-      "digest": "5d5f935909111cd8"
+      "digest": "cd6cfb4bbe9860da"
     },
     "detail-976b84be5052": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "20819d6f72642d81"
     },
-    "detail-97d40236fc2b": {
+    "detail-97d40236fc2b-s1": {
       "pass": true,
-      "digest": "f7b9be924fd578f9"
+      "digest": "aa47740fd125e24f"
     },
-    "detail-9a0350226dbb": {
+    "detail-9a0350226dbb-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 summary（它的字段是 x）。按条件筛选列表时，在 x 的 read 里写 {\"x\":",
-      "digest": "0c354366d0bd3f09"
+      "digest": "7b634674e6447903"
     },
-    "detail-9c33020bce65": {
+    "detail-9c33020bce65-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：没有组件 结果（组件有 x、x、x）",
-      "digest": "5df360c3e3f83369"
+      "digest": "fcbee13d0cd71ba4"
     },
-    "detail-9f9f1101af12": {
+    "detail-9f9f1101af12-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "97bd8cd6d9157787"
+      "digest": "4581e00171334bf3"
     },
     "detail-a0fffacac7cc": {
       "pass": false,
       "reason": "组件 x：read 绑定了不存在的操作 x",
       "digest": "77f33c99470f3c8b"
     },
-    "detail-a512f71953ad": {
+    "detail-a512f71953ad-s1": {
       "pass": true,
-      "digest": "b29241f8b92623bc"
+      "digest": "a4c78eedaacc1b59"
     },
     "detail-a6ccfdf29c35": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "1da0809125a840f2"
     },
-    "detail-a79125d11426": {
+    "detail-a79125d11426-s1": {
       "pass": false,
       "reason": "浏览器用例需要具体操作与断言",
-      "digest": "a5acc58f412ed047"
+      "digest": "30cb29f52c36ed39"
     },
     "detail-a7a2ec93c8f5": {
       "pass": false,
@@ -539,33 +539,33 @@
       "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
       "digest": "e177f6ac4d16e523"
     },
-    "detail-ad5b59c4e1fd": {
+    "detail-ad5b59c4e1fd-s1": {
       "pass": true,
-      "digest": "cbbe8af5bbd1aea0"
+      "digest": "5f128e248079a87e"
     },
-    "detail-af3f96a8e08f": {
+    "detail-af3f96a8e08f-s1": {
       "pass": true,
-      "digest": "2d442ebdef35e354"
+      "digest": "7878caea2a5e8212"
     },
-    "detail-af415f160b82": {
+    "detail-af415f160b82-s1": {
       "pass": false,
       "reason": "验收「…」第 # 步：组件 x 没有可填写的字段 x（它的字段是 x）。按条件筛选列表时，在 x 的 read 里写 {\"x\": 查询, \"",
-      "digest": "faed2659238277de"
+      "digest": "9ec9bc0be6e946cb"
     },
-    "detail-afa20ceea635": {
+    "detail-afa20ceea635-s1": {
       "pass": false,
       "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
-      "digest": "6f530aebf5548072"
+      "digest": "7a11fc694aeeb963"
     },
     "detail-b0bf9fca19b6": {
       "pass": false,
       "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "0ddcbc27bddf8347"
     },
-    "detail-b2724efcce57": {
+    "detail-b2724efcce57-s1": {
       "pass": false,
       "reason": "浏览器用例需要具体操作与断言",
-      "digest": "3f88314641053206"
+      "digest": "a6353bd39ddd3d12"
     },
     "detail-b5ad63a1b964": {
       "pass": false,
@@ -577,79 +577,93 @@
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "063e9c0d4f630413"
     },
-    "detail-books-filter-bar": {
+    "detail-books-filter-bar-s1": {
       "pass": true,
-      "digest": "877df61acded187e"
+      "digest": "af8aea453ad9b440"
+    },
+    "detail-books-states-declared": {
+      "pass": true,
+      "digest": "f1f1a4fd784ba419"
+    },
+    "detail-books-states-missing": {
+      "pass": false,
+      "reason": "细化方案：缺少 x：写出记录会经历的状态，例如 [{\"x\": \"x\", \"x\": {\"未读\": \"x\", \"在读\": \"x\", \"已读\": ",
+      "digest": "6281e0ed95eca928"
+    },
+    "detail-books-states-values-differ": {
+      "pass": false,
+      "reason": "细化方案：状态申报第 # 项（x）的取值要和字段的枚举完全一致：字段是 未读|在读|已读，申报的是 未读|在读",
+      "digest": "1e33764d232caba5"
     },
     "detail-broken-references": {
       "pass": false,
       "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）组件 x 的 submit 绑定了不存在的操作 x",
       "digest": "e313a9ee164629e2"
     },
-    "detail-c099c52d8b17": {
+    "detail-c099c52d8b17-s1": {
       "pass": true,
-      "digest": "5fdd27d54da79418"
+      "digest": "3506df77fc953a85"
     },
-    "detail-c0f0b574b641": {
+    "detail-c0f0b574b641-s1": {
       "pass": true,
-      "digest": "2ce06f4297681d26"
+      "digest": "4312ac8efe0249b3"
     },
-    "detail-c15c87c4813b": {
+    "detail-c15c87c4813b-s1": {
       "pass": true,
-      "digest": "72ac52dd7682b703"
+      "digest": "3d37e2e989ad4d49"
     },
-    "detail-c2e10e3233d4": {
+    "detail-c2e10e3233d4-s1": {
       "pass": true,
-      "digest": "9612ffe24e7da6a3"
+      "digest": "9c49a9867399fac3"
     },
-    "detail-c5530bd10d97": {
+    "detail-c5530bd10d97-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
-      "digest": "1f4a781af5c28ad2"
+      "digest": "e52bdf07a9fa1b6d"
     },
-    "detail-ca6dd9432340": {
+    "detail-ca6dd9432340-s1": {
       "pass": true,
-      "digest": "1df19fadeb3c5323"
+      "digest": "95fa7e948e89e350"
     },
-    "detail-cc9416d64cdc": {
+    "detail-cc9416d64cdc-s1": {
       "pass": true,
-      "digest": "6f9c7a72eee93cf6"
+      "digest": "c61d1586aa000a6d"
     },
-    "detail-d01435ec80f3": {
+    "detail-d01435ec80f3-s1": {
       "pass": true,
-      "digest": "0d05c87118f7c0b4"
+      "digest": "dbe8b31ffbf6e836"
     },
-    "detail-d0d4222f3ef6": {
+    "detail-d0d4222f3ef6-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "44b3d5c24792ae3d"
+      "digest": "d03f2e6a2de9d47f"
     },
-    "detail-d13bb3c07355": {
+    "detail-d13bb3c07355-s1": {
       "pass": true,
-      "digest": "2c873f53d7a8122e"
+      "digest": "4b7b075ab0498010"
     },
-    "detail-d149cdaddb22": {
+    "detail-d149cdaddb22-s1": {
       "pass": true,
-      "digest": "d6f2aaf8720c27b7"
+      "digest": "c11edd186386ba05"
     },
-    "detail-d2bb0a478ebd": {
+    "detail-d2bb0a478ebd-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "b865c098e337bf13"
+      "digest": "fe0f1481546cad02"
     },
-    "detail-d2bb5379f7b3": {
+    "detail-d2bb5379f7b3-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "97bd8cd6d9157787"
+      "digest": "4581e00171334bf3"
     },
-    "detail-d3207b5814d1": {
+    "detail-d3207b5814d1-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "1024ef90c9f25560"
+      "digest": "7d26cac3a5f68040"
     },
-    "detail-d387a4aca26f": {
+    "detail-d387a4aca26f-s1": {
       "pass": true,
-      "digest": "9cf0bbaffc153459"
+      "digest": "d3bb33dbb85bf313"
     },
     "detail-d4a02a9dc9a8": {
       "pass": false,
@@ -666,82 +680,82 @@
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "f5513bcf12e9da13"
     },
-    "detail-d887750ee9cf": {
+    "detail-d887750ee9cf-s1": {
       "pass": true,
-      "digest": "e998839a30970aef"
+      "digest": "f9d90c28d01f9a8a"
     },
-    "detail-d8db206c9059": {
+    "detail-d8db206c9059-s1": {
       "pass": true,
-      "digest": "ab79cc1ef8e85af0"
+      "digest": "d8e9e55f01c87b8d"
     },
     "detail-da706b96af86": {
       "pass": false,
       "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
       "digest": "7e1a761cace176ad"
     },
-    "detail-da7957d18760": {
+    "detail-da7957d18760-s1": {
       "pass": true,
-      "digest": "40ea1231a97d19c2"
+      "digest": "dad4105d46ff443d"
     },
-    "detail-da8c5ca6b05e": {
+    "detail-da8c5ca6b05e-s1": {
       "pass": true,
-      "digest": "715b668a3acbae0e"
+      "digest": "d11da837aded162d"
     },
-    "detail-dba27941da5f": {
+    "detail-dba27941da5f-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值（只能是 未读/在读/已读）；要按当前记录推算（例如切到下一个状态），就让这个",
-      "digest": "222122f8c944f883"
+      "digest": "e69717ced25ab295"
     },
-    "detail-dee502cc09c0": {
+    "detail-dee502cc09c0-s1": {
       "pass": true,
-      "digest": "7923da930779942c"
+      "digest": "bb81359f164395d9"
     },
-    "detail-def8532fdac3": {
+    "detail-def8532fdac3-s1": {
       "pass": true,
-      "digest": "47fa6944ce7d7467"
+      "digest": "0f4eec809fc90f41"
     },
-    "detail-e0941450cf22": {
+    "detail-e0941450cf22-s1": {
       "pass": true,
-      "digest": "1f928bf29bd67bd1"
+      "digest": "166ba6c0f32b3767"
     },
-    "detail-e09b06792c77": {
+    "detail-e09b06792c77-s1": {
       "pass": true,
-      "digest": "e1c63e924514db1d"
+      "digest": "224f12dfcc18608c"
     },
-    "detail-e13efcab2676": {
+    "detail-e13efcab2676-s1": {
       "pass": true,
-      "digest": "979570a981e2e02c"
+      "digest": "e481d1abbc01602e"
     },
-    "detail-e180ad904730": {
+    "detail-e180ad904730-s1": {
       "pass": true,
-      "digest": "1698a6a9ed917804"
+      "digest": "41c6c7e16cd54488"
     },
-    "detail-e38885fa2e03": {
+    "detail-e38885fa2e03-s1": {
       "pass": true,
-      "digest": "78596cebc5359d8a"
+      "digest": "aa871cdcddbf6649"
     },
-    "detail-e63afed4b6ff": {
+    "detail-e63afed4b6ff-s1": {
       "pass": true,
-      "digest": "65fe71a33304db6f"
+      "digest": "ab52748343a172e6"
     },
-    "detail-e6d568e2e024": {
+    "detail-e6d568e2e024-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
-      "digest": "61c5c96dd80a1d32"
+      "digest": "f101735367303846"
     },
     "detail-e74ca9e188a2": {
       "pass": false,
       "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
       "digest": "0dd504a104f290f3"
     },
-    "detail-e86ce38623bf": {
+    "detail-e86ce38623bf-s1": {
       "pass": true,
-      "digest": "c63babbbc2be4c0c"
+      "digest": "8249cd4254ec87ca"
     },
-    "detail-e9059ea9b40e": {
+    "detail-e9059ea9b40e-s1": {
       "pass": false,
       "reason": "组件 x 的 x 取自 x，但 x 的命令结果里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
-      "digest": "8ee6e98ddf12cfb1"
+      "digest": "5eb5ae2ec2a03d21"
     },
     "detail-ea970b2bb10c": {
       "pass": false,
@@ -758,83 +772,83 @@
       "reason": "操作 x 的 x：无法识别的类型「…」，可用 x / x / x / x / x / x / x / x|x 枚举 / 类型[]",
       "digest": "7ec67c905a3a5f37"
     },
-    "detail-ef6bfded7b7c": {
+    "detail-ef6bfded7b7c-s1": {
       "pass": true,
-      "digest": "3b3d20d1a6982aa4"
+      "digest": "d7ee227ee70b91f4"
     },
-    "detail-eff0307246ed": {
+    "detail-eff0307246ed-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
-      "digest": "31e12e1174c72179"
+      "digest": "8522cfc5b1b4061b"
     },
     "detail-empty-store-example": {
       "pass": false,
       "reason": "操作 x 第 # 个示例：查询示例在空存储上运行，output/includes 不能期望已有记录；空列表写 output: []，需要已有",
       "digest": "ee07ad780f0856e6"
     },
-    "detail-expenses-filter-submit": {
+    "detail-expenses-filter-submit-s1": {
       "pass": true,
-      "digest": "1b00f260e8cd5136"
+      "digest": "f101510eaf424f9a"
     },
-    "detail-f0d670c396af": {
+    "detail-f0d670c396af-s1": {
       "pass": true,
-      "digest": "4353477554825c7c"
+      "digest": "faa8563c9b39e605"
     },
-    "detail-f219cfc53c17": {
+    "detail-f219cfc53c17-s1": {
       "pass": true,
-      "digest": "fc24e007f702bdaa"
+      "digest": "acee6d0c523b05d0"
     },
-    "detail-f32a76a0f8d7": {
+    "detail-f32a76a0f8d7-s1": {
       "pass": true,
-      "digest": "b43e7034bb6bfabe"
+      "digest": "8081e595fcea8c02"
     },
     "detail-f491f39db5ea": {
       "pass": false,
       "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 submit 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个",
       "digest": "d0abeb7884647999"
     },
-    "detail-f4f0e7501e35": {
+    "detail-f4f0e7501e35-s1": {
       "pass": true,
-      "digest": "0181947ccc0f45b0"
+      "digest": "2f1088b224a367bd"
     },
-    "detail-f5cde5e0836e": {
+    "detail-f5cde5e0836e-s1": {
       "pass": true,
-      "digest": "d56273a1afe43d9d"
+      "digest": "00cc0a80d434e242"
     },
-    "detail-f7455828f3f2": {
+    "detail-f7455828f3f2-s1": {
       "pass": true,
-      "digest": "cdc535123626967f"
+      "digest": "9a71d8b57a9f9708"
     },
-    "detail-f76cff695c36": {
+    "detail-f76cff695c36-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：输出字段路径无效",
-      "digest": "f4094551ad4f1fc1"
+      "digest": "2281cb1aa05d45b6"
     },
-    "detail-f8464f9b4533": {
+    "detail-f8464f9b4533-s1": {
       "pass": true,
-      "digest": "4ef60d7ad6bb6982"
+      "digest": "b7b29b1579ad78ad"
     },
     "detail-f8b57d8b4968": {
       "pass": false,
       "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "a496dcf74e736306"
     },
-    "detail-fa6661810722": {
+    "detail-fa6661810722-s1": {
       "pass": false,
       "reason": "操作 x 第 # 个示例的 x 是「…」，不在 未读/在读/已读 之内；所有操作和示例要用同一组取值",
-      "digest": "a2a668c7cda5b109"
+      "digest": "9924888771b58a3d"
     },
-    "detail-fa6e91a8cee3": {
+    "detail-fa6e91a8cee3-s1": {
       "pass": true,
-      "digest": "a0500772c48dfd49"
+      "digest": "a50766c53c35b9d3"
     },
-    "detail-fe0e04b91160": {
+    "detail-fe0e04b91160-s1": {
       "pass": true,
-      "digest": "de00c386408d83fd"
+      "digest": "fce507d07a6ce6fb"
     },
-    "detail-fe49360b8c29": {
+    "detail-fe49360b8c29-s1": {
       "pass": true,
-      "digest": "5d83cbc5db58082b"
+      "digest": "cd15bdb2ce72faaa"
     },
     "detail-ff32a576eeb6": {
       "pass": false,
@@ -846,31 +860,31 @@
       "reason": "操作 x：查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query",
       "digest": "14cae9a574a0541b"
     },
-    "detail-model-ask-then-add": {
+    "detail-model-ask-then-add-s1": {
       "pass": true,
-      "digest": "1b6146c996c88b2d"
+      "digest": "43b000383bcf849a"
     },
-    "detail-notes-plain": {
+    "detail-notes-plain-s1": {
       "pass": true,
-      "digest": "25820eb8fd844a5d"
+      "digest": "8006804558af38d3"
     },
-    "detail-notes-root-closed-early": {
+    "detail-notes-root-closed-early-s1": {
       "pass": true,
-      "digest": "4ef307e7947265f0"
+      "digest": "d5b8358b024e9bb8"
     },
-    "detail-notes-think-and-fence": {
+    "detail-notes-think-and-fence-s1": {
       "pass": true,
-      "digest": "4ab5a0be76c4e6cf"
+      "digest": "d2424f3e886ea0b7"
     },
     "detail-notes-truncated": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "078395cb31678e14"
     },
-    "detail-order-text-not-typed": {
+    "detail-order-text-not-typed-s1": {
       "pass": false,
       "reason": "浏览器用例需要具体操作与断言",
-      "digest": "2e2b40fcfaf4e17a"
+      "digest": "ffae71b82da5ad7a"
     },
     "minimax-notes-v1#1": {
       "pass": true,
@@ -1503,296 +1517,494 @@
       "pass": true,
       "digest": "ca909e339ee53ce0"
     },
-    "revise-067c38490bd5": {
+    "revise-067c38490bd5-s1": {
       "pass": true,
-      "digest": "a9e592145901bac2"
+      "digest": "9ffef2cf3d0739fc"
     },
-    "revise-0766eb759f1c": {
+    "revise-0766eb759f1c-s1": {
       "pass": true,
-      "digest": "0ae9224b4e69ac76"
+      "digest": "464316c4e23e6bcd"
     },
-    "revise-08a4803f440a": {
+    "revise-08a4803f440a-s1": {
       "pass": true,
-      "digest": "596c74c97c6c54e3"
+      "digest": "c5ac078dd9f9d931"
     },
-    "revise-0cec7f2c80d4": {
+    "revise-0cec7f2c80d4-s1": {
       "pass": true,
-      "digest": "bfe5c0435bb05ffe"
+      "digest": "21be275ac183dd93"
     },
     "revise-0dd067eec0be": {
       "pass": false,
       "reason": "操作 x 的 output：数组类型写成只含一个元素类型的数组，例如 [{ \"x\": \"x\" }]",
       "digest": "c7d62157b5e405e5"
     },
-    "revise-0e3fc3ffabc7": {
+    "revise-0e3fc3ffabc7-s1": {
       "pass": true,
-      "digest": "320866ddc63e2535"
+      "digest": "9f8f76098d03e80d"
     },
-    "revise-1193e8be6258": {
+    "revise-1193e8be6258-s1": {
       "pass": true,
-      "digest": "ec026adc32242edd"
+      "digest": "59e4d9523b89900e"
     },
-    "revise-15fba20b0a1f": {
+    "revise-15fba20b0a1f-s1": {
       "pass": true,
-      "digest": "c6c93e01c0e6ce91"
+      "digest": "2dad4e870a6a2c99"
     },
-    "revise-16223a69e16e": {
+    "revise-16223a69e16e-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "4b90328eec76f8c7"
+      "digest": "b2d7f70eaee65c8a"
     },
-    "revise-1cbb532c6494": {
+    "revise-1cbb532c6494-s1": {
       "pass": true,
-      "digest": "bc0cd4cf3c05435c"
+      "digest": "611495675fe77563"
     },
-    "revise-1ddf4b51cef1": {
+    "revise-1ddf4b51cef1-s1": {
       "pass": true,
-      "digest": "fe730281044e9321"
+      "digest": "c22645b18443952c"
     },
     "revise-2530ee0eb49d": {
       "pass": false,
       "reason": "模型输出不是完整 JSON，第 # 个字符附近",
       "digest": "cb51946ea49d7ad6"
     },
-    "revise-2aa5678e5abd": {
+    "revise-2aa5678e5abd-s1": {
       "pass": false,
       "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
-      "digest": "e28a95273618c128"
+      "digest": "898ba81e254ff2cd"
     },
-    "revise-2f767f44020d": {
+    "revise-2f767f44020d-s1": {
       "pass": false,
       "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
-      "digest": "46c0fec35c24c0ac"
+      "digest": "7978f021b2e91641"
     },
-    "revise-3548d199da6a": {
+    "revise-3548d199da6a-s1": {
       "pass": false,
       "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
-      "digest": "2b45100d52966cd0"
+      "digest": "430d11b217072b8f"
     },
-    "revise-3bde2170d08e": {
+    "revise-3bde2170d08e-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "7a145ab34ccf09bc"
+      "digest": "0bdba89975562c65"
     },
-    "revise-3c1626e9758a": {
+    "revise-3c1626e9758a-s1": {
       "pass": true,
-      "digest": "18a6a7c3ff897f01"
+      "digest": "584f713ad59e710e"
     },
-    "revise-3d3821a099a0": {
+    "revise-3d3821a099a0-s1": {
       "pass": true,
-      "digest": "6f5675df88c6f4b8"
+      "digest": "a10e7548d74fa12b"
     },
-    "revise-4b96e383df4d": {
+    "revise-4b96e383df4d-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
-      "digest": "da502790c0146f0f"
+      "digest": "6d134de101ceb456"
     },
     "revise-5448e8d7c4bd": {
       "pass": false,
       "reason": "细化方案：操作 x 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）",
       "digest": "a6a484741db177a5"
     },
-    "revise-56eb5ea41bfc": {
+    "revise-56eb5ea41bfc-s1": {
       "pass": false,
       "reason": "操作 x 第 # 个示例的期望结果缺少 x：要么写全输出的必填字段，要么改用 \"includes\" 只检查其中几个字段",
-      "digest": "677c003ca730631b"
+      "digest": "1743a4d2f299158d"
     },
-    "revise-584868533d47": {
+    "revise-584868533d47-s1": {
       "pass": true,
-      "digest": "ba1b7fcefe493c4c"
+      "digest": "5481485e81fe4d7f"
     },
-    "revise-59a33822c3d9": {
+    "revise-59a33822c3d9-s1": {
       "pass": true,
-      "digest": "bc8a87376db69d56"
+      "digest": "ba28f8d9e7430ac0"
     },
-    "revise-5e5808501d35": {
+    "revise-5e5808501d35-s1": {
       "pass": false,
       "reason": "组件 x 的 x 取自 x，但 x 的命令结果里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
-      "digest": "6b625a69cf1573c5"
+      "digest": "fe6c63a5c5ef1dfd"
     },
-    "revise-624589edfe51": {
+    "revise-624589edfe51-s1": {
       "pass": true,
-      "digest": "ff5c31b236076079"
+      "digest": "ea70e453037cb9ad"
     },
-    "revise-639d118ef9a7": {
+    "revise-639d118ef9a7-s1": {
       "pass": true,
-      "digest": "1fc475d9c3922737"
+      "digest": "3d84c05ca76346c1"
     },
-    "revise-68404b6d3115": {
+    "revise-68404b6d3115-s1": {
       "pass": false,
       "reason": "项目能力目录中没有：x",
-      "digest": "08a4088045010a95"
+      "digest": "6d6ca090cdd5d169"
     },
-    "revise-7206cf980b4a": {
+    "revise-7206cf980b4a-s1": {
       "pass": true,
-      "digest": "164c516d80e3e563"
+      "digest": "f43547df7d51348e"
     },
-    "revise-722506bc71db": {
+    "revise-722506bc71db-s1": {
       "pass": false,
       "reason": "组件 x 的 x 取自 x，但 x 的命令结果里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
-      "digest": "3995af458c128da8"
+      "digest": "3c2ad2c3744363df"
     },
-    "revise-764e37b708f3": {
+    "revise-764e37b708f3-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：输出字段路径无效",
-      "digest": "5a1863d8abf40410"
+      "digest": "ba80f75a623b1355"
     },
-    "revise-7a1fa264923d": {
+    "revise-7a1fa264923d-s1": {
       "pass": true,
-      "digest": "10bd231efee22d59"
+      "digest": "aacb1034d9efafdd"
     },
-    "revise-7cca7683c8e4": {
+    "revise-7cca7683c8e4-s1": {
       "pass": true,
-      "digest": "07ed082a7671cc2c"
+      "digest": "cfed1a7771bfa45b"
     },
-    "revise-7dc8e177cd27": {
+    "revise-7dc8e177cd27-s1": {
       "pass": false,
       "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
-      "digest": "eb21d65705e023a5"
+      "digest": "d4af98f8adf26c2a"
     },
-    "revise-80c61acd8e52": {
+    "revise-80c61acd8e52-s1": {
       "pass": true,
-      "digest": "e76c447028417f66"
+      "digest": "426a02ec343e98f5"
     },
-    "revise-840a0af3df53": {
+    "revise-840a0af3df53-s1": {
       "pass": true,
-      "digest": "c01d1698aa8fff20"
+      "digest": "ebe503c7db25695f"
     },
-    "revise-88b6dca9e757": {
+    "revise-88b6dca9e757-s1": {
       "pass": true,
-      "digest": "49bf7ba61ddd6573"
+      "digest": "f27b28fa7f464d06"
     },
-    "revise-91521dfdd91a": {
+    "revise-91521dfdd91a-s1": {
       "pass": true,
-      "digest": "589cbb80a463ce80"
+      "digest": "f387a8f56f63d4dd"
     },
-    "revise-935377969644": {
+    "revise-935377969644-s1": {
       "pass": true,
-      "digest": "bd88ec4c07dedaa0"
+      "digest": "1a4fa732ea5b67b5"
     },
-    "revise-98656b597d4e": {
+    "revise-98656b597d4e-s1": {
       "pass": true,
-      "digest": "a62da9caa0564ee5"
+      "digest": "a67ffa87e5063b0f"
     },
-    "revise-9a8f05ed26b2": {
+    "revise-9a8f05ed26b2-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值（只能是 未读/在读/已读）；要按当前记录推算（例如切到下一个状态），就让这个",
-      "digest": "d02b47ccafca827d"
+      "digest": "a88b05d5c784f8be"
     },
-    "revise-9f08c2778470": {
+    "revise-9f08c2778470-s1": {
       "pass": true,
-      "digest": "63a3164ae6614a9d"
+      "digest": "a06d3c35af254897"
     },
-    "revise-a1cd59eb0489": {
+    "revise-a1cd59eb0489-s1": {
       "pass": true,
-      "digest": "68ecd2b8373d435d"
+      "digest": "e73e74f0db03b285"
     },
     "revise-a4ec60ad3d5f": {
       "pass": false,
       "reason": "操作 x：每个操作至少写一个示例 {\"input\":…, \"output\":…}",
       "digest": "91adcd6951a9916b"
     },
-    "revise-a71b9e8dd90b": {
+    "revise-a71b9e8dd90b-s1": {
       "pass": true,
-      "digest": "d96f238b289654b3"
+      "digest": "b484bae455e1de3a"
     },
-    "revise-a7e0c78693e2": {
+    "revise-a7e0c78693e2-s1": {
       "pass": true,
-      "digest": "4a89823ff288e713"
+      "digest": "e4ec70016573ea20"
     },
-    "revise-aaed38ba66ec": {
+    "revise-aaed38ba66ec-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值（只能是 未读/在读/已读）；要按当前记录推算（例如切到下一个状态），就让这个",
-      "digest": "d6b4c4da0d92abaa"
+      "digest": "e287e2fcf1cdecaa"
     },
-    "revise-b58d28aee90d": {
+    "revise-b58d28aee90d-s1": {
       "pass": true,
-      "digest": "0f7c6f0e637bd781"
+      "digest": "0a38444010062e1d"
     },
-    "revise-c108c828124e": {
+    "revise-c108c828124e-s1": {
       "pass": true,
-      "digest": "21fec06c4b3a7cc6"
+      "digest": "e1e6c15849577ada"
     },
-    "revise-c13acd589649": {
+    "revise-c13acd589649-s1": {
       "pass": true,
-      "digest": "8c0520abc03916f5"
+      "digest": "87f7ccfa7608b7b5"
     },
-    "revise-c13da9dc2c70": {
+    "revise-c13da9dc2c70-s1": {
       "pass": true,
-      "digest": "d377e20ce7b57e59"
+      "digest": "b51a15746b213ecc"
     },
-    "revise-c2c5e5ed7ba0": {
+    "revise-c2c5e5ed7ba0-s1": {
       "pass": true,
-      "digest": "b72b67fce5140d00"
+      "digest": "fc0217c47007e81f"
     },
-    "revise-c7bcb93b57cd": {
+    "revise-c7bcb93b57cd-s1": {
       "pass": true,
-      "digest": "190c45abcddda4ce"
+      "digest": "12d5f6d6f0bd45c1"
     },
-    "revise-cb87c8dce58e": {
+    "revise-cb87c8dce58e-s1": {
       "pass": true,
-      "digest": "827f72bf74ad4da0"
+      "digest": "f00fbea789260db5"
     },
-    "revise-cf1797a19f51": {
+    "revise-cf1797a19f51-s1": {
       "pass": true,
-      "digest": "29611c5b4b2cbe56"
+      "digest": "8b6dbbbfc420ba4b"
     },
-    "revise-d04ccbbfeb05": {
+    "revise-d04ccbbfeb05-s1": {
       "pass": true,
-      "digest": "2a90e449e2e896e7"
+      "digest": "9da4f8b5c15342bd"
     },
-    "revise-d352f9880ded": {
+    "revise-d352f9880ded-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：输出字段路径无效",
-      "digest": "bdc2d7b3097e8e58"
+      "digest": "c0b6efb9c4963c48"
     },
-    "revise-d9503a2f5451": {
+    "revise-d9503a2f5451-s1": {
       "pass": true,
-      "digest": "92fce0f146bb9738"
+      "digest": "8a9e3a9f52b138cb"
     },
-    "revise-dab55409dd39": {
+    "revise-dab55409dd39-s1": {
       "pass": false,
       "reason": "界面合同无效：组件 x：常量「…」不是 x 的 x 能接受的值；要按当前记录推算（例如切到下一个状态），就让这个操作只收 x，在代码里算",
-      "digest": "d504cb77f1e88bbf"
+      "digest": "5d1d2c48fda2cb3c"
     },
-    "revise-df3fee532bcc": {
+    "revise-df3fee532bcc-s1": {
       "pass": true,
-      "digest": "0e5a7eeae98cb37e"
+      "digest": "caf0e320096ba701"
     },
-    "revise-e1ba912c5938": {
+    "revise-e1ba912c5938-s1": {
       "pass": true,
-      "digest": "e4544658f00c9d97"
+      "digest": "e284c9b7ba8351a9"
     },
-    "revise-edd1437ee26e": {
+    "revise-edd1437ee26e-s1": {
       "pass": true,
-      "digest": "dc3dfb023aa436dc"
+      "digest": "3a693cfe2ce21fd9"
     },
-    "revise-f84394f0c719": {
+    "revise-f84394f0c719-s1": {
       "pass": true,
-      "digest": "91670cd797163757"
+      "digest": "8ccc313abcb81334"
     },
-    "revise-f9713bfa8629": {
+    "revise-f9713bfa8629-s1": {
       "pass": true,
-      "digest": "378e28d5177e0640"
+      "digest": "6b619a2d5bef2ba4"
     },
-    "revise-fc1482cf9616": {
+    "revise-fc1482cf9616-s1": {
       "pass": false,
       "reason": "操作 x 和平台能力同名：插件自己的操作用自己的前缀（例如 x），要用这个能力就在调用它的操作的 x 里写 \"x\"",
-      "digest": "10df843da9dd658a"
+      "digest": "3f3ddcde470196a4"
     },
-    "revise-notes-with-rework": {
+    "revise-notes-with-rework-s1": {
       "pass": true,
-      "digest": "67c538fa0aeb2d60"
+      "digest": "7eeb996d35f60855"
     },
-    "revise-rework-unknown-operation": {
+    "revise-rework-unknown-operation-s1": {
       "pass": false,
       "reason": "rework 引用了不存在的操作：x",
-      "digest": "bec264504f2f2cac"
+      "digest": "62b74cbf9fed08ac"
     }
   },
   "retired": {
     "detail-284e713750c3": "T412 RAC-2928：组件 log_list 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-284e713750c3-array-projection-required。",
     "detail-88ea75bfc908": "T412 RAC-2928：组件 logs 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-88ea75bfc908-array-projection-required。",
-    "detail-8e59e6959a92": "T412 RAC-2928：组件 logs 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-8e59e6959a92-array-projection-required。"
+    "detail-8e59e6959a92": "T412 RAC-2928：组件 logs 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-8e59e6959a92-array-projection-required。",
+    "detail-def8532fdac3": "predates the required states declaration (SMP-11); kept as detail-def8532fdac3-s1 with an empty one added",
+    "detail-ef6bfded7b7c": "predates the required states declaration (SMP-11); kept as detail-ef6bfded7b7c-s1 with an empty one added",
+    "detail-d13bb3c07355": "predates the required states declaration (SMP-11); kept as detail-d13bb3c07355-s1 with an empty one added",
+    "detail-0dfa9919851f": "predates the required states declaration (SMP-11); kept as detail-0dfa9919851f-s1 with an empty one added",
+    "detail-d2bb0a478ebd": "predates the required states declaration (SMP-11); kept as detail-d2bb0a478ebd-s1 with an empty one added",
+    "detail-3f6233d6210a": "predates the required states declaration (SMP-11); kept as detail-3f6233d6210a-s1 with an empty one added",
+    "detail-4d62e96c49d6": "predates the required states declaration (SMP-11); kept as detail-4d62e96c49d6-s1 with an empty one added",
+    "detail-d887750ee9cf": "predates the required states declaration (SMP-11); kept as detail-d887750ee9cf-s1 with an empty one added",
+    "detail-a79125d11426": "predates the required states declaration (SMP-11); kept as detail-a79125d11426-s1 with an empty one added",
+    "detail-5a987b2783b5": "predates the required states declaration (SMP-11); kept as detail-5a987b2783b5-s1 with an empty one added",
+    "detail-af3f96a8e08f": "predates the required states declaration (SMP-11); kept as detail-af3f96a8e08f-s1 with an empty one added",
+    "revise-7206cf980b4a": "predates the required states declaration (SMP-11); kept as revise-7206cf980b4a-s1 with an empty one added",
+    "revise-68404b6d3115": "predates the required states declaration (SMP-11); kept as revise-68404b6d3115-s1 with an empty one added",
+    "detail-5b6f18bb0e38": "predates the required states declaration (SMP-11); kept as detail-5b6f18bb0e38-s1 with an empty one added",
+    "detail-1158d3e297c4": "predates the required states declaration (SMP-11); kept as detail-1158d3e297c4-s1 with an empty one added",
+    "detail-57d0d1311918": "predates the required states declaration (SMP-11); kept as detail-57d0d1311918-s1 with an empty one added",
+    "detail-5e795a66e434": "predates the required states declaration (SMP-11); kept as detail-5e795a66e434-s1 with an empty one added",
+    "detail-e13efcab2676": "predates the required states declaration (SMP-11); kept as detail-e13efcab2676-s1 with an empty one added",
+    "detail-da8c5ca6b05e": "predates the required states declaration (SMP-11); kept as detail-da8c5ca6b05e-s1 with an empty one added",
+    "detail-e180ad904730": "predates the required states declaration (SMP-11); kept as detail-e180ad904730-s1 with an empty one added",
+    "detail-8d4168ceaa3f": "predates the required states declaration (SMP-11); kept as detail-8d4168ceaa3f-s1 with an empty one added",
+    "revise-584868533d47": "predates the required states declaration (SMP-11); kept as revise-584868533d47-s1 with an empty one added",
+    "detail-f219cfc53c17": "predates the required states declaration (SMP-11); kept as detail-f219cfc53c17-s1 with an empty one added",
+    "detail-6492083696a7": "predates the required states declaration (SMP-11); kept as detail-6492083696a7-s1 with an empty one added",
+    "detail-167ea370510f": "predates the required states declaration (SMP-11); kept as detail-167ea370510f-s1 with an empty one added",
+    "detail-64de27002543": "predates the required states declaration (SMP-11); kept as detail-64de27002543-s1 with an empty one added",
+    "detail-7614a2a6751c": "predates the required states declaration (SMP-11); kept as detail-7614a2a6751c-s1 with an empty one added",
+    "detail-f0d670c396af": "predates the required states declaration (SMP-11); kept as detail-f0d670c396af-s1 with an empty one added",
+    "revise-7cca7683c8e4": "predates the required states declaration (SMP-11); kept as revise-7cca7683c8e4-s1 with an empty one added",
+    "detail-26339fe4c503": "predates the required states declaration (SMP-11); kept as detail-26339fe4c503-s1 with an empty one added",
+    "detail-6c0646b25a18": "predates the required states declaration (SMP-11); kept as detail-6c0646b25a18-s1 with an empty one added",
+    "detail-3d27e98ced3d": "predates the required states declaration (SMP-11); kept as detail-3d27e98ced3d-s1 with an empty one added",
+    "detail-a512f71953ad": "predates the required states declaration (SMP-11); kept as detail-a512f71953ad-s1 with an empty one added",
+    "detail-7cdbcfec3992": "predates the required states declaration (SMP-11); kept as detail-7cdbcfec3992-s1 with an empty one added",
+    "detail-2d72d9c41a4f": "predates the required states declaration (SMP-11); kept as detail-2d72d9c41a4f-s1 with an empty one added",
+    "detail-81f78e1bbd8a": "predates the required states declaration (SMP-11); kept as detail-81f78e1bbd8a-s1 with an empty one added",
+    "detail-4dffbc1abf92": "predates the required states declaration (SMP-11); kept as detail-4dffbc1abf92-s1 with an empty one added",
+    "detail-07363f5abe24": "predates the required states declaration (SMP-11); kept as detail-07363f5abe24-s1 with an empty one added",
+    "detail-af415f160b82": "predates the required states declaration (SMP-11); kept as detail-af415f160b82-s1 with an empty one added",
+    "detail-d149cdaddb22": "predates the required states declaration (SMP-11); kept as detail-d149cdaddb22-s1 with an empty one added",
+    "detail-17b77be395c4": "predates the required states declaration (SMP-11); kept as detail-17b77be395c4-s1 with an empty one added",
+    "detail-84971f9ea035": "predates the required states declaration (SMP-11); kept as detail-84971f9ea035-s1 with an empty one added",
+    "detail-8ae08f6a7733": "predates the required states declaration (SMP-11); kept as detail-8ae08f6a7733-s1 with an empty one added",
+    "detail-d387a4aca26f": "predates the required states declaration (SMP-11); kept as detail-d387a4aca26f-s1 with an empty one added",
+    "detail-c0f0b574b641": "predates the required states declaration (SMP-11); kept as detail-c0f0b574b641-s1 with an empty one added",
+    "detail-61dcf20c6a76": "predates the required states declaration (SMP-11); kept as detail-61dcf20c6a76-s1 with an empty one added",
+    "detail-3042c78c89ff": "predates the required states declaration (SMP-11); kept as detail-3042c78c89ff-s1 with an empty one added",
+    "revise-624589edfe51": "predates the required states declaration (SMP-11); kept as revise-624589edfe51-s1 with an empty one added",
+    "revise-1cbb532c6494": "predates the required states declaration (SMP-11); kept as revise-1cbb532c6494-s1 with an empty one added",
+    "detail-4e1e4096a8ae": "predates the required states declaration (SMP-11); kept as detail-4e1e4096a8ae-s1 with an empty one added",
+    "detail-d8db206c9059": "predates the required states declaration (SMP-11); kept as detail-d8db206c9059-s1 with an empty one added",
+    "revise-9f08c2778470": "predates the required states declaration (SMP-11); kept as revise-9f08c2778470-s1 with an empty one added",
+    "detail-2317f2646b99": "predates the required states declaration (SMP-11); kept as detail-2317f2646b99-s1 with an empty one added",
+    "revise-067c38490bd5": "predates the required states declaration (SMP-11); kept as revise-067c38490bd5-s1 with an empty one added",
+    "detail-53223feae969": "predates the required states declaration (SMP-11); kept as detail-53223feae969-s1 with an empty one added",
+    "detail-8a3efafa5aa6": "predates the required states declaration (SMP-11); kept as detail-8a3efafa5aa6-s1 with an empty one added",
+    "detail-c5530bd10d97": "predates the required states declaration (SMP-11); kept as detail-c5530bd10d97-s1 with an empty one added",
+    "detail-afa20ceea635": "predates the required states declaration (SMP-11); kept as detail-afa20ceea635-s1 with an empty one added",
+    "detail-7bf1499d50f3": "predates the required states declaration (SMP-11); kept as detail-7bf1499d50f3-s1 with an empty one added",
+    "detail-10223cf33f6d": "predates the required states declaration (SMP-11); kept as detail-10223cf33f6d-s1 with an empty one added",
+    "detail-f76cff695c36": "predates the required states declaration (SMP-11); kept as detail-f76cff695c36-s1 with an empty one added",
+    "revise-1ddf4b51cef1": "predates the required states declaration (SMP-11); kept as revise-1ddf4b51cef1-s1 with an empty one added",
+    "revise-764e37b708f3": "predates the required states declaration (SMP-11); kept as revise-764e37b708f3-s1 with an empty one added",
+    "revise-0e3fc3ffabc7": "predates the required states declaration (SMP-11); kept as revise-0e3fc3ffabc7-s1 with an empty one added",
+    "revise-15fba20b0a1f": "predates the required states declaration (SMP-11); kept as revise-15fba20b0a1f-s1 with an empty one added",
+    "revise-3bde2170d08e": "predates the required states declaration (SMP-11); kept as revise-3bde2170d08e-s1 with an empty one added",
+    "revise-1193e8be6258": "predates the required states declaration (SMP-11); kept as revise-1193e8be6258-s1 with an empty one added",
+    "revise-d352f9880ded": "predates the required states declaration (SMP-11); kept as revise-d352f9880ded-s1 with an empty one added",
+    "revise-e1ba912c5938": "predates the required states declaration (SMP-11); kept as revise-e1ba912c5938-s1 with an empty one added",
+    "revise-f84394f0c719": "predates the required states declaration (SMP-11); kept as revise-f84394f0c719-s1 with an empty one added",
+    "detail-d0d4222f3ef6": "predates the required states declaration (SMP-11); kept as detail-d0d4222f3ef6-s1 with an empty one added",
+    "detail-9f9f1101af12": "predates the required states declaration (SMP-11); kept as detail-9f9f1101af12-s1 with an empty one added",
+    "detail-d2bb5379f7b3": "predates the required states declaration (SMP-11); kept as detail-d2bb5379f7b3-s1 with an empty one added",
+    "detail-e9059ea9b40e": "predates the required states declaration (SMP-11); kept as detail-e9059ea9b40e-s1 with an empty one added",
+    "detail-c099c52d8b17": "predates the required states declaration (SMP-11); kept as detail-c099c52d8b17-s1 with an empty one added",
+    "revise-98656b597d4e": "predates the required states declaration (SMP-11); kept as revise-98656b597d4e-s1 with an empty one added",
+    "revise-935377969644": "predates the required states declaration (SMP-11); kept as revise-935377969644-s1 with an empty one added",
+    "detail-73497ba42877": "predates the required states declaration (SMP-11); kept as detail-73497ba42877-s1 with an empty one added",
+    "detail-d01435ec80f3": "predates the required states declaration (SMP-11); kept as detail-d01435ec80f3-s1 with an empty one added",
+    "detail-02678009a40c": "predates the required states declaration (SMP-11); kept as detail-02678009a40c-s1 with an empty one added",
+    "detail-571fc8fada9c": "predates the required states declaration (SMP-11); kept as detail-571fc8fada9c-s1 with an empty one added",
+    "detail-ad5b59c4e1fd": "predates the required states declaration (SMP-11); kept as detail-ad5b59c4e1fd-s1 with an empty one added",
+    "detail-f7455828f3f2": "predates the required states declaration (SMP-11); kept as detail-f7455828f3f2-s1 with an empty one added",
+    "detail-6a7fcdbe3f2a": "predates the required states declaration (SMP-11); kept as detail-6a7fcdbe3f2a-s1 with an empty one added",
+    "detail-5dce666b443d": "predates the required states declaration (SMP-11); kept as detail-5dce666b443d-s1 with an empty one added",
+    "detail-1a2d545377c4": "predates the required states declaration (SMP-11); kept as detail-1a2d545377c4-s1 with an empty one added",
+    "revise-d9503a2f5451": "predates the required states declaration (SMP-11); kept as revise-d9503a2f5451-s1 with an empty one added",
+    "detail-eff0307246ed": "predates the required states declaration (SMP-11); kept as detail-eff0307246ed-s1 with an empty one added",
+    "detail-e38885fa2e03": "predates the required states declaration (SMP-11); kept as detail-e38885fa2e03-s1 with an empty one added",
+    "detail-5eb9f702b575": "predates the required states declaration (SMP-11); kept as detail-5eb9f702b575-s1 with an empty one added",
+    "revise-0cec7f2c80d4": "predates the required states declaration (SMP-11); kept as revise-0cec7f2c80d4-s1 with an empty one added",
+    "revise-840a0af3df53": "predates the required states declaration (SMP-11); kept as revise-840a0af3df53-s1 with an empty one added",
+    "revise-4b96e383df4d": "predates the required states declaration (SMP-11); kept as revise-4b96e383df4d-s1 with an empty one added",
+    "revise-a71b9e8dd90b": "predates the required states declaration (SMP-11); kept as revise-a71b9e8dd90b-s1 with an empty one added",
+    "detail-17bd1532cbe5": "predates the required states declaration (SMP-11); kept as detail-17bd1532cbe5-s1 with an empty one added",
+    "detail-4393bf20199c": "predates the required states declaration (SMP-11); kept as detail-4393bf20199c-s1 with an empty one added",
+    "revise-3c1626e9758a": "predates the required states declaration (SMP-11); kept as revise-3c1626e9758a-s1 with an empty one added",
+    "detail-e86ce38623bf": "predates the required states declaration (SMP-11); kept as detail-e86ce38623bf-s1 with an empty one added",
+    "detail-3705c1180070": "predates the required states declaration (SMP-11); kept as detail-3705c1180070-s1 with an empty one added",
+    "detail-63a09c894398": "predates the required states declaration (SMP-11); kept as detail-63a09c894398-s1 with an empty one added",
+    "detail-1cfb298e69ad": "predates the required states declaration (SMP-11); kept as detail-1cfb298e69ad-s1 with an empty one added",
+    "detail-8b38ae34bcca": "predates the required states declaration (SMP-11); kept as detail-8b38ae34bcca-s1 with an empty one added",
+    "detail-2154be7b2be4": "predates the required states declaration (SMP-11); kept as detail-2154be7b2be4-s1 with an empty one added",
+    "detail-40c15a8f00c7": "predates the required states declaration (SMP-11); kept as detail-40c15a8f00c7-s1 with an empty one added",
+    "detail-cc9416d64cdc": "predates the required states declaration (SMP-11); kept as detail-cc9416d64cdc-s1 with an empty one added",
+    "detail-f4f0e7501e35": "predates the required states declaration (SMP-11); kept as detail-f4f0e7501e35-s1 with an empty one added",
+    "revise-cf1797a19f51": "predates the required states declaration (SMP-11); kept as revise-cf1797a19f51-s1 with an empty one added",
+    "detail-97d40236fc2b": "predates the required states declaration (SMP-11); kept as detail-97d40236fc2b-s1 with an empty one added",
+    "detail-666e07ba89d6": "predates the required states declaration (SMP-11); kept as detail-666e07ba89d6-s1 with an empty one added",
+    "detail-ca6dd9432340": "predates the required states declaration (SMP-11); kept as detail-ca6dd9432340-s1 with an empty one added",
+    "detail-e63afed4b6ff": "predates the required states declaration (SMP-11); kept as detail-e63afed4b6ff-s1 with an empty one added",
+    "detail-2af268685f56": "predates the required states declaration (SMP-11); kept as detail-2af268685f56-s1 with an empty one added",
+    "detail-9a0350226dbb": "predates the required states declaration (SMP-11); kept as detail-9a0350226dbb-s1 with an empty one added",
+    "detail-21a203db266c": "predates the required states declaration (SMP-11); kept as detail-21a203db266c-s1 with an empty one added",
+    "detail-d3207b5814d1": "predates the required states declaration (SMP-11); kept as detail-d3207b5814d1-s1 with an empty one added",
+    "detail-8e3c9c1cb871": "predates the required states declaration (SMP-11); kept as detail-8e3c9c1cb871-s1 with an empty one added",
+    "detail-da7957d18760": "predates the required states declaration (SMP-11); kept as detail-da7957d18760-s1 with an empty one added",
+    "revise-2aa5678e5abd": "predates the required states declaration (SMP-11); kept as revise-2aa5678e5abd-s1 with an empty one added",
+    "detail-78a00c8cdb82": "predates the required states declaration (SMP-11); kept as detail-78a00c8cdb82-s1 with an empty one added",
+    "revise-56eb5ea41bfc": "predates the required states declaration (SMP-11); kept as revise-56eb5ea41bfc-s1 with an empty one added",
+    "revise-16223a69e16e": "predates the required states declaration (SMP-11); kept as revise-16223a69e16e-s1 with an empty one added",
+    "revise-2f767f44020d": "predates the required states declaration (SMP-11); kept as revise-2f767f44020d-s1 with an empty one added",
+    "revise-c2c5e5ed7ba0": "predates the required states declaration (SMP-11); kept as revise-c2c5e5ed7ba0-s1 with an empty one added",
+    "detail-fe0e04b91160": "predates the required states declaration (SMP-11); kept as detail-fe0e04b91160-s1 with an empty one added",
+    "revise-dab55409dd39": "predates the required states declaration (SMP-11); kept as revise-dab55409dd39-s1 with an empty one added",
+    "revise-80c61acd8e52": "predates the required states declaration (SMP-11); kept as revise-80c61acd8e52-s1 with an empty one added",
+    "detail-9c33020bce65": "predates the required states declaration (SMP-11); kept as detail-9c33020bce65-s1 with an empty one added",
+    "detail-0377ff070011": "predates the required states declaration (SMP-11); kept as detail-0377ff070011-s1 with an empty one added",
+    "detail-f5cde5e0836e": "predates the required states declaration (SMP-11); kept as detail-f5cde5e0836e-s1 with an empty one added",
+    "detail-fe49360b8c29": "predates the required states declaration (SMP-11); kept as detail-fe49360b8c29-s1 with an empty one added",
+    "detail-2acd984f2693": "predates the required states declaration (SMP-11); kept as detail-2acd984f2693-s1 with an empty one added",
+    "detail-24ae55c2543e": "predates the required states declaration (SMP-11); kept as detail-24ae55c2543e-s1 with an empty one added",
+    "detail-3e8f7d308cac": "predates the required states declaration (SMP-11); kept as detail-3e8f7d308cac-s1 with an empty one added",
+    "detail-4838b1f17434": "predates the required states declaration (SMP-11); kept as detail-4838b1f17434-s1 with an empty one added",
+    "detail-dee502cc09c0": "predates the required states declaration (SMP-11); kept as detail-dee502cc09c0-s1 with an empty one added",
+    "detail-5143ed436f71": "predates the required states declaration (SMP-11); kept as detail-5143ed436f71-s1 with an empty one added",
+    "detail-5729bac5fa0c": "predates the required states declaration (SMP-11); kept as detail-5729bac5fa0c-s1 with an empty one added",
+    "revise-c13acd589649": "predates the required states declaration (SMP-11); kept as revise-c13acd589649-s1 with an empty one added",
+    "revise-08a4803f440a": "predates the required states declaration (SMP-11); kept as revise-08a4803f440a-s1 with an empty one added",
+    "detail-18ec7b29ab37": "predates the required states declaration (SMP-11); kept as detail-18ec7b29ab37-s1 with an empty one added",
+    "detail-183f9cce6632": "predates the required states declaration (SMP-11); kept as detail-183f9cce6632-s1 with an empty one added",
+    "revise-fc1482cf9616": "predates the required states declaration (SMP-11); kept as revise-fc1482cf9616-s1 with an empty one added",
+    "detail-45384ffdcb48": "predates the required states declaration (SMP-11); kept as detail-45384ffdcb48-s1 with an empty one added",
+    "revise-7dc8e177cd27": "predates the required states declaration (SMP-11); kept as revise-7dc8e177cd27-s1 with an empty one added",
+    "revise-3548d199da6a": "predates the required states declaration (SMP-11); kept as revise-3548d199da6a-s1 with an empty one added",
+    "detail-94a4660ef511": "predates the required states declaration (SMP-11); kept as detail-94a4660ef511-s1 with an empty one added",
+    "detail-88903adc74b1": "predates the required states declaration (SMP-11); kept as detail-88903adc74b1-s1 with an empty one added",
+    "detail-0756c3501ed1": "predates the required states declaration (SMP-11); kept as detail-0756c3501ed1-s1 with an empty one added",
+    "revise-722506bc71db": "predates the required states declaration (SMP-11); kept as revise-722506bc71db-s1 with an empty one added",
+    "revise-5e5808501d35": "predates the required states declaration (SMP-11); kept as revise-5e5808501d35-s1 with an empty one added",
+    "detail-18bd68506cdb": "predates the required states declaration (SMP-11); kept as detail-18bd68506cdb-s1 with an empty one added",
+    "revise-88b6dca9e757": "predates the required states declaration (SMP-11); kept as revise-88b6dca9e757-s1 with an empty one added",
+    "revise-c108c828124e": "predates the required states declaration (SMP-11); kept as revise-c108c828124e-s1 with an empty one added",
+    "revise-b58d28aee90d": "predates the required states declaration (SMP-11); kept as revise-b58d28aee90d-s1 with an empty one added",
+    "revise-c7bcb93b57cd": "predates the required states declaration (SMP-11); kept as revise-c7bcb93b57cd-s1 with an empty one added",
+    "revise-a1cd59eb0489": "predates the required states declaration (SMP-11); kept as revise-a1cd59eb0489-s1 with an empty one added",
+    "revise-91521dfdd91a": "predates the required states declaration (SMP-11); kept as revise-91521dfdd91a-s1 with an empty one added",
+    "revise-df3fee532bcc": "predates the required states declaration (SMP-11); kept as revise-df3fee532bcc-s1 with an empty one added",
+    "detail-8a2e4f8febaf": "predates the required states declaration (SMP-11); kept as detail-8a2e4f8febaf-s1 with an empty one added",
+    "revise-edd1437ee26e": "predates the required states declaration (SMP-11); kept as revise-edd1437ee26e-s1 with an empty one added",
+    "revise-cb87c8dce58e": "predates the required states declaration (SMP-11); kept as revise-cb87c8dce58e-s1 with an empty one added",
+    "detail-fa6e91a8cee3": "predates the required states declaration (SMP-11); kept as detail-fa6e91a8cee3-s1 with an empty one added",
+    "revise-639d118ef9a7": "predates the required states declaration (SMP-11); kept as revise-639d118ef9a7-s1 with an empty one added",
+    "revise-a7e0c78693e2": "predates the required states declaration (SMP-11); kept as revise-a7e0c78693e2-s1 with an empty one added",
+    "detail-f32a76a0f8d7": "predates the required states declaration (SMP-11); kept as detail-f32a76a0f8d7-s1 with an empty one added",
+    "detail-b2724efcce57": "predates the required states declaration (SMP-11); kept as detail-b2724efcce57-s1 with an empty one added",
+    "detail-38251ff23969": "predates the required states declaration (SMP-11); kept as detail-38251ff23969-s1 with an empty one added",
+    "revise-59a33822c3d9": "predates the required states declaration (SMP-11); kept as revise-59a33822c3d9-s1 with an empty one added",
+    "detail-73a1923f9ee7": "predates the required states declaration (SMP-11); kept as detail-73a1923f9ee7-s1 with an empty one added",
+    "detail-76fa00f73768": "predates the required states declaration (SMP-11); kept as detail-76fa00f73768-s1 with an empty one added",
+    "detail-4384e7dce2cd": "predates the required states declaration (SMP-11); kept as detail-4384e7dce2cd-s1 with an empty one added",
+    "detail-e0941450cf22": "predates the required states declaration (SMP-11); kept as detail-e0941450cf22-s1 with an empty one added",
+    "revise-d04ccbbfeb05": "predates the required states declaration (SMP-11); kept as revise-d04ccbbfeb05-s1 with an empty one added",
+    "revise-7a1fa264923d": "predates the required states declaration (SMP-11); kept as revise-7a1fa264923d-s1 with an empty one added",
+    "revise-3d3821a099a0": "predates the required states declaration (SMP-11); kept as revise-3d3821a099a0-s1 with an empty one added",
+    "detail-66b3d0b1b636": "predates the required states declaration (SMP-11); kept as detail-66b3d0b1b636-s1 with an empty one added",
+    "detail-dba27941da5f": "predates the required states declaration (SMP-11); kept as detail-dba27941da5f-s1 with an empty one added",
+    "detail-c15c87c4813b": "predates the required states declaration (SMP-11); kept as detail-c15c87c4813b-s1 with an empty one added",
+    "revise-aaed38ba66ec": "predates the required states declaration (SMP-11); kept as revise-aaed38ba66ec-s1 with an empty one added",
+    "revise-9a8f05ed26b2": "predates the required states declaration (SMP-11); kept as revise-9a8f05ed26b2-s1 with an empty one added",
+    "revise-c13da9dc2c70": "predates the required states declaration (SMP-11); kept as revise-c13da9dc2c70-s1 with an empty one added",
+    "detail-e6d568e2e024": "predates the required states declaration (SMP-11); kept as detail-e6d568e2e024-s1 with an empty one added",
+    "detail-f8464f9b4533": "predates the required states declaration (SMP-11); kept as detail-f8464f9b4533-s1 with an empty one added",
+    "detail-fa6661810722": "predates the required states declaration (SMP-11); kept as detail-fa6661810722-s1 with an empty one added",
+    "detail-e09b06792c77": "predates the required states declaration (SMP-11); kept as detail-e09b06792c77-s1 with an empty one added",
+    "revise-0766eb759f1c": "predates the required states declaration (SMP-11); kept as revise-0766eb759f1c-s1 with an empty one added",
+    "revise-f9713bfa8629": "predates the required states declaration (SMP-11); kept as revise-f9713bfa8629-s1 with an empty one added",
+    "detail-c2e10e3233d4": "predates the required states declaration (SMP-11); kept as detail-c2e10e3233d4-s1 with an empty one added",
+    "detail-3965c044a5e1": "predates the required states declaration (SMP-11); kept as detail-3965c044a5e1-s1 with an empty one added",
+    "detail-notes-plain": "predates the required states declaration (SMP-11); kept as detail-notes-plain-s1 with an empty one added",
+    "detail-notes-think-and-fence": "predates the required states declaration (SMP-11); kept as detail-notes-think-and-fence-s1 with an empty one added",
+    "detail-notes-root-closed-early": "predates the required states declaration (SMP-11); kept as detail-notes-root-closed-early-s1 with an empty one added",
+    "detail-order-text-not-typed": "predates the required states declaration (SMP-11); kept as detail-order-text-not-typed-s1 with an empty one added",
+    "detail-model-ask-then-add": "predates the required states declaration (SMP-11); kept as detail-model-ask-then-add-s1 with an empty one added",
+    "detail-books-filter-bar": "predates the required states declaration (SMP-11); kept as detail-books-filter-bar-s1 with an empty one added",
+    "detail-expenses-filter-submit": "predates the required states declaration (SMP-11); kept as detail-expenses-filter-submit-s1 with an empty one added",
+    "revise-notes-with-rework": "predates the required states declaration (SMP-11); kept as revise-notes-with-rework-s1 with an empty one added",
+    "revise-rework-unknown-operation": "predates the required states declaration (SMP-11); kept as revise-rework-unknown-operation-s1 with an empty one added"
   }
 }

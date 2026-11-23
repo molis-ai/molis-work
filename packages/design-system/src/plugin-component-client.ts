@@ -26,7 +26,7 @@ export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: 
 /**
  * Host-owned browser renderer: model data is always text; generated code never runs in this page. Every part is drawn
  * with the UI catalog's own components (`mw-*`, `/__ui/catalog`), so a generated plugin looks and themes like the rest
- * of the product. The part's kind is the catalog component it was given; kinds from older builds map onto the catalog.
+ * of the product. The part's kind is the catalog component it was given.
  */
 export function createPluginComponentClient(options: PluginComponentClientOptions) {
   let authored: ReturnType<typeof createTextReader> | undefined;

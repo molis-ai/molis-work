@@ -58,7 +58,7 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   // The Host's own owners, not the register's: a remembered declaration of this plugin is in the register too (PG-051 Q1 b).
   hostOwners ??= new Set(builtinRegistrations().map(row => row.owner_id));
   if (hostOwners.has(owner)) throw new Error(`${owner} 的 Agent 定义由平台自己登记，插件定义不能再登记第二个来源`);
-  const registry = agentDefinitionsFor(home.directory, builtinRegistrations);
+  const registry = homeAgentDefinitions(home.directory);
   // Only a newer version replaces what the running instances registered.
   const replaces = !holder || comparePluginVersions(version, holder.version) > 0;
   let current: Holder = holder ? { ...holder, held: holder.held + 1 } : { held: 1, version, registration: null };
@@ -91,6 +91,9 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
     if (remember) declarations.remember(installId, now.registration);
   };
 }
+
+/** The Home's register with what ships in the Host already in it: the one plugins register into. */
+export const homeAgentDefinitions = (homeDirectory: string) => agentDefinitionsFor(homeDirectory, builtinRegistrations);
 
 /** The one complete projection used by the executor and installed lifecycle callbacks. */
 export function pluginAgentRegistration(definition: PluginDefinition, source: AgentDefinitionSource = pluginDefinitionSource(definition)): AgentDefinitionRegistration | null {
@@ -126,7 +129,7 @@ export function updatePluginAgentDefinitions(home: PluginPlatformHome, definitio
   const { plugin_id: owner, version } = definition.manifest, ownerKey = `${path.resolve(home.directory)}\0${owner}`;
   const holder = holders.get(ownerKey)?.get(installId);
   if (holder && comparePluginVersions(version, holder.version) < 0 && !restored) return;
-  const registration = pluginAgentRegistration(definition), registry = agentDefinitionsFor(home.directory, builtinRegistrations), declarations = agentDeclarationsFor(home.directory);
+  const registration = pluginAgentRegistration(definition), registry = homeAgentDefinitions(home.directory), declarations = agentDeclarationsFor(home.directory);
   if (holder) { holder.version = version; holder.registration = registration; }
   if (!registration) { registry.unregister(owner, installId); declarations.forgetOwner(installId, owner); return; }
   registry.register(state === "disabled" && !holder?.held ? notRunning(registration) : registration, installId);
@@ -159,7 +162,7 @@ export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
 /** An uninstalled installation's declarations leave the register and the Home (PG-051 Q1 b), unless it still runs somewhere. */
 export function forgetPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, installId: string): void {
   if (!home) return;
-  const registry = agentDefinitionsFor(home.directory, builtinRegistrations);
+  const registry = homeAgentDefinitions(home.directory);
   for (const owner of agentDeclarationsFor(home.directory).forget(installId)) {
     if (!holders.get(`${path.resolve(home.directory)}\0${owner}`)?.has(installId)) registry.unregister(owner, installId);
   }

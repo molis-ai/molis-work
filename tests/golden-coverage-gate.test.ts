@@ -136,14 +136,15 @@ test("UPG2-04 UPG2-08 the repository's own tree passes", () => {
   assert.deepEqual(problems, []);
 });
 
-test("UPG2-07 a job that left the signed samples out says so in the summary and as a notice, and a run that had them says nothing of the kind", () => {
-  const left = reported("ok   0.1.0 (10 reads, 2 writes, third-party: not run on linux, not a pass, home library: not run on linux, not a pass)\n", 0);
-  assert.match(left.summary, /did not run here: not a pass/u);
-  assert.match(left.summary, /not run on linux/u);
+test("UPG2-07 / GDC-02 the job summary and notice identify skipped platform steps", () => {
+  const skipped = "third-party: not run on linux, not a pass, home library: not run on linux, not a pass, computer settings: not run on linux, not a pass";
+  const left = reported(`ok   0.1.0 (10 reads, 2 writes, ${skipped})\n`, 0);
+  assert.match(left.summary, /The skipped steps remain unverified/u);
+  assert.ok(left.summary.includes(skipped));
   assert.equal(left.notices.length, 1);
   assert.match(left.notices[0]!, /^::notice title=Golden replay: not run on this runner::ok {3}0\.1\.0/u);
-  const all = reported("ok   0.1.0 (10 reads, 2 writes, third-party: replayed, home library: replayed)\n", 0);
+  const all = reported("ok   0.1.0 (10 reads, 2 writes, third-party: replayed, home library: replayed, computer settings: replayed)\n", 0);
   assert.deepEqual(all.notices, []);
-  assert.match(all.summary, /signed samples included/u);
+  assert.match(all.summary, /Everything passed/u);
   assert.match(reported("FAIL 0.1.0 upgrade root golden.x\n", 1).summary, /Failed\./u);
 });

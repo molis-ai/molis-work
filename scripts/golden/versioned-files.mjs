@@ -1,6 +1,6 @@
 // The versioned files of a restored golden Home, each read through its owner's own entry (specs/upgrade-continuity/golden-replay-design.md §4 step 3).
 // A library says what is wrong when it is opened; a file says it only to whoever reads it, and a reader may fall back to defaults and say nothing. So
-// each reader here has to give back something the generation wrote. A versioned file with no reader in this table fails: adding one means one line here.
+// each reader here has to give back something the generation wrote. A versioned file with no reader fails.
 // A file no page or action reads back may be read by a read function its owner's package exports, on the replayed Home's directory, when that is the
 // very function the owner reads it with at run time (not a second parser written for this table).
 import { readFileSync } from "node:fs";
@@ -10,6 +10,7 @@ import { goldenFailure } from "./failure.mjs";
 const { readUiLocale } = await import("@molis-ai/molis-work-app-local-host");
 
 const GET = { method: "GET" };
+const COMPUTER_SETTINGS = "computer/settings.json";
 
 /** Home-relative path: how to read it through its owner, and what the generation left in it. The Prologue runtime's own records are read by `memory.list`. */
 const READERS = new Map([
@@ -44,14 +45,22 @@ function isVersioned(file) {
   } catch { return false; }
 }
 
-/** Over the root Home, the only one a golden opens with a web surface. Returns how many it read. */
+/** The root Home's web surface reads the settings. Report whether the Mac-only settings read actually ran. */
 export async function assertVersionedFilesRead(manifest, directory, actions) {
-  const versioned = manifest.files.filter(entry => !entry.path.startsWith("spaces/") && !entry.path.startsWith(RUNTIME_RECORDS) && isVersioned(path.join(directory, entry.payload)));
+  const versioned = manifest.files.filter(entry => entry.path !== COMPUTER_SETTINGS && !entry.path.startsWith("spaces/") &&
+    !entry.path.startsWith(RUNTIME_RECORDS) && isVersioned(path.join(directory, entry.payload)));
   for (const { path: file } of versioned) {
     const reader = READERS.get(file);
     if (!reader) throw goldenFailure("golden.versioned_file_unread", file);
     const [read, written] = reader;
     if (!JSON.stringify(await read(actions)).includes(written)) throw goldenFailure("golden.versioned_file_lost", file);
   }
-  return versioned.length;
+  const count = versioned.length;
+  if (!manifest.files.some(entry => entry.path === COMPUTER_SETTINGS)) return { count, computerSettings: "absent" };
+  if (process.platform !== "darwin") return { count, computerSettings: "not-run" };
+  const settings = await actions.http("/api/computer/settings", GET);
+  if (settings?.enabled !== false || !settings.forbidden?.some(app => app.bundle_id === "io.molis.work.golden.seed" && app.name === "金样应用")) {
+    throw goldenFailure("golden.versioned_file_lost", COMPUTER_SETTINGS);
+  }
+  return { count: count + 1, computerSettings: "replayed" };
 }

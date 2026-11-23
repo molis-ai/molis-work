@@ -97,7 +97,8 @@ test("MEM-35/MEM-36: later reads observe production correction and deletion rath
 
 test("MEM-36: real HTTP replay reaches the production Agent Context and retains provider usage without claiming model quality", { timeout: 60_000 }, async () => {
   const server = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    let body = "";
+    for await (const chunk of request.setEncoding("utf8")) body += chunk;
     assert.ok(JSON.parse(body).messages);
     const frames: string[] = [];
     const emit = (type: string, content: object) => frames.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...content })}\n\n`);

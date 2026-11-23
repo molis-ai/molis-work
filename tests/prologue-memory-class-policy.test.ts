@@ -19,7 +19,8 @@ const restriction: MemoryClassRestriction = { selector: { consumer: "agent", cur
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-class-run-")), requests: string[] = [], authorized: AgentMemoryCaller[] = [];
   const server = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    let body = "";
+    for await (const chunk of request.setEncoding("utf8")) body += chunk;
     requests.push(body); response.writeHead(200, { "content-type": "text/event-stream" });
     response.end('data: {"choices":[{"index":0,"delta":{"content":"Ready."},"finish_reason":null}]}\n\n'
       + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');

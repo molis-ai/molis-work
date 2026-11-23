@@ -75,7 +75,9 @@ test("C3 two live callers release in reverse order without borrowing the other's
   const enteredA = Promise.withResolvers<void>(), enteredB = Promise.withResolvers<void>(), releaseA = Promise.withResolvers<void>(), releaseB = Promise.withResolvers<void>();
   let currentA = true, checksA = 0, checksB = 0;
   const server = createServer(async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk; requests.push(body);
+    let body = "";
+    for await (const chunk of req.setEncoding("utf8")) body += chunk;
+    requests.push(body);
     res.writeHead(200, { "content-type": "text/event-stream" }); res.end('data: {"choices":[{"index":0,"delta":{"content":"done"},"finish_reason":null}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

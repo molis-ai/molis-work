@@ -193,7 +193,8 @@ for (const indexed of [false, true]) test(`C3 real Node child exact caller survi
   const childRole = codingAgentManifest.subagents!.roles.find(role => role.role_id === (indexed ? "coding-reviewer" : "coding-reader"))!;
   const childCharacter = new RegExp(`molis-child-[a-z0-9-]+@${childRole.version}(?![0-9])`);
   const model = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    let raw = "";
+    for await (const chunk of req.setEncoding("utf8")) raw += chunk;
     const body = JSON.parse(raw) as C3ChildWire; requests.push(body);
     const child = body.messages.some(m => m.role === "user" && (typeof m.content === "string" ? m.content.startsWith("EXACT_NEW_CHILD") : m.content?.some(p => p.text?.startsWith("EXACT_NEW_CHILD"))));
     let reply: Response;

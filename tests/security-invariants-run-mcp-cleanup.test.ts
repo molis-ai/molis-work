@@ -21,7 +21,8 @@ for (const remoteSession of [true, false]) test(`ASC-51/APR-11: stopping a nativ
   const server = createServer((request, response) => {
     void (async () => {
       if (request.method === "DELETE") { deletedSession = String(request.headers["mcp-session-id"]); response.writeHead(204).end(); return; }
-      let text = ""; for await (const chunk of request) text += String(chunk);
+      let text = "";
+      for await (const chunk of request.setEncoding("utf8")) text += chunk;
       const message = JSON.parse(text) as { id?: unknown; method: string; params?: { requestId?: unknown } };
       if (message.method === "tools/call") { businessId = message.id; return; }
       if (message.method === "notifications/cancelled") cancelledId = message.params?.requestId;

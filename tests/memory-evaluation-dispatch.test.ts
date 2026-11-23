@@ -13,7 +13,8 @@ const body = JSON.stringify({ model: "fixture", max_tokens: 12, messages: [{ rol
 async function endpoint(t: TestContext, handler?: (raw: string) => Promise<void>) {
   const received: string[] = [];
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     received.push(raw); await handler?.(raw); response.end("ok");
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

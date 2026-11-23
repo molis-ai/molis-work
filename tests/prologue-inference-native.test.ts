@@ -20,7 +20,8 @@ test("Host structured generation exposes real Run progress and receipts, and inv
   const home = await mkdtemp(join(tmpdir(), "prologue-structured-host-"));
   let text = '{"title":"valid"}', requests = 0;
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     const body = JSON.parse(raw); requests++;
     assert.equal(body.response_format, undefined, "local validation does not silently request native output");
     response.writeHead(200, { "content-type": "text/event-stream" });

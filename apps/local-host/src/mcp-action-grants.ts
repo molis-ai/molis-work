@@ -7,6 +7,7 @@ import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js"
 import { actionGrantKey } from "./mcp-settings-store.js";
 
 type GrantFacts = { readonly action_grants: readonly McpActionGrant[] };
+type ActionGrantRow = Omit<ActionView, "availability">;
 /**
  * A client calling what it holds no grant for (any more), or without a permission a scene or a background task needs (any more), is
  * refused: a refusal, which every reader can tell by its kind. One declaration for every check that raises them (mcp-action-client.ts,
@@ -34,7 +35,7 @@ export function createMcpActionGrant(clientId: string, projectId: string | null,
     provider_id: action.provider.provider_id, permissions: [...new Set(action.action.permissions)].sort(), enabled };
 }
 
-function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallContext): boolean {
+function matches(grant: McpActionGrant, view: ActionGrantRow, caller: ActionCallContext): boolean {
   return grant.enabled && grant.client_id === caller.actor_id
     && grant.project_id === (view.action.scope === "home" ? null : caller.project_id)
     && (view.action.scope !== "project" || caller.project_id !== null)
@@ -68,7 +69,7 @@ export function openByDefault(view: Omit<ActionView, "availability">, caller: Pi
  * only reads (a query whose effect is `read`, G3). Which of those it may call is still its records'; the categories they belong to
  * are checked where its catalog is read (`taskReadableCatalog`). Undefined for any other client.
  */
-function taskGrantBounds(clientId: string): ((view: ActionView, caller: ActionCallContext) => boolean) | undefined {
+function taskGrantBounds(clientId: string): ((view: ActionGrantRow, caller: ActionCallContext) => boolean) | undefined {
   if (!isTaskGrantSubject(clientId)) return undefined;
   const subject = parseTaskGrantSubject(clientId);
   return (view, caller) => subject !== null && subject.project_id === caller.project_id && caller.audience === "agent"
@@ -76,7 +77,7 @@ function taskGrantBounds(clientId: string): ((view: ActionView, caller: ActionCa
 }
 
 /** Declarations are not authority. Only explicit, unchanged grants produce permissions. */
-export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionView[], preference: GrantFacts): ActionCallContext {
+export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionGrantRow[], preference: GrantFacts): ActionCallContext {
   const task = taskGrantBounds(caller.actor_id);
   const accepted = catalog.filter(view => {
     if (!view.action.audiences.includes(caller.audience === "agent" ? "agent" : "mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
@@ -92,7 +93,7 @@ export function resolveMcpActionContext(caller: ActionCallContext, catalog: read
   };
 }
 
-export function assertMcpActionAuthority(caller: ActionCallContext, catalog: readonly ActionView[], preference: GrantFacts, reference: ActionReference): void {
+export function assertMcpActionAuthority(caller: ActionCallContext, catalog: readonly ActionGrantRow[], preference: GrantFacts, reference: ActionReference): void {
   const allowed = resolveMcpActionContext(caller, catalog, preference).allowed_actions ?? [];
   if (!allowed.some(item => item.capability_id === reference.capability_id && item.version === reference.version
     && item.provider_id === reference.provider_id)) {
@@ -101,7 +102,7 @@ export function assertMcpActionAuthority(caller: ActionCallContext, catalog: rea
 }
 
 /** Keep this acceptance's exact grant instances (or an actual default's absence), across every later check. */
-export function pinMcpActionGrants(caller: ActionCallContext, catalog: readonly ActionView[], preference: McpToolPreference) {
+export function pinMcpActionGrants(caller: ActionCallContext, catalog: readonly ActionGrantRow[], preference: McpToolPreference) {
   const allowed = resolveMcpActionContext(caller, catalog, preference).allowed_actions ?? [];
   const original = catalog.filter(view => allowed.some(ref => ref.capability_id === view.capability_id && ref.version === view.version
     && ref.provider_id === view.provider.provider_id)).map(view => {
@@ -111,7 +112,7 @@ export function pinMcpActionGrants(caller: ActionCallContext, catalog: readonly 
       scope: view.action.scope, permissions: [...new Set(view.action.permissions)],
       generation: preference.action_grants.find(grant => actionGrantKey(grant) === key)?.generation ?? null };
   });
-  return (currentCatalog: readonly ActionView[], current: McpToolPreference): readonly ActionView[] => currentCatalog.filter(view => {
+  return <Row extends ActionGrantRow>(currentCatalog: readonly Row[], current: McpToolPreference): readonly Row[] => currentCatalog.filter(view => {
     const candidates = original.filter(ref => ref.capability_id === view.capability_id && ref.version === view.version
       && ref.provider_id === view.provider.provider_id && ref.scope === view.action.scope);
     if (candidates.length !== 1) return false;

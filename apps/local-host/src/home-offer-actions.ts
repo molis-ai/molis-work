@@ -1,8 +1,7 @@
 import { subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
-import { ActionError, ACTION_REFERENCE_SCHEMA, SUBJECT_OFFER_SCHEMA, SUBJECT_OFFERS_INPUT_SCHEMA,
+import { ActionError, ACTION_REFERENCE_SCHEMA, SUBJECT_OFFER_SCHEMA, SUBJECT_OFFERS_INPUT_SCHEMA, exactActionView,
   type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callerDirectory, confirmSubjectOffer, prepareSubjectOffers, type PreparedSubjectOffer, type PreparedSubjectOffers } from "./contextual/contextual-service.js";
-import { exactActionView } from "./exact-action-view.js";
 export type HomeActionOffer = PreparedSubjectOffer;
 export type HomeActionOffers = PreparedSubjectOffers;
 export interface HomeOfferExecutionInput extends SubjectOffersInput { offer: SubjectActionOffer & { source: ActionReference; recommendation_key?: string } }

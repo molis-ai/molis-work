@@ -8,7 +8,7 @@ import { readConversationAttachment } from "./material-attachments.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
-import { authorizeMcpActions, prepareMcpActionReview } from "./mcp-action-client.js";
+import { authorizeMcpAction, authorizeMcpActions, prepareMcpActionReview } from "./mcp-action-client.js";
 import { taskReadableHost } from "./task-grant-actions.js";
 import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import {
@@ -28,7 +28,7 @@ import type { PrepareProjectDirectory } from "./project-capabilities.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { readProjectGuidance } from "./project-guidance-actions.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, exactActionView, type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
@@ -46,7 +46,6 @@ import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-r
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { skillConsumerOf } from "./memory/memory-plugin-scene.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
-import { exactActionView } from "./exact-action-view.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -356,21 +355,31 @@ async function startAuthority(
       // no separate 对外接入 grant (mcp-action-grants.ts), and the handler context gets it only on those calls. A tool call into any other
       // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6). The round's memory scene and
       // class restrictions, and the selection a memory read is held to, travel the same way.
+      const baseCaller = (signal?: AbortSignal, memorySelection?: { assert_current(): void }): ActionCallContext => ({
+        actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
+        project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
+        ...(memorySelection ? { memory_context_selection: memorySelection } : {}), ...(runtimeMemory ? { runtime_memory: structuredClone(runtimeMemory) } : {}),
+        ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}),
+      });
+      const checkBefore = async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); };
+      const checkSync = (signal?: AbortSignal, memorySelection?: { assert_current(): void }) => () => {
+        caller?.assertActive(); signal?.throwIfAborted(); memorySelection?.assert_current();
+        if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+      };
       const current = async (signal?: AbortSignal, action?: ExactActionReference, memorySelection?: { assert_current(): void }) => {
-        const authorized = await authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-          project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
-          ...(memorySelection ? { memory_context_selection: memorySelection } : {}), ...(runtimeMemory ? { runtime_memory: structuredClone(runtimeMemory) } : {}),
-          ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
-            caller?.assertActive(); signal?.throwIfAborted(); memorySelection?.assert_current();
-            if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
-          });
+        const authorized = await authorizeMcpActions(source, baseCaller(signal, memorySelection), homeDirectory, reference, checkBefore, checkSync(signal, memorySelection));
         return { ...authorized, context: action?.provider_id === SKILLS_PROVIDER_ID ? authorized.context : withoutSkillRound(authorized.context) };
+      };
+      const currentOne = async (action: ActionReference, signal?: AbortSignal) => {
+        const authorized = await authorizeMcpAction(source, baseCaller(signal), action, homeDirectory, reference, checkBefore, checkSync(signal));
+        return { ...authorized, context: action.provider_id === SKILLS_PROVIDER_ID ? authorized.context : withoutSkillRound(authorized.context) };
       };
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
+        discoverOne: async action => { const authorized = await currentOne(action); return authorized.service.discoverOne(authorized.context, action); },
         prepareReview: (view, input) => prepareMcpActionReview(localHost, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
           project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}) }, homeDirectory, view, input, reference,
-          async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+          checkBefore, () => {
             caller?.assertActive(); if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
           }),
         invoke: async (action, input, signal, memorySelection, review) => {
@@ -380,7 +389,7 @@ async function startAuthority(
             review?.assertCurrent(); authorized.context.assert_authority_current?.(ref, required);
           } }, action, input);
         },
-        check: async (action, input) => checkActionInput(await current(), action, input),
+        check: async (action, input) => checkActionInput(await currentOne(action), action, input),
       };
     },
     ...(takesRoles ? { resolveCharacter: (choice, actorId) => resolveRoleCharacter(homeDirectory, actorId, runtime.project_id, choice),
@@ -394,7 +403,7 @@ async function startAuthority(
 }
 
 /** An input checked as dispatch will check it, against the action as this grant discovers it now; runs nothing. */
-async function checkActionInput(authorized: { context: ActionCallContext; service: { discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]> } }, reference: ExactActionReference, input: unknown): Promise<void> {
+async function checkActionInput(authorized: { context: ActionCallContext; service: Pick<ActionClient, "discover"> & Partial<Pick<ActionClient, "discoverOne">> }, reference: ExactActionReference, input: unknown): Promise<void> {
   const view = await exactActionView(authorized.service, authorized.context, reference);
   if (!view) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
   assertActionInput(view.action.input_schema, input);

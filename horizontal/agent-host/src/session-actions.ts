@@ -1,7 +1,7 @@
 import { actionDigest } from "./action-digest.js";
 import { agentErrors } from "./errors.js";
 import { checkOrigin } from "./input-origin.js";
-import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, exactBoundActionView, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -106,7 +106,7 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
         throw agentErrors.offer_mismatch("只能执行这条建议点名的那个动作");
       }
       const client = await ports.actions(call, runtime_id, session);
-      const current = (await client?.discover())?.find(row => sameReference({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id }, offer.reference));
+      const current = client ? await exactBoundActionView(client, offer.reference) : undefined;
       if (!client || !current || !current.action.audiences.includes("agent")) throw new ActionError("actions.missing", "这项能力已不可用或已对这一轮关闭");
       if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason, { kind: "unavailable" });
       if (actionDigest(current) !== offer.action_digest) throw new ActionError("actions.definition_changed", "这项能力的合同在建议之后变了；请让它按现在的版本重新建议");

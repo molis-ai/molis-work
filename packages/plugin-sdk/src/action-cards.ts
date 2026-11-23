@@ -1,5 +1,5 @@
 import { cutWithEllipsis } from "./whole-units.js";
-import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, exactBoundActionView, type ActionReference, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantCard, AssistantCardChoice } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -50,6 +50,8 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
 /** What a card runs with: the actions offered to its keeper now, checked and invoked as dispatch does. */
 export interface CardAuthority {
   discover(): Promise<readonly ActionView[]>;
+  /** Point-lookup of one action without listing the full directory. */
+  discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
   /** Throws when `input` is not what the action takes; runs nothing. */
   check(view: ActionView, input: unknown): void | Promise<void>;
   invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
@@ -272,7 +274,7 @@ export async function runActionCard<Card extends ActionCard>(card: Card, input: 
   const stillMissing = card.missing.filter(item => { const value = plainObject(prepared) ? prepared[item.field] : undefined; return value === undefined || value === null || value === ""; });
   if (stillMissing.length) throw ports.refuse("invalid", `还需要填写：${stillMissing.map(item => item.question).join("；")}`);
   const authority = await ports.authority();
-  const view = (await authority.discover()).find(row => sameAction(row, card.reference));
+  const view = await exactBoundActionView(authority, card.reference);
   // The card runs what it shows or not at all: never another capability, version or provider.
   if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? ownWords(view.availability.reason) : said("unavailable") });
   try { await authority.check(view, prepared); }

@@ -1,5 +1,5 @@
 import type { Runtime } from "@prologue/sdk";
-import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, exactBoundActionView, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, actedThisRound, emptyRoundFacts, internalIdsHeld, memoryFormationOff, memoryHeld, mentionsInternalIds, noteRoundEvent,
   writesToolCallAsText, type EndingClaim } from "./announce-guard.js";
@@ -39,6 +39,15 @@ const STOP_HOOK_TIMEOUT_MS = REVIEW_TIMEOUT_MS + 15_000;
 /** Whether any call this round finished was a change (a capability no longer offered counts as one: nothing is held then). */
 async function changedThisRound(done: { client: AgentActionClient; invoked: ExactActionReference[] }): Promise<boolean> {
   if (!done.invoked.length) return false;
+  if (done.client.discoverOne) {
+    const unique = [...new Map(done.invoked.map(ref => [JSON.stringify([ref.capability_id, ref.version, ref.provider_id]), ref])).values()];
+    for (const reference of unique) {
+      let view: ActionView | undefined;
+      try { view = await exactBoundActionView(done.client, reference); } catch { return true; }
+      if (!view || actionEffect(view.action, view.capability_id) !== "read") return true;
+    }
+    return false;
+  }
   const views = await done.client.discover().catch(() => null);
   if (!views) return true;
   return done.invoked.some(reference => {

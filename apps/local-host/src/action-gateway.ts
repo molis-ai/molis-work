@@ -3,7 +3,7 @@ import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 import { actionGatewayHomeId } from "./action-gateway-identity.js";
 import { createMcpClientProof } from "./mcp-client-credentials.js";
-import { ActionError, actionViewFor, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
@@ -27,9 +27,11 @@ export class LocalActionGatewayClient implements ActionClient {
   private readonly origin: string;
   private instance?: string;
   private credential?:Promise<string|null>;
-  constructor(private readonly options: { url: string; homeDirectory: string; credentialHomeDirectory?: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
+  constructor(private readonly options: { url: string; homeDirectory: string; credentialHomeDirectory?: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string; instanceId?: string }) {
     this.origin = residentHostOrigin(options.url);
+    this.instance = options.instanceId;
   }
+  get instanceId(): string | undefined { return this.instance; }
   async discover(caller: ActionCallContext): Promise<ActionView[]> {
     this.checkCaller(caller);
     const reply = await this.request({ operation: "discover" }, caller);
@@ -37,9 +39,22 @@ export class LocalActionGatewayClient implements ActionClient {
     this.instance = reply.instance_id;
     return reply.actions as ActionView[];
   }
-  /** The gateway's protocol only lists the directory, so one action is found in the list it returns. */
   async discoverOne(caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {
-    return actionViewFor(await this.discover(caller), reference);
+    this.checkCaller(caller);
+    const expectedInstance = this.instance;
+    const reply = await this.request({
+      operation: "discoverOne",
+      ...(expectedInstance ? { instance_id: expectedInstance } : {}),
+      capability: { capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) },
+    }, caller);
+    if (typeof reply.instance_id !== "string" || !(reply.action === null || (reply.action && typeof reply.action === "object" && !Array.isArray(reply.action)))) {
+      throw new ActionError("actions.transport_invalid", "系统动作响应无效");
+    }
+    if (expectedInstance && reply.instance_id !== expectedInstance) {
+      throw new ActionError("actions.host_replaced", "系统服务已更换，请重新发现；不会重发原调用");
+    }
+    this.instance = reply.instance_id;
+    return (reply.action ?? undefined) as ActionView | undefined;
   }
   async invoke<Output = unknown>(caller: ActionCallContext, reference: ActionReference, input: unknown): Promise<Output> {
     this.checkCaller(caller);
@@ -67,8 +82,9 @@ export class LocalActionGatewayClient implements ActionClient {
     if(token===null)throw unavailable();
     let answer: ResidentHostAnswer | null;
     try {
+      const boundInstance = invoking ? this.instance ?? null : typeof body.instance_id === "string" ? body.instance_id : null;
       answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, controlToken: token,
-        clientProof: createMcpClientProof(this.options.credentialHomeDirectory ?? this.options.homeDirectory, this.options.clientId, this.options.homeDirectory, invoking ? this.instance ?? null : null),
+        clientProof: createMcpClientProof(this.options.credentialHomeDirectory ?? this.options.homeDirectory, this.options.clientId, this.options.homeDirectory, boundInstance),
         path: ACTION_GATEWAY_PATH, homeId: actionGatewayHomeId(this.options.homeDirectory), signal: caller.signal, retryHint: "请核对原结果，不会自动重试",
         body: { ...body, home_id: actionGatewayHomeId(this.options.homeDirectory),
           project_id: this.options.projectId, ...(this.options.runtimeSessionId === undefined ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });

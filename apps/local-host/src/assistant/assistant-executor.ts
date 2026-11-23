@@ -1,5 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionExecutionContext, type ActionUserAction, type ActionView, type BoundActionClient, type ExactActionReference,
+import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionExecutionContext, type ActionReference, type ActionUserAction, type ActionView, type BoundActionClient, type ExactActionReference,
   type WorkExecutorCalls, type WorkExecutorRole, type WorkExecutorRunControl, type WorkExecutorSession, type WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -12,6 +12,7 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 /** The person's own action client in a project, as far as the Assistant's reads of other plugins need it. */
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
+  discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
   invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }
 

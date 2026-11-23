@@ -46,13 +46,15 @@ export function createActionMcpPorts(options: {
   toolName?(action: ActionReference): string;
   /**
    * The action a name stood for in the catalog the server listed for this connection: a call looks up that one action
-   * instead of the whole directory. The lookup judges visibility for this call's caller; a name it does not know, or whose action is
-   * no longer that name, falls back to the whole directory, which also checks for duplicate names.
+   * instead of the whole directory when the tool-naming rule is injective (`actionMcpToolName` or `molisWorkActionToolName`).
+   * The lookup judges live visibility for this call's caller and converts provider ambiguity into `actions.mcp_name_conflict`;
+   * an unknown name, custom naming function, or replaced provider falls back to the whole directory.
    */
   known?(name: string): ActionReference | undefined;
 }): McpProtocolPorts {
   const context = (): ActionCallContext => ({ ...options.context(), audience: "mcp" });
   const toolName = options.toolName ?? actionMcpToolName;
+  const injectiveToolName = toolName === actionMcpToolName || toolName === molisWorkActionToolName;
   const catalog = async (caller: ActionCallContext) => {
     const entries = new Map<string, ActionView>();
     for (const view of await options.service.discover(caller)) {
@@ -64,9 +66,20 @@ export function createActionMcpPorts(options: {
   };
   const one = async (caller: ActionCallContext, name: string) => {
     const reference = options.known?.(name);
-    if (reference && options.service.discoverOne) {
-      const view = await options.service.discoverOne(caller, reference);
-      if (view && toolName(view) === name) return view;
+    if (reference && injectiveToolName && toolName(reference) === name && options.service.discoverOne) {
+      let view: ActionView | undefined;
+      try {
+        view = await options.service.discoverOne(caller, { capability_id: reference.capability_id, version: reference.version });
+      } catch (error) {
+        if (error instanceof ActionError && error.code === "actions.provider_ambiguous") {
+          throw new ActionError("actions.mcp_name_conflict", `MCP 名称重复：${name}`);
+        }
+        throw error;
+      }
+      if (view && toolName(view) === name && (!reference.provider_id || view.provider.provider_id === reference.provider_id)) {
+        return view;
+      }
+      if (!view) return undefined;
     }
     return (await catalog(caller)).get(name);
   };

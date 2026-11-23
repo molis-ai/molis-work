@@ -7,6 +7,7 @@ import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-p
 import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, type BriefSaved } from "@molis-ai/molis-work-plugin-work-brief";
 import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { person } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -175,6 +176,39 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   await evaluate("document.querySelector('#wb-next').scrollIntoView({ block: 'start' })");
   await noOverflow();
   await screenshot("next");
+
+  // An older page still offers "later" after a second entry executed the same card.
+  const current = (await call<BriefSaved>(workBriefActions.get, {})).version!;
+  const fresh = await call<BriefSaved>(workBriefActions.save, { request_id: `conflict-${width}`, brief_id: first.brief.brief_id,
+    base_version: current.version, draft: { ...draft(""), claims: current.claims.map(claim => ({ claim_id: claim.claim_id, text: claim.text,
+      supplied_by: claim.supplied_by, cites: claim.cites.map(cite => cite.subject) })) } });
+  const freshStep = fresh.version!.next[0]!.option_id, step = { brief_id: first.brief.brief_id, option_id: freshStep };
+  await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { capability_id: "work-brief.briefs.save" } }))`);
+  await waitFor(has(act("skip-next", freshStep)));
+  await click(act("skip-next", freshStep));
+  await waitFor(has(act("undo-next", freshStep)));
+  await click(act("undo-next", freshStep));
+  await waitFor(has(act("skip-next", freshStep)));
+  await call(workBriefActions.runNext, step);
+  await click(act("skip-next", freshStep));
+  await waitFor(`document.querySelector('.wb-toasts').textContent.includes('已重新读取') && !${has(act("skip-next", freshStep))}`);
+  assert.doesNotMatch((await words(".wb-toasts")).join(""), /已放下/);
+  assert.ok((await call<{ marks: { option_id: string; state: string }[] }>(workBriefActions.get, {})).marks.some(mark => mark.option_id === freshStep && mark.state === "done"));
+
+  // The old action's persisted card identifies the interrupted step even after its version was replaced.
+  const old = first.version!.next[0]!;
+  assert.equal(old.act.kind, "card");
+  const db = openSqliteConnection(homeSqlitePath(browser.homeDirectory, "work-brief"));
+  try {
+    db.prepare("INSERT INTO brief_next_marks(brief_id,option_id,state,card_json,actor_id,at) VALUES(?,?,'running',?,?,?)")
+      .run(step.brief_id, old.option_id, JSON.stringify(old.act.card), me.actor_id, new Date().toISOString());
+  } finally { db.close(); }
+  await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { capability_id: "work-brief.briefs.save" } }))`);
+  await waitFor(has(act("undo-next", old.option_id)));
+  assert.equal(await evaluate(`Boolean(${has(act("run-next", old.option_id))})`), false);
+  await click(act("undo-next", old.option_id));
+  await waitFor(`!${has(act("undo-next", old.option_id))}`);
+  assert.ok(!(await call<{ marks: { option_id: string }[] }>(workBriefActions.get, {})).marks.some(mark => mark.option_id === old.option_id));
 
   // WBR-24 the person's own items across projects, each saying where it is from.
   await click(act("mode", "personal"));

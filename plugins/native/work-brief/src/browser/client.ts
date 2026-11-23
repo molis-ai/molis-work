@@ -68,7 +68,7 @@ async function write<O>(page: BriefPage, capability: string, input: Record<strin
     page.toast(text("conflict.reread"), true);
     await loadHead(page, { quiet: true });
     return null;
-  } finally { page.state.busy = ""; }
+  } finally { page.state.busy = ""; page.render(); }
 }
 
 const briefOf = (page: BriefPage) => page.state.head?.brief ?? null;
@@ -134,7 +134,8 @@ async function fix(page: BriefPage, version: number): Promise<void> {
 /** A next step: run the prepared action as the person, set it aside, take that back, or hand it to the Assistant with the brief it is from. */
 async function nextStep(page: BriefPage, action: string, optionId: string): Promise<void> {
   const head = page.state.head, brief = head?.brief, option = head?.version?.next.find(entry => entry.option_id === optionId);
-  if (!brief || !option) return;
+  if (!brief) return;
+  if (!option && (action !== "undo-next" || !head.marks.some(mark => mark.option_id === optionId && mark.state === "unknown"))) return;
   const input = { brief_id: brief.brief_id, option_id: optionId };
   if (action === "run-next") {
     page.state.busy = "write";
@@ -145,7 +146,7 @@ async function nextStep(page: BriefPage, action: string, optionId: string): Prom
     } finally { page.state.busy = ""; await loadHead(page, { quiet: true }); }
     return;
   }
-  if (action === "hand-next") {
+  if (action === "hand-next" && option) {
     const answer = await write(page, "work-brief.next.set", { ...input, state: "handed" });
     // A conflict means the brief moved under this page and the mark was not written; the shell must not delegate the old step.
     if (!answer) return;
@@ -154,7 +155,7 @@ async function nextStep(page: BriefPage, action: string, optionId: string): Prom
       object: { kind: "brief", id: brief.brief_id, title: brief.title || text("page.title"), version: head.version?.version ?? null }, text: `${option.text}\n${option.why}` } }));
     page.toast(text("next.handed-toast"));
   } else {
-    await write(page, "work-brief.next.set", { ...input, state: action === "skip-next" ? "later" : null });
+    if (!await write(page, "work-brief.next.set", { ...input, state: action === "skip-next" ? "later" : null })) return;
     if (action === "skip-next") page.toast(text("next.skipped-toast"));
   }
   await loadHead(page, { quiet: true });

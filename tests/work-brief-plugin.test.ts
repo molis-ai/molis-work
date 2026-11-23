@@ -451,3 +451,54 @@ test("WBR-03 a basis that is gone keeps the gone gap and withholds its title, th
   const back = await call<BriefView>(workBriefActions.get, {});
   assert.deepEqual([back.version!.claims[0]!.cites[0]!.gap, back.version!.claims[0]!.cites[0]!.title], [undefined, "探针"]);
 });
+
+test("WBR-07 clear an interrupted step after replacement and reopen, then retry the same inbound write", { timeout: 90_000 }, async t => {
+  const { call, caller, here, host, change, open, f } = await fixture(t);
+  const other = await open("另一个项目");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let calls = 0;
+  const probe = { ...riskActions.addNote, capability_id: "probe.step.run",
+    action: { ...riskActions.addNote.action, subject_kinds: [], scheduling: "concurrent" as const } };
+  t.after(host.actionRegistry(here.reference).registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system", project_id: here.project_id },
+    definitions: [probe], handlers: [{ ...probe, handle: async ctx => {
+      calls++;
+      entered.resolve();
+      await release.promise;
+      await ctx.beforeEffect();
+      throw new Error("cancelled step reached its effect");
+    } }] }));
+  const claims = [{ text: "审阅", supplied_by: "owner" }];
+  const first = await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims, next: [{ text: "核对记录", why: "待核实",
+    act: { kind: "action", reference: { ...ref(probe), provider_id: "probe" }, input: { risk_id: "r1", text: "进度" } } }] } });
+  const brief_id = first.brief.brief_id, option_id = first.version!.next[0]!.option_id, step = { brief_id, option_id };
+  const abort = new AbortController();
+  const run = code(call(workBriefActions.runNext, step, { ...caller, signal: abort.signal }));
+  await entered.promise;
+  try {
+    assert.equal(await code(call(workBriefActions.runNext, step)), "work_brief.option_stale");
+    assert.equal(await code(call(workBriefActions.setNext, { ...step, state: null })), "work_brief.conflict");
+  } finally { abort.abort(); release.resolve(); }
+  await run;
+  await call(workBriefActions.save, { request_id: once(), brief_id, base_version: 1, draft: { claims, next: [] } });
+  await change("DELETE", "work-brief");
+  await change("POST", "work-brief");
+  const view = await call<BriefView>(workBriefActions.get, { brief_id });
+  assert.deepEqual(view.version!.next, []);
+  assert.deepEqual(view.marks.map(mark => [mark.option_id, mark.state]), [[option_id, "unknown"]]);
+  await assert.rejects(other.call(workBriefActions.get, { brief_id }), { code: "work_brief.not_found" });
+  await assert.rejects(other.call(workBriefActions.setNext, { ...step, state: null }), { code: "work_brief.not_found" });
+  const db = openSqliteConnection(homeSqlitePath(f.home, "work-brief"));
+  try {
+    const { briefCollection } = await import("../plugins/native/work-brief/dist/replication.js");
+    const owner = briefCollection.create(db, { actorId: caller.actor_id, spaceId: "test-space", authorize() {},
+      canUploadProject: () => true, hasArtifact: () => true, project: () => ({ title: "项目" }) });
+    const key = JSON.stringify([here.project_id, "brief", brief_id]), value = owner.read(key);
+    assert.ok(value);
+    assert.throws(() => owner.apply(key, value), { code: "work_brief.conflict" });
+    assert.equal(await code(call(workBriefActions.runNext, step)), "work_brief.option_stale");
+    await call(workBriefActions.setNext, { ...step, state: null });
+    owner.apply(key, value);
+    assert.deepEqual((await call<BriefView>(workBriefActions.get, { brief_id })).marks, []);
+    assert.equal(calls, 1);
+  } finally { db.close(); }
+});

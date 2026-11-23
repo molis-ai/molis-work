@@ -9,32 +9,34 @@ const ELLIPSIS = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
 
 const SHEET = `
 /* Decision 66: Personal Space pinned at top of left column in top-corner switcher. */
-.top-corner-personal{display:flex;align-items:center;gap:8px;width:100%;height:32px;box-sizing:border-box;padding:0 8px;margin-bottom:6px;border-radius:8px;color:var(--ink);font-size:13px;font-weight:500;text-decoration:none;transition:background-color ${HOVER}}
+.top-corner-personal{flex:none;display:flex;align-items:center;gap:8px;width:100%;min-height:32px;box-sizing:border-box;padding:0 8px;margin-bottom:6px;border-radius:8px;color:var(--ink);font-size:13px;font-weight:500;text-decoration:none;transition:background-color ${HOVER}}
 .top-corner-personal:hover{background:var(--nav-hover)}
 .top-corner-personal[aria-current="page"]{background:var(--nav-active)}
 .top-corner-personal>svg{flex:none;width:14px;height:14px;color:var(--accent)}
 .top-corner-personal>span{flex:1;min-width:0;${ELLIPSIS}}
-.top-corner-sep{height:1px;margin:0 4px 6px;background:var(--line)}
+.top-corner-sep{flex:none;height:1px;margin:0 4px 6px;background:var(--line)}
 .top-corner-item-ring{flex:none;display:inline-flex;align-items:center}
 .top-corner-item-ring[hidden]{display:none}
 .top-corner-item-dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .top-corner-item-dot[data-waiting="true"]{background:var(--amber)}
 .top-corner-item-dot[data-state="missing"],.top-corner-item-dot[data-state="denied"]{background:var(--muted)}
 
-/* Keep 480px total width matching top-strip.ts (200+280) so open popover never covers project-home h1 (POLISH-62). */
-html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{grid-template-columns:192px 288px;max-height:min(580px,calc(100dvh - 80px))}
+/* Keep 480px total width matching top-strip.ts (200+280) so open popover never covers project-home h1 (POLISH-62),
+   fixed desktop height so 「项目主页」, 「项目设置」, and 「全部项目」 never jump on async refresh, and >=32px desktop floor. */
+html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{grid-template-columns:192px 288px;height:min(460px,calc(100dvh - 80px));max-height:min(580px,calc(100dvh - 80px))}
+html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list :is(button,a[href],input){min-height:32px;min-width:32px;box-sizing:border-box}
 html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-right{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:8px}
 .top-corner-pages{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
 .top-corner-pages[hidden]{display:none}
 .top-corner-mainline{display:flex;flex-direction:column;gap:6px;min-height:0;flex:1 1 auto}
 .ml-search-wrap{flex:none;position:relative;display:flex;align-items:center}
 .ml-search-wrap>svg{position:absolute;left:9px;width:13px;height:13px;color:var(--muted);pointer-events:none}
-.ml-search-input{width:100%;height:30px;padding:0 10px 0 28px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:12px;box-sizing:border-box}
+.ml-search-input{width:100%;height:32px;padding:0 10px 0 28px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:12px;box-sizing:border-box}
 .ml-search-input:focus-visible{outline:var(--focus-stroke);outline-offset:-1px}
 .ml-scroll{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px}
 .ml-section-label{margin:6px 8px 2px;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:.02em}
 .ml-group{display:flex;flex-direction:column;gap:1px}
-.ml-group-head{display:flex;align-items:center;gap:6px;width:100%;height:28px;padding:0 6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-align:left;transition:background-color ${HOVER},color ${HOVER}}
+.ml-group-head{display:flex;align-items:center;gap:6px;width:100%;min-height:32px;padding:0 6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-align:left;transition:background-color ${HOVER},color ${HOVER}}
 .ml-group-head:hover{background:var(--nav-hover);color:var(--ink)}
 .ml-group-head>svg{flex:none;width:12px;height:12px;transition:transform ${HOVER}}
 .ml-group-head[aria-expanded="true"]>svg{transform:rotate(90deg)}
@@ -54,7 +56,7 @@ html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-right{d
 .ml-item-acts{flex:none;display:inline-flex;align-items:center;gap:2px;padding-right:4px;opacity:0;transition:opacity ${HOVER}}
 .ml-item-row:hover .ml-item-acts,.ml-item-row:focus-within .ml-item-acts,.ml-item-row[data-state="missing"] .ml-item-acts,.ml-item-row[data-state="denied"] .ml-item-acts{opacity:1}
 @media (hover:none),(pointer:coarse){.ml-item-acts{opacity:1}}
-.ml-icon-btn{display:inline-grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
+.ml-icon-btn{display:inline-grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .ml-icon-btn:hover{background:var(--control-fill);color:var(--ink)}
 .ml-icon-btn>svg{width:13px;height:13px}
 .ml-empty{display:flex;flex-direction:column;gap:8px;padding:12px 10px;border-radius:10px;background:var(--desk);border:1px solid var(--line)}
@@ -64,17 +66,18 @@ html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-right{d
 .ml-example-card{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:8px;border:1px dashed var(--line-strong);background:var(--paper)}
 .ml-example-head{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink)}
 .ml-example-tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--r-tag,6px);background:var(--control-fill);color:var(--muted);font-size:11px}
-.ml-example-acts{display:flex;align-items:center;gap:6px}
+.ml-example-acts{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .ml-create-box{flex:none;display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
 .ml-create-form{display:flex;gap:6px;align-items:center}
-.ml-create-input{flex:1 1 auto;min-width:0;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:12px;box-sizing:border-box}
+.ml-create-input{flex:1 1 auto;min-width:0;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:12px;box-sizing:border-box}
 .ml-create-input:focus-visible{outline:var(--focus-stroke);outline-offset:-1px}
 .ml-source-chips{display:flex;flex-wrap:wrap;gap:4px}
-.ml-source-chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-tag,6px);background:var(--paper);color:var(--ink-soft);font:inherit;font-size:11px;cursor:pointer;transition:background-color ${HOVER},border-color ${HOVER},color ${HOVER}}
+.ml-source-chips[hidden]{display:none}
+.ml-source-chip{display:inline-flex;align-items:center;gap:4px;min-height:32px;min-width:32px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-tag,6px);background:var(--paper);color:var(--ink-soft);font:inherit;font-size:11px;cursor:pointer;transition:background-color ${HOVER},border-color ${HOVER},color ${HOVER}}
 .ml-source-chip:hover{background:var(--nav-hover);color:var(--ink);border-color:var(--line-strong)}
 .ml-source-chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .ml-foot-links{flex:none;display:flex;align-items:center;justify-content:space-between;gap:4px;padding-top:6px;border-top:1px solid var(--line)}
-.ml-foot-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;text-decoration:none;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
+.ml-foot-btn{display:inline-flex;align-items:center;gap:6px;min-height:32px;min-width:32px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;text-decoration:none;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .ml-foot-btn:hover{background:var(--nav-hover);color:var(--ink)}
 .ml-foot-btn>svg{width:13px;height:13px}
 .ml-no-match{margin:8px;font-size:12px;color:var(--muted)}
@@ -172,13 +175,16 @@ html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-right{d
 .work-item-pill>button:hover{background:var(--nav-hover);color:var(--ink)}
 .work-item-pill>button>svg{width:11px;height:11px}
 
-/* Mobile 390px bottom sheet & >=44px touch targets (MLN-19) */
-@media (max-width:760px){
-  html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{position:fixed;inset:auto 0 0 0;width:100vw;max-width:100vw;max-height:82dvh;border-radius:16px 16px 0 0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);z-index:90}
-  html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-projects{max-height:30dvh;border-right:0;border-bottom:1px solid var(--line)}
-  .top-corner-personal,.ml-group-head,.ml-item-pick,.ml-foot-btn,.ml-search-input,.ml-create-input{min-height:44px}
+/* Mobile 390px bottom sheet & >=44px touch targets (MLN-19, touch-targets) */
+@media (max-width:760px),(pointer:coarse){
+  html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list :is(button,a[href],input){min-height:44px;min-width:44px;box-sizing:border-box}
   .ml-icon-btn{width:44px;height:44px}
   .ml-item-acts{opacity:1}
+}
+@media (max-width:760px){
+  html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{position:fixed;inset:auto 0 0 0;width:100vw;max-width:100vw;height:auto;max-height:82dvh;border-radius:16px 16px 0 0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);z-index:90}
+  html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-projects{max-height:36dvh;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}
+  html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-projects :is(.top-corner-personal,.top-corner-project,.top-corner-manage){flex:none}
   .ml-item-page{padding:20px 16px 48px}
 }
 @media (max-width:540px){

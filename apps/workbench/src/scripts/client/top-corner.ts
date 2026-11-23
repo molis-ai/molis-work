@@ -20,11 +20,7 @@ export const TOP_CORNER_PART = `
     if (open) { setPicker(false); showPages(projectId); }
     cornerList.hidden = !open;
     cornerToggle.setAttribute('aria-expanded', String(open));
-    if (open) {
-      const target = cornerList.querySelector('[data-corner-pages]:not([hidden]) [data-mainline-search]')
-        || cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page');
-      target?.focus();
-    }
+    if (open) cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page')?.focus();
   };
   // Lit as the project home's tab while that page shows, and the home is the lit row of its list; under a cover (settings, the
   // market) nothing below is current.

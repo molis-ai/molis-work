@@ -1,7 +1,11 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createMainlineOrganizeDialog } from "./mainline-organize.js";
-import { renderMainlineSwitcherHtml } from "./mainline-switcher-render.js";
+import {
+  renderMainlineSourceChips,
+  renderMainlineSwitcherBody,
+  renderMainlineSwitcherShell,
+} from "./mainline-switcher-render.js";
 import {
   buildWorkItemSummaries,
   itemDisplayTitle,
@@ -9,6 +13,14 @@ import {
   type MainlineViewResponse,
   type WorkItemChangedDetail,
 } from "./mainline-types.js";
+
+const EMPTY_VIEW: MainlineViewResponse = {
+  mainline: { revision: "", current: null, items: [], groups: [], recent: [], completed: [], completed_total: 0 },
+  resolved: {},
+  counts: { items: {}, groups: {} },
+  sources: [],
+  task_items: {},
+};
 
 export interface MainlineSwitcherHost {
   readonly projectId: string;
@@ -56,7 +68,10 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   const DISMISSED_KEY = `molis.mainline.example-dismissed:${host.projectId}`;
   const settingsLink = slot.dataset.settingsHref || `/projects/${encodeURIComponent(host.projectId)}/settings`;
 
-  let view: MainlineViewResponse | null = null;
+  let view: MainlineViewResponse = EMPTY_VIEW;
+  let hydrated = false;
+  let lastBodyHtml = "";
+  let lastChipsHtml = "";
   let query = "";
   let selectedKind = "";
   let completedExpanded = false;
@@ -124,34 +139,57 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     document.dispatchEvent(new CustomEvent("molis-work:work-item-changed", { detail }));
   };
 
-  const paint = () => {
-    if (!view) return;
-    const active = document.activeElement;
-    const hadSearch = active?.matches?.("[data-mainline-search]");
-    const hadCreate = active?.matches?.("[data-mainline-create-input]");
-    const hadCornerHome = active?.matches?.("[data-corner-home]");
+  const renderState = () => ({
+    view,
+    query,
+    collapsedGroups,
+    completedExpanded,
+    exampleDismissed,
+    selectedKind,
+    settingsHref: settingsLink,
+  });
+
+  const syncHomeCurrent = () => {
+    const homeBtn = slot.querySelector<HTMLElement>("[data-corner-home]");
+    if (!homeBtn) return;
+    if (view.mainline.current === null && document.body.dataset.desktopSurface === "home") {
+      homeBtn.setAttribute("aria-current", "page");
+    } else {
+      homeBtn.removeAttribute("aria-current");
+    }
+  };
+
+  const mountShell = () => {
+    const state = renderState();
     const createVal = slot.querySelector<HTMLInputElement>("[data-mainline-create-input]")?.value ?? "";
-    const selStart = active instanceof HTMLInputElement ? active.selectionStart : null;
-    slot.innerHTML = renderMainlineSwitcherHtml({
-      view,
-      query,
-      collapsedGroups,
-      completedExpanded,
-      exampleDismissed,
-      selectedKind,
-      settingsHref: settingsLink,
-    });
+    slot.innerHTML = renderMainlineSwitcherShell(state);
+    lastBodyHtml = renderMainlineSwitcherBody(state);
+    lastChipsHtml = renderMainlineSourceChips(state);
     const nextCreate = slot.querySelector<HTMLInputElement>("[data-mainline-create-input]");
     if (nextCreate && createVal) nextCreate.value = createVal;
-    if (hadSearch) {
-      const nextSearch = slot.querySelector<HTMLInputElement>("[data-mainline-search]");
-      nextSearch?.focus({ preventScroll: true });
-      if (nextSearch && selStart !== null) nextSearch.setSelectionRange(selStart, selStart);
-    } else if (hadCreate && nextCreate) {
-      nextCreate.focus({ preventScroll: true });
-      if (selStart !== null) nextCreate.setSelectionRange(selStart, selStart);
-    } else if (hadCornerHome) {
-      slot.querySelector<HTMLElement>("[data-corner-home]")?.focus({ preventScroll: true });
+    syncHomeCurrent();
+    paintCornerTrigger(view);
+  };
+
+  const paint = () => {
+    const scrollEl = slot.querySelector<HTMLElement>("[data-ml-scroll]");
+    const chipsEl = slot.querySelector<HTMLElement>("[data-ml-source-chips]");
+    if (!scrollEl || !chipsEl) {
+      mountShell();
+      return;
+    }
+    syncHomeCurrent();
+    const state = renderState();
+    const nextBody = renderMainlineSwitcherBody(state);
+    if (nextBody !== lastBodyHtml) {
+      lastBodyHtml = nextBody;
+      scrollEl.innerHTML = nextBody;
+    }
+    const nextChips = renderMainlineSourceChips(state);
+    if (nextChips !== lastChipsHtml) {
+      lastChipsHtml = nextChips;
+      chipsEl.innerHTML = nextChips;
+      chipsEl.hidden = !nextChips;
     }
     paintCornerTrigger(view);
   };
@@ -162,6 +200,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       const prev = lastCurrent === undefined ? null : lastCurrent;
       const changed = lastCurrent !== undefined && lastCurrent !== next.mainline.current;
       view = next;
+      hydrated = true;
       if (selectedKind && !next.sources.some((s) => s.kind === selectedKind && s.create)) selectedKind = "";
       lastCurrent = next.mainline.current;
       paint();
@@ -173,8 +212,8 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   };
 
   const switchTo = async (itemId: string | null, originEl?: Element | null) => {
-    if (!view) await refresh(false);
-    const prev = view?.mainline.current ?? null;
+    if (!hydrated && itemId !== null) await refresh(false);
+    const prev = view.mainline.current;
     if (prev === itemId) {
       closeCorner();
       if (itemId === null) host.openHome();
@@ -408,17 +447,20 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     }
   });
 
-  document.addEventListener("molis-work:language-changed", () => paint());
-  document.addEventListener("molis-work:plugins-changed", () => { if (view) void refresh(true); });
-  window.addEventListener("molis:placement-changed", () => { if (view) void refresh(true); });
+  document.addEventListener("molis-work:language-changed", () => mountShell());
+  document.addEventListener("molis-work:plugins-changed", () => { if (hydrated) void refresh(true); });
+  window.addEventListener("molis:placement-changed", () => { if (hydrated) void refresh(true); });
+
+  // Mount the stable frame synchronously (zero network requests) so opening never shifts 「项目主页」, 「项目设置」, or 「全部项目」.
+  mountShell();
 
   // N53: ride the page's single `/api/attention` read on boot so projects with zero work items send zero extra HTTP requests until the person opens the switcher.
   let bootChecked = false;
   document.addEventListener("molis-work:attention", (event) => {
-    if (bootChecked || view) return;
+    if (bootChecked || hydrated) return;
     bootChecked = true;
     const summary = (event as CustomEvent<{ mainline_summary?: { has_items?: boolean; current?: string | null } }>).detail?.mainline_summary;
     if (!summary || summary.has_items || summary.current) void refresh(true);
   });
-  return { refresh, switchTo, openOrganize: () => organize.open(), current: () => view?.mainline.current ?? null };
+  return { refresh, switchTo, openOrganize: () => organize.open(), current: () => view.mainline.current };
 }

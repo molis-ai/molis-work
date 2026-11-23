@@ -107,47 +107,48 @@ function renderCompletedSection(state: SwitcherRenderState, needle: string): str
     + `<div class="ml-group-items"${expanded ? "" : " hidden"}>${rows}</div></section>`;
 }
 
-function renderCreateBox(state: SwitcherRenderState): string {
+export function renderMainlineSourceChips(state: Pick<SwitcherRenderState, "view" | "selectedKind">): string {
   const creatable = state.view.sources.filter((source) => source.create);
-  const chips = creatable.length
-    ? `<div class="ml-source-chips" data-ml-source-chips>${creatable.map((source) => {
-      const pressed = state.selectedKind === source.kind;
-      return `<button class="ml-source-chip" type="button" data-ml-create-kind="${e(source.kind)}" aria-pressed="${pressed}">${e(uiText.text("workbench.mainline.create-as", { kind: source.label }))}</button>`;
-    }).join("")}</div>`
+  return creatable.map((source) => {
+    const pressed = state.selectedKind === source.kind;
+    return `<button class="ml-source-chip" type="button" data-ml-create-kind="${e(source.kind)}" aria-pressed="${pressed}">${e(uiText.text("workbench.mainline.create-as", { kind: source.label }))}</button>`;
+  }).join("");
+}
+
+export function renderMainlineSwitcherBody(state: SwitcherRenderState): string {
+  const needle = state.query.trim().toLowerCase();
+  const hasItems = state.view.mainline.items.length > 0;
+  if (!hasItems && !needle) {
+    return renderEmptyState(state.exampleDismissed);
+  }
+  const doneSet = new Set(state.view.mainline.completed);
+  const recentIds = needle ? [] : state.view.mainline.recent.filter((id) => !doneSet.has(id)).slice(0, 3);
+  const recentHtml = recentIds.length
+    ? `<p class="ml-section-label">${e(uiText.text("workbench.mainline.recent"))}</p>`
+      + recentIds.map((id, idx) => renderItemRow(state.view, id, false, null, idx, recentIds.length, false)).join("")
     : "";
-  return `<div class="ml-create-box" data-ml-create-box>`
+  const groupsHtml = state.view.mainline.groups.map((group) => renderGroupSection(group, state, needle)).join("");
+  const doneHtml = renderCompletedSection(state, needle);
+  if (needle && !groupsHtml && !doneHtml) {
+    return `<p class="ml-no-match">${e(uiText.text("workbench.mainline.no-match"))}</p>`;
+  }
+  return recentHtml + groupsHtml + doneHtml;
+}
+
+/** Permanent switcher frame mounted once per locale so search, 「项目主页」, create input, and 「项目设置」 never shift or detach on refresh. */
+export function renderMainlineSwitcherShell(state: SwitcherRenderState): string {
+  const isHome = state.view.mainline.current === null;
+  const search = `<div class="ml-search-wrap">${icon("search")}<input class="ml-search-input" type="search" data-mainline-search value="${e(state.query)}" placeholder="${e(uiText.text("workbench.mainline.search-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.search-placeholder"))}" autocomplete="off"></div>`;
+  const homeRow = `<button class="top-corner-page" type="button" data-corner-home data-ml-pick-home${isHome ? ' aria-current="page"' : ""}>${icon("home")}<span>${e(uiText.text("workbench.settings-navigation.project-home"))}</span></button>`;
+  const chips = renderMainlineSourceChips(state);
+  const createBox = `<div class="ml-create-box" data-ml-create-box>`
     + `<form class="ml-create-form" data-ml-create-form>`
     + `<input class="ml-create-input" type="text" data-mainline-create-input maxlength="200" placeholder="${e(uiText.text("workbench.mainline.new-item-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.new-item"))}" autocomplete="off">`
     + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.create"), attrs: { type: "submit", "data-ml-create-submit": "" } })
-    + `</form>${chips}</div>`;
-}
-
-export function renderMainlineSwitcherHtml(state: SwitcherRenderState): string {
-  const needle = state.query.trim().toLowerCase();
-  const isHome = state.view.mainline.current === null;
-  const homeRow = `<button class="top-corner-page" type="button" data-corner-home data-ml-pick-home${isHome ? ' aria-current="page"' : ""}>${icon("home")}<span>${e(uiText.text("workbench.settings-navigation.project-home"))}</span></button>`;
-  const search = `<div class="ml-search-wrap">${icon("search")}<input class="ml-search-input" type="search" data-mainline-search value="${e(state.query)}" placeholder="${e(uiText.text("workbench.mainline.search-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.search-placeholder"))}" autocomplete="off"></div>`;
-  const hasItems = state.view.mainline.items.length > 0;
-  let body = "";
-  if (!hasItems && !needle) {
-    body = renderEmptyState(state.exampleDismissed);
-  } else {
-    const doneSet = new Set(state.view.mainline.completed);
-    const recentIds = needle ? [] : state.view.mainline.recent.filter((id) => !doneSet.has(id)).slice(0, 3);
-    const recentHtml = recentIds.length
-      ? `<p class="ml-section-label">${e(uiText.text("workbench.mainline.recent"))}</p>`
-        + recentIds.map((id, idx) => renderItemRow(state.view, id, false, null, idx, recentIds.length, false)).join("")
-      : "";
-    const groupsHtml = state.view.mainline.groups.map((group) => renderGroupSection(group, state, needle)).join("");
-    const doneHtml = renderCompletedSection(state, needle);
-    body = recentHtml + groupsHtml + doneHtml;
-    if (needle && !groupsHtml && !doneHtml) {
-      body = `<p class="ml-no-match">${e(uiText.text("workbench.mainline.no-match"))}</p>`;
-    }
-  }
+    + `</form><div class="ml-source-chips" data-ml-source-chips${chips ? "" : " hidden"}>${chips}</div></div>`;
   const foot = `<div class="ml-foot-links">`
     + `<button class="ml-foot-btn" type="button" data-mainline-organize-open>${icon("list")}<span>${e(uiText.text("workbench.mainline.organize"))}</span></button>`
     + `<a class="ml-foot-btn" href="${e(state.settingsHref)}" data-directory-open="project-settings">${icon("tune")}<span>${e(uiText.text("workbench.settings-navigation.project-settings"))}</span></a>`
     + `</div>`;
-  return `${search}${homeRow}<div class="ml-scroll" data-ml-scroll>${body}</div>${renderCreateBox(state)}${foot}`;
+  return `${search}${homeRow}<div class="ml-scroll" data-ml-scroll>${renderMainlineSwitcherBody(state)}</div>${createBox}${foot}`;
 }

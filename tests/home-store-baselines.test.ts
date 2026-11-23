@@ -196,7 +196,7 @@ test("RAR-02 held RO plugin-runtime reads reuse their handle, see live writes, a
   const file = join(home, "plugin-runtime", "plugin-runtime.db");
   const directory = join(home, "plugin-runtime");
   releaseHeldHomeSqlite(home);
-  const checkTamper = (mutate: () => void, expected: RegExp) => {
+  const checkTamper = (mutate: () => void, expected: RegExp | { code: string; message: RegExp }) => {
     const backup = readFileSync(file), spaceBackup = readFileSync(join(home, "storage-space.json"));
     try {
       mutate();
@@ -212,15 +212,15 @@ test("RAR-02 held RO plugin-runtime reads reuse their handle, see live writes, a
       writeFileSync(join(home, "storage-space.json"), spaceBackup);
     }
   };
-  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("CREATE TABLE unexpected (kept TEXT);"); } finally { db.close(); } }, /结构与当前基线不一致/u);
-  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("DROP TABLE plugin_private_values;"); } finally { db.close(); } }, /结构与当前基线不一致/u);
-  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version=99;"); } finally { db.close(); } }, /结构版本是 99/u);
+  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("CREATE TABLE unexpected (kept TEXT);"); } finally { db.close(); } }, { code: "actions.execution_failed", message: /结构与当前基线不一致/u });
+  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("DROP TABLE plugin_private_values;"); } finally { db.close(); } }, { code: "actions.execution_failed", message: /结构与当前基线不一致/u });
+  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version=99;"); } finally { db.close(); } }, { code: "storage.store_too_new", message: /结构版本是 99/u });
   checkTamper(() => {
     const other = ensureStorageSpace(join(root, "other-owner"));
     const db = new DatabaseSync(file);
     try { db.prepare("UPDATE molis_storage_space SET space_id=?, descriptor=?").run(other.spaceId, JSON.stringify(other)); } finally { db.close(); }
-  }, /有效归属/u);
-  checkTamper(() => { rmSync(join(home, "storage-space.json")); }, /有效归属/u);
+  }, { code: "actions.forbidden", message: /不属于当前空间/u });
+  checkTamper(() => { rmSync(join(home, "storage-space.json")); }, { code: "actions.forbidden", message: /不属于当前空间/u });
 });
 
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any

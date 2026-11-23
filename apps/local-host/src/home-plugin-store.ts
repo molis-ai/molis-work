@@ -17,6 +17,7 @@ const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, 
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
 const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前基线不一致，请保留故障库并检查其来源"));
+const foreignHomeStoreSpace = () => refusedHomeStore(new ActionError("actions.forbidden", "Home 插件运行库不属于当前空间"));
 function assertHomeStoreShape(db: Parameters<typeof assertSqliteBaselineShape>[0], home: string, withSpace = readDatabaseSpace(db) !== null): void {
   try { assertSqliteBaselineShape(db, homeSqlitePath(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path),
     HOME_PLUGIN_RUNTIME_BASELINE, { home, mode: "exact", includeSpace: withSpace }); }
@@ -27,7 +28,7 @@ function assertHomeStoreShape(db: Parameters<typeof assertSqliteBaselineShape>[0
 function namedOpenRefusal(error: unknown): unknown {
   if (isSqliteSchemaStructureMismatch(error)) return invalidHomeStoreShape();
   if (isSqliteVersionRefusal(error)) return refusedHomeStore(error);
-  if (error instanceof ActionError && error.code === "storage.space_ownership_mismatch") return refusedHomeStore(error);
+  if (error instanceof ActionError && error.code === "storage.space_ownership_mismatch") return foreignHomeStoreSpace();
   return error;
 }
 
@@ -63,7 +64,7 @@ export function openReadOnlyHomePluginStore(home: string) {
     if (!current) throw refusedHomeStore(sqliteVersionRefusal(file, 0, HOME_PLUGIN_RUNTIME_BASELINE.version, home));
     const bound = readDatabaseSpace(db);
     if (bound && JSON.stringify(bound) !== JSON.stringify(readStorageSpace(home))) {
-      throw refusedHomeStore(new ActionError("actions.forbidden", "Home 插件运行库不属于当前空间"));
+      throw foreignHomeStoreSpace();
     }
     assertHomeStoreShape(db, home, bound !== null);
     return db;

@@ -136,15 +136,29 @@ export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: str
   return false;
 }
 
-/** A baseline's expected shape, described once from its creation statements (the memory reference is not rebuilt per open). */
-const expectedShapes = new WeakMap<SqliteBaseline, { plain?: SqliteSchemaShape; withSpace?: SqliteSchemaShape }>();
-function expectedShape(baseline: SqliteBaseline, includeSpace = false): SqliteSchemaShape {
+/** A baseline's expected shape and declared triggers, described once from its creation statements (the memory reference is not rebuilt per open). */
+const expectedShapes = new WeakMap<SqliteBaseline, { plain?: SqliteSchemaShape; withSpace?: SqliteSchemaShape; triggers?: ReadonlyMap<string, string> }>();
+function describePlainBaseline(baseline: SqliteBaseline): { plain: SqliteSchemaShape; triggers: ReadonlyMap<string, string> } {
   let forms = expectedShapes.get(baseline);
   if (!forms) expectedShapes.set(baseline, forms = {});
-  const form = includeSpace ? "withSpace" : "plain";
-  let shape = forms[form];
-  if (!shape) forms[form] = shape = describeSqliteBaseline(includeSpace ? { ...baseline, schema: STORAGE_SPACE_SCHEMA_SQL + baseline.schema } : baseline);
-  return shape;
+  if (!forms.plain || !forms.triggers) {
+    const reference = new DatabaseSync(":memory:");
+    try {
+      reference.exec(baseline.schema);
+      forms.plain = describeSqliteSchema(reference);
+      forms.triggers = sqliteTriggers(reference);
+    } finally {
+      reference.close();
+    }
+  }
+  return { plain: forms.plain, triggers: forms.triggers };
+}
+function expectedShape(baseline: SqliteBaseline, includeSpace = false): SqliteSchemaShape {
+  if (!includeSpace) return describePlainBaseline(baseline).plain;
+  let forms = expectedShapes.get(baseline);
+  if (!forms) expectedShapes.set(baseline, forms = {});
+  if (!forms.withSpace) forms.withSpace = describeSqliteBaseline({ ...baseline, schema: STORAGE_SPACE_SCHEMA_SQL + baseline.schema });
+  return forms.withSpace;
 }
 
 /**
@@ -152,11 +166,8 @@ function expectedShape(baseline: SqliteBaseline, includeSpace = false): SqliteSc
  * are a plugin's own (a project library gets the built-in plugins' tables on top of the platform baseline), so they are not a mismatch;
  * a baseline table that changed or disappeared is.
  */
-const expectedTriggers = new WeakMap<SqliteBaseline, ReadonlyMap<string,string>>();
-function baselineTriggers(baseline: SqliteBaseline): ReadonlyMap<string,string> {
-  let result=expectedTriggers.get(baseline);
-  if(!result){const reference=new DatabaseSync(':memory:');try{reference.exec(baseline.schema);result=sqliteTriggers(reference);expectedTriggers.set(baseline,result);}finally{reference.close();}}
-  return result;
+function baselineTriggers(baseline: SqliteBaseline): ReadonlyMap<string, string> {
+  return describePlainBaseline(baseline).triggers;
 }
 function sqliteTriggers(db: SqliteBaselineDatabase): ReadonlyMap<string,string> {
   return new Map((db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all() as {name:string;sql:string}[]).map(row=>[row.name,row.sql.trim()]));

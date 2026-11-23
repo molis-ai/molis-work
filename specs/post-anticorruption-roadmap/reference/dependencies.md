@@ -596,7 +596,7 @@ flowchart LR
 | --- | --- | --- |
 | `44B-0` | 无前置，立即可单独切安全小 PR：全局保留 `io.molis.work.` 前缀（`S-reserved-host-prefix`）与修两处第三方正则 | [44B](batches/44b.md#batch-44b-item-0) |
 | `44B` | 等 `44B-0` 与在途 `#2239`/`#2258`/`#2253`～`#2255`/`#2257`/`#2250`/`#2260`：Shelf 收归纯平台 `modules/shelf`（`always_on=0`、免重写 3,150 行 Rust）、删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 拍平、官方集成驱动化（`youtube`→`rss`、`planning-methods`→`packages/system-skills/`）、修 `#2231` Inbox 劫持、上线 G1 | [44B](batches/44b.md) |
-| `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/标识符白名单 `overview_projection`、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
+| `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/平台定格式总览表 `overview_projection`（到期提醒从中取）、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
 | `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `project_rows`、跨库 `artifact_join` 与复用器 | [107](batches/107.md) |
 | `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `scope:"home"`/`personal:true`/`hidden`/`project_reach` | [108](batches/108.md) |
 | `109`（UPP-B3） | 等 `108`：主库插件删 `project_id`，Workspace Git+Writers 迁 `plugins/native/git`（D6=B，`S-git-plugin-command-scope`，保留 `#2244` 隔离），沙箱开放 `databases.partition`，彻底删 `dual_instance` 与旧平行装配（G2/G3） | [109](batches/109.md) |

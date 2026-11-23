@@ -45,7 +45,7 @@
 
 ```mermaid
 flowchart LR
-  INFLIGHT["在途已实装 PR<br/>#2239 #2245 #2250 #2252~#2260"] --> B44B["44B 特殊逻辑平民化<br/>(含 Shelf 纯平台 + 删 Alchemist)"]
+  INFLIGHT["在途待合 PR<br/>#2239 #2245 #2250 #2252~#2260"] --> B44B["44B 特殊逻辑平民化<br/>(含 Shelf 纯平台 + 删 Alchemist)"]
   B44B0["44B-0 P0 安全补洞<br/>(保留 io.molis.work. 前缀)"] --> B44B
   B910C["91-0c (#2259)<br/>统一列表-详情容器<br/>(可并行/前置)"] -.-> B91B
   B44B --> B106["106 (UPP-A)<br/>统一分区底座<br/>(只加不删)"]
@@ -65,14 +65,14 @@ flowchart LR
 | 在途 PR / 已合入批 | 已有成果或改动 | 本方案消费与保护方式 |
 |---|---|---|
 | `#2239`（第 47 批） | 创作台迁入 `horizontal/plugin-studio`，引入 `HostSurfaceRegistration` | `44B` 直接复用 `HostSurfaceRegistration` 承载 `system.shelf`、`system.artifacts`、`system.characters`、`system.sessions`，并将残留 `agent-host/adapters/plugin-builder.ts` 迁入 `horizontal/plugin-studio` |
-| `#2258`（第 44 批独立复核） | 已实装共享样式 250+ `.mw-*` 泛化 + 永久门禁 `findSharedStylePluginSelectors`、Goals `demo-seed` 迁回、`WORK_PROGRESS_CONTINUITY_PROTOCOL`、兄弟插件可选 `goals:*`、画框泛化 | **`44B` 消费其全部成果，不重复改写**；仅核验并补齐 `#2258` 未覆盖的剩余平台点名（Shelf、Alchemist、连接器、来源拉取、合同命名等） |
+| `#2258`（第 44 批独立复核，在途待合） | 共享样式 250+ `.mw-*` 泛化 + 永久门禁 `findSharedStylePluginSelectors`、Goals `demo-seed` 迁回、`WORK_PROGRESS_CONTINUITY_PROTOCOL`、兄弟插件可选 `goals:*`、画框泛化 | **`44B` 消费其全部成果，不重复改写**；仅核验并补齐 `#2258` 未覆盖的剩余平台点名（Shelf、Alchemist、连接器、来源拉取、合同命名等） |
 | `#2259`（决定 64/65） | 增设 `91-0c` 统一列表-详情容器 `.mw-stage-list-detail`、删 7 处外壳插件名分支 | 允许 `91-0c` 与 `44B` 并行/前置；本方案使用**决定 66** 避让 64/65；`91-2..4` 与 `91B` 排在 `111` 之后 |
 | `#2231`（已合入） | 新增 6 项平台个人配置同步（`personal-config-sync.ts`、`platform-sync-catalog.ts`） | `44B` 修复 `platform-sync-catalog.ts` 借用 `io.molis.work.inbox` 导致拔掉 Inbox 崩盘的缺陷，并将 5 项伪插件 id 改为纯平台 `SyncSelection`；`106` 的 `horizontal/person-settings` 直接复用 `personalConfigReplica` + `assertPortableConfig` |
 | `#2253` / `#2254` / `#2255` | RO/RW 池、静息读数持久化、`discoverOne` 热路径 | 先合入主干；`106`/`108` 的 `overview_projection` 平滑替代 `#2254` 过渡静息读数；保留 `#2253` 只读并发池与 `#2255` 单查热路径 |
 | `#2257`（Feed 精准唤醒） | 交替一次性槽位（`sources` / `sources:next`）取代 30 秒轮询 | `106` 平台到期登记（`horizontal/scheduler`）沿用同一无空窗单次触发槽位模型 |
 | `#2250`（记忆同场景双插件） | `MemorySessionTarget` 精确 `(project_id, plugin_id, provider_id)` | `106`～`110` 保持该精确绑定合同，仅区分「本人级」与「个人空间分区」 |
 | `#2260`（M1-B3 同步回归） | 验证 100 MB R2 配额与 4 MiB/1 MiB 分片 | `110`～`111` 保持相同物理/逻辑分片与配额边界，`push_superseded` 仅同步最近 1 版（V3） |
-| 已合入第 `95-3` 批（`#2151`） | 错过执行从 `due_at` 起保留 7 天自动跳过 | **`106`/`108` 的 `overview_projection` 必须保留 7 天漏跑过期语义** |
+| 已合入第 `95-3` 批（`#2151`） | 错过执行从 `due_at` 起保留 7 天自动跳过 | **7 天漏跑过期语义归 `106` 的平台到期登记**（V11，不归总览索引） |
 | 已合入第 `99` 批（`#2207`/`#2244`） | `recovery-actions.ts:119` 子任务整合审查按 `install_id` 隔离 | **`109` 泛化开放审查种类时必须保留 `install_id` 隔离断言** |
 
 ---
@@ -90,10 +90,10 @@ flowchart LR
 5. **Clean v1 直接拍平（D2 + D5 + U13）**：直接删除旧 `plugins/native/alchemist`、其 6 个宿主文件、`contracts/modules/alchemist.ts`、`home-stores.ts` 条目与 `better-sqlite3` 豁免；D5 的存储表与事件改中性名直接按 Clean v1 拍平（`same-version-exceptions.json` + 重生 `0.1.0` 金样，零过渡升级段），仅冻结 macOS 钥匙串服务名 `com.molis.work.feed.secretstore`。
 
 ### 3.2 `106`～`111`：统一工作分区关键约束
-1. **声明式 `overview_projection` 零注入围栏**：Manifest 仅允许申报合法标识符映射（`table`、`id_column`、`title_column`、`status_column?`、`due_at_column?`、`updated_at_column`、`deleted_at_column?`、`filter_column_equals?`，全部匹配 `^[a-z][a-z0-9_]*$` 并对照 `PRAGMA table_info` 核验），**严禁原始 SQL 或 WHERE 表达式**；平台仅以 `SQLITE_OPEN_READONLY` 参数化读取、由可信上下文盖章 `(partition_id, install_id)`、每分区每类设行数上限；同步拉取/恢复写进休眠分区时仅标 `dirty = 1`，打开总览时懒增量刷新脏分区（其余休眠分区零唤醒）。
+1. **总览表零注入围栏（V11 改）**：插件按平台定格式（待办/日程/通知/简报）在自己分区库里维护「总览表」，随业务写入同事务更新（SDK `overviewRows.upsert/remove` 帮手与校验，重复日程展开未来约 90 天并滚动续展）；Manifest 只声明 `overview_projection: { kinds }`，**不写列名映射、不写原始 SQL 或 WHERE 表达式**；平台仅以 `SQLITE_OPEN_READONLY` 读这张定格式表、由可信上下文盖章 `(partition_id, install_id)`、每分区每类设行数上限；同步拉取/恢复写进休眠分区时仅标 `dirty = 1`，打开总览时懒增量刷新脏分区（其余休眠分区零唤醒）；到期登记从总览表的提醒时间列取，同步来的提醒不漏响。
 2. **沙箱 1 MiB IPC 上限与大快照分片推送**：`packages/plugin-sandbox/src/runner.ts:27` 限制单帧 JSON IPC ≤ 1 MiB；当 `push.export` / `push.put` 快照大于 `256 KiB` 时，自动切换为 **Platform Blob Handle 分片传输**（走平台临时受控句柄，不经单帧 JSON）。
 3. **CAS 附件 GC 对副本与全部 `push_superseded` 的持有保护**：`material-original-files.ts` 与 `material-attachments.ts` 改为全分区存储（清零 `project_id = ""`）；每次 Push 写入副本或产生 `push_superseded` 旧版时，平台在目标分区的 `attachments` 引用账本中登记全部关联 `sha256`；只有当副本被删且用户在副本历史里手动删除对应 `push_superseded` 旧版（`R19`）后，才释放该引用，确保 CAS GC 永不误删可恢复版本的附件。
-4. **Workspace Git 迁入 `plugins/native/git`（`109` / D6=B）**：将 `apps/local-host/src/workspace-git*.ts`、`projects.workspace.writers.*`（并行 worktree 与整合审查）、`packages/plugin-sdk/src/git-porcelain.ts` 及 `git.*` 整体迁入 `plugins/native/git`；平台仅向宿主信任签名包开放**受限 argv-only VCS 执行服务**（固定 `git` 二进制白名单、严格禁锢在当前分区工作目录树内、禁止 shell 解析与自定义钩子路径注入，登记安全不变量 `S-git-plugin-command-scope`）；Coding 与 Diff 声明对 Git 的**可选依赖**，Git 未启用时 Coding 自动降级为单工作区串行写、Diff 降级为文件系统对比或如实提示不可用。
+4. **Workspace Git 迁入 `plugins/native/git`（`109` / D6=B）**：将 `apps/local-host/src/workspace-git*.ts`、`projects.workspace.writers.*`（并行 worktree 与整合审查）、`packages/plugin-sdk/src/git-porcelain.ts` 及 `git.*` 整体迁入 `plugins/native/git`；平台仅向宿主信任签名包开放**受限 argv-only VCS 执行服务**（固定 `git` 二进制白名单、严格禁锢在当前分区工作目录树内、禁止 shell 解析与自定义钩子路径注入，登记安全不变量 `S-git-plugin-command-scope`）；Coding 声明 Git 为**随启用依赖**（`enable_with: true`，启用 Coding 时一并启用 Git，V9），允许单独移除 Git 并先提示影响（V10），移除后 Coding 降级为单工作区串行写；Diff 声明可选依赖，无 Git 时降级为文件系统对比或如实提示不可用。
 5. **不预记三步推送与补账（`111` / V2）**：Step 1 算号（`push_id = sha256("molis.push.v1", space_id, plugin_id, kind, source_id, target_project_id)`、`target_id`、`op_id`）+ 导出快照 + 读目标版本（零写）→ Step 2 `beforeEffect()` 复核 + 目标分区 `put` 与平台 `push_upstream` 同事务提交 → Step 3 个人空间写 `push_lineage` + `push_operations(outcome='settled')`。若 Step 2 与 Step 3 间中断，启动或打开个人空间时由平台按已提交 `push_upstream` 补记 `outcome='repaired'`（登记为 `S-push-ledger-repair`）。
 
 ---
@@ -119,3 +119,16 @@ flowchart LR
 - **中低冲突下游批次校准（28 批）**：`37`、`43`、`44`、`45`、`46`、`52`、`53`、`54`、`57`、`60`、`63`、`63a`、`65`、`66`、`71`、`75`、`76`、`77`、`78`、`83`、`84`、`85`、`86`、`89`、`104`。
 - **现役原需求书校准（20+ 份）**：`product-experience-polish`、`plugin-builder-upgrade`、`action-input-contracts`、`assistant-service-connections/service-matrix`、`personal-cloud-sync`、`sqlite-driver-switch`、`scene-and-page-contract`、`plugin-equal-standing`、`context-program`、`shell-page-exceptions`、`work-brief`、`coding-plugin`、`coding-harness-optimization`、`surface-composition`、`shared-sources-and-surfaces`、`intelligent-surfaces`、`upgrade-continuity`、`onboarding-coverage`、`proactive-assistant`、`work-line`、`plugin-platform-v2`、`state-machine-platform`、`capability-pack`、`skill-packs`、`page-client-lifecycle`。
 - **Backlog 合规收口**：退役 `BL-925`（记入 `docs/backlog-removed.md`），更新 `BL-377`、`BL-929`、`BL-525`、`BL-character-roles-sync`、`BL-shelf-admit-folder`、`BL-todo-home-presentation`、`BL-workbench-navigation-acceptance`、`BL-golden-coverage-uncovered`、`BL-955` 等关键条目归属，对代码未删前必须保留的条目仅注记清理批号（`44B`/`106`～`111`），确保 `doc-gates` 与 `builtin-plugin-assembly-gate` 零误伤。
+
+---
+
+## 6. 2026-11-23 补充拍板（V9～V15，详见[统一工作分区 §14.3](../unified-partition-plugins/spec.md)）
+
+- **V9／V10 Git 与 Coding**：写入调度整体随 Git 搬进 Git 插件；Coding 声明 Git 为随启用依赖（通用声明 `enable_with`），启用 Coding 时一并启用 Git；允许单独移除 Git，先提示「Coding 只能一次一个地改」。
+- **V11 总览表**：插件按平台定格式（待办/日程/通知/简报）在自己分区库里维护总览表，平台只读；到期提醒从中取，同步来的提醒不漏；写法进 `skills/molis-plugin-dev`、Manifest 说明与 SDK（`106`）。取代 3.2 第 1 条的「列名白名单映射」。
+- **V12 随手记分工**：Shelf 先放、右栏讨论 = 只有自己的群聊（与项目讨论同一套 IM）、Jelly 留存笔记与日程、Todo 要做的事、助理帮你做。
+- **V13 个人全局技能**：项目 AI 也能用；SRV-6 团队共享前在共享确认里写明。
+- **V14 排期**：照旧，`44B` → `106`～`111` 串行，下游等 `111`。
+- **V15 旧 Alchemist 本机数据**：`44B` 合入后弹窗确认再搬开开发机本机旧目录（不删）。
+- 另补：插件自有文件的推送路径、大快照句柄 `S-push-blob-handle`；`#2258` 等在途 PR 均为「待合前置」，不是已实装。
+

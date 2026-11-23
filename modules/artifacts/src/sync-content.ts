@@ -21,8 +21,10 @@ export function createArtifactSyncContent(spaceId:string):SyncContentCodec {
     encode(key,input){
       const {value,artifact,versions}=envelope(key,input);
       if(artifact.format!==ARTIFACT_INLINE_ENCODING.format)throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');
-      const needs=versions.some(v=>Buffer.byteLength(JSON.stringify(v.payload))>64*1024||v.artifact_type_id===IMPORTED_DOCUMENT_TYPE&&v.payload&&typeof v.payload==='object'&&'original_file' in v.payload);
-      if(!needs)return {value:input,blobs:[]};
+      const hasImportedOriginal=versions.some(version=>version.artifact_type_id===IMPORTED_DOCUMENT_TYPE
+        &&version.payload&&typeof version.payload==='object'&&'original_file' in version.payload);
+      const needsAttachments=Buffer.byteLength(JSON.stringify(value))>64*1024||hasImportedOriginal;
+      if(!needsAttachments)return {value:input,blobs:[]};
       const blobs=new Map<string,SyncBlobSource>();
       const add=(bytes:Uint8Array):SyncBlobReference=>{if(!bytes.byteLength||bytes.byteLength>100000000)throw artifactErrors['artifacts.artifact.content_invalid']('成果同步内容超出容量上限');const reference={digest:hash(bytes),size:bytes.byteLength};blobs.set(reference.digest,{...reference,bytes});return reference;};
       const projected=versions.map(version=>{

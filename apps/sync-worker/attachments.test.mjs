@@ -14,7 +14,7 @@ import {runtimeGoalSync,goalSyncSelection} from '../../tests/fixtures/runtime-go
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {cloudFixture} from './testing.mjs';
 
-test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WASM D1/R2',async t=>{
+test('AC-M1-08 PCSYNC-11/12/13 a large Goal fact unit restores atomically through 1 MiB logical slices in R2',async t=>{
   const f=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-large-goal-'));
   const runtimes=[],clients=[];t.after(async()=>{clients.forEach(client=>client.close());for(const runtime of runtimes)await runtime.close();rmSync(root,{recursive:true,force:true});});
   const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b','damaged'].map(n=>join(root,n));homes.forEach(home=>ensureStorageSpace(home,space));
@@ -51,7 +51,11 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
     client.close();assert.fail('Goal transfer did not finish within bounded resumed cycles');
   };
   a=await finish(a,homes[0]);assert.equal(a.status().error,null);
-  const row=await f.db.prepare('SELECT value,attachments FROM sync_events WHERE namespace=?').bind(syncNamespace(goalSyncSelection)).first();assert.equal(JSON.parse(row.value).value.format,2);assert.ok(Buffer.byteLength(row.value)<4096);assert.ok(JSON.parse(row.attachments).length>1);
+  const row=await f.db.prepare('SELECT value,attachments FROM sync_events WHERE namespace=?').bind(syncNamespace(goalSyncSelection)).first();assert.equal(JSON.parse(row.value).value.format,2);assert.ok(Buffer.byteLength(row.value)<4096);
+  const slices=JSON.parse(row.attachments),logicalSize=1024*1024;
+  assert.ok(slices.length>1);
+  assert.equal(slices.filter(slice=>slice.size<logicalSize).length,1);
+  assert.ok(slices.every(slice=>slice.size>0&&slice.size<=logicalSize));
   b=await finish(b,homes[1]);assert.equal(b.status().error,null);
   const target=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects()[0]);
   const read=path=>{const db=new LocalProjectDatabase(path);try{return boardSnapshot(db,project.project_id);}finally{db.close();}};
@@ -76,7 +80,7 @@ const reserve=(f,r,user='alice')=>f.call('/v1/blobs/reserve',user,{namespace:f.n
 const complete=(f,r,user='alice',manifest)=>f.call('/v1/blobs/complete',user,{namespace:f.namespace,digest:r.digest,...(manifest?{partsDigest:manifest}:{})});
 const put=(f,r,bytes,part=0,user='alice')=>f.transport('https://sync.example.test'+query(f,r,part),{method:'PUT',headers:{Authorization:'Bearer '+user},body:bytes});
 
-test('PCSYNC-09/10/11 actual 100 MB of private content fills the shared quota without seeded usage', {timeout:60000},async t=>{
+test('AC-M1-08 PCSYNC-09/10/11 actual 100 MB fills the shared quota and still allows catch-up and independent deletion', {timeout:60000},async t=>{
  const f=await cloudFixture(t);await f.enable();await f.enable('bob');
  const chunk=4*1024*1024,files=[];
  for(const fill of [71,72]){
@@ -94,12 +98,17 @@ test('PCSYNC-09/10/11 actual 100 MB of private content fills the shared quota wi
  assert.equal((await f.write('full:filler','filler',filler)).status,200);assert.equal((await f.write('full:filler','filler',filler)).status,200,'receipt replay at full quota remains idempotent');
  assert.equal((await(await f.call('/v1/quota')).json()).usedBytes,100000000);
  assert.equal((await reserve(f,ref(Buffer.from('one more')))).status,413);assert.equal((await f.write('full:refused','refused','x')).status,413);
+ const changes='/v1/changes?namespace='+encodeURIComponent(f.namespace);
+ const received=await(await f.call(changes+'&after=0')).json();
+ assert.deepEqual(received.events.map(event=>[event.key,event.value]),[['files',value],['filler',filler]]);
  for(const reference of files){
   const digest=createHash('sha256');let downloaded=0;
-  for(let part=0;part<Math.ceil(reference.size/chunk);part++){const response=await f.call(query(f,reference,part));assert.equal(response.status,200);const bytes=Buffer.from(await response.arrayBuffer());downloaded+=bytes.length;digest.update(bytes);}
+  for(let part=0;part<Math.ceil(reference.size/chunk);part++){const response=await f.call(query(f,reference,part));assert.equal(response.status,200);const bytes=Buffer.from(await response.arrayBuffer());assert.equal(bytes.length,Math.min(chunk,reference.size-part*chunk));downloaded+=bytes.length;digest.update(bytes);}
   assert.equal(downloaded,reference.size);assert.equal(digest.digest('hex'),reference.digest,'all real stored bytes remain downloadable at full quota');
  }
  assert.equal((await f.write('full:delete','files',null,{base:revision})).status,200);assert.equal((await(await f.call('/v1/quota')).json()).usedBytes,100000000,'soft deletion retains charged content');
+ const afterDelete=await(await f.call(changes+'&after='+received.events.at(-1).revision)).json();
+ assert.deepEqual(afterDelete.events.map(event=>[event.key,event.value]),[['files',null]]);
  assert.equal((await f.call(query(f,files[0]),'bob')).status,404);assert.equal((await(await f.call('/v1/quota','bob')).json()).usedBytes,0);assert.equal((await f.write('bob:own','own','ok',{user:'bob'})).status,200);
 });
 
@@ -132,7 +141,7 @@ test('PCSYNC-01/09/11/12 private R2 parts resume, reserve once, and require a co
   const objects=await f.bucket.list();assert.equal(objects.objects.length,2);assert.ok(objects.objects.every(o=>o.key.startsWith(f.space('alice')+'/')));
 });
 
-test('PCSYNC-09/10 reservations and record writes share one atomic 100 MB account ledger',async t=>{
+test('AC-M1-08 PCSYNC-09/10 reservations and record writes share one atomic 100 MB account ledger',async t=>{
   const f=await cloudFixture(t);await f.enable();
   await f.db.prepare('INSERT INTO sync_usage VALUES (?,?)').bind(f.space('alice'),99999995).run();
   const r=ref(Buffer.from('four'));
@@ -179,7 +188,29 @@ function artifactDevice(t,f,name,fetcher=f.transport){
   return {home,owner,replication,publish,make,replica};
 }
 
-test('PCSYNC-11/12/13 Artifact original bytes and large immutable bodies round-trip through real WASM D1/R2',async t=>{
+test('AC-M1-08 several small Artifact versions cross the aggregate limit and round-trip through R2',async t=>{
+  const f=await cloudFixture(t),a=artifactDevice(t,f,'aggregate-source'),b=artifactDevice(t,f,'aggregate-target');
+  const sender=a.make(),receiver=b.make();t.after(()=>{sender.close();receiver.close();});
+  const type='io.example.report';
+  const firstPayload={text:'甲'.repeat(12000)},secondPayload={text:'乙'.repeat(12000)};
+  assert.ok([firstPayload,secondPayload].every(payload=>Buffer.byteLength(JSON.stringify(payload))<64*1024));
+  a.publish(1,firstPayload,type);
+  await sender.save({spaceId:f.space('alice'),revision:0,selections:[f.selection]});
+  await sender.run();assert.equal(sender.status().error,null);
+  const inline=await f.db.prepare('SELECT value,attachments FROM sync_events ORDER BY revision DESC LIMIT 1').first();
+  assert.equal(JSON.parse(inline.value).artifact.format,1);
+  assert.deepEqual(JSON.parse(inline.attachments??'[]'),[]);
+
+  a.publish(2,secondPayload,type);
+  await sender.run();assert.equal(sender.status().error,null);
+  const attached=await f.db.prepare('SELECT value,attachments FROM sync_events ORDER BY revision DESC LIMIT 1').first();
+  assert.equal(JSON.parse(attached.value).artifact.format,2);
+  assert.deepEqual(JSON.parse(attached.attachments).map(({digest})=>digest).sort(),[hash(Buffer.from(JSON.stringify(firstPayload))),hash(Buffer.from(JSON.stringify(secondPayload)))].sort());
+  await receiver.run();assert.equal(receiver.status().error,null);
+  assert.deepEqual(b.replication.read('asset'),a.replication.read('asset'));
+});
+
+test('AC-M1-08 PCSYNC-11/12/13 Artifact original bytes and large immutable bodies round-trip through real WASM D1/R2',async t=>{
   const f=await cloudFixture(t);let fail=true,uploads=0;
   const transport=async(url,options)=>{const result=await f.transport(url,options);if(options?.method==='PUT'&&new URL(String(url)).pathname==='/v1/blobs/chunk'){uploads++;if(fail){fail=false;throw new Error('simulated lost upload response');}}return result;};
   const a=artifactDevice(t,f,'source',transport),b=artifactDevice(t,f,'target');

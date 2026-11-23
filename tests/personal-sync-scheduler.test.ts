@@ -6,9 +6,9 @@ import { feedManifest, FeedOutRuleStore } from "@molis-ai/molis-work-plugin-feed
 import { SourcesModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { personalSyncFixture } from "./fixtures/personal-sync-coordinator.js";
-import { runtimePersonalSync } from "./fixtures/runtime-personal-sync.js";
+import { runtimePersonalSync, syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
-test("D0347: received Feed and Schedule content stays disabled after Runtime restart and a scheduler wakeup", { timeout: 60_000 }, async t => {
+test("AC-M1-09 D0347: received Feed and Schedule content stays disabled after Runtime restart and a scheduler wakeup", { timeout: 60_000 }, async t => {
   const f = personalSyncFixture(t), previous = process.env.MOLIS_WORK_SYNC_LOCAL;
   process.env.MOLIS_WORK_SYNC_LOCAL = "1";
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SYNC_LOCAL; else process.env.MOLIS_WORK_SYNC_LOCAL = previous; });
@@ -70,4 +70,47 @@ test("D0347: received Feed and Schedule content stays disabled after Runtime res
     assertDisabled(runtime.store);
   }, { activatePlugins: true });
   assert.equal(requests.length, beforeRequests, "neither reopening nor the scheduler pulls received content before local opt-in");
+});
+
+test("AC-M1-09 remote updates and deletions cannot replace an enabled Schedule task before its job is bound", { timeout: 60_000 }, async t => {
+  const { source, target } = await syncOwnerPair(t, ["schedule"]);
+  const origin = new LocalProjectDatabase(source.project().database_path);
+  const destination = new LocalProjectDatabase(target.project().database_path);
+  t.after(() => { origin.close(); destination.close(); });
+  const timestamp = "2026-11-08T00:00:00.000Z";
+  const seed = (store: LocalProjectDatabase, title: string, enabled: number) => {
+    store.db.prepare(`INSERT INTO schedule_conversation_tasks
+      (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,created_at,updated_at)
+      VALUES ('unbound',?,'Read the project',9,0,1,?,0,0,NULL,?,?)`).run(title, enabled, timestamp, timestamp);
+    store.db.prepare(`INSERT INTO schedule_conversation_turns (turn_id,task_id,kind,text,important,created_at)
+      VALUES ('task-turn','unbound','user',?,0,?)`).run(title, timestamp);
+  };
+  seed(origin, "Remote edit", 0);
+  seed(destination, "Enabled locally", 1);
+  const sender = await source.bind(scheduleManifest.plugin_id);
+  const receiver = await target.bind(scheduleManifest.plugin_id);
+  const readLocal = () => [
+    destination.db.prepare<[], { enabled: number; job_id: string | null }>("SELECT * FROM schedule_conversation_tasks WHERE task_id='unbound'").get(),
+    destination.db.prepare<[], { text: string }>("SELECT * FROM schedule_conversation_turns WHERE task_id='unbound'").get(),
+  ] as const;
+  const local = readLocal();
+  assert.deepEqual([local[0]?.enabled, local[0]?.job_id, local[1]?.text], [1, null, "Enabled locally"]);
+  const delta = sender.withReplica(replica => replica.next());
+  assert.ok(delta?.value);
+  // Acknowledge the target's existing baseline so only the owner guard can refuse either incoming value.
+  receiver.withReplica(replica => {
+    const baseline = replica.next();
+    assert.ok(baseline);
+    replica.acknowledge(baseline.key, baseline.operationId, 1);
+  });
+  for (const [index, value] of [delta.value, null].entries()) {
+    const event = { ...delta, operationId: `remote-${index}`, base: index + 1, revision: index + 2, value };
+    await receiver.prepare(event);
+    receiver.withReplica(replica => {
+      replica.receive(event);
+      assert.equal(replica.conflicts().length, 1);
+      assert.throws(() => replica.resolve(delta.key, "remote"), /正在启用/);
+      assert.deepEqual(readLocal(), local);
+    });
+  }
 });

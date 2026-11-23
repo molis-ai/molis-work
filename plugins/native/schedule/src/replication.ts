@@ -90,8 +90,8 @@ export function scheduleCollection(projectId: string): PluginSyncCollectionDefin
     },
     apply(key, value) {
       const id = keyId(key);
-      const current = db.prepare("SELECT enabled,job_id FROM schedule_conversation_tasks WHERE task_id=?").get(id) as Row | undefined;
-      if (current?.enabled === 1 && current.job_id) {
+      const current = db.prepare("SELECT enabled FROM schedule_conversation_tasks WHERE task_id=?").get(id) as Row | undefined;
+      if (current?.enabled === 1) {
         throw syncError("busy", "本机定时任务正在启用，不能被远端记录覆盖");
       }
       if (value === null) {

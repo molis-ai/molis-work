@@ -35,7 +35,7 @@ function fixture(t: TestContext) {
   return { homes, stores, replicas, take, deliver, revision: () => ++revision };
 }
 
-test("workflow definitions and instance history transfer without handing execution authority to the target", t => {
+test("AC-M1-09 restored workflow history denies execution, stopping and saving in storage", t => {
   const f = fixture(t);
   const [a, b] = f.stores;
   const flow = a!.create({ project_id: "project", title: "写作流程", chain: {
@@ -110,7 +110,7 @@ test("workflow data is scoped to personal space and malformed payloads cannot re
     project: () => ({ title: "x" }), hasArtifact: () => true }), /空间/);
 });
 
-test("imported workflow history is blocked at the public continue action before downstream dispatch", async t => {
+test("AC-M1-09 public workflow continue and stop actions refuse imported history before downstream dispatch", async t => {
   const f = fixture(t), a = f.stores[0]!, b = f.stores[1]!;
   const flow = a.create({ project_id: "project", title: "仅供查看", chain: {
     stations: [newStation("pages"), newStation("inbox")], links: [manualLink()],
@@ -130,17 +130,21 @@ test("imported workflow history is blocked at the public continue action before 
     }),
     textModel: () => ({ available: false, reason: "No model in this test" }),
   };
-  const handler = createWorkflowsActionHandlers("project", ports)
-    .find(row => row.capability_id === workflowsActions.continue.capability_id);
-  assert.ok(handler);
-  await assert.rejects(
-    handler.handle({
-      actor_id: "alice", project_id: "project", audience: "user",
-      permissions: ["workflows:read", "workflows:write", "model:invoke"],
-      beforeEffect: async () => {},
-    } as never, { id: instance.instance_id }),
-    /仅可查看/,
-  );
+  const handlers = createWorkflowsActionHandlers("project", ports);
+  const before = b.instance(instance.instance_id, "project");
+  for (const action of [workflowsActions.continue, workflowsActions.stop]) {
+    const handler = handlers.find(row => row.capability_id === action.capability_id);
+    assert.ok(handler);
+    await assert.rejects(
+      handler.handle({
+        actor_id: "alice", project_id: "project", audience: "user",
+        permissions: ["workflows:read", "workflows:write", "model:invoke"],
+        beforeEffect: async () => {},
+      } as never, { id: instance.instance_id }),
+      /仅可查看/,
+    );
+    assert.deepEqual(b.instance(instance.instance_id, "project"), before);
+  }
   assert.equal(dispatched, 0, "the handler must not dispatch downstream");
 });
 

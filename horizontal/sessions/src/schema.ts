@@ -116,7 +116,7 @@ export const EXTERNAL_SESSIONS_BASELINE: SqliteBaseline = {
   );
 `,
   upgrades: [
-    // 1 → 2 (batch 103-2): subagent trajectories are recorded with their session and left out of the list. Every row so far is a session.
+    // 1 → 2: subagent trajectories are recorded with their session and left out of the list. Every row so far is a session.
     { from: 1, sql: "ALTER TABLE external_sessions ADD COLUMN subagent INTEGER NOT NULL DEFAULT 0;" },
   ],
 };

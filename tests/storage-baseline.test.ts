@@ -296,6 +296,7 @@ test("B103-02 a Home store holds separate RO and RW connections keyed by canonic
   const first = heldHomeSqlite(home, "notes", baseline, prepare);
   first.prepare("INSERT INTO notes VALUES ('a')").run();
   assert.equal(heldHomeSqlite(home, "notes", baseline, prepare), first, "the next RW borrower gets the same connection");
+  assert.equal(heldHomeSqlite(join(home, "."), "notes", baseline, prepare), first, "equivalent home path spellings share the same held connection");
   assert.equal(heldHomeSqlite(alias, "notes", baseline, prepare), first, "a symlinked Home path shares the same RW slot");
   assert.equal(heldHomeSqlite(join(home, ".", "..", basename(home)), "notes", baseline, prepare), first, "a non-normalized Home path shares the same RW slot");
   const reader = withHeldHomeSqlite(home, "notes", baseline, db => db, { prepare, existingOnly: true });

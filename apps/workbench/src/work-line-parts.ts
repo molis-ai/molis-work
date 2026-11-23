@@ -85,12 +85,15 @@ export const glyphOfEvent = (event: { readonly state: LineEventState; readonly s
 export function renderLineEvent(event: LineEventView): string {
   const attention = ATTENTION.has(event.state);
   // A state that asks for attention is a word on the row, not only a colour (WLN-17): it leads what the owner says of it.
-  const said = attention && event.note ? `${event.stateLabel} · ${event.note}` : event.note || event.stateLabel;
+  const title = plainLine(event.title);
+  const stateLabel = event.stateLabel ? plainLine(event.stateLabel) : "";
+  const note = event.note ? plainLine(event.note) : "";
+  const said = attention && note ? `${stateLabel} · ${note}` : note || stateLabel;
   const under = (event.suggestion ? [uiText.text("workbench.work-line.suggestion"), said] : [said, event.kind || event.owner.name]).filter(Boolean).join(" · ");
-  const label = [event.owner.name, event.kind, event.title, event.stateLabel, event.note].filter(Boolean).join(" · ");
+  const label = [event.owner.name, event.kind, title, stateLabel, note].filter(Boolean).join(" · ");
   const mark = event.state === "denied" ? icon("lock") : renderStateGlyph(glyphOfEvent(event));
   return `<button type="button" class="work-event" data-work-event="${escapeHtml(event.id)}" data-state="${event.state}"${attention ? " data-attn" : ""}${event.suggestion ? " data-suggestion" : ""}${event.fresh ? " data-fresh" : ""}${event.current ? ' aria-current="true"' : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
-    + `${mark}<span class="work-event-n">${text("work-event-name", event.title)}${under ? text("work-event-note", under) : ""}</span></button>`;
+    + `${mark}<span class="work-event-n">${text("work-event-name", title)}${under ? text("work-event-note", under) : ""}</span></button>`;
 }
 
 /** A source that could not be read stands beside the head as its own dashed item, never scrolled out of sight: the rest of the line is unaffected, and it can be tried again. */

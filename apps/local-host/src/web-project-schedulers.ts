@@ -12,7 +12,7 @@ import type { ResolvedWebBoardOptions, ProjectScheduleRuntime } from "./web-type
 import type { PeriodicTasks } from "./periodic-tasks.js";
 
 const ROUND_MS = 30_000;
-/** How long an open project nobody uses stays open (batch 103-1), as the Agent studio keeps its runtime (`STUDIO_IDLE_MS`). */
+/** How long an open project nobody uses stays open, as the Agent studio keeps its runtime (`STUDIO_IDLE_MS`). */
 const PROJECT_IDLE_MS = 10 * 60_000;
 
 /** One service timer over the Host's projects, independent of page visits: open ones are ticked, a closed one is opened when its clock has something due. */
@@ -28,8 +28,8 @@ export function startWebProjectSchedulers(options: {
   const { localHost, homeDirectory, withCatalog, fixture, changed } = options;
   const runtimes = new Map<string, ProjectScheduleRuntime>();
   const unbind = bindProjectSchedulers(localHost, { home: homeDirectory, runtimes, changed });
-  let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined;
-  // A project is opened for its schedules only when something in it is due (batch 103-1): when the Host started, every project with a
+  let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined, sleeping: Promise<void> | undefined;
+  // A project is opened for its schedules only when something in it is due: when the Host started, every project with a
   // database was opened before the first round and stayed open. What is due is read from the project's own clock table, read only and
   // without opening the project (`nextDueAt`), so the fact keeps one owner; a project already open is ticked as before.
   // A project that will not open is skipped: the ones after it still open and the round runs, and the next interval tries it
@@ -84,15 +84,23 @@ export function startWebProjectSchedulers(options: {
   type OpenProject = ReturnType<typeof localHost.projects>[number];
   const offerSleep = async (project: OpenProject) => {
     if (fixture || stopped || project.state !== "ready" || ticking.has(project.storage_key)) return;
+    const idleMs = options.idleMs ?? PROJECT_IDLE_MS;
+    const rest = localHost.projectRest?.(project.storage_key);
+    if (rest && (rest.state !== "open" || rest.usedAt === undefined || Date.now() - rest.usedAt < idleMs)) return;
     if (isDue(project.storage_key, new Date(Date.now() + 2 * ROUND_MS).toISOString())) return;
-    try { await localHost.sleepIfIdle(project, options.idleMs ?? PROJECT_IDLE_MS); }
+    try { await localHost.sleepIfIdle(project, idleMs); }
     catch (error) { if (!stopped) options.onError(error); }
   };
-  const sleepIdle = async () => {
-    for (const project of localHost.projects()) {
-      if (stopped) return;
-      await offerSleep(project);
-    }
+  const sleepIdle = () => {
+    if (sleeping) return sleeping;
+    const run = (async () => {
+      for (const project of localHost.projects()) {
+        if (stopped) return;
+        await offerSleep(project);
+      }
+    })().finally(() => { if (sleeping === run) sleeping = undefined; });
+    sleeping = run;
+    return run;
   };
   const round = () => runWithMolisWorkHome(homeDirectory, () => {
     for (const [databasePath, runtime] of runtimes) {
@@ -122,6 +130,7 @@ export function startWebProjectSchedulers(options: {
     stopped = true;
     cancel();
     await opening?.catch(() => undefined);
+    await sleeping?.catch(() => undefined);
     await unbind();
     await Promise.all([...inFlight]);
   })() };

@@ -1,6 +1,6 @@
 name: Visual audit
 
-# Full-screen multi-width / multi-surface VUX crawl tests (13 files from scripts/run-tests/strata.mjs).
+# Full-screen multi-width and multi-surface VUX crawl tests from scripts/run-tests/strata.mjs.
 # Separated from PR `full-suite.yml` runs so backend/non-UI PRs do not spend ~1.35 CPU-hr crawling every layout;
 # triggered automatically on UI/design/workbench/plugin-browser PRs, nightly on main, and manually on demand.
 

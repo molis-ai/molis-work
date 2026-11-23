@@ -49,7 +49,7 @@ export function renderTerminalPane(model: TerminalPaneModel): string {
           <div class="tui-owner-actions">
             ${selected?.status_html
               ? selected.status_html
-              : `<span class="goal-status" data-tui-owner-status hidden><span data-tui-owner-status-label></span></span>`}
+              : `<span class="mw-object-status" data-tui-owner-status hidden><span data-tui-owner-status-label></span></span>`}
             <button class="tui-focus-return" type="button" data-tui-focus-return>${icon("target")}<span>${uiText("workbench.pane.return-focus")}</span></button>
           </div>
         </div>

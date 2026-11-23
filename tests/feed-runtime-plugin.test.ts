@@ -147,7 +147,7 @@ async function platform(t: TestContext, options: { afterPlan?: () => Promise<voi
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     // A test of an account source has a Home of its own: the person's accounts and bindings live there, and the provider is the test's.
     // The Home holds the judgment ledger of the capture scene, and (with a provider) the person's accounts and bindings.
-    home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) },
+    home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores), capturePermission: () => () => {} },
     ...(options.provider ? { sourcePullIntegrations: () => homeIntegrationRegistry(home, (_integration, binding) => options.provider!(binding)) } : {}),
     ...(options.fetch ? { sourcePullFetch: options.fetch } : {}), ...(options.git ? { sourcePullGit: options.git } : {}),
     ...(options.clock ? { scheduler: scheduleServiceFor(store.db) } : {}) });
@@ -881,8 +881,9 @@ test("RAC-1038 Feed's Manifest declares what its actions, jobs and services use,
   const declared = feedManifest.permissions.map(item => item.permission);
   assert.equal(new Set(declared).size, declared.length, "no permission is listed twice");
   assert.deepEqual([...used].filter(permission => !declared.includes(permission)), [], "a permission an action, job or scene asks for is declared");
-  assert.deepEqual(feedManifest.permissions.filter(item => !item.required).map(item => item.permission), ["functions:manage"]);
-  assert.ok(feedManifest.permissions.filter(item => item.permission !== "functions:manage").every(item => item.required === true), "all collection, reading and ledger permissions remain required");
+  const optional = ["goals:read", "goals:write", "functions:manage"];
+  assert.deepEqual(feedManifest.permissions.filter(item => !item.required).map(item => item.permission), optional);
+  assert.ok(feedManifest.permissions.filter(item => !optional.includes(item.permission)).every(item => item.required === true), "all collection, reading and ledger permissions remain required");
   assert.equal(feedManifest.runtime?.scope, "home");
   assert.deepEqual(Object.keys(feedManifest.databases ?? {}).sort(), ["home", "project"]);
   const ledger = new Set(Object.values(feedContentLedgerActions).map(action => action.capability_id));

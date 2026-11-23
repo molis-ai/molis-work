@@ -232,7 +232,7 @@ test("collapsed desktop directory becomes a titlebar overlay above a full-width 
 test("Light desktop navigation and directory selections stay flat", () => {
   const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(VISUAL_FOUNDATION_STYLES, /Light location states stay embedded in their rail/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-tree-directory \.tree-entry\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
   assert.match(withPlugins, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
   // body.settings-page[data-desktop-shell="true"] never matches: every settings body renders data-desktop-shell="false". Its rules and the lines that asserted them went in W5-05 (desktop-shell dead selectors).
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings\[aria-current="page"\],[\s\S]*\.navigator-directory-toggle \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 7%, transparent\);[\s\S]*box-shadow: none;/);
@@ -333,9 +333,9 @@ test("visual foundation keeps the Goal navigator dense and relationships progres
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-relations > summary/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-relations\[open\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-dep-copy small \{[^}]*text-overflow: ellipsis/);
-  assert.match(withPlugins, /\.goal-status \{[^}]*--goal-status-tone: var\(--tone-idle\)/);
-  assert.match(withPlugins, /border: 1px solid color-mix\(in srgb, var\(--goal-status-tone\) 28%, var\(--line\)\)/);
-  assert.match(withPlugins, /\.goal-status--execution_blocked,[^{]*\{[^}]*--goal-status-tone: var\(--tone-blocked\)/);
+  assert.match(withPlugins, /\.mw-object-status \{[^}]*--mw-object-status-tone: var\(--tone-idle\)/);
+  assert.match(withPlugins, /border: 1px solid color-mix\(in srgb, var\(--mw-object-status-tone\) 28%, var\(--line\)\)/);
+  assert.match(withPlugins, /\.goal-status--execution_blocked,[^{]*\{[^}]*--mw-object-status-tone: var\(--tone-blocked\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.navigator-project-settings \{[\s\S]*width: 28px;[\s\S]*place-items: center/);
   assert.match(VISUAL_FOUNDATION_STYLES, /grid-template-rows: auto auto minmax\(0, 1fr\) 42px/);
 });
@@ -349,7 +349,7 @@ test("expanded desktop Goal Tree parents compact without hiding dependency metad
   // the page check every <strong>).
   assert.match(
     VISUAL_FOUNDATION_STYLES,
-    /\.desktop-goal-directory \.tree-title-line strong \{[^}]*text-overflow: var\(--tree-title-overflow, clip\);[^}]*white-space: var\(--tree-title-space, normal\);/,
+    /\.desktop-tree-directory \.tree-title-line strong \{[^}]*text-overflow: var\(--tree-title-overflow, clip\);[^}]*white-space: var\(--tree-title-space, normal\);/,
   );
   assert.match(
     VISUAL_FOUNDATION_STYLES,
@@ -432,7 +432,7 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.match(light, /--content-accent: var\(--action\)/);
   assert.match(light, /--mark-slate: #647DB5;/);
   const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
-  assert.match(withPlugins, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
+  assert.match(withPlugins, /\n  \.mw-object-status \{ --mw-object-status-tone: var\(--tone-idle\); \}\n  \.mw-object-status,\n  body\[data-desktop-shell="true"\] \.mw-object-status \{/);
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const arrival = renderMolisWorkArrivalStylesheet();
   assert.match(TYPEFACE_STYLES, /font-family: "Inter Variable"/);
@@ -484,10 +484,10 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
   assert.match(withPlugins, /\.mw-stage-entry \.mw-entry-status \{[\s\S]*overflow: visible/);
   assert.match(withPlugins, /\.mw-stage-leading strong \{ flex: 1;/);
-  assert.match(withPlugins, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
+  assert.match(withPlugins, /\.settings-segmented, \.locale-switch, \.mw-toggle-group/);
   assert.match(
     workbench,
-    /body\.immersive-workbench :is\(\.tree-entry, \.mw-stage-entry, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
+    /body\.immersive-workbench :is\(\.tree-entry, \.mw-stage-entry, \.mw-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
   );
 });
 

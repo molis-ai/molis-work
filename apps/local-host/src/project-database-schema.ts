@@ -29,8 +29,8 @@ import {
  * No plugin's table is here (PLIB-01): a plugin declares its own in its Manifest (`databases.project`), and the platform makes
  * them the first time the library opens with that plugin and records them in `plugin_project_databases`
  * (`project-plugin-databases.ts`). The project's root row comes first; every project table points its foreign key at it.
- * Goals' and Governance's tables are not here either: Goals declares them (S8), and Feed declares the Feed items, Sources, Signals and
- * Listener Host tables along with its out rules.
+ * Platform project approvals (`horizontal/project-approvals`), project guidance (`modules/projects`), and acceptance
+ * (`modules/acceptance`) live in this baseline; plugin-owned tables (Goals, Feed, Coding, Inbox, Risk, Schedule) are declared by their plugins.
  */
 const surfaceTracking = surfaceConfigJournal(SINGLE_PROJECT_ROOT_SQL);
 const SURFACE_CONFIG_TRACKING = personalConfigJournal(SURFACE_CONFIG_JOURNAL, surfaceTracking.table, surfaceTracking.key, surfaceTracking.eligible);

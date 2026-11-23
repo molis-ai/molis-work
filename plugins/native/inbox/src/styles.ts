@@ -14,7 +14,7 @@ export const INBOX_STYLES = `
   }
   .inbox-next-config > summary::-webkit-details-marker, .inbox-next-config > summary::marker { display: none; }
   .inbox-next-config > summary:hover { color: var(--ink); background: var(--nav-hover); }
-  .inbox-next-config:not([open]) > summary .goal-collection-caret svg { transform: rotate(-90deg); }
+  .inbox-next-config:not([open]) > summary .mw-collection-caret svg { transform: rotate(-90deg); }
   .inbox-next-config > :not(summary) { margin-left: 32px; }
   .inbox-next-config p { margin-top: 8px; margin-bottom: 8px; overflow-wrap: anywhere; color: var(--ink-soft); }
   .inbox-next-config button { margin: 4px 4px 0 0; white-space: normal; }

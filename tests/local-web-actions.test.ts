@@ -586,6 +586,7 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
     action: { title: capability_id, description: "Stage authority probe", scope: "home", kind: operation === "query" ? "query" : "operation", audiences: ["user", "workflow"],
       permissions: ["stage-source:read"], subject_kinds: [], input_schema: { type: "object" }, output_schema: {}, ...(effect ? { execution: { cost: effect } } : {}) } });
   const source = query("stage-source.read"), undeclared = query("stage-source.other"), write = query("stage-source.write", "command"), metered = query("stage-source.paid", "query", "metered");
+  const subjectReader = defineSubjectContextAction("stage-source.subject", 1, "stage-note", "舞台主题", ["stage-source:read"], "home");
   const stageQuery = query("stage-authority.read");
   // T405-FULL-12: discovery must retain the query dependency's authority before the real entry invokes it.
   const entry = { ...stageQuery, action: { ...stageQuery.action,
@@ -610,9 +611,12 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
     if (mode === "write" || mode === "metered") return context.services!.actions!.directory!.invoke(mode === "write" ? write : metered, {});
     return context.services!.actions!.invokeQuery(mode === "undeclared" ? undeclared : source, {});
   } }] }; } });
-  const producer = definePlugin({ manifest: manifest(sourceId, [source, undeclared, write, metered]), async start() { return { kind: "app", actions: [source, undeclared, write, metered].map(action => ({ ...action,
-    async handle(caller) { if (action === source) sourceCallers.push(caller); counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
-      const wait = hold; hold = undefined; if (wait && action === source) { wait.entered.resolve(); await wait.release.promise; } return { value: "declared source" }; } })) }; } });
+  const producer = definePlugin({ manifest: manifest(sourceId, [source, undeclared, write, metered, subjectReader]), async start() { return { kind: "app", actions: [source, undeclared, write, metered, subjectReader].map(action => ({ ...action,
+    async handle(caller, input) {
+      if (action === subjectReader) return subjectContext({ subject: { kind: "stage-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "note", content: "正文" });
+      if (action === source) sourceCallers.push(caller); counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
+      const wait = hold; hold = undefined; if (wait && action === source) { wait.entered.resolve(); await wait.release.promise; } return { value: "declared source" };
+    } })) }; } });
   const { host, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [owner, producer] } });
   const one = await project("Stage authority"), platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(ownerId)!;
   const narrow = bindLocalWebAction(host, one.reference, source);
@@ -644,6 +648,30 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
     { capability_id: "stage-other-project.host", version: 1, provider_id: "system.functions" }]) assert.throws(() => stageCaller.assert_authority_current!(ref), { code: "actions.forbidden" });
   assert.throws(() => stageCaller.assert_authority_current!(hostTarget, ["functions:invoke"]), { code: "actions.forbidden" });
   await assert.rejects(host.actionClient(one.reference).invoke(stageCaller, hostTarget, { function_key: "absent", input: "" }), { code: "actions.forbidden" });
+  // RAC-2505: read-only subject readers enter stage-read authority only while the owner both declares and holds `actions:delegate`.
+  const subjectRef = stageCaller.allowed_actions!.find(ref => ref.capability_id === subjectReader.capability_id);
+  assert.ok(subjectRef, "owner declaring and holding actions:delegate reaches read-only subject readers whose permissions it holds");
+  let delegateAllowed = true;
+  const revocableDelegate = await localWebActionContext(host, one.reference, entry.action.permissions, undefined, {
+    stage_read: { ...stageRead, capturePermission: permission => {
+      if (permission === "actions:delegate") return () => { if (!delegateAllowed) throw new ActionError("actions.forbidden", "revoked"); };
+      return stageRead.capturePermission(permission);
+    } },
+  }, entry);
+  revocableDelegate.assert_authority_current!(subjectRef);
+  delegateAllowed = false;
+  assert.throws(() => revocableDelegate.assert_authority_current!(subjectRef), { code: "actions.forbidden" });
+  const noDelegateDeclared = await localWebActionContext(host, one.reference, entry.action.permissions, undefined, {
+    stage_read: { ...stageRead, manifest: { ...ownerManifest, permissions: ownerManifest.permissions.filter(item => item.permission !== "actions:delegate") } },
+  }, entry);
+  assert.equal(noDelegateDeclared.allowed_actions!.some(ref => ref.capability_id === subjectReader.capability_id), false, "owner without actions:delegate excludes unrelated subject readers");
+  const noDelegateGrant = await localWebActionContext(host, one.reference, entry.action.permissions, undefined, {
+    stage_read: { ...stageRead, capturePermission: permission => {
+      if (permission === "actions:delegate") throw new ActionError("actions.forbidden", "ungranted");
+      return stageRead.capturePermission(permission);
+    } },
+  }, entry);
+  assert.equal(noDelegateGrant.allowed_actions!.some(ref => ref.capability_id === subjectReader.capability_id), false, "owner with ungranted actions:delegate excludes unrelated subject readers");
   const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: stageRead });
   const bound = bind(), visible = await bound.discover();
   assert.deepEqual(visible.map(view => view.capability_id), [entry.capability_id]);

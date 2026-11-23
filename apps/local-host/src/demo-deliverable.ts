@@ -15,7 +15,7 @@ export function registerDemoDeliverableVersions(store: LocalProjectDatabase, pro
     // A fixed version keeps the producer version that wrote it; the 成果库 refuses the same id + version under a newer one.
     if (artifacts.query.getArtifactVersion(projectId, { artifact_id: DEMO_CORE_ARTIFACT_ID, version })) continue;
     artifacts.commands.registerVersion({ project_id: projectId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
-      artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: IMPORTED_DOCUMENT_SCHEMA_VERSION, producer, metadata: { origin: "demo-seed", goal_id: "CORE" },
+      artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: IMPORTED_DOCUMENT_SCHEMA_VERSION, producer, metadata: { origin: "demo-seed" },
       content: { kind: "inline", payload: { source: "file", source_id: `生命周期记录.md:v${version}`, source_url: null, title, content: `# ${title}\n\n${content}\n`, format: "markdown", warnings: [] } },
       origin: { kind: "imported", file_name: "生命周期记录.md" }, title, media_type: "text/markdown", ...(version > 1 ? { supersedes_version: version - 1 } : {}) });
   }

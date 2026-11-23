@@ -1,4 +1,4 @@
-import { initializeDemoPlugins } from "./plugin-demo-seed.js";
+import { initializeDemoPlugins, type DemoAcceptanceRequest } from "./plugin-demo-seed.js";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
 import { SYSTEM_OUTPUT_SOURCES } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
@@ -126,6 +126,8 @@ export interface PluginPlatformOptions {
    * Host can tell two inputs belong to the same scope. Defaults to the board.
    */
   scopeKey?: string | null;
+  /** Protected Host review seam for a plugin's `demo_seed` when its sample needs accepted requirements. */
+  acceptDemoRequirements?: (items: readonly DemoAcceptanceRequest[]) => Promise<void>;
 }
 
 export interface PluginPlatform {
@@ -230,7 +232,7 @@ async function startPlatformEntries(ctx: {
   ctx.wiring.evaluateAll();
   await ctx.events.resume(ctx.options.project_id);
   await initializeDemoPlugins({ home: ctx.options.home?.directory, projectId: ctx.options.project_id, actorId: ctx.options.actor_id, client: ctx.options.actions.client,
-    assertCurrent: control?.assertCurrent, entries: entries.flatMap(entry => {
+    assertCurrent: control?.assertCurrent, acceptDemoRequirements: ctx.options.acceptDemoRequirements, entries: entries.flatMap(entry => {
       const state = ctx.supervisor.state(entry.definition.manifest.plugin_id);
       if (!state?.install_id || state.status !== "running") return [];
       const installId = state.install_id;

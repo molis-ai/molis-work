@@ -2564,11 +2564,11 @@ export declare function goalMaterialSnapshotRef(version: {
 }): string;
 
 export declare const goalPluginActions: {
-    readonly list: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
-    readonly contract: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalReadActionInput, GoalContractView>;
-    readonly state: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalReadActionInput, GoalEventStateView>;
-    readonly progress: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>;
-    readonly receipt: import("@molis-ai/molis-work-plugin-sdk").ActionDefinition<GoalReadActionInput & {
+    readonly list: ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
+    readonly contract: ActionDefinition<GoalReadActionInput, GoalContractView>;
+    readonly state: ActionDefinition<GoalReadActionInput, GoalEventStateView>;
+    readonly progress: ActionDefinition<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>;
+    readonly receipt: ActionDefinition<GoalReadActionInput & {
         idempotency_key: string;
     }, GoalEventProgressResult | null>;
 };

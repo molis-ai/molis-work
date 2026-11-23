@@ -189,10 +189,11 @@ export function pageHooks(parts: HookParts) {
       if (!work.dataset.detailsOpen) work.dataset.detailsOpen = "true";
       const titleEl = work.querySelector("[data-workspace-goal-title]");
       if (titleEl) titleEl.textContent = titleForGoal(goalId);
-      const statusEl = work.querySelector("[data-workspace-goal-status]");
+      const statusEl = work.querySelector<HTMLElement>("[data-workspace-goal-status]");
       const source = document.querySelector('[data-goal-id="' + CSS.escape(goalId) + '"] .goal-status');
       if (statusEl && source) {
         statusEl.className = source.className;
+        statusEl.dataset.craftFocal = goalId ? "goal:" + goalId : "";
         statusEl.innerHTML = source.innerHTML;
       }
       work.querySelector("[data-goal-details-toggle]")?.setAttribute("aria-expanded", String(work.dataset.detailsOpen === "true"));

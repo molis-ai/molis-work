@@ -19,7 +19,7 @@ import { FOLLOW_STYLES } from "../scroll-follow.js";
  * and `prefers-reduced-motion` removes the travel rather than merely shortening them.
  */
 
-const SEGMENTED = ":is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group, .plugin-rail-items)";
+const SEGMENTED = ":is(.settings-segmented, .locale-switch, .mw-toggle-group, .plugin-rail-items)";
 const RAIL_SEGMENTED = ".plugin-rail-items";
 const SEGMENT_CURRENT = ':is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active)';
 
@@ -98,7 +98,7 @@ export const MICRO_INTERACTION_STYLES = `
   body .global-search-body[data-search-glide] .global-search-hit:hover:not([aria-selected="true"]) { background: var(--nav-hover); }
 
   /* Row Yield: list hover is a 180ms tone step. Squeezed titles ellipsize in the title slot; do not mask the row, or trailing status gets cut. */
-  body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .goal-collection-fold > summary) {
+  body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .mw-collection-fold > summary) {
     transition:
       background-color 130ms var(--ease-quint),
       color 130ms var(--ease-quint);
@@ -127,7 +127,7 @@ export const MICRO_INTERACTION_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before { transition: none; }
     body .global-search-body[data-search-glide][data-search-ready]::before { transition: none; }
-    body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .goal-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
+    body.immersive-workbench :is(.tree-entry, .mw-stage-entry, .mw-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
     .plugin-stage-workspace.is-arriving, .is-arriving,
     :is(.mw-menu, .mw-select-picker__menu):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }

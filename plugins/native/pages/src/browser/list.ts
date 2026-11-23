@@ -97,7 +97,7 @@ const renderRow = (page: PagesPage, record: PagesRecord, level: 1 | 2) => {
 };
 
 const renderFold = (page: PagesPage, key: string, label: string, items: readonly PagesRecord[], open: boolean, actions?: HTMLElement) => {
-  const fold = make("div", "goal-collection-fold pages-folder-group");
+  const fold = make("div", "pages-folder-group");
   fold.setAttribute("role", "rowgroup");
   fold.dataset.folderId = key;
   fold.dataset.folderOpen = String(open);
@@ -115,7 +115,7 @@ const renderFold = (page: PagesPage, key: string, label: string, items: readonly
   toggle.className = "pages-folder-toggle";
   toggle.dataset.pagesFolderToggle = key;
   toggle.setAttribute("aria-expanded", String(open));
-  const caret = make("span", "goal-collection-caret");
+  const caret = make("span", "mw-collection-caret");
   caret.setAttribute("aria-hidden", "true");
   caret.innerHTML = ICON("chevron-down");
   const strong = document.createElement("strong");
@@ -132,7 +132,7 @@ const renderFold = (page: PagesPage, key: string, label: string, items: readonly
     emptyRow.setAttribute("role", "row");
     emptyRow.setAttribute("aria-level", "2");
     emptyRow.hidden = !open;
-    const vacant = make("span", "goal-collection-empty");
+    const vacant = make("div", "mw-collection-empty");
     vacant.setAttribute("role", "gridcell");
     vacant.textContent = uiText.text("pages.list.empty");
     emptyRow.append(vacant);

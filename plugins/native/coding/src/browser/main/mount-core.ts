@@ -73,6 +73,12 @@ export function createPage(host: CodingHost): Page | null {
   };
   const s = emptyState(readText) as State, refs = {} as Refs;
   const page: Page = { host, readText, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-input] .mw-composer__input"), s, refs };
+  if (typeof host.surfaceFor === "function" && !host.surfaceFor("goal")) {
+    const goalFace = directory.querySelector<HTMLElement>("[data-coding-face=goals]");
+    if (goalFace) goalFace.hidden = true;
+    const goalOpen = root.querySelector<HTMLElement>("[data-coding-goal-open]");
+    if (goalOpen) goalOpen.hidden = true;
+  }
   s.ports = { lifetime, translate: readText, q, api: (path, method, body, signal) => api(page, path, method, body, signal), current: () => s.current, status: (message, isError) => status(page, message, isError), refresh: () => readCurrent(page) };
   return page;
 }

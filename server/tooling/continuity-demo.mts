@@ -3,7 +3,7 @@ import { mkdir, writeFile, access, unlink, realpath } from "node:fs/promises";
 import { resolve, join, dirname, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { parseArgs } from "node:util";
-import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
+import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
 // The QA project's one document is saved as Pages itself would save it: the ids Pages declares in its Manifest (`artifacts.produces`).
 const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document", PAGES_ARTIFACT_SCHEMA_VERSION = /* @version artifact.io.molis.work.pages.document */ 1;
@@ -34,7 +34,7 @@ await mkdir(directory, { recursive: true, mode: 0o700 });
 process.env.MOLIS_WORK_HOME = directory;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
-const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores, hostContinuityActions } = await import("@molis-ai/molis-work-app-local-host");
 
 const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
@@ -58,7 +58,7 @@ await host.actionClient(ref).invoke({ actor_id: "desktop", actor_kind: "user", a
 const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
   const client = host.actionClient(ref);
   return {
-    caller: { actor_id: memberClientId(memberId), project_id: projectId, audience: "user", actor_kind: "user", permissions: ["goals:read", "goals:write", "artifacts:read"], allowed_actions: CONTINUITY_ACTIONS, validate_authority: validate, signal },
+    caller: { actor_id: memberClientId(memberId), project_id: projectId, audience: "user", actor_kind: "user", permissions: ["goals:read", "goals:write", "artifacts:read"], allowed_actions: hostContinuityActions(), validate_authority: validate, signal },
     client: {
       discover: caller => client.discover(caller),
       invoke: async (caller, action, input) => {

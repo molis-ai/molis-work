@@ -1,12 +1,12 @@
 # Governance & Collaboration
 
-Governance 保存当前可信用户决定与有限 Goal Tree 提案／条目／决定。它记录“谁在什么来源下批准了哪一项变化”，不替 Goals 计算完成，也不直接修改其他 owner 的数据库。
+第 44 批起，平台级可信用户决定（`ProjectTrustedDecision`）与项目审批规则已独立到平台水平层 `horizontal/project-approvals`（全项目各插件共用）；本页描述留在 Goals 插件内部（`plugins/native/goals/src/governance/`）的有限 Goal Tree 提案／条目／决定与事件决定适配层。它记录“谁在什么来源下批准了哪一项 Goal 结构或事件变化”，不替 Goals 计算完成，也不直接修改其他 owner 的数据库。
 
 ## 当前公开职责
 
 | 入口 | 用途 |
 | --- | --- |
-| `eventDecisions` | 保存事件工作协议中的可信用户决定、作用范围与来源 |
+| `eventDecisions` | 对接平台 `horizontal/project-approvals` 与事件工作协议的可信用户决定、作用范围与来源 |
 | Goal Tree records | 保存显式 Goal／关系变更、条目状态、预检和实际决定 |
 | 决定事务 | 在同一事务中保存决定并调用对应 owner 物化已批准变化；任一失败整体回滚 |
 | `provenance` | 校验提案条目的真实来源、业务理由和置信度，以及事件决定的用户来源 |

@@ -3,7 +3,7 @@ import { readInputPageDocument, readOwnPageDocument } from "./view.js";
 import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 
 export interface FrameAsset {
-  kind: string; id: string; title: string; caption: string; itemRef: string; entryId: string;
+  kind: string; id: string; title: string; caption: string; readingSurface: string; readingObject: string;
   reading: { reason: string; relation: string; next: string; status: string };
   reference: UiFrameAssetReference;
   source: HTMLElement;
@@ -14,6 +14,8 @@ const sources = new Map<string, DragSource>();
 let panes: PaneMessages | undefined;
 const route = (path: string) => (document.body.dataset.routePrefix ?? "") + path;
 const key = (ref: UiFrameAssetReference) => ref.kind + "\0" + ref.id;
+const FRAME_ASSET_KIND = /^[a-z][a-z0-9-]{0,100}$/;
+const FRAME_READING_ID = /^[a-zA-Z0-9._:@/-]{1,1000}$/;
 const reference = (value: unknown): value is UiFrameAssetReference => Boolean(value && typeof value === "object"
   && "kind" in value && typeof value.kind === "string" && value.kind.length <= 100
   && "id" in value && typeof value.id === "string" && value.id.length > 0 && value.id.length <= 1000);
@@ -23,9 +25,12 @@ function project(html: string, source: HTMLElement): FrameAsset[] {
   const template = document.createElement("template"); template.innerHTML = html;
   return [...template.content.querySelectorAll<HTMLElement>("[data-frame-asset][data-frame-subject-kind]")].flatMap(row => {
     const d = row.dataset, ref = { kind: d.frameSubjectKind ?? "", id: d.frameAssetId ?? "" };
-    if (!reference(ref) || !["feed", "inbox", "artifact"].includes(d.frameAsset ?? "")) return [];
-    return [{ kind: d.frameAsset!, id: d.frameAssetId!, title: d.frameAssetTitle || row.querySelector("strong")?.textContent || "", caption: d.frameAssetCaption || "",
-      itemRef: d.feedItemId || (d.inboxSubjectType === "feed" ? d.inboxSubjectId : "") || "", entryId: d.feedEntryId || d.inboxEntryId || "",
+    const kind = d.frameAsset ?? "";
+    if (!reference(ref) || !FRAME_ASSET_KIND.test(kind) || kind === "goal") return [];
+    const readingSurface = FRAME_ASSET_KIND.test(d.frameReadingSurface ?? "") ? d.frameReadingSurface! : "";
+    const readingObject = FRAME_READING_ID.test(d.frameReadingObject ?? "") ? d.frameReadingObject! : "";
+    return [{ kind, id: d.frameAssetId!, title: d.frameAssetTitle || row.querySelector("strong")?.textContent || "", caption: d.frameAssetCaption || "",
+      readingSurface, readingObject,
       reading: { reason: d.frameReadingReason || "", relation: d.frameReadingRelation || "", next: d.frameReadingNext || "", status: d.frameReadingStatus || "" }, reference: ref, source }];
   });
 }

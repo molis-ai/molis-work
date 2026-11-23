@@ -1,9 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ImError, clientId, textInput } from "../errors.js";
 import { transaction, type ServerDatabase } from "../database.js";
 import { Identity, type Member, type Role, type Session } from "../identity.js";
 import { ServerEvents } from "../events.js";
-import { ContinuityActions } from "./actions.js";
-import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalProgressFacts, GoalStateFacts, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
+import { ContinuityActions, type ResolvedContinuityActions } from "./actions.js";
+import type { ActionFactory, ArtifactVersionRecord, GoalProgressFacts, GoalStateFacts, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
 
 function count(value: unknown): number {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("im.continuity.invalid_version", "缺少有效的目标版本");
@@ -64,7 +65,7 @@ export class ContinuityService {
   members(projectId: string) {
     return this.db.prepare("SELECT m.id,m.display_name,a.role FROM mw_access a JOIN mw_members m ON m.id=a.member_id WHERE a.project_id=? ORDER BY a.rowid").all(projectId) as {id:string;display_name:string;role:Role}[];
   }
-  private async authorized<T>(session: Session, projectId: string, minimum: Role, operation: (bound: BoundActions, validate: () => void) => Promise<T>): Promise<T> {
+  private async authorized<T>(session: Session, projectId: string, minimum: Role, operation: (bound: ResolvedContinuityActions, validate: () => void) => Promise<T>): Promise<T> {
     const member = this.identity.requireMember(session), controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new ImError("im.continuity.timeout","等待桌面响应超时，请核对后重试",503)),20000);
     timeout.unref();
@@ -75,9 +76,9 @@ export class ContinuityService {
       const result = await operation(bound,validate); validate(); return result;
     } finally { clearTimeout(timeout);this.active.delete(active); }
   }
-  private async goals(bound: BoundActions, goalIds: string[]): Promise<GoalProjection[]> {
+  private async goals(bound: ResolvedContinuityActions, goalIds: string[]): Promise<GoalProjection[]> {
     if (!goalIds.length) return [];
-    const records = await this.actions.invoke<Array<{ goal_id: string; state: GoalStateFacts }>>(bound,"goals.states.read",{goal_ids:[...new Set(goalIds)]});
+    const records = await this.actions.invoke<Array<{ goal_id: string; state: GoalStateFacts }>>(bound,"states.read",{goal_ids:[...new Set(goalIds)]});
     const states = new Map(records.map(record => [record.goal_id, record.state]));
     return goalIds.map(goal_id => {
       const state = states.get(goal_id);
@@ -86,7 +87,7 @@ export class ContinuityService {
         can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
     });
   }
-  private async artifacts(bound: BoundActions, scope: ProjectScope, team: boolean): Promise<ArtifactVersionRecord[]> {
+  private async artifacts(bound: ResolvedContinuityActions, scope: ProjectScope, team: boolean): Promise<ArtifactVersionRecord[]> {
     const records: ArtifactVersionRecord[] = [];
     for (const reference of scope.artifacts) {
       const result = await this.actions.invoke<{selected:ArtifactVersionRecord|null}>(bound,"artifacts.read",{reference});
@@ -142,11 +143,11 @@ export class ContinuityService {
       });
       if (old?.result_json) {validate();return {...JSON.parse(old.result_json),replayed:true};}
       try {
-        let result = await this.actions.invoke<GoalProgressFacts|null>(bound,"goals.progress.receipt",{goal_id:input.goal_id,idempotency_key:input.command_id});
+        let result = await this.actions.invoke<GoalProgressFacts|null>(bound,"progress.receipt",{goal_id:input.goal_id,idempotency_key:input.command_id});
         const replayed = !!result;
         if (!result) {
           validate();
-          result = await this.actions.invoke<GoalProgressFacts>(bound,"goals.progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
+          result = await this.actions.invoke<GoalProgressFacts>(bound,"progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
             based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
         }
         validate(); const receipt = {saved:true as const,event_id:result.event_id,replayed:replayed || result.replayed};
@@ -158,7 +159,10 @@ export class ContinuityService {
       } catch (error) {
         const code = error && typeof error === "object" && "code" in error ? String(error.code) : "im.continuity.delivery_unknown";
         this.db.prepare("UPDATE mw_commands SET state='pending',error_code=? WHERE project_id=? AND member_id=? AND command_id=? AND result_json IS NULL").run(code,...key);
-        if (code === "goals.event_progress.stale_goal" || code.includes("idempotency_key_reused")) throw new ImError(code,"桌面状态已变化，请查看最新状态后重新提交",409);
+        const isConflict = (error instanceof ActionError && error.kind === "conflict")
+          || (error && typeof error === "object" && "kind" in error && error.kind === "conflict")
+          || code.includes("stale") || code.includes("idempotency_key_reused");
+        if (isConflict) throw new ImError(code,"桌面状态已变化，请查看最新状态后重新提交",409);
         throw error;
       }
     });
@@ -168,7 +172,10 @@ export class ContinuityService {
       const scope = this.scope(projectId), role = this.identity.access(session,projectId);
       const artifacts = await this.artifacts(bound,scope,role !== "owner");
       const goals = await this.goals(bound,scope.goal_ids); validate();
-      const sections = goals.length ? [{ plugin_id: "io.molis.work.goals", section_id: "project_goals", schema_version: /* @version format.asset.bundle */ 1, title: "目标接续摘要", items: goals }] : [];
+      const providerPluginId = bound.roles["states.read"]?.plugin_id;
+      const sections = goals.length && providerPluginId
+        ? [{ plugin_id: providerPluginId, section_id: "work_progress", schema_version: /* @version format.asset.bundle */ 1, title: "工作进展接续摘要", items: goals }]
+        : [];
       return {format:"molis-work-assets",version:/* @version format.asset.bundle */1,source_project_id:projectId,title:scope.title,sections,
         artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,artifact_type_id:a.artifact_type_id,schema_version:a.schema_version,
           owner_actor_id:a.owner_actor_id,producer:{plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,binding_signature:a.producer_binding_signature},

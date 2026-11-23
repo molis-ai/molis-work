@@ -222,6 +222,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "scenes",
       "skills"
     ]
   },
@@ -231,7 +232,8 @@
     "keys": [
       "entries",
       "issues",
-      "packs"
+      "packs",
+      "scenes"
     ]
   },
   "GET /api/board": {
@@ -464,7 +466,6 @@
     "type": "application/json",
     "keys": [
       "demo",
-      "developer_mode",
       "plugin_directory",
       "plugin_overlays",
       "plugin_panels",
@@ -536,6 +537,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "scenes",
       "skills"
     ]
   },
@@ -545,7 +547,8 @@
     "keys": [
       "entries",
       "issues",
-      "packs"
+      "packs",
+      "scenes"
     ]
   },
   "GET <project>/api/plugin-trust/overview": {
@@ -974,7 +977,6 @@
     "type": "application/json",
     "keys": [
       "demo",
-      "developer_mode",
       "plugin_directory",
       "plugin_overlays",
       "plugin_panels",

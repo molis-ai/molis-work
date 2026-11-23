@@ -3,11 +3,12 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
 import { writerIntegrationCapabilities as integration } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { reviewPlugins } from "./fixtures/review-plugins.js";
@@ -18,7 +19,7 @@ function response(name?:string,input?:unknown){const frames=[{type:"message_star
 
 for (const parentOutcome of ["completed", "failed"] as const) test(`Host integrates an owned completed child after parent ${parentOutcome}, preserving rejection, stale proposal and restart evidence`,{timeout:40000},async t=>{
  const home=await realpath(await mkdtemp(path.join(tmpdir(),"integration-host-"))),root=path.join(home,"repo");await mkdir(root);
- const git=(...args:string[])=>exec("git",args,{cwd:root});await git("init","-q");await git("config","user.name","Fixture");await git("config","user.email","fixture@example.invalid");await writeFile(path.join(root,"note.txt"),"base\n");await git("add",".");await git("commit","-qm","base");
+ const git=(...args:string[])=>exec("git",args,{cwd:root});await git("init","-q");await git("config","user.name","Fixture");await git("config","user.email","fixture@example.invalid");await writeFile(path.join(root,"note.txt"),"base\n");await writeFile(path.join(root,"z-legacy.cfg"),"legacy=1\n");await git("add",".");await git("commit","-qm","base");
  const tree=await createGitWorktreePort(root).create("child"),childRoot=path.resolve(root,tree.directory);
  // The child's worktree is the Host's own, not a folder of the project (plan A): the project has only its output.
  const grants=[{workspace_id:"main",canonical_path:root,realpath_verified:true,display_name:"Parent"}];let output:typeof grants[0]|null=grants[0]!;
@@ -37,11 +38,11 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
  // what would be integrated is that installation's too (W5-01-CODING-46). Both are the Host's actions, offered to plugins only (PG-035).
  const plugins=reviewPlugins(localHost,reference,path.join(home,"plugins.db")),coding="io.molis.work.coding",reviewer="io.molis.work.example.reviewer";
  const integrate=[{permission:"review:git-integration",required:true,reason:"Brings a child's result back once a person approves"},{permission:"workspace:read",required:true,reason:"Reads what a child's result would bring back"}] as const;
- const granted=["review:git-integration","workspace:read"],consumes=[integration.read.capability_id,integration.prepare.capability_id];
+ const granted=["review:git-integration","workspace:read"],consumes=[integration.read.capability_id,integration.prepare.capability_id,agent.readRunReviews.capability_id];
  const install_id=await plugins.start(coding,[...integrate],granted,consumes);
  const reads=plugins.actions(coding),elsewhere=reviewPlugins(localHost,molisWorkHostProjectReference({databasePath:path.join(home,"other.db"),projectId: "other"}),path.join(home,"other-plugins.db"));
  try{
-  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:"user"},directory={canonical_path:root,realpath_verified:true};
+  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:LOCAL_PERSON_ACTOR_ID},directory={canonical_path:root,realpath_verified:true};
   const session=await adapter.createSession({...owner,directory,title:"integration"});
   const handle=await composition.agentHost.start("prologue",{...owner,session,directory,role_id:"writers",task:"delegate once",subagent_workspaces:[{worktree_id:"child",directory:{canonical_path:childRoot,realpath_verified:true}}]}, {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root],worktrees:async()=>[{worktree_id:"child",canonical_path:childRoot}]});
   const source={session_id:session.session_id,run_id:handle.ref.run_id,subagent_id:"unknown"};
@@ -53,8 +54,11 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
    await new Promise(r=>setTimeout(r,10));
   }
   assert.equal((await adapter.read(handle.ref)).phase,parentOutcome);
+  // DEL-01/07/08: child worktree also removes z-legacy.cfg so the real integration review carries both modified and deleted files.
+  await rm(path.join(childRoot,"z-legacy.cfg"));
   const children=await adapter.subagents!.list(handle.ref); assert.equal(children.length,1,JSON.stringify(await adapter.read(handle.ref))); source.subagent_id=children[0]!.subagent_id;
   const view=await reads.invoke(integration.read,source);assert.equal(view.files[0]!.after_text,"child result\n");assert.equal(view.files[0]!.selectable,true);
+  assert.deepEqual(view.files[1]?.path,["z-legacy.cfg"]);assert.equal(view.files[1]?.target,"deleted");assert.equal(view.files[1]?.after_text,null);assert.equal(view.files[1]?.selectable,true);
   assert.deepEqual([view.workspace_id,view.worktree_id],["main","child"],"the output it comes back to, and the Host's worktree it comes from");
   // A round recorded before writers were named by their worktree (its child carries `workspace_id`) is refused, never read another way.
   const recorded=adapter.read.bind(adapter),old=t.mock.method(adapter,"read",async(ref:Parameters<typeof recorded>[0])=>{const run=await recorded(ref);
@@ -91,9 +95,22 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   const readyReview=composition.agentHost.reviews.get(ready.review_id)!;
   const index=await readFile(path.join(root,".git/index"));await composition.agentHost.reviews.respond({review_id:ready.review_id, version: readyReview.reference.version,decision:"approve",actor_id:"user"});
   assert.equal(composition.agentHost.reviews.receipt(ready.review_id)?.effect_settled,true);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"changed after review\n");assert.deepEqual(await readFile(path.join(root,".git/index")),index);
+  await assert.rejects(access(path.join(root,"z-legacy.cfg")),"DEL-01: confirmed integration removed z-legacy.cfg on disk");
+  // DEL-07: real agent.run.reviews returns this round's settled subtask integration (with the deleted file) and refuses foreign callers.
+  const liveReviews = await reads.invoke(agent.readRunReviews, [session, handle.ref]);
+  const liveRow = liveReviews.find(row => row.request.review_id === ready.review_id);
+  assert.ok(liveRow && liveRow.request.run === null && liveRow.request.document.kind === "git-integration");
+  assert.equal(liveRow.request.document.source.subagent_id, source.subagent_id);
+  assert.equal(liveRow.receipt?.effect_settled, true);
+  assert.deepEqual(liveRow.request.document.files.map(file => [file.path, file.before_text, file.after_text]), [["note.txt", "base\n", "changed after review\n"], ["z-legacy.cfg", "legacy=1\n", null]]);
+  await assert.rejects(other_plugin.invoke(agent.readRunReviews, [session, handle.ref]), { code: "agent.session_unknown" });
   const receipt=composition.agentHost.reviews.receipt(ready.review_id),request=composition.agentHost.reviews.get(ready.review_id),calls=parentCalls+childCalls;
   await composition.dispose();composition=make();await composition.ready;await composition.agentHost.reviews.refresh("board");
   assert.deepEqual(composition.agentHost.reviews.receipt(ready.review_id),receipt);assert.deepEqual(composition.agentHost.reviews.get(ready.review_id),request);
+  const restoredReviews = await reads.invoke(agent.readRunReviews, [session, handle.ref]);
+  const restoredRow = restoredReviews.find(row => row.request.review_id === ready.review_id);
+  assert.equal(restoredRow?.receipt?.effect_settled, true, "DEL-05/07: settled integration stays readable through agent.run.reviews after Host restart");
+  assert.deepEqual(restoredRow?.request.document.kind === "git-integration" ? restoredRow.request.document.files.map(f => [f.path, f.after_text]) : [], [["note.txt", "changed after review\n"], ["z-legacy.cfg", null]]);
   await assert.rejects(composition.agentHost.reviews.respond({review_id:ready.review_id, version: readyReview.reference.version,decision:"approve",actor_id:"user"}));assert.equal(parentCalls+childCalls,calls);
   // It comes back only to the folder the round ran in while that is still the output, and only from the worktree the Host made for it.
   output=null;await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/输出目录/});output=grants[0]!;
@@ -119,10 +136,10 @@ test("CODING-WORKTREE-05 CODING-WORKTREE-06 CODING-WORKTREE-08 a round that ran 
  const composition=composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>output,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});await composition.ready;
  const plugins=reviewPlugins(localHost,reference,path.join(home,"plugins.db")),coding="io.molis.work.coding";
  const integrate=[{permission:"review:git-integration",required:true,reason:"Brings a worktree's result back once a person approves"},{permission:"workspace:read",required:true,reason:"Reads what a worktree's result would bring back"}] as const;
- const install_id=await plugins.start(coding,[...integrate],["review:git-integration","workspace:read"],[integration.read.capability_id,integration.prepare.capability_id]);
+ const install_id=await plugins.start(coding,[...integrate],["review:git-integration","workspace:read"],[integration.read.capability_id,integration.prepare.capability_id,agent.readRunReviews.capability_id]);
  const reads=plugins.actions(coding);
  try{
-  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:"user"};
+  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:LOCAL_PERSON_ACTOR_ID};
   const authority={manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root],worktrees:async()=>[{worktree_id:"tree",canonical_path:treeRoot}],
    directories:{revision:"directories-1",output,inputs:[],instructions_trusted:false}};
   const session=await adapter.createSession({...owner,directory:{canonical_path:root,realpath_verified:true},title:"worktree"});
@@ -164,5 +181,9 @@ test("CODING-WORKTREE-05 CODING-WORKTREE-06 CODING-WORKTREE-08 a round that ran 
   assert.equal(composition.agentHost.reviews.receipt(asked.review_id)?.effect_settled,true);
   assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"from the worktree\n");
   assert.equal((await createGitWorktreePort(root).list()).length,1,"the worktree is kept");
+  // DEL-02/07: agent.run.reviews returns the worktree integration with no subagent_id, which Coding excludes from per-round change sets.
+  const wtRows = await reads.invoke(agent.readRunReviews, [session, inTree.ref]);
+  const wtRow = wtRows.find(row => row.request.review_id === asked.review_id);
+  assert.ok(wtRow && wtRow.request.document.kind === "git-integration" && wtRow.request.document.source.subagent_id === undefined && wtRow.receipt?.effect_settled === true);
  }finally{await plugins.close();await composition.dispose();await localHost.close();await rm(home,{recursive:true,force:true});}
 });

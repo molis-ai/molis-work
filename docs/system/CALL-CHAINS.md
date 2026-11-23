@@ -118,7 +118,7 @@
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
 | 构建期内置插件（只剩用户批过的两个例外 Alchemist、插件创作台，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
-| Runtime 内置插件（Coding、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
+| Runtime 内置插件（Coding、Diff、Git、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
@@ -401,14 +401,14 @@ B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组�
 
 ### 11.5 链 E：项目资料（`system.materials`）
 
-第 06 批 Files 退役后，项目文件夹的浏览、阅读、固定快照和选区只有这一条路；工作台侧栏、主区「资料」、选择器、Coding 文件面、Diff/Text Stats 都从这里取。
+第 06 批 Files 退役后，项目文件夹的浏览、阅读、固定快照和选区只有这一条路；工作台侧栏、主区「资料」、选择器、Coding 文件面、Diff 都从这里取。
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 页面请求 | `apps/workbench/src/side-panel-files.ts`、`materials-reader-client.ts`、`browser/knowledge/picker.ts`、Coding 的 `browser/main/files-face.ts` | 打开来源／条目／正文、按引用读、固定全文或选区、把前后两版交给 Diff → `GET /api/side/files/sources?first_pages=1`、`/api/side/files/entries|content|raw`、`POST /api/materials/open|read|capture|pinned`、`GET /api/materials/content|position` | 页面会话凭据；项目由宿主按路径给，页面不带身份；本人调用的写动作仍走页面自己的权限 | 404 来源不在、400 预览参数缺失、`actions.subject_unavailable|subject_changed|forbidden|input_too_large` 按操作给；一个来源失败不遮住其余来源 | 无（读取）；调用记录按动作规则留行 |
 | 2 | Host 资料服务 | `apps/local-host/src/materials-http.ts`、`system-materials-actions.ts`、`materials.files.entries/content` | 上面的请求 → 调 `projects.directories.get`、`projects.workspace.files.read`；打开/固定走同一项目连接的事务 | 调用者由 `localWebActionContext` 造，资料服务只拿 `workspace:read` 加 open/capture 的 `artifact:read|write`、`storage:private`；文件读取按调用者当前可读的文件夹解析，个人固定版本还比 `owner_actor_id` | 文件夹不在、路径越界、指纹不符、选区失效、内容超过内联上限都拒绝；拒绝不写过程项/端口/事件 | 打开写阅读位置和 `files` 输出；固定写过程项、端口和两库复制日志，同事务提交 |
 | 3 | 知识来源 | `horizontal/knowledge` 的 `workspace_file` 来源与 `workspace.ts`；选择器用 `knowledge.glob` 列目录、`materials.read` 读 revision | 项目文件夹的相对路径 → `workspace_file` 引用；只存引用，不存正文 | 由调用者的目录权限决定可见条目；来源不借调用拿到别的目录 | 目录不在、引用脱钩、越权读取按 knowledge 与资料服务的拒绝 | 无第二份正文；`materials.recent`／`origins` 只记引用与现读出处处 |
-| 4 | 消费方 | Diff／Text Stats 的默认来源、Coding 的「打开资料」、Goal 的固定版本 | `{ plugin_id: "system.materials", port }` → 当前输出；或 `MaterialRef` → 固定快照/选区 | 默认绑定按当前完整 subject 的同意；旧 Files 同意撤销后不生效；`resolvePortInput` 核来源、类型/schema、输出引用、producer id/signature 与个人 owner | 来源不在、同意撤回、类型不符、版本不可读都拒绝，不交旧内容 | 端口投递与消费沿 Runtime；固定成果版本仍归成果库 |
+| 4 | 消费方 | Diff 的默认来源、Coding 的「打开资料」、Goal 的固定版本 | `{ plugin_id: "system.materials", port }` → 当前输出；或 `MaterialRef` → 固定快照/选区 | 默认绑定按当前完整 subject 的同意；旧 Files 同意撤销后不生效；`resolvePortInput` 核来源、类型/schema、输出引用、producer id/signature 与个人 owner | 来源不在、同意撤回、类型不符、版本不可读都拒绝，不交旧内容 | 端口投递与消费沿 Runtime；固定成果版本仍归成果库 |
 
 **守住它的用例**：`tests/system-materials-actions.test.ts`、`tests/side-panel-platform.test.ts`、`tests/side-materials-reader.e2e.test.ts`、`tests/coding-workbench.e2e.test.ts`；预算 `tests/call-budget.test.ts` 的 `sideFileFirstPages`。
 

@@ -1,6 +1,6 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
-import { homeButton, homeLeadName, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
+import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
@@ -25,8 +25,6 @@ interface HomeHost {
     refresh: () => Promise<void>; translate: HomeHost["translate"] }): { refresh(): void; clear(): void };
   /** Reads the displayed language's words for this response's grants into the page (surface-composition §14.6). */
   words(text: NonNullable<SurfaceHomeDisplay["surface_text"]>, signal: AbortSignal): Promise<void>;
-  /** Puts the proved main page of the lead plugin into the box and gives its node, or null when that page is not mounted here. */
-  lead: { adopt(box: HTMLElement, target: unknown): HTMLElement | null; release(node: HTMLElement): void };
 
 }
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
@@ -94,8 +92,7 @@ export { presentationWord, renderHomePeek, renderPositionGroup, surfaceCorrectio
 function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void,
   correct: ReturnType<typeof createPositionCorrections>["handle"]) {
   root.addEventListener("click", event => {
-    // The plugin's page shown as the home handles its own clicks.
-    if (!(event.target instanceof Element) || event.target.closest("[data-home-lead]")) return;
+    if (!(event.target instanceof Element)) return;
     const button = event.target.closest<HTMLElement>("[data-home-control], [data-presentation-action]");
     if (button) {
       const key = button.dataset.homeControl ?? button.dataset.presentationAction ?? "";
@@ -112,7 +109,6 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     }
   });
   root.addEventListener("keydown", event => {
-    if (event.target instanceof Element && event.target.closest("[data-home-lead]")) return;
     positionMenuKey(event);
     if (!(event.target instanceof HTMLElement)) return;
     const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
@@ -137,26 +133,6 @@ function releaseHomeText(host: HomeHost, old: SurfaceHomeDisplay | null) {
 /** The grants differ on every read; what is shown does not have to. */
 const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) =>
   !!a && JSON.stringify({ ...a, surface_text: undefined }) === JSON.stringify({ ...b, surface_text: undefined });
-
-/**
- * The plugin page a `lead` group names, shown in place of the platform's own page: the same first page, written by that plugin
- * (specs/screen-polish §八之二). There is no switch between the two; a page that does not open leaves the platform's page, which says so.
- */
-function createHomeLead(root: HTMLElement, host: HomeHost) {
-  const box = root.querySelector<HTMLElement>("[data-home-lead]")!;
-  let node: HTMLElement | null = null;
-  /** Shows the page and says whether it is there; the name of one that did not open is the caller's to tell. */
-  const show = (shown: SurfaceHomeDisplay | null): { failed?: string } => {
-    const lead = shown?.lead;
-    const next = lead ? host.lead.adopt(box, lead.target) : null;
-    if (node && node !== next) host.lead.release(node);
-    node = next;
-    root.toggleAttribute("data-home-leading", Boolean(node));
-    box.hidden = !node;
-    return lead && !node && shown ? { failed: homeLeadName(shown) } : {};
-  };
-  return { show };
-}
 
 /**
  * When this person was last on this project's first page, on this device: page state like a scroll position, never sent anywhere.
@@ -256,7 +232,7 @@ export function mountHome(host: HomeHost) {
       ? host.offerApi(path, method, body, inspecting.signal) : Promise.reject(new DOMException("View closed", "AbortError")),
     refresh: async () => sync() });
   let display: SurfaceHomeDisplay | null = null, reading: AbortController | null = null, clicking: AbortController | null = null;
-  let restoreFocus: HTMLElement | null = null, shown = false, needsRead = true, receipt: HomeControl | null = null, leadFailed: string | undefined;
+  let restoreFocus: HTMLElement | null = null, shown = false, needsRead = true, receipt: HomeControl | null = null;
   /** Whether the person opened every row of 「自你上次来」 during this visit. */
   let showAll = false;
   const holder = window.frameElement;
@@ -264,8 +240,6 @@ export function mountHome(host: HomeHost) {
   const placement = createPositionPeek(groups, (body, signal) => host.read(body.click ? "/click" : "", body.click ?? body, signal), host,
     { source: () => ({}), expanded: () => false, visible, displayed: () => display ?? undefined, lookup: key => controls.get(key),
       navigate: async () => { /* Placement offers have no peek navigation. */ } });
-  const lead = createHomeLead(root, host);
-  const showLead = lead.show;
   const caption = (word?: string, button?: string) => {
     status.innerHTML = (word ? "<p>" + escapeHtml(homeWord(word)) + "</p>" : "") + (button ? homeButton(button, homeWord(button === "refresh" ? "retry" : "open-result")) : "");
   };
@@ -280,7 +254,6 @@ export function mountHome(host: HomeHost) {
     closePeek(); placement.close(false); needsRead = true;
     if (!release) return;
     drop();
-    showLead(null);
   };
   const releaseText = (old: SurfaceHomeDisplay | null) => releaseHomeText(host, old);
   /** Takes the painted page off: its words' grants end, and nothing of it can be pressed. */
@@ -296,7 +269,7 @@ export function mountHome(host: HomeHost) {
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
 
   function paint(result: SurfaceHomeDisplay) {
-    const page = renderHome(result, controls, { since: visit.begin(), readAt: new Date().toISOString(), ...(leadFailed ? { leadFailed } : {}), showAll,
+    const page = renderHome(result, controls, { since: visit.begin(), readAt: new Date().toISOString(), showAll,
       settingsHref: section => host.settingsHref?.(section) ?? "#" }, corrections.rendering(result));
     reconcileSurfaceRows(groups, page.column, rowMarkup);
     margin.innerHTML = page.margin;
@@ -324,10 +297,8 @@ export function mountHome(host: HomeHost) {
         if (JSON.stringify(previous) !== JSON.stringify(next)) closePeek();
       }
       releaseText(display); display = result; needsRead = false;
-      const lead = showLead(result);
-      if (!before || lead.failed !== leadFailed) {
+      if (!before) {
         placement.close(false);
-        leadFailed = lead.failed;
         paint(result);
       } else {
         // Nothing shown changed, but the page was read again: the margin says when.
@@ -344,7 +315,6 @@ export function mountHome(host: HomeHost) {
         drop();
         closePeek();
         placement.close(false);
-        showLead(null);
       }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
@@ -363,7 +333,6 @@ export function mountHome(host: HomeHost) {
       host.write?.();
       return;
     }
-    if (key === "lead-retry") return sync();
     if (key === "more" || key === "less") {
       showAll = key === "more";
       if (!display) return;

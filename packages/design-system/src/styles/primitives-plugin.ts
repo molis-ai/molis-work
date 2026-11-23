@@ -25,12 +25,7 @@ ${BUTTON_STYLES}
   }
   .mw-input, .mw-textarea, .mw-select {
     width: 100%; color: var(--ink); font: inherit; font-size: 13px; appearance: none;
-    &:hover:where(:not(:disabled, :focus-visible)) { border-color: var(--control-input); background-color: var(--paper); }
-    &[aria-invalid="true"] {
-      border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
-      &:focus-visible { ${CONTAINED_FOCUS_DANGER}; border-color: var(--red); }
-    }
-    &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
+    &:hover:where(:not(:disabled, :focus-visible)) { border-color: var(--control-input); }
   }
   .mw-input[type="search"]::-webkit-search-decoration,
   .mw-input[type="search"]::-webkit-search-cancel-button { appearance: none; }
@@ -45,25 +40,34 @@ ${BUTTON_STYLES}
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
   :is(.mw-input, .mw-textarea)::placeholder { color: var(--muted); }
-  :is(.mw-input-group, .mw-number):focus-within,
-  .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
-  .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
-  :is(.mw-check, .mw-radio, .mw-tabs__tab, .mw-toggle, .mw-pagination__page, .mw-choice, .mw-calendar__day, .mw-dir-row):focus-visible,
-  .mw-switch input:focus-visible + .mw-switch__track { ${CONTAINED_FOCUS_COMPACT}; }
   ${SELECT_MENU_STYLES}
   /* Search and other grouped fields wear the same paper-bordered surface as a single field. */
   .mw-input-group {
-    display: flex; align-items: center; gap: 8px;
-    &:hover { border-color: var(--control-input); background-color: var(--paper); }
+    &:hover:not(:focus-within) { border-color: var(--control-input); }
     svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
+  }
+  :is(.mw-input-group, .mw-number):focus-within,
+  .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
+  .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
+  :is(.mw-input, .mw-textarea, .mw-select) {
+    &[aria-invalid="true"] {
+      border-color: var(--red); background-color: color-mix(in srgb, var(--red) 6%, transparent);
+      &:focus-visible { ${CONTAINED_FOCUS_DANGER}; border-color: var(--red); }
+    }
+    &:disabled { color: var(--faint); border-color: var(--control-border); background-color: transparent; }
   }
   .mw-input-group .mw-input, .mw-number .mw-input { border: 0; outline: 0; min-height: 26px; padding: 0; min-width: 0; background: transparent; box-shadow: none; border-radius: 0; }
   .mw-input-group .mw-input:is(:hover, :focus, :focus-visible, [aria-invalid="true"]), .mw-number .mw-input:is(:hover, :focus, :focus-visible, [aria-invalid="true"]) { border: 0; outline: 0; background: transparent; box-shadow: none; }
 
-  .mw-field__label, .mw-fieldset legend, .mw-badge, .mw-status, .mw-avatar, .mw-menu__label, .mw-tabs__tab, .mw-toggle, .mw-choice, .mw-collapsible summary, .mw-label, .mw-check-group legend, .mw-radio-group legend, .mw-calendar__header, .mw-calendar__grid th, .mw-preview-card strong, .mw-card__title, .mw-table th { font-weight: var(--weight-control); }
-  .mw-badge, .mw-status, .mw-loading, kbd, .mw-kbd, .mw-choice, .mw-choice__label, .mw-number, .mw-severity-grid, .mw-group { display: inline-flex; align-items: center; }
-  .mw-check, .mw-radio, .mw-avatar, .mw-menu__check, .mw-choice__check, .mw-calendar :is(td span, .mw-calendar__day) { display: inline-grid; place-items: center; }
+  .mw-form, .frame-empty.mw-empty, .mw-inset-group { display: flex; flex-direction: column; }
+
+  .mw-badge, .mw-status, .mw-loading, kbd, .mw-kbd, .mw-choice, .mw-choice__label, .mw-number, .mw-severity-grid, .mw-group, .mw-signal, .mw-inset-row__end { display: inline-flex; align-items: center; }
+  .mw-check, .mw-radio, .mw-avatar, .mw-menu__check, .mw-choice__check, .mw-calendar :is(td span, .mw-calendar__day), .mw-glyph-status, .mw-inset-row__lead { display: inline-grid; place-items: center; }
+  .mw-input-group, .mw-menu__item, .mw-toolbar, .mw-calendar__header { display: flex; align-items: center; gap: 8px; }
+  .mw-badge, .mw-menu__shortcut, .mw-signal, .mw-inset-row__end { font-variant-numeric: tabular-nums; }
+  .mw-menu__item > [data-slot="menu-item-label"], .mw-menu__item--described > [data-slot="menu-item-label"] > span, .mw-inset-row__title, [data-mw-select-label] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-fieldset, .mw-check-group, .mw-radio-group { border: 0; padding: 0; display: grid; gap: 8px; }
+  .mw-popover, .mw-menu, .mw-number, .mw-preview-card, .mw-card, .mw-table-wrap, .mw-inset-group { background: var(--paper); }
 
   .mw-check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
   .mw-check, .mw-radio {
@@ -87,7 +91,7 @@ ${BUTTON_STYLES}
   .mw-switch__track {
     display: block; width: 36px; height: 22px; border-radius: 99px;
     background: color-mix(in srgb, var(--ink) 16%, var(--paper)); border: 1px solid transparent;
-    transition-property: background-color, border-color; transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint);
+    transition: background-color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint);
     &::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--paper); box-shadow: var(--lift-1); transition: transform var(--dur-hover) var(--ease-quint); }
   }
   html[data-resolved-theme="dark"] .mw-switch__track::after { background: var(--ink); }
@@ -105,7 +109,7 @@ ${BUTTON_STYLES}
   }
   .mw-fieldset legend { color: var(--ink); font-size: 13px; padding: 0; }
 
-  .mw-form { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+  .mw-form { min-height: 0; height: 100%; }
   .mw-form__header, .mw-form__footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: none; }
   .mw-form__header {
     padding: 24px 24px 8px;
@@ -125,7 +129,6 @@ ${BUTTON_STYLES}
     background: color-mix(in srgb, var(--status-tone, var(--ink)) 10%, transparent);
     color: var(--status-tone, var(--ink-soft));
   }
-  .mw-badge { font-variant-numeric: tabular-nums; }
   .mw-status { min-width: 0; svg { width: calc(1em + 2px); height: calc(1em + 2px); flex: none; } > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-block: .2em; margin-block: -.2em; } }
   .mw-status--plain { min-height: 0; padding: 0; background: transparent; border-radius: 0; }
   .mw-status--idle, .mw-badge--neutral { --status-tone: var(--tone-idle); }
@@ -156,7 +159,7 @@ export const PRIMITIVE_PLUGIN_CORE_MID = `
   .mw-empty__mark svg, .mw-empty > svg { width: 16px; height: 16px; stroke-width: 2; }
   .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
   .frame-empty.mw-empty {
-    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 32px; text-align: center;
+    justify-content: center; align-items: center; gap: 12px; padding: 32px; text-align: center;
     .mw-btn { margin-top: 4px; }
   }
 
@@ -164,12 +167,10 @@ export const PRIMITIVE_PLUGIN_CORE_MID = `
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
   /* One loading rule everywhere: a quiet line with the spinner, shown only past a 250ms wait (a quick load never flashes). Skeletons (static),
      busy buttons and a plugin's dimmed region (mw-busy-dim to --busy-dim) wait the same, as animations; reduced motion drops only the fade. */
-  .mw-loading { gap: 8px; color: var(--muted); font-size: 13px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  .mw-loading, .mw-skeleton { animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  .mw-loading { gap: 8px; color: var(--muted); font-size: 13px; }
   @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } } @keyframes mw-busy-dim { to { opacity: var(--busy-dim, .65); } }
-  .mw-skeleton {
-    display: block; height: 12px; border-radius: 4px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
-    background: color-mix(in srgb, var(--ink) 8%, transparent);
-  }
+  .mw-skeleton { display: block; height: 12px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
 `;
 
 export const PRIMITIVE_PLUGIN_KBD = `
@@ -197,13 +198,13 @@ export const PRIMITIVE_PLUGIN_DIALOG_FORM = `
   dialog.mw-dialog--form {
     position: fixed; inset: auto; top: 50%; left: 50%; translate: -50% -50%; margin: 0;
     width: min(560px, calc(100vw - 48px)); max-height: min(calc(100dvh - 96px), 720px); overflow: hidden;
-    > .mw-form { height: auto; max-height: min(calc(100dvh - 96px), 720px); }
+    > .mw-form { height: auto; max-height: inherit; }
     .mw-form__body { overflow: auto; overscroll-behavior: contain; }
   }
   dialog.mw-sheet {
     position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0;
-    width: min(560px, 100vw); max-width: 100vw;
-    height: calc(100dvh - var(--tab-strip-h, 32px)); max-height: calc(100dvh - var(--tab-strip-h, 32px));
+    width: min(560px, 100vw); max-width: none;
+    height: calc(100dvh - var(--tab-strip-h, 32px)); max-height: none;
     border-radius: 16px 0 0 16px; animation: none;
   }
   .mw-progress { height: 4px; border-radius: 99px; background: var(--control-fill); overflow: hidden; > span { display: block; height: 100%; background: var(--action); } }
@@ -215,7 +216,7 @@ export const PRIMITIVE_PLUGIN_MENU = `
   .mw-dialog__close { flex: none; }
 
   .mw-popover, .mw-menu {
-    min-width: 180px; padding: 6px; border: 0; border-radius: var(--radius-surface); background: var(--paper);
+    min-width: 180px; padding: 6px; border: 0; border-radius: var(--radius-surface);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 6%, transparent), var(--shadow), inset 0 1px 0 var(--edge-highlight); color: var(--ink);
   }
   .mw-menu {
@@ -224,23 +225,23 @@ export const PRIMITIVE_PLUGIN_MENU = `
     &:has(.mw-menu__item > svg:first-child) .mw-menu__item:not(:has(> svg:first-child, > .mw-menu__check)) { padding-left: 36px; }
   }
   .mw-menu__item {
-    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px;
+    width: 100%; min-height: 34px;
     padding: 0 12px; border: 0; border-radius: 8px; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
     &:is(:hover, :focus-visible, [data-active]) { background: var(--nav-hover); outline: none; }
     &:active { background: var(--nav-press); }
     svg { width: 16px; height: 16px; color: var(--ink-soft); flex: none; }
-    > [data-slot="menu-item-label"] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    > [data-slot="menu-item-label"] { flex: 1; }
     &:disabled { background: transparent; color: var(--faint); cursor: default; & :is(svg, .mw-menu__shortcut) { color: var(--faint); } }
   }
   .mw-menu__item--danger { color: var(--red); &:is(:hover, :focus-visible):not(:disabled) { background: color-mix(in srgb, var(--red) 8%, transparent); } svg { color: var(--red); } }
   .mw-menu__check { flex: none; width: 16px; height: 16px; svg { color: var(--ink); } }
-  .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; }
   /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
   .mw-menu__item--described {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 20px auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; line-height: 20px;
+    display: grid; grid: 20px auto / auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; line-height: 20px;
     > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
-    > [data-slot="menu-item-label"] { display: contents; overflow: visible; > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+    > [data-slot="menu-item-label"] { display: contents; overflow: visible; > span { grid-area: 1 / 2; } }
     .mw-menu__shortcut { grid-area: 1 / 3; }
   }
   .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body); line-height: 18px; text-wrap: pretty; overflow-wrap: anywhere; }
@@ -250,16 +251,14 @@ export const PRIMITIVE_PLUGIN_MENU = `
 
 export const PRIMITIVE_PLUGIN_CONTROLS = `
   .mw-tabs__list { display: flex; gap: 4px; }
-  .mw-tabs__tab, .mw-toggle {
-    padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit;
-    transition-property: background-color, color; transition-duration: var(--dur-hover); transition-timing-function: var(--ease-quint);
-  }
+  .mw-tabs__tab, .mw-dir-row { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  .mw-tabs__tab, .mw-toggle { padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; }
   .mw-tabs__tab {
     position: relative; min-height: 30px;
     &:hover { color: var(--ink); background: var(--nav-hover); }
     &.is-active { background: var(--nav-active); color: var(--ink); }
   }
-  .mw-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .mw-toolbar { flex-wrap: wrap; }
   .mw-toggle-group { display: inline-flex; gap: 3px; padding: 3px; border: 0; border-radius: 11px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-toggle {
     min-height: 26px; font-size: 12px;
@@ -281,6 +280,8 @@ export const PRIMITIVE_PLUGIN_CONTROLS = `
     &:active { transform: scale(.97); }
     &:is([aria-pressed="true"], [aria-current="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); .mw-choice__check { opacity: 1; transform: none; } }
   }
+  :is(.mw-check, .mw-radio, .mw-tabs__tab, .mw-toggle, .mw-pagination__page, .mw-choice, .mw-calendar__day, .mw-dir-row):focus-visible,
+  .mw-switch input:focus-visible + .mw-switch__track { ${CONTAINED_FOCUS_COMPACT}; }
   .mw-choice__label { gap: 8px; white-space: nowrap; svg { width: 16px; height: 16px; flex: none; } }
   .mw-choice__check { width: 12px; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); svg { width: 12px; height: 12px; stroke-width: 2; } }
   .mw-collapsible { padding-top: 4px; summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; padding: 12px 0; &:hover { color: var(--ink); } } }
@@ -304,7 +305,7 @@ export const PRIMITIVE_PLUGIN_FIELDS_EXTRA = `
   .mw-label { color: var(--ink); font-size: 13px; }
   .mw-check-group, .mw-radio-group { legend { color: var(--ink-soft); font-size: 12px; padding: 0; margin-bottom: 4px; } }
   .mw-number {
-    gap: 0; border: 1px solid var(--control-input); border-radius: var(--radius-control); background: var(--paper);
+    gap: 0; border: 1px solid var(--control-input); border-radius: var(--radius-control);
     .mw-input { min-width: 64px; text-align: center; }
     .mw-btn { width: 28px; min-width: 28px; border: 0; background: transparent; color: var(--muted); &:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); } }
   }
@@ -336,11 +337,11 @@ export const PRIMITIVE_PLUGIN_CALENDAR = `
       width: 26px; height: 26px; margin: 0 auto; border: 0; border-radius: 50%; background: transparent; color: inherit; font: inherit; cursor: pointer;
       &:hover { background: var(--nav-hover); color: var(--ink); }
     }
-    td[aria-current="date"]:not(.is-selected) :is(.mw-calendar__day, span) { background: transparent; color: var(--accent); font-weight: var(--weight-control); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+    td[aria-current="date"]:not(.is-selected) :is(.mw-calendar__day, span) { color: var(--accent); font-weight: var(--weight-control); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
     td.is-selected :is(.mw-calendar__day, span) { background: var(--action); color: var(--action-ink); font-weight: var(--weight-control); box-shadow: var(--lift-1); }
   }
   .mw-calendar--compact { width: 200px; }
-  .mw-calendar__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink); }
+  .mw-calendar__header { justify-content: space-between; font-size: 12px; color: var(--ink); }
   .mw-calendar__grid { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: center; font-size: 11px; th { height: 24px; color: var(--muted); } }
   .mw-calendar__outside { color: var(--faint); }
   .mw-date-picker { display: grid; gap: 8px; width: min(252px, 100%); position: relative; }
@@ -349,7 +350,7 @@ export const PRIMITIVE_PLUGIN_CALENDAR = `
 
 export const PRIMITIVE_PLUGIN_PREVIEW = `
   .mw-preview-card {
-    width: min(280px, 100%); padding: 16px; border: 0; border-radius: 12px; background: var(--paper); box-shadow: var(--shadow-raised);
+    width: min(280px, 100%); padding: 16px; border: 0; border-radius: 12px; box-shadow: var(--shadow-raised);
     strong { display: block; font-size: 13px; }
     p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
   }
@@ -474,7 +475,7 @@ export const PRIMITIVE_PLUGIN_LAYOUT_SHELL_FRAME = `
 export const PRIMITIVE_PLUGIN_CARD_TABLE = `
   /* A card lifts off the surface on a hairline and a soft shadow instead of a drawn frame. */
   .mw-card {
-    display: grid; border: 1px solid transparent; border-radius: 16px; background: var(--paper); overflow: hidden;
+    display: grid; border: 1px solid transparent; border-radius: 16px; overflow: hidden;
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent), var(--shadow-soft), inset 0 1px 0 var(--edge-highlight);
   }
   .mw-card__header { display: flex; justify-content: space-between; gap: 12px; padding: 20px 20px 0; }
@@ -483,14 +484,44 @@ export const PRIMITIVE_PLUGIN_CARD_TABLE = `
   .mw-card__panel { padding: 12px 20px 20px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; > :first-child { margin-top: 0; } > :last-child { margin-bottom: 0; } }
   .mw-card__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 20px 20px; color: var(--muted); font-size: 12px; }
   .mw-scroll { overflow: auto; min-height: 0; }
-  .mw-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+  .mw-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
   .mw-table {
     width: 100%; border-collapse: collapse; font-size: 13px;
     :is(th, td) { padding: 12px 16px; border: 0; text-align: left; }
     th { color: var(--muted); font-size: 11px; letter-spacing: .01em; }
     thead th { padding-bottom: 8px; }
-    tbody tr { transition: background-color var(--dur-hover) var(--ease-quint); &:hover { background: var(--nav-hover); } & + tr td { box-shadow: inset 0 1px 0 var(--line); } }
+    tbody tr { &:hover { background: var(--nav-hover); } & + tr td { box-shadow: inset 0 1px 0 var(--line); } }
   }
+  .mw-table tbody tr, .mw-inset-row { transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-badge--chip { border-radius: 6px; padding: 0 7px; min-height: 20px; }
+  .mw-glyph-status { width: 20px; height: 20px; flex: none; border-radius: 6px; color: var(--status-tone, var(--ink-soft)); svg { width: 15px; height: 15px; display: block; } }
+  .mw-signal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--status-tone, var(--muted)); }
+  .mw-signal { gap: 4px; color: var(--muted); font-size: 12px; line-height: 16px; white-space: nowrap; svg { width: 12px; height: 12px; flex: none; color: var(--faint); } }
+  .mw-tabs__list--underline {
+    gap: 16px; border-bottom: 1px solid var(--line);
+    .mw-tabs__tab {
+      min-height: 36px; padding: 0 2px; border-radius: 0; background: transparent;
+      &:is(:hover, .is-active) { background: transparent; color: var(--ink); }
+      &::after { content: ""; position: absolute; inset: auto 0 -1px; height: 2px; border-radius: 1px; background: var(--accent); opacity: 0; transform: scaleX(.4); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-quint); }
+      &.is-active::after { opacity: 1; transform: scaleX(1); }
+    }
+  }
+  .mw-section-well { padding: 4px; border-radius: var(--radius-surface); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-inset-group { border-radius: var(--radius-item); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5.5%, transparent), var(--shadow-soft), inset 0 1px 0 var(--edge-highlight); overflow: hidden; }
+  .mw-inset-row {
+    position: relative; display: grid; grid: auto / 20px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 11px 14px;
+    &:hover { background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+    & + &::before { content: ""; position: absolute; inset: 0 14px auto var(--text-start); height: 1px; background: var(--line); pointer-events: none; }
+    &[data-open="true"] .mw-inset-row__drawer { display: block; animation: craft-rise var(--dur-move) var(--ease-quint); }
+  }
+  .mw-inset-row--plain { grid: auto / minmax(0, 1fr) auto; & + &::before { left: 14px; } }
+  .mw-inset-row__lead { width: 20px; height: 22px; flex: none; color: var(--ink-soft); svg { width: 16px; height: 16px; } }
+  .mw-inset-row__body { min-width: 0; display: grid; gap: 3px; }
+  .mw-inset-row__title { margin: 0; color: var(--ink); font-size: 13px; line-height: 22px; }
+  .mw-inset-row__signals { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+  .mw-inset-row__end { gap: 8px; min-height: 22px; color: var(--muted); font-size: 12px; }
+  .mw-inset-row__drawer { grid-column: 2 / -1; display: none; margin-top: 8px; > div { overflow: hidden; min-height: 0; } }
+  .mw-field__label, .mw-fieldset legend, .mw-badge, .mw-status, .mw-avatar, .mw-menu__label, .mw-tabs__tab, .mw-toggle, .mw-choice, .mw-collapsible summary, .mw-label, .mw-check-group legend, .mw-radio-group legend, .mw-calendar__header, .mw-calendar__grid th, .mw-preview-card strong, .mw-card__title, .mw-table th, .mw-inset-row__title { font-weight: var(--weight-control); }
 `;
 
 export const PRIMITIVE_PLUGIN_LAYOUT = PRIMITIVE_PLUGIN_LAYOUT_SHELL + PRIMITIVE_PLUGIN_CARD_TABLE;
@@ -507,11 +538,11 @@ export const PRIMITIVE_PLUGIN_MEDIA = `
     .mw-switch input { inset: -11px -4px; }
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
     .mw-input-group svg { width: 16px; height: 16px; }
-    dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
-    dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); > .mw-form { max-height: calc(100dvh - 32px); } }
+    dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; }
+    dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); > .mw-form { max-height: inherit; } }
   }
   @media (prefers-reduced-motion: reduce) {
-    .mw-spinner { animation: none; }
+    .mw-spinner, .mw-inset-row[data-open="true"] .mw-inset-row__drawer { animation: none; }
     .mw-help-card, .mw-select-picker__menu { animation: none !important; }
   }
 `;

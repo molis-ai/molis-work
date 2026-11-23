@@ -1,6 +1,7 @@
 export { functionsErrors, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
 export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
 export { FUNCTIONS_STORE_BASELINE, FUNCTIONS_HOME_STORE } from "./store-schema.js";
+export { judgmentConfigReplica } from './replication.js';
 export { assertReadyToPublish, assertReadyToEvaluate } from "./record-rules.js";
 export type { RecordJudgmentInput } from "./judgments.js";
 export type { DeclaredRuleSubject, DeclaredSceneRule, ForgottenDeclaredRules } from "./declared-rules.js";

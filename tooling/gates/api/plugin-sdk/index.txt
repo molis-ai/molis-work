@@ -493,6 +493,7 @@ export interface SandboxManifestInput {
     upgradeCompatibility?: PluginManifest['upgrade_compatibility'];
     stateMachines?: PluginManifest['state_machines'];
     runtime?: PluginManifest['runtime'];
+    memoryScene?: PluginManifest['memory_scene'];
     icon?: PluginIconName;
     effects?: DerivedEffects;
     contract?: SandboxPluginContract;

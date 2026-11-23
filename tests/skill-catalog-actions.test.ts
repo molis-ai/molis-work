@@ -230,6 +230,12 @@ test("SKC-09: a resource is named by its reference and a path under the Skill's 
   await assert.rejects(leaking.invoke(agent, reference(skillCatalogActions.list), {}), badOutput);
   const { service: offAsUnavailable } = serving(() => ({ skills: [{ ...entry, state: "off", availability: { available: false, reason: "off" } }] }));
   await assert.rejects(offAsUnavailable.invoke(person, reference(skillCatalogActions.list), {}), badOutput);
+  const { service: validScenes } = serving(() => ({ skills: [entry], scenes: [{ scene: "coding", name: "Coding", scope: "home" }, { scene: "field-notes", name: "Field Notes", scope: "project" }] }));
+  await validScenes.invoke(person, reference(skillCatalogActions.list), {});
+  for (const invalidScene of ["assistant", "both", "common", "agent", "Bad Scene"]) {
+    const { service: badScenes } = serving(() => ({ skills: [entry], scenes: [{ scene: invalidScene, name: "Bad" }] }));
+    await assert.rejects(badScenes.invoke(person, reference(skillCatalogActions.list), {}), badOutput, invalidScene);
+  }
 });
 
 test("the refusals are declared once under the skills owner, with a kind each", () => {

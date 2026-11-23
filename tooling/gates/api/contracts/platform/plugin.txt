@@ -3745,6 +3745,14 @@ export declare const PLUGIN_PROJECTS_EXIST_PERMISSION = "projects:exist";
 
 export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
+export declare const PLUGIN_SCENE_SCHEMA: {
+    readonly type: "string";
+    readonly pattern: "^[a-z][a-z0-9-]{0,39}$";
+    readonly not: {
+        readonly enum: readonly ["assistant", "common", "agent", "both"];
+    };
+};
+
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
 export interface PersonIntake extends DestinationDeclaration {
@@ -4722,7 +4730,6 @@ export interface PluginManifest {
     always_on?: boolean;
     summary?: string;
     summary_text?: TextRef;
-    developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {

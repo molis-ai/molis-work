@@ -1,6 +1,6 @@
 # Work Brief
 
-项目的简报：各来源此刻怎么样、几句话的现状（每句后面是它的依据）、要你处理什么、和上次比变了什么、下一步。装了 Work Brief 的项目，简报就是项目首页的内容（`presentation.overview.lead`），移除后回到平台的基础首页。个人简报把各项目简报里要你处理的事和没处置的下一步汇到一处，带项目或个人的标签。
+项目的简报：各来源此刻怎么样、几句话的现状（每句后面是它的依据）、要你处理什么、和上次比变了什么、下一步。装了 Work Brief 的项目，简报开头的几句话（连同每句的依据）经概况的 `lede` 交给平台首页，首页一处画完；它自己的页留着看各版本和修改。移除后首页照常，只是没有这几句话。个人简报把各项目简报里要你处理的事和没处置的下一步汇到一处，带项目或个人的标签。
 
 包名：`@molis-ai/molis-work-plugin-work-brief`。工作区内部包，Home 与项目两个实例（`createHomeWorkBriefPlugin()`、`createWorkBriefPlugin()`，登记上的 `runtime` 与 `project_runtime`），不在宿主里手写装配。需求见 [specs/work-brief/spec.md](../../../specs/work-brief/spec.md)，合同设计见 [contract-design.md](../../../specs/work-brief/contract-design.md)，版式见 [docs/design/archive/work-brief-core/](../../../docs/design/archive/work-brief-core/README.md)。
 
@@ -18,7 +18,7 @@
 | [src/fix.ts](src/fix.ts) | 把一个版本固定成成果 |
 | [src/next.ts](src/next.ts) | 下一步：按 SDK 的操作卡规则执行一次、放一放、交给助理 |
 | [src/personal.ts](src/personal.ts) | 个人简报：跨项目汇总 |
-| [src/presentation.ts](src/presentation.ts) | 呈现声明、首页概况与首页主区内容 |
+| [src/presentation.ts](src/presentation.ts) | 呈现声明与首页概况（开头几句话经 `lede` 交给首页） |
 | [src/store.ts](src/store.ts)、[src/database.ts](src/database.ts) | Home 库 `work-brief` 的表与读写 |
 | [src/browser/](src/browser/) | 页面：`client.ts` 接动作，`brief.ts` 画简报与个人简报，`parts.ts` 是小零件 |
 

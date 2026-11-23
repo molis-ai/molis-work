@@ -8,7 +8,7 @@
  * nothing in a project and sends nothing out (PWA-16). It runs as a `trial` observation source, which reports and effect figures
  * leave out (PWA-83).
  */
-import { builtinScenePlugins, skillAudienceDeclared } from "../memory/memory-plugin-scene.js";
+import { builtinActiveSkillScenes, skillAudienceActive, type ActiveSkillScene } from "../memory/memory-plugin-scene.js";
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -45,8 +45,13 @@ export interface SkillWorkshopPorts {
 
 const EMPTY: SkillAuthoredFields = { name: "", description: "", applies_to: "assistant", body: "" };
 const scopeOfRef = (scopeRef: string): SkillScope => scopeRef === "home" ? "home" : "project";
-/** The entries a draft is replayed in: the Assistant and the built-in plugin scenes `applies_to` names (BL-b44-coding-scene-enum). */
-const consumersOf = (appliesTo: SkillAppliesTo): SkillTrialConsumer[] => skillEntriesOf(appliesTo, [...builtinScenePlugins().keys()]);
+/** The entries a draft is replayed in: the Assistant and the active plugin scenes `applies_to` names. */
+const consumersOf = (appliesTo: SkillAppliesTo, scenes: ReadonlyMap<string, ActiveSkillScene>): SkillTrialConsumer[] => skillEntriesOf(appliesTo, [...scenes.keys()]);
+const scenesForScope = (scenes: ReadonlyMap<string, ActiveSkillScene> | undefined, scopeRef: string): ReadonlyMap<string, ActiveSkillScene> => {
+  const active = scenes ?? builtinActiveSkillScenes();
+  if (scopeRef !== "home") return active;
+  return new Map([...active.entries()].filter(([, info]) => info.scope !== "project"));
+};
 const sourceOf = (skill: CatalogSkill): SkillSourceRef => ({ install_id: skill.ref.install_id, plugin_id: skill.pack.plugin_id, skill_id: skill.ref.skill_id,
   version: skill.ref.version, name: (skill.display ?? skill.declaration).name });
 const sameSkill = (skill: CatalogSkill, source: Pick<SkillSourceRef, "install_id" | "skill_id">) => skill.ref.install_id === source.install_id && skill.ref.skill_id === source.skill_id;
@@ -292,11 +297,12 @@ export class SkillWorkshop {
     const draft = this.open(caller, input.draft_id), asked = input.instruction.trim();
     if (!asked || asked.length > SKILL_REVISE_INSTRUCTION_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_REVISE_INSTRUCTION_CHARS} 字说怎么改`, { field: "instruction" });
     if (draft.revision !== input.expected_revision) throw skillErrors.draft_conflict("草稿在别处改过了，请重新打开再改", { revision: draft.revision });
+    const scopeScenes = await this.ports.withSkills(caller, (_skills, scenes) => scenesForScope(scenes, draft.scope_ref));
     const complete = this.model("改技能草稿"), authority = { signal: caller.signal, beforeDispatch: caller.beforeEffect };
     await authority.beforeDispatch();
     const data = fencedMaterials({ draft: draft.fields, instruction: asked }, randomBytes(8).toString("hex"));
     const answer = await complete(this.ports.resolve(instructed(SKILL_REVISE, data)), authority);
-    const fields = revisedFields(answer.value, draft.fields);
+    const fields = revisedFields(answer.value, draft.fields, appliesTo => skillAudienceActive(appliesTo, scopeScenes));
     if (!fields) throw skillErrors.draft_unreadable("助理没有给出能用的修改，请换个说法再试，或者自己改");
     await caller.beforeEffect();
     answer.validateResult();
@@ -315,14 +321,15 @@ export class SkillWorkshop {
     const known = this.store.cases(draftCases(draft.draft_id)).find(item => item.case_id === input.case_id);
     if (!known) throw skillErrors.case_invalid("这份草稿没有这个已知答案", { field: "case_id" });
     if (!draft.fields.body.trim()) throw skillErrors.authored_invalid("请先写怎么做，再回放", { field: "body" });
-    const base = await this.ports.withSkills(caller, skills => this.base(skills, draft));
+    const { base, scopeScenes } = await this.ports.withSkills(caller, (skills, scenes) => ({ base: this.base(skills, draft), scopeScenes: scenesForScope(scenes, draft.scope_ref) }));
+    if (!skillAudienceActive(draft.fields.applies_to, scopeScenes)) throw skillErrors.authored_invalid("「给谁用」所选的场景当前不可用，请改选其他对象再回放", { field: "applies_to" });
     const complete = this.model("回放技能"), authority = { signal: caller.signal, beforeDispatch: caller.beforeEffect };
     const sides: Array<{ side: SkillTrialCell["side"]; fields: SkillAuthoredFields }> = [...base ? [{ side: "base" as const, fields: skillFields(base) }] : [], { side: "draft", fields: draft.fields }];
-    const runs = consumersOf(draft.fields.applies_to).flatMap(consumer => sides.map(side => ({ consumer, ...side })));
+    const runs = consumersOf(draft.fields.applies_to, scopeScenes).flatMap(consumer => sides.map(side => ({ consumer, ...side })));
     const { cells, answers } = await withObservationSource("trial", async () => {
       await authority.beforeDispatch();
       const outputs = await Promise.all(runs.map(run => {
-        const data = fencedMaterials({ role: roleOf(run.consumer), skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
+        const data = fencedMaterials({ role: roleOf(run.consumer, scopeScenes), skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
           randomBytes(8).toString("hex"));
         return complete(this.ports.resolve(instructed(SKILL_TRIAL, data)), authority);
       }));
@@ -393,10 +400,10 @@ function summaryVerdict(trials: readonly SkillTrial[], activeCases: readonly Ski
 /** The entries' roles in a replay, as each one works: the same words the trial instruction names. */
 const ASSISTANT_ROLE = "助理：替用户处理日常工作的助手，面对的是用户本人，产出可以直接交给用户的结果（文字、清单、表格、草稿）。";
 /** A plugin scene's entry works as the plugin that declares it says it does: its name and summary. */
-const roleOf = (consumer: SkillTrialConsumer): string => {
+const roleOf = (consumer: SkillTrialConsumer, scenes: ReadonlyMap<string, ActiveSkillScene>): string => {
   if (consumer === "assistant") return ASSISTANT_ROLE;
-  const plugin = builtinScenePlugins().get(consumer);
-  return plugin ? `${plugin.name}：${plugin.summary}` : consumer;
+  const plugin = scenes.get(consumer);
+  return plugin ? (plugin.summary ? `${plugin.name}：${plugin.summary}` : plugin.name) : consumer;
 };
 
 /** A kept version's fields, from its declaration and body. */
@@ -418,7 +425,7 @@ function judgement(answer: string, count: number): Array<Pick<SkillTrialCell, "v
 }
 
 /** The model's revision, cut to the draft's limits; a field it left out stays as it was. Undefined when the answer is no draft. */
-function revisedFields(answer: string, before: SkillAuthoredFields): SkillAuthoredFields | undefined {
+function revisedFields(answer: string, before: SkillAuthoredFields, audienceActive: (appliesTo: unknown) => boolean): SkillAuthoredFields | undefined {
   const parsed = parsedJson(answer);
   if (!parsed) return undefined;
   const text = (key: keyof SkillAuthoredFields) => typeof parsed[key] === "string" ? (parsed[key] as string).trim() : undefined;
@@ -426,7 +433,7 @@ function revisedFields(answer: string, before: SkillAuthoredFields): SkillAuthor
   const body = cutHead((text("body") ?? before.body).replace(/\r\n?/gu, "\n").split("\n").slice(0, SKILL_LIMITS.bodyLines).join("\n"), SKILL_LIMITS.bodyChars).trim();
   if (!name || !body) return undefined;
   const whenNot = cutHead(text("when_not_to_use") ?? before.when_not_to_use ?? "", SKILL_LIMITS.whenChars);
-  const applies = skillAudienceDeclared(text("applies_to")) ? text("applies_to") as SkillAppliesTo : before.applies_to;
+  const applies = audienceActive(text("applies_to")) ? text("applies_to") as SkillAppliesTo : before.applies_to;
   return { name, description, applies_to: applies, body, ...(whenNot ? { when_not_to_use: whenNot } : {}), ...(before.argument_hint ? { argument_hint: before.argument_hint } : {}) };
 }
 

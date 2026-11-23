@@ -4,7 +4,8 @@ import { AdoptionExecution, assertCurrent, type AdoptionProgress } from "./adopt
 import { previewSettings, type SettingsAccess } from "./preview.js";
 import { AdoptionStore } from "./store.js";
 
-export { BLUEPRINTS_HOME_STORE } from "./schema.js";
+export { BLUEPRINTS_BASELINE, BLUEPRINTS_HOME_STORE, BLUEPRINTS_STORE } from "./schema.js";
+export { blueprintConfigReplica } from './replication.js';
 export { AdoptionStore, type DiscoveredSetting, type SettingBinding } from "./store.js";
 export type { SettingsAccess } from "./preview.js";
 export type { AdoptionProgress } from "./adopt.js";

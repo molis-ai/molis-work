@@ -1,7 +1,7 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
-import { forgetInstalledMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
+import { forgetInstalledMemoryScene, forgetProjectInstalledMemoryScenes, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
@@ -175,11 +175,19 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = release.packaged && definition(release, approvedFor(release.pluginId) ?? release.permissions);
-    if (value) rememberInstalledMemoryScene(projectId, release.pluginId, value.manifest.memory_scene);
+    if (value) rememberInstalledMemoryScene(projectId, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
     if (value) { declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored); reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id)); }
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
-  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
+  const stops = publisherStops({
+    standing, platform, recoveryErrors,
+    withdraw: id => {
+      withdraw(id);
+      declared.release(id);
+      forgetInstalledMemoryScene(projectId, id);
+    },
+    records,
+  });
   const lifecycleContext: InstalledLifecycleContext = { platform, home: homeDirectory, library: store.path, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId)); declared.release(pluginId);
@@ -194,7 +202,10 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const lifecycle = installedLifecycle(lifecycleContext);
   const close = async () => {
     if (closed) return;
-    closed = true; disposePlatform(); declared.releaseAll();
+    closed = true;
+    disposePlatform();
+    declared.releaseAll();
+    forgetProjectInstalledMemoryScenes(projectId);
     await platform.stopProjectJobs(projectId);
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
@@ -209,7 +220,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       heldBack: (record, release) => release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record) });
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
     const reconcileDualHalf = (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) =>
-      reconcileInstalledDualHalf({ closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, standing, definition }, pluginId, action, permission);
+      reconcileInstalledDualHalf({ projectId, closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, registerPrompts, standing, definition }, pluginId, action, permission);
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
@@ -226,6 +237,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
 
 /** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */
 async function reconcileInstalledDualHalf(ctx: {
+  projectId: string;
   closed(): boolean;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
@@ -233,6 +245,7 @@ async function reconcileInstalledDualHalf(ctx: {
   platform: ReturnType<typeof createPluginPlatform>;
   withdraw(pluginId: string): void;
   expose(release: InstalledRelease): Promise<void>;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   standing: ReturnType<typeof publisherStanding>;
   definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
 }, pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) {
@@ -249,6 +262,7 @@ async function reconcileInstalledDualHalf(ctx: {
       });
     }
     ctx.platform.supervisor.revoke(pluginId);
+    forgetInstalledMemoryScene(ctx.projectId, pluginId);
     return;
   }
   if (action === 'regrant') {
@@ -268,7 +282,10 @@ async function reconcileInstalledDualHalf(ctx: {
     await ctx.platform.start([{ definition: def, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
   }
   const state = await ctx.platform.supervisor.enable(pluginId);
-  if (state.status === 'running') await ctx.expose(release);
+  if (state.status === 'running') {
+    await ctx.expose(release);
+    ctx.registerPrompts(release, 'enabled');
+  }
 }
 
 /**

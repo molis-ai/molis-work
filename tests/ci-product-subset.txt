@@ -448,7 +448,6 @@ tests/tab-split-drop.test.ts
 tests/tab-strip-share.test.ts
 tests/tab-workspace-ops.test.ts
 tests/tab-workspace-view.test.ts
-tests/text-stats-plugin.test.ts
 tests/todo-actions.test.ts
 tests/todo-from-inbox.test.ts
 tests/todo-organize.test.ts

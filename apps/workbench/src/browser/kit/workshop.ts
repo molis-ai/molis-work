@@ -60,7 +60,7 @@ function placeholders(w: Workshop, disabled: boolean): string {
 
 function editor(w: Workshop, limits: SkillWritingLimits): string {
   const disabled = Boolean(w.asking || w.adopting);
-  return `<div class="sk-editor" data-au>${askRow(w)}${placeholders(w, disabled)}${fieldsMarkup(w.fields, w.errors, limits, disabled)}</div>`;
+  return `<div class="sk-editor" data-au>${askRow(w)}${placeholders(w, disabled)}${fieldsMarkup(w.fields, w.errors, limits, disabled, w.draft.scope)}</div>`;
 }
 
 function verdictMark(cell: SkillTrialCell | undefined): string {
@@ -118,7 +118,7 @@ function tryPanel(w: Workshop): string {
 function comparePanel(w: Workshop): string {
   if (w.compare === "draft" && w.save.kind === "conflict") {
     const text = (fields: SkillDraft["fields"], replacements: Record<string, string>) => [
-      fields.name, fields.applies_to === "both" ? bothWord() : entryWord(fields.applies_to),
+      fields.name, fields.applies_to === "both" ? bothWord(w.draft.scope) : entryWord(fields.applies_to),
       fields.description, fields.when_not_to_use ?? "", fields.argument_hint ?? "", "", fields.body,
       ...Object.entries(replacements).sort(([left], [right]) => left.localeCompare(right)).map(([name, replacement]) => `${name}: ${replacement}`),
     ].join("\n");
@@ -131,7 +131,7 @@ function comparePanel(w: Workshop): string {
     { value, label: improve(`compare-${value}`), current: w.compare === value, attrs: act("sk-compare", value) })) });
   const draft = w.draft;
   if (w.compare === "out") {
-    const trial = draft.trial, chosen = w.out ?? { consumer: consumersOf(w.fields)[0]!, side: "draft" as const };
+    const trial = draft.trial, chosen = w.out ?? { consumer: consumersOf(w.fields, w.draft.scope)[0]!, side: "draft" as const };
     const cell = trial?.cells.find(item => item.consumer === chosen.consumer && item.side === chosen.side), known = trial && draft.cases.find(item => item.case_id === trial.case_id);
     if (!cell || !known) return `<div class="sk-compare">${pick}<p class="sk-note">${icon("info")}<span>${esc(improve("compare-out-none"))}</span></p></div>`;
     return `<div class="sk-compare">${pick}<p class="sk-what">${esc(improve("compare-out-what", { who: `${sideWord(w, chosen.side)} · ${entryWord(chosen.consumer)}` }))}</p>${diffOf(cell.output, known.expected)}</div>`;

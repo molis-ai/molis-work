@@ -31,7 +31,7 @@ function replay(...args: string[]) {
 test("RAC-790 every sample of the replay corpus loads, runs, upgrades by upgrade_compatibility and runs again", { timeout: 300_000 }, () => {
   const { status, report, stderr } = replay();
   assert.equal(status, process.platform === "darwin" ? 0 : 1, JSON.stringify(report, null, 2) + stderr);
-  assert.deepEqual(report.results.map(result => result.id), ["plugin-sample", "text-stats-packed", "generated-counter", "generated-list"]);
+  assert.deepEqual(report.results.map(result => result.id), ["plugin-sample", "diff-packed", "generated-counter", "generated-list"]);
   for (const result of report.results) {
     if (process.platform !== "darwin" && ["generated-counter", "generated-list"].includes(result.id)) { unsupported(result); continue; }
     assert.equal(result.ok, true, JSON.stringify(result, null, 2));
@@ -111,7 +111,7 @@ test("RAC-790 W4-01 signed-package replay uses CLI preview/pin, one write, the s
       .filter((sample: { source: { kind: string } }) => sample.source.kind !== "signed-package");
     for (const sample of original) if (sample.source.kind === "directory") sample.source.path = path.resolve(root, "tests/fixtures/replay-plugins", sample.source.path);
     const { status, report, stderr } = replay("--corpus", fixture.corpus([...original, fixture.sample]));
-    assert.deepEqual(report.results.slice(0, 2).map(result => [result.id, result.ok]), [["plugin-sample", true], ["text-stats-packed", true]]);
+    assert.deepEqual(report.results.slice(0, 2).map(result => [result.id, result.ok]), [["plugin-sample", true], ["diff-packed", true]]);
     const result = report.results[2]!;
     assert.equal(status, process.platform === "darwin" ? 0 : 1, JSON.stringify(report, null, 2) + stderr);
     if (process.platform !== "darwin") { unsupported(result); return; }

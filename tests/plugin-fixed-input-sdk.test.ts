@@ -17,8 +17,8 @@ import { chinesePagePacks } from "./fixtures/page-text-packs.js";
 
 test.beforeEach(t => { t.after(installTextForTest({ locale: "zh", packs: chinesePagePacks("diff") })); });
 
-const PROBE = "io.molis.work.fixed-input-probe", PROCESS_ONLY = "io.molis.work.process-input-probe";
-const SOURCE = "io.molis.work.fixed-input-source";
+const PROBE = "com.example.fixed-input-probe", PROCESS_ONLY = "com.example.process-input-probe";
+const SOURCE = "com.example.fixed-input-source";
 const ACTOR = "tester";
 const snapshot = (text: string) => ({ workspace: { workspace_id: "ws", name: "Project" }, path: ["a.ts"], text });
 const type = { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1 };
@@ -206,7 +206,7 @@ for (const selected of [
       const reference = { artifact_id: "saved-change", version: 1 };
       project.artifacts.commands.registerVersion({ ...pinnedArtifact("Saved change"), project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
         ...reference, artifact_type_id: selected.artifactType, schema_version: 1,
-        producer: { plugin_id: "io.molis.work.saved-change", plugin_version: "1.0.0", binding_signature: "saved-change-binding" },
+        producer: { plugin_id: "com.example.saved-change", plugin_version: "1.0.0", binding_signature: "saved-change-binding" },
         content: { kind: "inline", payload: selected.payload } });
       project.platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, selected.group);
       bind(project, DIFF_PLUGIN_ID, selected.port, reference);

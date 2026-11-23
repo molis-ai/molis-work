@@ -23,8 +23,8 @@ import {
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 
-const PRODUCER = "io.molis.work.producer";
-const CONSUMER = "io.molis.work.consumer";
+const PRODUCER = "com.example.producer";
+const CONSUMER = "com.example.consumer";
 const TYPE = "demo.payload";
 const EVENT = `${PRODUCER}.updated`;
 

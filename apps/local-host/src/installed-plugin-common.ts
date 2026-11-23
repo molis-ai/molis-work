@@ -4,8 +4,12 @@
  * those actions are priced against, and bringing every installation back when the host opens. Each host keeps only what has no
  * counterpart in the other: where its approvals and prompts are kept, what its sandbox identity names, and its own admission checks.
  */
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
+import { sameInstalledRelease } from './installed-release.js';
 import { pluginErrors, type PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { isPackageReadFailure } from './installed-recovery-errors.js';
 import { holdsFailedDatabaseUpgrade } from '@molis-ai/molis-work-plugin-runtime';
 import { APPROVED_KEY, isPendingUninstall, onlyOne, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
 import type { installedDefinitions } from './installed-plugin-definition.js';
@@ -106,7 +110,12 @@ const heldOff = (record: PluginInstanceRecord) => record.state === 'disabled' ||
  * else less. `admit` is the host's own check of a release before it starts; `blocked` is a reason it may not start yet, its prompts
  * registered switched off; `heldBack` starts one registered but not enabled (a dual-instance half whose Home half is not running).
  */
-export async function recoverInstalledRecords(ctx: {
+export type InstalledPackageRepair = { plugin_id: string; expected_installation: SurfaceInstallationRef; bundle?: unknown };
+
+export function installedPackageRecovery(ctx: {
+  packages: SandboxPackageStore;
+  scope: SurfaceInstallationRef['scope'];
+  recordFor(pluginId: string): PluginInstanceRecord | undefined;
   records(): PluginInstanceRecord[];
   standing: Standing;
   stops: ReturnType<typeof publisherStops>;
@@ -123,38 +132,78 @@ export async function recoverInstalledRecords(ctx: {
   blocked?(record: PluginInstanceRecord): Error | undefined;
   heldBack?(record: PluginInstanceRecord, release: InstalledRelease): boolean;
 }) {
-  for (const record of ctx.records()) {
-    try {
-      if (!ctx.standing.trusted(record)) {
-        await ctx.stops.suspend(record);
-        continue;
-      }
-      const release = ctx.releaseFor(record.plugin_id), approved = ctx.approvedFor(record.plugin_id);
-      // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
-      if (!release) {
-        if (!ctx.recoveryErrors.has(record.plugin_id)) ctx.recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录');
-        continue;
-      }
-      if (!approved) throw new Error(ctx.unapproved);
-      ctx.admit?.(release);
-      const blocked = ctx.blocked?.(record);
-      const heldBack = ctx.heldBack?.(record, release) === true;
-      ctx.registerPrompts(release, blocked || heldOff(record) || heldBack || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
-      if (blocked) throw blocked;
-      const trust = release.packaged ? { trust: release.packaged.trust } : {};
-      if (heldOff(record) || heldBack) {
-        const restored = ctx.definition(release, approved);
-        ctx.platform.runtime.register(restored);
-        await ctx.platform.start([{ definition: restored, grants: record.grants, enabled: false, ...trust }]);
-        continue;
-      }
-      // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
-      const report = await ctx.platform.start([{ definition: ctx.definition(release, approved), grants: record.grants, ...trust }]);
-      if (report.running.includes(record.plugin_id)) await ctx.expose(release);
-      else {
-        ctx.registerPrompts(release, 'disabled');
-        throw new Error(ctx.platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      }
-    } catch (error) { ctx.recoveryErrors.set(record.plugin_id, error); }
+  async function restore(record: PluginInstanceRecord, assertCurrent?: () => void): Promise<void> {
+    assertCurrent?.();
+    if (!ctx.standing.trusted(record)) {
+      await ctx.stops.suspend(record);
+      return;
+    }
+    const release = ctx.releaseFor(record.plugin_id), approved = ctx.approvedFor(record.plugin_id);
+    // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
+    if (!release) {
+      if (!ctx.recoveryErrors.has(record.plugin_id)) ctx.recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录');
+      return;
+    }
+    if (!approved) throw pluginErrors.grant_denied(ctx.unapproved);
+    ctx.admit?.(release);
+    const blocked = ctx.blocked?.(record);
+    const heldBack = ctx.heldBack?.(record, release) === true;
+    ctx.registerPrompts(release, blocked || heldOff(record) || heldBack || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
+    if (blocked) throw blocked;
+    const trust = release.packaged ? { trust: release.packaged.trust } : {};
+    if (heldOff(record) || heldBack) {
+      const restored = ctx.definition(release, approved);
+      ctx.platform.runtime.register(restored);
+      await ctx.platform.start([{ definition: restored, grants: record.grants, enabled: false, ...trust }], { assertCurrent });
+      return;
+    }
+    // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
+    const report = await ctx.platform.start([{ definition: ctx.definition(release, approved), grants: record.grants, ...trust }], { assertCurrent });
+    assertCurrent?.();
+    if (report.running.includes(record.plugin_id)) await ctx.expose(release);
+    else {
+      ctx.registerPrompts(release, 'disabled');
+      throw new ActionError('actions.plugin_unavailable', ctx.platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
+    }
   }
+
+  return {
+    async open() {
+      for (const record of ctx.records()) {
+        try { await restore(record); }
+        catch (error) { ctx.recoveryErrors.set(record.plugin_id, error); }
+      }
+    },
+    damaged(record: PluginInstanceRecord) {
+      if (!isPackageReadFailure(ctx.recoveryErrors.code(record.plugin_id))) return;
+      if (ctx.platform.supervisor.state(record.plugin_id)?.status === 'running') return;
+      return { record, manifest: ctx.packages.installedManifest(record) };
+    },
+    async repair({ plugin_id, expected_installation, bundle }: InstalledPackageRepair, assertAuthority: () => void) {
+      const check = () => {
+        assertAuthority();
+        const current = ctx.recordFor(plugin_id);
+        if (expected_installation.scope !== ctx.scope || !current || !sameInstalledRelease(expected_installation, current))
+          throw pluginErrors.install_replaced('原安装已变化，请重新打开插件');
+        if (!ctx.standing.trusted(current)) throw pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE);
+        return current;
+      };
+      const record = check();
+      if (!isPackageReadFailure(ctx.recoveryErrors.code(plugin_id)))
+        throw pluginErrors.state_invalid('这个安装当前无需装回');
+      if (!ctx.approvedFor(plugin_id)) throw pluginErrors.grant_denied(ctx.unapproved);
+      ctx.packages.repair(record, bundle);
+      try {
+        await restore(record, check);
+        check();
+        if (!ctx.releaseFor(plugin_id)) throw pluginErrors.package_invalid('装回的插件包读不出来');
+        ctx.recoveryErrors.delete(plugin_id);
+        return { plugin_id, version: record.version };
+      } catch (error) {
+        check();
+        ctx.recoveryErrors.set(plugin_id, error);
+        throw error;
+      }
+    },
+  };
 }

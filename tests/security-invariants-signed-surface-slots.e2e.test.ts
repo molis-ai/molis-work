@@ -30,7 +30,7 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
   await b.setViewport(1440, 900);
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   for (const scope of ["project", "home"] as const) {
-    const id = "io.molis.work.example.surface-slot-" + scope, title = "Original Inbox item for the " + scope + " slot";
+    const id = "com.example.surface-slot-" + scope, title = "Original Inbox item for the " + scope + " slot";
     const { item } = feed.ingestItem({ source, externalId: scope, title, summary: "Original summary", occurredAt: new Date().toISOString(), attention: false });
     const { entry } = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
     const { bundle, surface, publisher } = await packSignedObjectSlot(t, scope, id, "inbox_entry");
@@ -186,7 +186,7 @@ test("IUI-02 IUI-13: a signed free reader displays its fallback only in the orig
   assert.ok(projectId && localHost);
   const prefix = "/projects/" + projectId, caller = person(projectId);
   const client = localHost.actionClient(molisWorkHostProjectReference({ projectId, databasePath: b.databasePath }));
-  const id = "io.molis.work.example.surface-fallback", kind = "signed_fallback_object";
+  const id = "com.example.surface-fallback", kind = "signed_fallback_object";
   const title = "Current signed object title", content = "Private signed context body", invalidOpenId = "no-valid-stage";
   const { bundle } = await packSignedObjectSlot(t, "project", id, kind, { title, content, invalidOpenId });
   const build = sandboxPackageBuildId(id, bundle.payload.manifest.publisher.signature);

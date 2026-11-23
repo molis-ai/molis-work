@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { execFileSync } from "node:child_process";
@@ -30,7 +30,7 @@ import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "
 const REVIEW = "review:git-worktree";
 const refused = { code: "agent.review_not_permitted" }, notHeld = { code: "plugin.grant_denied" };
 const declared: PluginManifest["permissions"] = [{ permission: REVIEW, required: false, reason: "Creates a worktree a person reviews first" }];
-const pluginId = (name: string) => `io.molis.work.example.${name}`;
+const pluginId = (name: string) => `com.example.${name}`;
 
 /** A Manifest that asks the Host for a new worktree, declaring the permissions given. */
 function worktreeManifest(name: string, permissions: PluginManifest["permissions"]): PluginManifest {
@@ -99,7 +99,7 @@ test("S-50 PG-009 a review kind outside the platform's list is refused when the 
   const unknown = worktreeManifest("unknown-kind", [{ permission: "review:git-reset", required: false, reason: "Not a platform review" }]);
   assert.throws(() => parsePluginManifest(unknown), { code: "plugin.permission_invalid" });
   assert.throws(() => parsePluginManifest(worktreeManifest("bare", [{ permission: "review:", required: false, reason: "No kind" }])), { code: "plugin.permission_invalid" });
-  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ trust: { level: "unsigned" }, definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
     { code: "plugin.permission_invalid" });
   for (const kind of ["git-index", "git-operation", "git-worktree", "git-integration"]) {
     parsePluginManifest(worktreeManifest(kind, [{ permission: `review:${kind}`, required: true, reason: "A platform review" }]));

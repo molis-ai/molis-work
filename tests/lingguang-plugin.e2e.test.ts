@@ -259,3 +259,116 @@ test("灵光对话：回复边写边显示，停止后不保存且输入保留�
   assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-input]').value"), "");
   await shot("lingguang-reply-saved");
 });
+
+test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和批量丢弃", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  const { evaluate, waitFor } = child;
+  const store = openLingguangStore(homeDirectory);
+  const sparks = (() => {
+    try {
+      return ["第一条灵光", "第二条灵光", "第三条灵光"].map((title) => store.create({ project_id: projectId!, title, body: `${title}正文` }));
+    } finally { store.close(); }
+  })();
+  const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
+    for (const type of ["keyDown", "keyUp"] as const) {
+      await command("Input.dispatchKeyEvent", {
+        type, key: name, code, windowsVirtualKeyCode, modifiers,
+        ...(type === "keyDown" && name === "Enter" ? { text: "\r", unmodifiedText: "\r" } : {}),
+      }, sessionId);
+    }
+  };
+  await browser.setViewport(390, 960);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  const directoryPath = `/projects/${projectId}/?openPlugin=lingguang`;
+  const englishDirectoryUrl = `${origin}/locale?lang=en&next=${encodeURIComponent(directoryPath)}`;
+  await navigate(() => command("Page.navigate", { url: englishDirectoryUrl }, sessionId));
+  await waitFor("document.documentElement.lang.startsWith('en')");
+  await waitFor("document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]').length === 3 && document.querySelector('[data-lingguang-rows] [tabindex=\"0\"]')", 15_000);
+
+  assert.deepEqual(await evaluate(`(() => {
+    const list = document.querySelector('[data-lingguang-rows]');
+    const options = [...list.querySelectorAll('[role=option][data-lingguang-id]')];
+    return {
+      role: list.getAttribute('role'),
+      multi: list.getAttribute('aria-multiselectable'),
+      states: options.map((row) => row.getAttribute('aria-selected')),
+      tabStops: options.map((row) => row.tabIndex),
+    };
+  })()`), {
+    role: "listbox",
+    multi: "true",
+    states: ["false", "false", "false"],
+    tabStops: [0, -1, -1],
+  }, "BL-340 Lingguang list is a multi-selectable APG listbox with one Tab stop");
+
+  const order = await evaluate<string[]>("[...document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]')].map((row) => row.dataset.lingguangId)");
+  assert.deepEqual([...order].sort(), sparks.map((spark) => spark.id).sort());
+  const selectedIds = "[...document.querySelectorAll('[data-lingguang-rows] [role=option][aria-selected=true]')].map((row) => row.dataset.lingguangId).join()";
+
+  // The shared Help button is the last toolbar control before the listbox.
+  const help = '[data-lingguang=directory] [data-mw-help-trigger][data-mw-help-auto]';
+  await waitFor(`document.querySelector(${JSON.stringify(help)})?.getClientRects().length > 0`);
+  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=lingguang]')?.focus()");
+  await evaluate(`document.querySelector(${JSON.stringify(help)}).focus()`);
+  await waitFor(`document.activeElement.matches(${JSON.stringify(help)})`);
+  await key("Tab", "Tab", 9);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
+
+  // Select first two sparks purely with Space + ArrowDown.
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order[0])}`);
+  await key("ArrowDown", "ArrowDown", 40);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[1])}`);
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify([order[0], order[1]].join())} && !document.querySelector('[data-lingguang-selection]').hidden`);
+  assert.equal(await evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false", "Space multi-select does not open the editor");
+  assert.equal(await browser.evaluate("document.querySelectorAll('.tab-item[data-tab-kind=item]').length"), 0, "Space multi-select opens no item tab");
+
+  // Deselect both purely with keyboard.
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order[0])} && document.querySelector('[data-lingguang-selection]').hidden`);
+  await key("ArrowUp", "ArrowUp", 38);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ''`);
+
+  // Tab enters and leaves the listbox in a single stop.
+  await key("Tab", "Tab", 9, 8);
+  await waitFor(`document.activeElement.matches(${JSON.stringify(help)})`);
+  await key("Tab", "Tab", 9);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
+  await key("Tab", "Tab", 9);
+  await waitFor("!document.querySelector('[data-lingguang-rows]').contains(document.activeElement)");
+
+  await key("Tab", "Tab", 9, 8);
+  await waitFor("document.activeElement?.matches('[data-lingguang-id]')");
+  await key("a", "KeyA", 65, 2);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order.join())}`);
+  await key("End", "End", 35);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[2])}`);
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order.slice(0, 2).join())}`);
+  for (const control of [help, "[data-lingguang-dispatch]", "[data-lingguang-brainstorm]", "[data-lingguang-discard]"]) {
+    await key("Tab", "Tab", 9, 8);
+    await waitFor(`document.activeElement?.matches(${JSON.stringify(control)})`);
+    assert.equal(await evaluate(`(() => {
+      const bounds = document.activeElement.getBoundingClientRect();
+      return document.activeElement.matches(":focus-visible")
+        && bounds.width > 0 && bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth;
+    })()`), true, `BL-340 ${control} stays visible with keyboard focus at 390 px`);
+  }
+  await key("Enter", "Enter", 13);
+  await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
+  await key("Tab", "Tab", 9);
+  await waitFor("document.activeElement?.matches('[data-confirm-ok]')");
+  await key("Enter", "Enter", 13);
+  await waitFor("document.querySelectorAll('[data-lingguang-id]').length === 1");
+  const after = openLingguangStore(homeDirectory);
+  try {
+    assert.deepEqual(after.list(projectId!), [sparks.find((spark) => spark.id === order[2])]);
+    for (const id of order.slice(0, 2)) assert.equal(after.get(id, projectId!).status, "discarded");
+  } finally { after.close(); }
+});

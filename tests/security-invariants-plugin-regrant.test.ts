@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,7 +17,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // grants and started again as one step; taking a permission away withdraws the live activation's authority at once and the new grants
 // are saved before anything is stopped. These tests drive the Runtime itself and, for the in-flight call, a real platform.
 
-const PLUGIN_ID = "io.molis.work.example.regrant";
+const PLUGIN_ID = "com.example.regrant";
 const REQUIRED = { permission: "regrant:required", required: true, reason: "插件没有它就不能运行" } as const;
 const OPTIONAL = { permission: "regrant:optional", required: false, reason: "缺它时插件只能做一部分事" } as const;
 const OTHER = { permission: "regrant:other", required: false, reason: "另一项可选能力" } as const;
@@ -69,7 +69,7 @@ test("RAC2865 a permission switch waiting behind an upgrade cannot grant against
 
 /** A running plugin of the Host's build in a bare Runtime, the way a switch finds it. */
 async function running(probe: Probe, permissions: PluginManifest["permissions"] = [REQUIRED, OPTIONAL, OTHER]) {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const installId = runtime.install({ definition: build("1.0.0", permissions, probe, false), deployment: "local", trust: { level: "host" } }).install.install_id;
   await runtime.start(installId);
   return { runtime, installId };

@@ -19,7 +19,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // Audit #7 (PEQ-09): built-in and installed third-party plugins both expose their declared business data
 // sections through `plugins.data.sections@1` and read-only `plugins.data.export@1` in the same format.
 
-const THIRD_PARTY_ID = "io.molis.work.example.exportable";
+const THIRD_PARTY_ID = "com.example.exportable";
 const SCHEMA = "CREATE TABLE tp_items (id INTEGER PRIMARY KEY, label TEXT NOT NULL);";
 const CODE = `export const operations = {
   'items.add': async (input, sdk) => {

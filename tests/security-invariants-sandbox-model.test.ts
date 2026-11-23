@@ -28,7 +28,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 const MODEL_INVOKE = "model:invoke";
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const READ: SandboxEffects = { model: ["read"] }, INVOKE: SandboxEffects = { model: ["read", "invoke"] };
-const IDENTITY = { projectId: "p", installationId: "install-sbx", pluginId: "io.molis.work.example.sbxmodel", namespace: "installed" } as const;
+const IDENTITY = { projectId: "p", installationId: "install-sbx", pluginId: "com.example.sbxmodel", namespace: "installed" } as const;
 const PLUGIN_ID = IDENTITY.pluginId;
 const operation = (kind: "query" | "command", effects: SandboxEffects): SandboxOperationContract =>
   ({ id: "ask", kind, input: { type: "null" }, output: { type: "null" }, errors: [], effects, examples: [] });
@@ -38,7 +38,7 @@ type Behavior = (run: { model: PluginModelClient; caller: ActionExecutionContext
 
 const summarize = defineInstructionPrompt({ owner_id: PLUGIN_ID, prompt_id: "summarize", version: 1, title: "摘要", purpose: "把材料压成一句话", used_by: ["探针"], body: "把下面的材料压成一句话。" });
 const tone = defineInstructionPrompt({ owner_id: PLUGIN_ID, prompt_id: "tone", version: 1, title: "语气", purpose: "让回答保持平实", used_by: ["探针"], body: "回答要平实、简短。" });
-const foreign = defineInstructionPrompt({ owner_id: "io.molis.work.example.someoneelse", prompt_id: "summarize", version: 1, title: "别人的", purpose: "不是本插件的", used_by: ["探针"], body: "别人的指令正文。" });
+const foreign = defineInstructionPrompt({ owner_id: "com.example.someoneelse", prompt_id: "summarize", version: 1, title: "别人的", purpose: "不是本插件的", used_by: ["探针"], body: "别人的指令正文。" });
 
 /** A sandboxed plugin that exists only for the test: three actions that run whatever `behavior` says, over the model its start was given. */
 function sandboxedProbe(instructions: readonly InstructionPrompt[]) {

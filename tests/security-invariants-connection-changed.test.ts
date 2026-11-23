@@ -22,7 +22,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // does with it, and whether the connection is usable, it reads itself through `connectors.connection.availability`, which answers a plugin
 // that holds the same permission with a yes or no and nothing else.
 
-const S = "io.molis.work.example.connwatcher", V = "io.molis.work.example.connviewer", D = "io.molis.work.example.conndeaf";
+const S = "com.example.connwatcher", V = "com.example.connviewer", D = "com.example.conndeaf";
 const CHANGED: PluginEventSubscribeDeclaration = { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1 };
 const OBSERVE: PluginPermissionDeclaration = { permission: HOST_CONNECTIONS_OBSERVE_PERMISSION, required: false, reason: "连接变了就重读" };
 const PAYLOAD = { connection_id: "conn-1" };
@@ -154,7 +154,7 @@ test("RAC-493a S-54 the Host's own connection changes announce themselves: disab
 
 /** A Home plugin whose one action asks the Host whether a connection is usable, as the installation (plugin audience, its own grants). */
 function asker(name: string, permissions: string[]) {
-  const id = `io.molis.work.example.${name}`;
+  const id = `com.example.${name}`;
   const action: ActionDefinition<{ connection_id: string }, unknown> = { capability_id: `${name}.ask`, version: 1, operation: "command", action: {
     title: "Ask", description: "连接可用性探针", kind: "operation", scope: "home", scheduling: "concurrent", audiences: ["user"], permissions: ["storage:private"],
     subject_kinds: [], input_schema: { type: "object", properties: { connection_id: { type: "string" } }, required: ["connection_id"], additionalProperties: false } } };

@@ -1,5 +1,5 @@
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -67,14 +67,14 @@ test("PFG-19: unknown registered scenes can be authored in the real editor, supp
       return localHost.actionClient(reference).invoke(context, write, { state: outcome.suggested_behavior_ids[0]! });
     },
   });
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.review-scenes", version: "1.0.0", name: "笔记审核",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.review-scenes", version: "1.0.0", name: "笔记审核",
     kind: "app", publisher: { publisher_id: "example", signature: "review-scenes" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "读写原笔记审核" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write], action_scenes: [scene, nextVersion, other] },
     async start() { return { kind: "app", actions: [{ ...read, handle: () => note() }, { ...write, handle: (_caller, value) => {
       store.db.prepare("UPDATE fixture_review_notes SET state = ? WHERE id = 'note-1'").run((value as { state: string }).state); return note();
     } }], action_scenes: [handler(scene), handler(nextVersion), handler(other)] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const draft = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "审核新笔记", function_key: "review_note" }), functions);

@@ -26,7 +26,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // declares what the built-in plugins declare. The Host offers each to the person as it offers a built-in one, and MCP reads its resume summary.
 
 const SAMPLE = new URL("../examples/plugin-sample/", import.meta.url);
-const PLUGIN = "io.molis.work.example.notes";
+const PLUGIN = "com.example.notes";
 const id = (name: string) => PLUGIN + "." + name;
 
 test("PEQ-05: the sample imports only contracts and the plugin SDK, and its Manifest passes the SDK's checks with every declaration", () => {
@@ -169,7 +169,7 @@ test("PEQ-05: in a project the sample's declarations are the person's to use, an
   assert.equal(afterWebClear.focus, null, "PEQ-05: Workbench HTTP trusted decision atomically cleared sample notes");
 });
 
-const SIGNED_SANDBOX_ID = "io.molis.work.example.sandbox-standing";
+const SIGNED_SANDBOX_ID = "com.example.sandbox-standing";
 const SANDBOX_CODE = `
 async function readState(sdk) {
   const raw = await sdk.storage.get('state');

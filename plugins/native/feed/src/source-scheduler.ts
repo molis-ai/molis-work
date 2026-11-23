@@ -79,8 +79,13 @@ export class FeedSourceScheduler {
           result.failed += 1;
           // The sync records its own interrupted run on the source after its last check, so the guard pinned to the
           // pre-pull revision would read that write as someone else's edit and the slot would never be spent.
+          // A rate-limited connector pull also writes its own `retry_after_at` backoff onto `next_pull_at`; pin that
+          // exact receipt timestamp while still refusing any concurrent user edit to the source or schedule cadence.
           // A guard that already refused stays refused: authority and the person's edits are never bookkept past.
-          if (!beforeEffect.refused) beforeEffect = createFeedSourceSyncGuard(service.feed, source, authority, { afterOwnFailure: true });
+          if (!beforeEffect.refused) {
+            const expected = ownRateLimitBackoff(service.feed, this.projectId, source, key, error);
+            beforeEffect = createFeedSourceSyncGuard(service.feed, expected, authority, { afterOwnFailure: true });
+          }
           await beforeEffect();
           await this.recordActionableFault(service, source, error, at, beforeEffect);
         }
@@ -135,4 +140,23 @@ export class FeedSourceScheduler {
     });
     await feed.flushPendingJudgments();
   }
+}
+
+/**
+ * When this exact scheduled pull failed with `connector.rate_limited` and recorded a `retry_after_at` backoff on the
+ * source's `next_pull_at`, reflect that receipt timestamp in the post-failure guard so the backoff sticks without
+ * tripping `feed.source_changed` while still rejecting any concurrent edit to other source or schedule fields.
+ */
+function ownRateLimitBackoff(
+  feed: FeedSourceService["feed"],
+  projectId: string,
+  source: FeedSourceRecord,
+  key: string,
+  error: unknown,
+): FeedSourceRecord {
+  if (source.schedule.mode !== "interval" || toFeedPublicError(error).code !== "connector.rate_limited") return source;
+  const operationId = stableId("connector-operation", `${source.source_id}\u0000${key}\u0000normal`);
+  const retryAfterAt = feed.sources.runByOperationId(projectId, operationId)?.receipt?.retry_after_at;
+  if (typeof retryAfterAt !== "string" || !Number.isFinite(Date.parse(retryAfterAt))) return source;
+  return { ...source, schedule: { ...source.schedule, next_pull_at: retryAfterAt } };
 }

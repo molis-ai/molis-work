@@ -63,15 +63,23 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     current();
     return api.commands.registerVersion(fixed(projected, author?.()));
   };
-  const lineHead = (artifactId: string) => {
+  const latestOwnArtifact = (artifactId: string) => {
     checked("head", { artifact_id: artifactId });
     const latest = api.query.latestArtifactVersion(project_id, artifactId);
-    if (!latest) return null;
-    if (!ownsRecord(latest, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
-    return artifactLineHeadOf(latest);
+    if (latest && !ownsRecord(latest, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
+    return latest;
   };
   const writer = (permit: () => void, author: () => string): PluginArtifactWriter => Object.freeze<PluginArtifactWriter>({
-    head(artifactId) { declaresPermission("artifact:write"); permit(); return lineHead(artifactId); },
+    head(artifactId) {
+      declaresPermission("artifact:write");
+      permit();
+      const latest = latestOwnArtifact(artifactId);
+      if (!latest) return null;
+      return {
+        ...artifactLineHeadOf(latest),
+        origin_revision: latest.origin.kind === "pinned" ? latest.origin.revision : null,
+      };
+    },
     publish(value) { declaresPermission("artifact:write"); permit(); return publish(value, permit, author); },
   });
   return { writer, client: {
@@ -92,7 +100,8 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     },
     head(artifactId) {
       requirePermission("artifact:read");
-      return lineHead(artifactId);
+      const latest = latestOwnArtifact(artifactId);
+      return latest ? artifactLineHeadOf(latest) : null;
     },
     readOwn(value) {
       requirePermission("artifact:read");

@@ -3,7 +3,7 @@ import { directoryInputOnly, type RunDirectories } from "@molis-ai/molis-work-co
 import { assertChildRoleTools } from "./child-role-tools.js";
 import { isAgentTool } from "./tool-catalog.js";
 import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
-import { requireSynchronous, type ActionSkillRound, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionReference, type ActionSkillRound, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { currentCharacterMatches } from "./character-import.js";
 import { characterVersionMatchesSelection } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -153,6 +153,12 @@ export function assertMaySuggest(hostTools: readonly string[], execution: string
 function frozenActionClient(source: AgentActionClient, validateCharacter: (() => void) | undefined): AgentActionClient {
   return {
     discover: async () => { validateCharacter?.(); return source.discover(); },
+    ...(source.discoverOne ? {
+      discoverOne: async (ref: ActionReference) => {
+        validateCharacter?.();
+        return source.discoverOne!(ref);
+      },
+    } : {}),
     ...(source.check ? { check: async (ref: ExactActionReference, input: unknown) => { validateCharacter?.(); return source.check!(ref, input); } } : {}),
     ...(source.prepareReview ? { prepareReview: async (view: ActionView, input: unknown, automaticPolicy?: "reversible") => {
       validateCharacter?.(); const held = await source.prepareReview!(view, input, automaticPolicy);

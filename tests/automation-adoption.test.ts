@@ -307,7 +307,7 @@ test("B61 P1-E5: Home-scoped skill packs can be adopted and undone per project, 
   const attached = await registry.attach({
     schema_version: 1,
     host_api_version: 1,
-    plugin_id: "io.molis.work.example.clionly",
+    plugin_id: "com.example.clionly",
     version: "1.0.0",
     name: "CLI Only Fixture",
     kind: "integration",

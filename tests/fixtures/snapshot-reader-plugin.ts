@@ -5,7 +5,7 @@ import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, parseFileSnapshot } f
 import { bindPluginActionRoute, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 
 /** The id, project key and only input of the probe below. */
-export const SNAPSHOT_READER = { plugin_id: "io.molis.work.example.snapshot-reader", project_plugin_id: "snapshot-reader", port: "text" } as const;
+export const SNAPSHOT_READER = { plugin_id: "com.example.snapshot-reader", project_plugin_id: "snapshot-reader", port: "text" } as const;
 
 /** What the probe read: `waiting` before any input, `unavailable` when the bound record is not readable, `ready` with the text it got. */
 export interface SnapshotReaderView { phase: "waiting" | "unavailable" | "ready"; text?: string; path?: readonly string[]; content_version?: number }

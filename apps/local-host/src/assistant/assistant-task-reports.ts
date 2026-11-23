@@ -1,4 +1,4 @@
-import { BACKGROUND_TASK_DONE_STATES, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASK_DONE_STATES, exactBoundActionView, type ActionReference, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -303,9 +303,6 @@ function reportWords(tasks: readonly EndedTask[]): string {
   return `（Molis 转告）这个项目有 ${tasks.length} 项后台任务同时结束了：\n${lines}\n这些任务都不是从这段对话派出的。请在一次回复里向用户逐项简要汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`;
 }
 
-const same = (a: ExactActionReference) => (b: { capability_id: string; version: number; provider: { provider_id: string } }) =>
-  b.capability_id === a.capability_id && b.version === a.version && b.provider.provider_id === a.provider_id;
-
 /**
  * The authority of a round that only reports (a task no conversation started ended): it may read what its round may read, and
  * nothing else — no command, no sub-task, no proposal, no delivery, no memory written. The words the round is given say so too;
@@ -317,11 +314,16 @@ export function reportOnlyAuthority(authority: AgentStartAuthority): AgentStartA
   return { ...authority, actions: async (...args: Parameters<NonNullable<AgentStartAuthority["actions"]>>) => {
     const all = await actions(...args);
     const reads = async () => (await all.discover()).filter(view => view.operation === "query");
+    const readOne = async (action: ActionReference) => {
+      const view = await exactBoundActionView(all, action);
+      return view?.operation === "query" ? view : undefined;
+    };
     const readable = async (action: ExactActionReference) => {
-      if (!(await reads()).some(same(action))) throw assistantErrors.action_revoked("这一轮只汇报：只能读取，不做操作、不派新任务");
+      if (!(await readOne(action))) throw assistantErrors.action_revoked("这一轮只汇报：只能读取，不做操作、不派新任务");
     };
     const client: AgentActionClient = {
       discover: reads,
+      discoverOne: readOne,
       ...(all.reader ? { reader: all.reader } : {}),
       direct: () => false,
       check: async (action, input) => { await readable(action); await all.check?.(action, input); },

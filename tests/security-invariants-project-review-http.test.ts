@@ -24,7 +24,7 @@ async function removeGoals(env: Awaited<ReturnType<typeof openTestHome>>, pid: s
 }
 
 function notePlugin() {
-  const pluginId = "io.molis.work.example.approval-notes", permission = "storage:private";
+  const pluginId = "com.example.approval-notes", permission = "storage:private";
   let wait: (() => Promise<void>) | undefined;
   let holdNextRead: (() => Promise<void>) | undefined;
   let mapOffer: ((offer: TrustedReviewOffer) => TrustedReviewOffer) | undefined;

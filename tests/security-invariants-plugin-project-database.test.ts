@@ -30,7 +30,7 @@ interface Probe { readonly id: string; readonly declaration: PluginDatabaseDecla
 
 /** A plugin that exists only for the test: it declares its tables in the project's library and keeps the services it started with. */
 function probe(name: string, schema: string): Probe {
-  const id = `io.molis.work.example.${name}`;
+  const id = `com.example.${name}`;
   const declaration: PluginDatabaseDeclaration = { store_name: name, version: 1, read_permission: `${name}:read`, write_permission: `${name}:write`, schema };
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
@@ -305,7 +305,7 @@ test("PLIB-06 the step list is read against one SQLite, the Host's", async t => 
 });
 
 test("PLIB-06 SQLD-06 a Host on another SQLite than the step list was read against refuses every statement; what the Host says at start does not change that", () => {
-  const record = notesRecord("io.molis.work.example.libprobe");
+  const record = notesRecord("com.example.libprobe");
   for (const version of ["3.51.2", "3.53.4", "3.54.1", ""]) {
     // The guard asks the connection for its own version before it hands out a single check, so no statement of this plugin gets one.
     const other = { exec: () => undefined, prepare: (sql: string) => ({ get: () => sql.includes("sqlite_version()") ? { version } : undefined, all: () => [], run: () => undefined }) };

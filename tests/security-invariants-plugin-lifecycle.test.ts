@@ -236,7 +236,7 @@ test("BL623-06 S-84 only the person in a project reaches the three actions: an A
 test("BL623-07 S-84 a plugin that did not come from a signed package is not touched by the three actions", mac, async () => {
   const h = await installedPackageHost();
   try {
-    for (const plugin_id of ["goals", "io.molis.work.example.nowhere"]) {
+    for (const plugin_id of ["goals", "com.example.nowhere"]) {
       await assert.rejects(h.control("disable", { plugin_id }), refused("plugin.state_invalid"), plugin_id);
       await assert.rejects(h.control("uninstall", { plugin_id, keep_data: false }), refused("plugin.state_invalid"), plugin_id);
     }

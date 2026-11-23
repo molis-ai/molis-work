@@ -7,7 +7,7 @@ import { sandboxPackageBuildId } from '@molis-ai/molis-work-plugin-sdk';
  */
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { readSnapshotFile } from "@molis-ai/molis-work-storage";
+import { atomicWriteFileSync, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginInstanceRecord, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -176,17 +176,49 @@ export class SandboxPackageStore {
     return manifest && pluginManifestDigest(manifest) === record.manifest_digest ? manifest : undefined;
   }
 
+  private envelope(value: unknown, pluginId: string, keyId: string, version: string) {
+    const { bundle, key_id } = verifyPluginPackageSignature(value);
+    const { manifest } = bundle.payload;
+    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
+      throw pluginErrors.signer_mismatch('签名包与安装记录不符');
+    return { bundle, pkg: readKeptPackage(bundle.payload) };
+  }
+
+  private readEnvelope(directory: string, pluginId: string, keyId: string, version: string) {
+    let text: string;
+    try { text = readSnapshotFile(join(directory, BUNDLE_FILE), 64 * 1024 * 1024).toString('utf8'); }
+    catch (error) { throw missingOr(error, '找不到已安装的插件包：' + pluginId + ' ' + version); }
+    let raw: unknown;
+    try { raw = JSON.parse(text); } catch { throw pluginErrors.package_invalid('已存的插件包读不出来：' + pluginId + ' ' + version); }
+    return this.envelope(raw, pluginId, keyId, version);
+  }
+
+  /** Restore the snapshot of the current installation under the original signing key and Manifest digest. */
+  repair(record: PluginInstanceRecord, replacement?: unknown): void {
+    const { plugin_id: id, publisher_signature: key, publisher_id: publisher, version } = record;
+    const directory = this.directory(id, key, version);
+    for (const path of [join(this.home, 'plugin-packages'), directory]) {
+      const stat = lstatSync(path, { throwIfNoEntry: false });
+      if (stat && !stat.isDirectory()) throw pluginErrors.package_invalid('插件包的留存位置无效');
+    }
+    const exact = (item: ReturnType<SandboxPackageStore['envelope']>) => {
+      if (item.pkg.manifest.publisher.publisher_id !== publisher || pluginManifestDigest(item.pkg.manifest) !== record.manifest_digest)
+        throw pluginErrors.package_invalid('插件包内容与原安装不符');
+      return item;
+    };
+    let kept: ReturnType<SandboxPackageStore['envelope']> | undefined;
+    try { kept = exact(this.readEnvelope(directory, id, key, version)); }
+    catch (error) { if (replacement === undefined) throw error; }
+    const source = replacement === undefined ? kept! : exact(this.envelope(replacement, id, key, version));
+    if (kept && source.bundle.signature?.value_base64 !== kept.bundle.signature?.value_base64)
+      throw pluginErrors.package_invalid('请选择本次安装使用的原签名包');
+    if ('entrypoint' in source.pkg) atomicWriteFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint), Buffer.from(source.pkg.entrypoint), { mode: 0o400, durable: true });
+    if (!kept) atomicWriteFileSync(join(directory, BUNDLE_FILE), JSON.stringify(source.bundle), { mode: 0o400, durable: true });
+  }
+
   private read(pluginId: string, keyId: string, version: string) {
     const directory = this.directory(pluginId, keyId, version);
-    let raw: unknown;
-    let text: string;
-    // A file that is not there is a missing package; one that is there and does not read as a signed bundle is an invalid one (BL-915).
-    try { text = readFileSync(join(directory, BUNDLE_FILE), 'utf8'); } catch (error) { throw missingOr(error, '找不到已安装的插件包：' + pluginId + ' ' + version); }
-    try { raw = JSON.parse(text); } catch { throw pluginErrors.package_invalid('已存的插件包读不出来：' + pluginId + ' ' + version); }
-    const { bundle, key_id } = verifyPluginPackageSignature(raw);
-    const { manifest } = bundle.payload;
-    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw pluginErrors.package_invalid('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
-    const pkg = readKeptPackage(bundle.payload);
+    const { pkg, bundle } = this.readEnvelope(directory, pluginId, keyId, version);
     if ('entrypoint' in pkg) {
       let entry: Buffer;
       try { entry = readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint)); } catch (error) { throw missingOr(error, '找不到已安装插件的代码：' + pluginId + ' ' + version); }

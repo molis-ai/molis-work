@@ -1,3 +1,4 @@
+import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
 import { isPluginSceneName } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
@@ -14,7 +15,7 @@ import { activeLocale } from './web-locale.js';
  */
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { HOST_PLUGIN_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -27,7 +28,7 @@ import { readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sa
 import { skillInstallPreviews } from './skill-install-preview.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
-import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
+import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from './host-plugin-ids.js';
 import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
 import { isPendingUninstall } from './installed-plugin-lifecycle.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
@@ -80,6 +81,8 @@ export interface PluginInstallPorts {
   offers?(projectId: string, reference: { capability_id: string; version: number }): boolean;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
   control(projectId: string, input: ProjectPackageControl): Promise<PackageControlOutcome>;
+  /** Repairs exactly the installation granted by a protected settings entry. */
+  repair?(input: InstalledPackageRepair, caller: ActionExecutionContext): Promise<{ plugin_id: string; version: string }>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
@@ -221,9 +224,12 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
  * A plugin id the Host's build ships, or one on its dotted path (`io.a.b` and `io.a.b.c`), is the Host's (S-75.2): a package takes neither,
  * in either range. The Runtime refuses it again when it installs; here it is refused at the preview, before anything is written (S-84).
  */
-const assertNotHostId = (pluginId: string): void => {
+const assertNotHostId = (pluginId: string, fromRelease: boolean): void => {
   const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || nested(id, pluginId));
   if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
+  // S-reserved-host-prefix: the Host's prefix is taken only by what the release itself carries, and only from its own bundled folder.
+  if (pluginId.startsWith(HOST_PLUGIN_ID_PREFIX) && !(fromRelease && RELEASE_PACKAGE_IDS.has(pluginId)))
+    throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
 };
 
 /**
@@ -318,7 +324,7 @@ export class PluginInstallService {
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
-    assertNotHostId(manifest.plugin_id);
+    assertNotHostId(manifest.plugin_id, 'bundled' in input);
     const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
     if (manifest.presentation !== undefined) assertSurfacePresentation(manifest, await this.presentationCatalog(runtime_scope === 'home' ? null : who.project_id));
     const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
@@ -546,6 +552,11 @@ export class PluginInstallService {
     const { homeControl } = this.ports;
     if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
     return homeControl(input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {} }, caller);
+  }
+
+  async repair(input: InstalledPackageRepair, caller: ActionExecutionContext): Promise<{ plugin_id: string; version: string }> {
+    if (!this.ports.repair) throw pluginErrors.state_invalid('这个宿主没有插件包恢复入口');
+    return this.ports.repair(input, caller);
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }

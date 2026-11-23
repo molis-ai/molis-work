@@ -6,21 +6,18 @@ import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { scheduleRuntimeFixture } from "./fixtures/schedule-runtime.js";
 
 /**
- * Feed keeps its own job on the platform's clock (FI-6), set due at once a moment after the project opens. It is not Schedule's: once Feed
- * has set it, it is moved past the rounds below, which then count only Schedule's jobs (a running Feed leaves a current job of its own alone).
+ * With no auto-pull Feed sources configured, Feed registers no enabled wakeup on the project clock, so the rounds below
+ * see only Schedule's jobs without needing to park a recurring Feed wakeup.
  */
-async function parkFeedClock(f: Awaited<ReturnType<typeof scheduleRuntimeFixture>>): Promise<void> {
-  const { db } = await f.store(), count = () => (db.prepare("SELECT COUNT(*) AS count FROM schedule_jobs WHERE plugin_id = ?").get(FEED_PLUGIN_ID) as { count: number }).count;
-  for (const deadline = Date.now() + 10_000; count() !== 1;) {
-    assert.ok(Date.now() < deadline, "Feed set its clock job when the project opened");
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  db.prepare("UPDATE schedule_jobs SET next_due_at = '9999-12-31T00:00:00.000Z' WHERE plugin_id = ?").run(FEED_PLUGIN_ID);
+async function assertNoFeedWakeup(f: Awaited<ReturnType<typeof scheduleRuntimeFixture>>): Promise<void> {
+  const { db } = await f.store();
+  const enabledFeed = (db.prepare("SELECT COUNT(*) AS count FROM schedule_jobs WHERE plugin_id = ? AND enabled = 1").get(FEED_PLUGIN_ID) as { count: number }).count;
+  assert.equal(enabledFeed, 0, "Feed registers no enabled wakeup when no source needs auto-pull");
 }
 
 test("SYS-15-D1/N1: a normal Runtime plugin schedules its own reminder and public operation; reopening preserves bindings and delivers once", { timeout: 60_000 }, async t => {
   const f = await scheduleRuntimeFixture(t);
-  await parkFeedClock(f);
+  await assertNoFeedWakeup(f);
   const at = new Date(Date.now() + 1000).toISOString();
   const reminder = await f.sdk.invoke(reminderActions.add, { at, text: "复习第一章" });
   await assert.rejects(f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { unexpected: true } }), { code: "actions.input_invalid" });
@@ -58,7 +55,7 @@ test("RAC-1803 a timed operation's result past the 100000 units a notification b
   // (apps/local-host/src/plugin-notification-service.ts:39-41), which it refused, rolling the delivery back with the occurrence left running and
   // nothing in the Inbox. Whole characters within 99999 units are 49999 🟢 (99998 units), then 「…」. A cut by units would keep half of the 50000th 🟢.
   const f = await scheduleRuntimeFixture(t), at = new Date(Date.now() + 1000).toISOString();
-  await parkFeedClock(f);
+  await assertNoFeedWakeup(f);
   f.execute(async (_caller, input) => ({ text: "🟢".repeat((input as { text: string }).text === "over" ? 50_001 : 50_000) }));
   const over = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "over" }, inbox: true });
   await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "edge" }, inbox: true });
@@ -76,7 +73,7 @@ test("RAC-1803 a timed operation whose result is only blanks still reaches the I
   // `text || "操作已结束"` (runtime-wakeups.ts:79) kept it and the delivery rolled back like an overlong one. A blank result is now empty: the body
   // is 「操作已结束」 and the success title falls back to the operation's name.
   const f = await scheduleRuntimeFixture(t), at = new Date(Date.now() + 1000).toISOString();
-  await parkFeedClock(f);
+  await assertNoFeedWakeup(f);
   f.execute(async () => ({ text: " \n " }));
   const created = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "x" }, inbox: true });
   assert.equal((await f.tick(at)).failed, 0, "the notice is not refused");

@@ -11,7 +11,7 @@ import { fixture, operate, operationsOf } from './home-sandbox.js';
 import { newPublisher, signedPackage } from './sandbox-package.js';
 import { serveTestHost } from './test-home.js';
 
-export const BACKGROUND_ID = 'io.molis.work.example.background398';
+export const BACKGROUND_ID = 'com.example.background398';
 export const BACKGROUND_PERMISSIONS = ['storage:private', 'home-database:read', 'home-database:write', 'owner-files:read', 'owner-files:write', 'connections:use', 'materials:read', 'fixture:write'];
 const state: SandboxSchema = { type: 'string', enum: ['pending', 'accepted', 'running', 'done', 'failed', '待核对', 'missing'] };
 const object = (properties: Record<string, SandboxSchema>, required = Object.keys(properties)): SandboxSchema => ({ type: 'object', properties, required, additionalProperties: false });

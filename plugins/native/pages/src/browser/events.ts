@@ -2,7 +2,7 @@ import { loadGoals, closeCreate, closeMore, closeMove } from "./menus.js";
 import { bindClick } from "./click.js";
 import { enqueueSave, draftOf, fillEditor, remember } from "./editor.js";
 import { loadList, movePage, queueSave } from "./document.js";
-import { listFailed, renderList } from "./list.js";
+import { bindListKeyboard, listFailed, renderList } from "./list.js";
 import { noteFailure, showNote } from "./notes.js";
 import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
@@ -161,6 +161,7 @@ export function bindEvents(page: PagesPage) {
   bindWindow(page);
   bindFields(page);
   bindClick(page);
+  bindListKeyboard(page);
   bindDrag(page);
   bindMenus(page);
   void loadList(page).catch((error) => { noteFailure(page, error, uiText.text("pages.error.request")); listFailed(page, error, () => loadList(page)); });

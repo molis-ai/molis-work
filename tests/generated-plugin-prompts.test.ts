@@ -50,7 +50,7 @@ test("a generated plugin's prompts are read from its source, and every model cal
 });
 
 function release(version: number, prompts: AgentRelease["prompts"]): AgentRelease {
-  return { buildId: "b1", pluginId: "io.molis.work.generated.b1", version, nodes: [], manifest: { version: 1, pluginId: "io.molis.work.generated.b1", revision: "r", effects: {} },
+  return { buildId: "b1", pluginId: "studio.b1", version, nodes: [], manifest: { version: 1, pluginId: "studio.b1", revision: "r", effects: {} },
     directory: "", bundlePath: "", packagePath: "", permissions: {}, publishedAt: "2026-09-28T00:00:00.000Z", prompts,
     design: { title: "笔记助手", contract: { operations: [{ id: "notes.summarize", effects: { capabilities: ["model.generate"] } }] } } as unknown as AgentRelease["design"] };
 }
@@ -69,7 +69,7 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     const registry = homeAgentDefinitions(home);
     const v1 = release(1, [{ id: "summary", title: "要点提炼", purpose: "把笔记提炼成三条要点", body: "只输出三条中文要点。" }]);
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "enabled", "1.0.0"));
-    const view = registry.prompt("io.molis.work.generated.b1/summary");
+    const view = registry.prompt("studio.b1/summary");
     assert.deepEqual([view.source.kind, view.kind, view.title, view.used_by], ["plugin", "instruction", "要点提炼", ["笔记助手"]]);
     assert.equal(view.source.kind === "plugin" && view.source.publisher_signature, SIGNATURE, "it is listed as its publisher's, like any installed package");
 
@@ -77,17 +77,17 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     const preview = { kind: "preview" as const, prompts: [{ id: "summary", title: "要点提炼", purpose: "p", body: "BUILD" }] };
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", installed), { body: "只输出三条中文要点。", version: "summary@1" });
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" });
-    registry.save("io.molis.work.generated.b1/summary", "只输出两条要点。", null, "person");
+    registry.save("studio.b1/summary", "只输出两条要点。", null, "person");
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", installed), { body: "只输出两条要点。", version: "summary@1+user.1" });
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" }, "authoring must test its new text even while an edited older release is installed");
-    assert.equal(registry.uses.list("io.molis.work.generated.b1/summary")[0]?.caller, "plugin:io.molis.work.generated.b1");
+    assert.equal(registry.uses.list("studio.b1/summary")[0]?.caller, "plugin:studio.b1");
 
     // Uninstalled: nothing registered, the trial runs the build's declaration; the edit is kept for a reinstall.
     unregisterGeneratedPrompts(home, v1.pluginId);
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" });
     assert.throws(() => resolvePluginPrompt(home, v1.pluginId, "missing", preview), /没有声明的模型要求/);
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "disabled", "1.0.0"));
-    const again = registry.prompt("io.molis.work.generated.b1/summary");
+    const again = registry.prompt("studio.b1/summary");
     assert.equal(again.effective, "user");
     assert.equal(again.source.kind === "plugin" && again.source.state, "disabled");
 
@@ -126,12 +126,12 @@ test("developer diagnostics say what each source registered and what is not in e
     const registry = homeAgentDefinitions(home);
     const v1 = release(1, [{ id: "summary", title: "要点提炼", purpose: "p", body: "A" }]);
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "disabled", "1.0.0"));
-    registry.save("io.molis.work.generated.b1/summary", "B", null, "person");
+    registry.save("studio.b1/summary", "B", null, "person");
     const v2 = release(2, [{ id: "summary", title: "要点提炼", purpose: "p", body: "A2" }]);
     registerGeneratedPrompts(home, generatedRegistration(v2, [v1, v2], "disabled", "2.0.0"));
 
     const report = registry.diagnostics();
-    const generated = report.owners.find(owner => owner.owner_id === "io.molis.work.generated.b1")!;
+    const generated = report.owners.find(owner => owner.owner_id === "studio.b1")!;
     assert.deepEqual([generated.instructions, generated.edited], [1, 1]);
     assert.ok(generated.issues.some(issue => /插件已停用/.test(issue.text)));
     assert.ok(generated.issues.some(issue => /基于旧默认/.test(issue.text)), "the default moved from A to A2 under the person's edit");

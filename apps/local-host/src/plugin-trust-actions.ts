@@ -14,7 +14,7 @@ import { pluginPackageExport, pluginPackageExportHandler } from "./plugin-packag
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
-import { controlHomePackage, controlPackageInProject, installationPresentationCatalog, installPackageInHome, savedPackageSecrets, installedHomePlugins, installedPluginsInProject, installPackageInProject, regrantHomePlugin, regrantPluginInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
+import { controlHomePackage, controlPackageInProject, installationPresentationCatalog, installPackageInHome, savedPackageSecrets, installedHomePlugins, installedPluginsInProject, installPackageInProject, regrantHomePlugin, regrantPluginInProject, repairInstalledPackage, type ProjectPluginHost } from "./project-plugin-ports.js";
 import { disposeWorkTerminalsForPublisher } from "./work-terminal-service.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
@@ -162,6 +162,7 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
       const project = source.host.projects().find(row => row.project_id === projectId);
       return project !== undefined && source.host.client(project).availability(reference).available;
     },
+    repair: (input, caller) => repairInstalledPackage(source, input, caller),
     control: (projectId, input) => controlPackageInProject(source, projectId, input),
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected, source),

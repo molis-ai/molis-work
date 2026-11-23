@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "owner": "io.molis.work.example.notes",
+  "owner": "com.example.notes",
   "locale": "en",
   "messages": {
     "notes.attach.noun": "Sample note",

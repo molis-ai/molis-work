@@ -559,7 +559,7 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
   { rule: "no publisher", input: declarationManifest({ publisher: undefined }), code: "plugin.manifest_invalid", message: "publisher 必须为对象" },
   { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
   { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 2 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
-  { rule: "a plugin id outside the namespace", input: declarationManifest({ plugin_id: "io.example.thing" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
+  { rule: "a plugin id that is not a dotted reverse-domain name", input: declarationManifest({ plugin_id: "thing" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a version that is not SemVer", input: declarationManifest({ version: "1.0" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a numeric prerelease with a leading zero", input: declarationManifest({ version: "1.0.0-01" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a blank name", input: declarationManifest({ name: " " }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },

@@ -23,7 +23,7 @@ import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk"
 // installed in the Home and runs in its sandbox instance (BL-628). The Home hands the registry its declarations and the Host's proxy while it
 // runs, and takes them back when it is switched off or removed; its ids are checked against the registry before anything is written.
 
-const PLUGIN_ID = "io.molis.work.example.feedprobe";
+const PLUGIN_ID = "com.example.feedprobe";
 const ORIGINS = ["https://api.example-feed.com"];
 const SOURCE = { source_id: "src-1", connection_id: null, credential_ref: null, config: {} };
 const code = (expected: string, mentions?: string) => (error: unknown) =>
@@ -78,10 +78,10 @@ test("RAC-897: a package whose ids the registry already has is refused at the pr
 test("RAC-897: a package that took the same id between a preview and its confirmation stops the confirmation", mac, async t => {
   const home = await openTestHome(t), install = await installer(home);
   const first = await install.preview(integrationPackage());
-  const second = await install.preview(integrationPackage(newPublisher(), { pluginId: "io.molis.work.example.feedprobe2" }));
+  const second = await install.preview(integrationPackage(newPublisher(), { pluginId: "com.example.feedprobe2" }));
   await install.confirm(first.preview_id);
   await assert.rejects(install.confirm(second.preview_id), code("plugin.integration_declaration_conflict", "example-feed"));
-  assert.equal(home.host.homePlugins!.hasPackage("io.molis.work.example.feedprobe2"), false);
+  assert.equal(home.host.homePlugins!.hasPackage("com.example.feedprobe2"), false);
   assert.equal((await homeIntegrationRegistry(home.home)).integration("example-feed")?.plugin_id, PLUGIN_ID, "the holder is not touched");
 });
 
@@ -120,7 +120,7 @@ test("RAC-1001-QUEUE: an attach skipped after a real registry wait cannot undo a
   const switchPackage = (action: "disable" | "enable") => home.web.post<{ plugin_id: string; state: string }>(
     "/api/settings/plugin-permissions/" + action, { plugin_id: PLUGIN_ID });
   const base = integrationPackage().payload.manifest;
-  const blocker = definePollingIntegrationPlugin({ manifest: { ...base, plugin_id: "io.molis.work.example.queueholder", publisher: { publisher_id: "example", signature: "queue-holder-fixture" },
+  const blocker = definePollingIntegrationPlugin({ manifest: { ...base, plugin_id: "com.example.queueholder", publisher: { publisher_id: "example", signature: "queue-holder-fixture" },
     connection_services: [{ ...base.connection_services![0]!, service_id: "queue-holder", origins: undefined }],
     integrations: [{ integration_id: "queue-holder", kind: "source", service_id: "queue-holder" }] },
     createProvider: () => ({ type: "queue", health: async () => ({ ok: true, status: "connected", message: "ready" }), sync: async () => ({ ok: true, mode: "live", items: [], cursor: null }) }) });
@@ -169,7 +169,7 @@ test("RAC-1001-QUEUE: an attach skipped after a real registry wait cannot undo a
   } finally {
     release.resolve(); await Promise.allSettled([held, ...(installing ? [installing] : []), ...(enabling ? [enabling] : [])]);
     registry.attach = original;
-    await registry.disable("io.molis.work.example.queueholder");
+    await registry.disable("com.example.queueholder");
   }
 });
 

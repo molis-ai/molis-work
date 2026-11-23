@@ -13,7 +13,7 @@ import { person } from "./home-runtime.js";
 
 /** Business callbacks run only behind the real Runtime action registration and original gateway caller. */
 export function ownerFilesProbe(name = "ownerprobe", scope: "home" | "project" = "home", version = "1.0.0") {
-  const id = `io.molis.work.example.${name}`, read = `${name}:read`, write = `${name}:write`;
+  const id = `com.example.${name}`, read = `${name}:read`, write = `${name}:write`;
   const permissions = ["storage:private", read, write], contexts: PluginStartContext[] = [], preflight: PluginUpgradeContext[] = [];
   const owner_files: PluginOwnerFilesDeclaration = { store_name: name, entries: [{ name: "catalog.json", kind: "file" }, { name: "documents", kind: "directory" }], read_permission: read, write_permission: write };
   const action = (suffix: string, operation: "query" | "command", required: string[]): ActionDefinition<Record<string, never>, unknown> => ({

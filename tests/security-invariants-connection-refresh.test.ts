@@ -22,7 +22,7 @@ const ORIGIN = "http://localhost:19358";
 const ASANA_TOKEN = "https://app.asana.com/-/oauth_token";
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
-const target = { plugin_id: "io.molis.work.example.connectionrefresh", install_id: "install-s65", slot_id: "account", service_id: "asana" };
+const target = { plugin_id: "com.example.connectionrefresh", install_id: "install-s65", slot_id: "account", service_id: "asana" };
 
 /** A Home with an Asana account connected through API OAuth (access `stale-access`, refresh `refresh-1`), bound to the plugin's slot. */
 async function connected(t: TestContext, refresh = "refresh-1") {

@@ -3,9 +3,11 @@ import type { McpToolPreference } from "./mcp-settings-store.js";
 import { readMcpToolPreference, readMcpToolPreferenceSync } from "./mcp-settings-store.js";
 import { assertMcpActionAuthority, mcpGrantErrors, pinMcpActionGrants, resolveMcpActionContext } from "./mcp-action-grants.js";
 
+type ActionGrantRow = Omit<ActionView, "availability">;
+
 /** Opt-in by an actual MCP transport: preserve its stable actor/grants after an accepted command, not its socket. */
 export function mcpBackgroundAuthority(caller: ActionCallContext, home: string | undefined, preference: McpToolPreference,
-  catalog: readonly ActionView[], inspect: (caller: ActionCallContext) => Promise<readonly ActionView[]>, assertHost: () => void): NonNullable<ActionCallContext["retain_background_authority"]> {
+  catalog: readonly ActionGrantRow[], inspect: (caller: ActionCallContext) => Promise<readonly ActionGrantRow[]>, assertHost: () => void): NonNullable<ActionCallContext["retain_background_authority"]> {
   const originalCatalog = pinMcpActionGrants(caller, catalog, preference);
   return (references, additionalPermissions = []) => {
     caller.signal?.throwIfAborted(); requireSynchronous(assertHost());
@@ -13,7 +15,7 @@ export function mcpBackgroundAuthority(caller: ActionCallContext, home: string |
     const required = Object.freeze([...new Set(additionalPermissions)]);
     if (!required.every(permission => caller.permissions.includes(permission))) throw mcpGrantErrors.permission_revoked("不能保留当前未授权的权限");
     const retained = { ...caller, signal: undefined };
-    const checkPermissions = (views: readonly ActionView[], current: McpToolPreference) => {
+    const checkPermissions = (views: readonly ActionGrantRow[], current: McpToolPreference) => {
       const permissions = resolveMcpActionContext(retained, originalCatalog(views, current), current).permissions;
       if (!required.every(permission => permissions.includes(permission))) throw mcpGrantErrors.permission_revoked("后台任务所需的原授权已撤销");
     };

@@ -131,16 +131,42 @@ test("FSS-37 a new person's first run: the opening, two questions, materials, a 
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.arrival-global')).display"), "none", "only the theme switch stays in the titlebar");
   await assertLayoutClean(evaluate, "language");
   // The same document and question stay on screen while the language changes.
-  await evaluate("window.firstWelcome = document.querySelector('.welcome'); window.firstArrival = document.body");
+  // OPENFIX-01: a later paint of the same step uses the nodes that received the translation.
+  await evaluate(`window.firstWelcome = document.querySelector('.welcome');
+    window.firstArrival = document.body;
+    window.firstEnglishChoice = document.querySelector('.welcome-options [data-ui-language=en]');
+    window.firstChineseChoice = document.querySelector('.welcome-options [data-ui-language=zh]');
+    window.firstContinue = document.querySelector('[data-action=intro-next]');`);
   await click(".welcome-options a[data-ui-language=en]");
   await waitFor("document.documentElement.lang === 'en' && document.querySelector('.welcome')?.dataset.step === 'language'");
   assert.deepEqual(await evaluate("[firstArrival === document.body, firstWelcome === document.querySelector('.welcome'), document.querySelector('#ob-title').textContent, document.querySelector('.ob-greeting strong').textContent]"), [true, true, "Language", "Hello."]);
   assert.equal(await evaluate("document.querySelector('#cx-exit').textContent.trim()"), "Not now");
   assert.deepEqual(await evaluate("document.body.innerText.replace('简体中文', '').match(/\\p{Script=Han}/gu)"), null, "nothing is left in Chinese but the language's own name");
+  assert.deepEqual(await evaluate(`[
+    document.activeElement === firstEnglishChoice,
+    firstEnglishChoice.getAttribute('aria-current'),
+    document.querySelector('.welcome-options').getAttribute('aria-label')
+  ]`), [true, "true", "Language"]);
+  await evaluate("molisWorkOnboardingModelHost.render()");
+  assert.deepEqual(await evaluate(`[
+    firstWelcome === document.querySelector('.welcome'),
+    document.activeElement === firstEnglishChoice,
+    firstContinue === document.querySelector('[data-action=intro-next]'),
+    document.querySelector('.ob-greeting strong').matches(':lang(en)'),
+    getComputedStyle(document.querySelector('.ob-greeting strong')).fontSize,
+    document.querySelector('[data-action=intro-next] [data-slot=button-label]').textContent
+  ]`), [true, true, true, true, "72px", "Continue"], "a later paint keeps the translated text, its language, and both controls in place");
   await assertLayoutClean(evaluate, "language, English");
   await click(".welcome-options a[data-ui-language=zh]");
   await waitFor("document.documentElement.lang.startsWith('zh') && document.querySelector('.welcome')?.dataset.step === 'language'");
   assert.equal(await evaluate("document.activeElement?.dataset.uiLanguage"), "zh");
+  assert.deepEqual(await evaluate(`[
+    firstWelcome === document.querySelector('.welcome'),
+    document.activeElement === firstChineseChoice,
+    document.querySelector('.ob-greeting strong').matches(':lang(zh)'),
+    getComputedStyle(document.querySelector('.ob-greeting strong')).fontSize,
+    document.querySelector('.ob-greeting strong').textContent
+  ]`), [true, true, true, "66px", "你好。"]);
   await click("[data-action=intro-next]");
   await waitFor("document.querySelector('.welcome')?.dataset.step === 'appearance'");
   await click("[data-theme-option=dark]");

@@ -6051,6 +6051,10 @@ export declare function defineWorkflowContentActions(station: WorkflowStationSpe
 
 export declare function documentGenerationRoleOf(action: TypedActionShape): DocumentGenerationRole | null;
 
+export declare function exactActionView(client: Pick<ActionClient, "discover"> & Partial<Pick<ActionClient, "discoverOne">>, caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined>;
+
+export declare function exactBoundActionView(client: Pick<BoundActionClient, "discover"> & Partial<Pick<BoundActionClient, "discoverOne">>, reference: ActionReference): Promise<ActionView | undefined>;
+
 export declare function fileContentOf(input: {
     subject: ActionSubject;
     revision: string;

@@ -18,6 +18,7 @@ export function renderMemorySettings({ scope, projectId, projects = [] }: { scop
     : uiText.text("workbench.settings-memory.project-s-conventions-background-lessons-used-only-project");
   return `<section class="settings-document memory-settings" aria-labelledby="memory-title" data-memory-settings data-memory-scope="${scope}" data-project="${projectId ?? ""}"${personal && projects.length ? ` data-memory-projects="${attributeJson(projects.map(({ project_id, display_name }) => ({ project_id, display_name })))}"` : ""}>
     <header class="settings-page-heading memory-heading"><h1 id="memory-title" data-memory-title>${title}</h1><p data-memory-intro>${lead}</p>
+      <p class="settings-muted" data-memory-session-owner hidden></p>
       <p class="memory-summary" data-memory-summary aria-live="polite">${uiText("workbench.settings-memory.loading")}</p></header>
     <p class="settings-form-error" data-memory-error role="alert" hidden></p>
     ${renderSettingsSection({ title: uiText.text("workbench.settings-memory.operations-waiting-retry"), id: "memory-retries-title", attrs: { "data-memory-retries": true, hidden: true },
@@ -76,14 +77,19 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const project = root.dataset.project || "";
     const params = new URLSearchParams((context || location).search);
     const kind = params.get("memory_session_kind"), sessionId = params.get("memory_session_id");
-    const sessionMode = params.has("memory_session_kind") || params.has("memory_session_id");
-    // A session is the Assistant's or a plugin's own scene (its Manifest memory_scene); a plugin's belongs to a project.
+    const pluginId = params.get("memory_session_plugin"), providerId = params.get("memory_session_provider");
+    const sessionMode = ["memory_session_kind", "memory_session_id", "memory_session_plugin", "memory_session_provider"].some(name => params.has(name));
+    const singleId = (name, value) => Boolean(value && value.trim() && value.length <= 200 && params.getAll(name).length === 1);
+    // A session is the Assistant's or a plugin's own scene (its Manifest memory_scene); a plugin's belongs to a project and names its plugin.
     const sessionKind = kind === "assistant" || /^[a-z][a-z0-9-]{0,39}$/.test(kind || "") && !["common", "agent", "both"].includes(kind);
-    const validTarget = !sessionMode || sessionKind && sessionId && sessionId.trim() && sessionId.length <= 200
-      && params.getAll("memory_session_kind").length === 1 && params.getAll("memory_session_id").length === 1 && (kind === "assistant" || project);
+    const validTarget = !sessionMode || sessionKind && singleId("memory_session_id", sessionId) && params.getAll("memory_session_kind").length === 1
+      && (kind === "assistant" ? !params.has("memory_session_plugin") && !params.has("memory_session_provider")
+        : Boolean(project) && singleId("memory_session_plugin", pluginId) && (!params.has("memory_session_provider") || singleId("memory_session_provider", providerId)));
     const targetBase = target => (target.project_id ? "/projects/" + encodeURIComponent(target.project_id) : "")
-      + "/api/memory/sessions/" + target.kind + "/" + encodeURIComponent(target.id);
-    const base = sessionMode && validTarget ? targetBase({ kind, id: sessionId, project_id: project || null })
+      + "/api/memory/sessions/" + (target.kind === "assistant" ? "assistant/" : encodeURIComponent(target.kind) + "/" + encodeURIComponent(target.plugin_id) + "/")
+      + encodeURIComponent(target.id);
+    const withProvider = (url, provider) => provider ? url + (url.includes("?") ? "&" : "?") + "memory_session_provider=" + encodeURIComponent(provider) : url;
+    const base = sessionMode && validTarget ? targetBase({ kind, id: sessionId, project_id: project || null, ...(pluginId ? { plugin_id: pluginId } : {}) })
       : (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
     const $ = (selector) => root.querySelector(selector);
     const part = name => $("[data-memory-" + name + "]");
@@ -222,7 +228,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         choices.value = scope; choices.addEventListener("change", () => { scope = choices.value; selected.clear(); invalidateRead(); void load(); }); label.append(choices); root.querySelector(".memory-heading").append(label);
       }
     }
-    const api = (path, payload, address = base) => molisWorkRequest(address + path, { body: payload });
+    const api = (path, payload, address = base, provider = sessionMode ? providerId : null) =>
+      molisWorkRequest(withProvider(address + path, provider), { body: payload });
     const pendingCommands = new Map(), discovered = new Set(), selected = new Map(), batchPositions = new Map();
     let operationsCursor;
     const pendingRemoval = () => [...pendingCommands.values()].some(command => JSON.parse(command.body).action === "remove" || command.removal || command.path === "/clear");
@@ -249,7 +256,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const removal = JSON.parse(command.body).action === "remove" || command.path === "/clear" || command.path === "/clear/apply" || command.path === "/batch/apply" && command.removal;
       if (removal) { removing = true; pendingCommands.set(command.id, command); invalidateRead(); }
       try {
-        const result = await api(command.path, JSON.parse(command.body), command.base || base);
+        const result = await api(command.path, JSON.parse(command.body), command.base || base, "provider" in command ? command.provider : (sessionMode ? providerId : null));
         if (command.path === "/import") toast(readText("workbench.settings-memory.imported-count", { count: result.written }) + (result.skipped ? " · " + readText("workbench.settings-memory.skipped-n", { n: result.skipped }) : "") + (result.refused ? " · " + readText("workbench.settings-memory.not-imported-n", { n: result.refused }) : ""));
         if (command.path === "/batch/apply") paintBatchResults(result.items);
         if (command.path === "/clear/apply") { if (result.complete && clearPreview?.preview_id === JSON.parse(command.body).preview_id) clearPreview = null; paintSessionResults(result.items); showClear(result.complete ? readText("workbench.settings-memory.session-memory-cleanup-complete") : readText("workbench.settings-memory.cleanup-incomplete-retrying-uses-original-preview")); }
@@ -293,7 +300,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         list.append(more);
       }
     }
-    const restoreCommands = (page, replace) => {
+    const restoreCommands = (page, replace, titles = data?.plugin_titles) => {
       if (replace) { for (const id of discovered) pendingCommands.delete(id); discovered.clear(); }
       for (const item of page.items) {
         const path = item.kind === "session-clear" ? "/clear/apply" : item.kind === "remove" ? "/change" : item.kind === "scope-clear" ? "/clear" : "/batch/apply";
@@ -301,10 +308,15 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           : item.fingerprint ? { scope: item.scope, fingerprint: item.fingerprint }
           : item.preview_id ? { preview_id: item.preview_id } : undefined;
         if (item.cleanup === "needs-reconcile" || !payload) { fail(new Error(readText("workbench.settings-memory.original-operation-needs-reconciliation-cleanup-unfinished"))); continue; }
-        const held = item.kind === "session-clear" && [...pendingCommands.values()].find(command => command.path === path && command.body === JSON.stringify(payload) && (command.base || base) === targetBase(item.target));
+        const commandBase = item.kind === "session-clear" ? targetBase(item.target) : undefined;
+        const commandProvider = item.kind === "session-clear" ? (item.target.provider_id || null) : undefined;
+        const held = item.kind === "session-clear" && [...pendingCommands.values()].find(command => command.path === path && command.body === JSON.stringify(payload) && (command.base || base) === commandBase);
         const id = held ? held.id : item.operation_id;
-        if (!pendingCommands.has(id)) pendingCommands.set(id, Object.freeze({ id, path, ...(item.kind === "session-clear" ? { base: targetBase(item.target) } : {}), body: JSON.stringify(payload),
-          title: readText(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted-continue-cleanup" : "workbench.settings-memory.continue-original-memory-operation"), removal: item.kind !== "batch" || item.action === "remove" }));
+        const baseTitle = readText(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted-continue-cleanup" : "workbench.settings-memory.continue-original-memory-operation");
+        const ownerName = item.kind === "session-clear" && !sessionMode && item.target.plugin_id ? (titles?.[item.target.plugin_id] || item.target.plugin_id) : "";
+        const title = ownerName ? readText("workbench.settings-memory.session-retry-owner", { title: baseTitle, owner: ownerName }) : baseTitle;
+        if (!pendingCommands.has(id)) pendingCommands.set(id, Object.freeze({ id, path, ...(commandBase ? { base: commandBase, provider: commandProvider } : {}), body: JSON.stringify(payload),
+          title, removal: item.kind !== "batch" || item.action === "remove" }));
         discovered.add(id);
       }
       operationsCursor = page.cursor; paintRetries();
@@ -342,14 +354,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       reader?.abort();
       const active = reader = new AbortController(), input = pageInput(cursor);
       reading = true; readFailed = false; error.hidden = true; paintNavigation();
-      const request = path => molisWorkRequest(base + path, { signal: active.signal });
+      const request = path => molisWorkRequest(withProvider(base + path, sessionMode ? providerId : null), { signal: active.signal });
       try {
         const first = overview ? await request("/overview?scope=" + scope) : null;
         const page = first && !Object.keys(input.filter).length && !input.query && !cursor ? first
           : await request("/page?input=" + encodeURIComponent(JSON.stringify(input)));
         const operations = await request(sessionMode ? "/operations" : "/operations?scope=" + scope);
         if (reader !== active || !root.isConnected) return;
-        restoreCommands(operations, true);
+        restoreCommands(operations, true, first?.plugin_titles || data?.plugin_titles);
         if (removing) { invalidateRead(); return; }
         data = { ...data, ...first, ...page }; currentCursor = cursor; previous = trail;
         paint();
@@ -401,6 +413,17 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintSummary() {
+      const ownerBox = part("session-owner");
+      if (ownerBox && sessionMode && data.session_owner) {
+        const owner = data.session_owner;
+        ownerBox.textContent = owner.kind === "assistant"
+          ? readText("workbench.settings-memory.session-owner-assistant")
+          : readText("workbench.settings-memory.session-owner-plugin", { owner: owner.title || owner.plugin_id || "", scene: sceneText(owner.kind) });
+        ownerBox.dataset.memorySessionScene = owner.kind || "";
+        ownerBox.dataset.memorySessionPlugin = owner.plugin_id || "";
+        ownerBox.dataset.memorySessionProvider = owner.provider_id || "";
+        ownerBox.hidden = false;
+      } else if (ownerBox) { ownerBox.hidden = true; }
       const parts = [data.total.kind === "exact"
         ? readText(scope === "project" ? "workbench.settings-memory.project-count" : "workbench.settings-memory.personal-count", { count: data.total.value })
         : readText(scope === "project" ? "workbench.settings-memory.project-memory" : "workbench.settings-memory.personal-memories") + " · " + readText("workbench.settings-memory.total-unknown")];

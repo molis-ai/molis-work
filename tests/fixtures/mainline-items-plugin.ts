@@ -18,7 +18,7 @@ import { startProjectPlugins } from "./plugin-callers.js";
  * the mainline asked of it. `memo` is a kind it can be read by but declares no item source for. Nothing here names the mainline.
  */
 
-export const NOTES_PLUGIN_ID = "io.molis.work.example.notes";
+export const NOTES_PLUGIN_ID = "com.example.notes";
 const READ = "notes:read", WRITE = "notes:write";
 
 export interface Note { id: string; title: string; status: "open" | "review" | "done"; due_at?: string; happened_at?: string }

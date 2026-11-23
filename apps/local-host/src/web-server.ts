@@ -29,7 +29,7 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./proje
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
-import { sendUnhandledWebError, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
+import { sendUnhandledWebError, authorizeLocalWebRequest, isTopLevelNavigation, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { activePtyCount, attachMolisWorkPtySocket } from "./pty-socket.js";
@@ -221,7 +221,11 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           );
         }, locale.source, preview !== null);
       } catch (error) {
-        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
+        const documentNavigation = isTopLevelNavigation(request) && !/\/api(?:\/|$)/u.test(url.pathname) && !url.pathname.startsWith("/assets/");
+        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request, documentNavigation ? {
+          render: () => composition.workbenchRenderer.renderServiceUnavailablePage(platform.isDesktopShellRequest(request, url)),
+          csp: composition.PAGE_CSP,
+        } : undefined));
       }
     })))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit

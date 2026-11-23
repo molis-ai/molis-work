@@ -72,7 +72,12 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     // A signed package rides in the install sheet's preview (as large as the settings door takes one); every other body is small.
     const body = await readLocalWebBody(request, ...(install ? [PAGE_INSTALL_MAX_BYTES] : []));
     if (install) {
-      sendLocalWebJson(response, 200, await pagePackageInstall(context, project, body));
+      try { sendLocalWebJson(response, 200, await pagePackageInstall(context, project, body)); }
+      catch (error) {
+        const failed = actionErrorResponse(error);
+        const phase = failed.body.details?.install_phase === "start" ? "start" : body.operation === "confirm" ? "install" : "check";
+        sendLocalWebJson(response, failed.status, { ...failed.body, details: { ...failed.body.details, install_phase: phase } });
+      }
       return true;
     }
     if (need) { sendLocalWebJson(response, 200, await pageConnectionNeed(context, project, body)); return true; }

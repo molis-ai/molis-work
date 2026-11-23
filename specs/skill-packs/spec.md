@@ -250,7 +250,7 @@ argument_hint: "<周期，可选>"
 
 - **随系统自带**：`plugins/content/<包>/pack-content.json` 写 `system.default_state`（`auto`／`manual`），`pnpm build` 打成 `apps/local-host/dist/system-skills/<plugin_id>.json`。它不安装、不签名、不固定发布者，每个 Home 的技能目录直接读，来源显示 Molis Work；技能默认档由包声明，本人关掉时在 `skill_settings` 记 `off`。它是构建产物信任，和安装包共用同一目录，是读取路径的明确例外。
 - **译文**：技能正文可带 `SKILL.<语言>.md`，在 Manifest 声明的 `locales` 内；缺文件、写默认语言或包没声明的语言，打包与装入拒绝。读正文按调用方语言，没有就用默认语言。
-- **自己写的技能**：`skills.authored.read/save/remove/draft@1` 只给本人；每个范围一个内容包（`io.molis.work.my-skills.project`／`.home`），用这个 Home 的发布身份签名、走与导入同一条安装路径；保存是包的下一版，删最后一个就卸载；S-skill-authoring 记拒绝。
+- **自己写的技能**：`skills.authored.read/save/remove/draft@1` 只给本人；每个范围一个内容包（`my-skills.project`／`.home`），用这个 Home 的发布身份签名、走与导入同一条安装路径；保存是包的下一版，删最后一个就卸载；S-skill-authoring 记拒绝。
 
 **不在本批的验收编号：**
 

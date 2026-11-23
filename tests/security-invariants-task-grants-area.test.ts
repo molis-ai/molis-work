@@ -11,7 +11,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-wo
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const READER = "io.molis.work.example.areareader", NEIGHBOUR = "io.molis.work.example.areaneighbour", SCHEDULE = "io.molis.work.schedule";
+const READER = "com.example.areareader", NEIGHBOUR = "com.example.areaneighbour", SCHEDULE = "io.molis.work.schedule";
 const empty = { type: "object", properties: {}, additionalProperties: false } as const;
 const notesOf = (name: string): ActionDefinition => ({ capability_id: `${name}.notes.list`, version: 1, operation: "query", action: { title: "Notes", description: "What a task reads",
   kind: "query", scope: "project", audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: empty, output_schema: { type: "object" } } });

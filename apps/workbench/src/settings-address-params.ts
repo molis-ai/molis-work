@@ -18,7 +18,7 @@ export const SETTINGS_ADDRESS_DEFAULTS = { global: "project desktop", project: "
 export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   // directories: apps/workbench/src/settings-local-directories.ts:28-29 reads plugin.
   directories: "plugin",
-  memory: "memory_session_kind memory_session_id",
+  memory: "memory_session_kind memory_session_id memory_session_plugin memory_session_provider",
   // The Home Kit reads a Skill draft from a receipt, just as the project Kit does.
   kit: "draft",
   // models: web-catalog-settings.ts:66-69 reads setup/template/provider (modelTemplatePageData reads new with template once the shell opens it).
@@ -42,7 +42,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
 
 /** Project settings pages that read more than the defaults, by the section the workbench opens. */
 export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
-  guidance: "draft_ref", memory: "memory_session_kind memory_session_id",
+  guidance: "draft_ref", memory: "memory_session_kind memory_session_id memory_session_plugin memory_session_provider",
   // kit: install skill generation version owner role name a linked catalog item; browser/kit/writing.ts reads draft (a Skill draft to open,
   // the link on the assistant's receipt).
   kit: "install skill generation version owner role draft",

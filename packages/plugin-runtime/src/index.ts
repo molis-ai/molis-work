@@ -90,6 +90,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
+      /** The release's own bundled packages under the Host's prefix (`io.molis.work.`), which a non-host install may carry (S-reserved-host-prefix). */
+      releaseIds?: ReadonlySet<string>;
       actions?: PluginRuntimeActions },
   ) {
     if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单");
@@ -127,7 +129,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   install(given: PluginInstallInput): PluginLifecycleReceipt {
-    const input = { ...given, definition: platformDefinition(given.definition) }, trust =assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
+    const input = { ...given, definition: platformDefinition(given.definition) }, trust =assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess, this.options.releaseIds);
     assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
@@ -267,7 +269,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (current.plugin_id !== target.plugin_id || current.publisher_signature !== target.publisher.signature) {
         throw pluginErrors.definition_conflict("升级目标必须属于同一插件和发布者签名");
       }
-      assertStartIdentity(current, input.definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
+      assertStartIdentity(current, input.definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess, this.options.releaseIds);
       const restoration = assertPresentationAdmitted(target, this.options.assertPresentation, { rollback: rollbackCode });
       if (current.version === target.version && current.manifest_digest !== pluginManifestDigest(target)) {
         throw pluginErrors.definition_conflict("同一版本的 Manifest 指纹不同，不能升级");
@@ -454,7 +456,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     assertPresentationAdmitted(definition.manifest, this.options.assertPresentation, { retained: current });
     let startedContext: PluginStartContext | null = null;
     try {
-      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
+      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess, this.options.releaseIds);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       if (handle) {
@@ -593,7 +595,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     assertStartable(definition.manifest, current, this.options.declarationOwners, true);
     const recoveryCount = current.recovery_count + 1;
     try {
-      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
+      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess, this.options.releaseIds);
       // Explicit release admits this attempt's start-time jobs; a failed start below restores quarantine.
       if (releaseQuarantine) this.repository.save({ ...current, state: "crashed", updated_at: this.now() });
       const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));

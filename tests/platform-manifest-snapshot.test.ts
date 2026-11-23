@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { createRequire, syncBuiltinESMExports } from "node:module";
 import test from "node:test";
@@ -44,7 +44,7 @@ function probe(manifestTweak?: (manifest: PluginManifest) => void) {
 }
 
 async function running(definition: PluginDefinition) {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition, grants: [] }]);
   assert.equal(supervisor.state(ID)?.status, "running");
@@ -118,7 +118,7 @@ test("S-75 the platform's view of the Host's definition is admitted as that obje
   assert.equal(definitionOrigin(copy), copy, "a copy of the view is its own object, not the Host's");
   assert.notEqual(copy.manifest, definition.manifest);
 
-  const admitted = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set([definition]) } });
+  const admitted = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, inProcess: { admit: new Set([definition]) } });
   assert.throws(() => admitted.install({ definition: copy, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.in_process_denied"), "a copy of the view");
   assert.throws(() => admitted.install({ definition: { ...definition }, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.in_process_denied"), "a copy of the Host's object");
   const { install } = admitted.install({ definition: view, deployment: "local", grants: [], trust: UNSIGNED_TRUST });
@@ -188,7 +188,7 @@ test("D0151 supervisor single and directory views expose starting while activati
   const entered = new Promise<void>(resolve => { enter = resolve; });
   const held = new Promise<void>(resolve => { release = resolve; });
   definition.start = async (...args) => { enter(); await held; return original(...args); };
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const start = supervisor.start([{ definition, grants: [] }]); await entered;
   try {

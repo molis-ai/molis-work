@@ -12,7 +12,7 @@ import { person } from "./home-runtime.js";
 
 /** A Home plugin that asks `services.projects` through a real action; `declare: false` is one that never asked for the permission. */
 export function projectsProbe(name = "projectsprobe", declare = true) {
-  const id = `io.molis.work.example.${name}`, permissions = declare ? ["storage:private", PLUGIN_PROJECTS_EXIST_PERMISSION] : ["storage:private"], contexts: PluginStartContext[] = [];
+  const id = `com.example.${name}`, permissions = declare ? ["storage:private", PLUGIN_PROJECTS_EXIST_PERMISSION] : ["storage:private"], contexts: PluginStartContext[] = [];
   const exist: ActionDefinition<{ ids: string[] }, unknown> = { capability_id: `${name}.exist`, version: 1, operation: "query",
     action: { title: "exist", description: "Ask the Host's projects service", kind: "query", scope: "home", audiences: ["user"], permissions, subject_kinds: [], scheduling: "concurrent",
       input_schema: { type: "object", additionalProperties: false, required: ["ids"], properties: { ids: { type: "array" } } } } };

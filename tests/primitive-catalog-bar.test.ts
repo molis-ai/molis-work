@@ -119,7 +119,7 @@ test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help an
     undefined,
     undefined,
     false,
-    { owner: "io.molis.work.generated.demo", page: "/projects/p/plugins/io.molis.work.generated.demo?frame=workbench" },
+    { owner: "studio.demo", page: "/projects/p/plugins/studio.demo?frame=workbench" },
   );
   assert.doesNotMatch(installedHtml, /data-plugin-help|data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
   // 47-1 C: the studio is the platform's framed surface, not a catalog plugin, and its own frame still carries the help its Manifest declares.

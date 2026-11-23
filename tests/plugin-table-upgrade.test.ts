@@ -18,7 +18,7 @@ const N = PROJECT_DATABASE_BASELINE.version;
 
 const plugin = (name: string, version: number, upgrades?: Parameters<typeof declaration>[2]): PluginManifest =>
   probeManifest(declaration(version, version === 1 ? `CREATE TABLE ${name}_notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL);`
-    : `CREATE TABLE ${name}_notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL, tag TEXT);`, upgrades, name), { id: `io.molis.work.example.${name}`, sync: tracking(`${name}_notes`) });
+    : `CREATE TABLE ${name}_notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL, tag TEXT);`, upgrades, name), { id: `com.example.${name}`, sync: tracking(`${name}_notes`) });
 const GOOD = plugin("good", 1), BAD = plugin("bad", 1);
 const GOOD_V2 = plugin("good", 2, [{ from: 1, sql: "ALTER TABLE good_notes ADD COLUMN tag TEXT; UPDATE good_notes SET tag = upper(body);" }]);
 const BAD_V2 = plugin("bad", 2, [{ from: 1, sql: "ALTER TABLE bad_notes ADD COLUMN tag TEXT; UPDATE bad_notes SET tag = body; DELETE FROM project_root;" }]);

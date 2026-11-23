@@ -18,7 +18,7 @@ import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // A plugin's language files: one reading function for every source (specs/font-and-skin-system/a-section-contract.md §6.2). `T7` in §10.
 
-const PLUGIN_ID = "io.molis.work.notes";
+const PLUGIN_ID = "com.example.notes";
 const LOCALES = { default: "en", available: ["en", "zh"] };
 
 const manifestOf = (parts: Record<string, unknown> = {}, locales: unknown = LOCALES) =>
@@ -284,7 +284,7 @@ test("FSS-53 FSS-60 a real signed installation binds words to its authorized pag
         'notes.list': async (_input, sdk) => {
           const title = sdk.t.text('notes.main.saved', { count: 2 });
           const common = sdk.t.text('common.text.unavailable');
-          const foreign = sdk.say.text({ owner: 'io.molis.work.example.other', key: 'other.stage.title', fallback: 'Other owner unavailable' });
+          const foreign = sdk.say.text({ owner: 'com.example.other', key: 'other.stage.title', fallback: 'Other owner unavailable' });
           if (!old) {
             const wait = new Promise(resolve => { finish = resolve; });
             old = wait.then(() => sdk.t.text('notes.main.saved', { count: 3 }));

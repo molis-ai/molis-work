@@ -12,7 +12,7 @@ import { createFileSecretStore, homeSqlitePath, peekSealedEntry, readSecretsFile
 // the installation it ran as (the plugin id and its verified signature) and its title. The pin is written once, with the connection, and
 // the person's settings show it; a connection of a built-in or platform service has none.
 
-const declarer = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-feedprobe-a", plugin_title: "Feed probe" };
+const declarer = { plugin_id: "com.example.feedprobe", install_id: "install-feedprobe-a", plugin_title: "Feed probe" };
 const probeToken = (n: number) => `fixture-declarer-token-${String(n).padStart(4, "0")}`;
 
 async function home(t: TestContext) {

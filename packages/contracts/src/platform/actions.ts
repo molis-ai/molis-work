@@ -683,17 +683,48 @@ export interface BoundActionClient {
   invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
+const matchesActionReference = (view: ActionView, reference: ActionReference): boolean =>
+  view.capability_id === reference.capability_id && view.version === reference.version
+  && (!reference.provider_id || view.provider.provider_id === reference.provider_id);
+
 /**
  * The view a directory shows for `reference`: the same id and version, and the same provider when the reference names one. The one
  * match rule, for a client whose directory has no lookup of one action (a transport that only lists) and for test doubles; a
  * directory with two such providers names none (`actions.provider_ambiguous`).
  */
 export function actionViewFor(views: readonly ActionView[], reference: ActionReference): ActionView | undefined {
-  const matches = views.filter(view => view.capability_id === reference.capability_id && view.version === reference.version
-    && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+  const matches = views.filter(view => matchesActionReference(view, reference));
   // Two providers of the same id and version, the reference naming neither: none is picked for the caller.
   if (matches.length > 1) throw new ActionError("actions.provider_ambiguous", "声明消费的动作在当前项目没有唯一提供方");
   return matches[0];
+}
+
+/**
+ * Look up one action by reference without listing the whole directory when the client provides `discoverOne` and the
+ * reference names its provider. Without a provider, or on a client that only lists, falls back to listing via `actionViewFor`.
+ */
+export async function exactActionView(
+  client: Pick<ActionClient, "discover"> & Partial<Pick<ActionClient, "discoverOne">>,
+  caller: ActionCallContext,
+  reference: ActionReference,
+): Promise<ActionView | undefined> {
+  if (reference.provider_id && client.discoverOne) {
+    const view = await client.discoverOne(caller, reference);
+    return view && matchesActionReference(view, reference) ? view : undefined;
+  }
+  return actionViewFor(await client.discover(caller), reference);
+}
+
+/** `exactActionView` for a client already bound to its caller. */
+export async function exactBoundActionView(
+  client: Pick<BoundActionClient, "discover"> & Partial<Pick<BoundActionClient, "discoverOne">>,
+  reference: ActionReference,
+): Promise<ActionView | undefined> {
+  if (reference.provider_id && client.discoverOne) {
+    const view = await client.discoverOne(reference);
+    return view && matchesActionReference(view, reference) ? view : undefined;
+  }
+  return actionViewFor(await client.discover(), reference);
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {

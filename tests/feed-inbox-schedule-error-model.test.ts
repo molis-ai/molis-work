@@ -316,7 +316,7 @@ test("a declared code is used: every reason in a declaration has a raise site", 
 
 // ---- 6. the scheduler's refusals leave Schedule's actions as Schedule's declared failures ---------------------------------------------------------------------
 const SCHEDULE_PROJECT = "schedule-error-project";
-const SCHEDULE_PLUGIN = "io.molis.work.generated.a";
+const SCHEDULE_PLUGIN = "studio.a";
 const CLOCK = Date.parse("2026-10-12T00:00:00Z");
 const userContext = (overrides: Partial<ActionExecutionContext> = {}): ActionExecutionContext =>
   ({ actor_id: "owner", project_id: SCHEDULE_PROJECT, audience: "user", permissions: [], beforeEffect: async () => {}, ...overrides });

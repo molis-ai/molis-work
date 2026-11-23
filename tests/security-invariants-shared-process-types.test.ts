@@ -16,7 +16,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // Everything goes through the real project platform: the supervisor's installs, the declaration owners, the version stores that
 // ask the project's own installations before they write (S-81), and the services a plugin is started with.
 
-const RESEARCH = "io.molis.work.example.research", WRITING = "io.molis.work.example.writing", READER = "io.molis.work.example.reader";
+const RESEARCH = "com.example.research", WRITING = "com.example.writing", READER = "com.example.reader";
 const EXCERPT = "example.research-excerpt", NOTE = "example.research-note";
 const ACTOR = "tester";
 
@@ -101,7 +101,7 @@ for (const order of [[RESEARCH, WRITING], [WRITING, RESEARCH]] as const) {
 
     // BL375-04: no match is an empty list, not an error.
     assert.deepEqual(reader.listConsumable({ producer_plugin_id: READER }), [], "a producer that recorded nothing");
-    assert.deepEqual(reader.listConsumable({ producer_plugin_id: "io.molis.work.example.never-installed" }), [], "a producer never installed");
+    assert.deepEqual(reader.listConsumable({ producer_plugin_id: "com.example.never-installed" }), [], "a producer never installed");
     assert.deepEqual(reader.listConsumable({ artifact_type_id: NOTE }), [], "a type the reader does not declare");
     // BL375-05: a filter never widens what the reader may read: another user's personal version, and an undeclared type, stay out.
     assert.equal(p.versions.processItems.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "research:other-person", version: 1 })?.owner_actor_id, "someone-else",
@@ -122,7 +122,7 @@ for (const order of [[RESEARCH, WRITING], [WRITING, RESEARCH]] as const) {
 
 test("BL375-05 a reader without the read grant is refused, with or without a filter", { timeout: 180_000 }, async t => {
   const p = project(t), started = new Map<string, PluginHostServices>();
-  const NO_GRANT = "io.molis.work.example.no-grant";
+  const NO_GRANT = "com.example.no-grant";
   await p.supervisor.start([entry(plugin(RESEARCH, { records: [EXCERPT] }, started)), entry(plugin(NO_GRANT, { reads: [EXCERPT], read: false }, started))]);
   started.get(RESEARCH)!.processItems!.record(excerpt("research:1", "研究摘录"));
   const denied = started.get(NO_GRANT)!.artifacts!;

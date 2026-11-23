@@ -200,7 +200,7 @@ test("RAC-2621.2 a framed page is the page of a package running in this Home and
   await h.install(PACKAGE_PLUGIN_ID);
   await h.install(SECOND_PLUGIN_ID);
   await h.home.web.post(`/api/plugins/${SECOND_PLUGIN_ID}/disable`, {});
-  const gone = "io.molis.work.example.gone";
+  const gone = "com.example.gone";
   await h.install(gone);
   await h.home.web.post(`/api/plugins/${gone}/uninstall`, { keep_data: false });
   // The running package answers, so the marker below is known to be what a framed page carries.

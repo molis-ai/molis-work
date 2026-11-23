@@ -112,7 +112,7 @@ export class SkillImportService {
     const runtime = input.source.runtime_id, found = this.ports.scan(runtime);
     if (!found) throw skillErrors.import_source_unavailable(`这台电脑上没有 ${externalTool(runtime).display_name} 的技能目录`);
     // The source's kind and root name the plugin, so importing the same source again is its upgrade.
-    const plugin_id = `io.molis.work.imported-skills.${runtime}-${createHash('sha256').update(`runtime\0${runtime}\0${found.root}`).digest('hex').slice(0, 12)}`;
+    const plugin_id = `imported.${runtime}-${createHash('sha256').update(`runtime\0${runtime}\0${found.root}`).digest('hex').slice(0, 12)}`;
     const installed = await this.ports.installed(plugin_id, 'project', who.project_id) ?? await this.ports.installed(plugin_id, 'home', who.project_id);
     const active = this.ports.activeScenes ? await this.ports.activeScenes('project', who.project_id, locale) : builtinActiveSkillScenes();
     const applies_to = suggestedAppliesTo(input.source), skills = new Map<string, HeldSkill>(), candidates: SkillImportCandidate[] = [];

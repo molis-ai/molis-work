@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AGENT_TOOLS, AgentHost, AgentReviewQueue, createPrologueNodeAdapter, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
-import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { ActionService, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, actionFieldLabelSource, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { installHostUiText, createMolisWorkLocalHost, drawAssistantReply, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -2012,4 +2012,70 @@ test("BL-1076 list-memories stops independently at the count and text limits and
   assert.deepEqual(atSize.memories, long.slice(0, 15), "exactly 6,000 characters of memory text fit");
   assert.equal(atSize.more, 105);
   assert.deepEqual(await list(memories.slice(0, 3)), { memories: memories.slice(0, 3) });
+});
+
+test("assistantAuthority discoverOne, check and validate_authority avoid full discover and inspectActions while enforcing live revocation", async t => {
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", storage_key: "memory:project" };
+  let writes = 0, unrelatedAvailability = 0;
+  const unrelated: ActionDefinition = { ...count, capability_id: "fixture.notes.unrelated" };
+  local.actionRegistry(project).registerProvider({
+    provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    definitions: [write, count, unrelated],
+    handlers: [
+      { ...write, handle: () => ({ saved: ++writes }) },
+      { ...count, handle: () => writes },
+      { ...unrelated, availability: () => { unrelatedAvailability++; return { available: true }; }, handle: () => 0 },
+    ],
+  });
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const work = store.create({ actor_id: "web-user", title: "Fast lookup", scope: { kind: "project", project_id: project.project_id }, project_ref: project, origin: null });
+  let discoverCalls = 0, inspectActionsCalls = 0;
+  const origDiscover = ActionService.prototype.discover;
+  const origInspectActions = LocalHost.prototype.inspectActions;
+  t.mock.method(ActionService.prototype, "discover", function (this: ActionService, ...args: Parameters<ActionService["discover"]>) {
+    discoverCalls++; return origDiscover.apply(this, args);
+  });
+  t.mock.method(LocalHost.prototype, "inspectActions", function (this: LocalHost<unknown>, ...args: Parameters<LocalHost<unknown>["inspectActions"]>) {
+    inspectActionsCalls++; return origInspectActions.apply(this, args);
+  });
+  try {
+    const actions = await assistantAuthority(local, work, () => store.disabledActions("web-user")).actions!("prologue", () => {});
+    const writeRef = { capability_id: write.capability_id, version: 1, provider_id: "fixture.notes" };
+    const countRef = { capability_id: count.capability_id, version: 1, provider_id: "fixture.notes" };
+
+    const found = await actions.discoverOne!(writeRef);
+    assert.equal(found?.capability_id, write.capability_id);
+    assert.equal(discoverCalls, 0);
+    assert.equal(inspectActionsCalls, 0);
+    assert.equal(unrelatedAvailability, 0);
+
+    await actions.check!(writeRef, { text: "valid" });
+    await assert.rejects(actions.check!(writeRef, { text: 42 }), { code: "actions.input_invalid" });
+    assert.equal(discoverCalls, 0, "check uses O(1) discoverOne");
+    assert.equal(inspectActionsCalls, 0, "check does not call inspectActions");
+    assert.equal(unrelatedAvailability, 0);
+
+    assert.equal(await actions.invoke(countRef, {}), 0);
+    assert.equal(discoverCalls, 0, "invoke + validate_authority does not call ActionService.discover");
+    assert.equal(inspectActionsCalls, 0, "invoke + validate_authority does not call LocalHost.inspectActions");
+    assert.equal(unrelatedAvailability, 0);
+
+    // Gateway tool read-capability also hits discoverOne with zero discover calls.
+    const { executors } = prologueActionGateway({ client: actions, operate: true } as never);
+    const readOut = await executors["read-capability"]!({ args: { ...countRef, input: {} } } as never);
+    assert.equal(JSON.parse(String(readOut)), 0);
+    assert.equal(discoverCalls, 0, "prologueActionGateway read-capability hits O(1) discoverOne");
+    assert.equal(inspectActionsCalls, 0);
+
+    // Revoking the action immediately blocks discoverOne, check and invoke without full scans.
+    store.setActionEnabled("web-user", actionKey(writeRef), false);
+    assert.equal(await actions.discoverOne!(writeRef), undefined);
+    await assert.rejects(actions.check!(writeRef, { text: "blocked" }), { code: "assistant.action_revoked" });
+    await assert.rejects(actions.invoke(writeRef, { text: "blocked" }), { code: "assistant.action_revoked" });
+    assert.equal(writes, 0);
+    assert.equal(discoverCalls, 0);
+    assert.equal(inspectActionsCalls, 0);
+    assert.equal(unrelatedAvailability, 0);
+  } finally { await local.close(); }
 });

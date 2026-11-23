@@ -35,7 +35,7 @@ export default definePlugin({
       resultMachine.assert(count === 0 ? "empty" : "saved", "save");
       const version = count + 1;
       services.artifacts.publish({
-        artifact_id: artifactId, version, artifact_type_id: "io.molis.work.example.note", schema_version: 1,
+        artifact_id: artifactId, version, artifact_type_id: "com.example.note", schema_version: 1,
         content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },
         // A 成果 says what it pins, what it is called and what its content is.
         origin: { kind: "pinned", subject: { kind: "counter", id: "sample" }, revision: String(version) },
@@ -79,7 +79,7 @@ export default definePlugin({
       bindOwnerPluginAction(context, readAction, () => { const count = savedCount(); return { count, latest: count ? resultAt(count) : null }; }),
       bindOwnerPluginAction(context, publishAction, () => publishResult()),
       // The owner's half of the preview the 成果库 and the side panel show: this plugin's own type, as text.
-      bindArtifactPreview(previewAction, "io.molis.work.example.note", artifact => ({
+      bindArtifactPreview(previewAction, "com.example.note", artifact => ({
         media_type: "text/markdown", text: "# " + artifact.payload.title + "\n\nResult " + artifact.payload.sequence + "\n",
       })),
       // The Manifest was checked whole when the plugin was parsed: the 「挂到…」 parts name each other, so each is bound as declared.

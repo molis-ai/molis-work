@@ -64,7 +64,7 @@ test('installed and authoring model calls bind their own release through the rea
     return { store, storage, service, id, actions: { registry: service, client: service, project_id: id }, builder: new AgentBuilderStore(storage) };
   };
   const a = project('project-a'), b = project('project-b'), draft = a.builder.create('Prompt binding fixture');
-  const pluginId = 'io.molis.work.generated.' + draft.id, directory = join(home, 'build');
+  const pluginId = 'studio.' + draft.id, directory = join(home, 'build');
   await mkdir(join(directory, 'src', 'operations'), { recursive: true });
   await writeFile(join(directory, 'src', 'operations', '0.ts'), `export const prompts = [{ id:'summary', title:'Summary', purpose:'p', body:'AUTHORING_DEFAULT' }];`);
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [

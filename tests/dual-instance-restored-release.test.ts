@@ -14,7 +14,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // when the build the Host lists cannot take it over) is still the project half: it offers only its own actions and runs, rather
 // than being checked against the whole Manifest and recorded as crashed.
 
-const PLUGIN_ID = "io.molis.work.example.dual-restored";
+const PLUGIN_ID = "com.example.dual-restored";
 const action = (name: string): ActionDefinition<Record<string, never>, string> => ({
   capability_id: `dual-restored.${name}`, version: 1, operation: "query",
   action: { title: name, description: `${name} 那一半的动作`, kind: "query", scope: "project", audiences: ["user"], permissions: [],

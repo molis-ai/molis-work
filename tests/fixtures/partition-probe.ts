@@ -16,7 +16,7 @@ import { person } from "./home-runtime.js";
 // module loads, before anything asks for the registry, and stays for the test file's process.
 
 export const PROBE = "partprobe";
-export const PROBE_ID = `io.molis.work.example.${PROBE}`;
+export const PROBE_ID = `com.example.${PROBE}`;
 const READ = `${PROBE}:read`, WRITE = `${PROBE}:write`;
 export const PROBE_PERMISSIONS = ["storage:private", READ, WRITE] as const;
 export const PROBE_DATABASE: HomePluginDatabaseDeclaration = { store_name: PROBE, version: 1, read_permission: READ, write_permission: WRITE, partition: "project",

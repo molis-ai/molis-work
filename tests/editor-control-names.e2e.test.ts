@@ -6,7 +6,7 @@ import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixt
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openDatasetStore, openJellyStore, openPptStore } from "./fixtures/plugin-home-stores.js";
-import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 type Frame = Awaited<ReturnType<typeof pluginFrameBrowser>>;
@@ -16,6 +16,7 @@ type AXNode = {
   ignored: boolean;
   role?: { value: string };
   name?: { value: string };
+  description?: { value: string };
   properties?: { name: string; value: { value: unknown } }[];
 };
 type Tree = { nodes: AXNode[] };
@@ -24,15 +25,20 @@ const keys = { Tab: 9, Enter: 13, Escape: 27, " ": 32, ArrowRight: 39 };
 
 async function keyboard(b: Browser, key: keyof typeof keys) {
   const event = { key, code: key === " " ? "Space" : key, windowsVirtualKeyCode: keys[key], nativeVirtualKeyCode: keys[key] };
-  await b.command("Input.dispatchKeyEvent", key === "Enter"
-    ? { ...event, type: "keyDown", text: "\r", unmodifiedText: "\r" }
+  const text = key === "Enter" ? "\r" : key === " " ? " " : "";
+  await b.command("Input.dispatchKeyEvent", text
+    ? { ...event, type: "keyDown", text, unmodifiedText: text }
     : { ...event, type: "rawKeyDown" }, b.sessionId);
   await b.command("Input.dispatchKeyEvent", { ...event, type: "keyUp" }, b.sessionId);
 }
 
 async function focus(frame: Frame, selector: string) {
   await frame.evaluate(`${node(selector)}.focus()`);
-  await frame.waitFor(`document.hasFocus() && document.activeElement === ${node(selector)}`);
+  await frame.waitFor(`document.hasFocus() && document.activeElement === ${node(selector)}`).catch(async error => {
+    const focusState = await frame.evaluate(`({ focused: document.hasFocus(), active: document.activeElement?.tagName,
+      targetIsActive: document.activeElement === ${node(selector)}, targetIsVisible: ${node(selector)}?.checkVisibility() })`);
+    throw new Error(`Could not focus ${selector}: ${JSON.stringify(focusState)}`, { cause: error });
+  });
 }
 
 async function activate(b: Browser, frame: Frame, selector: string, key: "Enter" | " " = "Enter") {
@@ -46,11 +52,12 @@ async function typeInto(b: Browser, frame: Frame, selector: string, text: string
   await b.command("Input.insertText", { text }, b.sessionId);
 }
 
-async function navigate(b: Browser, frame: Frame, plugin: string) {
-  const url = `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}`;
-  await b.navigate(() => b.command("Page.navigate", { url }, b.sessionId));
-  await b.waitFor(`document.body.dataset.desktopSurface === "${plugin}"`);
-  await frame.clientReady();
+async function navigate(b: Browser, frame: Frame, plugin: string, record?: string, locale?: "zh" | "en") {
+  const path = `/projects/${b.projectId}/?openPlugin=${plugin}${record ? `&openRecord=${encodeURIComponent(record)}` : ""}`;
+  const url = b.origin + (locale ? `/locale?lang=${locale}&next=${encodeURIComponent(path)}` : path);
+  await b.navigate(() => b.command("Page.navigate", { url }, b.sessionId), b.sessionId);
+  await b.waitFor(`document.body.dataset.desktopSurface === "${plugin}"`, 20_000);
+  await frame.clientReady(20_000);
 }
 
 async function axNode(frame: Frame, selector: string): Promise<AXNode | undefined> {
@@ -94,6 +101,7 @@ async function assertNamedButtons(frame: Frame) {
 }
 
 async function screenshot(b: Browser, name: string) {
+  if (!shouldSaveReviewScreenshots()) return;
   const output = reviewEvidenceUrl("batch27-editor-names/");
   await mkdir(output, { recursive: true });
   const { data } = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
@@ -108,6 +116,21 @@ function postCounter(t: TestContext, b: Browser, path: string) {
   b.server.on("request", observe);
   t.after(() => { b.server.off("request", observe); });
   return () => count;
+}
+
+async function auditForm(t: TestContext, b: Browser) {
+  const frame = await pluginFrameBrowser(t, b, "form");
+  await b.setViewport(1024, 900);
+  await navigate(b, frame, "form", undefined, "en");
+  await frame.click("[data-form-new]");
+  await frame.click("[data-form-add-question=singleChoice]");
+  await frame.waitFor(`${node("[data-option-remove]")} && ${node("[data-form-editor-status]")}.textContent === "Saved"`);
+  await assertNames(frame, [
+    ["[data-form-title]", "textbox", "Title"], ["[data-form-back]", "button", "Back to form list"],
+    ["[data-question-move='-1']", "button", "Move up"], ["[data-question-move='1']", "button", "Move down"],
+    ["[data-question-remove]", "button", "Remove question"], ["[data-option-remove]", "button", "Remove option"],
+  ]);
+  await assertNamedButtons(frame);
 }
 
 async function auditDataset(t: TestContext, b: Browser) {
@@ -131,10 +154,19 @@ async function auditDataset(t: TestContext, b: Browser) {
   const dataset = read();
   assert.equal(dataset.title, text);
   assert.equal(dataset.columns.length, 1);
+  const addColumn = "[data-dataset-table] [data-dataset-add-column]";
+  await activate(b, frame, addColumn);
+  await frame.waitFor("document.querySelectorAll('[data-dataset-column]').length === 2");
+  await activate(b, frame, addColumn);
+  await frame.waitFor("document.querySelectorAll('[data-dataset-column]').length === 3");
+  await activate(b, frame, "[data-dataset-add-row]");
+  await frame.waitFor(`document.querySelectorAll('[data-dataset-row]').length === 4 && ${node("[data-dataset-editor-status]")}.textContent === "已保存"`);
+  assert.deepEqual([read().columns.length, read().rows.length], [3, 4]);
   await assertNames(frame, [
     [title, "textbox", "标题"], ["[data-dataset-back]", "button", "返回数据表列表"],
-    ["[data-dataset-table] [data-dataset-add-column]", "button", "加一列"],
-    ["[data-column-remove]", "button", "删列"], ["[data-row-remove]", "button", "删行"],
+    [addColumn, "button", "加一列"],
+    ...[1, 2, 3].map(index => [`[data-dataset-column]:nth-child(${index}) [data-column-remove]`, "button", "删列"] as const),
+    ...[1, 2, 3, 4].map(index => [`[data-dataset-row]:nth-child(${index}) [data-row-remove]`, "button", "删行"] as const),
   ]);
   await assertNamedButtons(frame);
   await activate(b, frame, "[data-dataset-back]");
@@ -236,8 +268,46 @@ async function auditInbox(t: TestContext, b: Browser, entryId: string) {
   await frame.waitFor(`!${node(back)} || !${node(back)}.getClientRects().length`);
 }
 
-// The first workbench view draws every plugin frame; on a slow machine the four audits need more than 120s together.
-test("B27-NAMES-01 · existing named Dataset, Jelly, Feed and Inbox controls", { timeout: 240_000 }, async t => {
+async function auditProjectPluginRows(b: Browser) {
+  const { command, sessionId } = b;
+  const projectRows = "[data-plugin-trust-list] .plugin-trust-item > summary";
+  const personalRows = "[data-plugin-trust-home] .plugin-trust-item > summary";
+  const selector = `${projectRows}, ${personalRows}`;
+  for (const locale of ["zh", "en"] as const) {
+    await b.setViewport(locale === "zh" ? 1024 : 390, 900);
+    await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: b.origin }, sessionId);
+    const url = `${b.origin}/projects/${b.projectId}/settings/plugins`;
+    await b.navigate(() => command("Page.navigate", { url }, sessionId));
+    await b.waitFor(`${node(projectRows)} && ${node(personalRows)}`);
+    const rows = await b.evaluate<Array<[string, string]>>(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(summary => [
+      summary.querySelector('strong').textContent,
+      summary.querySelector('.setting-copy > span').textContent,
+    ])`);
+    const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
+    const { nodeIds } = await command<{ nodeIds: number[] }>("DOM.querySelectorAll", { nodeId: root.nodeId, selector }, sessionId);
+    assert.equal(nodeIds.length, rows.length);
+    const readDisclosure = async (nodeId: number) => {
+      const { nodes } = await command<Tree>("Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false }, sessionId);
+      return nodes.find(control => !control.ignored);
+    };
+    for (const [index, [title, status]] of rows.entries()) {
+      assert.ok(title && status);
+      const name = title.slice(0, title.lastIndexOf(" · "));
+      const control = await readDisclosure(nodeIds[index]!);
+      assert.deepEqual([control?.role?.value, control?.name?.value], ["DisclosureTriangle", locale === "zh" ? `${name} 的详情` : `${name} details`], title);
+      assert.ok(control?.description?.value.includes(title) && control.description.value.includes(status), title);
+    }
+    await b.evaluate(`${node(projectRows)}.focus()`);
+    await b.waitFor(`document.activeElement === ${node(projectRows)}`);
+    await keyboard(b, "Enter");
+    await b.waitFor(`${node(projectRows)}.parentElement.open`);
+    const open = await readDisclosure(nodeIds[0]!);
+    assert.equal(open?.properties?.find(property => property.name === "expanded")?.value.value, true);
+    await screenshot(b, `project-plugin-details-${locale}`);
+  }
+}
+
+test("AEC-01 AEC-02 AEC-03 B27-NAMES-01 · accessible names in the plugin editors and project settings", { timeout: 240_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null);
   if (!b) return;
   const project = b.projectId!;
@@ -247,10 +317,12 @@ test("B27-NAMES-01 · existing named Dataset, Jelly, Feed and Inbox controls", {
     summary: "Slides and decisions from a pilot workshop", body: "The pilot workshop reviewed the release.", occurredAt: new Date().toISOString(), attention: false }).item;
   const entry = feed.ensureInboxEntryForFeedItem(project, item.item_id, "manual").entry;
   await b.setViewport(1024, 900);
-  await t.test("Dataset title, table controls and reopening", s => auditDataset(s, b));
+  await t.test("Dataset title, nine table controls and reopening", s => auditDataset(s, b));
   await t.test("Jelly start and end times, notes and recovery", s => auditJelly(s, b));
   await t.test("Feed add-source and source header actions", s => auditFeed(s, b, source.source_id));
   await t.test("Inbox item and compose actions", s => auditInbox(s, b, entry.entry_id));
+  await t.test("Project and personal plugin row disclosures in Chinese and English", () => auditProjectPluginRows(b));
+  await t.test("Forms title, question and option controls", s => auditForm(s, b));
 });
 
 const paletteNames = {
@@ -283,6 +355,11 @@ const pptMore = "[data-ppt-stage-workspace] .plugin-stage-more:not(.ppt-export-m
 const pptSaved = (frame: Frame) => frame.waitFor("document.querySelector('[data-ppt-editor-status]').dataset.mwState === 'saved' && document.querySelector('[data-ppt=workbench]').getAttribute('aria-busy') === 'false'");
 const checked = async (frame: Frame, selector: string) => (await axNode(frame, selector))?.properties?.find(property => property.name === "checked")?.value.value;
 
+async function enterPptEditor(frame: Frame) {
+  await frame.click("[data-ppt-editor-title]");
+  await frame.waitFor("document.hasFocus()");
+}
+
 async function auditPptLabels(b: Browser, frame: Frame, locale: keyof typeof paletteNames) {
   await assertNames(frame, locale === "zh" ? [
     [titleField, "textbox", "标题"], ["[data-ppt-slide-title]", "textbox", "页标题"],
@@ -293,12 +370,15 @@ async function auditPptLabels(b: Browser, frame: Frame, locale: keyof typeof pal
     ["[data-ppt-back]", "button", "Back to deck list"], ["[data-slide-move='-1']", "button", "Move up"],
     ["[data-slide-move='1']", "button", "Move down"], ["[data-slide-remove]", "button", "Remove slide"],
   ]);
+  await enterPptEditor(frame);
   await activate(b, frame, "[data-ppt-outline-open]");
   await frame.waitFor("document.querySelector('[data-ppt-outline-dialog]').open");
   await assertNames(frame, [["header [data-ppt-outline-close]", "button", locale === "zh" ? "关闭" : "Close"]]);
   await assertNamedButtons(frame);
   await keyboard(b, "Escape");
-  await frame.waitFor("!document.querySelector('[data-ppt-outline-dialog]').open");
+  const outline = node("[data-ppt-outline-dialog]");
+  await frame.waitFor(`!${outline}.open && getComputedStyle(${outline}).display === 'none'`);
+  await b.waitFor("!document.querySelector('.mw-modal-cover')");
 }
 
 async function assertPaletteFits(frame: Frame) {
@@ -309,7 +389,7 @@ async function assertPaletteFits(frame: Frame) {
   assert.deepEqual(covered, [], "all swatch centers are reachable on the current page");
 }
 
-test("B27-NAMES-02 / B27-NAMES-03 · PPT color names and saved selection", { timeout: 180_000 }, async t => {
+test("AEC-01 B27-NAMES-02 B27-NAMES-03 · PPT color names and saved selection", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null);
   if (!b) return;
   const frame = await pluginFrameBrowser(t, b, "ppt");
@@ -327,9 +407,9 @@ test("B27-NAMES-02 / B27-NAMES-03 · PPT color names and saved selection", { tim
   const background = swatch("background", "#FCFCFB");
   const defaultText = swatch("text", "#292A2E");
   const offWhiteText = swatch("text", "#FCFCFB");
-  const reopen = async () => {
-    await navigate(b, frame, "ppt");
-    await frame.waitFor(`${node(titleField)}.value === ${JSON.stringify(title)}`);
+  const reopen = async (locale?: "zh" | "en") => {
+    await navigate(b, frame, "ppt", id, locale);
+    await frame.waitFor(`!document.body.hidden && ${node(titleField)}.value === ${JSON.stringify(title)}`);
   };
   await t.test("B27-NAMES-03 · same background and text color stay selected after an ordinary save and reopening", async () => {
     assert.equal(await checked(frame, background), "true");
@@ -346,16 +426,14 @@ test("B27-NAMES-02 / B27-NAMES-03 · PPT color names and saved selection", { tim
 
   for (const locale of ["zh", "en"] as const) {
     await b.setViewport(1440, 900);
-    await b.command("Network.setCookie", { name: "molis_work_locale", value: locale, url: b.origin }, b.sessionId);
-    await reopen();
-    await t.test(`B27-NAMES-01 · existing PPT titles and slide actions · ${locale}`, () => auditPptLabels(b, frame, locale));
+    await reopen(locale);
     for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
       await b.setViewport(width, height);
       for (const theme of ["light", "dark"]) {
         const variant = `${width}-${locale}-${theme}`;
         await t.test(`B27-NAMES-02 · all color names · ${variant}`, async () => {
           await b.evaluate(`localStorage.setItem('molis-work:theme','${theme}'); dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
-          await frame.waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
+          await frame.waitFor(`!document.body.hidden && document.documentElement.dataset.resolvedTheme === '${theme}'`);
           await frame.evaluate("document.querySelector('.ppt-workspace').scrollTop = 0");
           await screenshot(b, `ppt-${variant}`);
           await assertPaletteFits(frame);
@@ -367,6 +445,7 @@ test("B27-NAMES-02 / B27-NAMES-03 · PPT color names and saved selection", { tim
   }
 
   await t.test("B27-NAMES-03 · selecting the named off-white text radio with a key persists the intended color", async () => {
+    await enterPptEditor(frame);
     await focus(frame, "[data-ppt-description]");
     for (const current of [swatch("primary", "#5e6ad2"), background, defaultText]) {
       await keyboard(b, "Tab");
@@ -389,6 +468,7 @@ test("B27-NAMES-02 / B27-NAMES-03 · PPT color names and saved selection", { tim
     const other = openPptStore(b.homeDirectory);
     const description = "An update from another editor";
     try { other.update(id, { description }, b.projectId!); } finally { other.close(); }
+    await enterPptEditor(frame);
     await activate(b, frame, defaultText);
     await frame.waitFor("document.querySelector('[data-ppt-editor-status]').dataset.mwState === 'failed'");
     assert.deepEqual([writes(), read().color_text, await checked(frame, defaultText)], [3, "#fcfcfb", "true"]);
@@ -400,5 +480,28 @@ test("B27-NAMES-02 / B27-NAMES-03 · PPT color names and saved selection", { tim
     await pptSaved(frame);
     assert.equal(await frame.evaluate(`${node("[data-ppt-description]")}.value`), description);
     assert.deepEqual([writes(), read().id, await checked(frame, offWhiteText), await checked(frame, defaultText)], [3, id, "true", "false"]);
+  });
+
+  await b.setViewport(1440, 900);
+  await t.test("B27-NAMES-01 · existing PPT titles and slide actions · zh", async () => {
+    await reopen("zh");
+    await auditPptLabels(b, frame, "zh");
+  });
+  await t.test("B27-NAMES-01 · existing PPT titles and slide actions · en", async subtest => {
+    // Each language opens its outline in a fresh workbench document and focus context.
+    const page = await b.openPage();
+    const english = {
+      ...b,
+      sessionId: page.sessionId,
+      evaluate: page.evaluate.bind(page),
+      waitFor: (expression: string, timeoutMs?: number) => page.wait(expression, { timeoutMs }),
+    };
+    await page.command("Page.enable");
+    await b.command("Target.activateTarget", { targetId: page.targetId });
+    await page.viewport(1440, 900);
+    const englishFrame = await pluginFrameBrowser(subtest, english, "ppt");
+    await navigate(english, englishFrame, "ppt", id, "en");
+    await englishFrame.waitFor(`!document.body.hidden && ${node(titleField)}.value === ${JSON.stringify(title)}`);
+    await auditPptLabels(english, englishFrame, "en");
   });
 });

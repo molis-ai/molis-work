@@ -24,7 +24,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // asked), RAC-1021 (a call that loses its authority), RAC-1022 (the Host's side: the binding, the registry, the receipt), RAC-1023 (through
 // a real platform). RAC numbers are provisional until the coordinator assigns the range.
 
-const PLUGIN = "io.molis.work.example.connectorsource", INSTALL = "plugin-install-connector-source", CONNECTIONS = "connections:use";
+const PLUGIN = "com.example.connectorsource", INSTALL = "plugin-install-connector-source", CONNECTIONS = "connections:use";
 const CONNECTOR = "sources:pull_connector", SECRET_VALUE = "fixture-token-value-for-s99-connector";
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
@@ -250,7 +250,7 @@ test("S-97 RAC-1022: a record with no usable account is a needs_auth receipt and
   f.bind(account.connection_id);
   // Another record, project, installation or plugin: the binding is not theirs.
   for (const target of [{ ...f.target, record_key: "src-2" }, { ...f.target, record_key: "src" }, { ...f.target, project_id: "p-2" }, { ...f.target, install_id: `${INSTALL}x` },
-    { ...f.target, plugin_id: "io.molis.work.example.other" }, { ...f.target, slot_id: "other" }]) {
+    { ...f.target, plugin_id: "com.example.other" }, { ...f.target, slot_id: "other" }]) {
     assert.equal(needsAuth(await f.port.pull(target, f.request, f.run)), true, JSON.stringify(target));
   }
   // A binding of an account that is not of the slot's service, one that was disconnected, one that was switched off.
@@ -395,7 +395,7 @@ test("S-97 RAC-1023: through the platform, a plugin pulls with the person's bind
     for (const record of platform.runtime.list()) if (owned.has(record.plugin_id) && record.state === "running") await platform.runtime.stop(record.install_id);
   };
   const start = async (name: string, permissions: string[]) => {
-    const id = `io.molis.work.example.${name}`;
+    const id = `com.example.${name}`;
     owned.add(id);
     const run: ActionDefinition<Record<string, never>, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: { title: "run", description: "Pulls an account source",
       scope: "project", kind: "operation", subject_kinds: [], audiences: ["user"], permissions, scheduling: "concurrent", input_schema: { type: "object", additionalProperties: false }, output_schema: {} } };

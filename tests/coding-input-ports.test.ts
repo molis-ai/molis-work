@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -39,7 +39,7 @@ const at = "2026-10-21T00:00:00Z";
 /** A plugin that only lists the models, to see the list any other plugin is given. */
 function modelReader() {
   let client: PluginModelClient | undefined;
-  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.modelreader", version: "1.0.0", name: "modelreader", kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: "com.example.modelreader", version: "1.0.0", name: "modelreader", kind: "app",
     publisher: { publisher_id: "example", signature: "example-modelreader" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "model:read", required: true, reason: "Lists the models" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], routes: [] };
@@ -202,10 +202,10 @@ async function consumers() {
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   const contexts = new Map<string, PluginStartContext>();
   const plugin = (name: string, consumes: string[]): PluginDefinition => ({
-    manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.${name}`, version: "1.0.0", name, kind: "app",
       publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "artifact:read", required: false, reason: "Reads the Characters it is shown" }], capabilities: { provides: [], consumes },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], routes: [] },

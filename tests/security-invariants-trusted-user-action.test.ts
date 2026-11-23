@@ -125,7 +125,7 @@ test("RAC-183 BL-374 a guard retained over the running action without its provid
 
 /** A project plugin whose page route runs its own action, which records what the dispatcher told it and calls a target through the directory. */
 function routeProbe() {
-  const id = "io.molis.work.example.r7route", contexts: PluginStartContext[] = [], seen: (ActionUserAction | undefined)[] = [];
+  const id = "com.example.r7route", contexts: PluginStartContext[] = [], seen: (ActionUserAction | undefined)[] = [];
   const action: ActionDefinition<{ reference?: ActionReference }, unknown> = { capability_id: "r7route.run", version: 1, operation: "command", action: {
     title: "Record the person's operation", description: "R7 route probe", kind: "operation", scope: "project", scheduling: "concurrent",
     audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],

@@ -3,6 +3,7 @@ import { ACTION_REFERENCE_SCHEMA } from "../platform/action-offers.js";
 import { inputSchemaFor, type InferActionInput } from "../platform/action-input.js";
 import { BLUEPRINT_PART_ORIGIN_SCHEMA, type BlueprintPartOrigin } from "../platform/blueprint-source.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
+import { PLUGIN_ID_PATTERN } from "../platform/plugin-manifest.js";
 import { TEXT_REF_LIMITS, TEXT_REF_SCHEMA, type TextRef } from "../platform/ui-text.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 import {
@@ -130,7 +131,7 @@ export const ROLE_TEMPLATE_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          pack: { type: "string", pattern: "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$", maxLength: TEXT_REF_LIMITS.owner },
+          pack: { type: "string", pattern: PLUGIN_ID_PATTERN, maxLength: TEXT_REF_LIMITS.owner },
           skill_id: { type: "string", pattern: "^[a-z0-9][a-z0-9-]*$" },
         },
         required: ["pack", "skill_id"],

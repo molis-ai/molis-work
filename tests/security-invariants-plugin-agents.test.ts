@@ -13,7 +13,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
 
-const id = "io.molis.work.example.awaited-agent", grant = "agent:run";
+const id = "com.example.awaited-agent", grant = "agent:run";
 const run: ActionDefinition = { capability_id: "awaited-agent.run", version: 1, operation: "command", action: {
   title: "Run", description: "Run a declared role", kind: "operation", scope: "project", audiences: ["user"], permissions: [grant, "storage:private"], subject_kinds: [], scheduling: "concurrent",
   input_schema: { type: "object" }, output_schema: { type: "object" },

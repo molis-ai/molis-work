@@ -26,7 +26,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(extra: Partial<PluginManifest> & Record<string, unknown>, permissions = ["connections:use"]): PluginManifest {
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.connectionsmanifest", version: "1.0.0", name: "Connections", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.connectionsmanifest", version: "1.0.0", name: "Connections", kind: "app",
     publisher: { publisher_id: "example", signature: "connections-manifest" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: false, reason: "连接服务测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, ...extra,
@@ -260,7 +260,7 @@ const dispatch = (url: string, extra: Partial<PluginConnectionDispatch> = {}): P
 test("S-57 the Host adds the bound credential only on the service origin, hides cookies, hands redirects back and refuses private addresses", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));
   const { seen, testServer, lookup } = await githubStandIn(t);
-  const target = { plugin_id: "io.molis.work.example.connectionsport", install_id: "install-s57", slot_id: "github", service_id: "github" };
+  const target = { plugin_id: "com.example.connectionsport", install_id: "install-s57", slot_id: "github", service_id: "github" };
   const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
   // Unbound: the request goes out as the plugin wrote it, without any credential.
   const anonymous = await port.request(target, dispatch("https://api.github.com/user"));
@@ -298,7 +298,7 @@ test("S-57 every request opens its own connection, so a call that lost its autho
   // #1081 review: a pooled keep-alive connection is reused without resolving the name, which skipped the recheck after DNS.
   const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));
   const { seen, testServer, lookup, connections } = await githubStandIn(t);
-  const target = { plugin_id: "io.molis.work.example.connectionsport", install_id: "install-s57-fresh", slot_id: "github", service_id: "github" };
+  const target = { plugin_id: "com.example.connectionsport", install_id: "install-s57-fresh", slot_id: "github", service_id: "github" };
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "github", serviceId: "github", connectionId: connection.connection_id }));
   const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
@@ -318,7 +318,7 @@ test("S-57 every request opens its own connection, so a call that lost its autho
 test("ASC-53 a short break is ridden out for a read only: at most two resends, one at a time, never a write, and none once the call ends", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));
   const { seen, testServer, lookup } = await githubStandIn(t);
-  const target = { plugin_id: "io.molis.work.example.connectionsport", install_id: "install-asc53", slot_id: "github", service_id: "github" };
+  const target = { plugin_id: "com.example.connectionsport", install_id: "install-asc53", slot_id: "github", service_id: "github" };
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "github", serviceId: "github", connectionId: connection.connection_id }));
   const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });

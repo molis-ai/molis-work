@@ -15,7 +15,7 @@ import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { installedLifecycle, type InstalledPluginPlatform, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
+import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, installedPackageRecovery } from './installed-plugin-common.js';
 import { HOME_INSTALL_SCOPE, installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { isPluginTableRefusal } from './home-unavailable-owners.js';
@@ -195,18 +195,19 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     forgetHomeInstalledMemoryScenes(home);
   };
 
+  const recovery = installedPackageRecovery({ packages, scope: 'home', recordFor, records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose,
+    unapproved: '找不到此安装的批准记录，请先卸载并重新确认安装',
+    admit: release => assertHomePackageAllowed(release.packaged!.manifest),
+    blocked: record => installedHomeUpgradeBlocked(home, record) ? pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复') : undefined });
   try {
     // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).
     disposePlatform = registerPlatformCapabilities(actions, { generate });
-    await recoverInstalledRecords({ records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose,
-      unapproved: '找不到此安装的批准记录，请先卸载并重新确认安装',
-      admit: release => assertHomePackageAllowed(release.packaged!.manifest),
-      blocked: record => installedHomeUpgradeBlocked(home, record) ? pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复') : undefined });
+    await recovery.open();
   } catch (error) { close(); throw error; }
 
   const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
   return {
-    lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach, pendingUninstalls,
+    lifecycle, recovery, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach, pendingUninstalls,
     secretNames: (pluginId: string): string[] => secrets.list(pluginId).map(item => item.name),
     /** Takes a signed package's installation off from its trusted row, its package not read (BL-915). */
     uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),

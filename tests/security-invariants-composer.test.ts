@@ -163,7 +163,7 @@ test("S-composer-source-call item 1 near: a source gets only query, limit and th
 // read from the activation the plugin directory reads (not from the built-in registrations), so a plugin that is not built in, as
 // one run with `molis-work plugin dev`, shows in English too. A release with no language files keeps the words it declared.
 test("S-composer-source-call the source's words come from the running release's language files; without them the declared words stay", async (t) => {
-  const prefix = "wordnotes", owner = `io.molis.work.example.${prefix}`, key = textKeyPrefix(owner);
+  const prefix = "wordnotes", owner = `com.example.${prefix}`, key = textKeyPrefix(owner);
   const source = composerSourcePlugin(prefix, { name_text: { key: `${key}.directory.name` }, title_text: { key: `${key}.source.title` } });
   const f = await serveHomeRuntime(t, { pluginFixtures: { project: [source.definition] } });
   const project = await f.project("来源的词");
@@ -194,7 +194,7 @@ test("S-composer-source-call item 3: a source turned off is not listed, an open 
   const [entry] = await notes();
   const pick = (over: Record<string, unknown> = {}) => post("/api/composer/pick", { layer: "plain", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "", limit: 5, ...over });
   assert.equal((await pick()).status, 200);
-  for (const forged of [{ provider_id: "io.molis.work.example.other" }, { version: 2 }, { capability_id: "composernotes.read" }]) {
+  for (const forged of [{ provider_id: "com.example.other" }, { version: 2 }, { capability_id: "composernotes.read" }]) {
     const refused = await pick(forged);
     assert.deepEqual([refused.status, refused.body.code], [503, "composer.source_unavailable"], JSON.stringify(forged));
   }
@@ -231,7 +231,7 @@ test("S-composer-source-call N42–N56: a pick the page let go of is cancelled a
 test("UIC-10 the start-up sweep names the drafts whose project or plugin is gone, and nothing else", async (t) => {
   const { f, project, mount } = await composerHome(t);
   const key = (place: string, install: string) => composerDraftKey({ project: place, install, entry: "comment", conversation: "c1" });
-  const kept = [key(project.project_id, mount.id), key(project.project_id, "workbench"), key("home", "io.molis.work.example.gone"), "mw.other:x", "unrelated"];
+  const kept = [key(project.project_id, mount.id), key(project.project_id, "workbench"), key("home", "com.example.gone"), "mw.other:x", "unrelated"];
   const gone = [key("p-deleted", mount.id), key("p-deleted", "workbench"), `molis-plugin-page:h:${mount.id}:p-deleted:${key("p-deleted", mount.id)}`];
   const response = await f.request("/api/composer/drafts/sweep", { method: "POST", body: { keys: [...kept, ...gone, 7] } });
   assert.equal(response.status, 200, await response.clone().text());
@@ -314,7 +314,7 @@ test("S-composer-source-call B10-R4: a missing page owner does not turn a visibl
   const listed = await f.request(base + "/sources", { method: "POST", body: { layer: "ai" } });
   const entry = (await listed.json() as { sources: Array<{ capability_id: string }> }).sources.find(item => item.capability_id === "pretender.pick")!;
   const result = await f.request(base + "/pick", { method: "POST", body: { ...entry, query: "", limit: 5,
-    near: { kind: NOTE_KIND, id: "private-id", plugin_id: "io.molis.work.example.composernotes" } } });
+    near: { kind: NOTE_KIND, id: "private-id", plugin_id: "com.example.composernotes" } } });
   assert.equal(result.status, 200, await result.text());
   assert.deepEqual(pretender.seen.at(-1), { query: "", limit: 5 });
 });

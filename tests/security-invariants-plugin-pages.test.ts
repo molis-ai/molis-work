@@ -834,15 +834,15 @@ test("RAC-2743 RAC-2744 S-47 the same factory follows replaced, added, removed a
 });
 
 
-test("A4-M S-47 memory settings retain only their two declared session navigation parameters", () => {
+test("A4-M S-47 memory settings retain only their four declared session navigation parameters", () => {
   assert.equal(openSettingsAddress("/settings/memory?memory_session_kind=assistant&memory_session_id=work-1&session_ref=forged&scope=all&evil=1#raw"),
     "/settings/memory?memory_session_kind=assistant&memory_session_id=work-1");
-  assert.equal(openSettingsAddress("/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1&actor=forged&scope=all&evil=1#raw"),
-    "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1");
-  assert.deepEqual(PROJECT_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"], "the project memory declaration adds exactly the same two navigation names");
-  assert.deepEqual(GLOBAL_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"]);
+  assert.equal(openSettingsAddress("/projects/p1/settings/memory?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_provider=io.molis.work.coding&memory_session_id=session-1&actor=forged&scope=all&evil=1#raw"),
+    "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_provider=io.molis.work.coding&memory_session_id=session-1");
+  assert.deepEqual(PROJECT_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id", "memory_session_plugin", "memory_session_provider"], "the project memory declaration adds the exact four session navigation names");
+  assert.deepEqual(GLOBAL_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id", "memory_session_plugin", "memory_session_provider"]);
   // Another dialog page reads its own names only; the memory session names do not follow the person there.
-  assert.equal(openSettingsAddress("/settings/models?memory_session_kind=assistant&memory_session_id=work-1&evil=1"), "/settings/models");
+  assert.equal(openSettingsAddress("/settings/models?memory_session_kind=assistant&memory_session_id=work-1&memory_session_plugin=io.molis.work.coding&memory_session_provider=p&evil=1"), "/settings/models");
 });
 
 test("S-skill-authoring a plugin page cannot call the authored Skills routes through its page authority", async t => {

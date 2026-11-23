@@ -30,7 +30,7 @@ writeFileSync(join(fakeHome, ".local", "bin", "codex"),
 test.after(() => rm(fakeHome, { recursive: true, force: true }));
 
 const SAMPLE_URL = new URL("../examples/plugin-sample/index.mjs", import.meta.url);
-const SAMPLE_PLUGIN_ID = "io.molis.work.example.notes";
+const SAMPLE_PLUGIN_ID = "com.example.notes";
 
 function addGoal(project: { database_path: string; project_id: string }, goalId: string, decomposition: "closed_leaf" | "closed_compound", parent?: string) {
   const store = new LocalProjectDatabase(project.database_path);
@@ -445,8 +445,8 @@ test("PEQ-17 work-terminal open refuses mid-flight caller revocation or plugin d
 });
 
 test("PEQ-17 work terminals refuse mid-flight regrant revocation, kill live Home-plugin processes when hidden from project, allow closing after subject deletion, and support Home-page attach", { timeout: 60_000 }, async t => {
-  const PROBE_PLUGIN_ID = "io.molis.work.example.wt-probe";
-  const HOME_PROBE_ID = "io.molis.work.example.wt-home-probe";
+  const PROBE_PLUGIN_ID = "com.example.wt-probe";
+  const HOME_PROBE_ID = "com.example.wt-home-probe";
   let objectExists = true;
   const projectPromptAction = defineWorkTerminalPromptAction(`${PROBE_PLUGIN_ID}.prompt`, 1, "probe_item", "探针对象", ["probe:prompt"]);
   const projectProbe: PluginDefinition = {

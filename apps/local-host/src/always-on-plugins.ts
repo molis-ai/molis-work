@@ -5,7 +5,7 @@ import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/pro
 import type { PluginInstanceRecord, PluginLifecycleState } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { alwaysOnAgreed, consentSubject, pluginManifestDigest, readPluginRuntimeRecords, SqlitePluginConsentLedger, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
+import { withReadOnlyHomePluginStore } from "./home-plugin-store.js";
 
 // 常开插件 from records (ac-trust T3, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4). A built-in plugin is on in every
 // project while its Manifest declares `always_on`, the Home's consent ledger holds a standing agreement for it, and it is installed and on.
@@ -24,25 +24,46 @@ function installedAndOn(records: readonly PluginInstanceRecord[], entry: PluginR
   return own.length === 0 || own.some(record => ON.has(record.state));
 }
 
+const alwaysOnCache = new Map<string, { readonly stamp: string; readonly entries: readonly PluginRegistration[] }>();
+
+function readAlwaysOnSnapshot(home: string): { readonly stamp: string; readonly entries: readonly PluginRegistration[] } {
+  const declared = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.always_on === true);
+  if (declared.length === 0) return { stamp: "none", entries: [] };
+  const resolved = path.resolve(home);
+  const read = withReadOnlyHomePluginStore(resolved, (db, stamp) => {
+    const cached = alwaysOnCache.get(resolved);
+    if (cached && cached.stamp === stamp) return cached;
+    const ledger = new SqlitePluginConsentLedger(db);
+    const records = readPluginRuntimeRecords(db);
+    const entries = Object.freeze(declared.filter(entry => {
+      const { plugin_id: pluginId, publisher: { signature } } = entry.manifest;
+      const recorded = ledger.consents(pluginId).some(row => row.kind === "always_on" && row.publisher_signature === signature);
+      return (!recorded || alwaysOnAgreed(ledger, pluginId, signature)) && installedAndOn(records, entry);
+    }));
+    const next = { stamp, entries };
+    alwaysOnCache.set(resolved, next);
+    while (alwaysOnCache.size > 64) alwaysOnCache.delete(alwaysOnCache.keys().next().value!);
+    return next;
+  });
+  if (!read) {
+    alwaysOnCache.delete(resolved);
+    return { stamp: "absent", entries: declared };
+  }
+  return read;
+}
+
 /**
  * The 常开 plugins of this Home's own build. Until the Host records a plugin's agreement at startup, the build stands for it without
  * writing anything. An existing row, revoked or not, replaces that default. The catalog here is the Host's build composition, never
  * an installed plugin's claim; no third-party installation receives this default.
  */
 export function alwaysOnCatalogEntries(home: string): PluginRegistration[] {
-  const declared = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.always_on === true);
-  if (declared.length === 0) return [];
-  const db = openReadOnlyHomePluginStore(path.resolve(home));
-  if (!db) return declared;
-  try {
-    const ledger = new SqlitePluginConsentLedger(db);
-    const records = readPluginRuntimeRecords(db);
-    return declared.filter(entry => {
-      const { plugin_id: pluginId, publisher: { signature } } = entry.manifest;
-      const recorded = ledger.consents(pluginId).some(row => row.kind === "always_on" && row.publisher_signature === signature);
-      return (!recorded || alwaysOnAgreed(ledger, pluginId, signature)) && installedAndOn(records, entry);
-    });
-  } finally { db.close(); }
+  return [...readAlwaysOnSnapshot(home).entries];
+}
+
+/** Live stamp of this Home's always-on plugin state; validates the held read-only store on every change. */
+export function alwaysOnPluginStamp(home: string): string {
+  return readAlwaysOnSnapshot(home).stamp;
 }
 
 /** The keys the projects of this Home use for their 常开 plugins (`ProjectPluginRegistry.alwaysOn`). */

@@ -5,7 +5,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities } from '../apps/local-host/src/installed-plugin-catalog.js';
 import { STUDIO_CAPABILITIES, expandDesign } from '@molis-ai/molis-work-plugin-studio';
 
-const identity = (namespace: 'preview' | 'installed', installationId = 'install-1') => ({ projectId: 'p', installationId, pluginId: 'io.molis.work.generated.x', namespace });
+const identity = (namespace: 'preview' | 'installed', installationId = 'install-1') => ({ projectId: 'p', installationId, pluginId: 'studio.x', namespace });
 const context = (namespace: 'preview' | 'installed', installationId?: string) => ({ identity: identity(namespace, installationId), signal: new AbortController().signal, operationId: 'notes.expand' });
 /** What a generated plugin calls: the project's catalog, with the platform's model registered in it. */
 function catalogService(implementations: CapabilityImplementations, live: (identity: ReturnType<typeof identity>) => boolean) {
@@ -42,7 +42,7 @@ test('a plugin that waits on the model gets limits for one model call; others ke
 test('a query may not call the model: reads run whenever the page opens', () => {
   const design = { operations: [{ id: 'notes.explain', kind: 'query', input: {}, output: 'string', effects: { storage: ['read'], capabilities: ['model.generate'] }, examples: [{ input: {}, output: '' }] }],
     pages: [{ id: 'home', parts: [{ id: 'explain', intent: 'description', purpose: 'p', read: 'notes.explain' }] }], acceptance: [{ id: 'a', steps: ['expect explain x'] }] };
-  assert.throws(() => expandDesign(design, { id: 'q', title: 't', description: 'd', rationale: 'r', journey: ['j'] }, 'io.molis.work.generated.x', 'r', []), /查询（query）不能调用收费能力/);
+  assert.throws(() => expandDesign(design, { id: 'q', title: 't', description: 'd', rationale: 'r', journey: ['j'] }, 'studio.x', 'r', []), /查询（query）不能调用收费能力/);
 });
 
 test('operations that wait on the model get their own lane; everything else stays quick', () => {

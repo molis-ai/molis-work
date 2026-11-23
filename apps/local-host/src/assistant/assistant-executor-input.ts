@@ -1,10 +1,9 @@
-import { ActionError, bindActionClient, workExecutorRoleOf, type ActionDefinition, type ActionNamedSkills, type BoundActionClient, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, exactActionView, workExecutorRoleOf, type ActionDefinition, type ActionNamedSkills, type BoundActionClient, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { localWebActionContext } from "../local-web-actions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { exactActionView } from "../exact-action-view.js";
 
 /** What one Assistant dispatch hands the executor beyond the action input: the person's original text, and the Skills the round named. */
 export interface ExecutorHanded {

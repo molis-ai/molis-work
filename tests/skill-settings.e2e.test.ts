@@ -186,7 +186,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   // 1. Install a real signed third-party sandbox package declaring `memory_scene: "field-notes"` through `/settings/plugins`.
   await go(`/projects/${project.project_id}/settings/plugins`);
   await page.wait("!!document.querySelector('[data-plugin-trust-pick]')");
-  const bundle = signedPackage(newPublisher(), undefined, { pluginId: "io.molis.work.example.field-notes", name: "Field Notes", memoryScene: "field-notes" });
+  const bundle = signedPackage(newPublisher(), undefined, { pluginId: "com.example.field-notes", name: "Field Notes", memoryScene: "field-notes" });
   const file = join(directory, "field-notes.json");
   await writeFile(file, JSON.stringify(bundle));
   const doc = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");
@@ -221,7 +221,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"both\"]')?.textContent ?? ''"), /Field Notes/);
 
   // 4. Disable the plugin: `"Field Notes"` disappears immediately from project Skill settings.
-  const disableResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/disable`, { method: "POST", body: { plugin_id: "io.molis.work.example.field-notes" } });
+  const disableResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/disable`, { method: "POST", body: { plugin_id: "com.example.field-notes" } });
   assert.equal(disableResp.status, 200);
   await go(`/projects/${project.project_id}/settings/kit`);
   await openNewDraftForm();
@@ -232,10 +232,10 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   const overview = await (await f.request(`/projects/${project.project_id}/api/plugin-trust/overview`)).json() as {
     plugins: Array<{ plugin_id: string; install_id: string; installation_generation: string; manifest_digest: string; version: string; uninstall_target: unknown }>;
   };
-  const row = overview.plugins.find(item => item.plugin_id === "io.molis.work.example.field-notes")!;
+  const row = overview.plugins.find(item => item.plugin_id === "com.example.field-notes")!;
   const enableResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/enable`, {
     method: "POST",
-    body: { plugin_id: "io.molis.work.example.field-notes", expected_installation: { scope: "project", install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } },
+    body: { plugin_id: "com.example.field-notes", expected_installation: { scope: "project", install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } },
   });
   assert.equal(enableResp.status, 200);
   await go(`/projects/${project.project_id}/settings/kit`);
@@ -243,9 +243,9 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   assert.equal(await page.evaluate("document.querySelector('[data-kit-act=\"au-applies\"][data-kit-v=\"field-notes\"]')?.textContent?.trim()"), "Field Notes");
 
   const overview2 = await (await f.request(`/projects/${project.project_id}/api/plugin-trust/overview`)).json() as typeof overview;
-  const target = overview2.plugins.find(item => item.plugin_id === "io.molis.work.example.field-notes")!.uninstall_target;
+  const target = overview2.plugins.find(item => item.plugin_id === "com.example.field-notes")!.uninstall_target;
   const uninstallResp = await f.request(`/projects/${project.project_id}/api/plugin-trust/installed/uninstall`, {
-    method: "POST", body: { plugin_id: "io.molis.work.example.field-notes", keep_data: true, target },
+    method: "POST", body: { plugin_id: "com.example.field-notes", keep_data: true, target },
   });
   assert.equal(uninstallResp.status, 200);
   await go(`/projects/${project.project_id}/settings/kit`);

@@ -19,14 +19,14 @@ function note(value: unknown): Note {
 
 const noteSchema={anyOf:[{type:'null'},{type:'object',properties:{text:{type:'string',maxLength:100000},attachment:{type:['string','null'],maxLength:140000000}},required:['text','attachment'],additionalProperties:false}]};
 const idSchema={type:'string',pattern:'^[a-z0-9-]{1,80}$'};
-const readAction={capability_id:'io.molis.work.example.personal-notes.read',version:1,operation:'query' as const,action:{title:'读取个人笔记',description:'读取当前用户 Home 中的完整笔记与附件。',kind:'query' as const,effect:'read' as const,scope:'home' as const,audiences:['user' as const],permissions:['storage:private'],subject_kinds:[],input_schema:objectSchema({id:idSchema}),output_schema:objectSchema({value:noteSchema})}};
-const changeAction={capability_id:'io.molis.work.example.personal-notes.change',version:1,operation:'command' as const,action:{title:'保存个人笔记',description:'按原内容比较后保存或删除笔记；旧编辑拒绝，正文与日志同次 CAS 提交。',kind:'operation' as const,effect:'write' as const,scope:'home' as const,audiences:['user' as const],permissions:['storage:private'],subject_kinds:[],input_schema:objectSchema({id:idSchema,value:noteSchema,expected:noteSchema}),output_schema:objectSchema({saved:{const:true}})}};
+const readAction={capability_id:'com.example.personal-notes.read',version:1,operation:'query' as const,action:{title:'读取个人笔记',description:'读取当前用户 Home 中的完整笔记与附件。',kind:'query' as const,effect:'read' as const,scope:'home' as const,audiences:['user' as const],permissions:['storage:private'],subject_kinds:[],input_schema:objectSchema({id:idSchema}),output_schema:objectSchema({value:noteSchema})}};
+const changeAction={capability_id:'com.example.personal-notes.change',version:1,operation:'command' as const,action:{title:'保存个人笔记',description:'按原内容比较后保存或删除笔记；旧编辑拒绝，正文与日志同次 CAS 提交。',kind:'operation' as const,effect:'write' as const,scope:'home' as const,audiences:['user' as const],permissions:['storage:private'],subject_kinds:[],input_schema:objectSchema({id:idSchema,value:noteSchema,expected:noteSchema}),output_schema:objectSchema({saved:{const:true}})}};
 
 /** Author code imports only public contracts/SDK. No Host branch, DB schema or Cloudflare request. */
 export function createPersonalNotesSample(version = '1.0.0') {
   let document: SyncDocument<Data> | undefined;
   const definition = definePlugin({
-    manifest: { schema_version: 1, host_api_version: 1, plugin_id: 'io.molis.work.example.personal-notes', version,
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: 'com.example.personal-notes', version,
       name: '个人同步笔记样例', kind: 'app', publisher: { publisher_id: 'sample-author', signature: 'sample-author-binding' },
       entrypoints: [{ deployment: 'local', entrypoint: './plugin.js' }], permissions: [{ permission: 'storage:private', required: true, reason: '保存笔记和原子同步日志' }],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

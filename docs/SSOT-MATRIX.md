@@ -219,7 +219,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 当前范围的目录与读取 | apps/local-host 的 Agent definitions | `system.skills` 的目录、导入与草稿/回放动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
 | 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | `agent-definitions` 库第 2 版（#2209 升级段 `1 → 2` 将 `system:information/information.plan` 迁至 `io.molis.work.feed/feed.information-plan`）的 `skill_settings`、`skill_uses`，以及第 42 批的 `skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage`；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
 | 随系统自带的技能包 | 宿主构建产物 | `plugins/content/<包>/pack-content.json` 的 `system`；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
-| 自己写的技能 | 每范围一个内容包 + 已装记录的发布者签名 | `io.molis.work.my-skills.project`／`.home`；正文与声明在签名内容包，`skill_settings` 只存状态；认主只看已装记录的发布者签名 |
+| 自己写的技能 | 每范围一个内容包 + 已装记录的发布者签名 | `my-skills.project`／`.home`；正文与声明在签名内容包，`skill_settings` 只存状态；认主只看已装记录的发布者签名 |
 
 助理和 Coding 都只读这一份目录（第 09 批）：Coding 旧的方法发现、安装和 Prologue 存储里的 `molis-coding-method` 已删，不迁移。
 

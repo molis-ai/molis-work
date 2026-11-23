@@ -1,3 +1,4 @@
+import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./installed-plugin-http.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -27,7 +28,7 @@ import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { recordHostAlwaysOnAgreements } from "./always-on-plugins.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
-import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
+import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { closeHomePlugins } from "./plugin-platform-close.js";
 import { bindHomeRegistration } from "./home-registration.js";
@@ -135,6 +136,24 @@ export class HomePluginHost {
       await installed.installPackage(release, { consent: true, assertCurrent: check, complete, ...choices });
     });
   }
+  async repairPackage(input: InstalledPackageRepair, caller: ActionExecutionContext) {
+    return this.installationScope.run(async assertOpen => {
+      await caller.beforeEffect();
+      return this.installed!.recovery.repair(input, () => {
+        assertOpen();
+        caller.signal?.throwIfAborted();
+        requireSynchronous(caller.assert_authority_current?.());
+      });
+    });
+  }
+  damagedPackages() {
+    const installed = this.installed;
+    return installed ? installed.records().flatMap(record => {
+      const damaged = installed.recovery.damaged(record);
+      return damaged ? [damaged] : [];
+    }) : [];
+  }
+
   /** The names of the keys saved for one of the Home's packages; never a value. */
   async savedSecrets(pluginId: string): Promise<readonly string[]> {
     await this.ready();
@@ -363,7 +382,7 @@ async function startHomePlatformRuntime(input: {
   // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
   const ledger = new SqlitePluginConsentLedger(db);
   recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
     assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, installationScope.catalog(), runtime, rollback),
     redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},
     actions: { registry: options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),

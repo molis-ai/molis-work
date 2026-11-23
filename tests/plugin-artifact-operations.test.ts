@@ -141,6 +141,8 @@ test("W5-01-D1-02: process recovery uses only its store, producer signature and 
     // RAC-411 (PG-107): an artifact line is the caller's own by plugin ID and publisher signature, the same rule as a process item.
     assert.throws(() => changedSignature.client.readOwn(report), denied, "RAC-411: same ID, different signature cannot read the artifact");
     assert.throws(() => changedSignature.client.head(report.artifact_id), denied, "RAC-411: same ID, different signature cannot head the artifact line");
+    // FVR-03: the transactional head cannot expose the original revision to another producer.
+    assert.throws(() => changedSignature.writer(() => {}, () => ACTOR).head(report.artifact_id), denied);
     assert.deepEqual(rig.operations(upgrade).client.readOwn(report), report, "RAC-411: the same ID and signature still reads its own line across upgrades");
     assert.deepEqual(rig.operations(declaration, "other-person").client.head(report.artifact_id), { version: 1, source_revision: 1 }, "RAC-411: an artifact has no per-actor owner");
     assert.throws(() => rig.operations({ ...declaration, plugin_id: "io.molis.other" }).client.readOwn(report), denied);

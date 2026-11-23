@@ -7,7 +7,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 // person's own page and nobody else. A plugin's page — its own frame's request or one made under its page's name — is refused
 // before any action is called, so it reads nothing through them and nothing is written.
 
-const SUBJECT = { provider_id: "io.molis.work.example.things", subject: { kind: "thing", id: "t1" } };
+const SUBJECT = { provider_id: "com.example.things", subject: { kind: "thing", id: "t1" } };
 const ASKED = [{ id: "r1", statement: "三档并排", requires_person: true }];
 
 test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing through the person's own doors — the line, the task table, a command, an answer, a placement, an event's card, a requirement's reading, acceptance or change — and nothing is written; the person's own page gets through", { timeout: 120_000 }, async t => {
@@ -31,10 +31,10 @@ test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing thro
   const opened = await post("/api/host/plugin-pages", { plugin_id: "io.molis.work.goals" });
   assert.equal(opened.status, 200, await opened.clone().text());
   const { page_id } = await opened.json() as { page_id: string };
-  const task = { source: { capability_id: "x.background.tasks", version: 1, provider_id: "io.molis.work.example.things" }, subject: SUBJECT.subject };
+  const task = { source: { capability_id: "x.background.tasks", version: 1, provider_id: "com.example.things" }, subject: SUBJECT.subject };
   const doors: Array<[string, unknown]> = [
     ["/api/mainline/line", window], ["/api/mainline/waiting", {}], ["/api/mainline/tasks", {}],
-    ["/api/mainline/tasks/command", { ...task, command: { capability_id: "x.stop", version: 1, provider_id: "io.molis.work.example.things" } }],
+    ["/api/mainline/tasks/command", { ...task, command: { capability_id: "x.stop", version: 1, provider_id: "com.example.things" } }],
     ["/api/mainline/tasks/decide", { ...task, decision: "q1", role: "approve" }],
     ["/api/mainline/place", { task: SUBJECT.subject, to: { kind: "none" } }],
     ["/api/mainline/open", { subject: SUBJECT.subject }],

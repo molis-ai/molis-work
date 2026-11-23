@@ -10,7 +10,7 @@ import { actionEffect, defineSearchEntriesAction, LOCAL_PERSON_ACTOR_ID, searchE
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const TITLED = "io.molis.work.example.grantstitled", UNTITLED = "io.molis.work.example.grantsuntitled";
+const TITLED = "com.example.grantstitled", UNTITLED = "com.example.grantsuntitled";
 const empty = { type: "object", properties: {}, additionalProperties: false } as const;
 const entry = (kind: string, id: string, title: string): SearchEntry => ({ subject: { kind, id }, revision: "r1", title, summary: "", updated_at: null, content: "summary", open: null });
 

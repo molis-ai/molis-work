@@ -27,16 +27,18 @@ import { serveTestHost } from "./fixtures/test-home.js";
 
 type Product = Awaited<ReturnType<typeof codingProductHost>>;
 type Scope = "personal" | "project";
-interface Target { kind: "coding" | "assistant"; id: string; project: string | null }
+interface Target { kind: "coding" | "assistant"; id: string; project: string | null; plugin_id?: string; provider_id?: string }
 interface SeenRequest { path: string; method: string; body: Record<string, unknown> | null; rawBody: string | null; requestId: string; mainPage: boolean }
 interface SeenResponse { path: string; requestId: string; status: number }
 const coding = "/api/plugins/io.molis.work.coding";
 const active = "[data-session-memory-active]";
 const row = (id: string) => `${active} [data-memory-id="${id}"]`;
 const protectedBase = (target: Target) => (target.project ? "/projects/" + encodeURIComponent(target.project) : "")
-  + "/api/memory/sessions/" + target.kind + "/" + encodeURIComponent(target.id);
+  + "/api/memory/sessions/" + (target.kind === "assistant" ? "assistant/" : target.kind + "/" + encodeURIComponent(target.plugin_id!) + "/") + encodeURIComponent(target.id);
 const settingsPath = (target: Target) => (target.project ? "/projects/" + encodeURIComponent(target.project) : "")
-  + "/settings/memory?memory_session_kind=" + target.kind + "&memory_session_id=" + encodeURIComponent(target.id);
+  + "/settings/memory?memory_session_kind=" + target.kind
+  + (target.kind === "assistant" ? "" : "&memory_session_plugin=" + encodeURIComponent(target.plugin_id!))
+  + "&memory_session_id=" + encodeURIComponent(target.id);
 
 async function product(t: TestContext) {
   return codingProductHost(t, request => cogniaModelResponse(endingReviewAnswer(request, () => []) ?? "已核对，不更改文件。"), { loopbackProvider: true });
@@ -48,7 +50,7 @@ async function codingWork(f: Product, title: string): Promise<Target> {
     task: "检查当前目录，不改文件。", intent: "discuss", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model",
   });
   assert.equal(started.status, 200, JSON.stringify(started.body)); assert.equal((await f.ended(started.body.run.ref)).phase, "completed");
-  return { kind: "coding", id, project: f.project.project_id };
+  return { kind: "coding", id, project: f.project.project_id, plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" };
 }
 async function assistantWork(f: Product, project: string | null, text: string): Promise<Target> {
   const prefix = project ? "/projects/" + encodeURIComponent(project) : "";
@@ -345,7 +347,8 @@ test("Assistant's real entry follows project B from project A and retains person
 });
 
 async function lastReply<T>(j: Journey, path: string): Promise<{ status: number; value: T }> {
-  const response = j.responses.filter(one => one.path === path).at(-1); assert.ok(response, "the actual HTTP response was observed: " + path);
+  const response = j.responses.filter(one => one.path === path || new URL(one.path, "http://local").pathname === path).at(-1);
+  assert.ok(response, "the actual HTTP response was observed: " + path);
   const body = await j.page.command<{ body: string; base64Encoded: boolean }>("Network.getResponseBody", { requestId: response.requestId });
   return { status: response.status, value: JSON.parse(body.base64Encoded ? Buffer.from(body.body, "base64").toString("utf8") : body.body) as T };
 }
@@ -374,7 +377,7 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} fixed Session
     "the original records have real ledger history before clear");
   const j = await browserFor(t, f, registerChrome);
   if (kind === "coding") await openCoding(j, target); else await openAssistant(j, target.project, target);
-  const deliveries = () => j.requests.filter(one => one.path === base + "/clear/apply" && one.method === "POST");
+  const deliveries = () => j.requests.filter(one => new URL(one.path, "http://local").pathname === base + "/clear/apply" && one.method === "POST");
   const preview = async () => {
     await j.page.click(active + " [data-memory-clear]"); await j.page.wait("document.querySelector('[data-memory-confirm-yes]')");
     const response = await lastReply<MemorySessionClearPreview>(j, base + "/clear/preview"); assert.equal(response.status, 200);
@@ -426,9 +429,11 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} fixed Session
   let transport: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   try {
     transport = await serveTestHost(null, { home: f.home, host: reopened });
-    const pending = await transport.web.get<{ items: Array<{ kind: string; preview_id?: string; target?: { kind: string; id: string; project_id: string | null } }> }>(base + "/operations");
+    const pending = await transport.web.get<{ items: Array<{ kind: string; preview_id?: string; target?: { kind: string; id: string; project_id: string | null; plugin_id?: string; provider_id?: string } }> }>(base + "/operations");
     const operation = pending.items.find(one => one.kind === "session-clear" && one.preview_id === previewId); assert.ok(operation);
-    assert.deepEqual(operation.target, { kind, id: target.id, project_id: target.project });
+    assert.deepEqual(operation.target, kind === "assistant"
+      ? { kind, id: target.id, project_id: target.project }
+      : { kind, id: target.id, project_id: target.project, plugin_id: target.plugin_id, provider_id: target.provider_id });
     await j.navigate(settingsPath(target), transport.origin); await activateMemory(j.page);
     await j.page.wait(`document.querySelector('${active} [data-memory-retry]')`);
     assert.equal(deliveries().length, 1, "reopening only discovers the original operation; it never automatically applies it");
@@ -624,4 +629,109 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} real Run leav
   const history = await f.web.get<MemoryHistoryResponse>(`/projects/${target.project}/api/memory/items/${long.memory_id}/history`);
   assert.ok(history.revisions.some(one => one.text === oldText), "candidate-only clear does not erase the retained long-term original's history");
   assert.equal(f.requests.length, models, "the person's promotion and candidate-only clear never call the model again");
+});
+
+test("BL-memory-shared-scene-session-binding Chrome management pages distinguish two plugins sharing coding scene and handle revocation", { timeout: 120_000 }, async t => {
+  const { ALT_CODER_ACTIONS, ALT_CODER_NAME, ALT_CODER_PLUGIN_ID, createSharedScenePlugin } = await import("./fixtures/shared-scene-plugin.js");
+  const { runningProjectPlatform } = await import("@molis-ai/molis-work-app-local-host");
+  const registerChrome = closeChromeBeforeHost(t);
+  const alt = createSharedScenePlugin();
+  const f = await codingProductHost(t, request => cogniaModelResponse(endingReviewAnswer(request, () => []) ?? "已核对。"),
+    { loopbackProvider: true, pluginFixtures: { project: [alt.definition] } });
+  const project = f.project.project_id;
+  const projectRef = { project_id: project, storage_key: f.project.database_path };
+
+  // Create Coding session and Alt Coder session with the EXACT SAME business session_id in the same project & coding scene.
+  const codingTarget = await codingWork(f, "双插件共享场景 Coding 会话");
+  const sharedId = codingTarget.id;
+  const platform = await f.host.withProject(projectRef, runtime => runningProjectPlatform(runtime.store, project));
+  assert.ok(platform);
+  const altInstallId = alt.installId(project)!;
+  assert.ok(altInstallId);
+  await platform.runtime.regrant(altInstallId, "artifact:read", true);
+  const altProviderId = alt.providerId(project)!;
+
+  const altRun = await f.host.actionClient(projectRef).invoke(await f.host.localPersonContext(projectRef),
+    { capability_id: ALT_CODER_ACTIONS.run.capability_id, version: 1, provider_id: altProviderId },
+    { session_id: sharedId, task: "核对共享场景会话。", directory: f.directory }) as { run: AgentRunRef };
+  assert.equal((await f.ended(altRun.run)).phase, "completed");
+
+  const altTarget: Target = { kind: "coding", id: sharedId, project, plugin_id: ALT_CODER_PLUGIN_ID, provider_id: altProviderId };
+  const codingItem = await write(f, codingTarget, "project", "Coding 共享场景独立记忆");
+  const altItem = await write(f, altTarget, "project", "Alt Coder 共享场景独立记忆");
+
+  // Open both session memory management pages in real Chrome and verify exact owner attribution and isolated memories.
+  const j = await browserFor(t, f, registerChrome);
+  await j.navigate(settingsPath(codingTarget));
+  await activateMemory(j.page);
+  assert.deepEqual(await ids(j.page), [codingItem.memory_id]);
+  const codingOwner = await j.page.evaluate<{ text: string; plugin: string; scene: string }>(
+    `(() => { const n = document.querySelector('${active} [data-memory-session-owner]'); return { text: n?.textContent || '', plugin: n?.dataset.memorySessionPlugin || '', scene: n?.dataset.memorySessionScene || '' }; })()`,
+  );
+  assert.equal(codingOwner.plugin, "io.molis.work.coding");
+  assert.equal(codingOwner.scene, "coding");
+  assert.match(codingOwner.text, /Coding/);
+
+  const altSettingsUrl = settingsPath(altTarget) + "&memory_session_provider=" + encodeURIComponent(altProviderId);
+  await j.navigate(altSettingsUrl);
+  await activateMemory(j.page);
+  assert.deepEqual(await ids(j.page), [altItem.memory_id]);
+  const altOwner = await j.page.evaluate<{ text: string; plugin: string; provider: string; scene: string }>(
+    `(() => { const n = document.querySelector('${active} [data-memory-session-owner]'); return { text: n?.textContent || '', plugin: n?.dataset.memorySessionPlugin || '', provider: n?.dataset.memorySessionProvider || '', scene: n?.dataset.memorySessionScene || '' }; })()`,
+  );
+  assert.equal(altOwner.plugin, ALT_CODER_PLUGIN_ID);
+  assert.equal(altOwner.provider, altProviderId);
+  assert.equal(altOwner.scene, "coding");
+  assert.match(altOwner.text, new RegExp(ALT_CODER_NAME));
+
+  // Interrupt session-clear on BOTH plugins, then verify the Project memory page distinguishes both pending operations and retries Alt Coder's exact provider endpoint.
+  const system = ensureSystemAgentService(f.host, f.home);
+  await system.ready;
+  const capability = system.agentHost.adapter("prologue").memory!, bind = capability.withCaller.bind(capability);
+  type Capability = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
+  const failPurge = (bound: Capability): Capability => ({
+    ...bound,
+    withExecution: control => failPurge(bound.withExecution!(control)),
+    purgeSessionTarget: async () => { throw new Error("simulated purge interruption"); },
+  });
+  const fault = t.mock.method(capability, "withCaller", (...args: Parameters<typeof bind>) => failPurge(bind(...args)));
+  try {
+    for (const target of [codingTarget, altTarget]) {
+      const preview = await f.web.post<MemorySessionClearPreview>(protectedBase(target) + "/clear/preview", {});
+      assert.ok(preview.preview_id);
+      const applied = await f.web.post<MemorySessionClearResult>(protectedBase(target) + "/clear/apply", { preview_id: preview.preview_id });
+      assert.equal(applied.complete, false);
+    }
+  } finally { fault.mock.restore(); }
+
+  await j.navigate(`/projects/${encodeURIComponent(project)}/settings/memory`);
+  await j.page.wait("document.querySelectorAll('[data-memory-retry-list] li[data-memory-command]').length === 2");
+  const retryTexts = await j.page.evaluate<string[]>("[...document.querySelectorAll('[data-memory-retry-list] li[data-memory-command] strong')].map(n => n.textContent)");
+  assert.ok(retryTexts.some(text => text.includes("Coding")), JSON.stringify(retryTexts));
+  assert.ok(retryTexts.some(text => text.includes(ALT_CODER_NAME)), JSON.stringify(retryTexts));
+
+  const retryAt = j.requests.length;
+  await j.page.evaluate(`([...document.querySelectorAll('[data-memory-retry-list] li[data-memory-command]')].find(n => n.textContent.includes(${JSON.stringify(ALT_CODER_NAME)}))?.querySelector('[data-memory-retry]'))?.click()`);
+  await j.page.wait("document.querySelectorAll('[data-memory-retry-list] li[data-memory-command]').length === 1");
+  const altRetryCall = j.requests.slice(retryAt).find(one => one.method === "POST" && one.path.includes("/clear/apply"));
+  assert.ok(altRetryCall);
+  assert.equal(altRetryCall.path, protectedBase(altTarget) + "/clear/apply?memory_session_provider=" + encodeURIComponent(altProviderId));
+  const physicalAfterAltRetry = await canonical(f.host, f.home, codingTarget);
+  assert.equal(physicalAfterAltRetry.some(one => one.memory_id === altItem.memory_id), false, "Alt Coder session memory physically purged");
+  assert.equal(physicalAfterAltRetry.some(one => one.memory_id === codingItem.memory_id), true, "Coding's pending session memory stays untouched until Coding's own retry runs");
+  const remainingRetry = await j.page.evaluate<string>("document.querySelector('[data-memory-retry-list] li[data-memory-command] strong')?.textContent || ''");
+  assert.ok(remainingRetry.includes("Coding"), "only Coding's own retry remains: " + remainingRetry);
+
+  // Write a fresh Coding session memory after preview so Coding's session page displays live content through Alt Coder's revocation.
+  const codingKept = await write(f, codingTarget, "project", "Coding 撤权后继续保留的会话记忆");
+
+  // Revoke Alt Coder's artifact:read grant: Chrome opening Alt Coder's session memory page shows error with zero leak; Coding's page still opens cleanly.
+  await platform.runtime.regrant(altInstallId, "artifact:read", false);
+  await j.navigate(altSettingsUrl);
+  await j.page.wait("document.querySelector('[data-memory-error]') && !document.querySelector('[data-memory-error]').hidden");
+  assert.equal(await j.page.evaluate("document.querySelectorAll('[data-memory-id]').length"), 0, "revoked Alt Coder page shows zero memories");
+
+  await j.navigate(settingsPath(codingTarget));
+  await activateMemory(j.page);
+  assert.deepEqual(await ids(j.page), [codingKept.memory_id]);
 });

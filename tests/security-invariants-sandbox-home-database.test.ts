@@ -20,7 +20,7 @@ import { sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 // a statement past its time is killed and the next one runs; the keyword filters of the Host's own client apply; and closing the
 // library ends the process. The library is a real file under a temporary Home and the processes are real.
 
-const PLUGIN_ID = "io.molis.work.example.sbxhome";
+const PLUGIN_ID = "com.example.sbxhome";
 const declaration: HomePluginDatabaseDeclaration = { store_name: "sbxhome", version: 1, read_permission: "sbxhome:read", write_permission: "sbxhome:write",
   schema: "CREATE TABLE sbxhome_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const owner = { plugin_id: PLUGIN_ID, publisher_signature: "probe-sbxhome" };

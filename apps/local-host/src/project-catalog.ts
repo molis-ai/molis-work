@@ -2,7 +2,7 @@ import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/m
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -28,7 +28,7 @@ import { assertCurrentCatalog, assertOwnedCatalog, inspectCurrentCatalogSnapshot
 import { PluginTerminalPanels } from "./plugin-terminal-panels.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-import { promises as fs, realpathSync } from "node:fs";
+import { promises as fs, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -277,7 +277,13 @@ export class MolisWorkProjectCatalog {
       opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner });
     } catch (error) { retained?.release(); owned?.release(); throw error; }
     const holding = retained;
-    opened.releaseOwner = () => { holding.release(); owned?.release(); };
+    opened.releaseOwner = () => {
+      holding.release();
+      if (owned) {
+        releaseHeldHomeSqlite(home);
+        owned.release();
+      }
+    };
     opened.checkOwner = () => { assertStorageOwner(root, owner); assertNoPendingHomeRestore(root); };
     return opened;
   }
@@ -317,19 +323,40 @@ export class MolisWorkProjectCatalog {
     }
   }
 
+  private readonly instanceId = ++nextCatalogInstance;
+  private lastSchemaStamp: string | undefined;
   private releaseOwner?: () => void;
   private checkOwner?: () => void;
 
   close(): void {
+    this.lastSchemaStamp = undefined;
     this.storage.close();
     this.releaseOwner?.(); this.releaseOwner = undefined;
+  }
+
+  /**
+   * Live stamp of this catalog connection's current file identity, own writes, external writes, and schema changes.
+   * Returns `null` when closed, missing on disk, or inside an active transaction so callers fall back to live reads.
+   */
+  catalogDataStamp(): string | null {
+    const db = this.storage.db;
+    if (!db.open || db.inTransaction) return null;
+    const stat = statSync(this.databasePath, { throwIfNoEntry: false });
+    if (!stat) return null;
+    const changes = Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
+    const data = Number(db.pragma("data_version", { simple: true }));
+    const schema = Number(db.pragma("schema_version", { simple: true }));
+    return `${this.instanceId}:${stat.dev}:${stat.ino}:${changes}:${data}:${schema}`;
   }
 
   /** A retained connection must not outlive the owner/schema it was opened for. */
   assertCurrentSchema(): void {
     this.checkOwner?.();
+    const stamp = this.catalogDataStamp();
+    if (stamp !== null && stamp === this.lastSchemaStamp) return;
     assertOwnedCatalog(this.storage, this.databasePath);
     assertCurrentCatalog(this.storage, this.databasePath);
+    if (stamp !== null && this.catalogDataStamp() === stamp) this.lastSchemaStamp = stamp;
   }
 
   listProjects(): MolisWorkProjectRecord[] {
@@ -478,6 +505,9 @@ function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeC
     notifySessionsDirectoriesChanged(homeDirectory);
   };
 }
+
+/** Monotonic id per opened catalog instance so a reopened catalog never reuses a prior connection's stamp. */
+let nextCatalogInstance = 0;
 
 /** Display membership version per Home for the N44 short cache; a successful membership write bumps it for every catalog of that Home. */
 const membershipEpochs = new Map<string, number>();

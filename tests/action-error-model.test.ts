@@ -251,7 +251,7 @@ test("a Runtime route answers a failure with the status of its kind: the platfor
     ["a system error code is not passed on as the answer's code", Object.assign(new Error("ENOENT: no such file, open /x/y"), { code: "ENOENT" }), 500, "actions.execution_failed"],
     ["nor is a database driver's", Object.assign(new Error("disk I/O error"), { code: "ERR_SQLITE_ERROR" }), 500, "actions.execution_failed"],
   ];
-  const id = "io.molis.work.example.failing";
+  const id = "com.example.failing";
   const fail: ActionDefinition<{ case: number }, never> = { capability_id: "failing.run", version: 1, operation: "command",
     action: { title: "失败", description: "按编号抛出一种失败", scope: "home", permissions: ["failing:write"], kind: "operation", audiences: ["user"], subject_kinds: [],
       input_schema: { type: "object", additionalProperties: false, required: ["case"], properties: { case: { type: "integer" } } } } };

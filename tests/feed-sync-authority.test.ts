@@ -10,7 +10,8 @@ import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_ACTION_PERMISSIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { fromProjectConnection, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, scheduleServiceFor, startWebProjectSchedulers } from "@molis-ai/molis-work-app-local-host";
+import { nextScheduleDueAt } from "@molis-ai/molis-work-service-scheduler";
 import { sourceContentReplicationDefinition } from '@molis-ai/molis-work-plugin-feed/store';
 import {createProjectReplicaSection,replicaTransaction} from '@molis-ai/molis-work-storage';
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
@@ -34,8 +35,8 @@ const enteredOrFailure = (entered: Promise<void>, pending: Promise<unknown>) => 
 async function feedClock(host: MolisWorkLocalHost, reference: ReturnType<typeof molisWorkHostProjectReference>) {
   await host.actionClient(reference).discover(caller);
   const clock = await host.withProject(reference, runtime => scheduleServiceFor(runtime.store.db));
-  for (let waited = 0; !clock.list(FEED_PLUGIN_ID).some(job => job.capability_id === "feed.sources.wake") && waited < 5_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
-  assert.ok(clock.list(FEED_PLUGIN_ID).some(job => job.capability_id === "feed.sources.wake"), "Feed asked the platform's clock for its wakeup");
+  for (let waited = 0; !clock.list(FEED_PLUGIN_ID).some(job => job.capability_id === "feed.sources.wake" && job.enabled) && waited < 5_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.ok(clock.list(FEED_PLUGIN_ID).some(job => job.capability_id === "feed.sources.wake" && job.enabled), "Feed asked the platform's clock for its wakeup");
   return clock;
 }
 
@@ -80,11 +81,84 @@ test("W3-01 C every wakeup of the platform's clock is an operation of its own, n
     const wakeups = () => host.callLog!.list(DEMO_PROJECT_ID).filter(row => row.capability_id === "feed.sources.wake").flatMap(row => row.call_ids ?? [row.call_id]);
     await clock.tick(new Date(Date.now() + 60_000));
     assert.equal(wakeups().length, 1);
-    // Thirty seconds later the clock wakes Feed again: another operation.
-    await clock.tick(new Date(Date.now() + 120_000));
+    // Before the source's next 5-minute interval arrives, the clock does not wake Feed again every 30 seconds.
+    assert.deepEqual(await clock.tick(new Date(Date.now() + 120_000)), { invoked: 0, failed: 0, skipped: 0 });
+    const nextDue = nextScheduleDueAt(store.db);
+    assert.ok(nextDue && Date.parse(nextDue) > Date.now() + 120_000, "the next wake is armed at the source's exact 5-minute interval");
+    // Once the source's next interval arrives, the clock wakes Feed again as a distinct operation.
+    await clock.tick(new Date(Date.parse(nextDue) + 1));
     const [first, second] = wakeups();
     assert.ok(first && second && first !== second, "a wakeup of the clock has a number of its own");
   } finally { await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("BL-feed-precise-wakeup a Feed project idles to sleep with manual or far-future sources and wakes on time when due", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "feed-idle-sleep-")), database = join(home, "project.sqlite");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  seedDemoBoard(database);
+  const reference = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
+  let fetches = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    fetches += 1;
+    return new Response(rss, { headers: { "content-type": "application/rss+xml" } });
+  });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  let runRound: (() => Promise<void>) | undefined;
+  const schedulers = startWebProjectSchedulers({
+    localHost: host,
+    homeDirectory: home,
+    withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: database, project_id: DEMO_PROJECT_ID }] } as never),
+    fixture: null,
+    periodic: { every(task: { run(): Promise<void> }) { runRound = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
+    changed() {},
+    onError(error) { throw error; },
+    idleMs: 0,
+  });
+  const readDue = () => {
+    const db = new LocalProjectDatabase(database);
+    try { return nextScheduleDueAt(db.db); } finally { db.close(); }
+  };
+  const settleRound = async () => {
+    await runRound!();
+    for (let waited = 0; schedulers.activeCount() > 0 && waited < 5_000; waited += 25) {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    assert.equal(schedulers.activeCount(), 0, "the scheduler round's ticks and idle-sleep offer settled");
+  };
+  try {
+    // 1) Open the project with only manual demo sources: no enabled wake job, so a scheduler round puts the project to sleep.
+    const client = host.actionClient(reference);
+    await client.discover(caller);
+    assert.equal(readDue(), null, "a Feed project with no enabled auto-pull sources has no due wake job");
+    await settleRound();
+    assert.equal(host.projects().length, 0, "a Feed project without auto-pull sources idle-sleeps");
+
+    // 2) Add a source scheduled 30 minutes in the future (> 2 scheduler rounds away): project still idle-sleeps.
+    const { source } = await client.invoke(caller, feedSourceActions.register, { kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }) as { source: { source_id: string } };
+    const scheduled = await client.invoke(caller, feedSourceActions.schedule, { source_id: source.source_id, mode: "interval", enabled: true, interval_minutes: 30 }) as { source: { schedule: { mode: string; next_pull_at?: string | null } } };
+    const farDue = scheduled.source.schedule.mode === "interval" ? (scheduled.source.schedule.next_pull_at ?? null) : null;
+    assert.ok(farDue && Date.parse(farDue) > Date.now() + 2 * 30_000, "nextScheduleDueAt is > 2 rounds away");
+    assert.equal(readDue(), farDue);
+    await settleRound();
+    assert.equal(host.projects().length, 0, "a Feed project with sources due far in the future idle-sleeps");
+
+    // 3) Once the source is due, the sleeping project opens on the next round, pulls the source, advances its wake time, and sleeps again.
+    const dueNowAt = new Date(Date.now() - 5_000).toISOString();
+    const db = new LocalProjectDatabase(database);
+    try {
+      db.db.prepare("UPDATE feed_sources SET schedule_json = json_set(schedule_json, '$.next_pull_at', ?) WHERE source_id = ?").run(dueNowAt, source.source_id);
+      db.db.prepare("UPDATE schedule_jobs SET next_due_at = ? WHERE plugin_id = ? AND enabled = 1").run(dueNowAt, FEED_PLUGIN_ID);
+    } finally { db.close(); }
+    await settleRound();
+    assert.equal(fetches, 1, "the sleeping Feed project woke on time and pulled the due source");
+    const nextDue = readDue();
+    assert.ok(nextDue && Date.parse(nextDue) > Date.now() + 2 * 30_000, "after pulling, the next wake time moves far into the future");
+    assert.equal(host.projects().length, 0, "after pulling and re-arming for +30m, the idle Feed project sleeps again");
+  } finally {
+    await schedulers.stop();
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "deleted", "cancelled", "revoked-provider-failure", "replica-restored", "replica-restored-provider-failure"] as const) {

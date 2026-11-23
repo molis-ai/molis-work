@@ -28,7 +28,7 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
     store.close(); rmSync(directory, { recursive: true, force: true });
   });
   const start = async (name: string) => {
-    const id = "io.molis.work.example." + name.replaceAll("_", "-"), wakeupId = name.replaceAll("_", "-") + ".wakeup";
+    const id = "com.example." + name.replaceAll("_", "-"), wakeupId = name.replaceAll("_", "-") + ".wakeup";
     let services: PluginHostServices | undefined, work: (caller: ActionExecutionContext) => Promise<void> = async () => {};
     const command: ActionDefinition = { capability_id: name.replaceAll("_", "-") + ".write", version: 1, operation: "command", action: { kind: "operation", title: "保存", description: "保存任务与闹钟",
       scope: "project", audiences: ["user"], permissions: ["schedule:write"], subject_kinds: [],

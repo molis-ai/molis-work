@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,7 +15,7 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 // a record under the same `install_id`, each with its own generation and its own grants. The local person's call context reads each
 // instance's authority from the record of the database that instance lives in; it never lets one record stand in for the other.
 
-const PLUGIN_ID = "io.molis.work.example.dual-instance", PERMISSION = "dual:use";
+const PLUGIN_ID = "com.example.dual-instance", PERMISSION = "dual:use";
 const action = (capability_id: string, scope: "home" | "project"): ActionDefinition<Record<string, never>, string> => ({ capability_id, version: 1, operation: "query",
   action: { title: capability_id, description: "同一个插件两个实例各自的动作", kind: "query", scope, audiences: ["user"], permissions: [PERMISSION], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } });
@@ -37,7 +37,7 @@ async function openDual(t: TestContext) {
   const homeInstall = () => host.homePlugins!.installation(PLUGIN_ID)!;
   // The project instance, installed into the project's own database the way a project's Plugin Runtime does.
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
   const installId = runtime.install({ trust: { level: "unsigned" }, definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] }).install.install_id;
   t.after(async () => { await runtime.stop(installId).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); });
   const setHomeGrants = async (grants: string[]) => {

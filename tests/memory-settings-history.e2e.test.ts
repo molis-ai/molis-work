@@ -204,7 +204,7 @@ test("protected Session history restores old text while disclosing that current 
   const started = await f.call<{ run: { ref: AgentRunRef } }>(f.project.project_id, coding + `/sessions/${id}/runs`, {
     task: "检查当前目录，不改文件。", intent: "discuss", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model" });
   assert.equal(started.status, 200); assert.equal((await f.ended(started.body.run.ref)).phase, "completed");
-  const base = prefix + "/api/memory/sessions/coding/" + encodeURIComponent(id), expiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  const base = prefix + "/api/memory/sessions/coding/io.molis.work.coding/" + encodeURIComponent(id), expiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
   const saved = (await f.web.post<MemoryWriteResult>(base + "/items", { scope: "project", text: "原会话的历史文字", kind: "convention",
     classification: { scenes: ["coding"], lifecycle: "session" }, expires_at: null, operation_id: randomUUID() })).memory!;
   const changed = (await f.web.post<MemoryChangeResult>(base + "/change", { memory_id: saved.memory_id, expected_version: saved.version, action: "reclassify",
@@ -215,7 +215,7 @@ test("protected Session history restores old text while disclosing that current 
     person: true, consumer: "ui", purpose: "management", current_scene: "coding" });
   const canonicalBefore = (await raw.list("project", f.project.project_id)).find(one => one.memory_id === saved.memory_id)!;
   const models = f.requests.length, b = await browserFor(t, browser => { chrome = browser; });
-  await navigate(b.page, f.web.origin + prefix + `/settings/memory?memory_session_kind=coding&memory_session_id=${encodeURIComponent(id)}`);
+  await navigate(b.page, f.web.origin + prefix + `/settings/memory?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_id=${encodeURIComponent(id)}`);
   await history(b.page, saved.memory_id, saved.version);
   const selector = revision(saved.memory_id, saved.version);
   assert.ok((await b.page.evaluate<string>(`document.querySelector('${selector}').innerText`)).includes("无固定期限"));

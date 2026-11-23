@@ -7,7 +7,7 @@ import { PluginHostExecutor, readMcpToolPreference } from "@molis-ai/molis-work-
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { openTestHome } from "./fixtures/test-home.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 // BL-943 / BCC-10 (S-plugin-read-original-caller): a plugin's read of its own library asks the action's original caller, not only the
 // installation's grants. A real MCP client already inside the handler loses its exact action grant; the next native read is refused
@@ -45,7 +45,7 @@ async function probeHome(t: TestContext) {
   const park = async (which: keyof typeof parked) => { if (parked[which]) { enter.resolve(); await release.promise; } };
   const definition: PluginDefinition = {
     manifest: {
-      schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.bl943", version: "1.0.0", name: "Original caller probe", kind: "app",
+      schema_version: 1, host_api_version: 1, plugin_id: "com.example.bl943", version: "1.0.0", name: "Original caller probe", kind: "app",
       publisher: { publisher_id: "fixture", signature: "fixture-bl943" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: grants.map(permission => ({ permission, required: true, reason: "Probe the library" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
@@ -79,7 +79,7 @@ async function probeHome(t: TestContext) {
     projectLibrary: { db: owner.store.db, path: project.reference.storage_key, journal: { project_id: project.project_id, actor_id: "owner", writer: owner.store } },
     privateStorageFor: () => ({ get: () => null, set: () => assert.fail("no private values declared"), delete: () => false }),
   });
-  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   const record = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants }).install;
   t.after(async () => { release.resolve(); await runtime.stop(record.install_id); });
   await runtime.start(record.install_id);

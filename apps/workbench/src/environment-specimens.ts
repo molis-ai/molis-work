@@ -13,7 +13,7 @@ import { pluginTextForOwner } from "@molis-ai/molis-work-ui-host";
 /** The platform's own words (the `locale` row of `packages/design-system/resources/registry.json`). */
 const WORKBENCH_OWNER = "workbench";
 /** A second owner on the same page: its words are its own, looked up by its own name, and a key of one never answers for the other. */
-const SAMPLE_OWNER = "io.molis.work.example.board-notes";
+const SAMPLE_OWNER = "com.example.board-notes";
 const SAMPLE_PACKS: readonly UiLocalePack[] = [
   { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "en", messages: { "board-notes.env.owner": "Words of a sample plugin" } },
   { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "zh", messages: { "board-notes.env.owner": "样例插件自己的词" } },

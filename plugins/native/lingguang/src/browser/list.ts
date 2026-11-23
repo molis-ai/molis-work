@@ -105,8 +105,7 @@ export function installList(page: LingguangPage): void {
     return item;
   };
   const paintList = () => {
-    const active = document.activeElement;
-    const focusedId = active instanceof HTMLElement && el.rowsEl.contains(active) ? active.dataset.lingguangId : undefined;
+    const focusedId = el.rowsEl.querySelector<HTMLElement>(`${OPTION}:focus`)?.dataset.lingguangId;
     el.empty.hidden = s.records.length > 0;
     el.rowsEl.replaceChildren();
     s.records.forEach((record) => el.rowsEl.append(renderRow(record)));

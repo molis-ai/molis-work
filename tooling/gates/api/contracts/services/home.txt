@@ -12,6 +12,13 @@ export declare const HOME_PAGE_LIMITS: {
     readonly totalBytes: number;
 };
 
+export declare const HOME_PAGE_RETENTION: {
+    readonly maxPagesPerProject: 20;
+    readonly maxVersionsPerPage: 20;
+};
+
+export declare const HOME_PAGE_SUBJECT_KIND: "home-page";
+
 export type HomeBasicSelection = {
     kind: "basic";
 };
@@ -176,6 +183,22 @@ export interface HomeSelectionState {
     revision: string;
 }
 
+export declare function formatHomePageSubject(subject: HomePageSubject): string;
+
+export declare const homeErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly page_limit: "invalid";
+    readonly page_file_mismatch: "conflict";
+    readonly page_not_found: "not_found";
+    readonly version_not_found: "not_found";
+    readonly version_conflict: "conflict";
+    readonly revision_conflict: "conflict";
+    readonly request_conflict: "conflict";
+    readonly draft_invalid: "invalid";
+    readonly action_unavailable: "unavailable";
+    readonly approval_forbidden: "forbidden";
+    readonly session_invalid: "forbidden";
+}>;
+
 export declare const homePageActions: {
     read: ActionDefinition<HomePageReadInput, HomePageReadResult>;
     saveDraft: ActionDefinition<HomePageDraftSaveInput, HomePageDraftSaveResult>;
@@ -191,7 +214,7 @@ export declare const servicesHomeContract: {
     readonly contractId: "io.molis.work.service.home.v1";
     readonly kind: "service";
     readonly schemaVersion: 1;
-    readonly maturity: "contract-only";
+    readonly maturity: "partial";
     readonly ssot: "specs/scene-and-page-contract/spec.md";
 };
 

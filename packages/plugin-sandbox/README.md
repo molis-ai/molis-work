@@ -46,8 +46,12 @@ The package owns durable business job ids and records; `execution_id` is an ephe
 On macOS, `/usr/bin/sandbox-exec` launches the same Node executable as the trusted host,
 with no inherited environment. Seatbelt denies process creation, network access, and all
 file writes. Read access covers only the staged bundle/worker, Node executable, macOS
-runtime libraries, entropy devices, and the root directory entry required by Node startup;
-file metadata may be inspected. No workspace or application source directory is readable.
+runtime libraries, entropy devices, and the root directory entry required by Node startup.
+A clean Node process reports the libraries dyld actually loaded. The profile allows exact
+paths to regular dylib files beside Node, in its distribution's `lib` directory, or in a
+Homebrew keg's `lib` directory. File metadata may be inspected. Unsupported layouts or
+missing libraries fail with `sandbox.node_runtime_unavailable` and an official Node recovery
+instruction before the worker starts.
 Native addons are disabled. A single stdin/stdout JSON channel carries operations and SDK
 requests; stderr is discarded with a byte cap. Malformed output terminates the process.
 Unsupported platforms fail closed. This profile is tested with the repository's Node 24

@@ -180,7 +180,8 @@ function verdictCell(say: Say, column: string, verdict: ReplayCell["verdict"], d
   return { column, verdict, mark, differences, ...(verdict === "none" ? {} : { action: renderButton({ label: improve(say, "see-result"), variant: "link", size: "sm" }) }) };
 }
 export function replayGridSection(say: Say): string {
-  const current = improve(say, "col-current", { v: 2 }), draft = improve(say, "col-draft");
+  const sample = { current: 2 };
+  const current = improve(say, "col-current", { v: sample.current }), draft = improve(say, "col-draft");
   const grouped = say("workbench.catalog-kit.sample-difference-grouping");
   const both = renderReplayGrid({ label: improve(say, "replay-results"), columns: [current, draft], rows: [
     { entry: say("workbench.common.assistant"), icon: "message", cells: [verdictCell(say, current, "differs", [grouped]), verdictCell(say, draft, "match")] },

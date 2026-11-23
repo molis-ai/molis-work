@@ -392,6 +392,11 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   await change("POST", "work-brief");
   assert.equal((await call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
   assert.equal(card(await home())?.plugin_card?.lede?.sentences.length, 1);
+  // Astral-plane text up to PRESENTATION_LIMITS.lede_sentence (600) code points stays intact without splitting surrogate pairs.
+  const astralClaim = "a" + "🚀".repeat(599);
+  await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: astralClaim, cites: [{ kind: "risk", id: made.risk_id }] }] } });
+  const astral = card(await home())?.plugin_card?.lede?.sentences[0]?.text ?? "";
+  assert.equal(astral, astralClaim, "lede sentence keeps all 600 code points instead of UTF-16 slicing or splitting a surrogate pair");
 });
 
 test("WBR-24 the personal brief gathers what waits in the briefs of the projects the person reaches, each labelled with its project; deleting a project takes only its rows", { timeout: 120_000 }, async t => {

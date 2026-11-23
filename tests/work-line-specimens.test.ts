@@ -242,6 +242,9 @@ test("work-line CSS keeps static fallbacks before CSS Anchor Positioning overrid
     },
     catalogTextPacks: () => [],
   }).renderMolisWorkWorkbenchStylesheet();
+  assert.match(css, /\.work-event-page-facts>dd\[data-g="you"\]\{color:var\(--amber\)\}/u, "POLISH-41: event page state fact uses amber only for your-turn glyph");
+  assert.match(css, /\.work-event-page-facts>dd\[data-g="bad"\]\{color:var\(--red\)\}/u, "POLISH-41: event page state fact uses red for failed glyph");
+  assert.doesNotMatch(css, /\.work-event-page-facts>dd\[data-wing="next"\]/u, "POLISH-41: upcoming 'next' wing must not be coloured amber");
   assert.match(css, /\.work-counts\{[^}]*top:calc\(var\(--counts-top,0px\) \+ 6px\);/u, "desktop .work-counts has --counts-top fallback before anchor()");
   assert.match(css, /@media \(max-width:760px\),\(pointer:coarse\)\{[^@]*\.work-counts\{[^}]*top:calc\(var\(--counts-top,0px\) \+ 4px\);/u, "compact .work-counts has --counts-top fallback before anchor()");
   assert.match(css, /@media \(max-width:540px\)\{[^@]*\.work-counts\{[^}]*left:calc\(var\(--counts-left,0px\) \+ 10px\);/u, "narrow .work-counts offsets left by --counts-left for non-anchor column-1 bell");

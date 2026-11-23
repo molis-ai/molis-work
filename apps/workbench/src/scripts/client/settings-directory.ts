@@ -181,6 +181,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       });
       if (node.parentElement !== body) body.append(node);
       node.hidden = false;
+      globalThis.molisWorkPreferences?.sync?.();
       if (hadPanel && node.matches("[data-settings-panel]")) {
         globalThis.molisCraft?.turn?.(node, turnDirection === "back");
       }

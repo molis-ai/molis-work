@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { EXTERNAL_TOOLS, type ExternalToolEntry, type ExternalToolGap, type ExternalToolRegion, type ExternalToolSurface } from "@molis-ai/molis-work-contracts/platform/external-tools";
+import { EXTERNAL_TOOLS, type ExternalToolGap, type ExternalToolRegion, type ExternalToolSurface } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import {
   sessionsActions,
   type ExternalSessionHistoryInput,
@@ -16,7 +16,7 @@ import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./we
 import { currentLocale } from "./web-locale.js";
 
 const TOOL_EN_BY_ID = new Map<string, string>(
-  (EXTERNAL_TOOLS as readonly ExternalToolEntry[]).map((tool) => [tool.id, tool.display_name_en ?? tool.display_name]),
+  EXTERNAL_TOOLS.map((tool) => [tool.id, tool.display_name_en ?? tool.display_name]),
 );
 
 function localizedToolName(entryId: string, defaultName: string): string {
@@ -45,7 +45,7 @@ export interface SessionToolMetaEntry {
  */
 export function buildSessionToolMeta(sources: readonly ExternalSessionScopeSource[]): SessionToolMetaEntry[] {
   const byId = new Map<string, ExternalSessionScopeSource>(sources.map((source) => [source.entry_id, source]));
-  return (EXTERNAL_TOOLS as readonly ExternalToolEntry[]).map((tool) => {
+  return EXTERNAL_TOOLS.map((tool) => {
     const adapter = byId.get(tool.id)?.adapter ?? "none";
     const group = adapter === "available"
       ? "connected"

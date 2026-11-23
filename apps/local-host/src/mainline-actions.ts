@@ -33,7 +33,7 @@ export function mainlineItemPorts(host: MainlineHostPorts): MainlineItemPorts {
   return {
     open: caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "主线在项目里读写");
-      // The Home's one held connection: borrowed for the call, never closed by it (batch 103-1).
+      // The Home's one held connection: borrowed for the call, never closed by it.
       return new MainlineStore(heldHomeSqlite(host.homeDirectory, MAINLINE_HOME_STORE.path, MAINLINE_BASELINE), caller.actor_id, caller.project_id);
     },
     declarations: caller => host.declarations(caller),

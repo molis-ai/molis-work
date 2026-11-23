@@ -306,6 +306,22 @@ test("B103-02 a Home store holds separate RO and RW connections keyed by canonic
   assert.throws(() => reader.prepare("INSERT INTO notes VALUES ('refused')").run(), /readonly/iu, "the RO slot refuses writes");
   assert.equal(withHeldHomeSqlite(alias, "notes", baseline, db => db, { prepare, existingOnly: true }), reader, "repeated RO reads reuse the same canonical slot");
   assert.equal(prepared, 2, "checked and prepared once for RW and once for RO");
+  // Warm RO reads must not touch the idle RW sibling handle (and vice versa).
+  const touched = new Set<DatabaseSync>();
+  const origPrepare = DatabaseSync.prototype.prepare;
+  const siblingProbe = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+    touched.add(this);
+    return origPrepare.call(this, sql);
+  });
+  try {
+    withHeldHomeSqlite(home, "notes", baseline, db => db.prepare("SELECT count(*) AS n FROM notes").get(), { prepare, existingOnly: true });
+    assert.deepEqual([...touched], [reader], "warm RO read only touches the RO handle, never the idle RW sibling");
+    touched.clear();
+    withHeldHomeSqlite(home, "notes", baseline, db => db.prepare("SELECT count(*) AS n FROM notes").get(), { prepare });
+    assert.deepEqual([...touched], [first], "warm RW borrow only touches the RW handle, never the idle RO sibling");
+  } finally {
+    siblingProbe.mock.restore();
+  }
   // A call made inside another call's write gets its own connection: it neither joins nor breaks the transaction around it.
   first.exec("BEGIN IMMEDIATE");
   first.prepare("INSERT INTO notes VALUES ('b')").run();

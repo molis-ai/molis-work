@@ -599,7 +599,6 @@ function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBase
     }
     return undefined;
   }
-  evictStaleSlot(file, homeRoot, "rw");
   const reused = stillHeldEntry(file, homeRoot, "ro");
   if (reused) {
     if (!allowUnbound && reused.unbound) {
@@ -609,6 +608,7 @@ function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBase
       return reused;
     }
   }
+  evictStaleSlot(file, homeRoot, "rw");
   const db = openExistingBaselineHomeSqlite(home, storeName, baseline, { allowUnbound });
   if (!db) return undefined;
   try {
@@ -632,7 +632,6 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
   const reused = stillHeldEntry(file, homeRoot, "rw");
   if (reused) {
     ensurePrepared(held.get(file)!, "rw", reused, prepare);
-    evictStaleSlot(file, homeRoot, "ro");
     return reused.db;
   }
   evictStaleSlot(file, homeRoot, "ro");

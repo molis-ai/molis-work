@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -13,16 +13,39 @@ import { plannedDepth } from "../scripts/gates/package-inventory.mjs";
 const gateScript = fileURLToPath(new URL("../scripts/gates/package-inventory.mjs", import.meta.url));
 const healthScript = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 const DOC = "docs/system/PACKAGE-BOUNDARIES.md";
+const COMMAND_BUDGET_MS = 20_000;
+const FIXTURE_BUDGET_MS = 180_000;
+const fixtureEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" };
 let repo = "";
+let deadline = 0;
 
-const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: repo, encoding: "utf8", stdio: "pipe" });
+function fixtureCommand(command: string, args: string[], commandBudget = COMMAND_BUDGET_MS) {
+  const label = `${path.basename(command)} ${args.join(" ")}`;
+  const remaining = Math.floor(deadline - performance.now());
+  assert.ok(remaining > 0, `package inventory fixture exceeded ${FIXTURE_BUDGET_MS} ms before ${label}`);
+  const result = spawnSync(command, args, {
+    cwd: repo,
+    env: fixtureEnv,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: Math.min(commandBudget, remaining),
+    killSignal: "SIGKILL",
+  });
+  const out = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  if (result.error) throw new Error(`${label} failed (${result.error.message})\n${out}`, { cause: result.error });
+  assert.notEqual(result.status, null, `${label} stopped on ${result.signal}\n${out}`);
+  return { code: result.status, out, stdout: result.stdout };
+}
+
+const git = (...args: string[]) => {
+  const result = fixtureCommand("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args]);
+  assert.equal(result.code, 0, result.out);
+  return result.stdout;
+};
 const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(repo, file)), { recursive: true }); writeFileSync(path.join(repo, file), text); };
 const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
 const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
-const run = (script: string, ...args: string[]) => {
-  const result = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
-  return { code: result.status, out: `${result.stdout}${result.stderr}`, stdout: result.stdout };
-};
+const run = (script: string, ...args: string[]) => fixtureCommand(process.execPath, [script, "--root", repo, ...args]);
 const check = () => run(gateScript, "--check");
 
 type Kind = "app" | "module" | "native-plugin";
@@ -66,6 +89,7 @@ const writeDoc = (rows = table()) => put(DOC, `# Package 边界规则\n\n## 7. �
 const editDoc = (change: (text: string) => string) => put(DOC, change(read(DOC)));
 
 before(() => {
+  deadline = performance.now() + FIXTURE_BUDGET_MS;
   repo = mkdtempSync(path.join(tmpdir(), "molis-package-inventory-"));
   git("init", "-q", "-b", "main");
   buildProduct();
@@ -78,6 +102,13 @@ before(() => {
 });
 after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 const restore = () => { git("checkout", "-q", "-f", "main"); git("clean", "-fdq"); };
+
+test("a hung fixture command identifies the command and its timeout", () => {
+  assert.throws(
+    () => fixtureCommand(process.execPath, ["-e", "setInterval(() => undefined, 1000)"], 250),
+    /node .*setInterval.*failed .*ETIMEDOUT/,
+  );
+});
 
 test("the table the generator printed is accepted, and the statuses are what the code gives", () => {
   const ok = check();
@@ -111,7 +142,8 @@ test("the numbers come from the code: files and lines under src, the largest fil
   put("modules/gamma/package.json", JSON.stringify({ name: named("modules/gamma").name, private: true, exports: { ".": "./dist/index.js", "./extra": "./dist/extra.js" },
     devDependencies: { [named("modules/orphan").name]: "workspace:*" } }) + "\n");
   git("add", "-A");
-  const rowOf = (packagePath: string) => table().split("\n").find(row => row.startsWith(`| \`${packagePath}\``))!;
+  const rows = table().split("\n");
+  const rowOf = (packagePath: string) => rows.find(row => row.startsWith(`| \`${packagePath}\``))!;
   // index.ts has 2 segments ("...\n" splits in two) and big.ts 4; test files, declarations, test/tests/dist/node_modules/fixtures
   // directories and files outside src do not count. Two exports, no internal dependency, one dependent (apps/local-host).
   assert.match(rowOf("modules/gamma"), /\| 模块 \| 2 \| 6 \| `big\.ts` 4 \| 2 \| 0 \| 1 \| 在用 \|/);

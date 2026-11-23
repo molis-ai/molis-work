@@ -22,6 +22,8 @@ export interface PrologueTextInput extends PrologueCredentialInput {
   /** Original images selected by the trusted Host; never roots supplied by a model or serialized action. */
   images?: readonly PrologueInputImage[];
   onProgress?(event: PrologueTextProgress): void;
+  /** Terminal Run metadata from Prologue, available independently of result delivery. */
+  onReceipt?(receipt: PrologueExecutionReceipt): void;
   prompt_cache?: "off" | "best-effort" | "required";
   signal?: AbortSignal; max_output_tokens: number; timeout_ms: number;
 }

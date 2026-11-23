@@ -9,6 +9,7 @@ import {
 import type { TextArg, TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TodoBatch, TodoCandidate } from "./contract.js";
 import { TODO_BATCH_SUBJECT_KIND } from "./batch-kind.js";
+import { actionFor } from "./candidate-action.js";
 import type { TodoCandidateDecision } from "./organize.js";
 
 // Onboarding's drafts (specs/plugin-equal-standing/contract-design.md §2.5): the platform hands Todo the materials by the `drafts`
@@ -66,8 +67,7 @@ export function onboardingDraftBatch(batch: TodoBatch): OnboardingDraftBatch {
  * already decided is skipped, so a retry after a partial keep goes on where it stopped.
  */
 export function keepDecisions(batch: TodoBatch, chosen: readonly string[]): TodoCandidateDecision[] {
-  const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
   const wanted = new Set(chosen);
   return batch.candidates.filter(candidate => wanted.has(candidate.candidate_id) && !candidate.decision)
-    .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
+    .map(candidate => ({ candidate_id: candidate.candidate_id, action: actionFor(candidate) }));
 }

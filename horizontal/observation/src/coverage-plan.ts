@@ -15,7 +15,7 @@ export interface CoveragePlanEntry {
  * checks it against the Host's real wiring. A kind of fact not here is not recorded by this build.
  */
 /** A round's own events, recorded by agent-host from the runtime's stream (`prologue-run-observation.ts`). */
-const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes", "subagent"];
+const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "compaction", "memory", "guard", "waiting", "retry", "model", "changes", "subagent"];
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // This covers the protected Goal source review (`goals.inputs.review_source`, `goals.inputs.review_change`),
@@ -33,6 +33,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:gateway", fact: "action.call.draft_content", entries: ["workbench", "cli"], state: "by_rule", reason: "unsent_draft_not_kept" },
   { owner: "service:gateway", fact: "action.call.read_timing", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "reads_coalesced_per_minute" },
   ...AGENT_FACTS.map(name => ({ owner: "service:agent", fact: `agent.${name}`, entries: ["agent"], state: "complete" } as const)),
+  // Round and compaction events plus receipts from skill authoring, trial replay and the shared plugin model action port.
+  { owner: "service:agent", fact: "agent.usage", entries: ["agent", "workbench", "cli", "mcp", "workflow", "plugin", "host"], state: "complete" },
   // An action tool's input and result are the action exit's record of that call; the round's record only links it.
   { owner: "service:agent", fact: "agent.tool.action_content", entries: ["agent"], state: "by_rule", reason: "kept_by_action_exit" },
   // Images shown to a round are runtime resources that do not outlive it; only that there was one, and which, is kept.

@@ -23,6 +23,7 @@ import { SKILL_CASE_LIMITS, SKILL_CASES_MAX, SKILL_REVISE_INSTRUCTION_CHARS, SKI
 import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { textModelAvailability, textModelRequired, type HostTextForCommit } from "../host-complete-text.js";
+import { observeHostTextUsage } from "../host-text-observation.js";
 import type { InstalledRelease } from "../installed-release.js";
 import { SKILL_REVISE, SKILL_TRIAL, SKILL_TRIAL_JUDGE } from "./system-prompts.js";
 import { isOwnSkill, skillFields, type CatalogSkill, type SkillCatalogPorts } from "./skill-catalog.js";
@@ -97,7 +98,7 @@ function parsedJson(answer: string): Record<string, unknown> | undefined {
 }
 
 export class SkillWorkshop {
-  constructor(private readonly ports: SkillWorkshopPorts) {}
+  constructor(private readonly ports: SkillWorkshopPorts, private readonly home: string) {}
 
   private get store() { return this.ports.drafts; }
 
@@ -196,8 +197,9 @@ export class SkillWorkshop {
     const saved = this.ports.savedAt(skill.ref.source.plugin_id, skill.ref.source.publisher_signature), found = new Map<number, SkillVersion>();
     for (const release of this.chain(skill)) {
       const declaration = release.manifest.methods?.find(method => method.skill_id === skillId);
+      if (!declaration) break;
       const body = (release.agentBodies as readonly SandboxAgentBody[] | undefined)?.find(item => item.kind === "method" && item.entry_id === skillId)?.body;
-      if (!declaration || body === undefined) continue;
+      if (body === undefined) continue;
       // Walking back, a version seen again is an older release that held it unchanged: it was adopted no later than that release.
       const at = saved.get(release.manifest.version);
       found.set(declaration.version, { version: declaration.version, fields: fieldsOf(declaration, body), ...(at ? { adopted_at: at } : {}) });
@@ -298,7 +300,8 @@ export class SkillWorkshop {
     if (!asked || asked.length > SKILL_REVISE_INSTRUCTION_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_REVISE_INSTRUCTION_CHARS} 字说怎么改`, { field: "instruction" });
     if (draft.revision !== input.expected_revision) throw skillErrors.draft_conflict("草稿在别处改过了，请重新打开再改", { revision: draft.revision });
     const scopeScenes = await this.ports.withSkills(caller, (_skills, scenes) => scenesForScope(scenes, draft.scope_ref));
-    const complete = this.model("改技能草稿"), authority = { signal: caller.signal, beforeDispatch: caller.beforeEffect };
+    const complete = this.model("改技能草稿"), authority = { signal: caller.signal, beforeDispatch: caller.beforeEffect,
+      onReceipt: observeHostTextUsage(this.home, caller, SKILL_REVISE.prompt_id) };
     await authority.beforeDispatch();
     const data = fencedMaterials({ draft: draft.fields, instruction: asked }, randomBytes(8).toString("hex"));
     const answer = await complete(this.ports.resolve(instructed(SKILL_REVISE, data)), authority);
@@ -326,27 +329,27 @@ export class SkillWorkshop {
     const complete = this.model("回放技能"), authority = { signal: caller.signal, beforeDispatch: caller.beforeEffect };
     const sides: Array<{ side: SkillTrialCell["side"]; fields: SkillAuthoredFields }> = [...base ? [{ side: "base" as const, fields: skillFields(base) }] : [], { side: "draft", fields: draft.fields }];
     const runs = consumersOf(draft.fields.applies_to, scopeScenes).flatMap(consumer => sides.map(side => ({ consumer, ...side })));
-    const { cells, answers } = await withObservationSource("trial", async () => {
+    // Each request owns its trial scope, even if another replay cell fails first.
+    const replay = (prompt: InstructedPrompt, beforeDispatch = authority.beforeDispatch) => withObservationSource("trial", () =>
+      complete(this.ports.resolve(prompt), { ...authority, beforeDispatch, onReceipt: observeHostTextUsage(this.home, caller, prompt.instruction.prompt_id) }));
+    await authority.beforeDispatch();
+    const outputs = await Promise.all(runs.map(run => {
+      const data = fencedMaterials({ role: roleOf(run.consumer, scopeScenes), skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
+        randomBytes(8).toString("hex"));
+      return replay(instructed(SKILL_TRIAL, data));
+    }));
+    const beforeJudge = async () => {
       await authority.beforeDispatch();
-      const outputs = await Promise.all(runs.map(run => {
-        const data = fencedMaterials({ role: roleOf(run.consumer, scopeScenes), skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
-          randomBytes(8).toString("hex"));
-        return complete(this.ports.resolve(instructed(SKILL_TRIAL, data)), authority);
-      }));
-      const beforeJudge = async () => {
-        await authority.beforeDispatch();
-        for (const result of outputs) result.validateResult();
-      };
-      const values = outputs.map(result => cutHead(result.value.trim(), SKILL_TRIAL_OUTPUT_CHARS));
-      const data = fencedMaterials({ expected: known.expected, results: values.map((output, index) => ({ index, output })) }, randomBytes(8).toString("hex"));
-      await beforeJudge();
-      const answer = await complete(this.ports.resolve(instructed(SKILL_TRIAL_JUDGE, data)), { ...authority, beforeDispatch: beforeJudge });
-      const judged = judgement(answer.value, values.length);
-      return { cells: runs.map((run, index): SkillTrialCell => ({ consumer: run.consumer, side: run.side, output: values[index]!, ...judged[index]! })),
-        answers: [...outputs, answer] };
-    });
+      for (const result of outputs) result.validateResult();
+    };
+    const values = outputs.map(result => cutHead(result.value.trim(), SKILL_TRIAL_OUTPUT_CHARS));
+    const data = fencedMaterials({ expected: known.expected, results: values.map((output, index) => ({ index, output })) }, randomBytes(8).toString("hex"));
+    await beforeJudge();
+    const answer = await replay(instructed(SKILL_TRIAL_JUDGE, data), beforeJudge);
+    const judged = judgement(answer.value, values.length);
+    const cells = runs.map((run, index): SkillTrialCell => ({ consumer: run.consumer, side: run.side, output: values[index]!, ...judged[index]! }));
     await caller.beforeEffect();
-    for (const answer of answers) answer.validateResult();
+    for (const result of [...outputs, answer]) result.validateResult();
     const recorded = this.store.recordTrial(draft.draft_id, { draft_revision: draft.revision, case_id: known.case_id, ran_at: new Date().toISOString(), cells, verdict: overall(cells) }, known, caller.actor_id);
     if (recorded === "missing") throw skillErrors.draft_unknown("这份草稿已经不在了，可能已被采用或放弃");
     if (recorded === "conflict") throw skillErrors.draft_conflict("回放时草稿又改过了，请再回放一次");

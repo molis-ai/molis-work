@@ -10,7 +10,7 @@ import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_DRAFT_PERMISSION, SKILLS_PERMISSIONS,
   type SkillBodyReadResult, type SkillCatalogEntry, type SkillDraft, type SkillDraftAdoptResult, type SkillDraftSummary, type SkillTrial, type SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
 import { currentObservationSource, readRecords } from "@molis-ai/molis-work-service-observation";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, homeAgentDefinitions, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -270,7 +270,7 @@ test("SKP-11 PWA-103 PWA-104 PWA-106 S-skill-authoring the Assistant drafts a Sk
   } finally { await h.close(); }
 });
 
-test("PWA-16 PWA-83 a replay calls only the text model, in the trial observation source, for each entry the Skill applies to with the version in use beside the draft; a stale revision is refused", mac, async () => {
+test("PWA-16 PWA-83 B42-F08 a replay calls only the text model, in the trial observation source, and only real uses of the adopted version appear in the directory", mac, async () => {
   const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : prompt.includes("新做法") ? "按负责人分组的周报" : "没分组的周报（differs）");
   const h = await harness(model);
   try {
@@ -283,6 +283,12 @@ test("PWA-16 PWA-83 a replay calls only the text model, in the trial observation
     const skill = await h.call<SkillCatalogEntry>(h.person, skillCatalogActions.setState, { scope: "project", install_id: listed!.ref.install_id, skill_id: listed!.ref.skill_id, state: "auto", expected_revision: 0 });
     const read = await h.call<{ results: SkillBodyReadResult[] }>({ ...h.person, skill_round: { consumer: "assistant", named: [skill.ref] } }, skillCatalogActions.readBodies, { refs: [skill.ref] });
     assert.deepEqual([skill.ref.version, (read.results[0] as { body?: string }).body?.includes("旧做法")], [1, true]);
+    const uses = homeAgentDefinitions(h.home).skills;
+    const record = (entry: SkillCatalogEntry, consumer: string, scope = DEMO_PROJECT_ID) =>
+      uses.recordUse({ ref: entry.ref, name: entry.name, scope_ref: scope, caller: consumer, at: new Date().toISOString() });
+    record(skill, "assistant");
+    record(skill, "coding");
+    assert.deepEqual((await h.mine())[0]!.recent_uses, { assistant: 1, coding: 1 });
 
     await assert.rejects(h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: known.case_id }), refused("skills.draft_conflict"));
     model.calls.length = 0;
@@ -306,6 +312,16 @@ test("PWA-16 PWA-83 a replay calls only the text model, in the trial observation
     await h.call<SkillTrial>(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: changed.revision, case_id: added.case_id });
     const adopted = await h.adopt({ draft_id: opened.draft_id, expected_revision: changed.revision });
     assert.equal(adopted.skill_version, 2, "adopting a change is the Skill's next version");
+    const [current] = await h.mine();
+    assert.equal(current!.ref.install_id, skill.ref.install_id, "the older uses have the same installation and skill");
+    assert.equal(current!.recent_uses, undefined, "old runs and replays cannot vouch for a new version");
+    assert.equal(current!.last_used?.at !== undefined, true, "history can still report the previous use");
+    record(current!, "coding");
+    record(current!, "assistant", "other-project");
+    assert.deepEqual((await h.mine())[0]!.recent_uses, { coding: 1 });
+    record(current!, "assistant");
+    assert.deepEqual((await h.mine())[0]!.recent_uses, { assistant: 1, coding: 1 });
+    assert.equal(uses.uses(skill.ref.install_id, skill.ref.skill_id).filter(use => use.ref.version === 1).length, 2);
   } finally { await h.close(); }
 });
 

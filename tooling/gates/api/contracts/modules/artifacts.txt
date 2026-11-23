@@ -5,7 +5,7 @@
 export declare const ARTIFACT_FILE_IMPORT_ACTION: {
     readonly capability_id: "artifacts.import.file";
     readonly version: 1;
-    readonly provider_id: "system.artifacts";
+    readonly provider_id: "io.molis.work.artifacts";
 };
 
 export declare const ARTIFACT_SUBJECT_KIND = "artifact";
@@ -104,7 +104,7 @@ export type ArtifactsCommandApi = FixedVersionCommandApi<ArtifactVersionRecord, 
 export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord>;
 
 export interface FixedVersionCommandApi<R extends FixedVersionRecord, I extends RecordFixedVersionInput> {
-    registerVersion(input: I): FixedVersionResult<R>;
+    registerVersion(input: FixedVersionRegistrationInput<I>): FixedVersionResult<R>;
     markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R>;
     archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R>;
 }
@@ -248,3 +248,13 @@ export declare const modulesArtifactsContract: {
 };
 
 export declare function parseArtifactSubjectId(subjectId: string): ArtifactReference | null;
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type FixedVersionRegistrationInput<I extends RecordFixedVersionInput> = Omit<I, "content" | "metadata"> & {
+    content: {
+        kind: "inline";
+        payload: unknown;
+    } | ReferencedArtifactContent;
+    metadata?: unknown;
+};

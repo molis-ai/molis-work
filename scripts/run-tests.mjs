@@ -9,9 +9,9 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 // node scripts/run-tests.mjs [options] [files…]       without files: every test file, the `.mjs` boundary checks included
 //   --jobs <n>              files at once (default: MOLIS_WORK_TEST_JOBS, else 1 locally or half the cores up to 6 in CI)
 //   --browser-jobs <n>      of those, browser files at once (default: MOLIS_WORK_TEST_BROWSER_JOBS, else 2)
-//   --timeout-seconds <n>   per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
+//   --timeout-seconds <n>   ceiling per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
 //   --verbose               print every file's output, not only the failing ones'
-//   --retries <n>           run a failed file again, up to n more times (default 0; passing >0 on a single file enables coordinator mode);
+//   --retries <n>           run a failed file again in its slot, up to n more times (default 0; passing >0 on a single file enables coordinator mode);
 //                           one that then passes is listed as flaky and does not fail the run (the CI full suite uses 1)
 //   --bail                  stop at the first file that fails (after its retries, run at once): nothing more starts and the files
 //                           still running are stopped; the CI full suite uses it, so a red shard ends early
@@ -22,13 +22,13 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 //                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
 //                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
 //   --exclude-gate-meta     leave out CI/gate/health/runner self-tests (scripts/run-tests/strata.mjs) before --shard picks.
-//   --exclude-visual-audit  leave out the 13 full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
+//   --exclude-visual-audit  leave out the full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
 // All local batches share the machine slot with builds and health checks.
 // --gate-rules <JSON> runs the selected CI self-tests. An empty string requests the complete gate suite.
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [--gate-rules <JSON>] [--exclude-gate-meta] [--exclude-visual-audit] [node --test options] [files…]";
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [--gate-rules <JSON>] [--gate-rule-group <source|health|budgets>] [--exclude-gate-meta] [--exclude-visual-audit] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -48,6 +48,7 @@ const options = {
   skipMacosOnly: false,
   excludeGateMeta: false,
   gateRules: undefined,
+  gateRuleGroup: undefined,
   excludeVisualAudit: false,
 };
 const targets = [], testArgs = [];
@@ -66,6 +67,11 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--skip-macos-only") options.skipMacosOnly = true;
   else if (name === "--exclude-gate-meta") options.excludeGateMeta = true;
   else if (name === "--gate-rules") options.gateRules = value() ?? die("--gate-rules needs a selection");
+  else if (name === "--gate-rule-group") {
+    const group = value();
+    if (!["source", "health", "budgets"].includes(group)) die("--gate-rule-group needs source, health or budgets");
+    options.gateRuleGroup = group;
+  }
   else if (name === "--exclude-visual-audit") options.excludeVisualAudit = true;
   else if (name === "--bail") options.bail = true;
   else if (name === "--shard") {
@@ -77,6 +83,7 @@ for (let index = 0; index < args.length; index++) {
   else targets.push(args[index]);
 }
 if (options.gateRules !== undefined && targets.length) die("--gate-rules takes its files from the gate suite");
+if (options.gateRuleGroup !== undefined && options.gateRules === undefined) die("--gate-rule-group requires --gate-rules");
 const label = targets.length ? targets.join(", ").slice(0, 90) : (options.gateRules === undefined ? "all tests" : "gate self-tests");
 await acquireSlot("test", { label });
 if (!targets.length) {
@@ -84,8 +91,11 @@ if (!targets.length) {
   if (options.gateRules === undefined) targets.push(...files);
   else {
     const { gateRuleFiles } = await import("./run-tests/strata.mjs");
-    targets.push(...gateRuleFiles(files, options.gateRules));
-    if (!targets.length) die("the gate self-test suite is empty");
+    targets.push(...gateRuleFiles(files, options.gateRules, options.gateRuleGroup));
+    if (!targets.length) {
+      console.log(`run-tests: no selected gate self-tests in ${options.gateRuleGroup}`);
+      process.exit(0);
+    }
   }
 }
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -121,7 +131,7 @@ if (options.shard) {
   const name = (file) => relative(root, resolve(file));
   const plan = planShards(targets, { count, jobs, browserJobs }, readWeights(root), name, (file) => classifyFile(root, name(file)).marks.includes("browser"));
   console.log(`run-tests: ${describeShards(plan.loads)}`);
-  const mine = plan.shards[index];
+  const mine = plan.executionOrder[index];
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
 }
@@ -129,7 +139,7 @@ if (options.shard) {
 // A one-file shard, or a single file with an explicit timeout or retries, still needs the coordinator's timeout, retries and timed summary.
 if (targets.length > 1 || options.shard || options.retries > 0 || options.hasExplicitTimeout) {
   const { runParallel } = await import("./run-tests/pool.mjs");
-  process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail });
+  process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail, inOrder: Boolean(options.shard) });
 } else {
   // Test processes, including spawned web servers, inherit an isolated credential
   // home. Production's Keychain selection and existing ciphertext stay untouched.

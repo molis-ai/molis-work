@@ -1,24 +1,15 @@
-import type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientScope, UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type Translate = UiClientTranslate;
 
 /** The page's own lifetime (packages/ui-host client-lifecycle): its timers, listeners and requests end with the page. */
-export interface Lifetime {
-  readonly alive: boolean;
-  readonly visible: boolean;
+export interface Lifetime extends Pick<UiClientScope, "alive" | "visible" | "assertCurrent" | "signal" | "own" | "whenVisible" | "watchRevision"> {
   listen(target: EventTarget, name: string, callback: (event: Event) => void, options?: boolean | AddEventListenerOptions): void;
   timeout(job: () => void, delay: number): number;
   clearTimeout(timer: number | undefined): void;
   observe<Observer extends MutationObserver | ResizeObserver | IntersectionObserver>(observer: Observer, target: Element, options?: MutationObserverInit): Observer;
-  assertCurrent(signal?: AbortSignal): void;
-  readonly signal: AbortSignal;
-  /** Runs a cleanup when the page's lifetime ends (or at once, when it already has); the result runs it early. */
-  own(cleanup: () => void): () => void;
-  /** Runs `start` while the page is visible and stops what it returned (and aborts its signal) when it is not. */
-  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
   /** Reads `read` every `delay` ms while the page is visible; a failure goes to `onError`. */
   poll(read: (signal: AbortSignal) => unknown, delay: number, onError?: (error: unknown) => void): () => void;
-  watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
   fetch(input: string, init?: RequestInit): Promise<Response>;
   /** Waits `ms`, or rejects when the page ends (or `signal` aborts) first. */
   delay(ms: number, signal?: AbortSignal): Promise<void>;

@@ -1,3 +1,4 @@
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { TODO_STATUSES } from "./contract.js";
@@ -19,10 +20,6 @@ const changeColumns = [
 ] as const;
 const requestColumns = ["request_id", "item_id", "created_at"] as const;
 const LIMIT = 100000000;
-
-export function isImportedTodoChange(db: PluginSyncBusinessDatabase, id: string): boolean {
-  return !!db.prepare("SELECT 1 FROM todo_imported_changes WHERE change_id=?").get(id);
-}
 
 export const todoCollection: PluginSyncCollectionDefinition = {
  tracking:[{table:"todo_items",key:[{literal:"todo"},{column:"id"}],revision:{table:"todo_editor_versions",key:[{column:"id",rowColumn:"id"}],column:"revision",rowColumn:"revision"}}],
@@ -116,7 +113,7 @@ function validate(value: unknown, id: string, spaceId: string): {
   }
   const item = object(wire.item) as Row;
   exact(item, itemColumns);
-  if (item.id !== id || typeof item.title !== "string" || !item.title || item.title.length > 200 ||
+  if (item.id !== id || typeof item.title !== "string" || !item.title.trim() || exceedsCharacters(item.title, 200) ||
     typeof item.notes !== "string" || !TODO_STATUSES.includes(item.status as typeof TODO_STATUSES[number]) ||
     !["personal", "project", "unassigned"].includes(String(item.placement)) ||
     (item.placement === "project") !== !!project || item.project_id !== (project?.id ?? null) ||

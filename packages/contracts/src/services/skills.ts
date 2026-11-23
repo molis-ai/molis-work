@@ -153,7 +153,7 @@ export interface SkillCatalogEntry {
   enabled?: { at: string; by: string; scope: SkillScope };
   availability: SkillAvailability;
   last_used?: { at: string; caller: SkillPickConsumer; run_ref?: string };
-  /** How many of the uses kept for this Skill in this scope each entry made (the latest `USES_KEPT` per Skill, not a total): after adopting a version, the person sees it used from the Assistant and from Coding (batch 42, across-entry check). Entries with none are left out. */
+  /** Uses of this version in this scope, by entry, within the latest kept uses of the Skill. Entries with none are left out. */
   recent_uses?: Readonly<Record<SkillPickConsumer, number>>;
   /** Only on the person's view of one of their own Skills that is a copy (batch 42): where it came from, and the source's newer version when one is installed that the person has not looked at and left. The copy stays in use as it is either way. */
   based_on?: { source: SkillSourceRef; newer_version?: number };

@@ -137,7 +137,7 @@ export function entryDetail(kit: Kit, entry: KitEntry, pack: KitPack): string {
 }
 
 
-/** Of a Skill's kept uses in this scope, how many each entry made, across the versions kept (batch 42); not a per-version proof. */
+/** Uses of the displayed Skill version in this scope, grouped by entry. */
 function usesByEntry(entry: KitEntry): string {
   const uses = entry.kind === "skill" ? entry.skill.recent_uses : undefined;
   const rows = uses ? Object.keys(uses).filter(caller => uses[caller]) : [];

@@ -524,7 +524,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
   });
 
   test("UPG2-07 / GDC-02: Linux reports skipped signed samples and computer settings in the replay result", async () => {
-    const replayed = await runWithAsync(["--import", PRETEND_LINUX], REPLAY_SCRIPT, ["--golden", "0.1.0", "--json"]);
+    const replayed = await runWithAsync(["--import", PRETEND_LINUX], REPLAY_SCRIPT, ["--latest", "1", "--json"]);
     assert.equal(replayed.status, 0, replayed.output);
     const { results } = JSON.parse(replayed.stdout);
     assert.equal(results.length, 1);

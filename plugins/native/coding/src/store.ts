@@ -233,7 +233,7 @@ export class CodingSessionStore {
 
   /** The sessions the person may have to come back to, newest first (the Home's background tasks, `home-background.ts`). */
   backgroundSessions(projectId: string): CodingBackgroundSession[] {
-    return backgroundSessionsOf(this.db.all(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
+    return backgroundSessionsOf(this.db.all(`SELECT session_id, runtime_session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
       WHERE project_id = ? AND archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL)
       ORDER BY updated_at DESC, session_id`, [projectId, ...CODING_ACTIVE_STATES]));
   }
@@ -332,6 +332,7 @@ export const CODING_ACTIVE_STATES = ["running", "paused", "waiting-answer", "wai
 /** A session the person may have to come back to, as the list of background work shows it. */
 export interface CodingBackgroundSession {
   session_id: string;
+  runtime_session_id?: string;
   title: string;
   state: CodingSessionState;
   updated_at: string;
@@ -357,6 +358,7 @@ function backgroundSessionsOf(rows: readonly Row[]): CodingBackgroundSession[] {
     const active = (CODING_ACTIVE_STATES as readonly string[]).includes(state);
     if (!active && !steps?.mine && !commands?.length) continue;
     sessions.push({ session_id: String(row.session_id), title: String(row.title), state, updated_at: String(row.updated_at), active,
+      ...(typeof row.runtime_session_id === "string" ? { runtime_session_id: row.runtime_session_id } : {}),
       ...(steps ? { steps } : {}), ...(commands?.length ? { commands } : {}) });
   }
   return sessions;

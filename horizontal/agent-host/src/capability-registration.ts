@@ -159,6 +159,11 @@ export function registerAgentHostCapabilities<Context>(
     register(agentHostCapabilities.readSession, async (context, [session]) =>
       await readScopedSession(context, session)),
 
+    register(agentHostCapabilities.listPendingReviewIds, (context, [sessions]) => {
+      const { owner } = ownerOf(context);
+      return ports.agentHost(context).reviews.pendingIds(owner, sessions);
+    }),
+
     register(agentHostCapabilities.endSessionWork, async (context, [session]) => {
       const { owner } = ownerOf(context), host = ports.agentHost(context);
       const assertIdle = async () => {

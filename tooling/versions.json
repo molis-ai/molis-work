@@ -99,6 +99,7 @@
     "action.agent.project-work.read": 1,
     "action.agent.project-work.release": 1,
     "action.agent.reviews.decide": 1,
+    "action.agent.reviews.pending-ids": 1,
     "action.agent.reviews.permission.set": 1,
     "action.agent.reviews.recover": 1,
     "action.agent.roles": 1,

@@ -56,7 +56,6 @@ const BROWSER_BUNDLES = [
     outfile: "dist/write-checkers-client.js",
   },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/project-directories-entry.ts"], outfile: "dist/project-directories-client.js" },
-  { ...DEFAULT_BROWSER, entryPoints: ["src/browser/work-bar.ts"], outfile: "dist/work-bar-client.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/settings-view-height.ts"], outfile: "dist/settings-view-height-client.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/board/conditions-frame.ts"], outfile: "dist/board-conditions-frame.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/board/conditions-section.ts"], outfile: "dist/board-conditions-section.js" },

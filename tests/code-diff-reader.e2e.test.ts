@@ -125,7 +125,7 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
 
 const content = { scope: "run-frozen", run_id: "run-del", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [
   { path: "src/cart.mjs", kind: "modified", added_lines: 1, removed_lines: 1, diff: "", review: { review_id: "edit", before_text: "old\n", after_text: "new\n", decision: "approved", execution: "applied" } },
-  { path: "config/legacy-settings.json", kind: "deleted", added_lines: 0, removed_lines: 2, diff: "", review: { review_id: "integration", before_text: "{\n}\n", after_text: "", decision: "approved", execution: "applied" } }] } as const;
+  { path: "platform/deployment/environments/development/templates/previous-release/config/legacy-settings.json", kind: "deleted", added_lines: 0, removed_lines: 2, diff: "", review: { review_id: "integration", before_text: "{\n}\n", after_text: "", decision: "approved", execution: "applied" } }] } as const;
 
 function draw(index: number) {
   const view = compareRunChangeSet({ content: structuredClone(content) as never, source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, index);
@@ -133,17 +133,23 @@ function draw(index: number) {
     patch: unifiedPatch(view.rows, { path: content.files[index]!.path, removed: content.files[index]!.kind === "deleted" }) };
 }
 
-test("DEL-06: a removed file reads as 删除 and done in the fixed change set, and opens as all lines removed", { timeout: 120_000 }, async t => {
+test("DEL-06 BL-coding-change-reader-narrow-toolbar: a fixed change shows deletions and keeps its toolbar and file row in view", { timeout: 120_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { evaluate, waitFor, start, openItem, command, sessionId } = opened;
-  const evidence = reviewEvidenceUrl("coding-changeset-deleted/"); await mkdir(evidence, { recursive: true });
+  const { evaluate, waitFor, start, openItem, command, sessionId, setViewport, click, owner } = opened;
+  const evidence = reviewEvidenceUrl("coding-changeset-deleted/");
+  if (shouldSaveReviewScreenshots()) await mkdir(evidence, { recursive: true });
   const shot = async (name: string) => { if (shouldSaveReviewScreenshots()) await writeFile(new URL(name, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64")); };
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const session = await start("删掉旧配置");
   const files = content.files.map(({ path, kind, added_lines, removed_lines, review }) => ({ path, kind, added_lines, removed_lines, review: { decision: review.decision, execution: review.execution } }));
   const body = (index: number) => ({ ...draw(index), change: { files }, reference: { artifact_id: "artifact-del", version: 1 }, saved_at: "2026-11-21T00:00:00.000Z", view_mode: "write", net_groups: [], output: null });
-  await evaluate(`fakes.push({method:'GET',path:'change_index=1',body:${JSON.stringify(body(1))}},{method:'GET',path:'change_index=0',body:${JSON.stringify(body(0))}})`);
-  await openItem(`coding-changeset:${encodeURIComponent(session)}:run-del`);
+  await evaluate(`fakes.push({method:'GET',path:'change_index=1',body:${JSON.stringify(body(1))}},
+    {method:'GET',path:'change_index=0',body:${JSON.stringify(body(0))}},{method:'POST',path:'/changeset/output',body:{}})`);
+  const item = `coding-changeset:${encodeURIComponent(session)}:run-del`;
+  await openItem(item);
   const reader = `document.querySelector('${coding} [data-coding-change-reader]')`;
+  const output = "[data-coding-change-output]";
+  const outputButton = `${reader}.querySelector('${output}')`;
   await waitFor(`!${reader}.hidden && ${reader}.querySelectorAll('[data-coding-change-index]').length === 2`, 30_000);
   const rows = () => evaluate<Array<{ text: string; kind: string; state: string; tone: string; oneLine: boolean }>>(`[...${reader}.querySelectorAll('[data-coding-change-index]')].map(button => {
     const kind = button.querySelector('.coding-change-kind'), state = button.querySelector('.coding-change-state'), line = parseFloat(getComputedStyle(button).lineHeight) || 20;
@@ -152,17 +158,62 @@ test("DEL-06: a removed file reads as 删除 and done in the fixed change set, a
   const listed = await rows();
   assert.deepEqual(listed.map(row => [row.kind, row.state, row.tone]), [["修改", "已写入", "done"], ["删除", "已执行", "done"]]);
   assert.match(listed[1]!.text, /legacy-settings\.json/, "the removed file's path is shown");
-  await evaluate(`${reader}.querySelector('[data-coding-change-index="1"]').click()`);
-  await waitFor(`${reader}.querySelector('[data-coding-change-index="1"]').getAttribute('aria-pressed') === 'true' && !!${reader}.querySelector('.mw-diff-rows li[data-kind=delete]')`, 15_000);
+  const selectRemoved = async () => {
+    await evaluate(`${reader}.querySelector('[data-coding-change-index="1"]').click()`);
+    await waitFor(`${reader}.querySelector('[data-coding-change-index="1"]').getAttribute('aria-pressed') === 'true' && !!${reader}.querySelector('.mw-diff-rows li[data-kind=delete]')`, 15_000);
+  };
+  await selectRemoved();
   assert.equal(await evaluate<number>(`${reader}.querySelectorAll('.mw-diff-rows li[data-kind=insert]').length`), 0, "nothing reads as added in a removed file");
-  for (const [width, height] of [[1440, 900], [1024, 800], [390, 844]] as const) {
-    for (const scheme of ["light", "dark"] as const) {
-      await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
-      await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      const at = await rows();
-      assert.ok(at.every(row => row.oneLine), `each file stays on one line at ${width}px ${scheme}: ${JSON.stringify(at)}`);
-      await shot(`${width}-${scheme}.png`);
+
+  const geometry = () => evaluate<{ clippedControls: string[]; toolbarFits: boolean; selectedFits: boolean; pathTruncates: boolean }>(`(() => {
+    const view = ${reader}, header = view.querySelector('header'), list = view.querySelector('[data-coding-change-files]');
+    const selected = list.querySelector('[aria-pressed=true]'), path = selected.querySelector('.coding-change-path');
+    const inside = (element, container) => {
+      const rect = element.getBoundingClientRect(), bounds = container.getBoundingClientRect();
+      return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+    };
+    const fits = node => node.scrollWidth <= node.clientWidth + 1;
+    const clippedControls = [...header.querySelectorAll('button:not([hidden]), [data-coding-change-fixed]:not([hidden])')]
+      .filter(node => node.checkVisibility() && (!inside(node, header) || !fits(node))).map(node => node.textContent.trim() || node.title);
+    return { clippedControls, toolbarFits: inside(header, view) && fits(header),
+      selectedFits: inside(selected, list) && fits(list), pathTruncates: !fits(path) };
+  })()`);
+  for (const [locale, label] of [["zh", "设为变更输出"], ["en", "Use as change output"]] as const) {
+    if (locale === "en") {
+      await owner.evaluate(`(() => {
+        const link = document.createElement('a'); link.dataset.uiLanguage = 'en';
+        link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove();
+      })()`);
+      await waitFor("document.documentElement.lang === 'en'");
+      await openItem(item);
+      await waitFor(`${outputButton}.textContent === ${JSON.stringify(label)}`);
+      await selectRemoved();
+    }
+    assert.equal(await evaluate(`${outputButton}.textContent`), label);
+    assert.equal(await evaluate(`${outputButton}.disabled`), false);
+    for (const [width, height] of [[390, 844], [680, 800], [1024, 800], [1440, 900]] as const) {
+      await setViewport(width, height, width === 390);
+      for (const scheme of ["light", "dark"] as const) {
+        await owner.evaluate(`localStorage.setItem('molis-work:theme','${scheme}'); dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${scheme}'}))`);
+        await waitFor(`document.documentElement.dataset.resolvedTheme === '${scheme}'`);
+        await shot(`${width}-${locale}-${scheme}.png`);
+        const { pathTruncates, ...layout } = await geometry();
+        assert.deepEqual(layout, { clippedControls: [], toolbarFits: true, selectedFits: true }, `${locale}/${scheme}/${width}px reader has no horizontal overflow`);
+        if (width === 390) assert.equal(pathTruncates, true, "the long path needs ellipsis in the narrow list");
+        const at = await rows();
+        assert.ok(at.every(row => row.oneLine), `each file stays on one line at ${width}px ${scheme}: ${JSON.stringify(at)}`);
+      }
     }
   }
+  await setViewport(390, 844, true);
+  assert.ok(await evaluate(`${outputButton}.getBoundingClientRect().height >= 44`), "the narrow output button keeps a touch target");
+  await evaluate(`${reader}.querySelector('[data-coding-change-patch]').focus()`);
+  const tab = { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 };
+  await command("Input.dispatchKeyEvent", { ...tab, type: "rawKeyDown" }, sessionId);
+  await command("Input.dispatchKeyEvent", { ...tab, type: "keyUp" }, sessionId);
+  assert.equal(await evaluate(`document.activeElement === ${outputButton}`), true, "Tab reaches the change output button");
+  await click(output);
+  await waitFor("posts.some(call => call.path.endsWith('/changeset/output'))");
+  assert.deepEqual(await evaluate("posts.filter(call => call.path.endsWith('/changeset/output')).map(call => JSON.parse(call.body))"),
+    [{ expected_reference: null }], "the output button can be pressed at 390px");
 });

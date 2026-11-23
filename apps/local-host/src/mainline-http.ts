@@ -6,8 +6,9 @@ import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
-import { handlePersonActionRoutes } from "./person-action-http.js";
+import { handlePersonActionRoutes, invokePersonPageAction } from "./person-action-http.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { webManagementAuthenticated } from "./web-sessions.js";
 
 const ROUTES = new Map<string, ActionDefinition>([
   ["line", mainlineActions.line as ActionDefinition],
@@ -26,13 +27,17 @@ const DAY = 86_400_000;
 /**
  * The line, with the task table it was placed with, for the page's one attention read (`attention-http.ts`) and the event card's
  * check: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), so the table
- * is read once for both (N42). A plugin's page gets neither, as on the routes below.
+ * is read once for both (N42). The attention response may present original reviews. The event existence check only needs the
+ * line. A plugin's page gets neither, as on the routes below.
  */
-export function mainlineAttention(request: IncomingMessage, host: MolisWorkLocalHost, project: LocalHostProjectReference): { line(): Promise<WorkLineReadResult> } | null {
+export function mainlineAttention(request: IncomingMessage, host: MolisWorkLocalHost, project: LocalHostProjectReference, presentReviews = false): { line(): Promise<WorkLineReadResult> } | null {
   if (pluginPageRequest(request)) return null;
-  const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS);
   return {
-    line: () => { const now = Date.now(); return client.invoke(mainlineActions.line, { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() }); },
+    line: () => {
+      const now = Date.now(), window = { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() };
+      return presentReviews && webManagementAuthenticated(request) ? invokePersonPageAction(host, project, mainlineActions.line, window)
+        : bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineActions.line, window);
+    },
   };
 }
 

@@ -2,6 +2,9 @@ import type { ActionSubject } from "./action-subjects.js";
 import type { ActionProvider, ActionUserAction, StageSceneMetadataAuthority } from "./actions.js";
 import type { OwnedTextRef } from "./ui-text.js";
 
+/** The shared limit for a session's pending IDs and the task row presenting its reviews. */
+export const BACKGROUND_TASK_MAX_HELD_REVIEWS = 10;
+
 /** The owner's current availability of an individual decision option. */
 export type ReviewDecisionAvailability = { readonly available: true } | {
   readonly available: false;

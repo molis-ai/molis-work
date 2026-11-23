@@ -358,7 +358,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
       notices: surface => assistantNotices(assistant!, surface),
       ...(home ? { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), options.projects) }
-        : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference) }),
+        : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference, true) }),
       changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },

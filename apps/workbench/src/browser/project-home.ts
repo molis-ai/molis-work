@@ -87,6 +87,7 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMa
 export { createPositionViews } from "./project-position.js";
 export { mountSkillPicks } from "./skill-picks.js";
 export { mountStartEntries } from "./project-start-entries.js";
+export { installWorkBar } from "./work-bar.js";
 export { presentationWord, renderHomePeek, renderPositionGroup, surfaceCorrectionWord } from "./project-home-render.js";
 
 function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void,

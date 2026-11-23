@@ -13,7 +13,7 @@
   1. **持久化 DOM + FLIP**：切换筛选/视图/增删条目调用 `window.molisListTransition` / `window.molisReflow`（自带容器高度呼吸），绝不整块 `innerHTML` 闪烁重建。
   2. **平滑展开**：折叠明细使用 `<details class="mw-collapsible">` 的 `::details-content` 自然高度过渡（`0fr → 1fr` 仅限白名单折叠原语）；`.mw-inset-row__drawer` 使用纯合成层 `craft-rise` 轻浮展开，避免触发布局属性动画门禁。
   3. **仅合成层动画**：只动 `transform`、`opacity`、`filter`（仅流式末梢微焦）；位距 `≤ 16px`；**退场总比进场快 30–40%**；在 `prefers-reduced-motion: reduce`、`[data-craft-still]`、`navigator.webdriver` 下归零或单帧直达。
-  4. **单次克制**：绝不留空转 `.is-arriving`，绝不整屏级联超过 5 项或拉长总入场超过 `360ms`。
+  4. **单次克制**：只在入场时使用 `.is-arriving`。首显级联用 `--dur-stagger` 错开前四项，第一项立即开始，第四项在 180ms 后开始。第五项起直接显示。
 
 ### 六大语法与唯一触发时机
 

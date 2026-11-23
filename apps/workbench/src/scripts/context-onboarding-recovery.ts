@@ -349,6 +349,6 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       : k === 'context_limit' ? readText("workbench.context-onboarding.fail-guide-context-limit")
       : k === 'invalid_output' ? readText("workbench.context-onboarding.fail-guide-invalid-output")
       : '';
-    return msg ? note(msg, 'alert', 'is-warn') : '';
+    return msg ? note(msg, 'circle-alert', 'warning') : '';
   }
 `.replace(/^[ \t]+/gm, "");

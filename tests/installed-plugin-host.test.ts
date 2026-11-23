@@ -36,6 +36,13 @@ import { openTestHome } from './fixtures/test-home.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
+// 47-1 B: the Host opens a project's installed plugins itself, on the project's one platform (`installedPluginsOf`, reached from the prepared
+// action entry); a prepared read alone opens nothing. A test asks the Host to open them first, so the owner it then holds is the Host's own,
+// never one opened beside it with the test's wiring (whose catalog reads would wait on that same opening).
+const openedByHost = async (host: MolisWorkLocalHost, ref: NonNullable<Parameters<MolisWorkLocalHost['inspectActions']>[1]>) => {
+  await host.inspectActions({ ...caller, project_id: ref.project_id }, ref);
+  return host;
+};
 
 test('BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease', { timeout: 20_000 }, async t => {
   const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'io.molis.work.fixture.statement';
@@ -180,7 +187,7 @@ test('Host discovery and invocation refresh generated cost without rewriting ins
     register('none', 3);
     // Invoke without a preceding discovery also refreshes the public declaration.
     assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
-    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    const installed = await (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
       actions: { registry: host.actionRegistry(fixture.ref), client, project_id: DEMO_PROJECT_ID } }));
     assert.equal((await installed.catalog()).find(entry => entry.id === action('lookup').capability_id)!.execution.cost, 'none');
     assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
@@ -227,7 +234,7 @@ test(`QEA-81 SYS-15-S1 Host restores ${installation} installed actions and sched
   const action = (operation: string) => ({ capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + release.pluginId });
   try {
     if (installation === 'lifecycle') {
-      const installed = await host.withProject(ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+      const installed = await (await openedByHost(host, ref)).withProject(ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
         actions: { registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: DEMO_PROJECT_ID } }));
       await installed.lifecycle('install', release, { consent: true });
       const record = installed.records()[0]!;
@@ -291,7 +298,7 @@ test("S-task-grant-subjects uninstalling a plugin from a project takes its tasks
   const fixture = await publishedFixture(home, 'project');
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   try {
-    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    const installed = await (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
       actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
     const install = fixture.install.install_id;
     const grant = (project_id: string, install_id: string) => ({ client_id: `agent:task:${project_id}:${install_id}:daily`, project_id, capability_id: 'fixture.read',
@@ -310,7 +317,7 @@ test('explicitly disabled installations stay disabled after Host restart and onl
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project');
   let host = new MolisWorkLocalHost({ homeDirectory: home });
-  const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+  const control = async () => (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
   try {
     const installed = await control();
@@ -372,7 +379,7 @@ test('a missing package or approval is reported without borrowing another instal
 
 async function hostWithProject(home: string, fixture: Awaited<ReturnType<typeof publishedFixture>>) {
   let host = new MolisWorkLocalHost({ homeDirectory: home });
-  const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+  const control = async () => (await openedByHost(host, fixture.ref)).withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
   const generated = async () => (await host.actionClient(fixture.ref).discover(caller)).filter(view => view.capability_id.startsWith('generated.')).length;
   return { control, generated, get host() { return host; }, reopen() { host = new MolisWorkLocalHost({ homeDirectory: home }); return host; } };
@@ -771,7 +778,7 @@ test('closing a project releases every owner and closes its database even when o
   let closedReferences = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, onRuntimeClose: () => { closedReferences++; } });
   try {
-    const { store, installed } = await host.withProject(fixture.ref, async runtime => ({ store: runtime.store, installed: await ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    const { store, installed } = await (await openedByHost(host, fixture.ref)).withProject(fixture.ref, async runtime => ({ store: runtime.store, installed: await ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
       actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }) }));
     assert.equal(installed.installations()[0]?.state, 'running');
     // The process really stops, then the stop reports a failure: the installed plugins are the first release to fail.
@@ -879,7 +886,7 @@ async function signedInstallFixture() {
     const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
   };
-  const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+  const control = async () => (await openedByHost(host, reference)).withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: DEMO_PROJECT_ID } }));
   await control();
   return { home, reference, ledger, packages, confirm, control,

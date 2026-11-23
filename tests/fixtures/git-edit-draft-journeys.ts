@@ -97,7 +97,9 @@ export function testGitEditDrafts(surface: "git" | "coding") {
     await browser.reloadPage();
     if (codingSession) {
       await browser.waitFor(CODING_TAKEN);
-      await frame.waitFor(`${currentSession} === ${JSON.stringify(codingSession)}`);
+      // Wait for the session's first read to restore its folder before opening the embedded Git pane.
+      const restoredFolder = `document.querySelector('[data-coding-workspace-label]')?.title === ${JSON.stringify(other.canonical_path)}`;
+      await frame.waitFor(`${currentSession} === ${JSON.stringify(codingSession)} && ${restoredFolder}`);
     }
     await ctx.show();
     await frame.waitFor("document.querySelector('[data-git-branch]').textContent === 'other-branch'");

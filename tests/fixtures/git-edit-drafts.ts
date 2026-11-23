@@ -69,7 +69,13 @@ export async function edit(ctx: NonNullable<Awaited<ReturnType<typeof gitEditor>
 }
 export async function decide(ctx: NonNullable<Awaited<ReturnType<typeof gitEditor>>>, decision: "approve" | "reject") {
   const selector = `[data-host-review-slot] [data-agent-review-${decision}]`;
-  await ctx.browser.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
+  await ctx.browser.waitFor(`(() => {
+    const control = document.querySelector(${JSON.stringify(selector)});
+    if (!control?.checkVisibility() || control.disabled) return false;
+    control.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    const rect = control.getBoundingClientRect();
+    return control.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+  })()`);
   await ctx.browser.click(selector);
   const confirm = "[data-page-dialog=confirm][open] [type=submit]";
   await ctx.browser.waitFor(`document.querySelector(${JSON.stringify(confirm)})?.checkVisibility()`);

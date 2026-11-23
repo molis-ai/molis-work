@@ -611,10 +611,12 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
     if (mode === "write" || mode === "metered") return context.services!.actions!.directory!.invoke(mode === "write" ? write : metered, {});
     return context.services!.actions!.invokeQuery(mode === "undeclared" ? undeclared : source, {});
   } }] }; } });
-  const producer = definePlugin({ manifest: manifest(sourceId, [source, undeclared, write, metered, subjectReader]), async start() { return { kind: "app", actions: [...[source, undeclared, write, metered].map(action => ({ ...action,
-    async handle(caller) { if (action === source) sourceCallers.push(caller); counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
-      const wait = hold; hold = undefined; if (wait && action === source) { wait.entered.resolve(); await wait.release.promise; } return { value: "declared source" }; } })),
-    { ...subjectReader, handle: (_caller, input) => subjectContext({ subject: { kind: "stage-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "note", content: "正文" }) }] }; } });
+  const producer = definePlugin({ manifest: manifest(sourceId, [source, undeclared, write, metered, subjectReader]), async start() { return { kind: "app", actions: [source, undeclared, write, metered, subjectReader].map(action => ({ ...action,
+    async handle(caller, input) {
+      if (action === subjectReader) return subjectContext({ subject: { kind: "stage-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "note", content: "正文" });
+      if (action === source) sourceCallers.push(caller); counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
+      const wait = hold; hold = undefined; if (wait && action === source) { wait.entered.resolve(); await wait.release.promise; } return { value: "declared source" };
+    } })) }; } });
   const { host, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [owner, producer] } });
   const one = await project("Stage authority"), platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(ownerId)!;
   const narrow = bindLocalWebAction(host, one.reference, source);

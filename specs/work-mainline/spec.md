@@ -201,6 +201,9 @@
    - 别的事项等你的不藏：卡叠最后一张写还有几件。
    - 每件事项有自己的助理主对话（改助理的工作合同，走合同流程）。
    没选的：留在线头；放在输入框上沿（第五到第十二版试过的几种）。主线服务的合同一处不改，改的只有页面画它的位置；页面这一侧归第 36A 批的壳层和第 37 批第 2 项。
+6. **第 37 批补齐交互定样与合同定稿**（用户 2026-11-23 弹窗拍板，原型 [`docs/design/batch-37-workbench/`](../../docs/design/batch-37-workbench/README.md)）：
+   - **选方案 A**：左上角切换器右列底部**内联新建事项**（轻量事项或已声明创建动作的来源插件）+ **阅读节奏轻量事项第一页**（对齐 36A 第一页；含决定 66 左列「个人空间」置顶与右栏保留「讨论 / IM」R21、空态可一键清除示例）；否掉方案 B（弹窗新建 + 四格看板轻量事项页）。
+   - **同意每件事项助理主对话合同设计稿**（[assistant-main-contract-design.md](assistant-main-contract-design.md)）：阶段一原位在 `AssistantWork` / `AssistantSendInput` 增加可选 `work_item_id?: string`，经 `system.mainline` 核验，不动 `assistant.db` 表结构。
 
 ## 10. 验收标准
 
@@ -241,11 +244,11 @@
 | 3 能力注册 | 37-1：`system.home` 注册 `packages/contracts/src/services/home.ts` 既定的 8 个动作（`home.read@1`、`home.pages.drafts.save@1`、`home.pages.preview@1`、`home.pages.adopt@1`、`home.pages.restore@1`、`home.select@1`、`home.pages.diff@1`、`home.pages.files.read@1`），页面/助理/工作流共用同一份，无 MCP 工具；可信身份从调用上下文来。37-2：全部事项操作经已注册的 `system.mainline` 公开动作（`mainline.*@1`、`mainline.line.read@1` 等），工作台只经 `person-action-http` 代理调用，不绕过动作目录。 |
 | 4 合同 | 37-1：复用第 20 批已落地的 `contracts/services/home.ts`（仅将 `servicesHomeContract.maturity` 升为 `"production"`，无破坏性形状变化）。37-2：按[合同设计稿](assistant-main-contract-design.md)在 `contracts/services/assistant.ts` 为 `AssistantWork` 与 `AssistantSendInput` 新增可选 `work_item_id?: string`，阶段一原地扩充并刷新 `services-assistant.txt` 快照，同 PR 改完所有消费者。 |
 | 5 放在哪个包 | 37-1：新建平台服务 `horizontal/home`（`@molis-ai/molis-work-service-home`，遵循用户 2026-11-01 规定，不进宿主），宿主只做装配与页面网关接入，外壳负责 `srcdoc` CSP 装配与第一页挂载 UI。37-2：工作台外壳与客户端脚本落在 `apps/workbench`，HTTP 转发补齐 `apps/local-host/src/mainline-http.ts`，助理归属落在 `apps/local-host/src/assistant/`。 |
-| 6 表与存储 | 37-1：按 `scene-and-page-contract` §6.1，在 `horizontal/home` 建表（`home_selection`、`home_page_versions`、`home_page_blobs`、`home_page_approvals`）并拼入 `PROJECT_DATABASE_BASELINE`（`user_version` 2 → 3，附连续 `from: 2` 升级段，待用户确认版本号红线），表独占归 `horizontal/home`；删项目自动随项目库清理，Home 快照自动覆盖。37-2：复用 `horizontal/mainline` 既有 `mainline/mainline.db`（v1 不动）与 `assistant/assistant.db`（JSON body 不动表结构）。 |
-| 7 兼容与迁移 | 不新增历史兼容读取或数据迁移逻辑；`PROJECT_DATABASE_BASELINE` 2→3 为纯新增表的标准连续升级段。 |
+| 6 表与存储 | 37-1：按用户 2026-11-23 拍板，改为独立 Home 级 SQLite 库 `home-pages/home-pages.db`（`HOME_PAGES_HOME_STORE`，v1，按 `project_id` 隔离，不动 `PROJECT_DATABASE_BASELINE` 版本），表独占归 `horizontal/home`；删项目经 `project-deleted-owners.ts` 清理，Home 快照经 `homeStores()` 自动覆盖。37-2：复用 `horizontal/mainline` 既有 `mainline/mainline.db`（v1 不动）与 `assistant/assistant.db`（JSON body 不动表结构）。 |
+| 7 兼容与迁移 | 不新增历史兼容读取或数据迁移逻辑；`home-pages/home-pages.db` 为全新 v1 库。 |
 | 8 安全边界 | 37-1：新增并实测三条安全不变量 `S-home-page-files`（双重 SHA-256 + 仅 `files.read` 送达 + 哈希白名单 CSP + `connect-src 'none'` + 禁 `unsafe-inline`/`unsafe-eval`）、`S-home-page-authority`（仅 `page_session_id` 解析主体、声明 ∩ 批准交集、仅 `plugin` 受众、锁本项目、试用主体只读）、`S-home-page-approval`（`adopt`/`restore` 仅顶层本人调用、拒绝嵌套、换版/切项目后旧在途调用在 `beforeEffect()` 拒写）。37-2：助理 `work_item_id` 经 `system.mainline` 以调用方身份核验，拒绝伪造/跨项目/个人范围传入；`mainline` HTTP 路由沿 `person-action-http` 拒绝插件页代调。 |
 | 9 调用次数 | 37-1：打开第一页合并一次 `home.read@1`（无生成页面时不读文件正文），仅当前选定页面或预览时各读一次 `files.read@1`；不轮询。37-2：主线切换器一次 `mainline.read@1({ counts: true })` 拿全部分组、来源与每项等你/在办数；切事项时 `attention` 带当前 `item` 读一次线（同时返回三清单与任务表），不按事项逐条循环请求，不加新轮询。 |
-| 10 升级与数据 | 项目库 `2 → 3` 升级段纯建新表，旧项目数据、引用与设置全部保留并可继续使用；同步更新 `tooling/versions.json`、`docs/releases/CHECKLIST.md` 第 3 节、`docs/system/HOME-DATA.md`、`docs/system/CONTRACT-CHANGES.md` 与 `tests/fixtures/golden-homes/` 金样回放。 |
+| 10 升级与数据 | 全新 `home-pages/home-pages.db`（v1）不改动任何既有项目库或 Home 库结构，已有项目数据、引用与设置全部保留并可继续使用；同步登记 `tooling/versions.json`、`docs/releases/CHECKLIST.md` 第 3 节、`docs/system/HOME-DATA.md` 与 `home-stores.ts`。 |
 | 11 成果与过程项 | 不涉及：生成页面归平台首页服务、事项容器归主线服务，均不是成果库固定产物或插件间过程项。 |
 | 12 页面、外壳与文字 | 37-1 挂在 36A「项目的第一页」正文位（Work Brief 开头在上，删旧细栏「看基础首页」）；37-2 接左上角「项目 › 事项」与 36A 底栏第十三版，不新开全局左栏、不自造第二套基础控件；新增 3 件组件板标本（对照采用条、检查摘要、改动对照）先上 `/__ui/catalog`；全部文字走 `workbench.*` 稳定键与中英双语词典，颜色/字号/曲线全走语义变量，文案过 `audit-ui-copy` 与 `translations` 门禁。 |
 | 13 错误 | `horizontal/home` 新增错误码使用 `defineErrorCodes("home", …)`，登记进 `tooling/gates/error-owners.json`，不新增 `Error` 子类。 |

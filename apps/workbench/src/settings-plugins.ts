@@ -231,6 +231,9 @@ return box;
 const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act, managed) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
 copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", readText(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + readText(STATE[plugin.state] || plugin.state)));
+copy.id = "plugin-trust-description-" + (act === homeApi ? "home-" : "project-") + plugin.install_id;
+summary.setAttribute("aria-label", readText("workbench.settings-plugins.plugin-details", { plugin: plugin.name }));
+summary.setAttribute("aria-describedby", copy.id);
 summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.content.cloneNode(true));
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));

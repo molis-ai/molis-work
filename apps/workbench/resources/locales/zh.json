@@ -7147,6 +7147,7 @@
     "workbench.settings-plugins.pinned-publisher-name": "你已把这个发布者固定为 {name}",
     "workbench.settings-plugins.platform-version-mismatch": "插件版本与当前平台不匹配",
     "workbench.settings-plugins.plugin": "插件",
+    "workbench.settings-plugins.plugin-details": "{plugin} 的详情",
     "workbench.settings-plugins.plugin-s-permissions-currently-unavailable-personal-space": "个人空间插件权限当前不可用",
     "workbench.settings-plugins.plugin-stops-running-offers-no-actions-its-data": "{plugin} 停用后不再运行，也不再提供动作；数据保留，可以随时重新启用。",
     "workbench.settings-plugins.plugin-uninstalled-its-data-deleted-cannot-be-undone": "{plugin} 会被卸载，它的数据一并删除，不能恢复。",

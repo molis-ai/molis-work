@@ -8,7 +8,7 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 // node scripts/run-tests.mjs [options] [files…]       without files: every test file, the `.mjs` boundary checks included
 //   --jobs <n>              files at once (default: MOLIS_WORK_TEST_JOBS, else half the cores, at most 6)
 //   --browser-jobs <n>      of those, browser files at once (default: MOLIS_WORK_TEST_BROWSER_JOBS, else 2)
-//   --timeout-seconds <n>   per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
+//   --timeout-seconds <n>   ceiling per file in coordinator mode (default 1200; passing it on a single file enables coordinator mode)
 //   --verbose               print every file's output, not only the failing ones'
 //   --retries <n>           run a failed file again in its slot, up to n more times (default 0; passing >0 on a single file enables coordinator mode);
 //                           one that then passes is listed as flaky and does not fail the run (the CI full suite uses 1)

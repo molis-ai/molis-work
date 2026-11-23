@@ -14,6 +14,11 @@ export const durationsFile = (root) => path.join(root, "node_modules", ".cache",
 // What a file without a recorded duration is expected to take: browser files are the long ones.
 const GUESS_SECONDS = { browser: 60, other: 10 };
 
+const FILE_TIMEOUT_SECONDS = new Map([
+  // The test reports its own 95 s timeout but can keep its process alive. Leave time for startup and teardown before retrying.
+  ["tests/automation-recommendations.e2e.test.ts", 180],
+]);
+
 export function readDurations(file) {
   try {
     const value = JSON.parse(readFileSync(file, "utf8"));
@@ -100,10 +105,11 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   for (const [signal, handler] of handlers) process.once(signal, handler);
 
   try {
-    const attempt = (entry) => runOnce(root, entry.file, timeoutSeconds * 1000, { environment: process.env, testArgs });
+    const timeoutFor = (entry) => Math.min(timeoutSeconds, FILE_TIMEOUT_SECONDS.get(entry.file) ?? timeoutSeconds);
+    const attempt = (entry) => runOnce(root, entry.file, timeoutFor(entry) * 1000, { environment: process.env, testArgs });
     const ok = (result) => ["pass", "skipped"].includes(statusOf(result).status);
-    const report = (result) => `${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`;
-    const failure = (entry, result, round) => `[attempt ${round} failed] ${statusOf(result).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}\n${report(result)}\n`;
+    const report = (entry, result) => `${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutFor(entry)} s)\n` : ""}`;
+    const failure = (entry, result, round) => `[attempt ${round} failed] ${statusOf(result).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}\n${report(entry, result)}\n`;
     // A retry keeps its file's worker and browser slot. Other files keep running without a retry phase after the shard.
     const runFile = async (entry) => {
       let result = await attempt(entry);
@@ -128,7 +134,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
         console.log(`[${finished}/${files.length}] ${ok(result) ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}  ${tests}`);
         if (ok(result)) { passed += 1; if (result.flaky) flaky.push(entry.file); }
         else failed.push({ entry, status, result });
-        if (!ok(result) || verbose) console.log(report(result));
+        if (!ok(result) || verbose) console.log(report(entry, result));
         if (bail && !ok(result) && !culprit) { culprit = entry; stopRunning(); }
       },
     });

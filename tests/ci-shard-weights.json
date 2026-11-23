@@ -2222,7 +2222,7 @@
  "tests/workbench-hidden-refresh.e2e.test.ts": 42,
  "tests/workbench-intake-whole-characters.e2e.test.ts": 22,
  "tests/workbench-intake-whole-characters.test.ts": 5,
- "tests/workbench-language.e2e.test.ts": 402,
+ "tests/workbench-language.e2e.test.ts": 646.8,
  "tests/workbench-local-links.test.ts": 5,
  "tests/workbench-pane-feed.e2e.test.ts": 89,
  "tests/workbench-registration-boundaries.test.mjs": 6,

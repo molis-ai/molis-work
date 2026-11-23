@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync, promises as fs } from "node:fs";
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, createMolisWorkLocalHost, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
@@ -227,6 +227,75 @@ test("RAC-1330 project deletion of a project that is not in the catalog answers 
   const response = await post("/api/settings/projects/no-such-project/delete", { delete_confirmed: true, idempotency_key: "missing-project-delete" });
   assert.equal(response.status, 404);
   assert.equal((await response.json() as { code?: string }).code, "catalog.project_not_found");
+});
+
+test("BL-989 settings distinguish a concurrent project deletion from a database that cannot open", async t => {
+  for (const [label, afterLookup, deleted] of [
+    ["deleted after catalog lookup", true, true],
+    ["deleted after the file check", false, true],
+    ["project still in the catalog", false, false],
+  ] as const) {
+    await t.test(label, { timeout: 15_000 }, async t => {
+      const { homeDirectory, withCatalog, project, localHost, origin, post } = await fixture(t);
+      const readPaused = Promise.withResolvers<void>();
+      const continueRead = Promise.withResolvers<void>();
+      const logs: HostLogEntry[] = [];
+      t.after(captureHostLog(logs));
+      const pause = () => { readPaused.resolve(); return continueRead.promise; };
+      if (afterLookup) {
+        const access = localHost.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog);
+        t.mock.method(access, "withCatalog", async (...args: Parameters<typeof withCatalog>) => {
+          const result = await withCatalog(...args);
+          // The routes have a snapshot of the project, but have yet to check its file.
+          if (result && typeof result === "object" && "kind" in result && result.kind === "board") await pause();
+          return result;
+        });
+      } else {
+        const withProject = localHost.withProject.bind(localHost);
+        t.mock.method(localHost, "withProject", async (...args: Parameters<typeof withProject>) => {
+          if (args[0].project_id === project.project_id) await pause();
+          return withProject(...args);
+        });
+      }
+
+      const settingsPath = `${origin}/projects/${project.project_id}/settings/general?embed=1`;
+      const read = fetch(settingsPath);
+      const deletePath = `/api/settings/projects/${project.project_id}/delete`;
+      const input = { delete_confirmed: true, idempotency_key: "delete-between-settings-lookup-and-open" };
+      let receipt: Record<string, unknown> | undefined;
+      try {
+        const early = await Promise.race([readPaused.promise.then(() => null), read]);
+        if (early) assert.fail(`settings answered before the interleaving: ${early.status} ${await early.text()}`);
+        if (deleted) {
+          const result = await post(deletePath, input);
+          assert.equal(result.status, 200);
+          receipt = await result.json();
+        } else {
+          const directory = dirname(project.database_path);
+          await rename(directory, `${directory}.unavailable`);
+        }
+        assert.equal(existsSync(project.database_path), false);
+        assert.equal(await withCatalog({ homeDirectory }, catalog => catalog.listProjects().some(row => row.project_id === project.project_id)), !deleted);
+      } finally {
+        continueRead.resolve();
+      }
+
+      const response = await read;
+      const body = await response.json();
+      const diagnostic = logs.find(entry => entry.event === "request_failed")?.error?.code;
+      assert.equal(response.status, deleted ? 404 : 500, JSON.stringify({ body, diagnostic }));
+      assert.equal(body.code, deleted ? "catalog.project_not_found" : "actions.execution_failed");
+      if (deleted) {
+        assert.deepEqual(body, await (await fetch(settingsPath)).json());
+        const retry = await post(deletePath, input);
+        assert.equal(retry.status, 200);
+        assert.deepEqual(await retry.json(), { ...receipt, replayed: true });
+      } else {
+        assert.equal(diagnostic, "SQLITE_CANTOPEN");
+        assert.equal(typeof body.diagnostic_id, "string");
+      }
+    });
+  }
 });
 
 test("RAC-1333 a deletion failure that is not an ActionError keeps its text out of the response", async t => {

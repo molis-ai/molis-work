@@ -5,8 +5,8 @@
 //   node scripts/replay-golden-homes.mjs [--latest N | --all | --golden <name>] [--dir <directory>] [--concurrency <n>] [--json] [--debug]
 //
 // The default is the latest 3. Exit 1 if any golden fails. A failure says which golden, where, which step and which code, and never what the data
-// was (UPG2-03); `--debug` adds the error's own message on stderr, for the person fixing it locally. A step this machine cannot run is no failure and
-// no pass either: the result lists it under `not_run` and the line says so (the installed plugin, outside macOS).
+// was (UPG2-03); `--debug` adds the error's own message on stderr, for the person fixing it locally. The result lists platform-specific steps
+// that did not run under `not_run` (signed plugins and computer settings outside macOS).
 //
 // "Upgrade to current" has no call of its own: the Host brings a Home up to date when it starts (U1 design §3, §4), and until U1 lands every
 // library has to already be at this build's version, which opening it enforces. So the first step below is the upgrade, today and after U1.
@@ -49,7 +49,7 @@ const KNOWLEDGE_CATCH_UP_MILLISECONDS = 30_000;
  * The plugin sandbox exists only on macOS, so elsewhere the installed sample fails at activation and is not offered, which every other step takes in
  * its stride. This is not a pass: `ok` says only that what ran passed, and a run that left this out says so in its result, for the job that adds it.
  */
-const THIRD_PARTY_NOT_RUN = "not-run";
+const NOT_RUN = "not-run";
 
 function selectedGoldens() {
   if (singleGolden) return [singleGolden];
@@ -212,7 +212,7 @@ async function writeEverything(homes) {
 /** The installed sample still loads, still answers, takes a write, upgrades in place and keeps its value (§4 step 7). Only macOS can run it at all. */
 async function replayThirdParty(manifest, homes) {
   if (!manifest.third_party) return "absent";
-  if (process.platform !== "darwin") return THIRD_PARTY_NOT_RUN;
+  if (process.platform !== "darwin") return NOT_RUN;
   const sample = thirdPartySample();
   if (sample.id !== manifest.third_party) throw goldenFailure("golden.third_party_sample_changed", manifest.third_party);
   const item = homes[0], project = item.projects[0];
@@ -235,7 +235,7 @@ async function replayThirdParty(manifest, homes) {
 /** The signed sample that holds a library of its own. Only the root Home has it, and only macOS can run it at all. */
 async function replayHomeLibrary(manifest, [item]) {
   if (!manifest.home_library) return "absent";
-  if (process.platform !== "darwin") return THIRD_PARTY_NOT_RUN;
+  if (process.platform !== "darwin") return NOT_RUN;
   const session = await openGoldenHost(item.at);
   try {
     // The install entry takes a project this Host has open, though the package is the Home's.
@@ -262,7 +262,10 @@ async function replayGolden(name) {
     step = "upgrade"; await openEveryProject(homes);
     step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home);
     step = "structure"; await assertStructure(homes);
-    step = "versioned-files"; steps.versioned_files = await readVersionedFiles(manifest, source, homes);
+    step = "versioned-files";
+    const { count, computerSettings } = await readVersionedFiles(manifest, source, homes);
+    steps.versioned_files = count;
+    steps.computer_settings = computerSettings;
     step = "read"; steps.reads = await readEverything(manifest, homes);
     step = "rows"; assertRowsKept(manifest, restored.home);
     step = "write"; steps.writes = await writeEverything(homes);
@@ -271,7 +274,12 @@ async function replayGolden(name) {
     step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
     step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
-    return { golden: name, ok: true, steps, not_run: [["third-party", steps.third_party], ["home-library", steps.home_library]].filter(([, result]) => result === THIRD_PARTY_NOT_RUN).map(([what]) => what) };
+    const not_run = [
+      ["third-party", steps.third_party],
+      ["home-library", steps.home_library],
+      ["computer-settings", steps.computer_settings],
+    ].filter(([, result]) => result === NOT_RUN).map(([name]) => name);
+    return { golden: name, ok: true, steps, not_run };
   } catch (error) {
     if (debug) process.stderr.write(`${error?.stack ?? error}\n`);
     return { golden: name, ok: false, step, where: error?.where ?? "-", code: typeof error?.code === "string" ? error.code : "golden.unexpected_error" };
@@ -317,9 +325,9 @@ async function replayAll(goldens) {
 }
 
 const results = await replayAll(selectedGoldens());
-const said = result => result === THIRD_PARTY_NOT_RUN ? `not run on ${process.platform}, not a pass` : result;
+const said = result => result === NOT_RUN ? `not run on ${process.platform}, not a pass` : result;
 if (json) writeFileSync(1, `${JSON.stringify({ results })}\n`);
 else if (!results.length) writeFileSync(1, "no golden Homes to replay\n");
-else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
+else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)}, computer settings: ${said(item.steps.computer_settings)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
 // The Host's background work has no reason to outlive a finished replay.
 process.exit(results.every(item => item.ok) ? 0 : 1);

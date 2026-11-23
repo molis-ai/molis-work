@@ -7,7 +7,7 @@
 // A persistent format (scripts/gates/initial-versions.mjs) goes by its tooling/versions.json entry, which stays the same when the code moves.
 // The table below says where in a Home each one sits; the generator records what it finds there as `formats` (entry, path, version), and the
 // unified-origin check lets a format above 1 through only when the goldens hold each older version. One with `absent` cannot be in a golden,
-// so raising it fails; one whose file a golden does not have yet (computer/settings.json, BL-golden-computer-settings) fails the same way.
+// so raising it fails; a format with no specimen, such as computer/records/*/record.json, fails the same way.
 //
 // The gates only read the manifest, so the replay reads each version a manifest records again from the restored Home (`assertRecordedVersions`):
 // a manifest edited by hand fails there instead of making a golden hold a version it does not. It reads what was recorded and nothing more:

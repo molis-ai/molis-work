@@ -20,6 +20,7 @@ const QUIET_MILLISECONDS = 150;
 /** A period this long never comes due. The longest one that has to run for a generation to work is 2 seconds, and the shortest of the Host's rounds is 20. */
 const LONG_PERIOD_MILLISECONDS = 10_000;
 const LONGEST_TIMER_MILLISECONDS = 2 ** 31 - 1;
+const PROLOGUE_QUEUE_REARM = /at rearm \([^\n]*\/@prologue\/sdk\/dist\/orchestration\/core\/queue\.js:\d+:\d+\)/u;
 const THIS_FILE = path.basename(fileURLToPath(import.meta.url));
 
 /** The two nearest frames outside this file, by file name and position: the same across checkouts, unlike a path. */
@@ -43,10 +44,13 @@ export function installDeterminism(seed) {
   timers.setInterval = standingInterval;
   // Knowledge's settle-after-change timer (2s) is a background organizer: whether its cards made it in must not depend on the machine.
   // The same timer is the only 2s wait a generation needs; other waits use other delays.
+  // Prologue's queue passes the scheduled wall time to tick when its one-shot timer fires. A frozen Date therefore leaves future work
+  // queued only if its wake is held too. Ready work and timeouts outside the queue still run.
   const realTimeout = globalThis.setTimeout;
-  const standingTimeout = (callback, delay, ...rest) => delay === 2_000
-    ? realTimeout(() => undefined, delay, ...rest)
-    : realTimeout(callback, delay, ...rest);
+  const standingTimeout = (callback, delay, ...rest) => {
+    const futureQueueWake = delay > 0 && PROLOGUE_QUEUE_REARM.test(new Error().stack);
+    return realTimeout(delay === 2_000 || futureQueueWake ? () => undefined : callback, delay, ...rest);
+  };
   globalThis.setTimeout = standingTimeout;
   timers.setTimeout = standingTimeout;
 

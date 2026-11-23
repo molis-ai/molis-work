@@ -4,6 +4,10 @@
 
 需求维护与实现：Claude（本会话）。类型：底层与架构。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：`#2219` 交付的 `workbench.pageClient` 与在途 `#2258`（泛化 `frame-assets.ts` 与 `frame-blocks.ts`）由 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md) 直接消费，并辅以 `RuntimePluginDirectory` 彻底消除工作台对 `BUILTIN_PLUGIN_CATALOG` 的硬编码依赖。
+
 ## 白话说明
 
 **这件事做什么。** 工作台外壳里还有一大段代码在替 Goals 管状态：记住选中哪个 Goal、画布还是列表、后台刷新 Goal 页面、Goal 的画布与看板框、键盘和前进后退。这份需求先定一个所有插件通用的「页面客户端」接口：外壳只按接口通知「页面开了、要存状态、要还原、有点击、标签切过来了」，插件自己决定怎么做。然后把 Goals 的这些代码整段搬回 Goals 包。

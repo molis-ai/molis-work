@@ -4,6 +4,10 @@
 
 需求统筹：本会话 Codex；Coding、平台及 Prologue 实现负责人待分配。输入回执与用户纠正继续由 **Claude「正在做｜输入回执与任务关联」**负责，不重新分配。本文是本轮优化的总合同，既有产品合同与专门需求保持各自所有权。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：`109` 将工作区 Git、并行 worktree 与整合审查迁入 `plugins/native/git`，Agent Host 审查种类开放申报且保留 `#2244` `install_id` 隔离；后续第 `65`～`67`、`84`～`86` 批的 Git 签名/PR/CI 后端动作均归 `plugins/native/git`，Coding 经公开动作可选消费并保无 Git 优雅降级。
+
 ## 1. 要交付的结果
 
 用户可以在项目中选择真实目录，从 Coding 或个人助理发起开发任务，使用正确的项目规则、Skill、工具和模型设置，连续完成修改、验证及结果交付。中途补充、更正、失败、模型超时或宿主重启后，仍能知道当前要求、完成到哪里、为什么停下以及如何继续。执行中的界面保持稳定，长会话与较大 Dataset 可正常操作。

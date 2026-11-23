@@ -4,6 +4,10 @@
 
 依据：[全仓隐式状态机盘点（2026-11-08）](../../docs/reviews/implicit-state-machines-2026-11-08.md)（对象 `main` 的 `5945c0271a`）、[AGENTS.md](../../AGENTS.md)、[CONTRACT-CHANGES.md](../../docs/system/CONTRACT-CHANGES.md)、[SSOT-MATRIX.md](../../docs/SSOT-MATRIX.md)、[插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md)、[第三方插件安装方案](../../docs/system/THIRD-PARTY-PLUGINS.md)。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：`44B` 与 `106`～`111` 新增的全部公开状态（含 `push_lineage`、`push_operations` 等）同步登记进 `docs/platform/STATE-VOCABULARY.md` 与 Manifest 申报；创作台归纯平台 `horizontal/plugin-studio`（`#2239`），第 `48-5` 批状态展示基于统一分区插件目录实施。
+
 ## 白话说明
 
 平台给「状态」立一份统一规则，分三层：

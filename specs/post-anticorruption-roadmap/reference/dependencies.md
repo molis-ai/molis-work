@@ -530,16 +530,16 @@ flowchart LR
 | --- | --- | --- |
 | `91-0a`（新） | **已合入**（[#2221](https://github.com/molis-ai/molis-work/pull/2221)，`51bf5e1f02`，2026-11-22）：新增仓内 Skill `skills/molis-design-ui/` 与多代理接线；对齐 `DESIGN.md`／`taste.md`／`shell-page-exceptions` 等规范文档；`docs/design/` 59→9 归档与唯一 `docs/design/kit/` | [91](batches/91.md#batch-91-item-0a) |
 | `91-0b`（新） | **已合入**（[#2222](https://github.com/molis-ai/molis-work/pull/2222)，`57a6fad615` 及补清小修，2026-11-22）：落 4 套内置皮肤＋暗色 `on-accent` 修复、F1 Sans＋思源黑体三字重、纸感边框／6px 状态标签与 CSS 漂移清扫（含 40 批 `on-demand-help.ts` 与 `im-ui` 补齐）、交付原 `91-1` 全站体验共用底座（同步纳入 `<80 KB` 插件基础样式表）、重构 `/__ui/catalog` 93 节、统一全部 30 个设置页到 P5，并同步校准 `skills/molis-design-ui/` 与 `skills/molis-plugin-dev/`（`studio:replay`＋隔离 `smoke`）；`91B` 与 `91A` 对 `91-0b` 的前置已满足 | [91](batches/91.md#batch-91-item-0b) |
-| `91A`（`91-2`～`91-4`） | 保持等 `91-0b`（含 `91-1` 底座）、`101`、`36A`（1～7 全量已合）、`37-2` 与 Prologue 窗口 A，专注纯流式内核、Agent Host 热路径止血、Assistant 与 Coding SSE 接入（**2026-11-22 增设前置 `91-0c` 见下节 [11-22 更新](#deps-2026-11-22-list-detail-shared-styles)**） | [91](batches/91.md) |
-| `91B` | 紧接 `91-0b` 与 `91-0c` 可并行推进 `91B-1`～`3`（补齐决定 60 漏接的 6 处平台入口／壳层／静默吞错断缝，不重复 `101` 已修的 5 个 P0）；`91B-4` 收口五层防回退门禁（**2026-11-22 新增 `91-0c` 与 `BL-b44-shared-styles-plugin-names` 切片约束见下节 [11-22 更新](#deps-2026-11-22-list-detail-shared-styles)**） | [91B](batches/91b.md) |
+| `91A`（`91-2`～`91-4`） | 经[决定 64](decisions.md#decision-64)、[决定 65](decisions.md#decision-65)与[决定 66](decisions.md#decision-66)校准：等 [`111`](batches/111.md)（`44B`+UPP 全套收口）、`91-0b`、`91-0c`（列表-详情底座与共享样式片 1）、`101`、`36A`（1～7 全量已合）、`37-2` 与 Prologue 窗口 A，基于 `109` 开放审查与 Git 随启用依赖（V9）实施纯流式内核、Assistant/Coding SSE 及 `91-4` 共享样式片 2（见下方两节 [11-22 列表-详情更新](#deps-2026-11-22-list-detail-shared-styles) 与 [11-22 决定 66 主干前置](#deps-2026-11-22-demotion-upp)） | [91](batches/91.md) |
+| `91B` | 经[决定 64](decisions.md#decision-64)、[决定 65](decisions.md#decision-65)与[决定 66](decisions.md#decision-66)校准：等 [`111`](batches/111.md)、`91-0b`、`91-0c` 与 `101` 后并行推进 `91B-1`～`3`（`91B-1` 纳入纯平台 `modules/shelf`［含 `.shelf-*` 清理与宽侧栏容器］、`horizontal/plugin-studio` 与 UPP 切换器/市场，`91B-2`/`3` 对齐 20 平等内置插件 + 3 统一连接器驱动并移除已删 Alchemist/YouTube/Text Stats）；`91B-4` 等 `91B-1`～`3` 与 `91-4` 全合后收口五层防回归门禁与 `BL-b44-shared-styles-plugin-names` 片 4 | [91B](batches/91b.md) |
 
 <a id="deps-2026-11-22-list-detail-shared-styles"></a>
 
 ### 11-22 统一列表—详情底座（`91-0c`）与 `BL-b44-shared-styles-plugin-names` 编入 91／91B 批的依赖与切片（[决定 64](decisions.md#decision-64)、[决定 65](decisions.md#decision-65)）
 
-1. **`91-0c` 零阻塞前置**：仅依赖已合入的 `91-0b`（`#2222` + `#2230`）与 `36A`（1～7 全量已合），**不等 `37-2`**；落地 `.mw-stage-list-detail`（`[data-stage-list-detail]`，显式避让设置页既有 `.mw-list-detail`）容器与标签组联动底座，并承接 `BL-b44-shared-styles-plugin-names` 片 1（将共享样式表中沿用插件名的共用写法统一改 `mw-*` 与中性属性，清零 `plugin-stage.ts`、`craft-finish.ts`、`immersive-navigation.ts` 硬编码并迁出 `Git` 专属样式）。
-2. **`BL-b44-shared-styles-plugin-names` 四段切片依赖关系（覆盖 `9 + 13 = 22` 个共享样式模块、`250+` 行）**：
-   - `91-0c`（片 1：公共 `mw-*` 更名、通用属性泛化、Git 迁出）→ 解锁下游的 `91-4`（片 2：Coding `.coding-*` 迁出 + `recordRow`）与 `91B-1`～`91B-3`（片 3a：`capabilities.ts` `.functions-*`、`arrival-components.ts` `.mw-goal-track*`、`desktop-titlebar.ts` `.personal-new-goal` 中性化；片 3b：Goals 剩余 `.goal-*`/`.desktop-goal-directory`/`.navigator-goal*`/`.placement-goal-*`/`.frame-goal-actions`/`.is-editing-goal` 与 Inbox `.inbox-*` 迁回按需样式表；片 3c：独占 `Shelf` 全部改造并迁出 `.shelf-*`，迁出 Form 插件 `.form-export-panel`（非插件通用 `.form-disclosure` 保持通用或并入 `.mw-disclosure` 不搬进 `form` 插件）并核验其余创作/知识插件零残留）。四处下游切片各自插件目录 100% 正交，仅在 `plugin-stage.ts`、`craft-finish-pages.ts`、`disclosure.ts`、`primitives-plugin.ts` 4 个共享样式模块上存在分属不同插件的选择器删除，并行拆 PR 时按先合先删、后合 rebase `origin/main` 协调；
+1. **`91-0c` 零阻塞前置**：仅依赖已合入的 `91-0b`（`#2222` + `#2230`）与 `36A`（1～7 全量已合），**不等 `37-2`，亦可与 `44B` 并行/前置**；落地 `.mw-stage-list-detail`（`[data-stage-list-detail]`，显式避让设置页既有 `.mw-list-detail`）容器与标签组联动底座，并承接 `BL-b44-shared-styles-plugin-names` 片 1（将共享样式表中沿用插件名的共用写法统一改 `mw-*` 与中性属性，清零 `plugin-stage.ts`、`craft-finish.ts`、`immersive-navigation.ts` 硬编码并迁出 `Git` 专属样式；与在途 `#2258` 共享样式 `.mw-*` 泛化成果协同消费）。
+2. **`BL-b44-shared-styles-plugin-names` 四段切片依赖关系（覆盖 `9 + 13 = 22` 个共享样式模块、`250+` 行；按[决定 66](decisions.md#decision-66)校准下游归属与 `111` 前置）**：
+   - `91-0c`（片 1：公共 `mw-*` 更名、通用属性泛化、Git 迁出）→ 解锁下游（均在 `111` 之后实施）的 `91-4`（片 2：Coding `.coding-*` 迁出 + `recordRow`）与 `91B-1`～`91B-3`（片 3a：`capabilities.ts` `.functions-*`、`arrival-components.ts` `.mw-goal-track*`、`desktop-titlebar.ts` `.personal-new-goal` 中性化，以及收归纯平台 `modules/shelf` 后的 `.shelf-*` 迁移；片 3b：Goals 剩余 `.goal-*`/`.desktop-goal-directory`/`.navigator-goal*`/`.placement-goal-*`/`.frame-goal-actions`/`.is-editing-goal` 与 Inbox `.inbox-*` 迁回按需样式表；片 3c：迁出 Form 插件 `.form-export-panel`［非插件通用 `.form-disclosure` 保持通用或并入 `.mw-disclosure` 不搬进 `form` 插件］并核验其余创作/知识插件零残留，旧 `alchemist` 已于 `44B` 删除）。四处下游切片各自插件目录 100% 正交，仅在 `plugin-stage.ts`、`craft-finish-pages.ts`、`disclosure.ts`、`primitives-plugin.ts` 4 个共享样式模块上存在分属不同插件的选择器删除，并行拆 PR 时按先合先删、后合 rebase `origin/main` 协调；
    - **`91B-4`（片 4：首屏共享 CSS 字节压降与全量零插件名绝对防回流门禁）** 须以 **`91B-1`～`91B-3` 与 `91-4` 全部合入** 为硬前置（否则 `91-4` 尚未迁出的 `.coding-*` 会被 `plugin-styles.mjs` 绝对零门禁拦截，绝不为未迁完的切片留临时豁免）。
 
 ```mermaid
@@ -547,12 +547,16 @@ flowchart LR
   B910B["91-0b（已合）"] --> B910C["91-0c 列表-详情底座 + 共享样式片 1"]
   S36A["36A 1~7（已合）"] --> B910C
   B910C --> B914["91-4 Coding 容器/recordRow + 共享样式片 2 (.coding-*)"]
+  B111["111 44B+UPP 全套收口"] --> B914
   B912["91-2 平台流式合同"] --> B914
   B372["37-2 事项工作台"] --> B913["91-3 助理 SSE（合并入 91A PR）"]
   B912 --> B913
-  B910C --> B91B1["91B-1 外壳/入口/Artifacts/Sessions + 共享样式片 3a"]
-  B910C --> B91B2["91B-2 工作主干 9 插件 + 共享样式片 3b (Goals/Inbox)"]
-  B910C --> B91B3["91B-3 创作/知识/Shelf/研发插件 + 共享样式片 3c (Shelf/Form)"]
+  B910C --> B91B1["91B-1 外壳/入口/Artifacts/Sessions/纯平台 Shelf 与创作台 + 片 3a"]
+  B111 --> B91B1
+  B910C --> B91B2["91B-2 工作主干 9 插件 + 3 驱动 + 片 3b (Goals/Inbox)"]
+  B111 --> B91B2
+  B910C --> B91B3["91B-3 创作/知识/Git/Diff 10 插件 + 片 3c (Form)"]
+  B111 --> B91B3
   B914 --> B91B4["91B-4 首屏 CSS 减负量测 + 全量零插件名防回流门禁 (片 4)"]
   B91B1 --> B91B4
   B91B2 --> B91B4
@@ -561,7 +565,40 @@ flowchart LR
 
 | 批次／切片 | 精确依赖与剥离范围（`BL-b44-shared-styles-plugin-names` / `UXP-19`，`22` 模块 `250+` 行） | 文件 |
 | --- | --- | --- |
-| `91-0c`（片 1） | 等 `91-0b`、`36A`（已合，**不等 `37-2`**）：公共 `.goal-collection-*`→`.mw-collection-*`、`.goal-status`→`.mw-status`、`[data-feed-search]`→`[data-mw-inline-search]`、`craft-finish.ts` 钩子泛化、`plugin-stage.ts` 7 处 `[data-*-delete]`/`[data-feed-stage-shell]`/`[data-work-surface="jelly"]`/`[data-lingguang-save-status]`/`.form-tabs` 与 `immersive-navigation.ts` `.immersive-goal-tools` 清零、`coding-companions.ts` `.git-*` 迁回 `git` 按需表 | [91](batches/91.md#batch-91-item-0c)、[UXP §2.4](../../product-experience-polish/spec.md) |
-| `91-4`（片 2） | 等 `91-0c`、`91-2`、`35-2`、`36A-4`（整段 `91A` 合并 PR 时随 `91-3` 一并等 `37-2`）：剥离 `plugin-stage.ts`、`craft-finish-pages.ts`、`disclosure.ts`、`primitives-plugin.ts` 的 `.coding-start-mark`/`.coding-checkpoints`/`.coding-material` 至 `coding/src/styles.ts`，并补齐 Coding `recordRow` | [91](batches/91.md#batch-91-item-4) |
-| `91B-1`～`91B-3`（片 3a/3b/3c） | 等 `91-0b`、`91-0c`（插件目录严格正交，4 个共享样式模块按合入顺序 rebase 协调）：`91B-1` 改 `capabilities.ts` `.functions-*`→`.capabilities-*`、`arrival-components.ts` `.mw-goal-track*`→`.mw-progress-track*`、`desktop-titlebar.ts` `.personal-new-goal` 中性化；`91B-2` 迁出 Goals 剩余 `.goal-*`/`.desktop-goal-directory`/`.navigator-goal*`/`.placement-goal-*`/`.frame-goal-actions`/`.is-editing-goal`（含 `directory-ledger.ts` 48 行、`foundation.ts` 12 行、`placement.ts` 9 行）与 Inbox `.inbox-*`（含 `detail-reading.ts` 21 行）；`91B-3` 独占 `plugins/native/shelf/`（迁出 `.shelf-*` + 宽侧栏 `.mw-stage-list-detail`）并迁出 Form `.form-export-panel`（非插件通用 `.form-disclosure` 保持通用或并入 `.mw-disclosure`） | [91B](batches/91b.md) |
-| `91B-4`（片 4） | 等 `91B-1`～`91B-3` 与 `91-4`：实测并收紧首屏共享 CSS 预算（`page-asset-budgets.json`），将平台共享样式模块（`apps/workbench/src/styles/` 与 `packages/design-system/src/styles/` 全目录 `.ts`，显式不误伤非插件通用 HTML 表单类 `.form-actions`/`.form-error`/`.form-disclosure`）全量零插件名检查接入 `scripts/gates/plugin-styles.mjs` 与 `tests/plugin-styles.test.ts`，结清删除 `BL-b44-shared-styles-plugin-names.md` | [91B](batches/91b.md#batch-91b-item-4)、[BL-b44-shared-styles-plugin-names](../../backlog/BL-b44-shared-styles-plugin-names.md) |
+| `91-0c`（片 1） | 等 `91-0b`、`36A`（已合，**不等 `37-2` 与 `111`**）：公共 `.goal-collection-*`→`.mw-collection-*`、`.goal-status`→`.mw-status`、`[data-feed-search]`→`[data-mw-inline-search]`、`craft-finish.ts` 钩子泛化、`plugin-stage.ts` 7 处 `[data-*-delete]`/`[data-feed-stage-shell]`/`[data-work-surface="jelly"]`/`[data-lingguang-save-status]`/`.form-tabs` 与 `immersive-navigation.ts` `.immersive-goal-tools` 清零、`coding-companions.ts` `.git-*` 迁回 `git` 按需表 | [91](batches/91.md#batch-91-item-0c)、[UXP §2.4](../../product-experience-polish/spec.md) |
+| `91-4`（片 2） | 等 `111`、`91-0c`、`91-2`、`35-2`、`36A-4`（整段 `91A` 合并 PR 时随 `91-3` 一并等 `37-2`）：剥离 `plugin-stage.ts`、`craft-finish-pages.ts`、`disclosure.ts`、`primitives-plugin.ts` 的 `.coding-start-mark`/`.coding-checkpoints`/`.coding-material` 至 `coding/src/styles.ts`，并补齐 Coding `recordRow` | [91](batches/91.md#batch-91-item-4) |
+| `91B-1`～`91B-3`（片 3a/3b/3c） | 等 `111`、`91-0b`、`91-0c`（目录严格正交，4 个共享样式模块按合入顺序 rebase 协调）：`91B-1` 改 `capabilities.ts` `.functions-*`→`.capabilities-*`、`arrival-components.ts` `.mw-goal-track*`→`.mw-progress-track*`、`desktop-titlebar.ts` `.personal-new-goal` 中性化，并承接已收归纯平台 `modules/shelf` 的 `.shelf-*` 与宽侧栏 `.mw-stage-list-detail`；`91B-2` 迁出 Goals 剩余 `.goal-*`/`.desktop-goal-directory`/`.navigator-goal*`/`.placement-goal-*`/`.frame-goal-actions`/`.is-editing-goal`（含 `directory-ledger.ts` 48 行、`foundation.ts` 12 行、`placement.ts` 9 行）与 Inbox `.inbox-*`（含 `detail-reading.ts` 21 行）；`91B-3` 迁出 Form `.form-export-panel`（非插件通用 `.form-disclosure` 保持通用或并入 `.mw-disclosure`）并核验其余创作/知识插件零残留 | [91B](batches/91b.md) |
+| `91B-4`（片 4） | 等 `91B-1`～`91B-3` 与 `91-4`：实测并收紧首屏共享 CSS 预算（`page-asset-budgets.json`），将平台共享样式模块（`apps/workbench/src/styles/` 与 `packages/design-system/src/styles/` 全目录 `.ts`，显式不误伤非插件通用 HTML 表单类 `.form-actions`/`.form-error`/`.form-disclosure`）全量零插件名检查接入 `scripts/gates/plugin-styles.mjs` 与 `tests/plugin-styles.test.ts`，配合 `44B`～`111` G1 门禁，结清删除 `BL-b44-shared-styles-plugin-names.md` | [91B](batches/91b.md#batch-91b-item-4)、[BL-b44-shared-styles-plugin-names](../../backlog/BL-b44-shared-styles-plugin-names.md) |
+
+<a id="deps-2026-11-22-demotion-upp"></a>
+
+### 11-22 特殊逻辑平民化（`44B`）与统一工作分区（`106`～`111`）主干前置（[决定 66](decisions.md#decision-66)）
+
+按 V1 先加后迁再删排入 7 个正式批次（1 批 = 1 PR，每波恒绿），先消费在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`），以已合入 `#2259`（[决定 64](decisions.md#decision-64)／[决定 65](decisions.md#decision-65)）的 `91-0c` 为基础，整体排在 **`91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前**：
+
+```mermaid
+flowchart LR
+  B44B0["44B-0 P0 安全前缀"] --> B44B["44B 特殊逻辑平民化<br/>(Shelf 纯平台/删 Alchemist/连接器驱动)"]
+  INF["在途 PR #2239/#2258/#2253~2260"] --> B44B
+  B44B --> B106["106 UPP-A 分区底座"]
+  B106 --> B107["107 UPP-B1 独立库 6 插件"]
+  B107 --> B108["108 UPP-B2 原 Home 5 插件+总览"]
+  B108 --> B109["109 UPP-B3 主库去列+双实例归零+Git 迁入"]
+  B109 --> B110["110 UPP-B4 放置/同步/搜索/MCP"]
+  B110 --> B111["111 UPP-C 推送+界面+G1~G5+Clean v1"]
+  B111 --> B91A["91-2..4 流式与 Coding"]
+  B111 --> B91B["91B 全产品收口"]
+  B111 --> B105["105 审批与缓存硬化"]
+  B111 --> BDOWN["45~90 / REL-4~5 / SRV-1~8"]
+```
+
+| 批次 | 真实前置与范围 | 文件 |
+| --- | --- | --- |
+| `44B-0` | 无前置，立即可单独切安全小 PR：全局保留 `io.molis.work.` 前缀（`S-reserved-host-prefix`）与修两处第三方正则 | [44B](batches/44b.md#batch-44b-item-0) |
+| `44B` | 等 `44B-0` 与在途 `#2239`/`#2258`/`#2253`～`#2255`/`#2257`/`#2250`/`#2260`：Shelf 收归纯平台 `modules/shelf`（`always_on=0`、免重写 3,150 行 Rust）、删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 拍平、官方集成驱动化（`youtube`→`rss`、`planning-methods`→`packages/system-skills/`）、修 `#2231` Inbox 劫持、上线 G1 | [44B](batches/44b.md) |
+| `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/平台定格式总览表 `overview_projection`（到期提醒从中取）、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
+| `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 `109`） | [107](batches/107.md) |
+| `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `personal:true`/`hidden`/`project_reach`（`scope:"home"` 与 `outsideBuild` 链归 `109`） | [108](batches/108.md) |
+| `109`（UPP-B3） | 等 `108`：主库插件删 `project_id`，Workspace Git+Writers 迁 `plugins/native/git`（D6=B，`S-git-plugin-command-scope`，保留 `#2244` 隔离），沙箱开放 `databases.partition`，彻底删 `dual_instance`、`scope:"home"`、`outsideBuild` 链、`project_rows`、`artifact_join` 与旧平行装配（G2/G3） | [109](batches/109.md) |
+| `110`（UPP-B4） | 等 `109`：放置/同步/搜索/MCP/记忆去双轨、V4 分区启用清单独立同步、零唤醒发现、G5 | [110](batches/110.md) |
+| `111`（UPP-C） | 等 `110`：星型推送（V2/V3/U6/U7/U8、>256 KiB 分片、CAS GC 保护）、先定样界面、焊死 G1～G5、清退复位白名单；作为 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`～`5`/`SRV` 共同前置 | [111](batches/111.md) |

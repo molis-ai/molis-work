@@ -259,3 +259,79 @@ test("灵光对话：回复边写边显示，停止后不保存且输入保留�
   assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-input]').value"), "");
   await shot("lingguang-reply-saved");
 });
+
+test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、取消选中与单 Tab 进出", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  const { evaluate, waitFor } = child;
+  const store = openLingguangStore(homeDirectory);
+  const ids = (() => {
+    try {
+      return ["第一条灵光", "第二条灵光", "第三条灵光"].map((title) => store.create({ project_id: projectId!, title, body: `${title}正文` }).id);
+    } finally { store.close(); }
+  })();
+  const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
+    for (const type of ["keyDown", "keyUp"] as const) {
+      await command("Input.dispatchKeyEvent", { type, key: name, code, windowsVirtualKeyCode, modifiers }, sessionId);
+    }
+  };
+  await browser.setViewport(1440, 960);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=lingguang` }, sessionId));
+  await waitFor("document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]').length === 3", 15_000);
+
+  assert.deepEqual(await evaluate(`(() => {
+    const list = document.querySelector('[data-lingguang-rows]');
+    const options = [...list.querySelectorAll('[role=option][data-lingguang-id]')];
+    return {
+      role: list.getAttribute('role'),
+      multi: list.getAttribute('aria-multiselectable'),
+      states: options.map((row) => row.getAttribute('aria-selected')),
+      tabStops: options.map((row) => row.tabIndex),
+    };
+  })()`), {
+    role: "listbox",
+    multi: "true",
+    states: ["false", "false", "false"],
+    tabStops: [0, -1, -1],
+  }, "BL-340 Lingguang list is a multi-selectable APG listbox with one Tab stop");
+
+  const order = await evaluate<string[]>("[...document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]')].map((row) => row.dataset.lingguangId)");
+  assert.equal(order.length, ids.length);
+  const selectedIds = "[...document.querySelectorAll('[data-lingguang-rows] [role=option][aria-selected=true]')].map((row) => row.dataset.lingguangId).join()";
+
+  // Start from normal page focus on the toolbar button immediately before the listbox, then drive everything with keyboard.
+  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=lingguang]')?.focus()");
+  await evaluate("document.querySelector('[data-lingguang-read-link]').focus()");
+  await waitFor("document.activeElement === document.querySelector('[data-lingguang-read-link]')");
+  await key("Tab", "Tab", 9);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
+
+  // Select first two sparks purely with Space + ArrowDown.
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order[0])}`);
+  await key("ArrowDown", "ArrowDown", 40);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[1])}`);
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify([order[0], order[1]].join())} && !document.querySelector('[data-lingguang-selection]').hidden`);
+  assert.equal(await evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false", "Space multi-select does not open the editor");
+  assert.equal(await browser.evaluate("document.querySelectorAll('.tab-item[data-tab-kind=item]').length"), 0, "Space multi-select opens no item tab");
+
+  // Deselect both purely with keyboard.
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order[0])} && document.querySelector('[data-lingguang-selection]').hidden`);
+  await key("ArrowUp", "ArrowUp", 38);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ''`);
+
+  // Tab enters and leaves the listbox in a single stop.
+  await key("Tab", "Tab", 9, 8);
+  await waitFor("document.activeElement === document.querySelector('[data-lingguang-read-link]')");
+  await key("Tab", "Tab", 9);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
+  await key("Tab", "Tab", 9);
+  await waitFor("!document.querySelector('[data-lingguang-rows]').contains(document.activeElement)");
+});

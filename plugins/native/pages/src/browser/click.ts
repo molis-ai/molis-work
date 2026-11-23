@@ -1,8 +1,9 @@
 import { blankLeaving, dropBlank } from "./blank.js";
-import { clearPicked, paintPicked, reportFocus } from "./context.js";
+import { clearPicked, togglePicked } from "./context.js";
 import { assertReadable, createPage, exportDocument, loadList, movePage, openDocument, openVersionDiff, persist, printDocument, publishPage, saveOpen, toggleStar } from "./document.js";
 import { stop } from "./dom.js";
 import { closeEditor, draftOf, remember, storeDocument } from "./editor.js";
+import { toggleFolder } from "./list.js";
 import { closeCreate, closeMore, closeMove, openMove, toggleCreate, toggleMore } from "./menus.js";
 import { ask, askName, noteFailure } from "./notes.js";
 import type { PagesPage } from "./page.js";
@@ -116,12 +117,7 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
   }
   const row = hit("button[data-page-id]");
   if (row && (event.metaKey || event.ctrlKey)) {
-    // Picking, not opening: the open document joins the first pick, so one ⌘-click already gives two.
-    const id = row.dataset.pageId!;
-    if (!page.picked.size && page.sel && page.sel.id !== id) page.picked.add(page.sel.id);
-    if (page.picked.has(id)) page.picked.delete(id); else page.picked.add(id);
-    paintPicked(page);
-    reportFocus(page);
+    togglePicked(page, row.dataset.pageId!);
     return;
   }
   if (row) {
@@ -199,8 +195,11 @@ export function bindClick(page: PagesPage) {
     const target = event.target as HTMLElement;
     const hit = (selector: string) => target.closest<HTMLElement>(selector);
     try {
-      if (Date.now() < page.suppressFoldToggleUntil && hit("summary")) {
+      const folderToggle = hit("[data-pages-folder-toggle]");
+      if (folderToggle) {
         stop(event);
+        if (Date.now() < page.suppressFoldToggleUntil) return;
+        toggleFolder(page, folderToggle.dataset.pagesFolderToggle ?? "");
         return;
       }
       if (await menuClick(page, event, hit)) return;

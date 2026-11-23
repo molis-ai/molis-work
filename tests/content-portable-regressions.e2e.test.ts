@@ -124,7 +124,7 @@ test("W2-18-PAGES-SOURCES-01: actual multi-selection focus and Host prepare keep
   await child.evaluate(`(() => { document.querySelector('button[data-page-id="${pages[1]!.id}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));})()`);
   await b.waitFor("window.contentObjectsFocus?.granularity==='objects'");
   // D24, QA-024: the Ctrl-click picked B beside the open A, opened no tab for it, and left A open in the editor.
-  assert.deepEqual(await child.evaluate(`[[...document.querySelectorAll('[data-pages-rows] button[data-page-id][aria-selected=true]')].map(row=>row.dataset.pageId).sort().join(),document.querySelector('[data-pages-title]')?.value]`),
+  assert.deepEqual(await child.evaluate(`[[...document.querySelectorAll('[data-pages-rows] [role=row][data-page-id][aria-selected=true]')].map(row=>row.dataset.pageId).sort().join(),document.querySelector('[data-pages-title]')?.value]`),
     [pages.map(page => page.id).sort().join(), "Page A"]);
   assert.equal(await b.evaluate(`document.querySelectorAll('.tab-item[data-tab-kind=item][data-item-id="${pages[1]!.id}"]').length`),0);
   const focus = await b.evaluate<SurfaceFocus>("window.contentObjectsFocus");

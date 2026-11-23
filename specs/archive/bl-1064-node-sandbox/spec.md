@@ -1,6 +1,6 @@
 # BL-1064 · macOS 插件沙箱的 Node 运行时
 
-状态：本地实现与沙箱验收完成，待合入（2026-11-23，Codex）。
+> 归档（2026-11-23）：判定为**已实现**。[#2275](https://github.com/molis-ai/molis-work/pull/2275) 已随 `ae014586f4` 合入 main。SBXN-01 至 SBXN-04 均通过，包含真实 Homebrew CLI 安装、Seatbelt 隔离和提示词绑定。
 
 Homebrew `node@24` 24.22.2 的 ARM64 安装包引用 `@rpath/libnode.137.dylib`，`LC_RPATH` 依次是 `@loader_path` 和 `@loader_path/../lib`。常规安装从 `/opt/homebrew/Cellar/node@24/24.22.2/lib/libnode.137.dylib` 加载，`copyLoaderLibraries` 将它拷到复制后的 `runtime/node` 旁边。重定位到临时目录的实测进程共加载 19 个 Homebrew dylib，包含 libnode 和其他 keg 的直接与间接依赖。桌面脚本从 nodejs.org 下载校验过的官方 Node 24.15.0，实测只链接系统库。项目库所需的 Node 版本、发行脚本和安装器复制行为沿用现有约定。[Homebrew 24.22.2 安装包定义](https://github.com/Homebrew/homebrew-core/blob/3508a36bf8ac8d6a8c563998674b9b1ca511ddc2/Formula/n/node%4024.rb)
 
@@ -23,3 +23,9 @@ Homebrew `node@24` 24.22.2 的 ARM64 安装包引用 `@rpath/libnode.137.dylib`�
 
 - SBXN-01、SBXN-02、SBXN-03 通过。官方 Node 24.15.0 构建完成，沙箱和安装定向回归 18/18 文件通过。真实 Seatbelt 用例启动带 `@rpath` 的 Node，允许读已加载的库，拒绝读同目录其他文件。越界链接、缺失依赖和已安装插件启用的诊断均按预期返回。
 - SBXN-04 通过。修复后官方 Node 和 Homebrew 的提示词绑定回归都通过。Homebrew 24.22.2 另通过实际 CLI 安装和 Seatbelt 隔离测试，共 3 文件 7 条。原提示词基线条目与 BL-1064 同因。
+
+## 合入验证
+
+锁定的官方 Node 24.15.0 下，复查提交通过构建和 15 个定向回归文件。合并队列通过 `Verify`，合入后核对了主线的沙箱、安装入口与回归测试内容。 [PR CI](https://github.com/molis-ai/molis-work/actions/runs/45249740994) · [队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/45273648820/job/138047562002)
+
+队列首轮的旧签名金样读取一度返回 `unexpected_error`。同一组合提交在隔离 Home 按 CI 的并行设置回放三份金样均通过，GitHub 重新入队后也通过三份。 [首轮结果](https://github.com/molis-ai/molis-work/actions/runs/45265930920/job/138015460411) · [回放复验](https://github.com/molis-ai/molis-work/actions/runs/45273648820/job/138039953215)

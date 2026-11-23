@@ -320,7 +320,7 @@ test("RAC2884 MCP OAuth DCR and PKCE survive a new host instance; refresh and 40
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
-test("BL-secret-entry-storage-code S-upgrade-too-new-untouched: a malformed entry stops MCP code exchange and refresh", async () => {
+test("S-upgrade-too-new-untouched: an entry in the vault that is not sealed stops MCP's code exchange and its refresh before either is sent", async () => {
   const temp = home(); const remote = await fixture({ oauth: true });
   let clock = Date.now();
   const options = { testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" as const } }, now: () => clock };

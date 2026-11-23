@@ -10,7 +10,7 @@ import { renderBarStatus, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRI
  * "正在升级 n / m". It reads `/upgrade-progress` twice a second and reloads once something other than the maintenance listener answers
  * there, which is the Host serving again. It has no token, no store name and no content: only the two numbers.
  */
-export function renderUpgradeOpeningPage(lang: string, appearance?: WorkbenchAppearance): string {
+export function renderUpgradeOpeningPage(lang: string, appearance?: WorkbenchAppearance, desktopShell = false): string {
   const progress = uiText.text("workbench.upgrade-opening.upgrading", { done: "%done", total: "%total" });
   const status = renderBarStatus({ spin: true, title: progress, caption: uiText.text("workbench.upgrade-opening.caption") });
   return `<!doctype html>
@@ -24,7 +24,7 @@ export function renderUpgradeOpeningPage(lang: string, appearance?: WorkbenchApp
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
   ${appearanceHead(appearance)}
 </head>
-<body class="arrival-page immersive-workbench" data-arrival="upgrading" data-upgrade-opening>
+<body class="arrival-page immersive-workbench" data-arrival="upgrading" data-upgrade-opening${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
   <div class="arrival" data-workspace data-screen="upgrading">
     <header class="arrival-titlebar" data-region="titlebar" data-tauri-drag-region="deep"><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span><span class="arrival-spacer"></span></header>

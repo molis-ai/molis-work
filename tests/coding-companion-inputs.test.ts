@@ -11,7 +11,7 @@ import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBo
 import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-source-plugin.js";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { SNAPSHOT_READER, snapshotReaderPlugin } from "./fixtures/snapshot-reader-plugin.js";
 import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pagePack } from "./fixtures/page-text.js";
 
@@ -28,7 +28,7 @@ async function fixture() {
     contexts.set(context.plugin_id, context);
     return definition.start(context);
   } });
-  const report = await platform.start([snapshotSourcePlugin(), createGitPlugin(), createDiffPlugin(), createTextStatsPlugin()]
+  const report = await platform.start([snapshotSourcePlugin(), createGitPlugin(), createDiffPlugin(), snapshotReaderPlugin()]
     .map(definition => ({ definition: capture(definition), trust: { level: "host" as const } })));
   assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
   const id = (name: string) => name.includes(".") ? name : `io.molis.work.${name}`;
@@ -37,13 +37,14 @@ async function fixture() {
     source_plugin_id: id(source), source_port: sourcePort, origin: "user",
   });
   bind("diff", "git-changeset", "git", "changeset");
-  bind("text-stats", "text", SNAPSHOT_SOURCE.plugin_id, "before");
+  bind(SNAPSHOT_READER.plugin_id, SNAPSHOT_READER.port, SNAPSHOT_SOURCE.plugin_id, "before");
   const outputs = (plugin: string) => contexts.get(id(plugin))!.services!.outputs!;
   await platform.wiring.drain();
-  const state = async (plugin: "diff" | "text-stats") => {
-    const restore = installTextForTest({ locale: "zh", packs: [pagePack(plugin, "zh")] });
+  const state = async (plugin: "diff" | "snapshot-reader") => {
+    const restore = installTextForTest({ locale: "zh", packs: plugin === "diff" ? [pagePack(plugin, "zh")] : [] });
     try {
-      const response = await platform.router().dispatch({ method: "GET", pathname: `/api/plugins/io.molis.work.${plugin}/state`, actor_id: "tester", query: {} });
+      const pluginId = plugin === "diff" ? "io.molis.work.diff" : SNAPSHOT_READER.plugin_id;
+      const response = await platform.router().dispatch({ method: "GET", pathname: `/api/plugins/${pluginId}/state`, actor_id: "tester", query: {} });
       assert.equal(response?.status, 200, JSON.stringify(response?.body));
       return (response!.body as { view: Record<string, any> }).view;
     } finally { restore(); }
@@ -74,27 +75,27 @@ test("Diff consumes its selected Git input group and preserves that group while 
   } finally { host.close(); }
 });
 
-test("Text Stats never counts retained payload from an unavailable or archived Artifact", async () => {
+test("a required input never hands on retained payload from an unavailable or archived Artifact", async () => {
   const host = await fixture();
   try {
-    assert.equal((await host.state("text-stats")).phase, "waiting");
+    assert.equal((await host.state("snapshot-reader")).phase, "waiting");
     const publish = () => host.outputs(SNAPSHOT_SOURCE.plugin_id).publish({ port: "before", content: { kind: "inline", payload: {
       workspace: { workspace_id: "ws", name: "项目" }, path: ["note.txt"], text: "中文🙂\n",
     } } }).artifact;
     publish(); await host.platform.wiring.drain();
     host.outputs(SNAPSHOT_SOURCE.plugin_id).invalidate("before", "已切换工作区，请固定新快照");await host.platform.wiring.drain();
-    const reset = await host.state("text-stats");
-    assert.equal(reset.phase, "waiting");assert.equal(reset.characters, undefined);assert.equal(reset.source, undefined);
+    const reset = await host.state("snapshot-reader");
+    assert.equal(reset.phase, "waiting");assert.equal(reset.text, undefined);
     const first = publish(); await host.platform.wiring.drain();
-    const ready = await host.state("text-stats");
-    assert.equal(ready.phase, "ready"); assert.equal(ready.characters, 4); assert.equal(ready.utf8_bytes, 11); assert.equal(ready.lines, 1);
+    const ready = await host.state("snapshot-reader");
+    assert.equal(ready.phase, "ready"); assert.equal(ready.text, "中文🙂\n"); assert.equal(ready.content_version, first.version);
     host.processItems.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: first.artifact_id, version: first.version, reason: "原内容不可读取" });
-    const unavailable = await host.state("text-stats");
-    assert.equal(unavailable.phase, "unavailable"); assert.equal(unavailable.characters, undefined); assert.equal(unavailable.source, undefined);
+    const unavailable = await host.state("snapshot-reader");
+    assert.equal(unavailable.phase, "unavailable"); assert.equal(unavailable.text, undefined);
     const second = publish(); await host.platform.wiring.drain();
-    assert.equal((await host.state("text-stats")).phase, "ready");
+    assert.equal((await host.state("snapshot-reader")).phase, "ready");
     host.processItems.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: second.artifact_id, version: second.version });
-    const archived = await host.state("text-stats");
-    assert.equal(archived.phase, "unavailable"); assert.equal(archived.characters, undefined); assert.equal(archived.source, undefined);
+    const archived = await host.state("snapshot-reader");
+    assert.equal(archived.phase, "unavailable"); assert.equal(archived.text, undefined);
   } finally { host.close(); }
 });

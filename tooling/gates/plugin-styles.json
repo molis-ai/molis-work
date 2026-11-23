@@ -15,9 +15,6 @@
     "plugin-builder": [
       "as-",
       "pb-"
-    ],
-    "text-stats": [
-      "stats-"
     ]
   }
 }

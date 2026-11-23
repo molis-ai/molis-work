@@ -20,25 +20,53 @@
       }
     },
     {
-      "id": "text-stats-packed",
+      "id": "diff-packed",
       "source": {
         "kind": "packed",
-        "package": "plugins/native/text-stats",
+        "package": "plugins/native/diff",
         "entry": "dist/index.js",
-        "export": "createTextStatsPlugin"
+        "export": "createDiffPlugin"
       },
       "built_in": true,
-      "project_plugin_id": "text-stats",
+      "project_plugin_id": "diff",
       "action": {
-        "capability_id": "text-stats.count",
+        "capability_id": "diff.compare",
         "version": 1,
         "input": {
-          "text": "一行\nline"
+          "before": "一行\nline",
+          "after": "一行\nlines"
         },
         "expect": {
-          "characters": 7,
-          "utf8_bytes": 11,
-          "lines": 2
+          "identical": false,
+          "empty": false,
+          "coarse": false,
+          "ops": [
+            {
+              "kind": "equal",
+              "line": {
+                "text": "一行",
+                "ending": "\n"
+              },
+              "before": 1,
+              "after": 1
+            },
+            {
+              "kind": "delete",
+              "line": {
+                "text": "line",
+                "ending": ""
+              },
+              "before": 2
+            },
+            {
+              "kind": "insert",
+              "line": {
+                "text": "lines",
+                "ending": ""
+              },
+              "after": 2
+            }
+          ]
         }
       }
     },

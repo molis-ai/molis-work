@@ -1,6 +1,6 @@
 import type { FrameConfig, FrameDown, FrameScope, FrameUp } from "./types.js";
 
-function isMacPlatform(): boolean {
+export function isMacPlatform(): boolean {
   const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
   if (typeof nav.userAgentData?.platform === "string" && nav.userAgentData.platform.length > 0) return nav.userAgentData.platform === "macOS";
   return /Mac|iPhone|iPad|iPod/.test(nav.platform || "");

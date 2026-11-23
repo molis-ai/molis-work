@@ -20,14 +20,8 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     persist();
     return true;
   };
-  const rootForTab = (tab) => {
-    if (tab?.kind === "system") return systemTabs.root(tab);
-    if (!tab) return null;
-    const own = pageClient?.(tab.plugin)?.tabRoot?.(tab);
-    return own !== undefined ? own : topLevelSurface(tab.plugin);
-  };
 ${TAB_WORKSPACE_CLONES_PART}
-  const applyTabContent = (pane, tab, node, keepFrame) => {
+  const applyTabContent = (pane, tab, node) => {
     if (!tab || tab.kind === "system" || !node) return;
     const isClone = node.hasAttribute("data-pane-clone");
     const isSplit = state.panes.length > 1;
@@ -35,7 +29,7 @@ ${TAB_WORKSPACE_CLONES_PART}
     const page = pageClient?.(tab.plugin);
     if (page?.showTab) {
       // A plugin that draws its own tabs shows this one on its page, or on this pane's copy of it (102-1).
-      page.showTab(tab, keepFrame, { node, isClone, isSplit, isFocused, paneId: pane.id });
+      page.showTab(tab, false, { node, isClone, isSplit, isFocused, paneId: pane.id });
       return;
     }
     if (isFocused) declareTab?.(tab);
@@ -145,7 +139,6 @@ ${TAB_WORKSPACE_CLONES_PART}
   const apply = () => {
     if (applying) { applyQueued = true; return; }
     applying = true;
-    const keepFrame = false;
     try {
     if (state.exclusive) {
       root.dataset.exclusive = state.exclusive;
@@ -238,14 +231,6 @@ ${TAB_WORKSPACE_CLONES_PART}
       section.querySelectorAll(":scope > [data-tab-pane-body] > [data-pane-clone]").forEach((child) => disposeClone(child));
       section.querySelectorAll(":scope > [data-tab-pane-body] > :not([data-pane-clone])").forEach((child) => {
         if (child.matches('[data-work-surface="home"]')) {
-          child.querySelectorAll("[data-home-lead] > [data-work-surface]").forEach((lead) => {
-            lead.hidden = true;
-            if (!lead.querySelector(":scope > iframe[data-plugin-frame]")) pool.append(lead);
-            else {
-              if (lead.dataset.workSurface) removedCanonicalIds.add(lead.dataset.workSurface);
-              lead.remove();
-            }
-          });
           child.hidden = true;
           delete child.dataset.paneTab;
           delete child.dataset.paneKey;
@@ -339,7 +324,7 @@ ${TAB_WORKSPACE_CLONES_PART}
           if (handle) mountedMaterialsClones.set(node, handle);
         }
         if (tab) {
-          if (!unchanged || pageClient?.(tab.plugin)?.showTab) applyTabContent(pane, tab, node, keepFrame);
+          if (!unchanged || pageClient?.(tab.plugin)?.showTab) applyTabContent(pane, tab, node);
           else if (pane.id === state.focusedPaneId) declareTab?.(tab);
           if (returning && surfaceShows.get(tab.plugin) === "tab:" + tab.id) restoreScroll(node);
           if (pane.id === state.focusedPaneId) surfaceShows.set(tab.plugin, "tab:" + tab.id);

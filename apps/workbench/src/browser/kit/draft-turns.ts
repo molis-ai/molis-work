@@ -134,7 +134,12 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       return draw("sk-conflict");
     }
     if (name === "sk-use-saved" || name === "sk-keep-edit") return resumeEditing(w, await edit.resolve(w, name === "sk-use-saved" ? "saved" : "mine"));
-    if (name === "au-applies") { w.fields.applies_to = value as Fields["applies_to"]; edit.schedule(w); return draw("au-applies"); }
+    if (name === "au-applies") {
+      w.fields.applies_to = value as Fields["applies_to"];
+      delete w.errors.applies_to;
+      edit.schedule(w);
+      return draw("au-applies");
+    }
     if (name === "sk-tab") { w.tab = value as Workshop["tab"]; if (w.tab !== "edit") w.side = w.tab; return draw("sk-tab"); }
     if (name === "sk-side") { w.side = value as Workshop["side"]; w.tab = w.side; return draw("sk-side"); }
     if (name === "sk-compare") { w.compare = value as Workshop["compare"]; return draw("sk-side"); }

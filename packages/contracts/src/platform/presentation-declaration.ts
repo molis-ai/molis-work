@@ -101,11 +101,6 @@ export interface PresentationOverviewDeclaration {
    * action's `start` only picks among these, and a form to open is that intake's `start.open`.
    */
   readonly start?: readonly { readonly capability_id: string; readonly version: number }[];
-  /**
-   * The project home's main content: this Manifest's own main-area view (`navigator` or `stage`). While the plugin runs, the home shows
-   * that view whole and the person can switch back to the basic home (specs/work-brief/contract-design.md §2).
-   */
-  readonly lead?: { readonly view_id: string };
 }
 
 /** An input form on this Manifest's own stage (`intake.start.open`). The Host checks that the form is bound to the declared start action. */

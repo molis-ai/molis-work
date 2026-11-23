@@ -179,15 +179,15 @@ test("W5-02-REG-02: the built catalog has no repeated key, Manifest id or positi
 test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated namespace", () => {
   const withPrefix = (prefix: string) => BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id === "feed"
     ? { ...entry, workbench: { ...entry.workbench, stylesheetPrefixes: [prefix] } } : entry);
-  assert.ok(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "text-stats"), "the conflicting namespace exists");
-  const owned = ".text-stats{color:red}.text-stats-card{color:blue}";
-  const unrelated = ".stats-card{display:grid}.textual-card{display:flex}";
-  assert.deepEqual(splitPluginStylesheet(owned + unrelated, "feed", [], ["text-"]), { scoped: owned, shared: unrelated },
-    "the production splitter claims text-stats at the complete hyphen boundary");
-  assert.deepEqual(catalogProblems(withPrefix("text-")), ["feed: stylesheet prefix text- repeats a plugin's id"]);
-  assert.deepEqual(catalogProblems(withPrefix("stats-")), ["feed and text-stats both claim stylesheet prefix stats-"],
-    "text-stats already claims stats-, so another plugin cannot claim it");
-  for (const prefix of ["tex-", "brief-", "textstats-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
+  assert.ok(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "work-brief"), "the conflicting namespace exists");
+  const owned = ".work-brief{color:red}.work-brief-card{color:blue}";
+  const unrelated = ".brief-card{display:grid}.workout-card{display:flex}";
+  assert.deepEqual(splitPluginStylesheet(owned + unrelated, "feed", [], ["work-"]), { scoped: owned, shared: unrelated },
+    "the production splitter claims work-brief at the complete hyphen boundary");
+  assert.deepEqual(catalogProblems(withPrefix("work-")), ["feed: stylesheet prefix work- repeats a plugin's id"]);
+  assert.deepEqual(catalogProblems(withPrefix("pb-")), ["plugin-builder and feed both claim stylesheet prefix pb-"],
+    "plugin-builder already claims pb-, so another plugin cannot claim it");
+  for (const prefix of ["wor-", "brief-", "workbrief-"]) assert.deepEqual(catalogProblems(withPrefix(prefix)), [], prefix);
   const feedEntry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "feed")!;
   const middleOnly = { ...feedEntry, project_plugin_id: "text-middle-extra", catalog_order: NEXT_POSITION,
     manifest: { ...feedEntry.manifest, plugin_id: "io.molis.work.prefix-control" } };
@@ -196,9 +196,7 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   assert.deepEqual(catalogProblems([...withPrefix("middle-"), middleOnly]), [], "a prefix in the middle of another id is unrelated");
   const studio = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
   for (const prefix of ["as-", "pb-"]) assert.ok(studio.workbench.stylesheetPrefixes?.includes(prefix));
-  const textStats = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "text-stats")!;
-  assert.ok(textStats.workbench.stylesheetPrefixes?.includes("stats-"));
-  assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), [], "the existing studio and text-stats prefixes stay valid");
+  assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), [], "the existing studio prefixes stay valid");
 });
 
 test("W5-02-REG-02: loading the Host rejects an invalid catalog before the module becomes available", () => {
@@ -318,12 +316,12 @@ test("W5-02-REG-03: a new plugin is its own package; the generator lists it and 
 
 test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own package and what the generator writes, and is named outside it in no file", () => {
   // The name is put together here so that this file, which the measure below reads too, does not name the new package.
-  const dir = "plugins/native/probe-future", name = ["@molis-ai/molis-work-plugin", "probe-future"].join("-"), sample = "plugins/native/text-stats";
+  const dir = "plugins/native/probe-future", name = ["@molis-ai/molis-work-plugin", "probe-future"].join("-"), sample = "plugins/native/diff";
   const sampleJson = JSON.parse(readReal(`${sample}/package.json`)!) as { name: string; "molis-work": Record<string, unknown> };
   const own = {
     [`${dir}/package.json`]: `${JSON.stringify({ ...sampleJson, name, "molis-work": { ...sampleJson["molis-work"] } }, null, 2)}\n`,
     [`${dir}/src/registration.ts`]: readReal(`${sample}/src/registration.ts`)!.replace(/catalog_order: \d+/, `catalog_order: ${NEXT_POSITION}`)
-      .replace("project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID", 'project_plugin_id: "probe-future"').replaceAll(sampleJson.name, name),
+      .replace("project_plugin_id: DIFF_PROJECT_PLUGIN_ID", 'project_plugin_id: "probe-future"').replaceAll(sampleJson.name, name),
   };
   const packages = [...WORKSPACE_PACKAGES, { path: dir, name }];
   const { text, platformText, problems: refused } = pluginRegistry(tree(own), packages);
@@ -345,7 +343,7 @@ test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own p
   assert.equal(count(changed), 0, "RAC-574 named in no file outside its package");
   assert.equal(count({ ...changed, "apps/local-host/src/names-probe.ts": `export const probe = "${name}";\n` }), 1, "RAC-575 one hand-written file is counted");
   const extra = JSON.parse(manifests["apps/workbench/package.json"]!) as { dependencies: Record<string, string> };
-  delete extra.dependencies["@molis-ai/molis-work-plugin-text-stats"];
+  delete extra.dependencies["@molis-ai/molis-work-plugin-diff"];
   assert.equal(count({ ...changed, "apps/workbench/package.json": `${JSON.stringify(extra, null, 2)}\n` }), 1,
     "RAC-575 a manifest that is no longer exactly the generated imports is counted");
 });
@@ -378,7 +376,7 @@ test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another 
     }
     symlinkSync(path.join(root, "node_modules"), path.join(repository, "node_modules"));
     assert.equal(existsSync(path.join(repository, sentinel)), false, "untracked nested worktrees are not copied");
-    const sample = "plugins/native/text-stats/package.json", original = readReal(sample)!;
+    const sample = "plugins/native/diff/package.json", original = readReal(sample)!;
     const check = (block: Record<string, unknown>) => {
       const json = JSON.parse(original) as { "molis-work": Record<string, unknown> };
       writeFileSync(path.join(repository, sample), `${JSON.stringify({ ...json, "molis-work": { ...json["molis-work"], ...block } }, null, 2)}\n`);
@@ -391,7 +389,7 @@ test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another 
     const foundation = check({ kind: "foundation" });
     assert.equal(foundation.status, 1, foundation.stdout + foundation.stderr);
     assert.deepEqual(JSON.parse(foundation.stdout).errors, [
-      "[workspace-inventory] plugins/native/text-stats: molis-work block may only declare maturity/capabilities/registration/extraWorkspaceDependencies/extraDependencies; it declares kind",
+      "[workspace-inventory] plugins/native/diff: molis-work block may only declare maturity/capabilities/registration/extraWorkspaceDependencies/extraDependencies; it declares kind",
     ]);
     t.diagnostic(`kind mutation: exit ${foundation.status}, ${JSON.stringify(JSON.parse(foundation.stdout).errors)}`);
     const contractOnly = check({ maturity: "contract-only" });
@@ -401,11 +399,11 @@ test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another 
     const maturityProblems = JSON.parse(contractOnly.stdout).errors as string[];
     assert.deepEqual(
       maturityProblems.filter((message) => message.includes("package maturity must be one of")),
-      ['[workspace-inventory] plugins/native/text-stats: package maturity must be one of production/experimental/slice, got "contract-only"'],
+      ['[workspace-inventory] plugins/native/diff: package maturity must be one of production/experimental/slice, got "contract-only"'],
     );
     assert.ok(maturityProblems.length > 1, "the package.json, source, README and SSOT checks all read the same block");
     assert.ok(
-      maturityProblems.every((message) => message.includes("plugins/native/text-stats")),
+      maturityProblems.every((message) => message.includes("plugins/native/diff")),
       `every consequence names the plugin: ${JSON.stringify(maturityProblems)}`,
     );
     t.diagnostic(`maturity mutation: exit ${contractOnly.status}, ${JSON.stringify(maturityProblems)}`);

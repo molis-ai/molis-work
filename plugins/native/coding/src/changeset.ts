@@ -38,16 +38,17 @@ export function codingChangedLines(before: string | null, after: string): { adde
 }
 
 /** What became of an approved write, from its receipt alone: applied only once the effect owner confirmed it. */
-const executionOf = (receipt: AgentReviewReceipt) => receipt.effect_uncertain || receipt.delivery_error ? "unknown" as const
+const executionOf = (receipt: AgentReviewReceipt) => receipt.effect_uncertain || receipt.delivery_error || receipt.decision_save_error ? "unknown" as const
   : receipt.effect_settled ? "applied" as const : receipt.effect_error ? "failed" as const
     : receipt.status === "approved" ? "unknown" as const : "not-applied" as const;
 
 type ReviewRow = { request: AgentReviewRequest; receipt: AgentReviewReceipt | null };
 
 /**
- * The round's change set: every text write it proposed, then each file a reviewed integration of this round's result removed
- * from the main workspace. A deletion is listed only when that integration was approved and its effect confirmed; a delete
- * command, an unknown or failed outcome, or a file that is simply gone is no proof the round removed it, so none is listed.
+ * The round's change set: every text write it proposed, then each file a confirmed integration of this round's subtasks
+ * brought back to the main workspace (added, modified or deleted). An integration's files are listed only for a subtask
+ * (`subagent_id`), once approved and confirmed; a session worktree integration, a delete command, an unknown or failed
+ * outcome, or a file that is simply gone proves nothing for this round, so none is listed.
  */
 export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows: ReviewRow[]): CodingChangeSet {
   if (!["completed", "failed", "stopped", "cancelled"].includes(run.phase)) throw new Error("请等待这一轮结束或先核对中断结果，再固定变更");
@@ -69,7 +70,7 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
       // file, once the person approved and the Host confirmed the integration. Only a child's: the Host made its worktree for
       // this round. A worktree the session ran in may hold several rounds, and its integration brings all of them back, so it
       // names no single round (and that round's own writes are already its reviews).
-      if (document.source.subagent_id === undefined || receipt.status !== "approved" || execution !== "applied") return [];
+      if (!document.source.subagent_id || receipt.status !== "approved" || execution !== "applied") return [];
       return document.files.filter(file => file.before_text !== null || file.after_text !== null).map(file => {
         parseFilePath(file.path.split("/"));
         const kind = file.before_text === null ? "added" as const : file.after_text === null ? "deleted" as const : "modified" as const;
@@ -88,25 +89,33 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
       workspace_id: `${run.ref.session_id}:${run.ref.run_id}`, workspace_name: "本轮授权工作区" } });
 }
 
+/** A change's post-write state on disk: null when the change removed the file, otherwise its resulting text. */
+const afterState = (file: CodingFileChange): string | null => file.kind === "deleted" ? null : file.review.after_text;
+
 /**
  * A file's net change across one round's writes: the first write's original against the last write's result.
  *
  * Offered only when it is exactly what happened on disk — every write approved and applied, each starting from
- * the previous result. Anything else (a rejected or uncertain write, an edit in between) would make the
- * merged picture a guess, so the separate writes stay the only view.
+ * the previous result (a removal leaves no file, distinct from an empty file). Anything else (a rejected or
+ * uncertain write, an edit in between, or a file created and then removed in the same round) keeps the separate
+ * entries as the only view.
  */
 export function codingNetChange(change: CodingChangeSet, path: string):
   | { available: true; indices: number[]; before_text: string | null; after_text: string }
   | { available: false; indices: number[]; reason: string } {
   const indices = change.files.flatMap((file, index) => file.path === path ? [index] : []);
   if (indices.length < 2) return { available: false, indices, reason: "这个文件本轮只写入了一次" };
-  const reviews = indices.map(index => change.files[index]!.review);
-  if (reviews.some(review => review.decision !== "approved" || review.execution !== "applied"))
+  const entries = indices.map(index => change.files[index]!);
+  if (entries.some(({ review }) => review.decision !== "approved" || review.execution !== "applied"))
     return { available: false, indices, reason: "有写入未批准或执行结果不确定，只能逐次查看" };
-  for (let at = 1; at < reviews.length; at++) {
-    if (reviews[at]!.before_text !== reviews[at - 1]!.after_text) return { available: false, indices, reason: "两次写入之间文件被改过，只能逐次查看" };
+  for (let at = 1; at < entries.length; at++) {
+    if (entries[at]!.review.before_text !== afterState(entries[at - 1]!)) return { available: false, indices, reason: "两次写入之间文件被改过，只能逐次查看" };
   }
-  return { available: true, indices, before_text: reviews[0]!.before_text, after_text: reviews.at(-1)!.after_text };
+  const first = entries[0]!, last = entries.at(-1)!;
+  if (first.review.before_text === null && afterState(last) === null) {
+    return { available: false, indices, reason: "文件在本轮新建后又被删除，请逐次查看" };
+  }
+  return { available: true, indices, before_text: first.review.before_text, after_text: last.review.after_text };
 }
 
 /**

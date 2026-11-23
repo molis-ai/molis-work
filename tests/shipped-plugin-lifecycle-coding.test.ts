@@ -1,10 +1,10 @@
 // W6-02 rest (specs/archive/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1099–RAC-1103): the lifecycle walk of
 // tests/fixtures/shipped-lifecycle.ts, for the shipped plugins of the coding family that run on a project's supervisor and that no
-// project starts with: 编程 (Coding), Git, 对比 (Diff) and 字数 (Text Stats) (文件 (Files), RAC-1101, retired in batch 06: its reading
-// position is the platform materials service's now). The person adds each to the project;
+// project starts with: 编程 (Coding), Git and 对比 (Diff) (文件 (Files), RAC-1101, retired in batch 06: its reading
+// position is the platform materials service's now; 字数 (Text Stats), RAC-1103, retired as well). The person adds each to the project;
 // taking it out stops its installation in that project and adding it back runs it again. Coding keeps sessions; Git keeps
-// one choice the person made in a bound workspace (the change being looked at); Diff and Text Stats keep
-// nothing of their own, so what the walk follows is that their page keeps answering the same.
+// one choice the person made in a bound workspace (the change being looked at); Diff keeps
+// nothing of its own, so what the walk follows is that its page keeps answering the same.
 import { execFile } from "node:child_process";
 import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -47,16 +47,12 @@ const CODING: Record<string, Shipped> = {
       const { selected } = await web.get<{ selected: { path: readonly string[] } | null }>(`${routes}/state`);
       return selected ? [selected.path.join("/")] : [];
     } },
-  // Stateless: no other plugin of the project embeds them, and the permission they need is the one that reads the project's results.
+  // Stateless: no other plugin of the project embeds it, and the permission it needs is the one that reads the project's results.
   diff: { key: "diff", plugin_id: "io.molis.work.diff", scope: "project", joins: true, stops_when_removed: true, revoke: "artifact:read", kept: ["waiting"],
     write: async () => undefined, titles: phase },
-  // Text Stats reads its snapshot from the platform materials service, and no plugin embeds it: it is taken out and added back on its own.
-  "text-stats": { key: "text-stats", plugin_id: "io.molis.work.text-stats", scope: "project", joins: true, stops_when_removed: true,
-    revoke: "artifact:read", kept: ["waiting"], write: async () => undefined, titles: phase },
 };
 
 const walked = "added, removed and added back in a project, revoked, upgraded and uninstalled";
 test(`RAC-1099 W6-02 编程 (Coding) on a project's supervisor: ${walked}`, { timeout: 180_000 }, () => walk(CODING.coding!));
 test(`RAC-1100 W6-02 Git on a project's supervisor, with the change it was asked to show: ${walked}`, { timeout: 180_000 }, () => walk(CODING.git!));
 test(`RAC-1102 W6-02 对比 (Diff) on a project's supervisor: ${walked}`, { timeout: 180_000 }, () => walk(CODING.diff!));
-test(`RAC-1103 W6-02 字数 (Text Stats) on a project's supervisor: ${walked}`, { timeout: 180_000 }, () => walk(CODING["text-stats"]!));

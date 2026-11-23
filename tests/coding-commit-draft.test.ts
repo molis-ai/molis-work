@@ -12,16 +12,18 @@ import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-i
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (task: string, answer: string) => ({ turns: [{ turn_id: "u", kind: "user", text: task, at: null }, { turn_id: "a", kind: "assistant", text: answer, at: null }] }) as unknown as AgentRunView;
-const change = (path: string, before: string | null, after: string, execution = "applied") => ({ files: [{ path, kind: before === null ? "added" : "modified", added_lines: 1, removed_lines: before === null ? 0 : 1, diff: "",
+const change = (path: string, before: string | null, after: string, execution = "applied", kind?: "added" | "modified" | "deleted") => ({ files: [{ path, kind: kind ?? (before === null ? "added" : "modified"), added_lines: kind === "deleted" ? 0 : 1, removed_lines: before === null ? 0 : 1, diff: "",
   review: { review_id: "r", before_text: before, after_text: after, decision: "approved", execution } }] }) as never;
 
 test("提交说明的材料：计划标题、每轮的要求与结论、实际落盘的改动；没落盘的不算；太长时先舍最早的轮次", () => {
   const material = commitDraftMaterial({ planTitle: "让 @ 引用支持无扩展名文件", rounds: [
     { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\nfilter(/[./]/)\nc\n", "a\nfilter(none)\nc\n") },
+    { number: 5, run: run("删掉旧配置", "删除 legacy.cfg"), change: change("legacy.cfg", "old=1\n", "", "applied", "deleted") },
     { number: 9, run: run("只提到裸名字又读不到时不要留空标题", "加了 parts 为空时原样返回"), change: change("src/rejected.ts", "x\n", "y\n", "not-applied") },
   ] });
   assert.match(material, /^Plan: 让 @ 引用支持无扩展名文件\n\n### Round 4\nRequest: 按计划执行\nConclusion: 改了 mentionedPaths/);
   assert.match(material, /#### src\/mentions\.ts \(modified, \+1 −1\)\n.*- filter\(\/\[\.\/\]\/\)\n\+ filter\(none\)/s);
+  assert.match(material, /#### legacy\.cfg \(deleted, \+0 −1\)\n- old/);
   assert.doesNotMatch(material, /rejected\.ts/, "a write that never landed is not described as a change");
   const long = commitDraftMaterial({ rounds: Array.from({ length: 20 }, (_, index) => index + 1).map(number => ({ number, run: run("第 " + number + " 轮的要求", "x"), change: change("f" + number + ".ts", null, "y\n".repeat(20_000)) })) });
   assert.ok(long.length <= 58_100);

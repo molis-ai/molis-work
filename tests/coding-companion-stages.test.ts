@@ -18,12 +18,12 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { CODING_COMPANION_DIRECTORY_SLOT, CODING_COMPANION_RESULT_SLOT, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 
-// PG-036 C9: Coding's page and the stages of the plugins it embeds (Files, Git, Diff, Text Stats) are drawn by the plugins' own
+// PG-036 C9: Coding's page and the stages of the plugins it embeds (Git, Diff) are drawn by the plugins' own
 // contributions through the Host's generic stage channel; the Host has no file of its own that knows Coding (coding-surface.ts is gone).
 
 type State = Awaited<ReturnType<typeof ensureProjectPlugins>>;
 const repoRoot = process.cwd();
-const SHOWN = ["coding", "git", "diff", "text-stats"];
+const SHOWN = ["coding", "git", "diff"];
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 /** The page's primitives with `text` answering the key itself, so the markup says which stable key each place uses. */
 const model = (shown: readonly string[] = SHOWN) => () => ({ route_prefix: "/p", shown_plugins: shown, primitives: { escape, text: (key: string) => key } });
@@ -76,7 +76,7 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
   await withProject(async (store, state) => {
     const { html, surfaces, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
     assert.deepEqual(unavailable, []);
-    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 4, "one stage for each of the four plugins");
+    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 3, "one stage for each of the three plugins");
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
     assert.match(coding, /data-coding-directory/);
@@ -87,7 +87,7 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
     assert.doesNotMatch(coding, /data-files-browser|data-files-results/, "Files no longer fills a place in Coding's page");
     assert.ok(at("data-coding-directory") < at("data-coding-files-face") && at("data-coding-files-face") < at("data-git-browser"), "the files face, then Git's changes under it, in the page's directory");
     assert.ok(at("data-git-browser") < at("data-coding-results-index") && at("data-coding-results-index") < at("data-git-results"), "the directories are in the page's directory, the readers after the results index");
-    // Diff and Text Stats declare no surface for the two slots: they add nothing to Coding's page.
+    // Diff declares no surface for the two slots: they add nothing to Coding's page.
     assert.doesNotMatch(coding, /data-companion=/);
   });
 });
@@ -95,7 +95,7 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
 test("RAC-434 each companion's own stage keeps the markup the Coding client fills, built from stable keys of the plugin's own words", async () => {
   await withProject(async (store, state) => {
     const { html } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
-    for (const [surface, label] of Object.entries({ git: "查看工作区的改动", diff: "打开资料", "text-stats": "打开资料" })) {
+    for (const [surface, label] of Object.entries({ git: "查看工作区的改动", diff: "打开资料" })) {
       const stage = stageOf(html, surface);
       assert.match(stage, new RegExp(`data-coding-companion="workbench"[^>]*data-companion="${surface}"`), `${surface} keeps its companion hooks`);
       assert.match(stage, /hidden/, `${surface} starts hidden until the client shows it`);
@@ -104,13 +104,11 @@ test("RAC-434 each companion's own stage keeps the markup the Coding client fill
     }
     const git = stageOf(html, "git");
     assert.match(git, /data-git-browser/); assert.match(git, /data-git-results/);
-    // A list companion reaches the files it compares or counts through the platform's 资料, which every project page has, so the
+    // A list companion reaches the files it compares through the platform's 资料, which every project page has, so the
     // way is the same whichever plugins the project shows (Files, the plugin it used to name, retired in batch 06).
     assert.match(stageOf(html, "diff"), /data-companion-open="materials"/);
-    assert.match(stageOf(html, "text-stats"), /data-companion-open="materials"/);
-    const without = renderProjectRuntimeStages(state, store, { shown: ["coding", "diff", "text-stats"], drawn: [], model: model(["coding", "diff", "text-stats"]) }).html;
+    const without = renderProjectRuntimeStages(state, store, { shown: ["coding", "diff"], drawn: [], model: model(["coding", "diff"]) }).html;
     assert.match(stageOf(without, "diff"), /data-companion-open="materials"/);
-    assert.match(stageOf(without, "text-stats"), /data-companion-open="materials"/);
     assert.equal(stageOf(without, "git"), "", "a plugin the project does not show draws no stage");
   });
 });
@@ -158,7 +156,7 @@ test("RAC-437 a companion whose page is not there gets the unavailable shell wit
 // RAC-438 / B27G-08: who in the Host reaches Coding or a companion. Each module specifier of each file (static and type
 // imports, re-exports, and literal import() or require() anywhere in the file) that names one of those packages, any subpath, or a
 // relative path into its directory; the one allowed edge is the generated registry to the package's own ./registration.
-const CODING_PACKAGES = ["coding", "git", "diff", "text-stats", "files"] as const;
+const CODING_PACKAGES = ["coding", "git", "diff", "files"] as const;
 const REGISTRY = "plugin-registry.generated.ts";
 function hostSources(dir: string): Array<[string, string]> {
   return (readdirSync(dir, { recursive: true }) as string[]).filter(file => /\.(?:ts|mts)$/.test(file))
@@ -187,7 +185,7 @@ test("B27G-08 a companion reached from any Host subdirectory, by any import form
   assert.deepEqual(caught('import type { GitState } from "@molis-ai/molis-work-plugin-git";\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-git"]);
   assert.deepEqual(caught('export { diffLines } from "@molis-ai/molis-work-plugin-diff/contract";\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-diff/contract"]);
   assert.deepEqual(caught('export async function later() { return import("@molis-ai/molis-work-plugin-files"); }\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-files"]);
-  assert.deepEqual(caught('const stats = () => require("@molis-ai/molis-work-plugin-text-stats/registration");\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-text-stats/registration"]);
+  assert.deepEqual(caught('const diff = () => require("@molis-ai/molis-work-plugin-diff/registration");\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-diff/registration"]);
   assert.deepEqual(caught('import { x } from "../../../../../plugins/native/git/src/index.js";\n', "a/b/leak.ts"), ["a/b/leak.ts:1 ../../../../../plugins/native/git/src/index.js"]);
   assert.deepEqual(caught('import { registration } from "@molis-ai/molis-work-plugin-git/registration";\n', "deep/registry-copy.ts"), ["deep/registry-copy.ts:1 @molis-ai/molis-work-plugin-git/registration"], "only the generated registry has the allowed edge");
   assert.deepEqual(caught('const text = "import(\\"@molis-ai/molis-work-plugin-git\\")"; // @molis-ai/molis-work-plugin-diff\n'), [], "a string or a comment is not an import");
@@ -210,7 +208,7 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   assert.match(readFileSync(join(dir, "native-plugin-release-artifact.ts"), "utf8"), /function registeredNativePlugin[\s\S]+const definition = entry\.create\(\)/u);
   // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
   // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).
-  assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-(?!runtime"|sdk["/])|["'`](coding|files|git|diff|text-stats)["'`]/);
+  assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-(?!runtime"|sdk["/])|["'`](coding|files|git|diff)["'`]/);
 });
 
 test("RAC-439 BL-521 the Host has no route hook that reads Files for a consumer of its outputs: a change of the workspace settings reaches Files as an event", () => {

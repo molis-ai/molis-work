@@ -15,12 +15,6 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + FIRST_PAGE_STYLES 
   .immersive-plugin-stage > .immersive-home, .tab-pane-body > .immersive-home { padding: 0; min-block-size: 0; block-size: 100%; overflow: hidden; display: flex; flex-direction: column; position: relative; }
   /* The first page: one column to read and a margin of sources (the parts and their styles are the SDK's, FIRST_PAGE_STYLES). */
   .immersive-home .home-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 34px clamp(16px, 4vw, 40px) 48px; }
-  /* A plugin's page as the first page: it takes the whole surface and the platform's own is put away. */
-  .immersive-home[data-home-leading] .home-scroll { display: none; }
-  /* The adopted surface positions itself against its holder: this box is that holder. */
-  .immersive-home .home-lead { position: relative; flex: 1; min-block-size: 0; display: flex; flex-direction: column; }
-  .immersive-home .home-lead[hidden] { display: none; }
-  .immersive-home .home-lead > * { flex: 1; min-block-size: 0; inline-size: 100%; }
   /* The margin's holder is not a box of its own: what the view writes into it stands on the page's grid. */
   .immersive-home .home-margin { display: contents; }
   .home-read-state { margin: 0; color: var(--muted); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); min-block-size: 0; }

@@ -143,3 +143,70 @@ test("PG062-09: the Host no longer draws Coding's change reader or integration p
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }
 });
+
+test("DEL-06: multi-step net change handles delete-then-recreate as modified and refuses create-then-delete contradiction", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coding-change-html-del-")), path = join(root, "board.db");
+  await seedConfiguredModels(root); seedDemoBoard(path);
+  const store = new LocalProjectDatabase(path), sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "app", runtime_id: "prologue", at: "2026-11-22T00:00:00Z" });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", "2026-11-22T00:00:00Z");
+  const ref = { session_id: "sdk", run_id: "r" }, owner = { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: CODING, install_id: "install" };
+  const ok = (id: string) => ({ review_id: id, status: "approved", effect_settled: true, effect_error: null });
+  const integrate = (id: string, subagent_id: string, files: Array<{ path: string; before_text: string | null; after_text: string | null }>) => ({
+    request: { reference: { owner, id, version: "proposal-1" }, review_id: id, project_id: DEMO_PROJECT_ID, plugin_id: CODING, run: null,
+      operation: { operation_id: `op-${id}`, workspace_id: "work", kind: "git-integration" }, kind: "git-integration",
+      document: { kind: "git-integration", target_directory: "/work", source: { ...ref, subagent_id, branch: "writer/x", base_commit: "abc", directory: "/work-x" },
+        files: files.map(file => ({ ...file, before_mode: file.before_text === null ? null : "100644", after_mode: file.after_text === null ? null : "100644" })) } },
+    receipt: ok(id),
+  });
+  const rows = [
+    // 0: deleted then 1: recreated -> net is modified (never marked deleted or +++ /dev/null).
+    integrate("del-1", "w1", [{ path: "reborn.ts", before_text: "old\n", after_text: null }]),
+    integrate("add-1", "w2", [{ path: "reborn.ts", before_text: null, after_text: "new\n" }]),
+    // 2: created then 3: deleted -> net refused so created+removed never both show.
+    integrate("add-2", "w3", [{ path: "ephemeral.ts", before_text: null, after_text: "temp\n" }]),
+    integrate("del-2", "w4", [{ path: "ephemeral.ts", before_text: "temp\n", after_text: null }]),
+    // 4: modified then 5: deleted -> net is deleted from original before_text.
+    integrate("mod-3", "w5", [{ path: "gone.ts", before_text: "v0\n", after_text: "v1\n" }]),
+    integrate("del-3", "w6", [{ path: "gone.ts", before_text: "v1\n", after_text: null }]),
+  ];
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", escapeHtml: String, translate: (value: string) => value,
+    agentHost: { async invoke<O>(definition: { capability_id: string }): Promise<O> {
+      const id = definition.capability_id;
+      if (id === agent.readSession.capability_id) return { runs: [ref] } as O;
+      if (id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
+      if (id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
+      throw new Error(`Unexpected capability ${id}`);
+    } } });
+  const server = createServer((request, response) => {
+    void runWithLocale("zh", () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()))).catch(error => {
+      response.writeHead(500); response.end(String(error));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const read = async (query: string): Promise<ChangeBody> => {
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/${CODING}/sessions/app/runs/r/changeset?${query}`);
+    const body = await response.json() as ChangeBody; assert.equal(response.status, 200, JSON.stringify(body)); return body;
+  };
+  try {
+    const reborn = await read("change_index=0&net=1");
+    assert.equal(reborn.view_mode, "net");
+    assert.doesNotMatch(reborn.html, /这个文件被删除了|这个文件是新建的/);
+    assert.equal(reborn.patch, "--- a/reborn.ts\n+++ b/reborn.ts\n@@ -1 +1 @@\n-old\n+new\n");
+
+    const ephemeral = await read("change_index=3&net=1");
+    assert.equal(ephemeral.view_mode, "write");
+    assert.match(ephemeral.html, /这个文件被删除了/);
+    assert.doesNotMatch(ephemeral.html, /这个文件是新建的/);
+
+    const gone = await read("change_index=5&net=1");
+    assert.equal(gone.view_mode, "net");
+    assert.match(gone.html, /这个文件被删除了/);
+    assert.doesNotMatch(gone.html, /这个文件是新建的/);
+    assert.equal(gone.patch, "--- a/gone.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-v0\n");
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true });
+  }
+});

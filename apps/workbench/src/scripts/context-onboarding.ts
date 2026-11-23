@@ -407,8 +407,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const model = view(), moved = lastView !== null && model.view !== lastView, index = stepIndex(model.step), wasOpening = lastView === 'opening';
     frame.dataset.screen = model.kind;
     if (model.view === 'opening' && wasOpening) { paintBar(model.bar, false); return; }
-    // A welcome question on screen is not drawn again (start-up can end after it was answered): redrawing would take the person's place and focus.
-    if (model.kind === 'welcome' && model.view === lastView && !focus && !part) { paintBar(model.bar, false); return; }
+    // Language changes translate the welcome question and its bar in place. A late paint of this step keeps those nodes.
+    if (model.kind === 'welcome' && model.view === lastView) return;
     const forward = index >= lastIndex;
     const paint = () => {
       if (token !== paintGeneration) return;

@@ -11,6 +11,7 @@ import {
 } from "./page-assets.js";
 import type { MolisWorkWebView } from "./page-view.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
+import { renderServiceUnavailablePage } from "./arrival/shell.js";
 import { createWorkbenchProjectSettingsPages, type ProjectSettingsPagePorts } from "./project-settings-pages.js";
 import { controlTokenMeta, createRendererHelpers, type RendererLocale } from "./renderer-helpers.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -82,6 +83,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     declaredStageFragment: stages.declaredStageFragment,
     declaredPageSurface: stages.declaredPageSurface,
     renderMolisWorkOnboarding,
+    renderServiceUnavailablePage: (desktopShell: boolean): string => renderServiceUnavailablePage(htmlLang(), desktopShell),
     renderMolisWorkProjectSettingsHub,
     renderMolisWorkProjectGeneralSettings,
     renderMolisWorkProjectSettings,

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -99,6 +101,58 @@ test("the chooser opens on the project last opened, shows its brief, and Enter g
   const remembered = JSON.parse(readFileSync(join(homeDirectory, PROJECT_ARRIVAL_RELATIVE_PATH), "utf8")) as { last_project_id: string; projects: Record<string, { last_opened_at: string }> };
   assert.equal(remembered.last_project_id, projectId);
   assert.ok(Date.now() - Date.parse(remembered.projects[projectId]!.last_opened_at) < 60_000, "stamped just now");
+});
+
+test("OPENFIX-02 a workbench page that gets 503 explains the failure and can be retried", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "user");
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, setViewport, origin, projectId } = browser;
+  const read = MolisWorkProjectCatalog.prototype.getProject;
+  let unavailable = true;
+  const diagnostic = "synthetic catalog failure at /tmp/private-home/catalog.sqlite";
+  t.mock.method(MolisWorkProjectCatalog.prototype, "getProject", function (this: MolisWorkProjectCatalog, id: string) {
+    if (unavailable && id === projectId) throw new ActionError("actions.service_unavailable", diagnostic);
+    return read.call(this, id);
+  });
+
+  const api = await fetch(`${origin}/projects/${projectId}/api/goals`);
+  assert.equal(api.status, 503);
+  assert.match(api.headers.get("content-type") ?? "", /^application\/json/u);
+  assert.equal((await api.json() as { code: string }).code, "actions.service_unavailable");
+
+  const url = `${origin}/projects/${projectId}/?desktop=1`;
+  const documents: Array<{ status: number; mimeType: string }> = [];
+  await command("Network.enable", {}, sessionId);
+  t.after(browser.on("Network.responseReceived", ({ type, response }) => {
+    const result = response as { url: string; status: number; mimeType: string };
+    if (type === "Document" && result.url === url) documents.push({ status: result.status, mimeType: result.mimeType });
+  }));
+  const words = {
+    zh: ["本机服务暂时不可用", "稍等片刻后重试。如果还是打不开，请重新打开 Molis Work。", "重试"],
+    en: ["The local service is temporarily unavailable", "Wait a moment and try again. If the page still won’t open, reopen Molis Work.", "Retry"],
+  };
+  for (const [lang, width, scheme] of [["zh", 1440, "light"], ["en", 680, "light"], ["en", 390, "dark"]] as const) {
+    const [heading, guidance, retry] = words[lang];
+    await setViewport(width, 900, width < 600);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
+    await command("Network.setCookie", { name: "molis_work_locale", value: lang, url: origin }, sessionId);
+    await navigate(() => command("Page.navigate", { url }, sessionId));
+    assert.deepEqual(documents.at(-1), { status: 503, mimeType: "text/html" });
+    assert.equal(await evaluate("document.documentElement.lang"), lang === "zh" ? "zh-CN" : "en");
+    assert.equal(await evaluate("document.querySelector('main h2')?.innerText"), heading);
+    assert.equal(await evaluate("document.querySelector('main p')?.innerText"), guidance);
+    assert.equal(await evaluate("document.querySelector('main a[href]')?.innerText"), retry);
+    assert.equal(await evaluate("[...document.querySelectorAll('main h2, main p, main a[href]')].every(node => node.checkVisibility())"), true);
+    assert.doesNotMatch(await evaluate<string>("document.documentElement.outerHTML"), /actions\.service_unavailable|synthetic catalog failure|catalog\.sqlite/u);
+    if (width < 600) assert.ok(await evaluate<number>("document.querySelector('main a[href]').getBoundingClientRect().height") >= 44);
+    await assertLayoutClean(evaluate, `workbench 503 (${lang}, ${width}px, ${scheme})`);
+  }
+
+  unavailable = false;
+  await navigate(() => browser.click("main a[href]"));
+  await waitFor(`document.body.dataset.projectId === ${JSON.stringify(projectId)}`);
+  assert.equal(await evaluate("location.href"), url);
+  assert.equal(documents.at(-1)?.status, 200);
 });
 
 test("FSS-36 the project chooser opens sign-in methods in its own language", { timeout: 60_000 }, async t => {

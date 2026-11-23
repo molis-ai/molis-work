@@ -85,6 +85,8 @@
 | BL-feed-wake-resets-page、BL-assistant-card-press-scrolls | 已修复并删除 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入，Feed FBR-07/FSS-35 与助理 AC-05 在[最终 Linux 全量](https://github.com/molis-ai/molis-work/actions/runs/43467505571)首轮通过 |
 | BL-skill-hand-and-tools-consumers | 已关闭并删除 | 第 41 批：`find-skills`／`read-skill` 没有消费者，从 Molis 工具目录删掉，原因记在 `RUNTIME_TOOLS_NOT_OFFERED`；见 [Skill 策略 §10](../specs/prologue-strategies/skill.md) |
 | BL-coding-skill-auto | 已完成并删除 | 2026-11-11 第 09 批审计整改补做，见 [specs/README](../specs/README.md) 与 [第 09 批](../specs/post-anticorruption-roadmap/reference/batches/09.md) |
+| BL-onboarding-language-node-retention | 已完成并删除 | 2026-11-23 完成。FSS-37 的欢迎区保留由 [#2123](https://github.com/molis-ai/molis-work/pull/2123) 先行恢复，这次补齐晚到重绘时的「继续」节点保留和问候语言。整份引导回归 16/16，见 [OPENFIX-01](../specs/onboarding-language-503/spec.md#验收) |
+| BL-blank-503-notice | 已完成并删除 | 2026-11-23 完成。工作台项目页遇到本机服务 503 时展示双语原因和重试，服务恢复后可回到原地址。见 [OPENFIX-02](../specs/onboarding-language-503/spec.md#验收) |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。
 

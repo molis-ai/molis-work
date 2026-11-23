@@ -145,7 +145,7 @@ export const ARRIVAL_STYLES = String.raw`
   .welcome-scene { display: grid; place-items: center; min-width: 0; }
   .ob-greeting { text-align: center; }
   .ob-greeting strong { display: block; font-size: 72px; font-weight: var(--weight-control, 500); letter-spacing: -.035em; line-height: 1.3; }
-  .ob-greeting strong[lang="zh"] { font-size: 66px; }
+  .ob-greeting strong:lang(zh) { font-size: 66px; }
   .ob-greeting span { display: block; margin-top: 16px; color: var(--muted); font-size: 12px; letter-spacing: .03em; }
   .ob-mini { width: min(340px, 100%); padding: 12px 12px 0; border-radius: 14px; background: var(--desk); box-shadow: var(--lift-1); }
   .ob-mini-surface { padding: 16px 16px 4px; border-radius: 10px; background: var(--paper); box-shadow: var(--sheet-shadow); }

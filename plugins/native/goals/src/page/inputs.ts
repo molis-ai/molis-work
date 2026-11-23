@@ -68,7 +68,7 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderR
   const rows = [...live, ...fixed].join("");
   // The button carries the declared title; the placement client names a new object and its card from it, so no table by plugin lives there.
   const create = creatable.map(({ station, title, label }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-placement-target-kind="goal" data-placement-target-id="${goalId}" data-goal-id="${goalId}">${escapeHtml(label ?? title)}</button>`).join("");
-  return `<section class="placement-linked-materials" data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${uiText("goals.inputs.inputs")}</h3>
+  return `<section class="placement-linked-materials" data-placement-linked-materials data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${uiText("goals.inputs.inputs")}</h3>
     <div class="placement-linked-create"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-goal-input-add data-goal-id="${goalId}">${uiText("goals.inputs.add-input")}</button><span>${uiText("goals.inputs.create-goal")}</span>${create}</div>
     ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${uiText("goals.inputs.no-inputs-yet")}</p>`}
     <p class="placement-linked-hint">${uiText("goals.inputs.follow-original-goal-sees-now-fix-version-goal")}</p></section>`;

@@ -86,3 +86,14 @@ test("PEQ-03 Continuity server and app-server carry no hardcoded Goals plugin ID
   const found = serverSources.filter(path => /io\.molis\.work\.goals|["']goals\.|project_goals/u.test(text(path)));
   assert.deepEqual(found, [], `Continuity hardcodes Goals again: ${where(found)}`);
 });
+
+test("MR21-07 PEQ-08 frame assets and Goals frame canvas carry no hardcoded Feed/Inbox branches or /api/stage/feed/objects/ URL", () => {
+  const frameFiles = [
+    join(ROOT, "apps", "workbench", "src", "browser", "plugin-frame", "frame-assets.ts"),
+    join(ROOT, "plugins", "native", "goals", "src", "page", "frame-stage.ts"),
+    join(ROOT, "plugins", "native", "goals", "src", "browser", "frame-blocks.ts"),
+    join(ROOT, "plugins", "native", "goals", "src", "browser", "frame-container.ts"),
+  ];
+  const found = frameFiles.filter(path => /["'](?:feed|inbox)["']|\/api\/stage\/feed\/objects\/|data-(?:feed|inbox)-/u.test(text(path)));
+  assert.deepEqual(found, [], `Frame asset projection or Goals frame canvas hardcodes Feed/Inbox again: ${where(found)}`);
+});

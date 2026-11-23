@@ -326,6 +326,7 @@ export function goalsPageClient(host: PageHost) {
     locateGraphNode: (id) => momentum.locateGraphNode(id),
     getProjectId: () => projectId,
     route,
+    pluginTitle: (surface) => tabs()?.pluginTitle?.(surface),
     openGoalTab: (id) => tabs()?.openItem("goals", id, undefined, "frame"),
     openGoalWork: (paneId) => tabs()?.setItemView("goals", "work", paneId),
     activateGoalsMother: () => {

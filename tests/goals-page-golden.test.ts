@@ -353,6 +353,11 @@ const pages: Record<string, Draw> = {
 // page client reads the project title from the page. Drawn independently from that main, the 16 `page-*` records differ only by
 // ` data-project-title="Golden project"` on <body> (+36), ` data-directory-pane` on the tree pane (+20), ` data-surface-stage` on each
 // stage (+19 each) and ` data-surface-host` on the canvas shell (+18): +75 on archive/trash, +131 on current. The other 36 records are unchanged.
+// Batch 44 audit cleanup (PEQ-08 / BL-b44-shared-styles-plugin-names / MR21-07, on main 5bfd52b87b): (1) platform-neutral classes and
+// attributes (`mw-object-status`, `mw-tree`, `data-craft-land`, `data-craft-focal`, `data-placement-linked-materials`) replace plugin-named
+// shared selectors across Goals tree, canvas, kanban, and event document; (2) dead `data-immersive-goal-tools` buttons removed from
+// `immersive-shell.ts`; (3) hardcoded Feed/Inbox/Session/Artifact `<option>` elements removed from `frame-stage.ts` (populated dynamically
+// in `frame-container.ts`). All 12 `settings-*` and 2 `document-missing` records stayed byte-identical.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

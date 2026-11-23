@@ -1,3 +1,4 @@
+import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -151,6 +152,31 @@ export async function controlPackageInProject(source: ProjectPluginHost, project
     await installed.lifecycle(action, release, {});
     await installed.refreshPublicActions();
     return controlOutcome(read()?.state ?? "uninstalled");
+  });
+}
+
+/** Restore the current release in the scope named by the protected action context. */
+export async function repairInstalledPackage(source: ProjectPluginHost, input: InstalledPackageRepair, caller: ActionExecutionContext) {
+  const check = () => {
+    caller.signal?.throwIfAborted();
+    requireSynchronous(caller.assert_authority_current?.());
+  };
+  if (input.expected_installation.scope === "home") {
+    const home = source.homePlugins();
+    if (!home) throw new ActionError("actions.scope_mismatch", "这个宿主没有个人空间");
+    const repaired = await home.repairPackage(input, caller);
+    if (home.dualInstance(input.plugin_id)) await reconcileOpenDualProjectHalves(source, input.plugin_id, "enable");
+    return repaired;
+  }
+  const reference = source.host.projects().find(row => row.project_id === caller.project_id);
+  if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  return source.host.withRuntime(reference, async runtime => {
+    const installed = await installedPluginsOf(source, reference, runtime);
+    await caller.beforeEffect();
+    return installed.recovery.repair(input, () => {
+      check();
+      if (!projectScopeOpen(source, reference.project_id)) throw new ActionError("actions.host_closed", "项目运行环境已关闭");
+    });
   });
 }
 

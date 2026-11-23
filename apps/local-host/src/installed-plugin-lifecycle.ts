@@ -182,7 +182,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
       await platform.start([entry], { assertCurrent });
       assertCurrent();
       const state = platform.supervisor.state(pluginId)?.code === 'plugin.revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
-      if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
+      if (state?.status !== 'running') throw new ActionError('actions.execution_failed', '安装没有完成：' + (state?.message ?? '插件未能启动'), { details: { install_phase: 'start' } });
       assertCurrent();
       startedGeneration = platform.supervisor.generation(pluginId);
       // Exposure leaves cleanup to the install owner, as it does for a version switch.

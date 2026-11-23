@@ -79,12 +79,15 @@ test("SMP-05 SMP-20 S-state-machine-lifecycle-steps a lifecycle step the platfor
 });
 
 test("SMP-06 S-state-machine-redemption a built-in plugin whose code runs other machines than its Manifest declares does not start; the others do", async () => {
-  const id = "io.molis.work.redeem-probe", other = "io.molis.work.redeem-other", declared = machineOf(id);
+  const id = "io.molis.work.redeem-probe", other = "io.molis.work.redeem-other";
+  const declared = { ...machineOf(id, { open: "idle", closed: "done", archived: "archived" }), terminal: ["closed", "archived"] };
   const wrong: Array<[string, (() => unknown) | undefined]> = [
     ["a different family", () => [{ ...declared, states: { open: "running", closed: "done" } }]],
     ["a different version", () => [{ ...declared, version: 2 }]],
     ["an extra state", () => [{ ...declared, states: { ...declared.states, lost: "failed" } }]],
     ["a different terminal state", () => [{ ...declared, terminal: [] }]],
+    // B47-F5: equal length and membership alone would let this silently omit the second terminal.
+    ["a repeated terminal state", () => [{ ...declared, terminal: ["closed", "closed"] }]],
     ["an undeclared machine", () => [declared, { ...declared, machine_id: id + ".extra" }]],
     ["the same machine twice", () => [declared, declared]],
     ["not a list", () => ({ [declared.machine_id]: declared })],

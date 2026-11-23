@@ -106,7 +106,7 @@ const refused = () => new ActionError("actions.forbidden", "插件页面权限�
 /** How long a page keeps its authority after its last request ended. */
 const PAGE_IDLE_MS = 30 * 60_000;
 /** B12: the page stayed open with nothing in flight for too long. Says what to do; the page keeps what the person typed. */
-const lapsedPage = () => new ActionError("actions.forbidden", "这个页面太久没有操作，授权已过期。请刷新页面后继续，已输入的内容仍在。");
+const lapsedPage = () => new ActionError("actions.forbidden", "这个页面太久没有操作，授权已过期。请刷新页面后继续，已输入的内容仍在。", { details: { page_expired: true } });
 /**
  * A page is idle only while none of its own requests is in flight: one that still holds its event stream open has not been left
  * (B12, a long build with nothing but its progress stream). Idle time counts from the end of its last request.
@@ -422,6 +422,13 @@ export function pluginPageRequest(request: IncomingMessage) {
   return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
     async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
+    /** The signed activation routing uses, even when a Home page is drawn inside a project. */
+    installedRoute() {
+      authority.check();
+      const { activation } = authority.page;
+      if (!activation.release) return undefined;
+      return { projectId: activation.project_id, release: activation.release };
+    },
     surfaceSlot() {
       authority.check();
       const { page, pageCurrent } = authority, source = page.selection?.surfaceSlotSource;

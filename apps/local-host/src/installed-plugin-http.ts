@@ -5,10 +5,10 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { installedPageSelection, pluginPageRequest } from "./plugin-page-authority.js";
-import { installedStageSurface } from './installed-stage-section.js';
+import { installedRepairStage, installedStageSurface } from './installed-stage-section.js';
 import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, installedStageSection, renderInstalledPluginBody, renderPluginDocumentShell,
   type PluginDirectoryEntry, type UnavailablePluginStage } from './workbench-renderer.js';
-import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation } from './installed-stage-identity.js';
+import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation, sameInstalledRelease } from './installed-stage-identity.js';
 import { captureWebSessionAuthority, shellPageRead } from './web-sessions.js';
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from './web-http.js';
 import { htmlLang } from "./web-locale.js";
@@ -42,6 +42,9 @@ export async function installedPluginStages(options: InstalledPluginHttpOptions)
   const home = options.homeDirectory;
   const installed = await ensureInstalledPlugins({ ...options, homeDirectory: home }), prefix = options.routePrefix ?? '';
   return installed.records().flatMap((item): InstalledPluginStage[] => {
+    const damaged = installed.recovery.damaged(item);
+    const repair = damaged && installedRepairStage(damaged, "project", prefix);
+    if (repair) return [{ pluginId: item.plugin_id, surface: repair.unavailable.surface, label: repair.directory.name, ...repair }];
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
     const surface = installedStageSurface(release), words = installedPluginWords(release), label = words.name;
@@ -137,12 +140,22 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     if (expected) assertStageInstallation("project", record, expected);
     if (!record) return false;
     if (installedCall && method === 'POST') {
+      const bound = pageAuthority?.installedRoute();
+      if (bound && (bound.projectId !== options.projectId || !sameInstalledRelease(bound.release, record)))
+        throw new ActionError("actions.provider_changed", "原页面安装已变化，请重新打开");
       const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
       if (!result) return refuse(409, "workbench.installed-plugin.not-running");
       sendLocalWebJson(response, result.status, result.body);
       return true;
     }
     if (!installedPage || method !== 'GET') return false;
+    const damage = !framed && installed.recovery.damaged(record);
+    const repair = damage && installedRepairStage(damage, "project", prefix);
+    if (repair) {
+      response.writeHead(302, { location: prefix + '/?openSurface=' + encodeURIComponent(repair.unavailable.surface), 'cache-control': 'no-store' });
+      response.end();
+      return true;
+    }
     const release = installed.releaseFor(pluginId);
     const manifest = installed.platform.supervisor.manifest(pluginId);
     if (!installedStageReleaseMatches(record, release, manifest)) {

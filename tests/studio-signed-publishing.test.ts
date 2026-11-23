@@ -6,10 +6,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HomeConsentLedger, readStudioDistribution, verifySyncPluginDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
+import { generatedPluginManifest, HomeConsentLedger, readStudioDistribution, verifySyncPluginDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
+import { stateMachineActions } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import { builderPrivateValueReplicationOwner, freezeStudioUi, parseModelJson, type AgentBuild, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
-import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { PluginRuntime, SqlitePluginRuntimeRepository, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { ISOLATED_HOST_IDS } from './fixtures/isolated-host.js';
 import { readyPublication, publicationAuthority } from './fixtures/studio-publishing.js';
 import { prepareStudioNoteWords, studioBilingualAnswer, studioBilingualNotes, studioBilingualLiteralNotes, literalStudioExcerpt, studioTestLanguages } from './fixtures/studio-bilingual.js';
 import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
@@ -342,4 +345,25 @@ test('RAC-2656 RAC-2657 RAC-2658 KEY-2 local signatures still require personal p
   assert.equal(metadata(a.home).key_id, release.distribution!.publisher_key_id, 'CLEAN-1 uninstalling the published plugin preserves the Home publisher');
   a.ledger.revokePublisher(release.distribution!.publisher_key_id, new Date().toISOString()); laterRevision(source);
   await assert.rejects(source.publish(), /发布者已撤销/); assert.equal(metadata(a.home).key_id, release.distribution!.publisher_key_id);
+});
+
+test('B47-F2 PBU-47-9 the original draft publishes and installs while its unsigned row stays put', mac, async t => {
+  const h = await fixture(t), draft = readyPublication(h.home, h.reference.project_id, 'project');
+  const release = await draft.publish().finally(() => draft.workflow.close()), bundle = await readStudioDistribution(draft.root, release);
+  const manifest = generatedPluginManifest(release);
+  const legacy = await h.host.withProject(h.reference, runtime => {
+    const plugin = new PluginRuntime(new SqlitePluginRuntimeRepository(runtime.store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
+    return plugin.install({ definition: { manifest, execution: 'sandbox', async start() { throw new Error('retired'); }, async stop() {} },
+      deployment: 'local', trust: { level: 'unsigned' }, grants: sandboxRequestedPermissions(release.permissions) }).install;
+  });
+  const client = h.projectClient(), caller = { ...h.projectCaller(), permissions: [...stateMachineActions.list.action.permissions, ...pluginInstallActions.installed.action.permissions] };
+  const machines = async () => client.invoke(caller, { capability_id: stateMachineActions.list.capability_id, version: stateMachineActions.list.version }, { plugin_id: release.pluginId }) as Promise<{ entries: { install_id: string }[] }>;
+  assert.deepEqual((await machines()).entries, [], 'the retired installation is removed from the public directory');
+  await h.install(bundle);
+  const listed = await client.invoke(caller, ref(pluginInstallActions.installed), {}) as { plugins: Array<{ plugin_id: string; state: string; install_id: string }> };
+  const rows = listed.plugins.filter(row => row.plugin_id === release.pluginId);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]!.state, 'running');
+  assert.notEqual(rows[0]!.install_id, legacy.install_id);
+  assert.deepEqual(await h.host.withProject(h.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(legacy.install_id)), legacy);
 });

@@ -12,7 +12,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { mac } from "./fixtures/home-sandbox.js";
 import { SHEET_KEY_VALUE, SHEET_PLUGIN_ID, pinSheetPublisher, sheetPackage } from "./fixtures/install-sheet.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { newPublisher } from "./fixtures/sandbox-package.js";
+import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 
 const SHEET = "[data-install-sheet]";
 
@@ -187,4 +188,42 @@ test("S-package-install-sheet PBU-47-7 the person's press installs once, with th
   assert.equal(heard.includes(SHEET_KEY_VALUE) || /network:request|secret:use/u.test(heard), false, "neither the key nor a choice reaches the frame: " + heard);
   assert.equal(await child.evaluate<boolean>(`document.documentElement.outerHTML.includes(${JSON.stringify(SHEET_KEY_VALUE)})`), false);
   assert.equal(await browser.evaluate<boolean>(`[...document.querySelectorAll(${JSON.stringify(SHEET + " input")})].some(input => input.value.includes(${JSON.stringify(SHEET_KEY_VALUE)}))`), false, "the result holds no key");
+});
+
+test("B47-F6 PBU-47-5 the sheet localizes a bad signature and an actual startup refusal in both languages", { ...mac, timeout: 180_000 }, async t => {
+  const p = await open(t);
+  if (!p) return;
+  const { browser } = p, publisher = newPublisher();
+  pinSheetPublisher(p.homeDirectory, publisher);
+  const broken = signedPackage(publisher, files => { files[SANDBOX_PACKAGE_FILES.entrypoint] = "throw new Error('controlled startup failure');"; }, { pluginId: SHEET_PLUGIN_ID });
+  const badSignature = structuredClone(broken);
+  badSignature.signature!.value_base64 = Buffer.alloc(64).toString("base64");
+  for (const [language, bad, start] of [
+    ["zh", "签名未通过校验", "插件没能启动"],
+    ["en", "The signature could not be verified", "The plugin could not start"],
+  ] as const) {
+    await browser.command("Network.setCookie", { name: "molis_work_locale", value: language, url: browser.origin }, browser.sessionId);
+    await browser.reloadPage();
+    await p.child.waitFor("window.pageHost", WAIT_MS);
+    for (const [name, bundle, copy, phase] of [["signature", badSignature, bad, 0], ["start", broken, start, 2]] as const) {
+      await p.ask(name, "left:24px;top:24px;width:720px", bundle);
+      if (phase === 2) {
+        await p.staged("review");
+        await p.ready();
+        await p.press(p.control("confirm"));
+      }
+      await p.staged("failed");
+      const failed = await browser.evaluate<{ text: string; step: number }>(`(() => {
+        const sheet = document.querySelector('${SHEET}');
+        return { text: sheet.innerText, step: [...sheet.querySelectorAll('.install-steps li')].findIndex(li => li.dataset.state === 'failed') };
+      })()`);
+      assert.equal(failed.step, phase);
+      assert.ok(failed.text.includes(copy), failed.text);
+      if (language === "en") assert.doesNotMatch(failed.text, /\p{Script=Han}/u);
+      assert.equal(await p.installed(), undefined);
+      await p.ready();
+      await p.press(p.control("dismiss"));
+      await browser.waitFor(`!document.querySelector('${SHEET}') || document.querySelector('${SHEET}').dataset.stage === 'line'`, WAIT_MS);
+    }
+  }
 });

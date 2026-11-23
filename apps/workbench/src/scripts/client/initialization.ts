@@ -342,7 +342,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
     // An installed plugin opens only if this workbench actually rendered its stage.
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
-    if (askedSurface && desktopWorkSurfaces.some(stage => stage.dataset.installedPlugin && stage.dataset.workSurface === askedSurface)) {
+    if (askedSurface && desktopWorkSurfaces.some(stage => stage.dataset.workSurface === askedSurface && (stage.dataset.installedPlugin || stage.querySelector("form[data-package-repair]")))) {
       const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
       setTimeout(() => { const entry = [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface); if (entry) openSurfaceEntry(askedSurface, entry); }, 0);
     }
@@ -389,6 +389,37 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
       button.disabled = true;
       try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: globalThis.t.text("workbench.initialization.couldn-t-change-plugin-state") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
+    });
+    document.addEventListener("submit", async (event) => {
+      const form = event.target;
+      const scope = form?.dataset?.packageRepair;
+      const stage = form?.closest?.("[data-work-surface]");
+      if (!["home", "project"].includes(scope) || !restartWorkspace?.contains(stage) ||
+          !stage?.matches('[data-' + scope + '-plugin-unavailable="workbench"]') || form.parentElement !== stage.firstElementChild) return;
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]'), note = form.querySelector('[role="status"]');
+      if (button.disabled) return;
+      const say = (suffix) => globalThis.t.text("workbench.unavailable-plugin-stage." + suffix);
+      button.disabled = true;
+      note.hidden = true;
+      try {
+        const body = JSON.parse(form.dataset.installation);
+        const file = form.elements.bundle?.files[0];
+        if (file) {
+          if (file.size > 24 * 1024 * 1024) throw new Error();
+          body.bundle = JSON.parse(await file.text());
+        }
+        const door = scope === "home" ? "/api/settings/plugin-permissions/repair" : route("/api/plugin-trust/installed/repair");
+        await molisWorkRequest(door, { body });
+        const here = new URL(location.href);
+        here.searchParams.set("openSurface", stage.dataset.workSurface);
+        location.assign(here.href);
+      } catch (error) {
+        note.textContent = say(error?.code === "plugin.publisher_revoked" ? "publisher-no-longer-trusted" :
+          error?.code === "plugin.install_replaced" ? "installation-changed" : "restore-failed");
+        note.hidden = false;
+        button.disabled = false;
+      }
     });
     pages.forEach((page) => page.run?.());
   })();

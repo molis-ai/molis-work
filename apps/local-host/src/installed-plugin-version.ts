@@ -50,8 +50,8 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, relea
     if (ownsScope() && current?.installation_generation === record.installation_generation && current.install_id === record.install_id
       && current.version === next.manifest.version && current.manifest_digest === pluginManifestDigest(next.manifest)) moved = current;
     if (!moved || (off ? moved.state !== 'disabled' : state?.status !== 'running')) {
-      if (databaseVersionChanged && state?.status === 'failed' && state.code) throw new ActionError(state.code, state.message ?? verb + '没有完成');
-      throw new Error(verb + '没有完成：' + (state?.message ?? '插件未能启动'));
+      if (databaseVersionChanged && state?.status === 'failed' && state.code) throw new ActionError(state.code, state.message ?? verb + '没有完成', { details: { install_phase: state.code === 'plugin.upgrade_activation_failed' ? 'start' : 'install' } });
+      throw new ActionError('actions.execution_failed', verb + '没有完成：' + (state?.message ?? '插件未能启动'), { details: { install_phase: 'start' } });
     }
     if (c.closed()) throw new Error('安装运行入口已关闭，不能保存切换结果');
     if (databaseVersionChanged) assertScope(); else assertCurrent();
@@ -86,7 +86,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, relea
     if (databaseVersionChanged) {
       assertScope();
       c.withdraw(pluginId);
-      const refusal = pluginErrors.upgrade_activation_failed('插件库已升级，新版本暂时无法使用');
+      const refusal = pluginErrors.upgrade_activation_failed('插件库已升级，新版本暂时无法使用', { install_phase: 'start' });
       if (moved.state === 'running') await c.platform.runtime.pauseAfterUpgrade(moved.install_id, moved.manifest_digest, assertScope);
       c.registerPrompts(release, 'disabled');
       c.recoveryErrors.set(pluginId, refusal);

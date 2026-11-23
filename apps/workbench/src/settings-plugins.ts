@@ -49,6 +49,7 @@ const bind = (root) => {
 if (!root || root.dataset.pluginTrustBound === "1") return;
 root.dataset.pluginTrustBound = "1";
 const readText = globalThis.t.text;
+const focusedInstall = new URLSearchParams(location.search).get("installation");
 const base = "/projects/" + encodeURIComponent(root.dataset.project || "") + "/api/plugin-trust";
 const $ = (name) => root.querySelector("[data-plugin-trust-" + name + "]");
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
@@ -232,12 +233,13 @@ const installed = (plugin, send = (payload) => api("/permissions/set", payload),
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
 copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", readText(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + readText(STATE[plugin.state] || plugin.state)));
 summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.content.cloneNode(true));
+if (plugin.install_id === focusedInstall) { box.open = true; requestAnimationFrame(() => box.scrollIntoView({ block: "nearest" })); }
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 const pending = plugin.pending_keep_data !== undefined;
 if (pending) box.open = Boolean(broken && broken.install_id === plugin.install_id);
 else if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", readText("workbench.settings-plugins.trust-its-publisher-was-revoked-no-longer-runs")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", readText("workbench.settings-plugins.could-not-start-error", { error: readText(plugin.recovery_error === "plugin.publisher_revoked" ? "workbench.settings-plugins.publisher-revoked" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "workbench.settings-plugins.platform-version-mismatch" : plugin.recovery_error === "plugin.package_missing" ? "workbench.settings-plugins.package-plugin-installed-missing-only-uninstalled" : plugin.recovery_error === "plugin.integration_declaration_conflict" ? "workbench.settings-plugins.integration-id-taken" : "workbench.settings-plugins.retry-start") })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", readText("workbench.settings-plugins.could-not-start-error", { error: readText(plugin.recovery_error === "plugin.publisher_revoked" ? "workbench.settings-plugins.publisher-revoked" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "workbench.settings-plugins.platform-version-mismatch" : plugin.recovery_error === "plugin.package_missing" ? "workbench.unavailable-plugin-stage.package-damaged" : plugin.recovery_error === "plugin.integration_declaration_conflict" ? "workbench.settings-plugins.integration-id-taken" : "workbench.settings-plugins.retry-start") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else if (!pending) body.append(el("span", "settings-muted", readText("workbench.settings-plugins.permissions-plugin-was-installed-cannot-be-read")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;

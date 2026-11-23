@@ -6,10 +6,13 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginInstalledView, PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, MolisWorkLocalHost, pluginControlActions, pluginInstallActions, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";
+import { sandboxPackageBuildId } from "@molis-ai/molis-work-plugin-sdk";
+import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
+import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
-import { fixture, homePackage, mac, operate, operationsOf, valuesOf } from "./fixtures/home-sandbox.js";
-import { serveTestHost } from "./fixtures/test-home.js";
+import { fixture, homePackage, mac, operate, operationsOf, person, ref, valuesOf } from "./fixtures/home-sandbox.js";
+import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { installedPackageHost, readsAndWrites } from "./fixtures/signed-package-host.js";
 
 // BL-915, S-94: a signed sandbox installation comes off from its trusted row alone. Its package is not read, so one that is gone or altered is
@@ -171,4 +174,93 @@ test("B27-UN-04 S-94 a clean-up that did not finish keeps the row listed with it
   assert.equal((await r.h.host.homePlugins!.ready()).runtime.get(installId).last_error_code, null);
   await r.h.install(homePackage(publisher));
   assert.equal((await r.row())?.state, "running", "and it can be installed again");
+});
+
+for (const scope of ["home", "project"] as const) test(`B47-F3 S-94 ${scope} package repair keeps the exact installation and its data`, mac, async t => {
+  const root = await openTestHome(t), publisher = newPublisher();
+  const project = await root.createProject("Package recovery");
+  let host = root.host, served = root;
+  const reopen = async () => {
+    await served.close();
+    await host.close();
+    host = new MolisWorkLocalHost({ homeDirectory: root.home, completeText: null });
+    const web = await serveTestHost(null, { home: root.home, host });
+    served = { ...root, ...web };
+  };
+  const prefix = "/projects/" + project.project_id, settings = prefix + "/api/plugin-trust", homeDoor = "/api/settings/plugin-permissions";
+  const getRow = async () => (scope === "home"
+    ? await served.web.post<{ plugins: PluginInstalledView[] }>(homeDoor + "/list", {})
+    : await served.web.get<{ plugins: PluginInstalledView[] }>(settings + "/overview")).plugins.find(row => row.plugin_id === PACKAGE_PLUGIN_ID);
+  try {
+    const bundle = scope === "home" ? homePackage(publisher) : signedPackage(publisher, readsAndWrites);
+    const caller = person(project.project_id), client = () => host.actionClient(project.reference);
+    const operation = async (name: string, input: Record<string, unknown>) => operate(client(), caller, await operationsOf(client(), caller), name, input);
+    const preview = await client().invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+    await client().invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Publisher" });
+    await operation("notes.add", { text: "kept in place" });
+    const approved = (await getRow())!.permissions;
+    const before = new SandboxPackageStore(root.home).load(PACKAGE_PLUGIN_ID, publisher.identity, "1.0.0");
+    await served.close();
+    await host.close();
+    const needsFile = scope === "home";
+    if (needsFile) rmSync(before.directory, { recursive: true });
+    else unlinkSync(before.bundlePath);
+    await reopen();
+
+    const row = (await getRow())!, target = row.uninstall_target!;
+    const path = scope === "home" ? homeDoor + "/repair" : settings + "/installed/repair";
+    const repair = (body: Record<string, unknown> = {}) => served.web.post(path, { plugin_id: PACKAGE_PLUGIN_ID, target, ...body });
+    assert.equal(row.recovery_error, "plugin.package_missing");
+    const html = await (await fetch(new URL(prefix + "/", served.origin), { headers: { "accept-language": "zh" } })).text();
+    assert.match(html, /装回这一版/);
+    assert.ok(html.includes('data-package-repair="' + scope + '"'));
+    const outside = newPublisher(), other = scope === "home" ? homePackage(outside) : signedPackage(outside, readsAndWrites);
+    if (scope === "project") await assert.rejects(client().invoke(caller, ref(pluginControlActions.repair), { plugin_id: PACKAGE_PLUGIN_ID, target }), failsWith("actions.forbidden"));
+    await assert.rejects(repair({ target: { ...target, version: "2.0.0" }, bundle }), failsWith("plugin.install_replaced"));
+    await assert.rejects(repair({ bundle: other }), failsWith("plugin.signer_mismatch"));
+    assert.equal(existsSync(before.bundlePath), false, "a refused repair wrote no entrypoint");
+    const browser = await ChromeHarness.start(root.home, { executable: requiredHeadlessTestBrowser() });
+    try {
+      const page = await browser.page(), surface = scope === "home" ? PACKAGE_PLUGIN_ID : "app-" + sandboxPackageBuildId(PACKAGE_PLUGIN_ID, publisher.identity);
+      const form = `[data-package-repair="${scope}"]`;
+      await page.viewport(1280, 850);
+      await page.command("Page.navigate", { url: served.origin + prefix + "/?openSurface=" + surface });
+      await page.wait(`document.querySelector('${form}')?.getClientRects().length > 0`);
+      if (needsFile) {
+        const file = join(root.home, "original-package.json");
+        writeFileSync(file, JSON.stringify(bundle));
+        const { root: document } = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");
+        const input = await page.command<{ nodeId: number }>("DOM.querySelector", { nodeId: document.nodeId, selector: form + " input[type=file]" });
+        await page.command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] });
+      }
+      await page.command("Page.enable");
+      const reopened = Promise.withResolvers<void>();
+      const stop = browser.on("Page.frameNavigated", (params, session) => {
+        const frame = params.frame as { parentId?: string; url: string };
+        if (session === page.sessionId && !frame.parentId && frame.url.startsWith(served.origin + prefix)) reopened.resolve();
+      });
+      try {
+        await page.click(form + ' button[type="submit"]');
+        await reopened.promise;
+        await page.wait(`!document.querySelector('${form}') && !!document.querySelector('[data-work-surface="${surface}"]')`);
+      } finally { stop(); }
+    } finally { await browser.close(); }
+    const repaired = (await getRow())!;
+    assert.equal(repaired.recovery_error, null);
+    assert.deepEqual(repaired.uninstall_target, target);
+    assert.deepEqual(repaired.permissions, approved);
+    assert.deepEqual(await operation("notes.list", {}), [{ id: "1", text: "kept in place" }]);
+    await reopen();
+    assert.equal((await getRow())?.state, "running");
+    await served.close();
+    await host.close();
+    unlinkSync(before.bundlePath);
+    new HomeConsentLedger(root.home).revokePublisher(publisher.identity, new Date().toISOString());
+    await reopen();
+    await assert.rejects(repair({ bundle }), failsWith("plugin.publisher_revoked"));
+    assert.equal(existsSync(before.bundlePath), false, "a revoked publisher's package was not written back");
+  } finally {
+    await served.close();
+    await host.close();
+  }
 });

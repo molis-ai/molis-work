@@ -8,6 +8,7 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 
 const DOOR: Readonly<Record<string, { capability_id: string; version: number }>> = {
+  "/api/settings/plugin-permissions/repair": pluginControlActions.homeRepair,
   "/api/settings/plugin-permissions/list": pluginInstallActions.homeInstalled,
   "/api/settings/plugin-permissions/set": pluginInstallActions.setHomePermission,
   // Switching a signed package installed in the Home off or on, or taking it off (BL-715): the same door, the same credential.
@@ -31,7 +32,7 @@ export async function handlePluginPermissionSettingsHttp({ request, response, ur
   request.once("aborted", cancel); response.once("close", disconnected);
   try {
     if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人改插件的授权");
-    const input = await readLocalWebBody(request);
+    const input = await readLocalWebBody(request, definition === pluginControlActions.homeRepair ? 24 * 1024 * 1024 : undefined);
     const caller = await localWebActionContext(localHost, undefined, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
     const target = { capability_id: definition.capability_id, version: definition.version, provider_id: PLUGIN_INSTALL_PROVIDER_ID };
     const result = await withHomePluginPermissionSettingsEntry(caller, entry => localHost.homeActionClient().invoke(entry, target, input));

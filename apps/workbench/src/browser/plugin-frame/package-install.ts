@@ -46,14 +46,17 @@ const bundleOf = (value: unknown): object | null => {
     ? bundle
     : null;
 };
-/** Where a refused install stopped, by what the refusal is about: the package itself, starting it, or putting it in. */
-const stoppedAt = (code: string) =>
-  /package|signature|publisher|manifest|preview|digest|compatib/u.test(code)
-    ? 0
-    : /start|activat|sandbox|recover|runtime/u.test(code)
-      ? 2
-      : 1;
-
+const failureCopy = new Map<string, string>([
+  ["plugin.package_invalid", "package-invalid"],
+  ["plugin.signature_invalid", "signature-invalid"],
+  ["plugin.signer_mismatch", "signature-invalid"],
+  ["plugin.publisher_revoked", "publisher-revoked"],
+  ["plugin.definition_conflict", "publisher-conflict"],
+  ["plugin.id_namespace_conflict", "publisher-conflict"],
+  ["plugin.upgrade_required", "version-refused"],
+  ["plugin.grant_denied", "permissions-refused"],
+  ["host.package_install.preview_unknown", "preview-expired"],
+]);
 /**
  * The trusted half. `owner` is the page's plugin as the shell lists it; `open` takes the person to the installed plugin and `settings`
  * to 设置 › 插件. The project and the person are the page's authority (the Host route reads them from the outer header), never anything here.
@@ -123,10 +126,12 @@ export function pagePackageInstall(
     draw(entry, true);
   };
   const failed = (entry: Entry, error: unknown) => {
-    const failure = error as { code?: string; message?: string };
+    const failure = error as { code?: string; body?: { details?: { install_phase?: string } } };
     entry.code = typeof failure.code === "string" ? failure.code : "unknown";
-    entry.failure = failure.message || t("common.package-install.could-not-install-try-again");
-    entry.step = entry.sheet ? stoppedAt(entry.code) : 0;
+    const phase = failure.body?.details?.install_phase;
+    entry.step = phase === "start" ? 2 : phase === "install" || (phase !== "check" && entry.sheet) ? 1 : 0;
+    const copy = entry.step === 2 ? "start-failed" : failureCopy.get(entry.code) ?? "could-not-install-try-again";
+    entry.failure = t("common.package-install." + copy);
     entry.stage = "failed";
   };
   /** Asks the Host what the package is, and shows the sheet, or why there is none. */

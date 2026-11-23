@@ -69,7 +69,8 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
       const external = (home?.registered() ?? []).filter(entry => !builtinPluginByManifestId(entry.manifest.plugin_id)
         && !hidden.includes(entry.key)).map(entry => entry.key);
-      return [...new Set([...shownProjectPlugins(plugins, hidden), ...external])];
+      const recoverable = home?.damagedPackages().map(({ record }) => record.plugin_id).filter(id => !hidden.includes(id)) ?? [];
+      return [...new Set([...shownProjectPlugins(plugins, hidden), ...external, ...recoverable])];
     };
     // An explicitly served single-database fixture has no Catalog record; expose all registered project-scoped plugins.
     if (!options.project) return { shown: withExternal(PROJECT_SCOPED_PLUGIN_IDS, []) };

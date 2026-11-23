@@ -31,3 +31,6 @@ export class RecoveryErrors extends Map<string, string> {
 
   code(pluginId: string): string | undefined { return codesOf(this).get(pluginId); }
 }
+
+export const isPackageReadFailure = (code?: string) => code === UNREADABLE || code === "plugin.package_missing"
+  || code === "plugin.signature_invalid" || code === "plugin.signer_mismatch";

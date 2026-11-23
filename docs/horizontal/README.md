@@ -21,6 +21,7 @@
 - [Observation](observation.md)：把工作过程逐条记成工作记录，带证据快照、覆盖登记与样本留存；分清真实、模拟、导入与新变化。
 - [Evaluation](evaluation.md)：经公开动作消费采集层工作记录与证据快照，运行冻结样本判定、六阶段对比、隔离回放与人工复查。
 - [Mainline](../../horizontal/mainline/README.md)：现读项目事项线与后台任务总表，核对每一行后执行任务自己给出的命令；不存任何东西。
+- [Home](../../horizontal/home/README.md)：项目首页选择、生成页面不可变版本、按 SHA-256 核验的文件正文、设计检查与顶层本人批准回执；库为 `home-pages/home-pages.db`。
 - [Appearance](../../horizontal/appearance/README.md)：Home 的外观选择、应用与撤销，以及没有页面的工作所用的最近语言。
 - [Surfaces](../../horizontal/surfaces/README.md)：按调用方、位置和对象排出确定呈现组合，并保存本人的位置纠正；合同见 [surface-composition](../../specs/surface-composition/spec.md) §2、§3、§14。
 - [Kit](../../horizontal/kit/README.md)：现算某个范围里的能力包，给条目盖来源与所属的包、读出包状态；不存注册表。

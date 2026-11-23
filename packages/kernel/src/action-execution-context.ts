@@ -1,7 +1,7 @@
 import { ActionError, actionReachesAudience, requireSynchronous, type ActionDefinition, type ActionProvider, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ExactActionReference, type RetainedActionAuthority, SUBJECT_STATE_TYPE, type ActionSubjectCurrentState, type ActionSubjectState, type RetainedSubjectState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CapabilityRegistry } from "./index.js";
-import { assertCurrentAuthority, effectGuard } from "./action-settlement.js";
+import { assertCurrentAuthority, effectGuard, runningHandlerContext } from "./action-settlement.js";
 import { rememberInDirectoryPass } from "./directory-pass.js";
 
 /** The original exact registration, shared by retained replies and held Agent proposals. */
@@ -63,12 +63,20 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
     };
     return Object.assign(guard, { assertCurrent: check });
   };
+  const parent = runningHandlerContext()?.current_action;
   return { ...context, retain_background_authority: undefined, current_action: Object.freeze({ capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id }),
+    ...(parent ? { parent_action: parent } : {}),
     ...effectGuard(context, reference, permissions, assertCurrent, effect),
     retainAuthority: (references, options) => retain(references, false, [], options?.audience), retainBackgroundAuthority: additionalPermissions => retain([reference], true, additionalPermissions) };
 }
 
 export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
+  const homePage = c.home_page;
+  if (homePage) {
+    if (c.project_id !== homePage.project_id || (provider.project_id && provider.project_id !== homePage.project_id)) return false;
+    if (!d.action.audiences.includes("plugin")) return false;
+    if (homePage.kind === "home-page-preview" && d.operation !== "query") return false;
+  }
   return (!c.query_only || (d.operation === "query" && d.action.execution?.cost !== "metered")) && !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
     && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
     && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))

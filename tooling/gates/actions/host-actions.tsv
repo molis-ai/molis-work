@@ -293,7 +293,15 @@ home.events.read	1	system.home	query	query	project	read	concurrent	agent,mcp,use
 home.judgment.evaluate	1	system.home	command	operation	project	write	concurrent	agent,mcp,user,workflow	home:read,model:invoke	-	-	-	14f7b8ca12fc	1849cb2ba26c	d2ec79d66593
 home.judgment.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	ab6bc165d6d7	-
 home.judgment.write	1	system.home	command	operation	project	write	-	agent,mcp,user,workflow	home:write	-	-	-	561b3068099c	3bef9ab5352a	-
+home.pages.adopt	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	eb2d997c5b17	28c55f201e44	-
+home.pages.diff	1	system.home	query	query	project	read	-	user	home:read	-	-	-	68accb374655	8a8c40f94aa0	-
+home.pages.drafts.save	1	system.home	command	operation	project	write	-	agent,user	home:write	-	-	-	a6b0ed6495f2	9ac46ac4a58b	5e0374458cf9
+home.pages.files.read	1	system.home	query	query	project	read	-	user	home:read	-	-	-	4ad159333bd6	7517fef855f8	-
+home.pages.preview	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	4ad159333bd6	c68cdd5488a9	-
+home.pages.restore	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	eb2d997c5b17	5db3a309907b	-
+home.read	1	system.home	query	query	project	read	-	agent,plugin,user	home:read	-	-	-	4f8336b9fd7e	f6dc1ed9a438	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-
+home.select	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	9176d5f05ac2	e1d9a802e7f3	-
 kit.catalog.list	1	system.kit	query	query	home	read	concurrent	user	kit:read	-	-	-	d746974fa9af	62d0a2a7bd41	-
 knowledge.card.edit	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	d3f54c851bfe	-
 knowledge.card.exclude	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	d3f54c851bfe	-

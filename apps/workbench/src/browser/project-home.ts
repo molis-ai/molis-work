@@ -4,6 +4,7 @@ import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, rende
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
+import { mountHomePages } from "./project-home-pages.js";
 
 interface HomeHost {
   root?: HTMLElement;
@@ -25,7 +26,10 @@ interface HomeHost {
     refresh: () => Promise<void>; translate: HomeHost["translate"] }): { refresh(): void; clear(): void };
   /** Reads the displayed language's words for this response's grants into the page (surface-composition §14.6). */
   words(text: NonNullable<SurfaceHomeDisplay["surface_text"]>, signal: AbortSignal): Promise<void>;
-
+  /** Project route prefix (e.g. `/projects/<id>`) for generated-page iframe gateway calls. */
+  routePrefix?: string;
+  /** Trusted shell control headers for generated-page API calls. */
+  headers?(): Record<string, string>;
 }
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
   | { kind: "invoked"; stage?: unknown; retry_open?: HomeControl["target"] } | { kind: "enabled" };
@@ -402,22 +406,43 @@ export function mountHome(host: HomeHost) {
     const next = visible();
     if (next === shown) return;
     shown = next;
-    if (shown && needsRead) void sync();
+    if (shown && needsRead) void syncAll();
     else if (!shown) leave();
   };
   const primary = yieldPrimary(root);
+  const homePages =
+    host.projectKey && host.projectKey !== "personal"
+      ? mountHomePages({
+          root,
+          projectKey: host.projectKey,
+          routePrefix: host.routePrefix ?? `/projects/${encodeURIComponent(host.projectKey)}`,
+          api: <T>(path: string, method: "POST" | "DELETE", body?: unknown, signal?: AbortSignal) =>
+            host.offerApi(path, method, body, signal ?? new AbortController().signal) as Promise<T>,
+          headers: () => host.headers?.() ?? {},
+          receipt: host.receipt,
+          onModeChange: (active) => {
+            if (active) root.dataset.homeGeneratedActive = "true";
+            else delete root.dataset.homeGeneratedActive;
+          },
+        })
+      : null;
+  const syncAll = async (invalidate = false) => {
+    await Promise.all([sync(invalidate), homePages?.sync()]);
+  };
   const unwatch = watchHome(root, holder, visibility, () => {
     cancel(true);
-    if (visible()) void sync();
+    if (visible()) void syncAll();
   }, () => {
     shown = false;
     leave();
   });
   return {
-    sync,
+    sync: syncAll,
+    openCompare: (ref: { page_id: string; version: number }) => homePages?.openCompare(ref),
     dispose() {
       unwatch();
       primary.stop();
+      homePages?.dispose();
       shown = false;
       cancel(true);
     },

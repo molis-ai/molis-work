@@ -443,6 +443,7 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
     };
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly home_page?: HomePageSubject;
     readonly original_file?: HostOfferedOriginalFile;
     readonly original_input?: HostOfferedOriginalInput;
     readonly query_only?: true;
@@ -549,6 +550,7 @@ export interface ActionExecutionContext extends ActionCallContext, ActionPersonE
     readonly provideSubjectState?: (current: () => import("platform/action-subjects").ActionSubjectCurrentState) => void;
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
+    readonly parent_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;

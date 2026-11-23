@@ -53,7 +53,9 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
     brought.forEach((item, index) => files.push(item.ref ? { material_id: "mat-" + crypto.randomUUID(), kind: "object", title: item.title.slice(0, 200), explicit: true, reference: { material: item.ref }, object: { kind: item.ref.subject.kind, id: item.ref.subject.id, title: item.title.slice(0, 200) }, ...(source ? { source } : {}) } : item.subject ? { material_id: "kn-" + crypto.randomUUID(), kind: "object", title: item.title.slice(0, 200), explicit: true, reference: { subject: { kind: item.subject.kind, id: item.subject.id } }, object: { kind: item.subject.kind, id: item.subject.id, title: item.title.slice(0, 200) }, ...(source ? { source } : {}) } : Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
       text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {}, object ? { object } : {})));
     if (brought.length) sel = null;
-    paintMats(); setPanel(true); input.focus();
+    paintMats();
+    if (detail.open !== false) setPanel(true);
+    input.focus();
   });
   window.addEventListener("molis:assistant-message", (event) => {
     const message = tidyMessage(event.detail);

@@ -45,7 +45,7 @@ export function createActionMcpPorts(options: {
   serverInfo: McpProtocolPorts["serverInfo"];
   toolName?(action: ActionReference): string;
   /**
-   * The action a name stood for in the catalog the server listed for this connection (batch 103-2): a call looks up that one action
+   * The action a name stood for in the catalog the server listed for this connection: a call looks up that one action
    * instead of the whole directory. The lookup judges visibility for this call's caller; a name it does not know, or whose action is
    * no longer that name, falls back to the whole directory, which also checks for duplicate names.
    */

@@ -34,7 +34,7 @@ export interface StoredExternalSessionRow {
   reported_project_id: string | null;
   last_activity_at: string;
   forked_from: string | null;
-  /** A subagent's trajectory, kept with the session it belongs to (`forked_from`); the list and the search leave it out (batch 103-2). */
+  /** A subagent's trajectory, kept with the session it belongs to (`forked_from`); the list and the search leave it out. */
   subagent?: true;
   gone_at: string | null;
 }

@@ -12,7 +12,7 @@ import { createPluginRuntimeReleaseArtifact, type PluginRuntimeReleaseArtifactRe
 /**
  * Persist a trusted factory once per exact manifest before activation or restoration. A build the Host itself ships (`host` trust) always
  * runs as this build (`directlyUsable`), so its archived code would never be read: only its Manifest is kept, which the next start reads for
- * what that build declared (`startInstallInput`), and nothing is bundled for it (batch 103-1).
+ * what that build declared (`startInstallInput`), and nothing is bundled for it.
  */
 export async function persistReleaseArtifact(entry: PluginSupervisorEntry, repository?: PluginRuntimeReleaseArtifactRepository, assertCurrent?: () => void): Promise<void> {
   if (!entry.releaseArtifact) return;

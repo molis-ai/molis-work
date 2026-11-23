@@ -42,7 +42,7 @@ export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
   resting?: true;
 }
 
-/** The open projects' tasks and the sources that could not be read; empty tasks alone does not mean no work. */
+/** The open and resting projects' tasks and the sources that could not be read; empty tasks alone does not mean no work. */
 export interface HomeBackgroundTasksReadResult {
   tasks: HomeBackgroundTaskRow[];
   issues: Array<{ project_id: string; source: Required<ActionReference> | null; code: string }>;

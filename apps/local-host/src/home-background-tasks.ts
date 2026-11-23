@@ -6,10 +6,11 @@ import { collectHomeAggregate, type HomeAggregatePorts } from "./home-aggregate.
 import { repeatingFailure } from "./host-log.js";
 
 /**
- * The background tasks of every open project (PG-043, specs/work-line §6): what the providers that declare a `home_aggregate`
+ * The background tasks of open and resting projects (PG-043, specs/work-line §6): what the providers that declare a `home_aggregate`
  * query of this type say is being done or waits on the person, newest first. Nothing here names a plugin or reads a table: the
  * Home asks each project's provider through its action (S-49) and flattens the answers, keeping the project and the provider
- * each came from. A project that is not open lists nothing (the Home never opens one to read it); a plugin that is off or not
+ * each came from. A sleeping project is answered from its last pre-sleep reading in memory (`resting: true`), unread or stale ones are
+ * quietly read once in the background, and a project closed on purpose is neither read nor opened; a plugin that is off or not
  * granted in a project is not called.
  */
 
@@ -40,7 +41,7 @@ const UNDER_WAY: ReadonlySet<string> = new Set(STATE_RING_FAMILIES.filter(family
   .some(key => key === family.key)).flatMap(family => [...family.states]));
 
 /**
- * Whether the project's background-task providers say something in it is under way (batch 103-1): asked before the project is put to
+ * Whether the project's background-task providers say something in it is under way: asked before the project is put to
  * sleep, the same read the Home makes, for that project alone. A provider that ran out of time counts as under way: not knowing is
  * no reason to close it.
  */

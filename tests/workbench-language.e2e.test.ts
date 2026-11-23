@@ -576,9 +576,19 @@ test("FSS-35 FSS-36 FSS-38 the open Artifact library retitles exact saved versio
   const covered = "document.querySelector('[data-tab-workspace]')?.dataset.exclusive";
   const shell = "document.querySelector('[data-artifact-stage-shell]')";
   await b.waitFor(`${covered} && !${shell}.checkVisibility({visibilityProperty:true})`);
+  assert.deepEqual(
+    await b.evaluate(`[!!document.querySelector('[data-settings-panel="appearance"] [data-theme-option][aria-pressed="true"]'), !!document.querySelector('[data-settings-panel="appearance"] [data-density-option][aria-pressed="true"]'), !!document.querySelector('[data-settings-panel="appearance"] [data-terminal-theme-option][aria-pressed="true"]')]`),
+    [true, true, true],
+    "Appearance panel syncs active theme, density, and terminal theme states when navigated from another settings panel",
+  );
   const readsBeforeCover = requests.length;
   await select("en");
   await b.waitFor("document.documentElement.dataset.uiLanguageTag==='en'");
+  assert.deepEqual(
+    await b.evaluate(`(() => { const expand = document.querySelector('[data-work-bar] [data-dialog-open]')?.getAttribute('aria-label') || ''; const corner = document.querySelector('[data-top-corner-toggle]')?.getAttribute('aria-label') || ''; return { expandEn: /conversation/i.test(expand) && !/[\\u4e00-\\u9fff]/u.test(expand), cornerNoZhHome: !/项目主页|切换项目|项等你/u.test(corner) }; })()`),
+    { expandEn: true, cornerNoZhHome: true },
+    "Work bar controls and top-corner aria-label retitle cleanly on live language switch",
+  );
   assert.equal(requests.length, readsBeforeCover, "covered content sends no language reads");
   await b.click("[data-cover-close]");
   await b.waitFor(`${source}.textContent==='Open original in Pages'`);

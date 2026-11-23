@@ -9,7 +9,7 @@ const same = (view: ActionView, reference: ActionReference) => view.capability_i
   && (!reference.provider_id || view.provider.provider_id === reference.provider_id);
 
 /**
- * The caller's view of one action named with its provider (batch 103-2, N42): looked up alone instead of listing the whole directory to
+ * The caller's view of one action named with its provider: looked up alone instead of listing the whole directory to
  * find it. Without a provider, or on a client that cannot look one up, the directory is listed as before.
  */
 export async function exactActionView(client: DiscoveringClient, caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {

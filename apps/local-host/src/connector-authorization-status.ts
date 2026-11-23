@@ -173,7 +173,7 @@ export function assertConnectorSetup(home: string, id: string, actual: Pick<Conn
 
 /** The callback knows only its one-use state. It cannot select a work or bypass that request's current intent. */
 export function connectorAuthorizationForState(home: string, state: string) {
-  const row = withConnectorsStore(home, db => db.prepare("SELECT id FROM connector_authorization_results WHERE state_hash=?").get(hash(state))) as { id: string } | undefined;
+  const row = readConnectorsStore(home, undefined, db => db.prepare("SELECT id FROM connector_authorization_results WHERE state_hash=?").get(hash(state))) as { id: string } | undefined;
   return row ? connectorAuthorizationStatus(home, row.id) : null;
 }
 

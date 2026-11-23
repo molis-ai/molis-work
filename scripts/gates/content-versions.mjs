@@ -3,7 +3,7 @@ function versionKeys(file, known) {
   const prompt = /^(?:apps\/local-host|plugins\/native\/[^/]+)\/prompts\/([^/]+)\.md$/u.exec(file);
   const method = /^plugins\/native\/([^/]+)\/methods\/(?:[^/]+\/)?([^/]+)\.md$/u.exec(file);
   // A content pack's Skill body carries its own version in SKILL.md; the other languages are the same Skill and version.
-  const contentMethod = /^plugins\/content\/([^/]+)\/skills\/([^/]+)\/SKILL(?:\.[a-z]{2,3})?\.md$/u.exec(file);
+  const contentMethod = /^(?:plugins\/content|packages\/system-skills)\/([^/]+)\/skills\/([^/]+)\/SKILL(?:\.[a-z]{2,3})?\.md$/u.exec(file);
   const name = prompt ? "prompt." + prompt[1] : contentMethod
     ? "method." + contentMethod[1] + "." + contentMethod[2]
     : method && !method[2].startsWith("runtime.")
@@ -32,7 +32,11 @@ export function contentVersionChanges({ files, read }, readBase) {
     const next = current[key], previous = before[key];
     if (!Number.isSafeInteger(next) || next < 1) { errors.push(key + " has no positive content version in tooling/versions.json"); continue; }
     if (previous === undefined) continue;
-    const changed = paths.some(file => body(read(file)) !== body(readBase(file)));
+    // A Skill that moved (plugins/content → packages/system-skills, 44B) is the same Skill: its base is where it was (a missing base blob reads as "").
+    const base = file => readBase(file) || readBase(file.replace(/^packages\/system-skills\//u, "plugins/content/"));
+    // The old path of a moved Skill is gone; the Skill is where it is now.
+    const present = paths.filter(file => read(file) !== null && read(file) !== undefined);
+    const changed = (present.length ? present : paths).some(file => body(read(file)) !== body(base(file)));
     if (changed && next <= previous) errors.push(key + " changed content without advancing its version");
     if (!changed && next !== previous) errors.push(key + " advanced without changing its content");
   }

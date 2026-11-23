@@ -3621,6 +3621,8 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PLATFORM_ID_PREFIX = "system.";
+
 export declare const PLATFORM_SCENE_NAMES: readonly ["assistant", "common", "agent", "both"];
 
 export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";

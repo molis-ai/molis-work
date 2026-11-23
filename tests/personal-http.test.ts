@@ -174,7 +174,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     await login();const initial=await(await request('/api/sync')).json();
     assert.deepEqual(initial.device,{automatic:null});assert.equal(syncRequests,0);
     const projectsCol=initial.collections.find((c:{selection:{plugin_id:string;collection_id:string}})=>c.selection.plugin_id==='io.molis.work.module.projects.v1');
-    const artifactsCol=initial.collections.find((c:{selection:{plugin_id:string;collection_id:string}})=>c.selection.plugin_id==='io.molis.work.artifacts');
+    const artifactsCol=initial.collections.find((c:{selection:{plugin_id:string;collection_id:string}})=>c.selection.plugin_id==='system.artifacts');
     assert.equal(projectsCol?.group,'platform','Host marks project catalog collection as platform');
     assert.equal(artifactsCol?.group,'platform','Host marks platform artifacts collection as platform');
     const stale=await fetch(origin+'/api/sync/run',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'stale-sync-space','x-molis-sync-space':'another-account-space'},body:'{}'});

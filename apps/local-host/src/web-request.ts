@@ -285,7 +285,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   projectWriteCheckersRoute,
   installedPluginsRoute,
   pluginStudioRoute,
-  // Characters is the Host's own surface (CHR-1) under its old plugin prefix, so it answers before the Runtime's plugin routes.
+  // Characters is the Host's own surface (CHR-1), under the platform prefix since 44B (`/api/platform/characters`).
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   workspaceMembershipRoute,

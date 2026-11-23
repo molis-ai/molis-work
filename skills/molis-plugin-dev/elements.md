@@ -118,7 +118,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## Artifacts / ports
 
-- 成果库是平台界面与动作服务，不是可启停插件，也不能登记 `artifacts` 项目键或平台成果界面 id。提供方 `io.molis.work.artifacts` 及既有能力引用不变；插件用同一套 SDK 动作读写成果，不依赖成果 UI 实现。
+- 成果库是平台界面与动作服务，不是可启停插件，也不能登记 `artifacts` 项目键或平台成果界面 id。提供方 `system.artifacts` 及既有能力引用不变；插件用同一套 SDK 动作读写成果，不依赖成果 UI 实现。
 同步工作中草稿与只发布 Artifact 是不同需求。可选 `sync` 集合声明和本地快照适配见 [sync.md](sync.md)；它不自动开启上传或注册 Runtime 同步处理器。
 
 - `artifacts.produces/consumes`：成果，人要留存、引用的固定版本，进成果库。`artifact_type_id` + `schema_version`。消费方按类型匹配，不指定生产者插件。

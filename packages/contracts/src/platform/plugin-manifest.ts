@@ -19,6 +19,12 @@ export const PLUGIN_ID_PATTERN = "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$";
 /** The prefix only the Host's own packages may use (S-reserved-host-prefix); an install of any other trust under it is refused. */
 export const HOST_PLUGIN_ID_PREFIX = "io.molis.work.";
 
+/**
+ * The prefix of the platform's own providers (`system.artifacts`, `system.characters`, `system.assistant`, 第 44B 批): they are not
+ * plugins, and no package of any trust, the release's own included, installs under it (S-reserved-host-prefix).
+ */
+export const PLATFORM_ID_PREFIX = "system.";
+
 export type PluginDeployment = "local" | "server";
 /**
  * `app` is a v2 Plugin that contributes views, commands, routes, ports and

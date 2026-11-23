@@ -12,7 +12,7 @@ export interface PlatformSyncCollection {
   readonly store: "library" | "process" | "characters" | "approvals" | "guidance" | "acceptance"
     | 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'attention';
 }
-export const projectApprovalSyncSelection = { plugin_id: "io.molis.work.project-approvals", publisher_id: "molis",
+export const projectApprovalSyncSelection = { plugin_id: "system.project-approvals", publisher_id: "molis",
   publisher_signature: "official-project-approvals-binding", collection_id: "approvals",
   schema_version: /* @version sync.collection.platform.approvals */ 1 } satisfies SyncSelection;
 // The trusted registry already declares the platform-owned attention section and its v1 wire identity.
@@ -30,20 +30,20 @@ export const attentionSyncSelection: SyncSelection = {
 };
 function personalConfiguration(owner: 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules',
   id: string, title: string, version: number): PlatformSyncCollection {
-  return { owner, store: owner, title, selection: { plugin_id: 'io.molis.work.' + owner, publisher_id: 'molis',
+  return { owner, store: owner, title, selection: { plugin_id: 'system.' + owner, publisher_id: 'molis',
     publisher_signature: 'official-' + owner + '-binding', collection_id: id, schema_version: version } };
 }
 export const PLATFORM_SYNC_COLLECTIONS: readonly PlatformSyncCollection[] = [
-  { owner: "artifacts", store: "library", title: "成果及固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "versions", schema_version: /* @version sync.collection.platform.versions */ 1 } },
-  { owner: "artifacts", store: "process", title: "过程材料与固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "process_items", schema_version: /* @version sync.collection.platform.process_items */ 1 } },
+  { owner: "artifacts", store: "library", title: "成果及固定版本", selection: { plugin_id: "system.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "versions", schema_version: /* @version sync.collection.platform.versions */ 1 } },
+  { owner: "artifacts", store: "process", title: "过程材料与固定版本", selection: { plugin_id: "system.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "process_items", schema_version: /* @version sync.collection.platform.process_items */ 1 } },
   { owner: "characters", store: "characters", title: "角色草稿", selection: { plugin_id: CHARACTER_PLUGIN_ID, publisher_id: "molis", publisher_signature: CHARACTER_PUBLISHER_SIGNATURE, collection_id: "drafts", schema_version: /* @version sync.collection.platform.drafts */ 1 } },
   { owner: "project-approvals", store: "approvals", title: "项目审批记录与规则", selection: projectApprovalSyncSelection },
   // A project's guidance (contract-design §9): Goals carried it in `project_goals` until batch 44.
-  { owner: "project-guidance", store: "guidance", title: "项目长期说明", selection: { plugin_id: "io.molis.work.project-guidance", publisher_id: "molis",
+  { owner: "project-guidance", store: "guidance", title: "项目长期说明", selection: { plugin_id: "system.project-guidance", publisher_id: "molis",
     publisher_signature: "official-project-guidance-binding", collection_id: "guidance", schema_version: /* @version sync.collection.platform.guidance */ 1 } },
   // The platform's requirements and acceptance (contract-design §10.5): Goals carried a Goal's requirements in `project_goals` until batch 44.
   // It needs the approvals collection too: a decision made through the trusted-decision entry counts only once its record is here.
-  { owner: "acceptance", store: "acceptance", title: "要求与认可", selection: { plugin_id: "io.molis.work.acceptance", publisher_id: "molis",
+  { owner: "acceptance", store: "acceptance", title: "要求与认可", selection: { plugin_id: "system.acceptance", publisher_id: "molis",
     publisher_signature: "official-acceptance-binding", collection_id: "acceptance", schema_version: /* @version sync.collection.platform.acceptance */ 1 } },
   personalConfiguration('appearance', 'appearance', '外观偏好', /* @version sync.collection.platform.appearance */ 1),
   personalConfiguration('surfaces', 'surfaces', '呈现组合与布局', /* @version sync.collection.platform.surfaces */ 1),

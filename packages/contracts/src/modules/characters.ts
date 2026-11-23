@@ -82,7 +82,7 @@ export const modulesCharactersContract = {
 } as const satisfies ContractDescriptor;
 
 export const CHARACTER_ARTIFACT_TYPE = /* @version type.character.definition "character.definition.v{version}" */ "character.definition.v1";
-export const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
+export const CHARACTER_PLUGIN_ID = "system.characters";
 export const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 
 /** How a published Character reads in the 成果库; Characters answers it, the 成果库 and the Host's producer table name it. */

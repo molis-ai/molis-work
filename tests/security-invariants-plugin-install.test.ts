@@ -547,7 +547,7 @@ test("PSD-04 PSD-04a S-reserved-host-prefix a signed package outside the release
   const h = await harness(undefined, true);
   try {
     const publisher = newPublisher();
-    const ids = ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released", "io.molis.work.content.design-accessibility"];
+    const ids = ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released", "io.molis.work.content.design-accessibility", "system.artifacts", "system.characters"];
     // The two ids the old list missed: refused by the prefix alone, with no entry of their own.
     for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.not-yet-released"]) assert.ok(!HOST_PLUGIN_IDS.has(id), `${id} is not in the Host's list`);
     const results: Record<string, string> = {};

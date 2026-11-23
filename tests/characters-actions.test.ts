@@ -9,7 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 // RAC-63: the Module's handlers, bound by the Host's provider (CHR-1), are what the project's directory redeems; RAC-64: other people are refused.
-// RAC-70: no plugin answers for Characters: the Host registers the provider io.molis.work.characters with every Characters action.
+// RAC-70: no plugin answers for Characters: the Host registers the provider system.characters with every Characters action.
 test("Character management is redeemed by the project Runtime and bound to the person who owns the drafts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "characters-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -20,7 +20,7 @@ test("Character management is redeemed by the project Runtime and bound to the p
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write"] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => owner);
   try {
-    const directory = (await client.discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.characters");
+    const directory = (await client.discover(owner)).filter(row => row.provider.provider_id === "system.characters");
     // The person's directory lists every Characters action offered to the person; the role list and the resolution answer plugins
     // too (role-service-design §5), `characters.execution` the person only.
     assert.deepEqual(directory.map(row => row.capability_id).sort(), CHARACTERS_ACTIONS.filter(row => row.action.audiences.includes("user")).map(row => row.capability_id).sort());
@@ -48,7 +48,7 @@ test("Character management is redeemed by the project Runtime and bound to the p
 
     // Another identity sees the directory rows but cannot use them: the drafts and publications are this person's.
     const agent: ActionCallContext = { ...owner, actor_id: "agent:runtime", audience: "agent" };
-    const foreign = (await client.discover(agent)).filter(row => row.provider.plugin_id === "io.molis.work.characters");
+    const foreign = (await client.discover(agent)).filter(row => row.provider.provider_id === "system.characters");
     assert.ok(foreign.length > 0 && foreign.every(row => !row.availability.available));
     assert.ok(!foreign.some(row => ["characters.launch", "characters.imports.discover", "characters.imports.import"].includes(row.capability_id)),
       "local Agent imports and launches never reach an Agent or MCP client");

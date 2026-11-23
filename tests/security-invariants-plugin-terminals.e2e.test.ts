@@ -26,7 +26,7 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   // Plan C: the imported role is a member of this project; its native runs show in the member's drawer under 项目设置 › 角色.
   const member = characters.service.roles.addMember(browser.projectId, draft.character_id).current.member_id;
   characters.close();
-  const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.characters`;
+  const api = `/projects/${browser.projectId}/api/platform/characters`;
   const published = await browser.web.post<{ reference: { artifact_id: string; version: number } }>(api + `/drafts/${draft.character_id}/publish`, { expected_revision: draft.revision });
   const prepared = await browser.web.post<{ executable: string }>(api + "/execution", { reference: published.reference });
   assert.equal(prepared.executable, await realpath(join(bin, "codex")), "the native process must use this test fixture");

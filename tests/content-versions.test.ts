@@ -23,4 +23,13 @@ test("content versions: a content pack Skill body that changes must advance its 
   assert.deepEqual(run(body, englishBody.replace("Design", "Designing"), 2, [english]), [], "a changed translation is the same Skill and needs the same version");
   assert.match(run(body, englishBody, 2)[0] ?? "", /advanced without changing its content/u);
   assert.deepEqual(run(body, englishBody, 1, [english]), [], "the translation alone maps to the Skill's key");
+  // 44B moves the system packs to packages/system-skills: an unchanged Skill that moved keeps its version, a changed one still advances.
+  const moved = (currentBody: string, version: number) => {
+    const before = new Map([["tooling/versions.json", table(1)], [file.replace("packages/system-skills/", "plugins/content/"), body]]);
+    const after = new Map([["tooling/versions.json", table(version)], [file, currentBody]]);
+    const old = file.replace("packages/system-skills/", "plugins/content/");
+    return contentVersionChanges({ files: [old, file], read: (path: string) => after.get(path) }, (path: string) => before.get(path));
+  };
+  assert.deepEqual(moved(body, 1), [], "a moved Skill is compared with where it was");
+  assert.match(moved(body.replace("设计与规划", "设计和规划"), 1)[0] ?? "", /changed content without advancing its version/u);
 });

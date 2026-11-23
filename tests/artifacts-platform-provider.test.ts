@@ -71,7 +71,7 @@ test("RAC-1040 the Host registers the 成果库 as a platform provider under its
     assert.equal(row.provider.kind, "system"); assert.equal(row.provider.plugin_id, undefined); assert.equal(row.provider.plugin_install_id, undefined);
     assert.equal(row.provider.project_id, projectId); assert.equal("words_of" in row.provider, false, "platform text uses the Workbench dictionary");
   }
-  assert.equal(ARTIFACTS_PROVIDER_ID, "io.molis.work.artifacts", "the id is the one grants and workflow references already name");
+  assert.equal(ARTIFACTS_PROVIDER_ID, "system.artifacts", "the id is the one grants and workflow references already name");
 });
 
 test("RAC-1043 the person at this computer holds the 成果库's permissions over its provider, and nothing over a provider the Host has no row for", () => {
@@ -81,8 +81,8 @@ test("RAC-1043 the person at this computer holds the 成果库's permissions ove
   }
   // The refusals: a permission held over one provider is not held over another, and an unknown provider gives the person nothing.
   assert.deepEqual(localOwnerPermissionsOver("system.not-registered", ARTIFACT_ACTION_PERMISSIONS), []);
-  assert.ok(!localOwnerPermissionsOver("io.molis.work.characters", ARTIFACT_ACTION_PERMISSIONS).includes("artifacts:write"));
-  assert.ok(!localOwnerPermissionsOver("io.molis.work.artifacts.x", ARTIFACT_ACTION_PERMISSIONS).length, "a nested id is not the provider's");
+  assert.ok(!localOwnerPermissionsOver("system.characters", ARTIFACT_ACTION_PERMISSIONS).includes("artifacts:write"));
+  assert.ok(!localOwnerPermissionsOver("system.artifacts.x", ARTIFACT_ACTION_PERMISSIONS).length, "a nested id is not the provider's");
 });
 
 test("RAC-2343 RAC-1045 an install that is not of the Host's build cannot take the 成果库's id or nest under it, whichever its trust", async () => {
@@ -106,7 +106,7 @@ test("RAC-1046 the search index names the 成果库 by the same plugin id, and a
   assert.equal(platform.hits.length, 1);
   assert.deepEqual(platform.hits.map(hit => ({ hit_id: hit.hit_id, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title, source: hit.source })),
     plugin.hits.map(hit => ({ hit_id: hit.hit_id, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title, source: hit.source })));
-  assert.equal(platform.hits[0]!.plugin_id, "io.molis.work.artifacts");
+  assert.equal(platform.hits[0]!.plugin_id, "system.artifacts");
 });
 
 test("RAC-1048 the person's permissions over the 成果库 come from the module's actions, not from the built-in Manifest", () => {

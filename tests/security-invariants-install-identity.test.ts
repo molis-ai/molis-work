@@ -104,6 +104,12 @@ test("PSD-04 S-reserved-host-prefix a package not of the Host's build is refused
     h.refused(() => install(h.runtime, id, "someone")); h.refused(() => install(h.runtime, id, FINGERPRINT, PINNED));
   }
   assert.equal(install(h.runtime, "io.molis.work.characters", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host", "the Host's own build keeps the prefix");
+  // 44B: the platform's own parts are `system.*`; no package installs under that prefix, unsigned or pinned. Only the Host's own build
+  // runs one there (the Shelf the runtime hosts).
+  for (const id of ["system.characters", "system.assistant", "system.artifacts", "system.shelf", "system.not-yet-named"]) {
+    h.refused(() => install(h.runtime, id, "someone")); h.refused(() => install(h.runtime, id, FINGERPRINT, PINNED));
+  }
+  assert.equal(install(h.runtime, "system.shelf", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host", "the platform's own Shelf runs in the runtime");
 });
 
 test("PSD-04a S-reserved-host-prefix only an id this release ships in its package folder passes the prefix check, and other names stay open", () => {

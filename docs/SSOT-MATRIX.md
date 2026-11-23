@@ -145,7 +145,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 **观测采集层与评测服务已登记在上表**（`horizontal/observation` 与 `horizontal/evaluation`，成熟度均为 `slice`）：`observation` 只拥有观察记录本身、证据快照、覆盖登记与缺口、用途与保留设置及样本留存，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实，清理只删记录与无引用快照、不连带删业务内容。第 28 批已随 #2059 合入写入面，第 29 批接入历史查询与证据读取、用途与跨项目边界（S-74）、暂停／恢复、自动与手动清理、空间占用与容量提醒以及全局设置「个人 → 工作记录」界面；第 30 批接入评测样本留存（`observation.holds.*@1`）与独立评测服务（`horizontal/evaluation`）。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
-成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
+成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `system.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
 
 ## 7. Plugins
 

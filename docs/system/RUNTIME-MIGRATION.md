@@ -218,9 +218,9 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 - 第 2 点：「设置 › 角色」是宿主的一节，`apps/workbench/src/settings-sections.ts` 的 `HOST_SECTIONS` 里 `order: 35`（分组 AI）。界面在 `apps/workbench/src/characters/`，浏览器脚本是 `apps/workbench/src/browser/characters/` 的 TypeScript 包，宿主以 `/assets/molis-work-plugins/characters.js` 发出（`apps/local-host/src/web-assets.ts`，D5）。舞台页 `page` 没有了，任何项目都不能再隐藏「角色」。
 - 第 3 点：监督器条目、`charactersWorkbenchPanel`、`RUNTIME_ASSEMBLED` 里的 `characters` 已删；`tests/builtin-plugin-assembly-gate.test.ts` 的混合名单只剩 shelf、coding、git，`scripts/gates/assembly.mjs` 去掉了 characters 的别名和决定 26 的注记。`codingCharacterPorts` 与 `freezeProjectCharacter` 仍在 `characters-host.ts`，助理与 Agent 宿主装配还调它们，这一片没动。
 - 第 4 点：「角色」成果类型改由 `CHARACTER_ARTIFACT_PRODUCER`（`packages/contracts/src/modules/characters.ts`）声明，进宿主的成果生产者表 `HOST_ARTIFACT_PRODUCERS`（`apps/workbench/src/plugin-catalog.ts`）；宿主按它拒绝未声明的写入（`apps/local-host/src/declared-types.ts`）。发布走宿主的成果服务，发布出的版本的 `producer_plugin_version` 是产品版本（D4）。
-- 第 5 点：提供方身份不变（D1）：`provider_id` 与 `plugin_id` 仍是 `io.molis.work.characters`，标题 Characters，`kind: "plugin"`，所以动作引用、MCP 工具名和已发布的生产者继续对得上。有了 Module 这一种之后叫什么，是 BL-378。
-- 第 7 点：路径保留。页面的 14 个地址仍在 `/api/plugins/io.molis.work.characters/…` 下，由宿主的门 `apps/local-host/src/characters-http.ts`（`handleCharactersHttp`）接，`web-request.ts` 转来；每个地址按本人身份经项目的动作客户端调用一个 Characters 动作，请求提前结束就取消这次调用。状态码来自共用的 `actionErrorResponse`，所以角色不存在是 400（动作就这么说），不再是手工映射的 404。
-- 第 6 点：项目库里可能还留着旧的安装记录 `io.molis.work.characters`。监督器只启动自己的条目，不会碰它，它不起作用；清掉它是维护项（D2），写在 `docs/releases/CHECKLIST.md`。
+- 第 5 点：提供方身份不变（D1）：`provider_id` 与 `plugin_id` 仍是 `system.characters`，标题 Characters，`kind: "plugin"`，所以动作引用、MCP 工具名和已发布的生产者继续对得上。有了 Module 这一种之后叫什么，是 BL-378。
+- 第 7 点：路径保留。页面的 14 个地址仍在 `/api/platform/characters/…` 下，由宿主的门 `apps/local-host/src/characters-http.ts`（`handleCharactersHttp`）接，`web-request.ts` 转来；每个地址按本人身份经项目的动作客户端调用一个 Characters 动作，请求提前结束就取消这次调用。状态码来自共用的 `actionErrorResponse`，所以角色不存在是 400（动作就这么说），不再是手工映射的 404。
+- 第 6 点：项目库里可能还留着旧的安装记录 `system.characters`。监督器只启动自己的条目，不会碰它，它不起作用；清掉它是维护项（D2），写在 `docs/releases/CHECKLIST.md`。
 
 这一片必须覆盖的点（设计在片内定，不在本计划里预先定死）：
 
@@ -228,9 +228,9 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 2. **设置里的一节**：并进宿主后，「角色」在 `apps/workbench/src/settings-sections.ts` 的 `HOST_SECTIONS` 里是第 12 项，位置（`order: 35`）不变；舞台页 `page` 也要有归宿。位置数见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.6。
 3. **要删的**：监督器条目与 `charactersPluginPorts`、目录条目、`RUNTIME_ASSEMBLED` 里的 `characters`、`charactersWorkbenchPanel` 对插件舞台的拼装，以及 `characters-host.ts` 里的 `codingCharacterPorts`。2026-10-18 改（统筹定，依据「插件不分官方还是个人、不给某个插件在宿主里开私路」，`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行）：Coding 与助理要用的角色能力（列出、冻结某个角色的某一版）不再走宿主里留的端口；这些处理器放进 `modules/characters`，作为动作公开列出/冻结角色，Coding（`project-plugins.ts`）和助理（`assistant-http.ts`）都经统一动作服务调用，端口随之删除。导入相关的文件（`character-import-discovery.ts`、`character-import-plugins.ts`、`character-native-execution.ts`）是否留在宿主，由这一片定。在这之前代码仍是：`codingCharacterPorts` 留在 `characters-host.ts`，两处调用它。
 4. **「角色」成果类型的声明要换主人**：Manifest 的 `artifacts.produces` 现在声明了 `CHARACTER_ARTIFACT_TYPE` 和预览动作 `characters.artifacts.preview`；AGENTS.md 要求成果类型在 Manifest 声明、带 owner。插件没了，这个声明和预览动作要落到宿主或 Module 的声明里，`tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts` 要继续成立。
-5. **动作的提供方会换**：`CHARACTERS_ACTIONS` 今天由 Runtime 安装提供（`provider_id` 是 `install_id`），并进宿主后换成宿主提供方。动作 id 与版本不变，但 `provider_id` 变，影响面同 4.2 的「提供方身份」里的存量引用（MCP 授权、工作流步骤按 `provider_id` 匹配），要在同一个决定里处理，不要在这一片里悄悄改。4.2 的清点命令在代码里没有查到写死 Characters `provider_id` 的行，所以它没有第 3 类后果。**（已定：用户 2026-10-10 选内置插件一律用插件名，W3-06 C 已把 Characters 登记在 `io.molis.work.characters` 之下，并进宿主时 `provider_id` 不用再变；这一项剩下的只是维护七改写存量引用。）**CHR-1 已按此做，见上面的进度。
-6. **安装记录**：每个项目库的 `plugin_runtime_installs` 里有 `io.molis.work.characters` 的记录（监督器启动时建）。决定写的是「安装记录与 Runtime 条目一起删」。对真实 Home 的项目库，这是删数据，走第 7 节的流程：先备份，在拷贝上演练，逐库核对。
-7. **路由**：14 条路由现在在 `/api/plugins/io.molis.work.characters/` 下；并进宿主后路径是否保留，由这一片定（保留则客户端不用改）。
+5. **动作的提供方会换**：`CHARACTERS_ACTIONS` 今天由 Runtime 安装提供（`provider_id` 是 `install_id`），并进宿主后换成宿主提供方。动作 id 与版本不变，但 `provider_id` 变，影响面同 4.2 的「提供方身份」里的存量引用（MCP 授权、工作流步骤按 `provider_id` 匹配），要在同一个决定里处理，不要在这一片里悄悄改。4.2 的清点命令在代码里没有查到写死 Characters `provider_id` 的行，所以它没有第 3 类后果。**（已定：用户 2026-10-10 选内置插件一律用插件名，W3-06 C 已把 Characters 登记在 `system.characters` 之下，并进宿主时 `provider_id` 不用再变；这一项剩下的只是维护七改写存量引用。）**CHR-1 已按此做，见上面的进度。
+6. **安装记录**：每个项目库的 `plugin_runtime_installs` 里有 `system.characters` 的记录（监督器启动时建）。决定写的是「安装记录与 Runtime 条目一起删」。对真实 Home 的项目库，这是删数据，走第 7 节的流程：先备份，在拷贝上演练，逐库核对。
+7. **路由**：14 条路由现在在 `/api/platform/characters/` 下；并进宿主后路径是否保留，由这一片定（保留则客户端不用改）。
 
 ## 6. 每个插件迁移 PR 的清单
 
@@ -253,7 +253,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 - **安装记录是新的**：监督器首次启动一个迁来的插件时，会新建安装记录，并授予清单声明的全部权限，可选的默认打开、之后可以关（迁来的插件是 `bundled`，`PluginRuntime.install` 带 `bundled` 时用 `bundledGrants`；用户 2026-10-18 的决定，[POLICY.md](../releases/POLICY.md) 第 7.8 节）。项目里启用了哪些插件记在项目目录里（`packages/contracts/src/modules/projects.ts` 的 `plugins` 列表），迁移不应改变这份记录。
 - **引用不变（已定）**：4.2 的提供方身份已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），迁来的插件存量的 MCP 授权、工作流步骤、判断规则的场景提供方和代码里写死的 `provider_id` 都不用改写。要改写存量引用的只有已在 Runtime 上的 7 个插件（维护七，[CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节）：开发机的真实 Home 已于 2026-10-11 核对，没有要改写的记录，没写真库；别的 Home 照那一节的做法，先问用户、先备份、在拷贝上列出与演练、逐项核对，工具从 Git 历史取。
 - **删除项目的路径会变**：迁移不改变「项目已删」步骤清什么，但改变它怎么被调用（4.2 末项）。迁移之后第一次在真实 Home 上删项目会走新路径，所以每一族迁完，要在 Home 的拷贝上演练一次：删一个有各插件数据的项目，核对删除收据里每个插件一步，再逐库核对数据没了、别的项目的还在。
-- **Characters 的安装记录**：并进宿主时删掉各项目库里的 `io.molis.work.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。（CHR-1 没有做这一步，2026-10-22：它是 `docs/releases/CHECKLIST.md` 里的维护项。）
+- **Characters 的安装记录**：并进宿主时删掉各项目库里的 `system.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。（CHR-1 没有做这一步，2026-10-22：它是 `docs/releases/CHECKLIST.md` 里的维护项。）
 - **项目库当前起点1**：L1b的project_root和插件表账本结构保持。2026-10-30用户取消旧版本项目维护；旧Home整体搬开后新建，旧升级SQL/夹具/演练删除，等全部代码就绪后用户另说“开始”。
 - 迁移完成后，`uninstall --purge` 列表（Home 存储登记 `homeStores()`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。
 

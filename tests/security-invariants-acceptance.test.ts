@@ -156,7 +156,7 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
     headers: { connection: "close", "x-molis-work-control-token": env.controlToken },
   }).then(res => res.json() as Promise<{ works: Array<{ work_id: string; main?: boolean }> }>);
   const workId = listedWorks.works.find(work => !work.main)!.work_id;
-  const workSubject = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: workId } };
+  const workSubject = { provider_id: "system.assistant.rules", subject: { kind: "assistant_work", id: workId } };
   await invoke(person(pid), acceptanceActions.set, { subject: workSubject, requirements: [
     { id: "r1", statement: "包含三档月付与年付", requires_person: true },
     { id: "r2", statement: "底部注明不含税", requires_person: true },
@@ -184,7 +184,7 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   await assert.rejects(
     env.host.actionClient(ref).invoke(
       { ...personCtx, actor_kind: "user", audience: "user", user_action: { source: "web", conversation_ref: "forged", message_ref: "forged" } },
-      { capability_id: "assistant.background.decide", version: 1, provider_id: "io.molis.work.assistant.rules" },
+      { capability_id: "assistant.background.decide", version: 1, provider_id: "system.assistant.rules" },
       { work_id: workId, review_id: `acceptance:${workId}`, version: webReview.reference.version, decision: "approve" },
     ),
     code("actions.forbidden"),

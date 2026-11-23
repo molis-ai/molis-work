@@ -1683,7 +1683,7 @@ test("FSS-35 catalog Agent display retains a real role and prompt draft through 
   assert.ok(coding?.source.kind === "plugin");
   definitions.register({ ...coding, source: { ...coding.source, publisher_signature: "fixture-signed-source" },
     roles: coding.roles.map(role => role.role_id === "planner" ? { ...role, name: "评论中的个人助理" } : role) }, "fixture-signed-installation");
-  const roleKey = "io.molis.work.assistant/role:thread-reply", promptKey = "io.molis.work.assistant/assistant-thread";
+  const roleKey = "system.assistant/role:thread-reply", promptKey = "system.assistant/assistant-thread";
   const link = `.characters-builtin-item[href*="role=${encodeURIComponent(roleKey)}"]`;
   const raw = `.characters-builtin-item[href*="role=${encodeURIComponent("io.molis.work.coding/role:planner")}"]`;
   const row = `[data-prompt-body] [data-key=${JSON.stringify(promptKey)}]`;

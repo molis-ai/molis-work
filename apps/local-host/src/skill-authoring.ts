@@ -134,10 +134,10 @@ export class SkillAuthoringService {
       throw skillErrors.authored_invalid('「给谁用」所选的场景当前不可用，请改选其他对象', { field: 'applies_to' });
     }
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
-    const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
-    if (others.some(skill => skill.declaration.name.trim() === fields.name)) throw skillErrors.authored_name_taken(`你已经有一个叫「${fields.name}」的技能，换个名称`, { field: 'name' });
     const current = held.find(skill => skill.declaration.skill_id === input.skill_id)?.declaration;
     if (input.skill_id !== undefined && !current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
+    const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
+    if (others.some(skill => skill.declaration.name.trim() === fields.name)) throw skillErrors.authored_name_taken(`你已经有一个叫「${fields.name}」的技能，换个名称`, { field: 'name' });
     if (!current && held.length >= SKILL_LIMITS.skillsPerPackage) throw skillErrors.authored_full(`这个范围里自己写的技能已有 ${SKILL_LIMITS.skillsPerPackage} 个，先删掉不用的`);
     const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_IDS[input.scope]);
     const declaration = current ? declarationOf(current.skill_id, current.version + 1, fields)

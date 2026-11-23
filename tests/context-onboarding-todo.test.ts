@@ -378,3 +378,33 @@ for (const c of DRAFT_FITS) test(`RAC-2123 a failed Todo draft keeps an error of
 test("RAC-2124 a failed Todo draft whose error is not an Error keeps the plain text of its own, not a cut of the value", async t => {
   assert.equal((await draftsFailing(t, "x".repeat(700))).error, "待办草稿没整理成");
 });
+
+test("onboarding keeps an adopted dependency across choices 80 and 81", { timeout: 120_000 }, async t => {
+  let calls = 0;
+  const { dir, id, ports } = await fixture(t, async () => {
+    const sample = JSON.parse(TODOS).candidates;
+    if (++calls === 1) return JSON.stringify({ candidates: Array.from({ length: 79 }, (_, index) => ({
+      ...sample[0], ref: "p" + index, title: "前置样本 " + index, depends_on: [],
+    })) });
+    return JSON.stringify({ candidates: sample.slice(0, 2).map((candidate: { evidence: { excerpt: string }[] }) =>
+      ({ ...candidate, evidence: candidate.evidence.map(entry => ({ ...entry, material: 2 })) })) });
+  });
+  const files = await Promise.all(["一", "二"].map(name => stageContextFile(dir, id, name + ".md", Buffer.from(MAIL + name.repeat(22_000)))));
+  selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files: files.map(file => ({ path: file.path, staged: file.staged })) }] });
+  startContextJourney(dir, id, ports);
+  const ready = await waitContextJourney(dir, id);
+  assert.equal(ready.drafts?.status, "ready", ready.drafts?.error ?? "");
+  const candidates = ready.drafts!.batches[0]!.snapshot!.candidates;
+  assert.equal(candidates.length, 81);
+  assert.deepEqual(candidates.slice(79).map(c => c.title), ["发送新版方案", "等待小李确认预算"]);
+  const adopted = await adoptContextJourney(dir, id, { title: "分次采用", body: ready.summary!.body, keep: candidates.map(c => c.candidate_id) }, ports);
+  assert.equal(adopted.phase, "complete", adopted.error ?? "");
+  await adoptContextJourney(dir, id, { title: "重试" }, ports);
+  const reopened = openTodoStore(dir);
+  try {
+    const items = reopened.list({ projectId: adopted.project_id, projectIds: [], actor: "user", actorId: "web-user" });
+    assert.equal(items.length, 81);
+    const target = items.find(item => item.title === "等待小李确认预算")!;
+    assert.deepEqual(items.find(item => item.title === "发送新版方案")!.links.map(link => [link.relation, link.subject.id]), [["blocked_by", target.id]]);
+  } finally { reopened.close(); }
+});

@@ -12,7 +12,7 @@ const titledSection=(title,value,block)=>'<section '+(block?'data-alc-block="'+e
 const section=(key,value,block)=>titledSection(readText(key),value,block);
 const empty=text=>'<div class="alc-empty">'+tx(text)+'</div>';
 const row=(kind,id,title,preview,state,version)=>'<button type="button" class="mw-stage-entry directory-list-row alc-row'+(focus?.kind===kind&&focus.id===id?' is-selected':'')+'" data-alchemist-id="'+esc(id)+'" data-alc-open="'+kind+'" data-version="'+(version||1)+'" aria-current="'+Boolean(focus?.kind===kind&&focus.id===id)+'"><span class="alc-row-copy"><strong>'+esc(title)+'</strong><small>'+esc(preview||'')+'</small></span>'+status(state)+'</button>';
-function group(label,items){return items.length?'<details class="goal-collection-fold" data-alc-group="'+esc(label)+'" open><summary><span class="goal-collection-caret"><svg aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span><strong>'+tx(label)+'</strong><span>'+items.length+'</span></summary>'+items.join('')+'</details>':'';}
+function group(label,items){return items.length?'<details class="mw-collection-fold" data-alc-group="'+esc(label)+'" open><summary><span class="mw-collection-caret"><svg aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span><strong>'+tx(label)+'</strong><span>'+items.length+'</span></summary>'+items.join('')+'</details>':'';}
 function renderList(){
 const q=$('search').value.trim().toLowerCase(),match=(...v)=>v.join(' ').toLowerCase().includes(q), el=$('rows'),scroll=$('[data-alchemist=directory]').scrollTop;
 root.querySelectorAll('[data-alc-collection]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.alcCollection===view)));

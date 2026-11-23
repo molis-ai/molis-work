@@ -59,6 +59,7 @@ export class ContinuityActions {
     input.validate();
     const byProvider = new Map<string, Partial<Record<WorkProgressContinuityRole, ResolvedContinuityAction>>>();
     for (const view of views) {
+      if (!view.availability.available) continue;
       const role = workProgressContinuityRoleOf(view.action);
       if (!role) continue;
       const providerId = view.provider.provider_id;

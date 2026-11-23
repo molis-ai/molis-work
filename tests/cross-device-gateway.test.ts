@@ -56,3 +56,53 @@ test("the administrator command refuses everything but a numeric loopback origin
     await assert.rejects(configureMemberActions({ hostUrl, homeDirectory: "/unused", controlTokenFile: "/nonexistent/web-control-token", memberId: "m", projectId: "p", role: "viewer" }), /numeric loopback HTTP origin/, hostUrl);
   }
 });
+
+test("configureMemberActions fails closed for viewer on third-party command or unknown actions", async () => {
+  const { createServer } = await import("node:http");
+  const { writeFile } = await import("node:fs/promises");
+  const home = await mkdtemp(join(tmpdir(), "continuity-viewer-fail-closed-"));
+  const tokenFile = join(home, "control-token");
+  const posted: Array<{ capability_id: string; enabled: boolean }> = [];
+  await writeFile(tokenFile, "a".repeat(48), "utf8");
+  const server = createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.method === "GET") {
+      res.end(JSON.stringify({
+        grants: [],
+        entries: [
+          { capability_id: "thirdparty.states.read", version: 1, provider_id: "io.thirdparty.milestones", kind: "query" },
+          { capability_id: "thirdparty.progress.record", version: 1, provider_id: "io.thirdparty.milestones", kind: "operation" },
+        ],
+      }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    req.on("data", chunk => chunks.push(chunk));
+    req.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { capability_id: string; enabled: boolean };
+      posted.push({ capability_id: body.capability_id, enabled: body.enabled });
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  try {
+    await configureMemberActions({
+      hostUrl: `http://127.0.0.1:${address.port}`, homeDirectory: home, controlTokenFile: tokenFile,
+      memberId: "viewer-1", projectId: "proj-1", role: "viewer",
+      actions: [
+        { capability_id: "thirdparty.states.read", version: 1, provider_id: "io.thirdparty.milestones" },
+        { capability_id: "thirdparty.progress.record", version: 1, provider_id: "io.thirdparty.milestones" },
+        { capability_id: "thirdparty.unknown.write", version: 1, provider_id: "io.thirdparty.milestones" },
+      ],
+    });
+    assert.deepEqual(posted, [
+      { capability_id: "thirdparty.states.read", enabled: true },
+      { capability_id: "thirdparty.progress.record", enabled: false },
+      { capability_id: "thirdparty.unknown.write", enabled: false },
+    ]);
+  } finally {
+    await new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); });
+    await rm(home, { recursive: true, force: true });
+  }
+});

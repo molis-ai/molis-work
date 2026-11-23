@@ -85,7 +85,7 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     const concurrent={...command,command_id:randomUUID(),cursor:committedCursor,summary:'并发重试只记一次'};
     const results=await Promise.all([phone.post(path+'/progress',concurrent),phone.post(path+'/progress',concurrent)]);
     assert.equal(results[0].event_id,results[1].event_id);
-    assert.equal(storage.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE kind='progress'").get().n,2);
+    assert.equal((storage.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE kind='progress'").get() as { n: number }).n,2);
     assert.equal((await phone.request('/continuity/api'+path+'/progress',{...command,command_id:randomUUID()})).status,409);
     const invitation=await desktop.post(path+'/invite',{role:'editor'});
     await member.post('/connect',{code:invitation.code,display_name:'第二位成员',device_label:'团队设备'});
@@ -150,26 +150,37 @@ test("PEQ-09 Continuity discovers any plugin implementing WORK_PROGRESS_CONTINUI
   const receipts = new Map<string, { event_id: string; replayed: boolean }>();
   let cursor = 3, summary = "初始状态";
 
-  const makeView = (capability_id: string, operation: "query" | "command", role: keyof typeof WORK_PROGRESS_CONTINUITY_PROTOCOL): ActionView => ({
-    capability_id, version: 1,
-    provider: { provider_id: pluginId, plugin_id: pluginId, kind: "plugin" },
-    action: {
-      title: capability_id, description: capability_id, operation, scope: "project",
-      audiences: ["user", "mcp"], permissions: [], input_schema: { type: "object" }, output_schema: { type: "object" },
-      ...WORK_PROGRESS_CONTINUITY_PROTOCOL[role],
-    },
-    availability: { available: true },
-  });
+  const makeView = (capability_id: string, kind: "query" | "operation", role: keyof typeof WORK_PROGRESS_CONTINUITY_PROTOCOL, options?: { providerId?: string; available?: boolean }): ActionView => {
+    const ownerId = options?.providerId ?? pluginId;
+    return {
+      capability_id, version: 1,
+      provider: { provider_id: ownerId, plugin_id: ownerId, kind: "plugin", title: ownerId === pluginId ? "Milestones" : "Disabled Provider" },
+      action: {
+        title: capability_id, description: capability_id, kind, scope: "project",
+        audiences: ["user", "mcp"], permissions: [], input_schema: { type: "object" }, output_schema: { type: "object" },
+        ...WORK_PROGRESS_CONTINUITY_PROTOCOL[role],
+      },
+      availability: options?.available === false ? { available: false, code: "actions.plugin_disabled", reason: "Plugin disabled" } : { available: true },
+    };
+  };
 
   let exposeProvider = false;
+  let includeUnavailableFirst = false;
   const service = new ContinuityService(storage.db, identity, events, ({ projectId, memberId, validate, signal }) => ({
     caller: { actor_id: memberClientId(memberId), project_id: projectId, audience: "mcp", permissions: [], validate_authority: validate, signal },
     client: fakeActionClient({
-      discover: async () => exposeProvider ? [
-        makeView("milestones.states.read", "query", "states.read"),
-        makeView("milestones.progress.record", "command", "progress.record"),
-        makeView("milestones.progress.receipt", "query", "progress.receipt"),
-      ] : [],
+      discover: async () => [
+        ...(includeUnavailableFirst ? [
+          makeView("disabled.states.read", "query", "states.read", { providerId: "io.disabled.tracker", available: false }),
+          makeView("disabled.progress.record", "operation", "progress.record", { providerId: "io.disabled.tracker", available: false }),
+          makeView("disabled.progress.receipt", "query", "progress.receipt", { providerId: "io.disabled.tracker", available: false }),
+        ] : []),
+        ...(exposeProvider ? [
+          makeView("milestones.states.read", "query", "states.read"),
+          makeView("milestones.progress.record", "operation", "progress.record"),
+          makeView("milestones.progress.receipt", "query", "progress.receipt"),
+        ] : []),
+      ],
       invoke: async (_caller, action, raw) => {
         const input = raw as Record<string, unknown>;
         if (action.capability_id === "milestones.states.read") {
@@ -206,11 +217,12 @@ test("PEQ-09 Continuity discovers any plugin implementing WORK_PROGRESS_CONTINUI
     const emptyAssets = await service.assets(session, "no-goals");
     assert.deepEqual(emptyAssets.sections, []);
 
-    // 2. Requesting progress items when no provider implements WORK_PROGRESS_CONTINUITY_PROTOCOL returns explicit unavailable.
+    // 2. Requesting progress items when no provider (or only a disabled provider) implements WORK_PROGRESS_CONTINUITY_PROTOCOL returns explicit unavailable.
+    includeUnavailableFirst = true;
     service.registerProject({ id: "missing-provider", title: "缺进展插件", goal_ids: ["M-1"], artifacts: [] }, owner.id);
     await assert.rejects(() => service.read(session, "missing-provider"), { code: "im.continuity.progress_unavailable" });
 
-    // 3. A third-party plugin implementing WORK_PROGRESS_CONTINUITY_PROTOCOL works identically to Goals.
+    // 3. A third-party plugin implementing WORK_PROGRESS_CONTINUITY_PROTOCOL works identically to Goals even when an unavailable provider precedes it in discovery.
     exposeProvider = true;
     service.registerProject({ id: "third-party", title: "第三方进展接续", goal_ids: ["M-1"], artifacts: [] }, owner.id);
     const read = await service.read(session, "third-party");

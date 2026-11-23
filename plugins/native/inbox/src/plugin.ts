@@ -158,10 +158,15 @@ export function createInboxPlugin(): PluginDefinition {
     };
     const actions = [...createInboxActionHandlers({ ...sceneRuntime.ports, ...pages,
       listEntries: () => attention.listInbox().map(recordOf),
-      stageSubjects: (entries, caller) => readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
-        feedAvailability: () => own.availability(FEED.briefs),
-        subject: async entry => (await resolveActionSubject(subjects, caller, inboxOrigin(entry))).context,
-      }),
+      stageSubjects: (entries, caller) => {
+        // N42–N56: lazily discover once per inbox.stage.read call when non-Feed subjects exist (0 discovers for Feed-only).
+        let discovered: readonly ActionView[] | Promise<readonly ActionView[]> | undefined;
+        const directoryOnce = () => (discovered ??= subjects.discover(caller));
+        return readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
+          feedAvailability: () => own.availability(FEED.briefs),
+          subject: async entry => (await resolveActionSubject(subjects, caller, inboxOrigin(entry), await directoryOnce())).context,
+        });
+      },
       setStatus: async (entryId, status, revision, caller) => {
         const entry = entryOf(entryId);
         // Reopening is admission too: an ignored item's entries stay closed until the person restores the item, and only Feed can say so.

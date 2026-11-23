@@ -199,9 +199,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-stage-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .ob-stage-head b { color: var(--ink); font-weight: var(--weight-title, 600); font-size: 15px; }
   .ob-label { color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
-  .ob-note { display: flex; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 12px; line-height: 1.7; }
-  .ob-note svg { flex: none; width: 14px; height: 14px; margin-top: 3px; }
-  .ob-note.is-warn svg { color: var(--amber); }
   .ob-error { display: flex; align-items: center; gap: 8px; color: var(--red); font-size: 12px; }
   .ob-error[hidden] { display: none; }
   .ob-error svg { width: 14px; height: 14px; flex: none; }
@@ -220,11 +217,11 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-source__act.is-quiet { color: var(--faint); font-size: 12px; }
   .ob-source .is-unavailable { cursor: default; }
   .ob-source .is-unavailable :is(.mw-dir-row__icon, .mw-dir-row__copy) { opacity: .55; }
-  .ob-source__cfg { display: grid; gap: 14px; padding: 6px 12px 18px 32px; }
+  .ob-source__cfg { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 6px 12px 18px 32px; }
   .ob-notes { display: grid; gap: 4px; max-width: 480px; }
   .ob-cfg-block { display: grid; gap: 8px; }
   .ob-cfg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .ob-cfg-actions .ob-note { flex-basis: 100%; }
+  .ob-source__cfg .ob-cfg-actions > .mw-btn { white-space: normal; text-align: start; overflow-wrap: anywhere; }
   .ob-picks{display:grid;grid-template-columns:1fr;gap:8px}
   .ob-place{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
   .ob-place__actions{display:flex;gap:4px}
@@ -275,7 +272,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-error-page .mw-empty { margin: 0; padding: 0; justify-items: start; text-align: left; }
   .cx-error { margin: 0; color: var(--red); font-size: 12px; line-height: 1.6; }
   .cx-error:empty { display: none; }
-  .cx-hint { margin: 0; }
   .cx-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .cx-summary { font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
   .cx-summary p { margin: 0 0 12px; white-space: pre-wrap; }

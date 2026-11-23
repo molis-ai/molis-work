@@ -530,5 +530,38 @@ flowchart LR
 | --- | --- | --- |
 | `91-0a`（新） | **已合入**（[#2221](https://github.com/molis-ai/molis-work/pull/2221)，`51bf5e1f02`，2026-11-22）：新增仓内 Skill `skills/molis-design-ui/` 与多代理接线；对齐 `DESIGN.md`／`taste.md`／`shell-page-exceptions` 等规范文档；`docs/design/` 59→9 归档与唯一 `docs/design/kit/` | [91](batches/91.md#batch-91-item-0a) |
 | `91-0b`（新） | **已合入**（[#2222](https://github.com/molis-ai/molis-work/pull/2222)，`57a6fad615` 及补清小修，2026-11-22）：落 4 套内置皮肤＋暗色 `on-accent` 修复、F1 Sans＋思源黑体三字重、纸感边框／6px 状态标签与 CSS 漂移清扫（含 40 批 `on-demand-help.ts` 与 `im-ui` 补齐）、交付原 `91-1` 全站体验共用底座（同步纳入 `<80 KB` 插件基础样式表）、重构 `/__ui/catalog` 93 节、统一全部 30 个设置页到 P5，并同步校准 `skills/molis-design-ui/` 与 `skills/molis-plugin-dev/`（`studio:replay`＋隔离 `smoke`）；`91B` 与 `91A` 对 `91-0b` 的前置已满足 | [91](batches/91.md#batch-91-item-0b) |
-| `91A`（`91-2`～`91-4`） | 保持等 `91-0b`（含 `91-1` 底座）、`101`、`36A-3`/`4b`/`7`、`37-2` 与 Prologue 窗口 A，专注纯流式内核、Agent Host 热路径止血、Assistant 与 Coding SSE 接入 | [91](batches/91.md) |
-| `91B` | 紧接 `91-0b` 可并行推进 `91B-1`～`3`（补齐决定 60 漏接的 6 处平台入口／壳层／静默吞错断缝，不重复 `101` 已修的 5 个 P0）；`91B-4` 收口五层防回退门禁（含无未定义 `--*`、无遗留 `--dock-h`、无裸 `style=`、`on-accent` 暗色对比度 AA、目录与样板门禁） | [91B](batches/91b.md) |
+| `91A`（`91-2`～`91-4`） | 经[决定 66](decisions.md#decision-66)校准：等 [`111`](batches/111.md)（`44B`+UPP 全套收口）、`91-0b`、`101`、`36A`、`37-2` 与 Prologue 窗口 A，基于 `109` 开放审查与可选 Git 依赖实施纯流式内核与 SSE | [91](batches/91.md) |
+| `91B` | 经[决定 66](decisions.md#decision-66)校准：等 [`111`](batches/111.md)（+ `91-0c`）后推进，`91B-1` 纳入纯平台 `system.shelf` + `horizontal/plugin-studio` + UPP 切换器/市场，`91B-2`/`3` 对齐 20 平等内置插件 + 3 统一连接器驱动（移除已删 Alchemist/YouTube/Text Stats） | [91B](batches/91b.md) |
+
+<a id="deps-2026-11-22-demotion-upp"></a>
+
+### 11-22 特殊逻辑平民化（`44B`）与统一工作分区（`106`～`111`）主干前置（[决定 66](decisions.md#decision-66)）
+
+按 V1 先加后迁再删排入 7 个正式批次（1 批 = 1 PR，每波恒绿），先消费已实装在途 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`），允许 `#2259` 的 `91-0c` 并行/前置，整体排在 **`91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前**：
+
+```mermaid
+flowchart LR
+  B44B0["44B-0 P0 安全前缀"] --> B44B["44B 特殊逻辑平民化<br/>(Shelf 纯平台/删 Alchemist/连接器驱动)"]
+  INF["在途 PR #2239/#2258/#2253~2260"] --> B44B
+  B44B --> B106["106 UPP-A 分区底座"]
+  B106 --> B107["107 UPP-B1 独立库 6 插件"]
+  B107 --> B108["108 UPP-B2 原 Home 5 插件+总览"]
+  B108 --> B109["109 UPP-B3 主库去列+双实例归零+Git 迁入"]
+  B109 --> B110["110 UPP-B4 放置/同步/搜索/MCP"]
+  B110 --> B111["111 UPP-C 推送+界面+G1~G5+Clean v1"]
+  B111 --> B91A["91-2..4 流式与 Coding"]
+  B111 --> B91B["91B 全产品收口"]
+  B111 --> B105["105 审批与缓存硬化"]
+  B111 --> BDOWN["45~90 / REL-4~5 / SRV-1~8"]
+```
+
+| 批次 | 真实前置与范围 | 文件 |
+| --- | --- | --- |
+| `44B-0` | 无前置，立即可单独切安全小 PR：全局保留 `io.molis.work.` 前缀（`S-reserved-host-prefix`）与修两处第三方正则 | [44B](batches/44b.md#batch-44b-item-0) |
+| `44B` | 等 `44B-0` 与在途 `#2239`/`#2258`/`#2253`～`#2255`/`#2257`/`#2250`/`#2260`：Shelf 收归纯平台 `modules/shelf`（`always_on=0`、免重写 3,150 行 Rust）、删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 拍平、官方集成驱动化（`youtube`→`rss`、`planning-methods`→`packages/system-skills/`）、修 `#2231` Inbox 劫持、上线 G1 | [44B](batches/44b.md) |
+| `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/标识符白名单 `overview_projection`、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
+| `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `project_rows`、跨库 `artifact_join` 与复用器 | [107](batches/107.md) |
+| `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `scope:"home"`/`personal:true`/`hidden`/`project_reach` | [108](batches/108.md) |
+| `109`（UPP-B3） | 等 `108`：主库插件删 `project_id`，Workspace Git+Writers 迁 `plugins/native/git`（D6=B，`S-git-plugin-command-scope`，保留 `#2244` 隔离），沙箱开放 `databases.partition`，彻底删 `dual_instance` 与旧平行装配（G2/G3） | [109](batches/109.md) |
+| `110`（UPP-B4） | 等 `109`：放置/同步/搜索/MCP/记忆去双轨、V4 分区启用清单独立同步、零唤醒发现、G5 | [110](batches/110.md) |
+| `111`（UPP-C） | 等 `110`：星型推送（V2/V3/U6/U7/U8、>256 KiB 分片、CAS GC 保护）、先定样界面、焊死 G1～G5、清退复位白名单；作为 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`～`5`/`SRV` 共同前置 | [111](batches/111.md) |

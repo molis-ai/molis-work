@@ -1,8 +1,8 @@
 # 统一工作分区：废除个人插件与项目插件之分、星型单向 Push、清零双轨（Unified Partition Plugins）
 
-状态：需求书已定稿。U1～U13 与复查追加的 V1～V8 都由用户于 2026-11-22 弹窗拍板（第 14 节末）；同日经两路独立只读复查（架构/存储/同步/安全对代码；计划/矩阵/排期）修订，复查发现的问题已逐条并入正文（修订对照见第 17 节）。尚未改任何业务代码，待按第 12 节开独立工作树分批推进。盘点取自 main `1d38f73928`（2026-11-22），行号以该提交为准；在途 [#2239](https://github.com/molis-ai/molis-work/pull/2239)（第 47 批，创作台归平台 `horizontal/plugin-studio`）按其分支 `origin/batch/47` 计入。
+状态：需求书已定稿并完成与最新 `origin/main`（`5bfd52b87b`）及在途 PR（`#2239`、`#2245`、`#2250`、`#2252`～`#2260`）的终审合并。U1～U13、V1～V8 及终审覆写（Shelf 纯平台化、Alchemist 彻底删除、个人空间保留右栏 IM 与双层自写 Skill、批号 `106`～`111` 排在 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`/`SRV` 之前）均已由用户于 2026-11-22 弹窗拍板，记路线书[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)；尚未改任何业务代码，按第 12 节与[合并实施总纲](../plugin-specials-demotion/implementation-plan.md)分批推进。
 
-需求维护：Claude（本会话）；实现：待分配，获批后另开独立工作树分片推进。类型：底层与架构（主）、横向能力（放置、同步、搜索、MCP、Agent）、产品线（全部 24 个内置插件）。来源：用户 2026-11-22 在[特殊逻辑平民化](../plugin-specials-demotion/spec.md) D4 弹窗里给出的需求原文（下称「原文」）；本文按原文补遗漏、对照现行代码校正、给出可执行方案。
+需求维护：Claude / Antigravity；实现：待分配，获批后另开独立工作树分片推进。类型：底层与架构（主）、横向能力（放置、同步、搜索、MCP、Agent）、产品线（全部 **20 个平等内置插件**，注：`text-stats` 已于 `#2243` 删除，创作台于 `#2239` 归平台，Shelf 于 `44B` 归纯平台 `modules/shelf`，旧 Alchemist 于 `44B` 彻底删除）。来源：用户 2026-11-22 在[特殊逻辑平民化](../plugin-specials-demotion/spec.md) D4 弹窗里给出的需求原文及后续终审拍板。
 
 ## 白话说明
 
@@ -25,7 +25,7 @@
 | **账号空间** | 登录账号隔离的整份 Home | `StorageSpace`、`<root>/spaces/<spaceId>/`（`packages/contracts/src/platform/storage.ts:5-12`、`packages/storage/src/space.ts`） | 不改；`kind: "personal"` 指账号，不指分区 |
 | **分区** | 日常工作的上下文：个人空间或一个项目，二者同构 | `PartitionId = "personal" \| ProjectId`；合同里的字段仍叫 `project_id`（见 U3 的说明） | 不叫 space |
 | **个人空间** | 保留分区 `personal` | `PERSONAL_SPACE_PROJECT_ID`（`packages/contracts/src/platform/placement.ts:18`） | 不是 Home 层 |
-| **Home 软件层** | 装包、升级、发布者签名、本人级配置与凭据、系统与跨分区调度 | `scope: "home"` 只留给这些与 Shelf | 不放业务数据 |
+| **Home 软件层** | 装包、升级、发布者签名、本人级配置与凭据、系统与跨分区调度、纯平台全局部件（如 `system.shelf`） | `scope: "home"` 只留给系统与纯平台能力（普通插件为 0） | 不放插件业务数据 |
 | **启用** | 一个分区开着某插件（成员关系） | `partition_plugins`（由今天的 `project_plugins` 改名） | 取代「隐藏」 |
 | **推送（Push）** | 同一插件把个人空间的原件按版本投递成某项目里的副本 | `horizontal/placement` 的推送账本 | 与「定版进成果库」正交；与一次性复制、移动不同 |
 | **本人级** | 跟人走、不跟分区走的东西：本人记忆与偏好、角色的个人层、模型与连接、`personSettings` | 记忆的 `MemoryScope "personal"`（`packages/contracts/src/services/memory.ts:32`）、Characters 角色的个人层（`modules/characters/src/roles.ts:29`）保留原义，**改名注释为「本人级」**，与个人空间分区区分 | 不是个人空间分区；搜索的 `SearchScope "personal"`（`search.ts:32`）改指个人空间分区 |
@@ -36,7 +36,7 @@
 2. **C2 个人空间是保留分区。** `"personal"` 是系统保留字：建项目、导入、同步接收、整项目复制、团队共享都不能产生或占用这个 id；它不进 `listProjects()`（用户项目列表），不能改名、进回收站、永久删除、对外共享，不计入卸载确认里的「N 个项目」；但它**启用了哪些插件**进个人云同步。
 3. **C3 个人空间与项目同构。** 默认输出目录与可选输入目录、成果库与过程项、对象工作终端、要求与认可、可信决定、插件事件与端口连线、定时调度，个人空间与项目一样（今天大部分已有，见 3.1）。
 4. **C4 插件平权。** 不再有个人插件、项目插件、Home 插件、双实例之分。内置与签名沙箱包同一模型：包与签名在 Home 软件层装一次；每个分区按需启用、移除（移除保留数据，重新启用恢复）。接收同步数据绝不隐式启用插件。
-5. **C5 动作作用域。** 普通插件的业务动作一律是分区作用域（`scope: "project"`，调用上下文带可信分区 id）；`scope: "home"` 只留给系统、账号、包安装、跨分区调度与 Shelf。
+5. **C5 动作作用域。** 普通插件的业务动作一律是分区作用域（`scope: "project"`，调用上下文带可信分区 id）；`scope: "home"` 只留给系统、账号、包安装、跨分区调度与纯平台全局部件（普通插件 `scope: "home"` 与 `dual_instance` 归零）。
 6. **C6 存储对插件无感。** 宿主按调用所在分区注入该分区的 `services.project_database`（分区主库 `molis-work.db`）、`services.database`（插件独立库）与 `services.ownerFiles`；插件代码只写单库增删改查。
 7. **C7 两类引擎各留所长。** 用分区主库的插件保留同连接原子事务（`scheduler.join`、`artifacts.join`、`attention.join`、`notifications.deliver`）与 SQL 操作码校验；用独立 SQLite 的插件每个分区一个库实例，保留同步触发器与原生 authorizer。
 8. **C8 配置与连接归本人。** 模型供应商、生图配置、本机工具探测、连接器凭据（`connectors.db` + `SecretStore`）留在 Home 层归本机本人；连接槽支持「本人默认」绑定，`per_record` 绑定仍按分区隔离；共享项目的其他成员、未获准的 Agent、跨分区的外部客户端绝不继承本人凭据。
@@ -44,15 +44,17 @@
 10. **C10 跨分区总览不唤醒。** 个人空间里的「所有项目」总览只读平台的总览索引或有界只读查询，不唤醒休眠项目的 `PluginSupervisor` 与沙箱进程。
 11. **C11 干净 v1。** 生产代码不留旧结构兼容读取与开发期过渡升级段；按发布前 v1 拍平（`tooling/gates/schemas/same-version-exceptions.json` 登记经用户批准，重生 `0.1.0` 金样）；真实 `~/.molis-work` 不迁移、清理干净重建（U13）。
 
-### 1.3 白名单（只这几样保留各自定位，其余一律按 C4）
+### 1.3 纯平台部件定位（零插件形态特例）
 
-| 部件 | 保留什么 | 依据 |
+以下部件在 `44B` 后均为**纯平台系统部件或内容包机制**，不再拥有插件特例身份；其余全部 **20 个内置插件**与第三方签名沙箱包一律按 C4 享受完全同等的分区插件契约：
+
+| 部件 | 定位 | 依据 |
 | --- | --- | --- |
-| Shelf | 唯一常开（`always_on`）；Home 全局单库（`home-document` 同步）；跨分区暂存与拖放中转；项目半是唯一允许的 `dual_instance`（U9） | 原文；[平民化 D1](../plugin-specials-demotion/spec.md) |
-| 插件创作工作台 | 切换器顶部的扩展入口；#2239 起是平台框内页面，不是插件 | 原文；#2239 |
-| Alchemist | 见 U10（原文与平民化 D2 不一致，要你定） | 原文；平民化 D2 |
-| 内容包（`kind: "content"`） | 技能包、场景包的声明式机制不变 | 原文 |
-| Characters、判断规则 | `modules/characters`、`modules/judgment-rules` 职责与存储归属不变；它们记录里的「无项目」标记（Characters 的个人层、判断规则的 `''`）按 9.2 归类到「本人级」或「个人空间」，不改职责 | 原文；复查 |
+| Shelf | **纯平台模块 `modules/shelf`（`system.shelf`，`kind:"system"`，`/api/platform/shelf`）**：右栏常驻全局中转架（经 `HostSurfaceRegistration`），Home 级 `home-document` 同步；**终审覆写 D1/U9：`always_on = 0`、`dual_instance = 0`** | [平民化 D1 终审](../plugin-specials-demotion/spec.md)、决定 66 |
+| 插件创作工作台 | 切换器顶部的扩展入口；`#2239` 起是平台框内页面（`horizontal/plugin-studio`），不是插件 | 原文；`#2239` |
+| Alchemist | **按 U10/D2+U13 终审**：`44B` 彻底删除旧包、宿主接线与磁盘豁免；第 82 批在创作台上按纯 UPP 场景插件从零重写 | 平民化 D2 + U13 |
+| 系统技能与内容包 | `planning-methods` 在 `44B` 迁入纯平台 `packages/system-skills/`；其余普通内容包（`kind: "content"`，如技能包、场景包）声明式机制不变 | 原文；决定 66 |
+| Characters、判断规则 | `modules/characters`（`system.characters`）、`modules/judgment-rules` 职责与存储归属不变；无项目标记按 9.2 归类到「本人级」或「个人空间」 | 原文；复查 |
 
 ## 2. 现状（盘点要点，细节见第 8 节矩阵）
 
@@ -105,18 +107,18 @@
 | 保护 | 改名、删除、回收已拒（`project-catalog.ts:446-452`、`project-deletion-service.ts:45,121`、`project-sync-admission.ts:9`） | 加：团队共享拒绝；卸载确认不计入；统一写成一条安全不变量（`S-personal-partition-reserved`）。个人空间仍是 `catalog.db` 里的一行（`partition_plugins` 外键要它），目录表照 W5-17 只存 id 不存路径（`project-paths.ts:7-16`），路径只由 `partitionRoot()` 算 |
 | 一个算路径的地方 | 项目主库与库名目录的路径散写在快照策略（`home-store-snapshot.ts:51-62`、`home-snapshot-inventory.ts:108` 遇未登记的 SQLite 直接拒绝快照）、恢复（`home-restore-projects.ts:39-55` 要求每行目录都有 `projects/<id>/molis-work.db`）、升级枚举（`platform-upgrade-stores.ts:49,57-59`）、已装库升级（`installed-database-upgrade.ts:57`）、成果行连接（`plugin-artifact-row-library.ts:42-46`）、卸载清理、库结构快照的键（`tooling/gates/schemas/stores.tsv`） | 全部改成只经 `partitionRoot()` 与分区库登记求路径；`stores.tsv` 的键改为 `<partition>/molis-work.db`、`<partition>/libraries/<库名>.db`；加「个人空间 + 独立库」的快照与恢复往返测试 |
 | 到期的工作 | 今天 Home 插件常驻，Todo 提醒（`todo.reminders`，`plugins/native/todo/src/plugin.ts:57`）、Jelly 日程、Images 后台队列都由常驻实例跑；调度器只在项目主库里有到期项时唤醒项目（`web-project-schedulers.ts:39-66`） | 平台在 Home 层保留一张**到期登记**：分区实例把「某时刻要做的事」登记给平台调度器（`horizontal/scheduler`），到点只唤醒那个分区的那个插件实例，不起整套监督器；登记随禁用、卸载、删分区清除 |
-| 同构项 | 成果库、过程项、终端、认可、事件、调度、目录都已按项目（`project-host.ts:255,317`、`project-catalog.ts:259`、`project-plugins.ts:174,192`） | 核一遍「资料（materials）」是否按分区（盘点未确认），缺的补齐 |
+| 同构项 | 成果库、过程项、终端、认可、事件、调度、目录都已按项目（`project-host.ts:255,317`、`project-catalog.ts:259`、`project-plugins.ts:174,192`）；已实核 `system-materials-actions.ts` 已按分区，但 `material-original-files.ts:19-48` 与 `material-attachments.ts:24-49` 仍用 `project_id = ""` | 将 `material-original-files.ts` 与 `material-attachments.ts` 改为全分区存储（含 `personal`），清零 `project_id = ""`；**个人空间保留右栏「讨论 / IM」作个人随手记与自对话流（R21）；自写 Skill 保持双层——个人全局技能（Home 层，个人空间直接读写不建第二套）+ 项目专属分区技能（R22）** |
 | 平台导航 | 成果库要项目上下文（`artifact-library-http.ts`）；外部会话两级都有（`web-catalog-routes.ts:105`、`web-project-platform-routes.ts:278`） | 个人空间下「成果」读写个人空间成果库；「外部会话」只列未归入任何项目或个人空间的会话 |
 | 首屏 | 空 Home 走 `/onboarding`，选「空白开始」再进 `/projects/personal/` | 空 Home 直接进个人空间，引导是第一张卡（U11） |
-| 初始启用哪些插件 | 个人插件处处开着；新项目只有 Schedule（`default_enabled`，`plugin-registry.ts:224`） | **按用户选的场景初始化**（V6）：引导与新建项目时挑场景包或说出目的、助理推荐一到三套，采用时启用场景声明的插件（[onboarding-coverage](../onboarding-coverage/spec.md) §3.8、§3.8.1，ONB-50～56；采用路径见 [scene-and-page-contract](../scene-and-page-contract/spec.md) 第 7 节）。平台不写默认名单；空白开始只有常开的 Shelf 与声明了 `default_enabled` 的插件（今天只有 Schedule）。助理可以帮你配置：它提出「给这个分区加/去掉这些插件」，以采用预览的形式给你确认后执行。启用与移除统一走平台动作 `partitions.plugins.set@1`（即 scene-and-page-contract P-3a 计划的 `projects.plugins.set@1`，扩到个人空间，归 `modules/projects`，带成员 revision）；场景包种类与各场景开哪些插件归 onboarding-coverage 与第 52 批，不在本需求里定 |
+| 初始启用哪些插件 | 个人插件处处开着；新项目只有 Schedule（`default_enabled`，`plugin-registry.ts:224`） | **按用户选的场景初始化**（V6）：引导与新建项目时挑场景包或说出目的、助理推荐一到三套，采用时启用场景声明的插件（[onboarding-coverage](../onboarding-coverage/spec.md) §3.8、§3.8.1，ONB-50～56；采用路径见 [scene-and-page-contract](../scene-and-page-contract/spec.md) 第 7 节）。平台不写默认名单；空白开始只有声明了 `default_enabled` 的插件（今天只有 Schedule；Shelf 已是纯平台 `system.shelf` 不计入插件列表）。助理可以帮你配置：它提出「给这个分区加/去掉这些插件」，以采用预览的形式给你确认后执行。启用与移除统一走平台动作 `partitions.plugins.set@1`（即 scene-and-page-contract P-3a 计划的 `projects.plugins.set@1`，扩到个人空间，归 `modules/projects`，带成员 revision）；场景包种类与各场景开哪些插件归 onboarding-coverage 与第 52 批，不在本需求里定 |
 | 切换器 | 个人空间是普通一行（`settings-navigation.ts:62-90`） | 顶部固定「个人空间」，下面项目列表与「新建项目」；需定样 |
 
 ### 4.2 宿主合并
 
 1. **一张安装表。** 内置与签名包的安装记录、升级、发布者固定、同意都在 Home 软件层（今天的 `plugin-runtime` Home 库）；项目库里的安装记录表删除。
-2. **一套装配。** 合并 `HomePluginHost` 与项目平台、`HomeInstalledPlugins` 与 `installed-plugin-host`：按（插件, 分区）启动实例，每个实例的 `services.database`、`services.project_database`、`services.ownerFiles` 绑定它自己分区的文件；**不沿用**今天 `databases.home.partition: "project"` 那种「一个 Home 实例按调用切库」的复用器（它拒绝路由、启停、事件与定时器，`plugin-database-partitions.ts:61-80`，Todo 的提醒路由会坏），复用器整个退役。休眠分区的实例不常驻：分区打开、有到期登记、收到推送或同步写入时才起，闲置按平台策略停（沙箱子进程同样），进程数与打开的分区数成正比而不是与项目总数成正比。Home 层只剩 Shelf（与系统能力）。
+2. **一套装配。** 合并 `HomePluginHost` 与项目平台、`HomeInstalledPlugins` 与 `installed-plugin-host`：按（插件, 分区）启动实例，每个实例的 `services.database`、`services.project_database`、`services.ownerFiles` 绑定它自己分区的文件；**不沿用**今天 `databases.home.partition: "project"` 那种「一个 Home 实例按调用切库」的复用器（它拒绝路由、启停、事件与定时器，`plugin-database-partitions.ts:61-80`，Todo 的提醒路由会坏），复用器整个退役。休眠分区的实例不常驻：分区打开、有到期登记、收到推送或同步写入时才起，闲置按平台策略停（沙箱子进程同样），进程数与打开的分区数成正比而不是与项目总数成正比。**随着 Shelf 在 `44B` 收归纯平台 `modules/shelf`（`system.shelf`），普通插件不再有任何 `HomePluginHost` 或 `dual_instance` 路径**。
 3. **删掉的链路：** `outsideBuild()` → `projectReachablePlugins` → `reachEntry({personal:true})`；`plugin-scope-entries.ts` 的两半配对；`assertScopeKept` 三态；`home-package-admission.ts` 的 Home 包限制；`plugin-declared-services.ts` 的「项目实例不得声明 `owner_files`、`model_configuration`、`image_generation`、`local_tools`」（C8）。`local_tools` 仍只给宿主信任（安全边界，按信任级别，不按插件名）。
-4. **本人级服务（新增，补原文）。** 有的插件需要「跟人走、不跟分区走」的设置：Images 的生图连接（今天在 `images.db` 的 `connections` 表）、Jelly 的模型选择（`{home}/jelly/preferences.json`）、Cognia 的目录授权。加平台服务 `services.personSettings`：Home 层、按（安装, 键）存，只给本机本人的调用，不进项目同步、不给其他成员与 Agent；插件的业务数据仍在分区。每个键在 Manifest 声明 `portable`：只有可以跨设备的偏好随本人同步，密钥、本机路径与授权一律留在本机（5.1）。
+4. **本人级服务（复用 `#2231` 个人配置同步通道）。** 有的插件需要「跟人走、不跟分区走」的设置：Images 的生图连接（今天在 `images.db` 的 `connections` 表）、Jelly 的模型选择（`{home}/jelly/preferences.json`）、Cognia 的目录授权。加平台服务 `services.personSettings`（归 `horizontal/person-settings`）：Home 层、按（安装, 键）存，只给本机本人的调用，不进项目同步、不给其他成员与 Agent；插件的业务数据仍在分区。每个键在 Manifest 声明 `portable`：只有可跨设备的偏好随本人同步，**直接复用 `#2231` 落地的 `personalConfigReplica` + `assertPortableConfig`**（不另造第二套个人配置同步机制），密钥、本机路径与授权一律留在本机（5.1）。
 5. **连接槽。** 不新增「本人默认」范围：现有的按安装绑定 `plugin-installation:<install>`（`horizontal/connector-host/src/plugin-binding-scopes.ts:9`）本来就跨分区，就是「本人默认」。收紧谁能用它：只给本机本人与本人授权过的助理的调用；项目 Agent、外部 MCP、（以后）团队成员在共享项目里一律用不到，要用就在那个分区单独绑定。`per_record`（`…/project:<id>/record:<key>`）不变（S-71）。
 6. **密钥与提示词作用域。** 今天按 `HOME_INSTALL_SCOPE` 或项目 id 分；合并后插件密钥按安装（Home 层），提示词按安装登记一次；牵动 S-80、S-84、S-87、S-91，同步改表与拒绝测试。
 
@@ -169,7 +171,7 @@
 
 今天：Todo「所有项目」读它自己的 Home 库（拆库后不再成立）；Work Brief 个人简报读共用 Home 库；运行总览走 `home_aggregate`，休眠项目要么回内存里的旧读数、要么在后台逐个唤醒（S-49，`apps/local-host/src/home-aggregate.ts:46-60`）。
 
-方案（U4）：插件在 Manifest 里**声明式**地写 `overview_projection`（种类、取哪张表哪几列、显示名、到期字段），平台按声明自己从分区库读出投影行——不运行插件代码，所以同步写进休眠分区、或重建索引时，平台只需逐个只读打开分区库，不起监督器与沙箱；投影行的分区与安装由平台从可信上下文盖章，插件不能自报；禁用、卸载、删分区时平台删掉对应行；每分区每种类有行数上限。平台存在 Home 级、可重建的总览索引里（与搜索索引同类：只是缓存，不是第二份事实，扩展 `horizontal/search` 的存储与查询，不另起库）。个人空间里的 Todo、简报、日历、运行总览只读这个索引；点进某一行才打开那个分区。读取范围仍只给本机本人（S-74 的 `readable_project_ids`），Agent、MCP、工作流、插件调用一律拒。`call-budget` 加「个人空间总览」场景，门禁量开库次数为常数、与项目数无关。
+方案（U4）：插件在 Manifest 里**声明式**地写 `overview_projection`（**仅限纯标识符白名单映射**：`table`、`id_column`、`title_column`、`status_column?`、`due_at_column?`、`updated_at_column`、`deleted_at_column?`、`filter_column_equals?`，全部校验匹配 `^[a-z][a-z0-9_]*$` 并核对 `PRAGMA table_info`，**严禁原始 SQL 或 WHERE 表达式**），平台按声明用参数化只读连接（`SQLITE_OPEN_READONLY`）从分区库读出投影行——不运行插件代码，所以同步写进休眠分区或恢复时仅标记该分区 `dirty = 1`，打开总览时再对脏分区做懒只读增量刷新（其余休眠分区零唤醒），不起监督器与沙箱；投影行的分区与安装由平台从可信上下文盖章，插件不能自报；禁用、卸载、删分区时平台立即删掉对应行；每分区每种类有行数上限（如 500）。**保留已合入第 `95-3` 批（`#2151`）错过执行自 `due_at` 起 7 天自动过期语义**。平台存在 Home 级、可重建的总览索引里（与搜索索引同类：只是缓存，不是第二份事实，扩展 `horizontal/search` 的存储与查询，不另起库）。个人空间里的 Todo、简报、日历、运行总览与通知（`R13`）只读这个索引；点进某一行才打开那个分区。读取范围仍只给本机本人（S-74 的 `readable_project_ids`），Agent、MCP、工作流、插件调用一律拒。`call-budget` 加「个人空间总览」场景（**门禁 G4**），量开库次数为常数、与项目数无关。
 
 ### 6.2 AI 与 MCP
 
@@ -208,10 +210,10 @@ push: {
 
 - **版本号。** 声明推送的种类必须给一个单调递增的版本号字段：Form、Dataset、PPT、灵光现有 `version` 列可直接用；Jelly 按单条笔记的修订号，不按整份工作区；Images 推的是图片与成品，不推生成任务（任务是执行态）；没有版本号的种类要先补。
 - **子记录。** 子记录在目标里的 id 由 `target_id` 与子记录源 id 确定性派生；覆盖时源里已删的子记录在目标里也删（被删的随被覆盖版本留存）。
-- `export`：输入 `{ source_id }`，输出快照 `{ kind, schema_version, source_id, source_rev, record, children[], files: [{ role, sha256, media_type, byte_length }] }`。附件只给摘要，字节经平台资料服务按 SHA-256 取。
+- `export`：输入 `{ source_id }`，输出快照 `{ kind, schema_version, source_id, source_rev, record, children[], files: [{ role, sha256, media_type, byte_length }] }`。附件只给摘要，字节经平台资料服务按 SHA-256 取。**沙箱大快照分片（补防 1 MiB IPC 上限）**：`packages/plugin-sandbox/src/runner.ts:27` 限制单帧 JSON IPC 为 1 MiB；当快照体超过 `256 KiB` 时，`export` 与 `put` 自动经平台受控 **Platform Blob Handle 分片传输**，不走单帧 JSON。
 - `put`：输入 `{ target_id, op_id, base_target_rev | null, snapshot, mode: "create" | "overwrite" }`，输出 `{ target_id, target_rev }`；按 `(target_id, op_id)` 幂等；`base_target_rev` 不等时拒（`push.target_changed`）。
 - **快照禁止携带执行态与授权**：运行中的会话、后台作业、终端进程、闹钟开关、账号与连接绑定、`credential_ref`、审批与认可票。SDK 按字段类型（密钥引用、连接引用）校验并拒，平台再查一遍。
-- 附件 SHA-256 不变，本机 CAS 与云端 R2 同账号空间去重（不重复占 100 MB 配额）。
+- **附件去重与 CAS GC 保护**：附件 SHA-256 不变，本机 CAS 与云端 R2 同账号空间去重（不重复占 100 MB 配额）。同时，每次推送写入副本及产生 `push_superseded` 被覆盖旧版时，平台必须在目标分区 `attachments` 表登记全部关联 `sha256` 持有行；仅当副本被删且用户在副本历史手动删除对应 `push_superseded` 旧版（`R19`）后才释放，确保本机 CAS GC 永不误删任何可恢复版本的附件。
 - 现成的基础：Pages 的 `relocate`/`duplicate` 已清 `folder_id`、`goal_id`、`artifact_id`（`plugins/native/pages/src/store.ts:205-222`），PPT、Form、Dataset、灵光同类；`placement.copy` 的 `request_id` 幂等（`packages/contracts/src/platform/placement.ts:21-60`）；`placement.attach` 的 `read.revision`（`index.ts:146-177`）。
 
 ### 7.2 账本（归 `horizontal/placement`，U5）
@@ -269,22 +271,21 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 - **执行态在目标里默认停着**：例如 Feed 的来源推过去是「已暂停」，要在项目里重新连接并开启。
 - **和现有操作的关系**：`placement.move`（分区之间移动）与项目之间的一次性 `placement.copy` 保留；个人空间 → 项目的复制由推送取代。
 
-## 8. 内置插件（22 个运行的 + 创作台、Alchemist）与第三方沙箱包的改造矩阵
+## 8. 内置插件（**20 个平等内置插件**；`text-stats` 已于 `#2243` 删除，创作台 `#2239` 归平台，Shelf `44B` 归纯平台 `modules/shelf`，旧 Alchemist `44B` 彻底删除）与第三方沙箱包的改造矩阵
 
 引擎：主库 = 分区主库 `molis-work.db`；独立库 = 每分区一个 `databases.partition` 库。工作量 S／M／L。
 
 | 插件 | 现在 | 目标引擎 | 动作作用域变化 | 要清的项 | 推送声明（种类 · 要剥离的局部引用） | 特殊 | 量 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Goals | 项目一份，主库 | 主库 | 不变（约 77 个，项目） | 约 20 张表的 `project_id` 与 `REFERENCES boards(project_id)`；`boards.project_id` 主键改单例 | Goal · 关系 `from/to_goal_id`、`input_bindings`、`boards.active_goal_id`、要求链接、上下文账本引用、回收站记录 | 要求与认可在平台表（`acceptance_*`），推送不带认可票 | L |
-| Coding | 项目一份，主库 + KV | 主库 | 不变（约 42） | 5 张表 `project_id`（`store.ts:47-323`，全插件约 111 处引用） | 不声明（会话推送没意义） | 必需 `goals:read/write` 改为可选发现；必需的 `review:git-worktree`／`review:git-integration`（`coding/src/manifest.ts:90-91`）随 D6 变成对 Git 插件的依赖；个人空间以 `outputs/personal` 为工作目录 | M-L |
-| Git | 项目一份，只有 KV | — | 不变（10） | 无 | 不声明 | 平民化 D6 定 B：宿主 `workspace-git*.ts`（约 1,400 行）、SDK `git-porcelain.ts` 与 `git.*` 错误码搬进来；跑本机 `git` 的本机命令能力按信任级别给，属新安全面；个人空间输出目录不是仓库时如实显示不可用 | M-L |
-| Diff | 项目一份，无存储 | — | 不变（2） | 无 | 不声明 | — | S |
-| Text Stats | 项目一份，无存储 | — | 不变（2） | 无 | 不声明 | — | S |
-| Feed | 双实例：项目主库 13 张表 + Home 库 `feed-content` | 主库 | Home 半 3 个动作删除，改平台证据服务 | 13 张表 `project_id`（全插件约 354 处引用）；`companions:["inbox"]` 改 Manifest 依赖声明 | 来源、外发规则 · `credential_ref`、`connection_ref`（per_record 绑定，绝不带）、`signal_id`、判断规则引用 | 证据正文引用账本收归平台（第 5 节）；必需 `goals:*`、`inbox:*` 改可选；推过去的来源默认「已暂停」 | L |
-| Inbox | 项目一份，主库 1 张表 + 平台 Attention | 主库 | 不变（18） | `inbox_scene_bindings.project_id` | 不声明（条目归 Attention） | 作为 Feed 的依赖在同一分区 | S |
+| Coding | 项目一份，主库 + KV | 主库 | 不变（约 42） | 5 张表 `project_id`（`store.ts:47-323`，全插件约 111 处引用） | 不声明（会话推送没意义） | 必需 `goals:read/write` 已在 `#2258` 改可选；必需的 `review:git-worktree`／`review:git-integration`（`coding/src/manifest.ts:90-91`）在 `109` 随 D6=B 改为对 Git 插件的可选依赖（无 Git 时降级为单工作区串行写，保留第 99 批 `#2244` `install_id` 隔离）；个人空间以 `outputs/personal` 为工作目录 | M-L |
+| Git | 项目一份，只有 KV | — | 不变（10）+ 迁入工作区 Git & Writers 动作 | 无 | 不声明 | 平民化 D6 定 B（`109` 迁入）：宿主 `workspace-git*.ts`（约 1,400 行）、`projects.workspace.writers.*`、SDK `git-porcelain.ts` 与 `git.*` 错误码搬进来；跑本机 `git` 走 argv-only、分区目录监禁的受限 VCS 执行能力（`S-git-plugin-command-scope`）；个人空间输出目录不是仓库时如实显示不可用 | M-L |
+| Diff | 项目一份，无存储 | — | 不变（2） | 无 | 不声明 | 声明对 Git 插件的可选依赖；Git 未启用时降级为文件系统对比或如实提示不可用 | S |
+| Feed | 双实例：项目主库 13 张表 + Home 库 `feed-content` | 主库 | Home 半 3 个动作删除，改平台证据服务 | 13 张表 `project_id`（全插件约 354 处引用）；`companions:["inbox"]` 改 Manifest 依赖声明 | 来源、外发规则 · `credential_ref`、`connection_ref`（per_record 绑定，绝不带）、`signal_id`、判断规则引用 | 证据正文引用账本收归平台（`horizontal/evidence`）；对接 `#2257` 精准唤醒槽位；推过去的来源默认「已暂停」 | L |
+| Inbox | 项目一份，主库 1 张表 + 平台 Attention | 主库 | 不变（18） | `inbox_scene_bindings.project_id` | 不声明（条目归 Attention） | 作为 Feed 的依赖在同一分区；`44B` 修复 `#2231` `platform-sync-catalog.ts` 借用 Inbox 的缺陷 | S |
 | Risk | 项目一份，主库 | 主库 | 不变（16） | `risk_items.project_id` | 风险 · `risk_links` 指向的分区内对象、Schedule 里的复查任务 | — | M |
-| Schedule | 项目一份，主库（`scheduler.join`、`notifications.deliver`） | 主库 | 不变（约 22） | 4 张表 `project_id` | 不声明（任务绑安装与调度作业，属执行态） | 唯一 `default_enabled`：个人空间与新项目初值都开 | M |
-| Shelf | 常开 + 双实例；Home 文件目录 `shelf/catalog.json` | Home（白名单） | Home 30、项目半 5 个保留（U9） | 去掉 `personal: true`；`projects:exist` 用法改分区 | 不声明（它自己就是跨分区中转，「存入项目知识」走目标分区的动作） | 平民化 D1 的其余私路改声明 | M |
+| Schedule | 项目一份，主库（`scheduler.join`、`notifications.deliver`） | 主库 | 不变（约 22） | 4 张表 `project_id` | 不声明（任务绑安装与调度作业，属执行态） | 唯一 `default_enabled`：空白分区初值开，随时可移除 | M |
+| **Shelf（非插件，已收归平台）** | 原常开 + 双实例插件 | **纯平台 `modules/shelf`（`44B` 完成）** | `system.shelf`（`kind:"system"`，`/api/platform/shelf`） | 删除 `plugins/native/shelf`、`always_on`、`dual_instance`、`PLUGIN_MODULE_IMPORT_ALLOWLIST` | 不声明（全局中转平台部件） | 终审覆写 D1/U9：零插件身份、免重写 ~3,150 行 Rust M5 协议 | `44B` 已收口 |
 | Work Brief | 双实例，Home 共用库，`scope` 枚举 `home\|topic\|personal` | 独立库 | Home 半 `personal.get/refresh` 删除，个人空间里的简报改读总览索引 | `briefs.project_id`、`scope` 枚举、`brief_requests`/`brief_editor_versions` 的 `project_id`、`project_rows` | 简报 · `brief_versions.brief_id`、固定版本的 `artifact_id` | 每个分区的「首页简报」各一份；个人简报 = 个人空间的简报 + 总览索引 | M |
 | Workflows | 项目一份，Home 共用库，`personal:true` | 独立库 | 不变（16） | 4 张表 `project_id`；`project_rows` | 流程定义 · `chain_json` 里的站点能力引用（目标分区没装的插件标为不可用） | — | M |
 | Pages | 项目一份，Home 共用库，`personal:true` | 独立库 | 不变（48） | 4 张表 `project_id`；`project_rows` 与 `artifact_join`；同步键里的 `project_id` | 文档 · `folder_id`、`goal_id`、`artifact_id/version` | 必需 `goals:read` 改可选发现（只给 Goal 选择器用，`browser/menus.ts:105`） | M |
@@ -297,7 +298,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | Cognia | Home 一份 | 独立库 | 约 25 个从 Home 改分区 | 无 `project_id`；目录授权 `grant:<id>` 搬到 `personSettings` | 来源与资料、知识域 · `source_id`、`domain_id`、`locator = grant:*`（本机授权，必剥） | — | M |
 | Images | Home 一份，`jobs.project_id` + 全局 `connections` + `images/assets/` | 独立库 + 分区插件文件 | Home 4 个连接动作改用 `personSettings`；其余已是项目作用域；后台生成队列改走平台到期登记 | `jobs.project_id`；`connections` 表搬走；`project_rows.files` | 生成任务与图片 · `connection_id`、`runner_id` | 声明 `owner_files`、`image_generation` 在分区实例上放开（C8） | M-L |
 | Issues | Home 一份，按 `submitter_id` | 独立库 | 11 个从 Home 改分区 | 无 | 不声明（个人问题记录） | 全局快捷键 `Mod+Shift+I` 打开个人空间里的 Issues；个人空间默认启用 | S |
-| Alchemist | 宿主手写，`studio.sqlite`（`better-sqlite3`） | 不再运行（U10＝D2） | — | `personal: true`；宿主接线（平民化 P4）；同步登记 `scope:'project-library'`（`alchemist/src/registration.ts:12`）、`stores.tsv` 两行、`sqlite-driver-owners.json` 的 `better-sqlite3` 例外、`home-stores.ts` 登记都删 | 不声明 | 数据目录原地保留：在 `home-stores.ts` 登记为「保留、不打开、不进快照」，免得快照因未登记的 SQLite 拒绝；第 82 批重做时决定导入 | S |
+| **Alchemist（已于 `44B` 彻底删除）** | 原宿主手写，`studio.sqlite`（`better-sqlite3`） | 不再存在（U10＝D2+U13） | — | `44B` 彻底删除 `plugins/native/alchemist`、全部 6 个宿主文件、`contracts/modules/alchemist.ts`、`stores.tsv`、`sqlite-driver-owners.json` 与 `home-stores.ts` 条目（不留磁盘保留豁免） | 不声明 | 第 82 批在 `horizontal/plugin-studio` 上按纯 UPP 场景插件从零重写 | `44B` 已收口 |
 | 创作台 | #2239 起是平台框内页面 | 平台 | — | 去掉 `personal: true`（#2239 已移出目录）；草稿按 `agent-studio:<projectId>` 存，换成分区 id；草稿同步走的 `project-private-values` 并入按分区的范围（5.1） | 不声明 | 切换器顶部入口；改了创作台挂载的 Skill 章节或生成提示要跑 `pnpm studio:replay` 与隔离 Home 冒烟 | S |
 | 第三方签名沙箱包 | `runtime.scope: home` 用 `sdk.homeDatabase`；项目包用 `sdk.projectDatabase`；双实例只给固定公钥 | 主库（`sdk.projectDatabase`）或独立库（新开放 `sdk.database`） | Home 作用域只留系统用途，普通包一律分区 | `sbxdb-*` Home 库、`assertScopeKept`、`dual_instance`（只白名单 Shelf）；`packages/plugin-sandbox` 的 `homeDatabase` 效果键与代理（`schema.ts:31,36`、`broker.ts:34,295`）；SDK `sandbox-actions.ts:148` 的 `dualInstance` 路由、`skill-folder.ts:83,111` 的 `scope:"home"`；`tooling/plugin-cli/src/pack-sandbox.ts:70,115` 的 `--scope home`、`--home-database`；`examples/`；`skills/molis-plugin-dev/elements.md:113`、`host.md`；创作台生成提示（跑 `pnpm studio:replay`） | 可声明，同一套 `molis.push.*` 动作类型 | 每个分区一个沙箱进程、闲置即停；已装包在另一分区首次启用时，可选权限按分区再问一次，必需权限沿用安装时的同意；`SANDBOX_SERVICE_FATE` 里拒绝的服务不在本需求放开 | M-L |
 | 官方集成、内容包 | Home 级（平民化 D3：官方集成收成平台连接器驱动） | 不变 | 不变 | 无 | 不声明 | 连接器目录在 Home；按分区的来源拉取（如 Feed 的来源）随所在分区 | — |
@@ -341,7 +342,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | 11 成果与过程项 | 推送不是成果：推送的是活对象副本；定版仍进成果库；个人空间有自己的成果库 |
 | 12 页面、外壳与文字 | 切换器、插件市场分组、推送确认、冲突、撤回、标注都先定样；新文字归 placement、projects 与各插件；不拿译文做判断 |
 | 13 错误 | `push.*`、`partition.*` 用 `defineErrorCodes`，前缀登记 `tooling/gates/error-owners.json` |
-| 14 冲突面 | 在途与已排（复查补）：#2254（持久化休眠项目读数、改 S-49）照常合入作过渡、将来被总览索引取代；#2253（`project-plugin-enablement.ts`、`project-action-availability.ts`、`home-plugin-store.ts`、`call-budget.json`）与 #2255（`mcp-action-grants.ts`）先合，批 A 在它们之上起；第 64 批的跨项目个人视图并入本需求 B 批；第 57 批（个人端到端走查）排在本需求之后；第 48 批（新插件创建）等批 A 合同落地后变基；第 91／91B 批的切换器与市场界面与本需求批 C 协调定样；第 63A 批记忆按 1.1 的「本人级」口径；44B 与本需求写进路线书执行目录与 `dependencies.md`，作为 57 与 REL-5 的前置（V8）。枢纽文件：`plugin-registry.ts`、`project-plugins.ts`、`home-plugins.ts`、`installed-plugin-host.ts`、`web-request.ts`、`horizontal/placement/src/index.ts`、`personal-plugin-sync.ts`、`plugin-registration.ts`、`plugin-manifest.ts`；在途 #2239（第 47 批）先合；与[平民化](../plugin-specials-demotion/spec.md)片 4（Shelf）、片 7（受信标记，由本需求取代）合并排期；第 48 批（新插件创建）生成的插件形态跟本需求走；SRV-2/SRV-5（个人同步）、SRV-6（团队）按本需求的分区口径 |
+| 14 冲突面 | 在途与已排（终审校准）：先消费已实装在途 PR——`#2239`（47 批创作台）、`#2258`（44 批共享样式/演示种子/连续性协议）、`#2253`（RO/RW 池）、`#2254`（静息读数过渡，将被 `108` 总览索引取代）、`#2255`（`discoverOne`）、`#2257`（Feed 精准唤醒）、`#2250`（记忆精确绑定）、`#2260`（M1-B3 同步回归）；允许 `#2259`（决定 64/65、`91-0c` 统一列表-详情容器）并行/前置；`44B` 与本需求（`106`～`111`）按**决定 66** 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前；第 `64-3` 跨项目个人视图并入 `108`；第 `57` 批后移至 `111` 之后；第 `48` 批新插件生成改走 UPP 形态；第 `63A` 批记忆按 `R15` 拆清本人级 vs 分区记忆；`SRV-2`/`SRV-5`/`SRV-6` 对齐本需求分区与推送口径 |
 | 15 全局最优 | 插件：一种写法，第三方同路；平台：两套宿主合一，放置与同步去掉 null 分支；助理：分区上下文明确，跨分区只读本人总览；各类平台能力：资料、成果库、搜索、同步、MCP 都按分区，推送复用放置的幂等与版本思路；后续开发：再加一个插件不用想「个人还是项目」。比较过：保持三种跑法只清标记（省事但双轨永存）；全部塞进分区主库（毁掉独立库插件的同步触发器与 authorizer，原文已否）。代价：插件迁移一次性工作量大（3 个 L、约 10 个 M），由片 4 分波次摊 |
 
 ### 10.1 平台能力检查
@@ -360,25 +361,26 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | `S-sync-enablement-own-choice` | 收到的业务数据不启用插件、不装包、不建项目；只有本人账号下的「分区启用清单」记录能在另一台设备启用插件（V4）；未启用插件的数据挂起等启用 | 接收含未启用插件数据的变更后启用关系不变；伪造的、非本人账号的启用记录被拒 |
 | `S-push-ledger-repair` | 推送被打断后，平台只按目标库已提交的上游标记补记平台账本（`outcome='repaired'`），不写任何业务内容；没有上游标记就不补 | 打断在写副本前：零写入；打断在写副本后：只补一行账本、内容为空；伪造的上游标记不被采信（标记由平台在目标库事务里写） |
 | `S-partition-wake-scope` | 推送、同步写入、到期登记、总览重建只打开相关分区的库，不起其他分区的监督器与沙箱进程 | 20 个项目 19 个休眠时做上述四件事，休眠项目的进程数为零 |
+| `S-git-plugin-command-scope` | `plugins/native/git`（D6=B）调用本机 `git` 仅经平台受限 argv-only VCS 执行器（固定二进制、禁锢于当前分区工作目录、禁止 shell 解析与外部 hook 注入、仅宿主信任签名包可用） | 非宿主包申请、越界路径参数、shell 元字符或注入 hook 参数均被拒 |
 
-改写：S-31（Home 插件路由 → 分区路由）、S-48（双实例只剩 Shelf）、S-49（休眠读数 → 总览索引，#2254 先合）、S-72（隐藏个人插件 → 删除，改「未启用的插件在该分区被拒」）、S-74（跨项目读取整套退役）、S-80、S-91（沙箱 Home 库 → 分区库）、S-98（证据回收归平台）。还要核对并按需改写：S-34、S-35（推送与跨分区移动回滚的关系）、S-71（连接槽）、S-character-role-scope、S-mainline-own-line、S-evaluation-isolation、S-observation-records、S-plugin-data、S-directory-output-only。合入前对照 #2245、#2255 对 S-49、S-07 的改动。
+改写：S-31（Home 插件路由 → 分区路由）、S-48（**双实例整套退役归零**，Shelf 已于 `44B` 归纯平台 `system.shelf`）、S-49（休眠读数 → 总览索引，#2254 先合）、S-72（隐藏个人插件 → 删除，改「未启用的插件在该分区被拒」）、S-74（跨项目读取整套退役）、S-80、S-91（沙箱 Home 库 → 分区库）、S-98（证据回收归平台）。还要核对并按需改写：S-34（常开机制退役、Shelf 归平台）、S-35（推送与跨分区移动回滚的关系）、S-71（连接槽）、S-character-role-scope、S-mainline-own-line、S-evaluation-isolation、S-observation-records、S-plugin-data、S-directory-output-only。合入前对照 #2245、#2255 对 S-49、S-07 的改动。
 
-## 12. 分批计划（按依赖拓扑，先加、后迁、再删）
+## 12. 分批计划（正式路线书批号 `44B` + `106`～`111`，先加、后迁、再删）
 
-按 V1：原计划「A 先改完合同、B 再迁插件」会让 main 在两批之间变红（插件还在用被删的旧写法），改为**先加、后迁、再删**。每次合入 main 都是绿的；两批之间新旧两套代码短暂并存（不读旧数据），每一波迁完在同一个 PR 里删掉已无人用的旧机制，批 C 合入时旧机制归零（门禁量，9.3）。每批开独立工作树、从最新 `origin/main` 起；批内子分支、一个 PR（决定 31）。
+按 V1 与路线书[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：采用**先加、后迁、再删**，每波编为独立正式批次（1 批 = 1 PR，批内子分支），保证每次合入 `main` 恒绿；两批之间允许新旧代码短暂并存（不读旧数据），每波在同一 PR 内删掉已无人用的旧机制，批 `111` 合入时旧机制与双轨归零（由 G1～G5 门禁焊死）。完整批次详情与 Goal Prompt 见 [`44b.md`](../post-anticorruption-roadmap/reference/batches/44b.md)、[`106.md`](../post-anticorruption-roadmap/reference/batches/106.md)～[`111.md`](../post-anticorruption-roadmap/reference/batches/111.md) 及[合并实施总纲](../plugin-specials-demotion/implementation-plan.md)。
 
 **每批都要自带**（不留到最后）：本批改动的库在 `tooling/gates/schemas/same-version-exceptions.json` 的登记（经用户批准）与一次性复位白名单（V7）、`pnpm schemas:update`、`golden-coverage.json`、重生 `0.1.0` 金样；`pnpm api:update`／`actions:update`／`versions:generate`；`OBSERVATION_COVERAGE_PLAN` 登记；新状态在 `docs/platform/STATE-VOCABULARY.md` 与 Manifest 申报；`node scripts/generate-plugin-registry.mjs`；新包的 owner 与成熟度登记；改到的界面跑首屏字节、`plugin-styles:check`、`visual:compare`、`audit-ui-copy` 与界面翻译门禁。
 
-| 批 | 内容 | 删掉什么 | 依赖 |
+| 批号 | 内容 | 删掉什么 | 依赖 |
 | --- | --- | --- | --- |
-| **0 前置** | 平民化片 0（Characters 保留 id）；把 44B 与本需求写进路线书执行目录与 `dependencies.md`；第 64 批个人视图并入、第 57 批后移（V8） | — | 现在 |
-| **44B 平民化** | 平民化其余片（不含已并入本需求的片 4、片 7） | 平民化清单里的特例 | #2239 合入 |
-| **A 加底座（只加不删）** | ① 逐文件归类表（9.2）。② `partitionRoot()` 与 `personal-space/`（U1），快照、恢复、升级枚举、成果行连接、卸载清理、`stores.tsv` 键全改走它，往返测试。③ `listPartitions()` 与 54+44 处调用归类、首次运行判断修正、Home 初始化建个人空间、保留 id 守卫。④ 一张安装表、`partition_plugins`、`partitions.plugins.set@1`、按（插件, 分区）起实例的新装配（与旧装配并存）、闲置停。⑤ 新包 `horizontal/person-settings`、`horizontal/evidence`；到期登记；总览索引（声明式投影）。⑥ Manifest 新字段：`databases.partition`、`push`、`overview_projection`、类别、依赖声明 | 无 | 44B |
-| **B1 波：独立库插件** | Pages、PPT、Form、Dataset、灵光、Workflows 迁到 `databases.partition` | `databases.home.project_rows`、跨库 `artifact_join`、`databases.home.partition` 复用器 | A |
-| **B2 波：Home 插件** | Todo、Jelly、Cognia、Images、Issues 改分区作用域；Todo 提醒、Jelly 日程、Images 队列改到期登记；个人空间总览接上（含第 64 批个人视图） | 普通插件的 `runtime.scope:"home"`、`outsideBuild`→`projectReachablePlugins` 链、`personal: true` 与个人分类、`project_reach`、`hidden` 与 exclusions 表 | B1 |
-| **B3 波：主库插件与双实例** | Goals、Coding、Risk、Schedule、Inbox、Feed（Home 半删，证据账本归平台）、Work Brief（Home 半删）、Git（D6 搬入）、Diff、Text Stats、Shelf 收口 | 分区主库业务表的 `project_id` 列（U3）、白名单外的 `dual_instance`、Feed 与 Work Brief 的 Home 半、旧装配 | B2 |
-| **B4 波：放置、同步、搜索去双轨** | 放置删 `HOME` 分支；同步收敛（含 `project-sections`、`project-private-values` 并入）、线格式升版、分区启用清单种类、发现按分区；搜索标注 | `project_id === null` 的业务含义、`home-with-projects` 与 `projects` 范围、接收时自动建项目或启用 | B3 |
-| **C 推送、界面、收尾** | 推送（账本、算号、补齐、冲突、撤回、批量、改指引用；所有有业务对象的插件声明，按插件分子分支，U8）；界面（切换器个人空间置顶、首屏、市场按类别、推送与冲突确认、占用页，先定样）；防回流门禁；文档（`PRODUCT.md`、`AGENTS.md`、`docs/SSOT-MATRIX.md`、`docs/system/GLOSSARY.md`、`docs/system/HOME-DATA.md`、`docs/system/SECURITY-INVARIANTS.md`、插件开发 Skill）；清退复位白名单；最后清理真实 Home 与本人云同步空间（U13、V5，动手前弹窗） | 剩余旧合同字段 | B4 |
+| **[`44B-0`](../post-anticorruption-roadmap/reference/batches/44b.md)** | P0 安全补洞（全局保留 `io.molis.work.` 前缀 `S-reserved-host-prefix` + 修第三方前缀正则），可立即提前切安全小 PR | — | 无 |
+| **[`44B`](../post-anticorruption-roadmap/reference/batches/44b.md)** | 特殊逻辑平民化全量收口（含 **Shelf 纯平台收归 `modules/shelf` / `system.shelf`**、彻底删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 直接拍平、官方集成驱动化与 `youtube`→`rss`/`planning-methods`→`packages/system-skills/`、修 `#2231` Inbox 劫持、统一 `provider_id`/目录/设置、上线 G1） | `plugins/native/shelf`、`always_on`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`、旧 Alchemist、`better-sqlite3`、构建期例外、连接器厂商硬编码 | `#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`、`44B-0`（`91-0c` 可并行/前置） |
+| **[`106`](../post-anticorruption-roadmap/reference/batches/106.md)（UPP-A 底座）** | ① 逐文件归类表（9.2）。② `partitionRoot()` 与 `personal-space/`（U1），快照/恢复/升级枚举/成果行/卸载清理/`stores.tsv` 全走它。③ `listPartitions()`、Home 初始化建 `personal`、保留 id 守卫、修首次运行判断。④ 单张安装表、`partition_plugins`、`partitions.plugins.set@1`（V6）、新每分区装配（短期并存）与闲置停。⑤ `horizontal/person-settings`（复用 `#2231` `personalConfigReplica`）、`horizontal/evidence`、平台到期登记（对齐 `#2257`）、安全标识符白名单 `overview_projection`（含 `95-3` 7 天漏跑保留与 `dirty` 懒刷新）。⑥ Manifest 新字段、`material-original-files`/`material-attachments` 全分区化、个人空间保留 IM（R21）与双层自写 Skill（R22） | 无（只加不删保绿） | `44B` |
+| **[`107`](../post-anticorruption-roadmap/reference/batches/107.md)（UPP-B1 独立库）** | Pages、PPT、Form、Dataset、灵光、Workflows 迁 `databases.partition` 并删 `project_id` | `databases.home.project_rows`、跨库 `artifact_join`、`databases.home.partition` 复用器 | `106` |
+| **[`108`](../post-anticorruption-roadmap/reference/batches/108.md)（UPP-B2 原 Home 插件与总览）** | Todo、Jelly、Cognia、Images、Issues 改分区作用域与 `databases.partition`；提醒/日程/队列改到期登记；本人级设置迁 `personSettings`；个人空间总览上线（含原 `64-3` 跨项目个人视图）与门禁 G4 | 普通插件 `runtime.scope:"home"`、`outsideBuild`→`projectReachablePlugins`、`personal:true`、`hidden`/exclusions、`project_reach`、Todo `placement`/墓碑表、S-74 跨项目读 | `107` |
+| **[`109`](../post-anticorruption-roadmap/reference/batches/109.md)（UPP-B3 主库、双实例归零与 Git 迁入）** | Goals、Coding、Risk、Schedule、Inbox、Feed（证据归 `horizontal/evidence`）、Work Brief、Diff 删主库业务表 `project_id`；**Workspace Git + `projects.workspace.writers.*` 迁入 `plugins/native/git`**（`S-git-plugin-command-scope`、开放审查种类保留第 99 批 `#2244` `install_id` 隔离、Coding/Diff 无 Git 降级）；第三方沙箱包开放 `databases.partition` | 分区主库业务表 `project_id`（U3）、**全部 `dual_instance`**、Feed/Work Brief Home 半、旧双套装配、宿主 `workspace-git*.ts`、沙箱 `homeDatabase`/`--scope home` | `108` |
+| **[`110`](../post-anticorruption-roadmap/reference/batches/110.md)（UPP-B4 放置/同步/搜索/MCP）** | 放置删 `HOME` 分支；同步范围收敛（并入 `project-sections`/`project-private-values`）、线格式升版、分区启用清单独立种类（V4）、发现按分区零唤醒；搜索分区标注；MCP `S-mcp-personal-binding`；记忆/角色拆清本人级 vs 个人空间 | `project_id===null` 业务含义、`home-with-projects`/`projects` 同步范围、接收自动建项目/启用 | `109` |
+| **[`111`](../post-anticorruption-roadmap/reference/batches/111.md)（UPP-C 推送、界面与收尾）** | 推送全链路（不预记三步+`S-push-ledger-repair`、>256 KiB Blob Handle 分片、CAS 对副本与全部 `push_superseded` 持有保护、引用 `remap`/`strip`、仅同步最近 1 版旧版、助理按目标项目授权、全部有业务对象插件完成 `push` 声明）；界面先定样（切换器置顶、首屏引导卡、按类市场、推送/冲突/撤回/占用页、快捷记到个人空间）；焊死 **G1～G5** 门禁、清退 v2→v1 复位白名单、文档更新；合入后另行弹窗确认时机清理真实 Home 与个人云同步空间（U13/V5） | 剩余旧合同字段与临时复位白名单 | `110` |
 
 门禁改动要用户批的（AGENTS 红线）：新增防回流门禁（9.3）、改写 `scripts/gates/dual-instance.mjs`、一次性复位白名单（V7 已批）、`golden-coverage.json` 变动、页面资源单次涨超 10 KB 或新增资源（推送与冲突确认框）。工作量提示：插件里 `WHERE … project_id = ?` 约 256 处；C 批的推送声明约 17 个插件，本身就是 L。
 
@@ -390,7 +392,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | --- | --- |
 | UPP-01 | 空 Home 首次启动落在个人空间；切换器顶部固定「个人空间」，其下项目与新建；`listProjects()` 不含个人空间，`listPartitions()` 含 |
 | UPP-02 | 用 `personal` 建项目、导入、同步接收、整项目复制、共享、改名、回收、删除均被拒（`S-personal-partition-reserved`） |
-| UPP-03 | 22 个内置插件（Goals、Coding、Git、Diff、Text Stats、Feed、Inbox、Risk、Schedule、Shelf、Work Brief、Workflows、Pages、PPT、Form、Dataset、灵光、Todo、Jelly、Cognia、Images、Issues；创作台已归平台，Alchemist 按 U10 不再运行）都能在个人空间与任一项目里添加、移除；移除后数据保留，重新添加恢复；没有「隐藏」 |
+| UPP-03 | 全部 **20 个平等内置插件**（Goals、Coding、Git、Diff、Feed、Inbox、Risk、Schedule、Work Brief、Workflows、Pages、PPT、Form、Dataset、灵光、Todo、Jelly、Cognia、Images、Issues；`text-stats` 已于 `#2243` 删除，创作台 `#2239` 归平台，Shelf `44B` 归纯平台 `modules/shelf`，旧 Alchemist `44B` 彻底删除）都能在个人空间与任一项目里添加、移除；移除后数据保留，重新添加恢复；没有「隐藏」 |
 | UPP-04 | 插件市场与切换器没有「个人 · 所有项目共用」，按类别分组 |
 | UPP-05 | 插件业务代码里没有 `WHERE project_id = ?`（门禁量，Shelf 与平台表除外） |
 | UPP-06 | 分区 A 的插件实例读不到分区 B 的库与文件（`S-partition-isolation`） |
@@ -416,9 +418,9 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | UPP-26 | 推送被打断：写副本前打断零写入；写副本后打断，重启后账本补齐且只有一份副本（`S-push-ledger-repair`） |
 | UPP-27 | 两台设备离线各推一次同一原件到同一项目，同步后只有一份副本 |
 | UPP-28 | 「另存到个人空间」生成新原件，记 `derived_from`，不建推送记录 |
-| UPP-29 | 只有 Shelf 常开、只有 Shelf 是双实例 |
-| UPP-30 | 空 Home 首次启动，引导是个人空间里的第一张卡；按选的场景启用插件；空白开始只有 Shelf 与声明 `default_enabled` 的插件；助理提出的插件配置经本人确认后执行 |
-| UPP-31 | 资料（materials）、成果库、过程项、终端、认可、事件、调度在个人空间与项目里一样可用 |
+| UPP-29 | 全仓 `always_on = 0`、`dual_instance = 0`（Shelf 已在 `44B` 收归纯平台 `modules/shelf` / `system.shelf`），零插件形态特例 |
+| UPP-30 | 空 Home 首次启动，引导是个人空间里的第一张卡；按选的场景启用插件；空白开始只有声明 `default_enabled` 的插件（Schedule）；助理提出的插件配置经本人确认后执行 |
+| UPP-31 | 资料（materials，含 `material-original-files` 与 `material-attachments`）、成果库、过程项、终端、认可、事件、调度与**右栏讨论/IM（R21）**在个人空间与项目里一样可用；自写 Skill 按双层（个人全局 + 项目分区，R22）工作 |
 | UPP-32 | Todo 提醒、Jelly 日程、Images 队列在休眠分区到点照常执行，只唤醒那个分区的那个插件（`S-partition-wake-scope`） |
 | UPP-33 | 个人空间与各分区独立库能离线快照并恢复，恢复后推送记录与副本对得上 |
 | UPP-34 | 同步写进休眠分区后，总览索引更新且不唤醒该分区的监督器；重建索引同样不唤醒 |
@@ -457,10 +459,10 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | U6 | **C：被覆盖的版本全部保留**，可逐版恢复；平台不自动淘汰，用户可手动删（7.2 已改） |
 | U7 | **B：助理获准后可直接推**；追问后定为「按目标项目授权、可撤回、每次留记录并通知」；项目 Agent、外部 MCP 不能推；覆盖别人改过的副本与撤回删除仍要本人确认（6.2、`S-push-authority` 已改） |
 | U8 | **B：所有有业务对象的插件一次做完推送声明**（C1 已改） |
-| U9 | A：Shelf 项目半作为唯一白名单 `dual_instance` 保留 |
-| U10 | A：按平民化 D2，现在删 Alchemist 宿主接线与入口，数据原地保留，第 82 批重做 |
+| U9 | **终审覆写为纯平台**：Shelf 在 `44B` 剥离插件外衣收归纯平台 `modules/shelf`（`system.shelf`，`/api/platform/shelf`），全仓 `always_on = 0`、`dual_instance = 0`，免重写 ~3,150 行 Rust M5 协议（见[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)） |
+| U10 | **终审按 U13 统一**：`44B` 彻底删除旧 Alchemist 包、宿主接线、`home-stores.ts` 豁免与 `better-sqlite3` 例外；第 82 批按纯 UPP 场景插件从零重写 |
 | U11 | A：空 Home 直接进个人空间，引导作为里面的第一张卡 |
-| U12 | A：三批 A／B／C；复查后按 V1 改为「0 → 44B → A → B1～B4 → C」，每批（每波）一个 PR、批内子分支（第 12 节） |
+| U12 | 按 V1 与决定 66 编为正式连续批号 `44B` + `106(A) → 107(B1) → 108(B2) → 109(B3) → 110(B4) → 111(C)`，每批一个 PR、批内子分支，全部排在 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`/`SRV` 之前（第 12 节） |
 | U13 | 用户另给：「旧的不管，可以清理，现在没有真实用户，清理干净，也不考虑迁移」。不写迁移脚本、不留兼容；真实 Home 在批 C 合入后清理重建（动手前告知时点） |
 
 平民化 D5～D8 的结果记在[平民化需求书](../plugin-specials-demotion/spec.md)第 7 节；其中 D7 定为：平民化片 0（Characters 保留 id）现在单独做，平民化其余片作为 44B 在 #2239 合入后开工，本需求的 A→B→C 接在后面，REL-5 前全部合完。
@@ -554,11 +556,15 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | R18 | 归档的项目不进总览索引、不能作推送目标 | §6.1、§7 |
 | R19 | 设置里有按分区、按插件的占用页；被覆盖的版本可在副本历史里删 | §6.4 |
 | R20 | 离线快照与恢复按分区枚举（`listPartitions`），个人空间必在其中 | §4.1 |
+| R21 | 个人空间保留右栏「讨论 / IM」作为个人随手记与自对话流（不隐藏） | §4.1 |
+| R22 | 自写 Skill（`my-skills`）保持双层：个人全局技能（Home 层，全分区可用；个人空间直接读写，不另建第二套）+ 项目专属分区技能 | §4.1 |
 
 ## 16. 修订记录
 
 - 2026-11-22 初稿；同日 U1～U13 拍板；补 5.1 同步规则。
-- 2026-11-22 复查修订（两路独立只读复查 + 使用场景走查）：
-  - 阻塞项：分批会让 main 变红 → 第 12 节改为先加后迁再删（V1）；搬个人空间与拆独立库会让快照、恢复、升级失败 → 4.1「一个算路径的地方」；启用清单同步与「接收不启用」冲突 → 单独种类、自动照做（V4）；推送预记违反「取消不写」→ 不预记、按上游标记补账（V2）；每批都要自带库结构登记与金样；v2 以上库的复位（V7）。
-  - 重要遗漏：存储模型自相矛盾（复用器 vs 每分区实例）→ 选每分区实例、复用器退役；休眠分区的到期工作 → 平台到期登记；总览索引改声明式投影、平台盖章与清理；同步线格式升版、发现按分区、遗漏的同步范围与平台集合、云端旧数据（V5）；被覆盖版本与云端上限（V3）；推送确定性编号、版本号定义、子记录、目标删除与归档、执行态停着、启用插件要本人确认；个人助理的位置；更多「无项目」标记与「本人级」含义；连接槽不新增范围、收紧使用者；`listProjects` 实数与直接列目录；矩阵动作数、Todo 同步线格式、Git 工作量、Coding 依赖、Alchemist 残留、创作台同步范围、沙箱包清单、官方集成行；与 #2253、#2254、#2255 及第 48、57、63A、64、91 批的冲突；安全不变量改用语义名并补 `S-push-ledger-repair`、`S-partition-wake-scope` 与待核对清单；第 10 节第 5、7、9、14 项；验收补 UPP-21～36。
-  - 场景：第 15 节 33 个场景与 R1～R20；初始启用按场景（V6）。
+- 2026-11-22 复查修订（两路独立只读复查 + 使用场景走查）：V1～V8、R1～R20、UPP-21～36。
+- 2026-11-22 合并终审修订（对齐 `origin/main` `5bfd52b87b`、在途 `#2239`/`#2245`/`#2250`/`#2252`～`#2260` 与路线书决定 66）：
+  - Shelf 终审覆写为纯平台 `modules/shelf`（`system.shelf`，`44B` 完成），`always_on = 0`、`dual_instance = 0`、免重写 ~3,150 行 Rust M5 协议；
+  - 删除已于 `#2243` 退役的 `text-stats`，内置平等插件校准为 **20 个**；Alchemist 与 D5 按 U13 统一为彻底 Clean v1；
+  - 补全 Platform Blob Handle >256 KiB 分片推送、CAS 附件对副本与全部 `push_superseded` 持有保护、`material-original-files`/`material-attachments` 分区化、`horizontal/person-settings` 复用 `#2231` 同步流、`overview_projection` 纯标识符防注入校验与 `95-3` 7 天漏跑保留、`projects.workspace.writers.*` 随 D6=B 迁入 `plugins/native/git` 与 `S-git-plugin-command-scope`、保留第 99 批 `#2244` `install_id` 隔离、`R21` 个人空间保留 IM、`R22` 双层自写 Skill；
+  - 正式编入路线书批号 **`44B` + `106`～`111`**，并同步优化全仓下游批次、现役原需求书与 Backlog。

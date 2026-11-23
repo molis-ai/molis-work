@@ -12,13 +12,15 @@
 
 <a id="execution-batches"></a>
 
-## 01～105
+## 01～111
 
 2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md)（决定 54）并随后合并全产品界面／布局／行为反馈打磨与开发指引收口，拆成紧邻双段 [91（91A）](reference/batches/91.md) 与 [91B](reference/batches/91b.md)（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 55](reference/decisions.md#decision-55)）。
 
 2026-11-18 确认 22 条独立待办的归属。7 条并入 6 个原交付项，另外 15 条编为 92～99。各项按实际前置开工，第 90 批仍负责最终对账。见[正式排期与开工 Prompt](reference/backlog-dispatch-2026-11-18/README.md)。
 
 2026-11-20 按全仓体检与决定 57 两轮红队终校调整（[决定 58](reference/decisions.md#decision-58)）：不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness 与 RSI 工程优化；按最大批号追加 6 个横向修复与硬化正式批次 [100](reference/batches/100.md)～[105](reference/batches/105.md)（按各自真实前置开工，**不等 38～89**），同步校准 [91](reference/batches/91.md)、[91B](reference/batches/91b.md)、[62](reference/batches/62.md) 等批次的红队护栏，第 90 批仍为整条路线最终交付对账。
+
+2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 为在途 `#2259` 保留）：新增 [44B](reference/batches/44b.md)（特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途已实装 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）先合入消费，`#2259` 的 `91-0c` 可与 `44B` 并行/前置；`44B` 与 `106`～`111` 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -125,6 +127,9 @@
 |  | [宿主与工作台去私路、Goals 可移除](reference/batches/44.md#batch-44-item-6) |
 |  | [删除桌面胶囊、CLI 的 Goals 命令与 `goal-advance`](reference/batches/44.md#batch-44-item-7) |
 |  | [叙事与命名](reference/batches/44.md#batch-44-item-8) |
+| [44B](reference/batches/44b.md) | [P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则](reference/batches/44b.md#batch-44b-item-0)（2026-11-22 加，可立即可切安全小 PR，[决定 66](reference/decisions.md#decision-66)） |
+|  | [合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）](reference/batches/44b.md#batch-44b-item-1) |
+|  | [Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零](reference/batches/44b.md#batch-44b-item-2) |
 | [45](reference/batches/45.md) | [首次／项目场景闭环](reference/batches/45.md#batch-45-item-1) |
 |  | [官方场景包：行业观察与写作、写代码](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [情境 W4 创建与准备声明](reference/batches/46.md#batch-46-item-1) |
@@ -272,8 +277,25 @@
 |  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2)（#2211 已合入 `7acf6bea7a`） |
 | [104](reference/batches/104.md) | [15+ 插件非 Agent 单次 AI 调用纳管](reference/batches/104.md#batch-104-item-1)（2026-11-20 加，前置 91、101-1，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
 |  | [面向非技术用户的全站统一报错翻译与安全重试](reference/batches/104.md#batch-104-item-2) |
-| [105](reference/batches/105.md) | [防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批](reference/batches/105.md#batch-105-item-1)（2026-11-20 加，前置 39、100-2，仅波次审批等 62，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+| [105](reference/batches/105.md) | [防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批](reference/batches/105.md#batch-105-item-1)（2026-11-20 加，经[决定 66](reference/decisions.md#decision-66)校准前置 [111](reference/batches/111.md)，仅波次审批等 62，不等 38～89） |
 |  | [双子代理终态缓存、Mainline 增量校验与日常高频交互润色](reference/batches/105.md#batch-105-item-2) |
+| [106](reference/batches/106.md) | [分区根 `partitionRoot()`、保留分区守卫与 `listPartitions()` 全量归类](reference/batches/106.md#batch-106-item-1)（2026-11-22 加，UPP 批 A 只加不删，前置 `44B`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配](reference/batches/106.md#batch-106-item-2) |
+|  | [新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段](reference/batches/106.md#batch-106-item-3) |
+| [107](reference/batches/107.md) | [6 个独立库插件迁 `databases.partition` 并删业务表 `project_id`](reference/batches/107.md#batch-107-item-1)（2026-11-22 加，UPP 批 B1，前置 `106`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [当波删除 `project_rows`、跨库 `artifact_join` 与 `databases.home.partition` 复用器](reference/batches/107.md#batch-107-item-2) |
+| [108](reference/batches/108.md) | [Todo、Jelly、Cognia、Images、Issues 迁分区作用域与 `databases.partition`](reference/batches/108.md#batch-108-item-1)（2026-11-22 加，UPP 批 B2，前置 `107`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [个人空间总览上线（承接原 `64-3` 跨项目个人视图）与门禁 G4](reference/batches/108.md#batch-108-item-2) |
+|  | [当波删除普通插件 `scope:"home"`、`personal:true`、`hidden` 与 `project_reach`](reference/batches/108.md#batch-108-item-3) |
+| [109](reference/batches/109.md) | [主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半](reference/batches/109.md#batch-109-item-1)（2026-11-22 加，UPP 批 B3，前置 `108`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类](reference/batches/109.md#batch-109-item-2) |
+|  | [第三方沙箱包开放 `databases.partition` + 彻底删除双实例与旧平行装配](reference/batches/109.md#batch-109-item-3) |
+| [110](reference/batches/110.md) | [放置、搜索、记忆与角色去 `project_id: null` 业务双轨](reference/batches/110.md#batch-110-item-1)（2026-11-22 加，UPP 批 B4，前置 `109`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [同步收敛、线格式升版、分区启用清单独立同步（V4）与零唤醒发现](reference/batches/110.md#batch-110-item-2) |
+|  | [MCP 个人空间显式绑定守卫](reference/batches/110.md#batch-110-item-3) |
+| [111](reference/batches/111.md) | [星型单向版本化推送引擎、不预记补账、大快照分片与 CAS GC 保护](reference/batches/111.md#batch-111-item-1)（2026-11-22 加，UPP 批 C，前置 `110`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [全部有业务对象的插件一次完成 `push` 声明（U8）与沙箱支持](reference/batches/111.md#batch-111-item-2) |
+|  | [工作台界面定样落地、G1～G5 全量焊死、清退临时白名单与文档收尾](reference/batches/111.md#batch-111-item-3) |
 
 <a id="server-batch"></a>
 

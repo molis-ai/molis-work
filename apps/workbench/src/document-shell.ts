@@ -1,4 +1,4 @@
-import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderLanguageHead } from "./language-resource.js";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
@@ -23,11 +23,8 @@ export function renderWorkbenchRefreshDocument(request: Pick<WorkbenchDocumentRe
   return request.body_html === '' ? '' : `<!doctype html><html><body${renderAttributes(request.body_attributes)}>${request.body_html}</body></html>`;
 }
 
-/**
- * The product has no favicon. Without a link every top-level page asks `/favicon.ico` and gets a 404 (adversarial review
- * N53); an empty `data:` icon (the page CSP allows `img-src data:`) answers it in the page, so nothing is requested.
- */
-export const NO_FAVICON_LINK = '<link rel="icon" href="data:,">';
+export { NO_FAVICON_LINK };
+
 /** Interactions start only after this document joins the current account's page cohort. */
 export const ACCOUNT_REGISTRATION_BODY = ' inert data-account-registering';
 

@@ -2659,6 +2659,39 @@
 "status": "定",
 "basis": "tracks.md（2026-11-18）"
 },
+"91-0a": {
+"title": "`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口（已合入 #2221）",
+"main": "D",
+"also": [],
+"kind": "文档治理",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 60）"
+},
+"91-0b": {
+"title": "`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 共享底座 + 组件板 93 节重构 + 设置页 30 页收口（已合入 #2222 + #2230）",
+"main": "D",
+"also": [
+"C1",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 60）"
+},
+"91-0c": {
+"title": "`91-0c` · 平台统一「列表—详情」标准容器、退役插件 `workbench.directory`／`DIRECT_WORK_SURFACE_IDS`、共享样式公共 `mw-*` 去插件名与顶部标签组联动底座（决定 64；含 `BL-b44-shared-styles-plugin-names` 片 1，决定 65）",
+"main": "D",
+"also": [
+"C1",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 64、65）"
+},
 "91-1": {
 "title": "Design System 流式、布局与行为反馈统一底座（已随 `91-0b` #2222 提前交付）",
 "main": "D",
@@ -3051,16 +3084,16 @@
 "status": "定",
 "basis": "tracks.md 逐项表（决定 58）"
 },
-"44B-1": {
+"44B-0": {
 "title": "P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则",
 "main": "C1",
 "also": [],
 "kind": "实现",
 "occupy": true,
 "status": "定",
-"basis": "tracks.md 逐项表（决定 66）；页面按位置编号，本项即路线书 44B-0"
+"basis": "tracks.md 逐项表（决定 66）"
 },
-"44B-2": {
+"44B-1": {
 "title": "合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）",
 "main": "C1",
 "also": [
@@ -3070,9 +3103,9 @@
 "kind": "实现",
 "occupy": true,
 "status": "定",
-"basis": "tracks.md 逐项表（决定 66）；页面按位置编号，本项即路线书 44B-1"
+"basis": "tracks.md 逐项表（决定 66）"
 },
-"44B-3": {
+"44B-2": {
 "title": "Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零",
 "main": "C3",
 "also": [
@@ -3085,7 +3118,7 @@
 "kind": "实现",
 "occupy": true,
 "status": "定",
-"basis": "tracks.md 逐项表（决定 66）；页面按位置编号，本项即路线书 44B-2"
+"basis": "tracks.md 逐项表（决定 66）"
 },
 "106-1": {
 "title": "分区根 `partitionRoot()`、保留分区守卫与 `listPartitions()` 全量归类",

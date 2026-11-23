@@ -7,17 +7,27 @@ const template = readFileSync(process.env.GRAPH_TEMPLATE || resolve(__dirname, '
 const algorithm = template.slice(template.indexOf('const STAGES='), template.indexOf('// 上次读到的进展'));
 const generated = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
 const snapshot = JSON.parse(generated.match(/const D=(.*);\nconst STAGES=/)[1]);
-function apply(data, statuses) {
+function boardRow(batchId, item, status, who = '', ref = '', tail = '') {
+  return `| ${batchId} | [${item.t}](https://example.com/batch.md#${item.anchor})${tail} | ${who} | ${ref} | ${status} | |`;
+}
+function read(data, board) {
   const D = structuredClone(data);
-  const rows = D.batches.flatMap(b => b.items.map((i, n) => {
-    const status = statuses?.[`${b.id}-${n + 1}`] || '待认领';
-    return `| ${b.id} | ${i.t} | ${status === '待认领' ? '' : 'Codex-测试-本机'} | | ${status} | |`;
-  })).join('\n');
-  runInNewContext(`${algorithm}\napplyBoard(board);`, { D, board: statuses ? rows : D.board });
-  return D;
+  const off = runInNewContext(`${algorithm}\napplyBoard(board); boardOff;`, { D, board });
+  return { D, off };
+}
+function apply(data, statuses) {
+  if (!statuses) return read(data, data.board).D;
+  const rows = data.batches.flatMap(b => b.items.map(item => {
+    const status = statuses[`${b.id}-${item.id}`] || '待认领';
+    return boardRow(b.id, item, status, status === '待认领' ? '' : 'Codex-测试-本机');
+  }));
+  return read(data, rows.join('\n')).D;
+}
+function item(batchId, id, title, track) {
+  return { id, anchor: `batch-${batchId.toLowerCase()}-item-${id}`, t: title, track, occ: true };
 }
 function batch(id, track, hard = [], partial = []) {
-  return { id, items: [{ t: id, track, occ: true }], nodes: [{ id, items: [0], hard, partial }] };
+  return { id, items: [item(id, '1', id, track)], nodes: [{ id, items: [0], hard, partial }] };
 }
 const fixture = batches => ({ batches, state: {}, claimers: {} });
 
@@ -44,7 +54,7 @@ test('RAR-03/RAR-04 hard prerequisites, pauses, claims and incomplete design rem
 test('a status is read from its word, and a row the page cannot read is reported instead of silently counting as claimed', () => {
   const read = rows => {
     const D = structuredClone(fixture([batch('01', 'D'), batch('02', 'D'), batch('03', 'D')]));
-    const board = rows.map(([id, status]) => `| ${id} | ${id} | Codex-测试-本机 | | ${status} | |`).join('\n');
+    const board = rows.map(([id, status]) => boardRow(id, item(id, '1', id, 'D'), status, 'Codex-测试-本机')).join('\n');
     return runInNewContext(`${algorithm}\napplyBoard(board);({state:D.state,items:D.batches.map(b=>b.items[0]),off:boardOff})`, { D, board });
   };
   const readable = read([['01', '已合入'], ['02', '**暂停（等第 02 批结束）**：余项'], ['03', '已认领：定样已合入']]);
@@ -62,6 +72,51 @@ test('a status is read from its word, and a row the page cannot read is reported
   assert.equal(unreadable.off, 1);
   assert.equal(unreadable.items[0].s, '已认领');
   assert.notEqual(unreadable.state['01'], 'done');
+});
+
+test('an inserted or reordered board row keeps status, PR and claimant on its anchor', () => {
+  const setup = item('91', '0a', '设计 Skill', 'D');
+  const stream = item('91', '2', '平台流式合同', 'C2');
+  const data = fixture([{
+    id: '91',
+    items: [setup, stream],
+    nodes: [{ id: '91.0a', items: [0], hard: [], partial: [] },
+      { id: '91.2', items: [1], hard: [], partial: [] }],
+  }, batch('104', 'C2', ['91.2'])]);
+  const setupRow = boardRow('91', setup, '已合入', 'Claude（本机）', '#2221');
+  data.board = [setupRow, boardRow('', stream, '实施中', 'Codex（本机）')].join('\n');
+  data.claimers = { '91-1': 'first-claim', '91-2': 'second-claim' };
+
+  const { D, off } = read(data, [
+    boardRow('91', { ...stream, t: '平台流式合同旧标题' }, '实施中', 'Codex（本机）', '', ' · BL-123'),
+    boardRow('', setup, '已合入', 'Claude（本机）', '#2221'),
+    boardRow('104', data.batches[1].items[0], '待认领'),
+  ].join('\n'));
+  const [actualSetup, actualStream] = D.batches[0].items;
+  assert.equal(off, 1);
+  assert.equal(actualSetup.s, '已合入');
+  assert.equal(actualSetup.prs.join(), '2221');
+  assert.equal(actualSetup.login, 'first-claim');
+  assert.equal(actualStream.s, '实施中');
+  assert.equal(actualStream.login, 'second-claim');
+  assert.equal(D.state['104'], 'wait');
+});
+
+test('ambiguous anchors and absent rows cannot mark a delivery as merged or claimable', () => {
+  const data = fixture([batch('01', 'D'), batch('02', 'C2', ['01'])]);
+  const delivery = data.batches[0].items[0];
+  const { D, off } = read(data, [
+    boardRow('01', delivery, '已合入'),
+    boardRow('', delivery, '待认领'),
+    boardRow('02', data.batches[1].items[0], '待认领'),
+  ].join('\n'));
+  assert.equal(off, 1);
+  assert.equal(D.batches[0].merged, 0);
+  assert.equal(D.state['01'], 'wait');
+  assert.equal(D.state['02'], 'wait');
+  const missing = read(data, boardRow('02', data.batches[1].items[0], '待认领'));
+  assert.equal(missing.off, 1);
+  assert.equal(missing.D.state['01'], 'wait');
 });
 
 test('RAR-04 unmet partial dependencies stay visible until merged, without claiming completion', () => {
@@ -143,13 +198,16 @@ test('moved redirect batches stay non-claimable and batch 91/92-105 dependencies
   const D = apply(snapshot);
   assert.notEqual(D.state['72'], 'open');
   const nodes = Object.fromEntries(snapshot.batches.flatMap(b => b.nodes.map(n => [n.id, n])));
-  assert.deepEqual(nodes['91.1'].hard, ['36A.7']);
-  assert.deepEqual(nodes['91.2'].hard, ['31.1', '101.1', '101.2', ...U66]);
+  assert.deepEqual(nodes['91.0a'].hard, []);
+  assert.deepEqual(nodes['91.0b'].hard, ['91.0a']);
+  assert.deepEqual(nodes['91.0c'].hard, ['91.0b', ...Array.from({ length: 7 }, (_, i) => `36A.${i + 1}`)]);
+  assert.deepEqual(nodes['91.1'].hard, ['91.0a']);
+  assert.deepEqual(nodes['91.2'].hard, ['31.1', '101.1', '101.2', '91.0c', '37.2', ...U66]);
   assert.deepEqual(nodes['91.3'].hard, ['91.1', '91.2', '36A.1', '36A.2', '36A.3', '37.2', ...U66]);
-  assert.deepEqual(nodes['91.4'].hard, ['91.1', '91.2', '35.2', '36A.4', ...U66]);
-  assert.deepEqual(nodes['91.5'].hard, ['91.1', '36A.1', '36A.2', '36A.3', '36A.4', '36A.5', '36A.6', '36A.7']);
-  for (const id of ['91B.1', '91B.2', '91B.3']) assert.deepEqual(nodes[id].hard, ['91.1', '101.1', ...U66]);
-  assert.deepEqual(nodes['91B.4'].hard, ['91B.1', '91B.2', '91B.3']);
+  assert.deepEqual(nodes['91.4'].hard, ['91.0c', '91.1', '91.2', '35.2', '36A.4', ...U66]);
+  assert.deepEqual(nodes['91.5'].hard, ['91.0a', '91.0b']);
+  for (const id of ['91B.1', '91B.2', '91B.3']) assert.deepEqual(nodes[id].hard, ['91.0b', '91.0c', '101.1', '101.2', ...U66]);
+  assert.deepEqual(nodes['91B.4'].hard, ['91B.1', '91B.2', '91B.3', '91.4']);
   assert.deepEqual(nodes['100.1'].hard, []);
   assert.deepEqual(nodes['100.2'].hard, ['100.1']);
   assert.deepEqual(nodes['101.1'].hard, ['100.2']);
@@ -165,7 +223,7 @@ test('moved redirect batches stay non-claimable and batch 91/92-105 dependencies
   assert.deepEqual(nodes['105.2'].hard, ['100.2', ...U66]);
   assert.ok(nodes['65.2'].hard.includes('105.1'));
   for (const id of [
-    '91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4',
+    '91.0a', '91.0b', '91.0c', '91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4',
     '92.1', '92.2', '92.3', '93.1', '93.2', '94', '95.1', '95.2', '95.3', '96.1', '96.2', '97.1', '97.2', '98', '99',
     '100.1', '100.2', '101.1', '101.2', '102.1', '102.2', '103.1', '103.2', '104.1', '104.2', '105.1', '105.2',
     '44B.1', '44B.2', '44B.3', '106.1', '106.2', '106.3', '107.1', '107.2', '108.1', '108.2', '108.3',
@@ -183,11 +241,28 @@ test('moved redirect batches stay non-claimable and batch 91/92-105 dependencies
   }
 });
 
+test('batch 91 shows all eight deliveries and releases only 91-0c before the stream work', () => {
+  const statuses = Object.fromEntries(['91-0a', '91-0b', '91-1', '91-5'].map(id => [id, '已合入']));
+  for (const item of snapshot.batches.find(b => b.id === '36A').items) {
+    statuses[`36A-${item.id}`] = '已合入';
+  }
+  const D = apply(snapshot, statuses);
+  const batch91 = D.batches.find(b => b.id === '91');
+  assert.deepEqual(batch91.items.map(item => item.id), ['0a', '0b', '0c', '1', '2', '3', '4', '5']);
+  for (const node of batch91.nodes) {
+    assert.deepEqual(node.items.map(index => batch91.items[index].id), [node.id.split('.')[1]]);
+  }
+  assert.equal(batch91.merged, 4);
+  assert.equal(batch91.ready.map(item => item.id).join(), '0c');
+  assert.equal(D.state['91B'], 'wait');
+  assert.equal(D.state['104'], 'wait');
+});
+
 test('decision 66 chain 44B → 106～111 is a hard serial chain and every downstream batch waits for 111', () => {
   const nodes = Object.fromEntries(snapshot.batches.flatMap(b => b.nodes.map(n => [n.id, n])));
   const chain = [['44B', 3], ['106', 3], ['107', 2], ['108', 3], ['109', 3], ['110', 3], ['111', 3]];
   for (const [b, n] of chain) assert.equal(snapshot.batches.find(x => x.id === b).items.length, n, `item count of ${b}`);
-  // 44B-0（位置 44B.1）无前置；批内逐项串行；110-3 只等 110-1
+  // 44B-0 无前置；批内逐项串行；110-3 只等 110-1
   assert.deepEqual(nodes['44B.1'].hard, []);
   assert.deepEqual(nodes['44B.2'].hard, ['44B.1']);
   assert.deepEqual(nodes['44B.3'].hard, ['44B.2']);

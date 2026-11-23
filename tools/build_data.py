@@ -32,7 +32,11 @@ def load(b):
     if '需要你做的' in intro:
         i=intro.index('需要你做的');ask=intro[i:];intro=intro[:i].strip()
         ask=re.sub(r'^需要你做的[：:]\s*','',ask)
-    items=[(clean(a),clean(b_)) for _,a,b_ in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*?\s*\|$',t,re.M),key=lambda r:int(r[0]))]
+    item_rows=re.findall(r'^\| <a id="([a-z0-9-]+-item-(\d+[a-z]*))"></a>(.*?) \| (.*) \| .*?\s*\|$',t,re.M)
+    items=[dict(id=item_id,anchor=anchor,t=clean(title),d=clean(detail))
+        for anchor,item_id,title,detail in item_rows]
+    if not items or len({item['id'] for item in items})!=len(items):
+        raise ValueError(f'{b} 的交付项缺失或编号重复')
     batch[b]=dict(title=title,stage=stage,intro=clean(intro),ask=clean(ask),items=items,
         url=f'https://github.com/molis-ai/molis-work/blob/{SHA}/specs/post-anticorruption-roadmap/reference/batches/{fn}.md')
     return batch[b]
@@ -60,16 +64,14 @@ LANES=list(L)
 nodes=[]
 for r in rows:
     u=r[0];b=load(bid(u))
-    if u in MAP: its=[b['items'][i-1] for i in MAP[u]]
-    elif '.' in u and not u.startswith('SRV-8'): 
-        i=int(u.split('.')[1]); its=[b['items'][i-1]]
-    elif u.startswith('SRV-8.'): its=[b['items'][int(u.split('.')[1])-1]]
-    else: its=b['items']
-    goal=[{'t':a,'d':d} for a,d in its]
+    item_indexes={item['id']:index for index,item in enumerate(b['items'])}
+    item_ids=MAP.get(u,[u.split('.',1)[1]] if '.' in u else list(item_indexes))
+    indexes=[item_indexes[item_id] for item_id in item_ids]
+    goal=[{'t':b['items'][index]['t'],'d':b['items'][index]['d']} for index in indexes]
     if len(goal)==1: goal=[{'t':'','d':goal[0]['d']}]
     dset=[n for n in sorted(set(re.findall(r'决定 (\d+)',r[4]))) if n in dec]
     nodes.append(dict(id=u,b=bid(u),name=r[1],lane=r[2],stage=b['stage'],ext=r[4],decs=[{'n':n,'t':dec.get(n,'')} for n in dset],
-        goal=goal,deps=deps[u],wave=wave(u),nd=len(clo(u,kids)-{FINAL})))
+        goal=goal,items=indexes,deps=deps[u],wave=wave(u),nd=len(clo(u,kids)-{FINAL})))
 # 传递约简（去 56／89 的汇入，静态底图用）
 red=[]
 for u in ids:
@@ -77,7 +79,7 @@ for u in ids:
     ps=par[u]
     for p in ps:
         if not any(p in clo(q,par) for q in ps if q!=p): red.append([p,u])
-bs={k:dict(title=v['title'],intro=v['intro'],ask=v['ask'],url=v['url']) for k,v in batch.items()}
+bs={k:dict(title=v['title'],intro=v['intro'],ask=v['ask'],url=v['url'],items=v['items']) for k,v in batch.items()}
 order={k:i for i,k in enumerate(LANES)}
 json.dump(dict(nodes=nodes,batches=bs,edges=red,lanes=L),open(OUT,'w'),ensure_ascii=False,separators=(',',':'))
 print('nodes',len(nodes),'hard',sum(k=='h' for n in nodes for _,k,_ in n['deps']),'other',sum(k!='h' for n in nodes for _,k,_ in n['deps']),'inferred',sum(i for n in nodes for *_,i in n['deps']),'reduced',len(red),'maxwave',max(n['wave'] for n in nodes),'size',os.path.getsize(OUT))

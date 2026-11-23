@@ -69,7 +69,7 @@ export function mainlineAttention(
     },
     summary: async () => {
       const state = await client.invoke(mainlineItemActions.read, {});
-      return { has_items: state.items.length > 0, current: state.current };
+      return { has_items: state.mainline.items.length > 0, current: state.mainline.current };
     },
   };
 }

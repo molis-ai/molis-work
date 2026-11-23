@@ -428,7 +428,10 @@ export function mountHome(host: HomeHost) {
         })
       : null;
   const syncAll = async (invalidate = false) => {
-    if (!visible()) { needsRead = true; return; }
+    if (!visible()) {
+      needsRead = true;
+      return;
+    }
     await Promise.all([sync(invalidate), homePages?.sync()]);
   };
   const unwatch = watchHome(root, holder, visibility, () => {

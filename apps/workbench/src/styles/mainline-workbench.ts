@@ -21,8 +21,8 @@ const SHEET = `
 .top-corner-item-dot[data-waiting="true"]{background:var(--amber)}
 .top-corner-item-dot[data-state="missing"],.top-corner-item-dot[data-state="denied"]{background:var(--muted)}
 
-/* Expanded top-corner list width for mainline switcher right column. */
-html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{grid-template-columns:200px minmax(300px,340px);max-height:min(580px,calc(100dvh - 80px))}
+/* Keep 480px total width matching top-strip.ts (200+280) so open popover never covers project-home h1 (POLISH-62). */
+html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{grid-template-columns:192px 288px;max-height:min(580px,calc(100dvh - 80px))}
 html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-right{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:8px}
 .top-corner-pages{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
 .top-corner-pages[hidden]{display:none}

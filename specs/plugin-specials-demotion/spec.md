@@ -222,10 +222,10 @@ D1 若选「Shelf 收归平台」，E1 改为「平台部件 Shelf」，常开�
 | 1 | 合同与 SDK 改名与声明（4.4 全部，M2～M4、M6、M8～M10、M12～M14 的合同部分），一次改完消费者；`api:update`、`actions:update` | 0 | `dom-events.ts`、`plugin-manifest.ts`、`functions.ts`、`plugin-source-pull.ts` |
 | 2 | 存储与持久化名字（4.6，按 D5）：升版本、升级段、金样 | 1 | `packages/storage`、`tooling/versions.json` |
 | 3 | 宿主：Alchemist（D2）、演示数据（M1）、官方集成驱动（D3/M11）、来源拉取（M10）、权限名单与平台页面登记（M15） | 1 | `web-request.ts`、`project-host.ts`、`home-stores.ts` |
-| 4 | Shelf：桌面原生伴侣（M5，含 Rust）、可接收（M4）、`modules/shelf` 搬回包、升级块与演示数据；按 D1 | 1、3 | `apps/desktop`、`mainline-http.ts`；跑 `native-checks rust` |
+| 4 | **并入[统一分区](../unified-partition-plugins/spec.md) B3 波**（D7）：Shelf 桌面原生伴侣（M5，含 Rust）、可接收（M4）、`modules/shelf` 搬回包、升级块与演示数据；按 D1 | 统一分区 B2 | `apps/desktop`、`mainline-http.ts`；跑 `native-checks rust` |
 | 5 | 外壳与样式（4.3，M7）：先在组件板改名再迁，与第 91 批（Design System 统一底座）对齐，改完跑 `pnpm visual:compare` | 1 | 共用样式模块；与 91 批同一时段要协调 |
-| 6 | Agent Host 场景包与审查种类（M13、D6），创作代理搬进 `horizontal/plugin-studio` | 1、#2239 | `horizontal/agent-host`；提示词改动跑评测与 `studio:replay` |
-| 7 | 受信标记（2.1，D4）、观测与放置的小项（M16、M17）、成果库残留（P2） | 1 | `plugin-registration.ts`、`plugin-registry.ts` |
+| 6 | Agent Host 场景包与审查种类（M13），创作代理搬进 `horizontal/plugin-studio`；**工作区 Git 搬进 Git 插件（D6＝B）并入统一分区 B3 波**，本片只把审查种类改成由 Git 插件在 Manifest 申报 | 1、#2239 | `horizontal/agent-host`；提示词改动跑评测与 `studio:replay` |
+| 7 | 受信标记（2.1）**由统一分区 B2、B3 波取代**（D4、D7）；本片只剩观测与放置的小项（M16、M17）、成果库残留（P2） | 1 | `plugin-registration.ts`、`plugin-registry.ts` |
 | 8 | 门禁（5.1）、文档（GLOSSARY、SSOT、PACKAGE-BOUNDARIES、插件同等地位 spec 的过期行、`skills/molis-plugin-dev` 新声明的写法）、样例与注释（D8） | 1～7 | — |
 
 ## 7. 要用户拍板

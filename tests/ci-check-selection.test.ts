@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { matchesGlob } from "node:path";
 import { decideChecks } from "../scripts/ci-check-selection.mjs";
-import { evaluateExpression, fullSuiteWorkflow, jobBlock, stepScript, workflowFiles } from "./fixtures/ci-workflow.js";
+import { evaluateExpression, fullSuiteWorkflow, jobBlock, stepScript, testRunsInJob, workflowFiles } from "./fixtures/ci-workflow.js";
 
 const change = (...paths: string[]) => ({ changes: paths.map(path => ({ path })), tests: [], full: [], uncovered: [] });
 test("CIP-01 CIP-02 CIP-04 documentation selection rejects mixed, protected, unknown and malformed changes", () => {
@@ -25,9 +25,76 @@ test("CIP-01 CIP-02 CIP-04 documentation selection rejects mixed, protected, unk
     assert.equal(result.gate_rules.mode, "whole");
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts", "tests/fixtures/todo-helper.ts", "specs/todo/spec.md", "README.md") }).gate_rules.mode, "none");
-  for (const file of ["scripts/check.mjs", "tooling/gates/limits.json", "tests/fixture.txt", "tests/health-gates-errors.test.ts", "tests/ci-install.test.ts", "tests/fixtures/ci-workflow.ts", "tests/quarantine.json", "pnpm-lock.yaml", "unknown/input.toml", "apps/workbench/vite.config.ts"]) {
+  for (const file of ["scripts/check.mjs", "tooling/gates/limits.json", "tests/fixture.txt", "tests/fixtures/ci-workflow.ts", "tests/quarantine.json", "pnpm-lock.yaml", "unknown/input.toml", "apps/workbench/vite.config.ts"]) {
     assert.equal(decideChecks({ affected: change(file) }).gate_rules.mode, "whole", file);
   }
+});
+
+test("CIP-12 VG-14: changing version rules, inputs or their test runs the version self-test", () => {
+  const job = jobBlock("gates"), file = "tests/version-source.test.ts";
+  for (const input of ["tooling/versions.json", "scripts/version-source.mjs", "scripts/generate-versions.mjs", "scripts/gates/version-declarations.mjs", "tooling/gates/version-exceptions.json", file]) {
+    const gate = decideChecks({ affected: change(input) }).gate_rules;
+    assert.equal(gate.mode, "some", input);
+    assert.ok(testRunsInJob(job, JSON.stringify(gate.files)).some(args => args.includes(file)), input);
+  }
+});
+
+test("CIP-12 gate self-tests use both rename paths, explicit readers and rule data; unknown inputs keep every rule", () => {
+  const select = (affected: object) => decideChecks({ affected }).gate_rules;
+  const rule = "tests/ci-install.test.ts";
+  const lint = "tests/health-gates-lint.test.ts";
+  assert.deepEqual(select(change(rule)).files, [rule]);
+  const renamed = { ...change(), changes: [{ path: "docs/guide.md", from: "tooling/gates/secret-allowlist.txt" }], tests: [{ file: lint }] };
+  assert.deepEqual(select(renamed).files, [lint], "S-19 has its own blocking step");
+  const product = { ...change("plugins/native/todo/src/store.ts"), tests: [{ file: lint, reasons: [{ code: "reads-file" }] }, { file: "tests/account-session.test.ts" }] };
+  assert.deepEqual(select(product).files, [lint]);
+  assert.equal(select({ ...product, tests: [{ file: lint, reasons: [{ code: "reads-folder" }] }] }).mode, "none");
+  const owners = "tests/health-gates-table-owners.test.ts";
+  assert.deepEqual(select({ ...change("scripts/gates/table-owners.mjs"), tests: [{ file: owners }] }).files, ["tests/health-gates-merge-base.test.ts", owners]);
+  assert.equal(select(change("scripts/gates/new-unmapped.mjs")).mode, "whole");
+  assert.deepEqual(select(change("plugins/native/todo/README.md")).files, ["tests/affected-tests.test.ts", "tests/package-inventory-gate.test.ts"]);
+  for (const file of ["scripts/run-tests/strata.mjs", "tests/fixtures/ci-workflow.ts", ".github/workflows/ci.yml", "docs/system/SECURITY-INVARIANTS.md", "new/fixture.json"]) {
+    assert.equal(select(change(rule, file)).mode, "whole", file);
+  }
+  assert.equal(select({ ...change(rule), tests: [null] }).mode, "whole");
+  assert.equal(select({ ...change(rule), tests: [{ file: lint, reasons: {} }] }).mode, "whole");
+  assert.equal(select({ ...change(rule), tests: [{ file: lint, reasons: [] }] }).mode, "whole");
+});
+
+test("CIP-12 a published snapshot scopes rule self-tests even beside product code; the checker still reads the real contract", () => {
+  const api = "tests/health-gates-api-snapshot.test.ts", store = "tests/health-gates-store-versions.test.ts";
+  const input = {
+    ...change("apps/workbench/src/view.ts", "docs/system/CONTRACT-CHANGES.md", "tooling/gates/api/plugins/native/example/contract.txt",
+      "tooling/gates/actions/host-actions.tsv", "tests/fixtures/web-route-table.snapshot.json"),
+    full: ["shared core"], uncovered: ["apps/workbench/src/view.ts"],
+    tests: [
+      { file: "tests/affected-tests.test.ts", reasons: [{ code: "readme" }] },
+      { file: "tests/page-assets-budget.test.ts", reasons: [{ code: "package" }] },
+      { file: "tests/ci-shard-weights.test.ts", reasons: [{ code: "uses-changed-helper" }] },
+      { file: "tests/health-gates-structure.test.ts", reasons: [{ code: "uses-name" }, { code: "reads-folder" }] },
+    ],
+  };
+  const result = decideChecks({ affected: input });
+  assert.equal(result.documentation.mode, "code");
+  assert.equal(result.account_login.mode, "whole");
+  assert.deepEqual(result.gate_rules.files, ["tests/affected-tests.test.ts", "tests/ci-shard-weights.test.ts", api, store,
+    "tests/page-assets-budget.test.ts", "tests/version-source.test.ts"].sort());
+  const renamed = { ...input, changes: [{ path: "docs/design/example/pane.css", from: "tooling/gates/api/contracts/platform/example.txt" }] };
+  assert.ok(decideChecks({ affected: renamed }).gate_rules.files?.includes(api));
+  for (const path of ["scripts/run-tests.mjs", "tooling/gates/api/new-rules.mjs", "tests/fixtures/goals-page-golden/unknown.mjs",
+    "skills/example/AGENTS.md", "docs/system/SECURITY-INVARIANTS.md"]) {
+    assert.equal(decideChecks({ affected: { ...input, changes: [{ path: "docs/design/pane.css", from: path }] } }).gate_rules.mode, "whole", path);
+  }
+});
+
+test("CIP-12 directory walkers and indirect rule imports still run for their inputs", () => {
+  const files = (path: string) => decideChecks({ affected: change(path) }).gate_rules.files ?? [];
+  assert.ok(files("packages/plugin-sdk/src/runtime.ts").includes("tests/health-gates-api-snapshot.test.ts"));
+  assert.ok(files("skills/example/SKILL.md").includes("tests/cursor-skill-links.test.ts"));
+  assert.ok(files("tests/fixtures/home-store-schemas/new-store.sql").includes("tests/health-gates-store-schemas.test.ts"));
+  assert.ok(files("tests/ci-shard-weights.json").includes("tests/run-tests-shard.test.ts"));
+  assert.ok(files("scripts/gates/browser-graph.mjs").includes("tests/health-gates-browser-fetch.test.ts"));
+  assert.ok(files("scripts/gates/browser-graph.mjs").includes("tests/health-gates-source-counts.test.ts"));
 });
 
 test("CIP-05 shell, studio replay and account-login checks follow their own inputs", () => {
@@ -79,7 +146,7 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
   assert.equal(Boolean(evaluateExpression(accountCond, scope("pull_request", "success", { documentation_mode: "code", account_login_mode: "none" }))), false);
   const gates = jobBlock("gates");
   assert.match(gates, /node scripts\/check-health-gates.mjs --base "\$base"/);
-  for (const prefix of ["name: Gate rules reject", "name: Health gates reject", "name: Build gate rules reject", "name: Studio Skill replay rules reject"]) {
+  for (const prefix of ["name: Gate rules reject", "name: Studio Skill replay rules reject"]) {
     const step = gates.split("\n      - ").find(item => item.startsWith(prefix))!;
     const cond = /if: \$\{\{ (.*) \}\}/.exec(step)![1]!;
     assert.equal(evaluateExpression(cond, scope("pull_request")), false, prefix);
@@ -88,6 +155,27 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
   const selection = jobBlock("test-selection");
   assert.match(selection, /PUSH_BEFORE: \$\{\{ github.event.merge_group.base_sha \}\}/);
   assert.match(selection, /base="\$\(node scripts\/ci-health-base.mjs\)"/);
+});
+
+test("CIP-12 the workflow narrows gate self-tests only for a successful PR or merge group selection", () => {
+  const security = jobBlock("gates").split("\n      - ").find(item => item.startsWith("name: Security invariant gate regressions"))!;
+  assert.ok(security.includes("if: ${{ needs.build.result == 'success' }}"));
+  assert.ok(security.includes("run: node scripts/run-tests.mjs tests/secret-scan.test.ts tests/health-gates-dual-instance.test.ts"));
+  const step = jobBlock("gates").split("\n      - ").find(item => item.startsWith("name: Gate rules reject"))!;
+  const environment = /SELECTED_GATE_TESTS: \$\{\{ (.*) \}\}/.exec(step)![1]!;
+  const condition = /if: \$\{\{ (.*) \}\}/.exec(step)![1]!;
+  assert.ok(step.includes('run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"'));
+  const files = '["tests/ci-install.test.ts"]';
+  for (const event of ["pull_request", "merge_group", "push", "schedule", "workflow_dispatch"]) {
+    const scoped = event === "pull_request" || event === "merge_group";
+    for (const result of ["success", "failure", "cancelled", "skipped"]) {
+      for (const mode of ["none", "some", "whole", "unknown", ""]) {
+        const context = scope(event, result, { gate_rules_mode: mode, gate_rule_files: files });
+        assert.equal(evaluateExpression(condition, context), !(scoped && result === "success" && mode === "none"));
+        assert.equal(evaluateExpression(environment, context), scoped && result === "success" && mode === "some" ? files : "");
+      }
+    }
+  }
 });
 
 test("CIP-03 Verify executes the real shell verdict and rejects unauthorized skips, failures and cancellation", () => {

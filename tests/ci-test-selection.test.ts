@@ -149,7 +149,7 @@ test("RAC-1762 the security list is test:security with its globs expanded over t
 });
 
 // ---- end to end ------------------------------------------------------------------------------------------------------------------
-const SCRIPTS = ["scripts/run-tests/shard.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests", "scripts/ci-product-subset/plan.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/package-dev-requirements.mjs", "scripts/script-paths.mjs"];
+const SCRIPTS = ["scripts/run-tests/shard.mjs", "scripts/run-tests/strata.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests", "scripts/ci-product-subset/plan.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/package-dev-requirements.mjs", "scripts/script-paths.mjs"];
 function scratch() {
   const root = mkdtempSync(path.join(tmpdir(), "molis-test-selection-"));
   directories.push(root);
@@ -185,13 +185,23 @@ const select = (root: string, base = "HEAD^1", summary = "") => {
   return { code: run.status, text: `${run.stdout}${run.stderr}`, outputs };
 };
 
+test("CIP-12 end to end: a single changed gate test reaches the runner as a JSON file list", () => {
+  const { root, put, commit } = scratch();
+  put("tests/ci-install.test.ts", 'import test from "node:test"; test("install", () => {});\n');
+  commit("change an install self-test");
+  const { code, outputs, text } = select(root);
+  assert.equal(code, 0, text);
+  assert.equal(outputs.gate_rules_mode, "some", text);
+  assert.deepEqual(JSON.parse(outputs.gate_rule_files!), ["tests/ci-install.test.ts"]);
+});
+
 test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its own files, a failure runs everything and still exits 0", () => {
   const { root, put, commit } = scratch();
   put("docs/guide.md", "# Guide\n\nMore words.\n");
   commit("docs");
   const docs = select(root);
   assert.equal(docs.code, 0, docs.text);
-  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", studio_replay_mode: "none", account_login_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
+  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", gate_rule_files: "", shell_mode: "none", studio_replay_mode: "none", account_login_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
 
   put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
   commit("demo");

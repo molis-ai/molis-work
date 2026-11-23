@@ -296,18 +296,17 @@ jobs:
           MOLIS_WORK_TEST_JOBS: 2
         run: pnpm test:contracts
 
-      # Gate self-tests (mutation-verified on scratch repos); skipped when no gate/workflow input changed.
+      # These also prove S-19 and S-48. Every code build runs them, including PRs with no other affected gate rule.
+      - name: Security invariant gate regressions
+        if: ${{ needs.build.result == 'success' }}
+        run: node scripts/run-tests.mjs tests/secret-scan.test.ts tests/health-gates-dual-instance.test.ts
+
+      # Only a successful PR/group selection may narrow the remaining self-tests. Invalid lists run the whole set.
       - name: Gate rules reject what they claim to
         if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/version-source.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-font-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/run-tests-shard.test.ts tests/ci-check-selection.test.ts tests/ci-shard-weights.test.ts tests/affected-tests.test.ts tests/cursor-skill-links.test.ts
-
-      - name: Health gates reject what they claim to
-        if: ${{ needs.build.result == 'success' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts
-
-      - name: Build gate rules reject what they claim to
-        if: ${{ needs.build.result == 'success' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
-        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/first-screen-budget.test.mjs tests/first-screen-report.test.mjs tests/plugin-styles-gate.test.ts
+        env:
+          SELECTED_GATE_TESTS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'some' && needs.test-selection.outputs.gate_rule_files || '' }}
+        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"
 
       - name: Studio Skill replay rules reject what they claim to
         if: ${{ needs.build.result == 'success' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.studio_replay_mode == 'none') }}
@@ -670,6 +669,7 @@ jobs:
       golden_history_mode: ${{ steps.select.outputs.golden_history_mode }}
       documentation_mode: ${{ steps.select.outputs.documentation_mode }}
       gate_rules_mode: ${{ steps.select.outputs.gate_rules_mode }}
+      gate_rule_files: ${{ steps.select.outputs.gate_rule_files }}
       shell_mode: ${{ steps.select.outputs.shell_mode }}
       studio_replay_mode: ${{ steps.select.outputs.studio_replay_mode }}
       account_login_mode: ${{ steps.select.outputs.account_login_mode }}

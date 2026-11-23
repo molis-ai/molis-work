@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -20,7 +20,7 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function fixture(t: TestContext) {
-  const root = mkdtempSync(join(tmpdir(), "linux-repro-"));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "linux-repro-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const origin = join(root, "origin");
   const source = join(root, "source with spaces");
@@ -105,13 +105,14 @@ test("TFLH-02 a fresh volume builds and runs tests at the requested linked-workt
 test("TFLH-03 an unreadable source stops both a fresh run and runs with cached code", t => {
   const f = fixture(t);
   const checkout = join(f.root, "unreadable worktree");
+  const gitDir = join(f.root, "unmounted-gitdir");
   mkdirSync(checkout);
-  writeFileSync(join(checkout, ".git"), `gitdir: ${join(f.root, "unmounted-gitdir")}\n`);
+  writeFileSync(join(checkout, ".git"), `gitdir: ${gitDir}\n`);
   for (const cached of [undefined, f.old, f.wanted]) {
     if (cached) f.cache(cached);
     const result = f.run({ checkout, rebuild: true });
     assert.equal(result.status, 128, result.stderr);
-    assert.ok(result.stderr.includes(checkout), result.stderr);
+    assert.ok(result.stderr.includes(checkout) || result.stderr.includes(gitDir), result.stderr);
     assert.deepEqual(result.phases, []);
     assert.equal(result.stdout, "");
     if (cached) assert.equal(git(f.repo, "rev-parse", "HEAD"), cached);

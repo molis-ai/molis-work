@@ -51,6 +51,8 @@ import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { assertSurfacePresentation } from "./surface-installation.js";
 import { projectedPermissionDeclarations, projectedPermissionsOf } from "./installed-permission-projection.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
+import { forgetInstalledMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -296,7 +298,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const hostEvents = new PluginHostEvents({ projectId: options.project_id, lifecycle: supervisor });
   executor.attach({ events, hostEvents, wiring, ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }), scopeKey: options.scopeKey ?? options.project_id });
   let stopArtifactRefresh: (() => void) | undefined;
+  const rememberedScenes = new Set<string>();
   const detachActivation = supervisor.observeActivation(pluginId => {
+    if (!builtinPluginByManifestId(pluginId)) {
+      const scene = supervisor.manifest(pluginId)?.memory_scene;
+      rememberInstalledMemoryScene(options.project_id, pluginId, scene);
+      if (scene) rememberedScenes.add(pluginId);
+      else rememberedScenes.delete(pluginId);
+    }
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
@@ -311,6 +320,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     async closeCoordination() {
       closed = true; views.close(); installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.(); detachActivation();
+      for (const pluginId of rememberedScenes) forgetInstalledMemoryScene(options.project_id, pluginId);
+      rememberedScenes.clear();
       await wiring.close(); await events.close(); await hostEvents.close();
     },
     dualInstance: isDualId, dualHomeRunning, effectiveGrants,

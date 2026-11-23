@@ -12,7 +12,7 @@ async function binding(f: Awaited<ReturnType<typeof memoryServiceHome>>, id = "b
   const session = await f.adapter().createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: "io.molis.work.coding",
     install_id: "coding", workspace: "none", role_id: "coding", title: id });
   return { ...person(id), session_id: session.session_id, current_scene: "coding", memory_session: {
-    session, current_scene: "coding", target: { kind: "coding", id, project_id: "project-a" } } };
+    session, current_scene: "coding", target: { kind: "coding", id, project_id: "project-a", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" } } };
 }
 const scoped = { scope: "personal" as const, owner: LOCAL_PERSON_ACTOR_ID };
 const sessionClass: { scenes: string[]; lifecycle: "session" } = { scenes: ["coding"], lifecycle: "session" };
@@ -144,7 +144,7 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
   const { inspectMemoryForgetting } = await import("@molis-ai/molis-work-storage");
   const f = await codingProductHost(t, () => cogniaModelResponse("已完成。"), { loopbackProvider: true }), project = f.project.project_id, coding = "/api/plugins/io.molis.work.coding";
   const created = await f.call<{ session: { session_id: string } }>(project, coding + "/sessions", { title: "Retained owner purge continuation" });
-  const business = created.body.session.session_id, base = `/api/memory/sessions/coding/${business}`;
+  const business = created.body.session.session_id, base = `/api/memory/sessions/coding/io.molis.work.coding/${business}`;
   const started = await f.call<{ run: { ref: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunRef } }>(project, coding + `/sessions/${business}/runs`, {
     task: "检查当前目录，不改文件。", intent: "discuss", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model" });
   assert.equal(started.status, 200, JSON.stringify(started.body)); await f.ended(started.body.run.ref);

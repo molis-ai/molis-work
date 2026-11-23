@@ -33,7 +33,7 @@ test("MEM-09/MEM-18: complete Session plans beyond the first marker page are not
     const session = await f.adapter().createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: "io.molis.work.coding",
       install_id: "coding", workspace: "none", role_id: "coding", title: id });
     return { ...person(id), session_id: session.session_id, current_scene: "coding", memory_session: {
-      session, current_scene: "coding", target: { kind: "coding", id, project_id: "project-a" } } };
+      session, current_scene: "coding", target: { kind: "coding", id, project_id: "project-a", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" } } };
   };
   const who = await bind("business-a"), other = await bind("business-b");
   const previews: string[] = [];
@@ -102,7 +102,7 @@ test("MEM-09/MEM-18: conflicting retained tuple reports unknown reconciliation w
     const session = await f.adapter().createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: "io.molis.work.coding",
       install_id: "coding", workspace: "none", role_id: "coding", title: id });
     return { ...person(id), session_id: session.session_id, current_scene: "coding", memory_session: {
-      session, current_scene: "coding", target: { kind: "coding", id, project_id: "project-a" } } };
+      session, current_scene: "coding", target: { kind: "coding", id, project_id: "project-a", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" } } };
   };
   const who = await bind("damaged-plan");
   await service.write({ ...who, operation_id: "original" }, { scope: "personal", text: "Original accepted Session tuple", kind: "preference", classification: sessionClass });

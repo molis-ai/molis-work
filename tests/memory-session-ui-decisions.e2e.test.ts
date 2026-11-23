@@ -46,7 +46,7 @@ async function open(t: TestContext, sessionMode = true) {
     if (language) { response.setHeader("content-type", "text/javascript; charset=utf-8"); response.end(language.body); return; }
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
     if (!path.includes("/api/memory/")) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(html); return; }
-    assert.ok(path.startsWith(sessionMode ? "/projects/project/api/memory/sessions/coding/business/" : "/projects/project/api/memory/"), "all binder requests use the selected management target");
+    assert.ok(path.startsWith(sessionMode ? "/projects/project/api/memory/sessions/coding/io.molis.work.coding/business/" : "/projects/project/api/memory/"), "all binder requests use the selected management target");
     response.setHeader("content-type", "application/json");
     if (path.endsWith("/operations")) { response.end(JSON.stringify({ items: [], exhausted: true })); return; }
     if (path.endsWith("/overview") || path.endsWith("/page")) {
@@ -69,7 +69,7 @@ async function open(t: TestContext, sessionMode = true) {
   const address = server.address(); assert.ok(address && typeof address === "object");
   browser = await ChromeHarness.start(directory, { executable }); const page = await browser.page(); await page.viewport(1440, 1100);
   const reset = async () => {
-    await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?${sessionMode ? "memory_session_kind=coding&memory_session_id=business&" : ""}visit=${calls.length}` });
+    await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?${sessionMode ? "memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_id=business&" : ""}visit=${calls.length}` });
     await ready(page); await page.wait("document.querySelector('[data-memory-id=project-formal]')");
   };
   await reset();

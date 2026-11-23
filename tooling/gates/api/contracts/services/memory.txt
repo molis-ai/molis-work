@@ -801,6 +801,8 @@ export interface MemorySessionTarget {
     readonly kind: MemoryScene;
     readonly id: string;
     readonly project_id: string | null;
+    readonly plugin_id?: string;
+    readonly provider_id?: string;
 }
 
 export interface MemorySignalReport {
@@ -944,6 +946,8 @@ export declare function isMemorySessionBindingAction(view: {
 }): boolean;
 
 export declare const isMemorySessionScene: (value: unknown) => value is MemoryScene;
+
+export declare function isMemorySessionTarget(value: unknown): value is MemorySessionTarget;
 
 export declare const memoryActions: {
     page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;

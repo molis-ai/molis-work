@@ -5,8 +5,9 @@ export type { MemoryLearningRequest, MemoryLearningTaskRequest, MemoryLearningRe
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 import { memoryPageAction } from "./memory-queries.js";
-import { memorySessionActions, memorySessionOperationSchemas } from "./memory-session.js";
+import { isMemorySessionTarget, memorySessionActions, memorySessionOperationSchemas } from "./memory-session.js";
 import { isMemoryScene, MEMORY_SCENE_SCHEMA, type MemoryScene } from "./memory-scene.js";
+export { isMemorySessionTarget };
 export type { MemorySessionTarget, MemorySessionBinding, MemorySessionClearPreview, MemorySessionClearItem, MemorySessionClearResult, MemorySessionPendingOperation } from "./memory-session.js";
 export type { MemorySessionPurgeSelection, MemorySessionPurgeTarget, MemorySessionPurgePage } from "./memory-session.js";
 export type { MemoryManagementKind, MemoryManagementItem, MemoryPageFilter, MemoryPageRequest, MemoryPageResponse } from "./memory-queries.js";

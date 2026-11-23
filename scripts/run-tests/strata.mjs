@@ -22,6 +22,9 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
   "tests/narrow-surfaces.e2e.test.ts",
   "tests/remaining-forms-viewport.e2e.test.ts",
   "tests/repeat-no-accumulation.e2e.test.ts",
+  "tests/touch-targets-dark.e2e.test.ts",
+  "tests/touch-targets-fine-pointer-dark.e2e.test.ts",
+  "tests/touch-targets-fine-pointer.e2e.test.ts",
   "tests/touch-targets.e2e.test.ts",
   "tests/truncation-tip.e2e.test.ts",
   "tests/visual-order-details-dark.e2e.test.ts",
@@ -33,7 +36,7 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
 
 const VISUAL_AUDIT_SET = new Set(VISUAL_AUDIT_TESTS);
 
-const GATE_META_PATTERN = /^tests\/(?:health-gates-|ci-|run-tests-|first-screen-|doc-reference-gates\.|translation-check\.|package-inventory-gate\.|vendor-provenance\.|verify-release-versions\.|version-source\.|secret-scan\.|cursor-skill-links\.|native-checks\.|page-assets-budget\.|plugin-styles-gate\.|studio-replay\.|affected-tests\.)/u;
+const GATE_META_PATTERN = /^tests\/(?:health-gates-|ci-|run-tests-|first-screen-|doc-reference-gates(?:\.|-)|translation-check\.|package-inventory-gate\.|vendor-provenance\.|verify-release-versions\.|version-source\.|secret-scan\.|cursor-skill-links\.|native-checks\.|page-assets-budget\.|plugin-styles-gate\.|studio-replay\.|affected-tests\.)/u;
 
 const normalize = (file) => String(file).replaceAll("\\", "/").replace(/^\.\//u, "");
 

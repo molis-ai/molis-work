@@ -13,7 +13,7 @@ function fixture() {
   return {...owner, rules:new FeedOutRuleStore(fromProjectConnection(owner.db))};
 }
 
-test("Feed capture rule transfers per project but is disabled until locally enabled", () => {
+test("AC-M1-09 Feed capture rule transfers per project but is disabled until locally enabled", () => {
   const a = fixture(), b = fixture();
   try {
     const rule = a.rules.create(projectId, { name: "关注发布", match: { contains: "发布" }, enabled: true });
@@ -30,7 +30,7 @@ test("Feed capture rule transfers per project but is disabled until locally enab
   } finally { a.close(); b.close(); }
 });
 
-test("Feed rejects foreign or malformed envelopes and preserves an active local rule", () => {
+test("AC-M1-09 Feed rejects foreign envelopes, updates and tombstones for an active local rule", () => {
   const a = fixture(), b = fixture();
   try {
     const rule = a.rules.create(projectId, { name: "关注发布", match: { contains: "发布" }, enabled: true });
@@ -53,6 +53,11 @@ test("Feed rejects foreign or malformed envelopes and preserves an active local 
       assert.equal(c.replica.conflicts().length, 1);
       assert.equal(c.rules.get(projectId, rule.rule_id).name, "本机活跃规则");
       assert.throws(() => c.replica.resolve(mutation.key, "remote"));
+      c.replica.receive({ ...mutation, operationId: "remote-delete", value: null, base: 1, revision: 2 });
+      assert.equal(c.replica.conflicts().length, 1);
+      assert.throws(() => c.replica.resolve(mutation.key, "remote"));
+      assert.equal(c.rules.get(projectId, rule.rule_id).name, "本机活跃规则");
+      assert.equal(c.rules.get(projectId, rule.rule_id).enabled, true);
     } finally { c.close(); }
   } finally { a.close(); b.close(); }
 });

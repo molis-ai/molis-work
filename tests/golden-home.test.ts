@@ -22,6 +22,7 @@ import { assertRecordedVersions, PERSISTENT_FORMAT_LOCATIONS } from "../scripts/
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GOLDEN_SCRIPT = path.join(root, "scripts/golden-home.mjs"), REPLAY_SCRIPT = path.join(root, "scripts/replay-golden-homes.mjs");
 const PRETEND_LINUX = path.join(root, "tests/fixtures/pretend-linux.mjs");
+const COMPUTER_SETTINGS = "computer/settings.json";
 const VERSION = "9.9.9-dev.1", GENERATED_TEXT = "金样";
 
 interface Run { readonly status: number | null; readonly stdout: string; readonly output: string }
@@ -429,13 +430,19 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.equal(JSON.stringify(recorded).includes(realpathSync(tmpdir())), false);
   });
 
-  test("UPG2-02: generating it again on this commit gives the same bytes", async () => {
+  test("UPG2-02 / GDC-01: generating it again on this commit gives the same bytes", async () => {
     const again = await runAsync(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", golden);
     assert.equal(again.status, 0, again.output);
     assert.match(again.output, /identical/u);
   }, { timeout: 600_000 });
 
-  test("UPG2-02: a machine slow enough for the Host's rounds to come due gives the same bytes", async () => {
+  test("UPG2-02 / GDC-01: a machine slow enough for the Host's rounds to come due gives the same bytes", async () => {
+    const memory = new DatabaseSync(":memory:", { defensive: false });
+    try {
+      memory.exec(readFileSync(path.join(golden, "stores/memory/memory.db.sql"), "utf8"));
+      const markers = memory.prepare("SELECT key FROM memory_markers WHERE key IN ('upkeep', 'upkeep-session') ORDER BY key").all();
+      assert.deepEqual(markers.map(marker => marker.key), ["upkeep-session"]);
+    } finally { memory.close(); }
     const slow = await runWithAsync([], GOLDEN_SCRIPT, ["check", "--version", VERSION, "--dir", golden], {
       ...process.env, NODE_OPTIONS: `--import=${path.join(root, "tests/fixtures/long-periods-come-due.mjs")}`,
     });
@@ -481,7 +488,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.equal(dumped.includes('"manifest":"sha256:'), true);
   });
 
-  test("UPG2-01, UPG2-05, UPG2-06: both Homes are restored, opened, read, written to, restarted and read again, under a Home that is not the real one", async () => {
+  test("UPG2-01, UPG2-05, UPG2-06, GDC-02: both Homes are restored, opened, read, written to, restarted and read again, under a Home that is not the real one", async () => {
     const replayed = await runAsync(REPLAY_SCRIPT, "--dir", path.dirname(golden), "--json");
     assert.equal(replayed.status, 0, replayed.output);
     const { results } = JSON.parse(replayed.stdout);
@@ -491,6 +498,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.ok(results[0].steps.writes > 0);
     assert.equal(results[0].steps.third_party, "absent");
     assert.equal(results[0].steps.home_library, "absent");
+    assert.equal(results[0].steps.computer_settings, process.platform === "darwin" ? "replayed" : "absent");
     assert.deepEqual(results[0].not_run, []);
     assert.ok(results[0].steps.versioned_files > 0);
     // UPG2-05: the Host was restarted and the structure check and every read ran again. The result names the restart steps, so a replay that
@@ -499,15 +507,34 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.ok(results[0].steps.restart_reads > 0);
   }, { timeout: 600_000 });
 
-  test("where the sandbox cannot run, a golden with an installed plugin is replayed without that step, and the result says it did not run and is not a pass", async () => {
-    const { thirdPartySample } = await import("../scripts/golden/populate.mjs");
-    const { homeLibrarySample } = await import("../scripts/golden/home-library-sample.mjs");
-    const parent = path.join(directory, "linux"), copy = path.join(parent, VERSION);
+  test("GDC-02: macOS rejects a settings file whose saved forbidden app is missing", { skip: process.platform !== "darwin", timeout: 600_000 }, async () => {
+    const parent = path.join(directory, "computer-setting-lost"), copy = path.join(parent, VERSION);
     cpSync(golden, copy, { recursive: true });
-    writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify({ ...manifest(copy), third_party: thirdPartySample().id, home_library: homeLibrarySample().id }, null, 2)}\n`);
-    const replayed = await runWithAsync(["--import", PRETEND_LINUX], REPLAY_SCRIPT, ["--dir", parent]);
+    const recorded = manifest(copy), entry = recorded.files.find((file: { path: string }) => file.path === COMPUTER_SETTINGS);
+    assert.ok(entry);
+    const file = path.join(copy, entry.payload), saved = JSON.parse(readFileSync(file, "utf8"));
+    const bytes = Buffer.from(JSON.stringify({ ...saved, forbidden: [] }));
+    writeFileSync(file, bytes);
+    entry.size = bytes.length;
+    entry.sha256 = sha256(bytes);
+    writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify(recorded, null, 2)}\n`);
+    const replayed = await runAsync(REPLAY_SCRIPT, "--dir", parent);
+    assert.equal(replayed.status, 1, replayed.output);
+    assert.match(replayed.output, /^FAIL 9\.9\.9-dev\.1 versioned-files computer\/settings\.json golden\.versioned_file_lost$/mu);
+  });
+
+  test("UPG2-07 / GDC-02: Linux reports skipped signed samples and computer settings in the replay result", async () => {
+    const replayed = await runWithAsync(["--import", PRETEND_LINUX], REPLAY_SCRIPT, ["--golden", "0.1.0", "--json"]);
     assert.equal(replayed.status, 0, replayed.output);
-    assert.match(replayed.stdout, /third-party: not run on linux, not a pass, home library: not run on linux, not a pass/u);
+    const { results } = JSON.parse(replayed.stdout);
+    assert.equal(results.length, 1);
+    const [result] = results;
+    assert.equal(result.ok, true);
+    assert.ok(result.steps.versioned_files > 0);
+    assert.equal(result.steps.third_party, "not-run");
+    assert.equal(result.steps.home_library, "not-run");
+    assert.equal(result.steps.computer_settings, "not-run");
+    assert.deepEqual(result.not_run, ["third-party", "home-library", "computer-settings"]);
   }, { timeout: 600_000 });
 
   test("UPG2-03: a library at another version fails at the upgrade with its code, and the output has only the place and the code", async () => {
@@ -598,8 +625,9 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
       assert.equal(item.version, versions[item.entry], `${item.entry} at ${item.path}`);
     }
     assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
-    // The two the snapshot cannot hold, and the computer's two files the generation does not write yet (BL-golden-computer-settings).
-    const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.settings", "format.computer.record"]);
+    // GDC-02: a Mac generation saves settings through the web surface. Computer use records require a separate sample.
+    const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.record"]);
+    if (process.platform !== "darwin") absent.add("format.computer.settings");
     assert.deepEqual([...new Set(formats.map(item => item.entry))].sort(), Object.keys(PERSISTENT_FORMAT_LOCATIONS).filter(entry => !absent.has(entry)).sort());
   });
 
@@ -627,8 +655,9 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
       return "shelf/catalog.json#format.shelf.catalog";
     }],
     ["a format added that the Home does not have", recorded => {
-      recorded.formats.push({ entry: "format.computer.settings", path: "computer/settings.json", version: 1 });
-      return "computer/settings.json#format.computer.settings";
+      const path = "computer/records/missing/record.json", entry = "format.computer.record";
+      recorded.formats.push({ entry, path, version: 1 });
+      return `${path}#${entry}`;
     }],
   ];
   for (const [what, edit] of edits) {

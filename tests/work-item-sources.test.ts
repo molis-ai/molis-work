@@ -12,7 +12,7 @@ import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
  * check on the directory (`isItemPartAction`), so no source is called differently from another.
  */
 
-const PLUGIN_ID = "io.molis.work.example.notes";
+const PLUGIN_ID = "com.example.notes";
 const values = definePresentationValuesAction("notes.presentation.values", 1, ["note"], "笔记显示字段", ["notes:read"]);
 const create = defineItemCreateAction("notes.items.create", 1, { kind: "note", title: "建成笔记", description: "新建一条笔记。", permissions: ["notes:write"] });
 const related = defineItemRelatedAction("notes.items.related", 1, { kind: "note", title: "笔记的相关", description: "读取和笔记相关的对象。", permissions: ["notes:read"] });

@@ -17,7 +17,7 @@ const conflict = (key: string) => (error: unknown) =>
 function definition(name: string, key: string, options: {
   scope?: "home" | "project"; next?: true; link?: string; start?(): Promise<void>; preflight?(): Promise<void>;
 } = {}): PluginDefinition {
-  const plugin_id = `io.molis.work.admission.${name}`;
+  const plugin_id = `com.example.admission.${name}`;
   const action = (operation: string) => ({ capability_id: `${plugin_id}.settings.${operation}`, version: 1, title: operation, description: operation, permissions: [] });
   const { read, write } = defineSettingsActions({ scope: options.scope ?? "project", read: action("read"), write: action("write") });
   return {
@@ -164,7 +164,7 @@ test("SPC-C01: a racing installation wins the new key during async upgrade prefl
   // A start-time refusal could also restore the old row. Fail if the candidate reaches the actual write at all.
   project.db.exec(`
     CREATE TEMP TRIGGER reject_candidate_save BEFORE UPDATE ON plugin_runtime_installs
-    WHEN json_extract(NEW.record_json, '$.plugin_id') = 'io.molis.work.admission.first'
+    WHEN json_extract(NEW.record_json, '$.plugin_id') = 'com.example.admission.first'
       AND json_extract(NEW.record_json, '$.version') = '2.0.0'
     BEGIN
       SELECT RAISE(ABORT, 'candidate installation was written before settings admission');

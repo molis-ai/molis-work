@@ -6,7 +6,7 @@ import { newPublisher, signedPackage } from "./sandbox-package.js";
 // What the two halves of S-package-install-sheet share (tests/security-invariants-package-install-sheet.test.ts for the Host's route,
 // its .e2e twin for the shell's sheet): one signed package asking for a site and a key, and a publisher the person has pinned.
 
-export const SHEET_PLUGIN_ID = "io.molis.work.example.sheet";
+export const SHEET_PLUGIN_ID = "com.example.sheet";
 export const SHEET_KEY_VALUE = "fixture-key-value-for-install-sheet";
 
 /** The notes package asking for a site and a key, which the Host projects as two optional switches (`network:request`, `secret:use`). */

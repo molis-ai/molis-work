@@ -7,7 +7,7 @@ import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/moli
 
 import { signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 
-export const PACKAGE_PLUGIN_ID = "io.molis.work.example.notes";
+export const PACKAGE_PLUGIN_ID = "com.example.notes";
 
 export function packageContract(pluginId = PACKAGE_PLUGIN_ID): SandboxPluginContract {
   return { version: 1, pluginId, revision: "one", entities: [], acceptance: [],

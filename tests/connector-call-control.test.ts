@@ -54,7 +54,7 @@ async function gmailRuntime(t: TestContext, transport: typeof fetch) {
   const platform = createPluginPlatform({ db: projectRuntime.store.db, journal: projectRuntime.store, project_id: reference.project_id, actor_id: "fixture-person",
     actions: { registry, client, project_id: reference.project_id }, home: null, artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }), sourcePullIntegrations: () => homeIntegrationRegistry(home) });
-  const id = "io.molis.work.example.controlledgmail";
+  const id = "com.example.controlledgmail";
   const action: ActionDefinition<{ record_key: string }, ConnectorPullReceipt> = { capability_id: "controlled.gmail.pull", version: 1, operation: "command",
     action: { title: "Pull Gmail", description: "Exercise the current account source", scope: "project", kind: "operation", subject_kinds: [], audiences: ["user"],
       permissions: PERMISSIONS, scheduling: "concurrent", input_schema: { type: "object", properties: { record_key: { type: "string" } }, required: ["record_key"], additionalProperties: false }, output_schema: {} } };

@@ -654,7 +654,7 @@ export declare const ROLE_TEMPLATE_SCHEMA: {
                 readonly properties: {
                     readonly pack: {
                         readonly type: "string";
-                        readonly pattern: "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$";
+                        readonly pattern: "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$";
                         readonly maxLength: 200;
                     };
                     readonly skill_id: {

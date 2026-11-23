@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,7 +25,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // there; RAC-417 / S-82 a type id or link kind has one owner in the whole Home, worked out from the installation records on disk,
 // and an install, a version change and an enable each ask.
 
-const PRODUCER = "io.molis.work.example.notes", OTHER = "io.molis.work.example.other";
+const PRODUCER = "com.example.notes", OTHER = "com.example.other";
 
 /** An installed app Plugin of another publisher, declaring `types` and link `kinds`. */
 function plugin(id: string, version: string, types: string[], kinds: string[] = []): PluginDefinition {
@@ -346,8 +346,8 @@ test("RAC-417 S-82 a name has one owner in the whole Home: a disabled owner stil
   const { pa, pb } = await twoProjects(t);
   await pb.supervisor.start([entry(plugin(PRODUCER, "1.0.0", ["example.note"], ["example.note.ref"]))]);
   const take = (definition: PluginDefinition) => () => pa.install(definition);
-  assert.throws(take(plugin(OTHER, "1.0.0", ["example.note"])), { ...refusal, message: /example\.note 已由 io\.molis\.work\.example\.notes 声明/ }, "a type held by an installation in another project");
-  assert.throws(take(plugin(OTHER, "1.0.0", [], ["example.note.ref"])), { ...refusal, message: /example\.note\.ref 已由 io\.molis\.work\.example\.notes 声明/ }, "a link kind held in another project");
+  assert.throws(take(plugin(OTHER, "1.0.0", ["example.note"])), { ...refusal, message: /example\.note 已由 com\.example\.notes 声明/ }, "a type held by an installation in another project");
+  assert.throws(take(plugin(OTHER, "1.0.0", [], ["example.note.ref"])), { ...refusal, message: /example\.note\.ref 已由 com\.example\.notes 声明/ }, "a link kind held in another project");
   assert.throws(take(plugin(OTHER, "1.0.0", [pagesManifest.artifacts.produces[0]!.artifact_type_id])), refusal, "a type a shipped plugin owns");
   assert.throws(take(plugin(OTHER, "1.0.0", [], [goalsManifest.artifacts.links![0]!.kind])), refusal, "a link kind a shipped plugin owns");
   assert.deepEqual(pa.runtime.list(), [], "a refused install leaves no record");
@@ -388,17 +388,17 @@ test("RAC-417 S-82 an enable asks too: a second owner that got in cannot be swit
   // A second owner of the name, put into B by a Runtime that was not asked (a record from before the rule, or a hand-made one).
   const y = plugin(OTHER, "1.0.0", ["example.note"]);
   new SqlitePluginRuntimeReleaseArtifactRepository(pb.store.db).save(createPluginRuntimeReleaseArtifact(y.manifest, "export {}"));
-  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: y, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: y, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   const state = await pa.supervisor.enable(PRODUCER);
   assert.equal(state.status, "failed", "the enable is refused");
   assert.equal(state.code, "plugin.definition_conflict");
-  assert.match(state.message ?? "", /example\.note 已由 io\.molis\.work\.example\.other 声明/);
+  assert.match(state.message ?? "", /example\.note 已由 com\.example\.other 声明/);
   assert.equal(artifactTypeDeclarations().get("example.note")?.plugin_id === PRODUCER, false, "and it stays out of the registry");
 
   // An installation whose Manifest was never kept cannot be read for its names, so it holds every name.
-  const z = plugin("io.molis.work.example.unkept", "1.0.0", ["example.unkept"]);
-  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: z, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
-  assert.throws(() => pa.install(plugin("io.molis.work.example.third", "1.0.0", ["example.third"])), { ...refusal, message: /读不到已装插件 io\.molis\.work\.example\.unkept 的 Manifest/ });
+  const z = plugin("com.example.unkept", "1.0.0", ["example.unkept"]);
+  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: z, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  assert.throws(() => pa.install(plugin("com.example.third", "1.0.0", ["example.third"])), { ...refusal, message: /读不到已装插件 com\.example\.unkept 的 Manifest/ });
   assert.equal(heldInstalls(home).some(held => held.record.plugin_id === z.manifest.plugin_id && held.manifest === null), true);
 });
 
@@ -413,8 +413,8 @@ test("RAC-417 S-82 a development installation with no kept Manifest is not refus
   p.supervisor.revoke(PRODUCER);
   assert.equal((await p.supervisor.enable(PRODUCER)).status, "running", "its own enable is not refused by its own record");
   // Another plugin's names are held by the Manifest this project's supervisor is running for it.
-  assert.throws(() => p.install(plugin(OTHER, "1.0.0", ["example.note"])), { ...refusal, message: /example\.note 已由 io\.molis\.work\.example\.notes 声明/ }, "a name the running development plugin declares");
-  assert.doesNotThrow(() => p.install(plugin("io.molis.work.example.third", "1.0.0", ["example.third"])), "a plugin of other names installs next to it");
+  assert.throws(() => p.install(plugin(OTHER, "1.0.0", ["example.note"])), { ...refusal, message: /example\.note 已由 com\.example\.notes 声明/ }, "a name the running development plugin declares");
+  assert.doesNotThrow(() => p.install(plugin("com.example.third", "1.0.0", ["example.third"])), "a plugin of other names installs next to it");
 });
 
 test("RAC-417 S-82 two development installations start together, whichever the supervisor reaches first", { timeout: 180_000 }, async t => {
@@ -440,13 +440,13 @@ test("RAC-417 S-82 a development installation stands in only by the version its 
   const owners = (version: string) => declarationOwnersFor(home, { db: p.store.db, scope: { kind: "project", project_id: p.projectId } },
     id => id === PRODUCER ? plugin(PRODUCER, version, ["example.note"]).manifest : undefined)(plugin(OTHER, "1.0.0", ["example.other"]).manifest);
   assert.deepEqual(owners("1.0.0").filter(owner => owner.plugin_id === PRODUCER).map(owner => owner.plugin_id), [PRODUCER], "the running Manifest at the record's version holds its names");
-  assert.throws(() => owners("2.0.0"), { ...refusal, message: /读不到已装插件 io\.molis\.work\.example\.notes 的 Manifest/ }, "a Manifest of another version is not the record's");
+  assert.throws(() => owners("2.0.0"), { ...refusal, message: /读不到已装插件 com\.example\.notes 的 Manifest/ }, "a Manifest of another version is not the record's");
 });
 
 test("RAC-417 S-82 a development installation in another project that cannot be read still refuses, never passes", { timeout: 180_000 }, async t => {
   const { pa, pb } = await twoProjects(t);
   await pb.supervisor.start([bare(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
-  assert.throws(() => pa.install(plugin(OTHER, "1.0.0", ["example.other"])), { ...refusal, message: /读不到已装插件 io\.molis\.work\.example\.notes 的 Manifest/ }, "only the project that runs it can say what it declares");
+  assert.throws(() => pa.install(plugin(OTHER, "1.0.0", ["example.other"])), { ...refusal, message: /读不到已装插件 com\.example\.notes 的 Manifest/ }, "only the project that runs it can say what it declares");
 });
 
 test("RAC-417 S-82 two Homes in one process do not share names", { timeout: 120_000 }, async t => {

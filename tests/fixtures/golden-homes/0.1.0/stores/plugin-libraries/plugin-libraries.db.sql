@@ -10,6 +10,6 @@ CREATE TABLE plugin_home_libraries (
       created_at TEXT NOT NULL
     );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
-INSERT INTO "plugin_home_libraries"("plugin_id","publisher_signature","store_name","version","schema_digest","created_at") VALUES('io.molis.work.example.golden-home-library','ed25519:sha256:71fe57be5711170cd71a9bb007d22c50b411ab9302256f5644e46e7fc6ccc42d','sbxdb-7cca75c1b8e5c4f45a135088b2538bae',1,'fd7764d180b6ba960b032c85a7bea9d36d67c8c08d1cf49f9d9a8a9c220b6a60','2026-01-15T09:00:00.000Z');
+INSERT INTO "plugin_home_libraries"("plugin_id","publisher_signature","store_name","version","schema_digest","created_at") VALUES('com.example.golden-home-library','ed25519:sha256:7032446c1c480a029355b300a48e56e88e6afd6e654ea27bb8c494d907dbb349','sbxdb-07ba5a137b9c31eb32d2afc59b67135f',1,'fd7764d180b6ba960b032c85a7bea9d36d67c8c08d1cf49f9d9a8a9c220b6a60','2026-01-15T09:00:00.000Z');
 PRAGMA user_version=1;
 COMMIT;

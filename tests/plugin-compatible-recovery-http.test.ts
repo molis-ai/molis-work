@@ -1,5 +1,5 @@
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -33,7 +33,7 @@ for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restor
     db = openTestSqlite(path.join(root, "projects", projectId, "molis-work.db"));
     const repository = new SqlitePluginRuntimeRepository(db);
     // The seeded older Coding declares a presentation; this bare runtime has no Host catalog to check it against, and the test is about recovery.
-    const oldRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, maxRecoveryAttempts: 1, assertPresentation: () => undefined });
+    const oldRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, maxRecoveryAttempts: 1, assertPresentation: () => undefined });
     const currentDiff = createDiffPlugin();
     const diff = { ...currentDiff, manifest: { ...currentDiff.manifest, version: "1.3.1" } };
     const diffInstall = oldRuntime.install({ trust: { level: "host" }, definition: diff, deployment: "local", grants: ["artifact:read"] }).install;

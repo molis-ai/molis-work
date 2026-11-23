@@ -19,7 +19,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // and the actor of a row is the caller's, never the plugin's to choose. The journal is shared by every owner of the project, so
 // each plugin has its own part of it: what it writes is stored under its plugin id, and it reads, counts and looks up only that.
 
-const HOST_ACTOR = "tester", OWNER = "owner", AT = "2026-10-23T00:00:00.000Z", JOURNAL = "journal:project", NAMESPACE = "io.molis.work.example.";
+const HOST_ACTOR = "tester", OWNER = "owner", AT = "2026-10-23T00:00:00.000Z", JOURNAL = "journal:project", NAMESPACE = "com.example.";
 type Method = "appendEvent" | "putIdempotency" | "getIdempotency" | "eventCursor" | "readEventsDescending";
 const METHODS: readonly Method[] = ["appendEvent", "putIdempotency", "getIdempotency", "eventCursor", "readEventsDescending"];
 const WRITES: readonly Method[] = ["appendEvent", "putIdempotency"];
@@ -40,7 +40,7 @@ function journalCall(tx: PluginProjectDatabaseTransaction, method: Method, actor
 interface ProbeInput { readonly name: string; readonly step: string; readonly method?: Method; readonly actor?: string; readonly project?: string }
 
 /** A plugin that exists only for the test, with a table of its own in the project's library; `journal` says whether it asks for the journal permission. */
-function probe(short: string, journal: boolean, peer?: () => PluginHostServices, idOf = `io.molis.work.example.${short}`) {
+function probe(short: string, journal: boolean, peer?: () => PluginHostServices, idOf = `com.example.${short}`) {
   const id = idOf, read = `${short}:read`, write = `${short}:write`;
   const gate = { entered: deferred(), release: deferred(), left: undefined as Promise<unknown> | undefined, hook: () => {}, inner: undefined as unknown };
   let services: PluginHostServices | undefined;

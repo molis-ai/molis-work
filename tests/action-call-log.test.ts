@@ -377,7 +377,7 @@ test("a read is recorded only when it failed, and a row says which kind of call 
 
 test("W5-01-DELEGATE-07 S-43 a call made through a plugin's action directory records which plugin made it, and never folds into the same call made another way", () => logOf("delegated", (_home, log) => {
   const by = (delegated_by?: string) => callBy(null, { actor_id: "runtime:logged", audience: "workflow", ...(delegated_by ? { delegated_by } : {}) });
-  const delegator = "io.molis.work.example.delegator", other = "io.molis.work.example.other";
+  const delegator = "com.example.delegator", other = "com.example.other";
   log.record(by(delegator), action("w.command"), { ok: true });
   log.record(by(delegator), action("w.command"), { ok: true });
   log.record(by(), action("w.command"), { ok: true });

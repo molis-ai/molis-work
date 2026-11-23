@@ -20,7 +20,7 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 // specs/archive/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff draws its own `/state` answer for a
 // page, in the page's language, with their own words; the Host no longer decorates their route results.
 
-const SOURCE = "io.molis.work.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;
+const SOURCE = "com.example.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;
 const type = { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1 };
 const snapshot = (text: string, workspaceId = "ws") => ({ workspace: { workspace_id: workspaceId, name: "Project" }, path: ["a.ts"], text });
 /** What the Host drew before: the page's translator (with the drawing Plugin's words, as it is that Plugin's surface), the design system's escape and icons. */

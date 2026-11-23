@@ -25,7 +25,7 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const READ: SandboxEffects = { ownerFiles: ["read"] }, WRITE: SandboxEffects = { ownerFiles: ["read", "write"] };
 const b64 = (text: string | Buffer) => Buffer.from(text).toString("base64");
-const IDENTITY = { projectId: "p", installationId: "install-sbx", pluginId: "io.molis.work.example.sbxfiles", namespace: "installed" } as const;
+const IDENTITY = { projectId: "p", installationId: "install-sbx", pluginId: "com.example.sbxfiles", namespace: "installed" } as const;
 
 const operation = (kind: "query" | "command", effects: SandboxEffects): SandboxOperationContract =>
   ({ id: "files", kind, input: { type: "null" }, output: { type: "null" }, errors: [], effects, examples: [] });

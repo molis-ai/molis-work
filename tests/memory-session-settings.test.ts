@@ -81,29 +81,39 @@ test("A4-M the first Memory request uses the complete protected business selecti
   const browser = await browserOpening(t);
   const personal = await browser.opening("?memory_session_kind=assistant&memory_session_id=work%2Fa"); await personal.pendingRead();
   assert.deepEqual(personal.requested, ["/api/memory/sessions/assistant/work%2Fa/overview?scope=personal"]);
-  const embedded = await browser.opening("?memory_session_kind=coding&memory_session_id=session%2Fb", true); await embedded.pendingRead();
-  assert.deepEqual(embedded.requested, ["/projects/project%2Fa/api/memory/sessions/coding/session%2Fb/overview?scope=project"]);
+  const embedded = await browser.opening("?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_id=session%2Fb", true); await embedded.pendingRead();
+  assert.deepEqual(embedded.requested, ["/projects/project%2Fa/api/memory/sessions/coding/io.molis.work.coding/session%2Fb/overview?scope=project"]);
+  const withProvider = await browser.opening("?memory_session_kind=coding&memory_session_plugin=com.example.alt&memory_session_provider=plugin%3Acom.example.alt&memory_session_id=session%2Fb", true); await withProvider.pendingRead();
+  assert.deepEqual(withProvider.requested, ["/projects/project%2Fa/api/memory/sessions/coding/com.example.alt/session%2Fb/overview?scope=project&memory_session_provider=plugin%3Acom.example.alt"]);
 });
 
 test("A4-M incomplete, unknown, duplicate and unscoped Coding selections fail before any request", async t => {
   const browser = await browserOpening(t);
   for (const search of ["?memory_session_kind=assistant", "?memory_session_id=a", "?memory_session_kind=other&memory_session_id=a",
     "?memory_session_kind=assistant&memory_session_id=", "?memory_session_kind=assistant&memory_session_id=a&memory_session_id=b",
-    "?memory_session_kind=coding&memory_session_id=a"]) {
+    "?memory_session_kind=assistant&memory_session_id=a&memory_session_plugin=io.molis.work.coding",
+    "?memory_session_kind=assistant&memory_session_id=a&memory_session_provider=p",
+    "?memory_session_kind=coding&memory_session_id=a",
+    "?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_id=a",
+    "?memory_session_plugin=io.molis.work.coding"]) {
     const result = await browser.opening(search), error = await result.error();
     assert.deepEqual(result.requested, [], search); assert.equal(error.hidden, false, search); assert.match(error.textContent, /无效/, search);
   }
+  const missingPlugin = await browser.opening("?memory_session_kind=coding&memory_session_id=session%2Fb", true), missingError = await missingPlugin.error();
+  assert.deepEqual(missingPlugin.requested, [], "a project plugin session without memory_session_plugin fails before any request");
+  assert.equal(missingError.hidden, false); assert.match(missingError.textContent, /无效/);
 });
 
 import { createSettingsAddressHarness } from "./fixtures/settings-address.js";
 
 test("A4-M the existing cover filters global and project memory navigation without dropping the business target", () => {
   const cover = createSettingsAddressHarness();
-  assert.equal(cover.open("/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1&scope=all&actor=forged&other=1#raw"),
-    "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1");
+  assert.equal(cover.open("/projects/p1/settings/memory?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_provider=io.molis.work.coding&memory_session_id=session-1&scope=all&actor=forged&other=1#raw"),
+    "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_provider=io.molis.work.coding&memory_session_id=session-1");
   assert.equal(cover.open("/settings/memory?memory_session_kind=assistant&memory_session_id=work-1&scope=all&actor=forged&other=1#raw"),
     "/settings/memory?memory_session_kind=assistant&memory_session_id=work-1");
   assert.equal(cover.open("/projects/p1/settings/memory?memory_session_id=session-1&other=1"), "/projects/p1/settings/memory?memory_session_id=session-1", "a missing kind still reaches the binder's rejection");
+  assert.equal(cover.open("/projects/p1/settings/memory?memory_session_plugin=io.molis.work.coding&other=1"), "/projects/p1/settings/memory?memory_session_plugin=io.molis.work.coding", "a plugin-only partial target still reaches the binder's rejection");
   assert.equal(cover.open("/projects/p1/settings/memory?memory_session_kind=unknown&other=1"), "/projects/p1/settings/memory?memory_session_kind=unknown", "an invalid partial target is never turned into a global scope page");
-  assert.equal(cover.open("/projects/other/settings/memory?memory_session_kind=coding&memory_session_id=session-1"), null, "this project's cover cannot impersonate another project's target");
+  assert.equal(cover.open("/projects/other/settings/memory?memory_session_kind=coding&memory_session_plugin=io.molis.work.coding&memory_session_id=session-1"), null, "this project's cover cannot impersonate another project's target");
 });

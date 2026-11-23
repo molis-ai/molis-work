@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./isolated-host.js";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -21,7 +21,7 @@ export function reviewPlugins(host: MolisWorkLocalHost, reference: LocalHostProj
     project_id: reference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, ui: new UiHost(), dependencyCheck: hostDependencyCheck(host.client(reference)),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), { hostIds: ISOLATED_HOST_IDS });
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const started = new Map<string, PluginStartContext>(), installs: string[] = [];
   return {
     runtime,

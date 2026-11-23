@@ -1,5 +1,5 @@
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -38,7 +38,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     return row ? { ...JSON.parse(row.value), revision: row.revision } as ActionSceneBinding : null;
   };
   let onTargets: (() => Promise<void>) | undefined;
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.only-scene-mcp", version: "1.0.0", name: scene.title,
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.only-scene-mcp", version: "1.0.0", name: scene.title,
     kind: "app", publisher: { publisher_id: "example", signature: "only-scene-mcp" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [...scene.permissions, ...scene.configuration_permissions].map(permission => ({ permission, required: false, reason: "管理或运行原场景" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene] },
@@ -59,7 +59,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
       },
     }] }; } });
   const repository = new SqlitePluginRuntimeRepository(db);
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: project.project_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(reference), project_id: project.project_id } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   const caller = { actor_id: "owner", project_id: project.project_id, audience: "user" as const, permissions: ["only:run", "only:configure", "judgment:run"] };
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });

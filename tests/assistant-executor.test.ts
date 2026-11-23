@@ -19,7 +19,7 @@ import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 // specs/archive/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
 // found by the roles' types and kept by the plugin's id. These tests speak the protocol with a plugin that is not Coding.
 
-const PLUGIN = "io.molis.work.fixture-agent", KIND = "fixture_session", MODES = EXECUTOR_MODES;
+const PLUGIN = "com.example.fixture-agent", KIND = "fixture_session", MODES = EXECUTOR_MODES;
 type Session = { mode: string | null; runs: AgentRunView[] };
 type Input = Record<string, unknown>;
 type Call = { role: WorkExecutorRole; input: Input };
@@ -104,7 +104,7 @@ test("W2-18-FOLLOWUP-DELETE-04 the person's bound client, carrying the follow-up
 });
 
 test("RAC-430 the executors on offer are the providers that publish all six protocol roles, read from their own state; one short of a role is not offered", async () => {
-  const whole = fakeExecutor(), partial = fakeExecutor("io.molis.work.partial", "partial_session");
+  const whole = fakeExecutor(), partial = fakeExecutor("com.example.partial", "partial_session");
   partial.views.splice(partial.views.findIndex(view => view.capability_id.endsWith(".run.control")), 1);
   const { service, caller } = fixture([whole, partial]);
   const offers = await service.dispatcher.executors(caller);
@@ -115,7 +115,7 @@ test("RAC-430 the executors on offer are the providers that publish all six prot
 });
 
 test("RAC-431 a work is kept with its plugin by id: it goes on in that plugin, and is refused, not moved to another, once the plugin no longer offers the protocol", async () => {
-  const first = fakeExecutor(), other = fakeExecutor("io.molis.work.other-agent", "other_session");
+  const first = fakeExecutor(), other = fakeExecutor("com.example.other-agent", "other_session");
   const { service, caller, plugin, project } = fixture([first, other]);
   const sent = await service.send({ executor: plugin, scope: project, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
   assert.equal((sent.work.executor as { plugin_id: string }).plugin_id, PLUGIN);
@@ -130,7 +130,7 @@ test("RAC-431 a work is kept with its plugin by id: it goes on in that plugin, a
 
 test("RAC-432 a new work names its executor by plugin id; an id nobody offers is refused before a work is made", async () => {
   const { service, store, caller, project } = fixture();
-  await assert.rejects(inAssistantPage("zh", () => service.send({ executor: { kind: "plugin", plugin_id: "io.molis.work.nobody" }, scope: project, text: "做点什么", request_id: randomUUID() }, caller)),
+  await assert.rejects(inAssistantPage("zh", () => service.send({ executor: { kind: "plugin", plugin_id: "com.example.nobody" }, scope: project, text: "做点什么", request_id: randomUUID() }, caller)),
     (error: unknown) => (error as { code?: string }).code === "assistant.executor_unavailable");
   assert.equal(store.list("web-user").length, 0, "no work was left behind");
   await assert.rejects(service.send({ executor: { kind: "plugin" } as never, scope: project, text: "做点什么", request_id: randomUUID() }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.invalid");

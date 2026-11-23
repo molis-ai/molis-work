@@ -13,7 +13,7 @@ import { assertEffects, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFo
 // reaches the network (a page from the web) has no method on the broker; a page on this machine and the Host's saved originals are S-65's, in
 // tests/security-invariants-sandbox-local-original.test.ts. These tests assert the refusals, with the real client behind the broker.
 
-const PLUGIN_ID = "io.molis.work.example.sbxmaterials";
+const PLUGIN_ID = "com.example.sbxmaterials";
 const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-sbx", pluginId: PLUGIN_ID, namespace: "installed" };
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const READ: SandboxEffects = { materials: ["read"] };

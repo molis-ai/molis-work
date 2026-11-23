@@ -18,8 +18,8 @@ import { startProjectPlugins } from "./fixtures/plugin-callers.js";
  * through a real Host and a plugin it starts in each project; each refusal shows the call that did not happen.
  */
 
-const PLUGIN_ID = "io.molis.work.example.homeagg", READ = "homeagg:read", EXTRA = "homeagg:extra";
-const TYPE = "io.molis.work.example.homeagg.running.v1", OTHER = "io.molis.work.example.homeagg.other.v1";
+const PLUGIN_ID = "com.example.homeagg", READ = "homeagg:read", EXTRA = "homeagg:extra";
+const TYPE = "com.example.homeagg.running.v1", OTHER = "com.example.homeagg.other.v1";
 const input: ActionSchema = { type: "object", additionalProperties: false, properties: { nest: { type: "boolean" } } };
 const output: ActionSchema = { type: "object", additionalProperties: false, required: ["project"], properties: { project: { type: "string" } } };
 const define = (suffix: string, operation: "query" | "command", permissions: string[], extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<{ nest?: boolean }, { project: string }> => ({

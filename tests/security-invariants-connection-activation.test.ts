@@ -33,7 +33,7 @@ function oauth(serviceId: string, context: Record<string, string>, connectionId 
 
 function snapshot(home: string, id: string) {
   const connection = withConnectorConnections(home, store => ({ row: store.require(id), origin: store.targetOrigin(id),
-    binding: store.binding(pluginSlotScope("tenant-activation"), "io.molis.work.example.activation", "account")?.connection_id ?? null }));
+    binding: store.binding(pluginSlotScope("tenant-activation"), "com.example.activation", "account")?.connection_id ?? null }));
   const db = new DatabaseSync(homeSqlitePath(home, "connectors"));
   let protocol;
   try { protocol = new ConnectorProtocolStore(db).get(id); } finally { db.close(); }
@@ -49,7 +49,7 @@ test("S-69 RAC-654 tenant reauthorization without a valid origin refuses before 
   for (const service of ["salesforce", "jira", "confluence"]) {
     const context = service === "salesforce" ? { instance: tenant(service) } : { site_url: tenant(service), cloud_id: "original-cloud", base: `https://api.atlassian.com/ex/${service}/original-cloud` };
     const original = oauth(service, context), saved = activateConnectorConnection(home, original), id = saved.connection_id;
-    withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope("tenant-activation"), pluginId: "io.molis.work.example.activation", slotId: "account", serviceId: service, connectionId: id }));
+    withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope("tenant-activation"), pluginId: "com.example.activation", slotId: "account", serviceId: service, connectionId: id }));
     const before = snapshot(home, id);
     for (const context of [{}, service === "salesforce" ? { instance: "https://outside.example" } : { site_url: "https://outside.example" }]) {
       const replacement = oauth(service, context, id);

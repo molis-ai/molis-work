@@ -8,7 +8,7 @@ import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-c
 import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
@@ -39,7 +39,7 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
   const definition: ActionDefinition = { capability_id: "fixture.bfp." + randomUUID(), version: 1, operation: "command", action: {
     title: "固定判断", description: "固定返回先核查", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["fixture:bfp"], subject_kinds: ["inbox_entry"],
     input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.bfp", version: "1.0.0", name: "固定判断插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.bfp", version: "1.0.0", name: "固定判断插件",
     kind: "app", publisher: { publisher_id: "example", signature: "bfp-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:bfp", required: true, reason: "运行固定判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: () => {
@@ -48,7 +48,7 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
       }).catch(error => { progress.error = error; });
       return { status: "ok", suggested_behavior_ids: ["inbox.verify"] };
     } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:bfp"] }).install;
   await runtime.start(installed.install_id);
   try {

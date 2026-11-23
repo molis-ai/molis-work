@@ -16,26 +16,77 @@ export interface AssistantMemoryBindingProjection {
   session_id: string | null; project_ref: LocalHostProjectReference | null; archived: boolean;
 }
 export type AssistantMemoryBindingReader = (id: string) => AssistantMemoryBindingProjection;
+export interface MemorySessionOwnerView {
+  readonly kind: MemorySessionTarget["kind"];
+  readonly id: string;
+  readonly plugin_id: string | null;
+  readonly provider_id: string | null;
+  readonly title: string | null;
+}
 type Grant = NonNullable<ActionCallContext["memory_session"]>;
+
+const validSelectorId = (value: string | undefined): value is string =>
+  typeof value === "string" && value.trim().length > 0 && value.length <= 200;
+
+function validateSessionSelector(input: {
+  caller: ActionCallContext; kind: string; id: string; pluginId?: string; providerId?: string; projectRef?: LocalHostProjectReference;
+}): { kind: MemorySessionTarget["kind"]; project_id: string | null } {
+  const { caller } = input;
+  if (caller.audience !== "user" || caller.actor_kind === "runtime" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID)
+    throw memoryErrors.forbidden("只有本人业务入口可以管理会话记忆");
+  if (!isMemorySessionScene(input.kind) || !validSelectorId(input.id))
+    throw memoryErrors.invalid("会话记忆需要明确的业务会话");
+  const kind = input.kind as MemorySessionTarget["kind"], project_id = input.projectRef?.project_id ?? null;
+  if (caller.project_id !== project_id) throw memoryErrors.scope("业务会话不属于当前项目");
+  if (kind === "assistant") {
+    if (input.pluginId !== undefined || input.providerId !== undefined)
+      throw memoryErrors.invalid("助理会话记忆不能指定插件提供方");
+  } else {
+    if (!input.projectRef) throw memoryErrors.scope("业务会话需要原项目");
+    if (!validSelectorId(input.pluginId) || (input.providerId !== undefined && !validSelectorId(input.providerId)))
+      throw memoryErrors.invalid("插件会话记忆需要明确的插件提供方");
+  }
+  return { kind, project_id };
+}
+
+async function resolvePluginBindingAction(input: {
+  localHost: MolisWorkLocalHost; projectRef: LocalHostProjectReference; caller: ActionCallContext;
+  kind: MemorySessionTarget["kind"]; pluginId: string; providerId?: string;
+}): Promise<ActionView> {
+  const projectId = input.projectRef.project_id;
+  const candidates = (await input.localHost.actionClient(input.projectRef).discover(input.caller)).filter(view =>
+    isMemorySessionBindingAction(view)
+    && view.provider.plugin_id === input.pluginId
+    && (input.providerId === undefined || view.provider.provider_id === input.providerId)
+    && view.provider.project_id === projectId
+    && view.availability.available);
+  const choices: ActionView[] = [];
+  for (const view of candidates) {
+    const pluginId = view.provider.plugin_id!;
+    const declaredScene = view.provider.plugin_install_id
+      ? await input.localHost.withProject(input.projectRef, runtime => installedPluginManifest(runtime.store.db, view.provider.plugin_install_id!)?.manifest.memory_scene)
+      : undefined;
+    if (pluginMemoryScene(pluginId, declaredScene, projectId) === input.kind) choices.push(view);
+  }
+  if (choices.length !== 1 || !choices[0]!.provider.plugin_install_id || !choices[0]!.provider.plugin_id)
+    throw memoryErrors.unavailable("当前业务会话主人不可用");
+  return choices[0]!;
+}
 
 /** One request's original business owner and canonical Session. Never a Session registry or a creation path. */
 export async function bindMemorySession(input: {
   localHost: MolisWorkLocalHost; agentHost: AgentHost; projectRef?: LocalHostProjectReference;
-  caller: ActionCallContext; kind: string; id: string; mode: "read" | "write" | "delete";
+  caller: ActionCallContext; kind: string; id: string; pluginId?: string; providerId?: string;
+  mode: "read" | "write" | "delete";
   assistantBinding?: AssistantMemoryBindingReader; acceptedPlan?(binding: MemorySessionBinding): boolean; assertBusiness(): void;
-}): Promise<{ context: Grant; dispose(): void }> {
+}): Promise<{ context: Grant; owner: MemorySessionOwnerView; dispose(): void }> {
   const { caller } = input;
-  if (caller.audience !== "user" || caller.actor_kind === "runtime" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID)
-    throw memoryErrors.forbidden("只有本人业务入口可以管理会话记忆");
-  if (!isMemorySessionScene(input.kind) || !input.id.trim() || input.id.length > 200)
-    throw memoryErrors.invalid("会话记忆需要明确的业务会话");
-  const kind = input.kind as MemorySessionTarget["kind"], project_id = input.projectRef?.project_id ?? null;
-  if (caller.project_id !== project_id) throw memoryErrors.scope("业务会话不属于当前项目");
-  const target = Object.freeze({ kind, id: input.id, project_id });
+  const { kind, project_id } = validateSessionSelector(input);
   const client = input.projectRef ? input.localHost.actionClient(input.projectRef) : input.localHost.homeActionClient();
   let pinned: ActionView | undefined, observation: AgentSessionWriteObservation | undefined, closed = false;
   const assertCurrent = () => {
-    input.assertBusiness(); caller.signal?.throwIfAborted();
+    input.assertBusiness();
+    caller.signal?.throwIfAborted();
     if (closed) throw memoryErrors.unavailable("原会话记忆调用已经结束");
     if (pinned) {
       const current = input.localHost.inspectActionMetadata(caller, input.projectRef).find(view => view.capability_id === pinned!.capability_id
@@ -53,43 +104,44 @@ export async function bindMemorySession(input: {
     assertCurrent();
     if (kind !== "assistant") {
       if (!input.projectRef) throw memoryErrors.scope("业务会话需要原项目");
-      if (!pinned) {
-        const candidates = (await client.discover(caller)).filter(view => isMemorySessionBindingAction(view)
-          && view.provider.plugin_id && view.provider.project_id === project_id && view.availability.available);
-        const choices: ActionView[] = [];
-        for (const view of candidates) {
-          const pluginId = view.provider.plugin_id!;
-          const declaredScene = view.provider.plugin_install_id
-            ? await input.localHost.withProject(input.projectRef, runtime => installedPluginManifest(runtime.store.db, view.provider.plugin_install_id!)?.manifest.memory_scene)
-            : undefined;
-          if (pluginMemoryScene(pluginId, declaredScene) === kind) choices.push(view);
-        }
-        if (choices.length !== 1 || !choices[0]!.provider.plugin_install_id || !choices[0]!.provider.plugin_id)
-          throw memoryErrors.unavailable("当前业务会话主人不可用");
-        pinned = choices[0]!;
-      }
+      if (!pinned) pinned = await resolvePluginBindingAction({
+        localHost: input.localHost, projectRef: input.projectRef, caller, kind, pluginId: input.pluginId!,
+        ...(input.providerId !== undefined ? { providerId: input.providerId } : {}),
+      });
       const value = await client.invoke(caller, { capability_id: pinned.capability_id, version: pinned.version, provider_id: pinned.provider.provider_id }, { session_id: input.id }) as {
         session_id: string; project_id: string; runtime: { runtime_id: string; session_id: string } | null; archived: boolean;
       };
       assertCurrent();
       if (value.session_id !== input.id || value.project_id !== project_id) throw memoryErrors.scope("业务会话绑定不属于当前项目");
-      return { session: value.runtime, archived: value.archived, plugin_id: pinned.provider.plugin_id!, install_id: pinned.provider.plugin_install_id!, owner_project: project_id! };
+      return { session: value.runtime, archived: value.archived, plugin_id: pinned.provider.plugin_id!, provider_id: pinned.provider.provider_id,
+        title: pinned.provider.title || pinned.provider.plugin_id!, install_id: pinned.provider.plugin_install_id!, owner_project: project_id! };
     }
     if (!input.assistantBinding) throw memoryErrors.unavailable("原助理会话主人不可用");
     const value = input.assistantBinding(input.id);
     if ((value.project_ref?.project_id ?? null) !== project_id) throw memoryErrors.scope("助理会话不属于当前项目");
     return { session: value.session_id ? { runtime_id: "prologue", session_id: value.session_id } : null, archived: value.archived,
-      plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, owner_project: project_id ?? ASSISTANT_PERSONAL_OWNER };
+      plugin_id: ASSISTANT_PLUGIN_ID, provider_id: null, title: null, install_id: ASSISTANT_INSTALL_ID, owner_project: project_id ?? ASSISTANT_PERSONAL_OWNER };
   };
   const first = await business();
   if (!first.session || first.session.runtime_id !== "prologue") throw memoryErrors.unavailable("这项业务尚无可管理的原执行会话");
+  const target: MemorySessionTarget = kind === "assistant"
+    ? Object.freeze({ kind, id: input.id, project_id })
+    : Object.freeze({ kind, id: input.id, project_id: project_id!, plugin_id: first.plugin_id, provider_id: first.provider_id! });
+  const ownerView: MemorySessionOwnerView = Object.freeze({
+    kind, id: input.id,
+    plugin_id: kind === "assistant" ? null : first.plugin_id,
+    provider_id: kind === "assistant" ? null : first.provider_id,
+    title: first.title,
+  });
   const session = Object.freeze({ ...first.session }), lifecycle = input.agentHost.adapter(session.runtime_id).sessionLifecycle;
   if (!lifecycle?.observeWrites) throw memoryErrors.unavailable("当前运行时不能核验会话绑定");
   const refresh = async () => {
     assertCurrent();
-    observation?.dispose(); observation = lifecycle.observeWrites!([session]);
+    observation?.dispose();
+    observation = lifecycle.observeWrites!([session]);
     const fresh = await business();
-    if (!isDeepStrictEqual(fresh.session, session) || fresh.plugin_id !== first.plugin_id || fresh.install_id !== first.install_id || fresh.owner_project !== first.owner_project)
+    if (!isDeepStrictEqual(fresh.session, session) || fresh.plugin_id !== first.plugin_id
+      || fresh.provider_id !== first.provider_id || fresh.install_id !== first.install_id || fresh.owner_project !== first.owner_project)
       throw memoryErrors.conflict("原业务执行绑定已变化");
     let current: Awaited<ReturnType<typeof lifecycle.read>>, usingOwnerFallback = false;
     try { current = await lifecycle.read(session); }
@@ -102,7 +154,8 @@ export async function bindMemorySession(input: {
       catch { assertCurrent(); throw memoryErrors.conflict("原执行会话主人不可核验，请核对原清理操作", { cleanup: "needs-reconcile" }); }
       assertCurrent();
       if (!owner) throw memoryErrors.conflict("原执行会话主人不可核验，请核对原清理操作", { cleanup: "needs-reconcile" });
-      current = { owner } as typeof current; usingOwnerFallback = true;
+      current = { owner } as typeof current;
+      usingOwnerFallback = true;
     }
     const owner = current.owner;
     if (owner.actor_id !== caller.actor_id || owner.project_id !== first.owner_project || owner.plugin_id !== first.plugin_id || owner.install_id !== first.install_id)
@@ -113,6 +166,6 @@ export async function bindMemorySession(input: {
   const dispose = () => { closed = true; observation?.dispose(); observation = undefined; };
   try {
     await refresh();
-    return { context: Object.freeze({ session, current_scene: kind, target, beforeEffect: refresh, assertCurrent }), dispose };
+    return { context: Object.freeze({ session, current_scene: kind, target, beforeEffect: refresh, assertCurrent }), owner: ownerView, dispose };
   } catch (error) { dispose(); throw error; }
 }

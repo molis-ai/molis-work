@@ -44,13 +44,15 @@ import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { registerInstalledActions } from './installed-action-registration.js';
-import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
+import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { assertSurfacePresentation } from "./surface-installation.js";
 import { projectedPermissionDeclarations, projectedPermissionsOf } from "./installed-permission-projection.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
+import { forgetInstalledMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -270,7 +272,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const dualHomeRunning = (record: PluginInstanceRecord) => dualHomeRunningFor(options.home, isDualId, record);
   const effectiveGrants = (record: PluginInstanceRecord) => effectiveGrantsFor(runtime, isDualId, dualHomeRunning, record);
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: options.db, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
@@ -296,7 +298,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const hostEvents = new PluginHostEvents({ projectId: options.project_id, lifecycle: supervisor });
   executor.attach({ events, hostEvents, wiring, ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }), scopeKey: options.scopeKey ?? options.project_id });
   let stopArtifactRefresh: (() => void) | undefined;
+  const rememberedScenes = new Set<string>();
   const detachActivation = supervisor.observeActivation(pluginId => {
+    if (!builtinPluginByManifestId(pluginId)) {
+      const scene = supervisor.manifest(pluginId)?.memory_scene;
+      rememberInstalledMemoryScene(options.project_id, pluginId, scene);
+      if (scene) rememberedScenes.add(pluginId);
+      else rememberedScenes.delete(pluginId);
+    }
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
@@ -311,6 +320,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     async closeCoordination() {
       closed = true; views.close(); installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.(); detachActivation();
+      for (const pluginId of rememberedScenes) forgetInstalledMemoryScene(options.project_id, pluginId);
+      rememberedScenes.clear();
       await wiring.close(); await events.close(); await hostEvents.close();
     },
     dualInstance: isDualId, dualHomeRunning, effectiveGrants,

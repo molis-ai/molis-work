@@ -9,7 +9,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 
 // T-319 (R-63, RAC-2437): a source that is not in the project's plugin manifest is not installed here and stays out of the Home;
 // one that IS listed but unavailable (turned off, or refused by policy) is shown as an issue rather than silently skipped.
-const TYPE = "io.molis.work.example.homeagg.v1";
+const TYPE = "com.example.homeagg.v1";
 const PLUGIN = "io.example.homeagg.plugin";
 const reference = (projectId: string): LocalHostProjectReference => ({ project_id: projectId, storage_key: `/tmp/${projectId}` });
 const context = (projectId: string): ActionCallContext => ({ actor_id: "owner", project_id: projectId, audience: "user", permissions: ["home:read", "homeagg:read"] });

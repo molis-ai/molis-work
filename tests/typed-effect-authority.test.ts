@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -30,7 +30,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     // Hold the downstream Goals policy only after the actual originating execution's async check completed.
     // SDK discovery pins the consumed action too, but only the actual invoke has a dispatcher-issued call_id.
     if (held && originChecked && caller.call_id && view.capability_id === "goals.note"
-      && caller.audience === "plugin" && caller.host_plugin?.plugin_id === "io.molis.work.example.typed-authority") {
+      && caller.audience === "plugin" && caller.host_plugin?.plugin_id === "com.example.typed-authority") {
       entered.resolve(); await release.promise;
     }
     return { available: true };
@@ -43,7 +43,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   const beforeState = await goals.invoke(goalsActions.state, { goal_id });
   const progress = { goal_id, body: "One genuinely authorized note", idempotency_key: "typed-note" };
   const definition: PluginDefinition = { manifest: {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
     publisher: { publisher_id: "example", signature: "typed-authority-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "goals:write", required: true, reason: "Record authorized progress" }],
     capabilities: { provides: [], consumes: [goalsActions.note.capability_id] },
@@ -62,7 +62,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     actions, project_id: project.project_id, actor_id: "typed-owner", artifacts: owner.artifacts, processItems: owner.processItems,
     ui: new UiHost(), capabilities: home.host.client(project.reference),
     privateStorageFor: () => { throw new Error("This consumer declares no private storage"); },
-  }), { hostIds: ISOLATED_HOST_IDS, actions }));
+  }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions }));
   const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["goals:write"] }).install;
   t.after(async () => { held = false; release.resolve(); await runtime.stop(installed.install_id); });
   await runtime.start(installed.install_id);
@@ -133,9 +133,9 @@ for (const change of ["origin", "cancel", "provider", "closing", "async-checker"
     const actions = { registry: host.actionRegistry(project), client: { ...host.actionClient(project), ...host.syncActionClient(project) }, project_id: project.project_id };
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "tail-fixture-actor",
       artifacts, processItems, ui: new UiHost(), dependencyCheck: reference => host.client(project).availability(reference, { consumer: "plugin" }),
-      privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, actions });
+      privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
     let capturedSdk: PluginActionClient | undefined;
-    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
       publisher: { publisher_id: "fixture", signature: "tail" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
       capabilities: { provides: [], consumes: [descriptor.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
       async start(context) { capturedSdk = context.services?.actions; return { kind: "app" }; } };

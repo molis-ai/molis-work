@@ -23,7 +23,7 @@ export const NOTE_KIND = "composernotes.note";
 
 /** `words` gives the source's name and its plugin's name a line of the plugin's own language files each, as a released plugin declares them. */
 export function composerSourcePlugin(prefix = "composernotes", words?: { name_text: { key: string }; title_text: { key: string } }) {
-  const id = `io.molis.work.example.${prefix}`;
+  const id = `com.example.${prefix}`;
   const reader = defineSubjectContextAction(`${prefix}.read`, 1, NOTE_KIND, "测试笔记", []);
   const pick: ActionDefinition<ComposerPickInput, ComposerPickOutput> = { capability_id: `${prefix}.pick`, version: 1, operation: "query",
     action: { title: "选测试笔记", description: "按标题找这个项目的测试笔记", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [NOTE_KIND],
@@ -63,7 +63,7 @@ export function composerSourcePlugin(prefix = "composernotes", words?: { name_te
 export interface MountSubmission { text: string; materials: ComposerMaterial[]; controls: Record<string, string>; request_id: string; delivery?: string }
 
 export function composerMountPlugin(reader: ActionDefinition) {
-  const id = "io.molis.work.example.composermount";
+  const id = "com.example.composermount";
   const sent: MountSubmission[] = [];
   const submit: ActionDefinition<MountSubmission, { state: "sent" } | { state: "failed"; message: string; unreadable: { index: number; reason: string }[] }> = {
     capability_id: "composermount.submit", version: 1, operation: "command",

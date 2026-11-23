@@ -36,7 +36,7 @@ function fixture(t:TestContext){
  const replicas=databases.map((db,index)=>{bindDatabaseSpace(db,space);db.exec(replicaSchemaSql('builder'));initializeReplica(namespacedReplicaDatabase(db,'builder'));installPrivateValueReplicationJournal(db,definitions[index]!,sql=>replicaMarkRowsSql(sql).replace(/\breplica_/g,'builder_replica_'));
   return createSqliteReplica(namespacedReplicaDatabase(db,'builder'),{...privateValueReplicaOwner(db,definitions[index]!,{spaceId:space.spaceId,projectId,title:'Builder owner',authorize}),conflictState:createSyncConflictState});});
  const create=()=>{
-  const b=stores[0]!.create('完整创作需求'),pluginId='io.molis.work.generated.'+b.id;
+  const b=stores[0]!.create('完整创作需求'),pluginId='studio.'+b.id;
   const design=expandDesign(JSON.parse(detail('可携带笔记')),{id:'board',title:'Portable',description:'Saved design',rationale:'Preserve content',journey:['Write','Read']},pluginId,'saved-r1',[]);
   const directory=join(homes[0]!,'plugin-builder',projectId,'builds',b.id,'saved-r1');mkdirSync(join(directory,'src','operations'),{recursive:true});mkdirSync(join(directory,'tests'),{recursive:true});
   for(const [name,text] of [['src/operations/0.ts','export default async()=>"中文🙂";'],['src/工具.ts','export const text="完整工具";'],['tests/empty.ts',''],['contract.json',JSON.stringify(design.contract)]])writeFileSync(join(directory,name!),text!);
@@ -112,7 +112,7 @@ test('FSS-36 Studio resumes portable v1 proposals and operations with long origi
  const f=fixture(t); installHostUiText();
  const title='长方案 <原文>\n'.repeat(300), description='旧操作说明 <raw>\n'.repeat(300);
  const draft=f.stores[0]!.create('完整创作需求');
- const candidate=normalizeProposal(proposal('quick','Short title'),0,'io.molis.work.generated.'+draft.id,[]);
+ const candidate=normalizeProposal(proposal('quick','Short title'),0,'studio.'+draft.id,[]);
  candidate.title=title;
  f.stores[0]!.update(draft.id,draft.revision,row=>{row.phase='choosing';row.candidates=[candidate];});
  f.send();
@@ -206,7 +206,7 @@ test('S-119 PCSYNC-01/14 design schemas, component bindings, observations and hi
   row=>{row.pendingPart={id:row.design!.parts[0]!.id,candidates:['not-a-renderer'],reason:'saved decision'};},
   row=>{row.rework={'absent-operation':'cannot resume this operation'};},
   row=>{row.browserResult={passed:true,cases:[{id:'absent-acceptance',passed:true,detail:'unbound'}],at:'2026-10-19T00:00:00Z'};},
-  row=>{const design=structuredClone(row.design!);design.contract.pluginId='io.molis.work.generated.foreign';row.history=[{design,nodes:[],connected:[]}];},
+  row=>{const design=structuredClone(row.design!);design.contract.pluginId='studio.foreign';row.history=[{design,nodes:[],connected:[]}];},
   row=>{const design=structuredClone(row.design!);design.contract.pages[0]!.regions[0]!.title=word(row,'region.main.title');row.history=[{design,nodes:[],connected:[]}];},
   row=>{row.design!.acceptance[0]!.steps=[{action:'expect',componentId:'absent-component',text:'not there'}];},
   row=>{row.design!.contract.operations.push(structuredClone(row.design!.contract.operations[0]!));},
@@ -311,7 +311,7 @@ test('S-119 PCSYNC-01/14 actual Host rejects malformed authoring items before cr
  let incoming:unknown=null;t.mock.method(globalThis,'fetch',async(input:URL|string)=>{const url=new URL(String(input));if(url.pathname==='/v1/round')return syncRoundResponse({spaceId:f.space.spaceId,revision:1,selections:[selection]},(incoming as {revision:number}|null)?.revision??0);if(url.pathname==='/v1/policy')return Response.json({spaceId:f.space.spaceId,revision:1,selections:[selection]});if(url.pathname==='/v1/quota')return Response.json({limitBytes:100000000,usedBytes:0});assert.equal(url.pathname,'/v1/changes');return Response.json({events:[incoming],more:false});});
  const check=()=>{},lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'synthetic-only'};
  const original=op.value as {content:{builds:AgentBuild[];files:Record<string,unknown>}};
- for(let variant=0;variant<6;variant++){const value=structuredClone(original),row=value.content.builds[0]!;if(variant===0)row.directory='/foreign-native';if(variant===1)row.id='another-build';if(variant===2)Object.assign(row,{browserResult:{passed:true,cases:'not-a-list',at:'2026-10-19T00:00:00Z'}});if(variant===3)row.design!.contract.operations[0]!.input={type:'array'};if(variant===4)row.design!.parts[0]!.pageId='absent-page';if(variant===5){const design=structuredClone(row.design!);design.contract.pluginId='io.molis.work.generated.foreign';row.history=[{design,nodes:[],connected:[]}];}
+ for(let variant=0;variant<6;variant++){const value=structuredClone(original),row=value.content.builds[0]!;if(variant===0)row.directory='/foreign-native';if(variant===1)row.id='another-build';if(variant===2)Object.assign(row,{browserResult:{passed:true,cases:'not-a-list',at:'2026-10-19T00:00:00Z'}});if(variant===3)row.design!.contract.operations[0]!.input={type:'array'};if(variant===4)row.design!.parts[0]!.pageId='absent-page';if(variant===5){const design=structuredClone(row.design!);design.contract.pluginId='studio.foreign';row.history=[{design,nodes:[],connected:[]}];}
   incoming={...op,value,revision:1};const home=join(f.base,'uninitialized-'+variant);ensureStorageSpace(home,f.space);const client=(await createPersonalSync(home,f.space,lease,withMolisWorkProjectCatalog,check))!;
   try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await client.withCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);assert.equal(existsSync(join(home,'plugin-builder')),false);}finally{await client.close();}
  }

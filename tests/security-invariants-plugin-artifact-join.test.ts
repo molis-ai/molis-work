@@ -31,7 +31,7 @@ interface ProbeInput { readonly name: string; readonly step: string }
 /** A plugin that exists only for the test: a table of its own in the project's library, one 成果 type of its own, and three actions that pin. */
 function probe(short: string, grants: readonly string[], peer?: () => PluginHostServices) {
   // A 成果 type has one producer, so each probe declares its own.
-  const id = `io.molis.work.example.${short}`, read = `${short}:read`, write = `${short}:write`, type = `${short}.capture`, preview = artifactPreview(id, type);
+  const id = `com.example.${short}`, read = `${short}:read`, write = `${short}:write`, type = `${short}.capture`, preview = artifactPreview(id, type);
   const gate = { entered: deferred(), release: deferred(), hook: () => {}, inner: undefined as unknown, value: undefined as unknown };
   let services: PluginHostServices | undefined;
   const table: PluginDatabaseDeclaration = { store_name: short, version: 1, read_permission: read, write_permission: write,

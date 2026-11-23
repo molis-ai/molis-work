@@ -63,7 +63,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
 const signRef = { capability_id: localPackageSignAction.capability_id, version: localPackageSignAction.version, provider_id: "plugin-install" };
 const signPerson: ActionCallContext = { ...who, audience: "user", permissions: PLUGIN_INSTALL_PERMISSIONS,
   user_action: { source: "management", conversation_ref: "local-package", message_ref: "publish" } };
-const localContentId = "io.molis.work.example.local-signed-skills";
+const localContentId = "com.example.local-signed-skills";
 const localDraft = (scope: "home" | "project" = "project", version = "1.0.0") => contentPackageDraft({
   plugin_id: localContentId, version, name: "Signed Skills", scope,
   skills: [skillFromFolder(new Map([
@@ -245,7 +245,7 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["a file the format does not have", files => { files["extra.txt"] = "hello"; }],
   ["no prompts.json", files => { delete files["prompts.json"]; }],
   ["no contract.json", files => { delete files["contract.json"]; }],
-  ["a contract for another plugin", files => { files["contract.json"] = files["contract.json"]!.replace(PACKAGE_PLUGIN_ID, "io.molis.work.example.other"); }],
+  ["a contract for another plugin", files => { files["contract.json"] = files["contract.json"]!.replace(PACKAGE_PLUGIN_ID, "com.example.other"); }],
   ["an interface key the format does not have", files => { files["interface.json"] = JSON.stringify({ ...JSON.parse(files["interface.json"]!), script: "alert(1)" }); }],
   ["no parts", files => { files["interface.json"] = JSON.stringify({ parts: [], nodes: [] }); }],
   ["a part that reads an operation its region does not have", files => {
@@ -261,7 +261,7 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["an integration plugin (a connector driver runs in the Host)", (_files, manifest) => { Object.assign(manifest, { kind: "integration" }); }],
   ["a request for every project's always-on place", (_files, manifest) => { manifest.always_on = true; }],
   ["a look for local tools", (_files, manifest) => { Object.assign(manifest, { local_tools: { tools: [{ tool_id: "git", binaries: ["git"] }] } }); manifest.permissions = [...manifest.permissions, { permission: "local-tools:read", required: true, reason: "x" }]; }],
-  ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "io.molis.work.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
+  ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "com.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
   ["a port of its own", (_files, manifest) => { Object.assign(manifest, { ports: { inputs: [], outputs: [] } }); }],
   ["a permission the contract does not ask for", (_files, manifest) => { manifest.permissions = [...manifest.permissions, { permission: "network:any", required: true, reason: "x" }]; }],
 ];
@@ -543,6 +543,22 @@ test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, o
   } finally { await h.done(); }
 });
 
+test("PSD-04 PSD-04a S-reserved-host-prefix a signed package outside the release asking for any io.molis.work. id is refused at the preview, the release's own pack id included, before anything is written", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const publisher = newPublisher();
+    const ids = ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released", "io.molis.work.content.design-accessibility"];
+    // The two ids the old list missed: refused by the prefix alone, with no entry of their own.
+    for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.not-yet-released"]) assert.ok(!HOST_PLUGIN_IDS.has(id), `${id} is not in the Host's list`);
+    const results: Record<string, string> = {};
+    for (const id of ids) for (const [range, bundle] of [["project", signedPackage(publisher, undefined, { pluginId: id })], ["Home", homeBundle(publisher, { pluginId: id })]] as const)
+      results[`${range} ${id}`] = await h.service.preview({ bundle }, who).then(() => "previewed", (error: unknown) => error instanceof ActionError ? error.code : String(error));
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, "plugin.id_namespace_conflict"])), "every one is refused at the preview");
+    h.nothingWritten();
+    assert.equal(await confirmIn(h.service)(signedPackage(publisher, undefined, { pluginId: "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e" })), "installed", "a name of its own installs");
+  } finally { await h.done(); }
+});
+
 test("RAC-1682 S-80 S-84 a compatible Home upgrade is saved and sent to the Home port for running and disabled installations", async () => {
   const h = await harness(undefined, true);
   try {
@@ -564,7 +580,7 @@ test("RAC-1682 S-80 S-84 a compatible Home upgrade is saved and sent to the Home
 });
 
 type Harness = Awaited<ReturnType<typeof harness>>;
-const CHILD_ID = `${PACKAGE_PLUGIN_ID}.extra`, THIRD_ID = "io.molis.work.example.third";
+const CHILD_ID = `${PACKAGE_PLUGIN_ID}.extra`, THIRD_ID = "com.example.third";
 
 /** What the install path has written so far: the pinned publishers, the kept packages, the installations. */
 const writtenBy = async (h: Harness) => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), installs: h.installed.length,
@@ -600,7 +616,7 @@ test("RAC-1835 S-75 S-84 another publisher's package whose plugin id is on the d
     // The Home's Runtime holds a's second plugin.
     assert.equal(await confirm(homeBundle(a, { pluginId: SECOND_PLUGIN_ID })), "installed");
     results["Home, b below a's id"] = await step(homeBundle(b, { pluginId: `${SECOND_PLUGIN_ID}.extra` }));
-    results["Home, b above a's id"] = await step(homeBundle(b, { pluginId: "io.molis.work.example" }));
+    results["Home, b above a's id"] = await step(homeBundle(b, { pluginId: "com.example" }));
     const refusedUntouched = { code: "plugin.id_namespace_conflict", unchanged: true };
     assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no publisher pinned, no package kept and nothing installed");
   } finally { await h.done(); }

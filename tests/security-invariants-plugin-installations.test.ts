@@ -28,7 +28,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
       artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
       privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
     platforms.push(platform);
-    const id = "io.molis.work.example." + name;
+    const id = "com.example." + name;
     const read: ActionDefinition = { capability_id: name + ".installations", version: 1, operation: "query", action: { title: "Installations", description: "Read public installation metadata", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "array" } } };
     let context: PluginStartContext, borrowed: PluginInstallationClient | undefined;
     const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",

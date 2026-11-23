@@ -49,7 +49,7 @@ test("RAC-791 a sample that declares badly, offers no such action or answers dif
   assert.match(failed["different-answer"]!, /expected/);
 });
 
-const MECHANICAL_ID = "io.molis.work.replay.mechanical";
+const MECHANICAL_ID = "com.example.replay.mechanical";
 const NOTE = "机械 runner note";
 /** Handwritten test material, never a model-generated corpus sample. Only the temporary packages are signed. */
 function mechanicalList(files: PackageFiles) {

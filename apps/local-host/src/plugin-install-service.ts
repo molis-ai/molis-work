@@ -15,7 +15,7 @@ import { activeLocale } from './web-locale.js';
  */
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { HOST_PLUGIN_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -28,7 +28,7 @@ import { readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sa
 import { skillInstallPreviews } from './skill-install-preview.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
-import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
+import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from './host-plugin-ids.js';
 import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
 import { isPendingUninstall } from './installed-plugin-lifecycle.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
@@ -224,9 +224,12 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
  * A plugin id the Host's build ships, or one on its dotted path (`io.a.b` and `io.a.b.c`), is the Host's (S-75.2): a package takes neither,
  * in either range. The Runtime refuses it again when it installs; here it is refused at the preview, before anything is written (S-84).
  */
-const assertNotHostId = (pluginId: string): void => {
+const assertNotHostId = (pluginId: string, fromRelease: boolean): void => {
   const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || nested(id, pluginId));
   if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
+  // S-reserved-host-prefix: the Host's prefix is taken only by what the release itself carries, and only from its own bundled folder.
+  if (pluginId.startsWith(HOST_PLUGIN_ID_PREFIX) && !(fromRelease && RELEASE_PACKAGE_IDS.has(pluginId)))
+    throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
 };
 
 /**
@@ -321,7 +324,7 @@ export class PluginInstallService {
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
-    assertNotHostId(manifest.plugin_id);
+    assertNotHostId(manifest.plugin_id, 'bundled' in input);
     const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
     if (manifest.presentation !== undefined) assertSurfacePresentation(manifest, await this.presentationCatalog(runtime_scope === 'home' ? null : who.project_id));
     const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');

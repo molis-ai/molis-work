@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -24,7 +24,7 @@ test("QEA-92/93 an unknown plugin keeps its event actions while retired Home Eve
     input_schema: { type: "object", properties: { revision: { type: "integer" }, request_id: { type: "string" } }, required: ["revision", "request_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { done: { type: "boolean" } }, required: ["done"], additionalProperties: false } } };
   let fail = false, writes = 0, eventReads = 0;
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.own-home-events", version: "1.0.0", name: "自有笔记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.own-home-events", version: "1.0.0", name: "自有笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "home-events" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "操作原笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [events, context, offers, complete] },
     async start() { return { kind: "app", actions: [
@@ -42,7 +42,7 @@ test("QEA-92/93 an unknown plugin keeps its event actions while retired Home Eve
         writes++; return { done: true };
       } },
     ] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   const prefix = "/projects/" + projectId;
   const window = { from: new Date(Date.now() - 60_000).toISOString(), to: new Date(Date.now() + 60_000).toISOString(), now: new Date().toISOString() };

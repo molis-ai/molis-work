@@ -6,7 +6,7 @@ import { dateArg, numberArg, ownedTextRef, parseLocalePack, textArgs, textRefPro
 
 // The code half of FSS-42, FSS-43 and FSS-45 (specs/font-and-skin-system/spec.md §11). The schema half is tests/ui-text-ref-contract.test.ts.
 
-const OWNER = "io.molis.work.example.notes";
+const OWNER = "com.example.notes";
 const BAD_REFS: Readonly<Record<string, unknown>> = {
   "an empty reference": {},
   "a key and a literal": { key: "notes.a", literal: "x" },

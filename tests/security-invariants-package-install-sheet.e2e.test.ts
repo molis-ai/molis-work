@@ -121,6 +121,8 @@ test("S-package-install-sheet PBU-47-6 made-up messages draw nothing, an untrust
   await browser.evaluate("window.isDown = []");
   await p.ask("sheet", "left:24px;top:24px;width:720px", bundle);
   await p.staged("review");
+  // The review markup arrives before the outer frame applies its new height.
+  await p.ready();
   const drawn = await browser.evaluate<{ height: number; scrolls: number; tiles: string[]; publisher: string; name: string }>(`(() => { const sheet = document.querySelector(${JSON.stringify(SHEET)}), main = sheet.querySelector(".install-sheet__main");
     return { height: sheet.getBoundingClientRect().height, scrolls: main.scrollHeight - main.clientHeight, tiles: [...sheet.querySelectorAll("[data-framed-control^='tile:']")].map(tile => tile.dataset.framedControl + "=" + tile.dataset.on),
       publisher: sheet.querySelector(".install-chip").textContent, name: sheet.querySelector(".install-sheet__name strong").textContent }; })()`);
@@ -131,7 +133,6 @@ test("S-package-install-sheet PBU-47-6 made-up messages draw nothing, an untrust
   assert.ok(drawn.height > 200 && drawn.height <= 580, `the page's element is as tall as the sheet (${drawn.height})`);
 
   // A script in the outer document presses for the person: nothing it dispatches is trusted, so no switch moves and nothing is confirmed.
-  await p.ready();
   await browser.evaluate(`(() => { for (const name of ["tile:network:request", "switch:network:request", "confirm"]) document.querySelector(${JSON.stringify(SHEET)} + ' [data-framed-control="' + name + '"]').click(); })()`);
   await p.settle(250);
   assert.equal(await p.on("network:request"), "false", "an untrusted click moves no switch");

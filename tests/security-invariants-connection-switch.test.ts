@@ -101,7 +101,7 @@ async function slotHome(t: TestContext, declareEverywhere = false) {
     store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-switch-github-a" }),
     store.createToken({ serviceId: "github", displayName: "Personal", token: "fixture-switch-github-b" }),
   ]);
-  const plugin_id = "io.molis.work.example.switch";
+  const plugin_id = "com.example.switch";
   withConnectorConnections(home, store => {
     for (const install_id of ["install-declared", "install-undeclared"]) store.bind({ scopeId: pluginBindingScope({ install_id }), pluginId: plugin_id, slotId: "account", serviceId: "github", connectionId: a!.connection_id });
     store.bind({ scopeId: pluginBindingScope({ install_id: "install-declared", project_id: "project-1", record_key: "repo-1" }), pluginId: plugin_id, slotId: "repos", serviceId: "github", connectionId: a!.connection_id });
@@ -117,7 +117,7 @@ const usage = (install_id: string, plugin_id: string, slot_id: string, project_i
 test("S-108 RAC-2944 a plugin slot is switched only where binding it would pass: an undeclared slot, a record outside the caller's project and an account made for another package are refused alone", { timeout: 30_000 }, async t => {
   const { home, a, b, plugin_id, handler, bound } = await slotHome(t);
   const call = (caller: ActionCallContext, input: object) => Promise.resolve(handler.handle({ ...caller, beforeEffect: async () => {} } as never, { from_connection_id: a.connection_id, to_connection_id: b.connection_id, ...input })) as Promise<{ switched: string[]; refused: Array<{ usage_id: string; code: string }> }>;
-  withConnectorConnections(home, store => store.declarers.pin(b.connection_id, { plugin_id: "io.molis.work.example.other", install_id: "install-other", plugin_title: "Other" }));
+  withConnectorConnections(home, store => store.declarers.pin(b.connection_id, { plugin_id: "com.example.other", install_id: "install-other", plugin_title: "Other" }));
   const pinned = await call(user, { usage_ids: [usage("install-declared", plugin_id, "account")] });
   assert.deepEqual(pinned, { switched: [], refused: [{ usage_id: usage("install-declared", plugin_id, "account"), code: "connector.plugin_slots.connection_pinned" }] });
   assert.equal(bound(), 3, "nothing moved");
@@ -147,8 +147,8 @@ test("S-108 RAC-2946 a consumer switch called directly does every check itself: 
     store.createToken({ serviceId: "github", displayName: "Made for another package", token: "fixture-switch-direct-b" }),
   ]);
   withConnectorConnections(home.home, store => {
-    store.bind({ scopeId: pluginBindingScope({ install_id: "install-direct" }), pluginId: "io.molis.work.example.switch", slotId: "account", serviceId: "github", connectionId: work!.connection_id });
-    store.declarers.pin(pinned!.connection_id, { plugin_id: "io.molis.work.example.other", install_id: "install-other", plugin_title: "Other" });
+    store.bind({ scopeId: pluginBindingScope({ install_id: "install-direct" }), pluginId: "com.example.switch", slotId: "account", serviceId: "github", connectionId: work!.connection_id });
+    store.declarers.pin(pinned!.connection_id, { plugin_id: "com.example.other", install_id: "install-other", plugin_title: "Other" });
   });
   const direct = (consumer: typeof modelProviderSwitch, from: string, to: string, caller: ActionCallContext = user) =>
     client.invoke(caller, { capability_id: consumer.capability_id, version: consumer.version, provider_id: "system.connectors" }, { from_connection_id: from, to_connection_id: to }) as Promise<{ switched: string[]; refused: Array<{ usage_id: string; code: string }> }>;
@@ -157,7 +157,7 @@ test("S-108 RAC-2946 a consumer switch called directly does every check itself: 
     await assert.rejects(direct(consumer, a.connection_id, image.connection_id), code("connector.switch.service_mismatch"));
   }
   const slot = await direct(connectorPluginSlotSwitch, work!.connection_id, pinned!.connection_id);
-  assert.deepEqual(slot, { switched: [], refused: [{ usage_id: usage("install-direct", "io.molis.work.example.switch", "account"), code: "connector.plugin_slots.connection_pinned" }] });
+  assert.deepEqual(slot, { switched: [], refused: [{ usage_id: usage("install-direct", "com.example.switch", "account"), code: "connector.plugin_slots.connection_pinned" }] });
   assert.equal(withConnectorConnections(home.home, store => store.pluginBindings(work!.connection_id).length), 1, "the slot keeps its account");
   withConnectorConnections(home.home, store => store.disconnect(b.connection_id));
   for (const consumer of [modelProviderSwitch, connectorPluginSlotSwitch]) await assert.rejects(direct(consumer, a.connection_id, b.connection_id), code("connector.switch.target_unavailable"));
@@ -166,12 +166,12 @@ test("S-108 RAC-2946 a consumer switch called directly does every check itself: 
 
 test("S-108 RAC-2947 a switch a plugin declares is never called: it goes into failed until the platform can tell a nested call (BL-1045)", { timeout: 30_000 }, async t => {
   const { home, a, b } = await slotHome(t);
-  const pluginConsumer = { capability_id: "example.connection.switch", version: 1, provider: { provider_id: "io.molis.work.example.switch", title: "Example" },
+  const pluginConsumer = { capability_id: "example.connection.switch", version: 1, provider: { provider_id: "com.example.switch", title: "Example" },
     action: { input_type: CONNECTOR_USAGES_SWITCH_INPUT_TYPE, output_type: CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE }, availability: { available: true } };
   const client = { discover: async () => [pluginConsumer], invoke: async () => assert.fail("a plugin's switch is not called") };
   const aggregate = connectorAccountActionProvider(home, () => {}, undefined, undefined, () => client as never).handlers.find(entry => entry.capability_id === connectorUsagesSwitchAction.capability_id)!;
   const report = await aggregate.handle({ ...user, beforeEffect: async () => {} } as never, { from_connection_id: a.connection_id, to_connection_id: b.connection_id });
-  assert.deepEqual(report, { results: [], failed: [{ capability_id: "example.connection.switch", version: 1, provider_id: "io.molis.work.example.switch", code: "connector.switch.consumer_unsupported" }] });
+  assert.deepEqual(report, { results: [], failed: [{ capability_id: "example.connection.switch", version: 1, provider_id: "com.example.switch", code: "connector.switch.consumer_unsupported" }] });
 });
 
 // ASC-59: the settings page reaches where a connection is used, and the switch, only through the routes that call the same two actions as

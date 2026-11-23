@@ -117,7 +117,7 @@ function renderFeedSourceRail(model: FeedUiModel): string {
 ```jsonc
 // manifest（内置插件写在 src/manifest.ts 的 ui 下，外部插件写在 manifest.json，形状相同）
 "ui": {
-  "contributions": ["io.molis.work.example.notes.main"],
+  "contributions": ["com.example.notes.main"],
   "locales": { "default": "en", "available": ["en", "zh"] }
 }
 ```
@@ -265,7 +265,7 @@ export const OWNED_TEXT_REF_SCHEMA: SandboxSchema = /* TEXT_REF_SCHEMA 加可选
    - 挂载位由平台画（第 8.3 节 (a)），今天的 `nested` 还差四件：① 它只装 `manifest.ui.embedded_plugins` 里的插件自己画的 surface（`UiNestedContentModel`，`ui.ts:538`；`nestedContent`，`project-plugin-stages.ts:173`），平台画的内容没走过；② 它是同步的（同文件第 122、173 行），`surfaces.compose@1` 和 values 是异步动作，要先读好再传入；③ `presentation.mounts`（`id`）和 `descriptor.slots`（`slot_id`）成了两份声明，要定以谁为准；④ 15 §4.3 按事件刷新一个位置，`nested` 只在整页画时填，没有单独刷新的路。
    - **开工前要核：** frame 里的 `SurfaceItem.actions` 按钮以谁的身份调动作。这件事和 (a)、(b) 无关，两条路都要答。可选：只放平台的通用操作，经父文档走（照 `pageIntake`）；或按钮由外壳盖在 frame 上画（照 `connection-slot`、`embed-open` 的位置上报）；或这个位置不带按钮。核不过由 15 接页面的片回来问，不是回到 (b)。
    - 开工时比较一下 `placement.ts:25-27`：父文档把平台画的 HTML 发进 frame，异步，也能单独刷新一个位置，可能比 `nested` 更合适 ②、④。
-4. **`action.<capability_id>.title` 这种键过不了 `STABLE_KEY`。** `io.molis.work.example.notes.results.publish` 这样的能力 id 拼出来有 9 段，上限是 5 段，开头也不是主人名。FSS-40 本来就暂不实现，但 15 S-1 不要写死这个形状。推荐写法：`<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，如 `notes.action.results-publish.title`。实现方案 §7.4 已同步改。
+4. **`action.<capability_id>.title` 这种键过不了 `STABLE_KEY`。** `com.example.notes.results.publish` 这样的能力 id 拼出来有 9 段，上限是 5 段，开头也不是主人名。FSS-40 本来就暂不实现，但 15 S-1 不要写死这个形状。推荐写法：`<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，如 `notes.action.results-publish.title`。实现方案 §7.4 已同步改。
 
 ### 2.5 `TEXT_REF_SCHEMA`
 
@@ -967,7 +967,7 @@ apps/workbench/
 
 1. **多出来的文件。** 组件板一节的服务端画法放在新文件 `apps/workbench/src/environment-specimens.ts`（`renderEnvironmentSpecimen`、`renderEnvironmentSection`），照 `collab-specimens.ts`；`apps/local-host/src/web-catalog-board.ts` 改了一行，在 `runWithLocale("zh")`、`("en")` 里各画一遍再交给 `renderMolisWorkPrimitiveCatalog` 的新第三个参数。CLI 模板的源码在 `tooling/plugin-cli/src/sample-source.ts`（`create.ts` 只写文件），所以也改了，和 `examples/plugin-sample/index.mjs` 同一份写法。`tooling/gates/error-owners.json` 把 `apps/workbench/src/plugin-text.ts` 归给 `ui`（它的 `ui.text_owner_conflict`）。
 2. **平台主人的默认语言。** 登记表的 `locale` 行没有写默认语言，宿主取 `WEB_LOCALES[0]`（`zh`）。目录是懒读的：第一次用到某种语言才读那个文件。
-3. **组件板的第二个主人。** 样例主人 `io.molis.work.example.board-notes` 由组件板第一次画这一节时登记一次，进程里一直在；只在开发页上，不是插件。
+3. **组件板的第二个主人。** 样例主人 `com.example.board-notes` 由组件板第一次画这一节时登记一次，进程里一直在；只在开发页上，不是插件。
 4. **同字紧挨：可达规则。** 一串同字（中间只有空白）里，旧渲染有 n 个、页面上有 m 个时，每个位置只可能是 n 个里的某几个（差几个就能偏几个）；可能是要变的那个就改。对齐用最长公共子序列，平局时取后面的页面串。浏览器实测（`tests/board-locale-switch.e2e.test.ts`）：
    - 界面词后面紧挨一个、两个客户端同字：界面词和客户端的都变。
    - 客户端同字插在用户字前面：组件板上用户字带自己的属性，属性也算字，所以不紧挨，只有界面词变。三段纯文字紧挨（中间什么都没有）时，用户字会临时显示成译文，组件板上没有这种行，没有实测。

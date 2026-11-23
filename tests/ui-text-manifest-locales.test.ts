@@ -89,19 +89,21 @@ test("FSS-52 with ui.locales, a plugin_id whose last segment cannot start a key 
       ? `ui.locales 写不了键：plugin_id ${plugin_id} 最后一段是 common，键会以 common 开头，而 common 留给通用词；把最后一段换一个名字`
       : `ui.locales 写不了键：主人 ${plugin_id} 的最后一段 ${last} 不能当键的第一段：要以小写字母或数字开头，只含小写字母、数字和连字符`;
   };
-  for (const plugin_id of ["io.molis.work.acme.-x", "io.molis.work.acme.", "io.molis.work.common", "io.molis.work.acme.common"]) {
+  // A last segment that starts with a hyphen, or is empty, is not a plugin id at all (PLUGIN_ID_PATTERN), so only "common" is left for this rule.
+  for (const plugin_id of ["com.acme.-x", "com.acme."]) assert.notEqual(manifestProblems(declarationManifest({ plugin_id })), "", plugin_id);
+  for (const plugin_id of ["com.common", "com.acme.common"]) {
     assert.equal(manifestProblems(withLocales(LOCALES, {}, { plugin_id })), cannotOwnKeys(plugin_id), plugin_id);
     // The same id is fine for a plugin that does not declare languages: this rule comes with `ui.locales`, not with the id.
     assert.equal(manifestProblems(declarationManifest({ plugin_id })), "", plugin_id);
   }
-  for (const plugin_id of ["io.molis.work.acme.3d-tool", "io.molis.work.7", "io.molis.work.acme.tool-3d", "io.molis.work.commons", "io.molis.work.common.notes", "io.molis.work.a"]) {
+  for (const plugin_id of ["com.acme.3d-tool", "com.acme.7", "com.acme.tool-3d", "com.commons", "com.common.notes", "com.acme.a"]) {
     const parsed = parsePluginManifest(withLocales(LOCALES, {}, { plugin_id }));
     assert.deepEqual([parsed.plugin_id, parsed.ui.locales], [plugin_id, LOCALES]);
   }
 });
 
 test("FSS-52 a plugin_id longer than a text reference's owner is refused by its own message", () => {
-  const prefix = "io.molis.work.";
+  const prefix = "com.example.";
   const longest = prefix + "a".repeat(TEXT_REF_LIMITS.owner - prefix.length);
   assert.equal(longest.length, 200);
   assert.equal(parsePluginManifest(declarationManifest({ plugin_id: longest })).plugin_id, longest);
@@ -123,7 +125,7 @@ test("FSS-35 FSS-38 a produced Artifact type may name one short word from its ow
   assert.equal(manifestProblems(withLocales(LOCALES, {}, withTitle(reference, " "))), "成果类型 io.example.note@1 缺少显示名（title）");
   for (const invalid of [
     { key: "notes.artifacts.type-title" }, { key: "common.control.retry" }, { literal: "Original" },
-    { ...reference, owner: "io.molis.work.declaration-rules" }, { ...reference, args: [] }, { ...reference, fallback: "Original" }, null,
+    { ...reference, owner: "com.example.declaration-rules" }, { ...reference, args: [] }, { ...reference, fallback: "Original" }, null,
   ]) assert.match(manifestProblems(withLocales(LOCALES, {}, withTitle(invalid))), refusal, JSON.stringify(invalid));
   const inheritedKey = Object.assign(Object.create(reference), { args: undefined });
   assert.match(manifestProblems(withLocales(LOCALES, {}, withTitle(inheritedKey))), refusal);

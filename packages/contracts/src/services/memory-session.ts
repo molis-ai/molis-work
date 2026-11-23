@@ -1,7 +1,8 @@
 import type { ActionDefinition } from "../platform/actions.js";
+import { isPluginSceneName, PLATFORM_SCENE_NAMES, SCENE_NAME_PATTERN } from "../platform/plugin-agent.js";
 import type { AgentSessionRef } from "./agent-host.js";
 import type { MemoryScope } from "./memory.js";
-import { MEMORY_SESSION_SCENE_SCHEMA, type MemoryScene } from "./memory-scene.js";
+import type { MemoryScene } from "./memory-scene.js";
 
 /** A business selector is navigation, never an execution identity or permission. */
 export interface MemorySessionTarget {
@@ -9,6 +10,10 @@ export interface MemorySessionTarget {
   readonly kind: MemoryScene;
   readonly id: string;
   readonly project_id: string | null;
+  /** Exact owning plugin identity for plugin sessions; absent for `assistant`. */
+  readonly plugin_id?: string;
+  /** Exact registered action provider identity for plugin sessions; absent for `assistant`. */
+  readonly provider_id?: string;
 }
 /** Serializable projection of the binding checked by the protected Host entry. */
 export interface MemorySessionBinding {
@@ -45,8 +50,44 @@ export interface MemorySessionPurgePage<S extends string = MemoryScope> {
 }
 
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
-export const memorySessionTargetSchema = { type: "object", properties: { kind: MEMORY_SESSION_SCENE_SCHEMA, id,
-  project_id: { anyOf: [id, { type: "null" }] } }, required: ["kind", "id", "project_id"], additionalProperties: false } as const;
+const pluginScene = { type: "string", pattern: SCENE_NAME_PATTERN, not: { enum: [...PLATFORM_SCENE_NAMES] } } as const;
+export const memorySessionTargetSchema = {
+  oneOf: [
+    {
+      type: "object",
+      properties: { kind: { const: "assistant" }, id, project_id: { anyOf: [id, { type: "null" }] } },
+      required: ["kind", "id", "project_id"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: { kind: pluginScene, id, project_id: id, plugin_id: id, provider_id: id },
+      required: ["kind", "id", "project_id", "plugin_id", "provider_id"],
+      additionalProperties: false,
+    },
+  ],
+} as const;
+
+const isTargetId = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= 200;
+const hasExactKeys = (value: object, allowed: readonly string[]) => {
+  const keys = Object.keys(value);
+  return keys.length === allowed.length && keys.every(field => allowed.includes(field));
+};
+
+/** Strict Stage-1 target check: plugin sessions must name exact `plugin_id` and `provider_id`; `assistant` omits both. */
+export function isMemorySessionTarget(value: unknown): value is MemorySessionTarget {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const target = value as MemorySessionTarget;
+  if (!isTargetId(target.id)) return false;
+  if (target.kind === "assistant") {
+    return hasExactKeys(target, ["kind", "id", "project_id"]) && (target.project_id === null || isTargetId(target.project_id));
+  }
+  return isPluginSceneName(target.kind)
+    && hasExactKeys(target, ["kind", "id", "project_id", "plugin_id", "provider_id"])
+    && isTargetId(target.project_id)
+    && isTargetId(target.plugin_id)
+    && isTargetId(target.provider_id);
+}
 const operation = { kind: { const: "session-clear" }, operation_id: id, at: { type: "string" }, forgetting: { enum: ["accepted", "not-accepted", "unknown"] } } as const;
 export const memorySessionOperationSchemas = [
   { type: "object", properties: { ...operation, cleanup: { const: "pending" }, preview_id: id, target: memorySessionTargetSchema },

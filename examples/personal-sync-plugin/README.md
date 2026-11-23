@@ -13,4 +13,4 @@
 
 独立开发和分发：在干净目录只复制本目录源文件，安装已构建的公共 SDK/Contracts 包，然后执行 `npm run build`、`npm pack`。没有 TypeScript、Host、Storage 或 Prologue 依赖；Node 自带类型擦除生成 `plugin.js`，Manifest 从唯一 PluginDefinition 导出。归档只包含执行入口、Manifest 和说明，不包含仓库或开发状态。安装仍需 Host 的正常包校验、身份与用户授权；本地打包不等于正式签名发布。
 
-读取动作是 `io.molis.work.example.personal-notes.read@1`，输入 `{id}`；保存动作是 `io.molis.work.example.personal-notes.change@1`，输入 `{id,expected,value}`，其中笔记为 `{text,attachment}`、不存在为 null、附件为原字节的 base64。比较原内容后同次 CAS 写入，旧编辑拒绝；调用者身份来自当前 Home。动作只面向用户，不增加 Agent/MCP 授权。每次 `start` 的处理器捕获该次文档，不借用另一 Home 的全局数据。`createPersonalNotesSample` 的 edit/read 仅是本地测试门面，分发使用默认 PluginDefinition。
+读取动作是 `com.example.personal-notes.read@1`，输入 `{id}`；保存动作是 `com.example.personal-notes.change@1`，输入 `{id,expected,value}`，其中笔记为 `{text,attachment}`、不存在为 null、附件为原字节的 base64。比较原内容后同次 CAS 写入，旧编辑拒绝；调用者身份来自当前 Home。动作只面向用户，不增加 Agent/MCP 授权。每次 `start` 的处理器捕获该次文档，不借用另一 Home 的全局数据。`createPersonalNotesSample` 的 edit/read 仅是本地测试门面，分发使用默认 PluginDefinition。

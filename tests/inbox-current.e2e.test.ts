@@ -1,5 +1,5 @@
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -30,11 +30,11 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     title: "插件判断：核对研究", description: "检查原材料", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["fixture:inbox"], subject_kinds: ["inbox_entry"],
     input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
   const inputs: string[] = [];
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.inbox-current", version: "1.0.0", name: "Inbox 判断插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.inbox-current", version: "1.0.0", name: "Inbox 判断插件",
     kind: "app", publisher: { publisher_id: "example", signature: "inbox-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:inbox", required: true, reason: "运行插件判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => { assert.ok(_caller.permissions.includes("fixture:inbox")); inputs.push((input as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.verify"] }; } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:inbox"] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "owner", project_id: projectId, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "fixture:inbox"] };

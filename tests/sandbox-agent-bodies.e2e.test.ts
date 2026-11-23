@@ -78,7 +78,7 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   }
   await go("/locale?lang=zh&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
   await select(next, "upgrade-confirm"); await confirm();
-  const other = signedAgentPackage(newPublisher(), { pluginId: "io.molis.work.example.other-agent", version: "1.0.0", roles: [roles[0]!], methods: [], bodies });
+  const other = signedAgentPackage(newPublisher(), { pluginId: "com.example.other-agent", version: "1.0.0", roles: [roles[0]!], methods: [], bodies });
   await select(other, "other-plugin"); await confirm();
   await browser.setViewport(1440, 1000); await go("/");
   await browser.waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(browser.projectId)}`);

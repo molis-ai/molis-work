@@ -9,6 +9,16 @@ export type { PluginLocalesDeclaration } from "./ui-text.js";
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
+/**
+ * What a plugin id looks like (V16, specs/unified-partition-plugins §14.3): a reverse domain name of at least two dotted
+ * segments, lowercase letters, digits and dashes (`com.acme.todo`). Every publisher uses a name of its own; the Host's
+ * prefix is reserved ({@link HOST_PLUGIN_ID_PREFIX}).
+ */
+export const PLUGIN_ID_PATTERN = "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$";
+
+/** The prefix only the Host's own packages may use (S-reserved-host-prefix); an install of any other trust under it is refused. */
+export const HOST_PLUGIN_ID_PREFIX = "io.molis.work.";
+
 export type PluginDeployment = "local" | "server";
 /**
  * `app` is a v2 Plugin that contributes views, commands, routes, ports and

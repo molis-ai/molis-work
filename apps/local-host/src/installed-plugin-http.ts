@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { installedPageSelection, pluginPageRequest } from "./plugin-page-authority.js";
@@ -89,9 +89,10 @@ function recoveryHtml(error: string): string {
 
 /** `/plugins/<id>` (the installed page) and `/api/plugins/<id>/call` for a package installed in this project; anything else is not ours. */
 export async function handleInstalledPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: InstalledPluginHttpOptions, controlToken: string): Promise<boolean> {
-  const installedPage = /^\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})\/call$/u.exec(url.pathname);
-  if (!installedPage && !installedCall) return false;
+  const installedPage = /^\/plugins\/([^/]+)$/u.exec(url.pathname);
+  const installedCall = /^\/api\/plugins\/([^/]+)\/call$/u.exec(url.pathname);
+  const pluginId = (installedPage ?? installedCall)?.[1];
+  if (!pluginId || !PLUGIN_ID.test(pluginId)) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
   // The page is a frame document: opened directly, it opens the workbench at its surface instead (specs/artifact-positioning S3).
   const framed = url.searchParams.get('frame') === 'workbench';
@@ -134,7 +135,6 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     if (expected?.scope === "home") throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
     const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory });
     assertCurrent();
-    const pluginId = (installedPage ?? installedCall)![1]!;
     const current = () => installed.records().find(item => item.plugin_id === pluginId);
     const record = current();
     if (expected) assertStageInstallation("project", record, expected);

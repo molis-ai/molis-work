@@ -16,7 +16,7 @@ import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host"
 // slot and the shape of the request, then the Host's own client asks what it asks every plugin (the Manifest's slot, the grant, the running
 // concurrent action, the address, the call's authority). What these tests assert is the refusal, with the real client behind the broker.
 
-const PLUGIN_ID = "io.molis.work.example.sbxconnections";
+const PLUGIN_ID = "com.example.sbxconnections";
 const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-sbx", pluginId: PLUGIN_ID, namespace: "installed" };
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const BEARER = "fixture-bearer-for-s60";

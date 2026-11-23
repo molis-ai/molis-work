@@ -33,7 +33,7 @@ interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: b
 
 /** A plugin of the test: actions that make the ledger call `step` names, and a scene whose callbacks do what `state.sceneStep` says, with a table of its own. */
 function probe(short: string, options: ProbeOptions = {}) {
-  const id = `io.molis.work.example.${short}`, grants = options.grants ?? [JR, JW], hasScene = options.scene ?? true, write = grants.includes(JW);
+  const id = `com.example.${short}`, grants = options.grants ?? [JR, JW], hasScene = options.scene ?? true, write = grants.includes(JW);
   const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback", "feed_item"], event_schema: textInput, input_schema: textInput, result_schema: decisionOutput, permissions: [...options.scenePermissions ?? (write ? [JW] : [])] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, sceneStep: "scene-record" as SceneStep,

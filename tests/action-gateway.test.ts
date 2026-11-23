@@ -38,7 +38,7 @@ test("official MCP process uses the shared Host registry and durable writes with
   let cancelled: (() => void) | undefined, finished: (() => void) | undefined;
   await host.withProject(reference, runtime => {
     runtime.store.db.exec("CREATE TABLE gateway_notes (actor TEXT NOT NULL, text TEXT NOT NULL)");
-    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "io.molis.work.example.gateway" },
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "com.example.gateway" },
       definitions: [save], handlers: [{ ...save, handle: async (context, input) => {
         try {
           context.signal?.addEventListener("abort", () => cancelled?.(), { once: true });
@@ -368,7 +368,7 @@ async function residentCallIdFixture() {
     output_schema: { type: "object", properties: { seen: { type: "integer" } }, required: ["seen"], additionalProperties: false } } };
   let ran = 0;
   await host.withProject(reference, () => {
-    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "io.molis.work.example.gateway" },
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "com.example.gateway" },
       definitions: [save, look], handlers: [{ ...save, handle: async () => { ran++; return { saved: ran }; } }, { ...look, handle: async () => ({ seen: ran }) }] });
   });
   const origin = served.origin;

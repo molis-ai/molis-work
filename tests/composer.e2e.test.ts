@@ -87,7 +87,7 @@ test("UIV-04 UIC-07: an immediate conversation switch saves the final edit and n
     mount("first");
     const field = root.querySelector("textarea"); field.value = "刚输入，还没到保存时间"; field.dispatchEvent(new Event("input", { bubbles: true }));
     globalThis.composerHandle = mount("second");
-    const key = "mw.composer.draft:" + [document.body.dataset.projectId, ${JSON.stringify("io.molis.work.example.composermount")}, "switch", "first"].map(encodeURIComponent).join(":");
+    const key = "mw.composer.draft:" + [document.body.dataset.projectId, ${JSON.stringify("com.example.composermount")}, "switch", "first"].map(encodeURIComponent).join(":");
     return { next: root.querySelector("textarea").value, previous: JSON.parse(localStorage.getItem(key) || "null")?.text ?? null };
   })()`);
   assert.deepEqual(result, { next: "", previous: "刚输入，还没到保存时间" });
@@ -117,7 +117,7 @@ test("UIV-04: leaving the page saves the pending local draft before the debounce
     const field = document.querySelector('#composer-probe textarea');
     field.value = "页面离开前最后输入"; field.dispatchEvent(new Event("input", { bubbles: true }));
     window.dispatchEvent(new PageTransitionEvent("pagehide"));
-    const key = "mw.composer.draft:" + [document.body.dataset.projectId, ${JSON.stringify("io.molis.work.example.composermount")}, "comment", "c1"].map(encodeURIComponent).join(":");
+    const key = "mw.composer.draft:" + [document.body.dataset.projectId, ${JSON.stringify("com.example.composermount")}, "comment", "c1"].map(encodeURIComponent).join(":");
     return JSON.parse(localStorage.getItem(key) || "null")?.text ?? null;
   })()`);
   assert.equal(saved, "页面离开前最后输入");
@@ -441,7 +441,7 @@ const SEARCH_STUB = `(() => {
     return new Response(JSON.stringify({ status: "ready", hits: globalThis.searchHits, next_cursor: null, sources: [] }), { status: 200, headers: { "content-type": "application/json" } });
   };
 })()`;
-const searchHit = (id: string, title: string, plugin: string) => ({ hit_id: id, subject: { kind: NOTE_KIND, id }, project_id: null, plugin_id: "io.molis.work.example.composernotes", plugin_title: plugin,
+const searchHit = (id: string, title: string, plugin: string) => ({ hit_id: id, subject: { kind: NOTE_KIND, id }, project_id: null, plugin_id: "com.example.composernotes", plugin_title: plugin,
   source: { capability_id: "composernotes.search", version: 1, provider_id: "composernotes" }, title, snippet: title, highlights: [], revision: "r7", updated_at: null, open: null,
   locator: { field: "title", offset: 0, length: title.length, text: title } });
 
@@ -489,7 +489,7 @@ test("UIV-14 §3.3: `@` in the text is the system search inside the component; a
   await page.wait("document.querySelector('.mw-composer__input').value === ''");
   assert.deepEqual(mount.sent.at(-1)!.materials, [{ kind: "material", ref: { subject: { kind: NOTE_KIND, id: "n2" }, pin: { mode: "current", read_revision: "r7" } }, title: "访谈提纲",
     source: { capability_id: "composernotes.search", version: 1, provider_id: "composernotes" },
-    search: { hit_id: "n2", snippet: "访谈提纲", plugin_id: "io.molis.work.example.composernotes", plugin_title: "测试笔记" } }], "the hit goes as a pinned reference, read again by its owner at send");
+    search: { hit_id: "n2", snippet: "访谈提纲", plugin_id: "com.example.composernotes", plugin_title: "测试笔记" } }], "the hit goes as a pinned reference, read again by its owner at send");
 });
 
 test("§3.1: the program is one shared file fetched on the first mount; one that cannot load leaves the first screen and says so", { timeout: 120_000 }, async (t) => {

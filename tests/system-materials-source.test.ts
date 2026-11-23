@@ -12,7 +12,7 @@ import { MemoryPluginConsentLedger, MemoryPluginWiringRepository, PluginInputGra
 // wrote under its current signature; and the Host agrees for its own build to read it by default only on a target's first install here.
 
 const PROJECT = "project-materials";
-const DIFF = "io.molis.work.example.diff-reader";
+const DIFF = "com.example.diff-reader";
 
 function consumerManifest(port = "before"): PluginManifest {
   return {
@@ -100,7 +100,7 @@ test("BSH-06 the person agrees to a shipped plugin's default from system.materia
   assert.equal(new HomeConsentLedger(f.home).consents(DIFF_ID).filter(row => row.subject === subject && row.revoked_at === null).length, 1);
   // A port whose default is another plugin's, a port it does not have, and a plugin the Host does not ship are refused, and nothing is written.
   const rows = new HomeConsentLedger(f.home).consents(DIFF_ID).length;
-  for (const input of [{ plugin_id: DIFF_ID, port: "changeset" }, { plugin_id: DIFF_ID, port: "nothing" }, { plugin_id: "io.molis.work.example.someone", port: "before" }]) {
+  for (const input of [{ plugin_id: DIFF_ID, port: "changeset" }, { plugin_id: DIFF_ID, port: "nothing" }, { plugin_id: "com.example.someone", port: "before" }]) {
     await assert.rejects(grant(input), (error: unknown) => (error as { code?: string }).code === "actions.target_invalid", JSON.stringify(input));
   }
   assert.equal(new HomeConsentLedger(f.home).consents(DIFF_ID).length, rows);

@@ -9,7 +9,7 @@ import type { BuildCheckOptions } from '../apps/local-host/src/plugin-builder/bu
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const mac = { skip: process.platform !== 'darwin' };
-function contract(): SandboxPluginContract { return { version: 1, pluginId: 'io.molis.work.generated.checks', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+function contract(): SandboxPluginContract { return { version: 1, pluginId: 'studio.checks', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
   { id: 'echo', kind: 'query', input: { type: 'string' }, output: { type: 'string' }, errors: [], effects: {}, examples: [{ input: 'hello', output: 'HELLO' }] },
   { id: 'later', kind: 'query', input: { type: 'null' }, output: { type: 'null' }, errors: [], effects: {}, examples: [{ input: null, output: null }] },
 ] }; }

@@ -235,9 +235,13 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     },
     async authorizePurgeInspection(caller, request, owner) {
       const state = await current(caller), binding = caller.memory_session;
-      if (!state || !binding || owner.actor_id !== caller.actor_id || owner.project_id !== (caller.project_id ?? ASSISTANT_PERSONAL_OWNER)
-        || (binding.target.kind === "assistant" ? owner.plugin_id !== ASSISTANT_PLUGIN_ID : pluginMemoryScene(owner.plugin_id, undefined, owner.project_id) !== binding.target.kind)
-        || !owner.install_id || binding.target.kind === "assistant" && owner.install_id !== ASSISTANT_INSTALL_ID) return false;
+      const ownerMatches = binding?.target.kind === "assistant"
+        ? owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID
+        : Boolean(binding?.target.plugin_id)
+          && owner.plugin_id === binding!.target.plugin_id
+          && pluginMemoryScene(owner.plugin_id, undefined, owner.project_id) === binding!.target.kind;
+      if (!state || !binding || !owner.install_id || owner.actor_id !== caller.actor_id
+        || owner.project_id !== (caller.project_id ?? ASSISTANT_PERSONAL_OWNER) || !ownerMatches) return false;
       return inspection(caller, request, state);
     },
     assertPurgeInspectionCurrent(caller, request) {

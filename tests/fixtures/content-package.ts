@@ -8,7 +8,7 @@ import type { newPublisher } from "./sandbox-package.js";
 // A signed content package: the package of a plugin with only declarations (Manifest `kind: "content"`, specs/skill-packs/contract-design.md
 // §3), with each Skill's body at `skills/<skill_id>/SKILL.md` and its resources beside it. Shared by the install (08-6) and import (08-8) tests.
 
-export const CONTENT_PLUGIN_ID = "io.molis.work.example.meeting-skills";
+export const CONTENT_PLUGIN_ID = "com.example.meeting-skills";
 
 export interface ContentSkill {
   id: string;

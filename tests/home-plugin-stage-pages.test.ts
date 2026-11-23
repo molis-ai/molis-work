@@ -53,7 +53,7 @@ test("RAC-2682 a dual plugin is never offered as the person's own, whichever hal
 });
 
 test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installation, and Home packages keep their personal directory entry and icon", () => {
-  const pluginId = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
+  const pluginId = "studio.00000000-0000-4000-8000-000000000000";
   const installation = { scope: "project", install_id: "install", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } as const;
   const stage = installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p", installation });
   assert.match(stage, /data-work-surface="app-b1" data-work-surface-label="Notes &amp; &lt;Tasks&gt;"/u);
@@ -65,7 +65,7 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   // The Host's directory entries for two packages installed in the Home (marked personal and home) and one a project runs.
   const pkg = (id: string, name: string, marks: Partial<PluginDirectoryEntry>, glyph?: string): PluginDirectoryEntry => ({ id, plugin_id: id, name, chosen: false, ...marks,
     ui: { views: [{ view_id: "app", slot: "stage", title: name, ...glyph ? { icon: glyph } : {} }] } } as PluginDirectoryEntry);
-  const notes = "io.molis.work.example.notes", books = "io.molis.work.example.books", local = "io.molis.work.example.local";
+  const notes = "com.example.notes", books = "com.example.books", local = "com.example.local";
   const directory = pluginDirectoryFor([pkg(notes, "Notes <1>", { personal: true, home: true }), pkg(books, "Books", { personal: true, home: true }, "book"), pkg(local, "Local", {})]);
   const rail = railEntries([], directory), entry = (id: string) => rail.find(item => item.id === id);
   assert.deepEqual({ group: entry(notes)?.group, glyph: entry(notes)?.glyph, label: entry(notes)?.label, surface: entry(notes)?.surface },
@@ -82,8 +82,8 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
 });
 
 test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {
-  const base = { pluginId: "io.molis.work.example.books", surface: "io.molis.work.example.books", label: "Books", prefix: "", installation: { scope: "home" as const, install_id: "books", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } };
-  assert.match(installedStageSection({ ...base, icon: "book" }), /data-installed-plugin="io\.molis\.work\.example\.books"[^>]*data-installed-plugin-icon="book" data-deferred-surface hidden>/u);
+  const base = { pluginId: "com.example.books", surface: "com.example.books", label: "Books", prefix: "", installation: { scope: "home" as const, install_id: "books", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } };
+  assert.match(installedStageSection({ ...base, icon: "book" }), /data-installed-plugin="com\.example\.books"[^>]*data-installed-plugin-icon="book" data-deferred-surface hidden>/u);
   assert.ok(!installedStageSection(base).includes("data-installed-plugin-icon"), "no icon picked, no attribute");
   assert.match(installedStageSection({ ...base, icon: 'a"b' }), /data-installed-plugin-icon="a&quot;b"/u, "the value is escaped like the others");
   // The tab strip's own line, taken from the shipped workbench program: the picked icon wins, a built-in plugin's icon and `package` stay.
@@ -106,7 +106,7 @@ test("RAC-2621.4 a page key nothing registers has no page, framed or not, even a
   const host = new MolisWorkLocalHost({ homeDirectory: first.home, completeText: null });
   const served = await serveTestHost(null, { home: first.home, host });
   try {
-    for (const key of ["io.molis.work.example.absent", "io.molis.work.generated.00000000-0000-4000-8000-000000000000"]) {
+    for (const key of ["com.example.absent", "studio.00000000-0000-4000-8000-000000000000"]) {
       for (const query of ["", "?frame=workbench"]) {
         // The first of these is the first request this Host has served: it asks the Home to start and still answers 404.
         const response = await fetch(`${served.origin}/plugins/${key}${query}`);

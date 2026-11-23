@@ -69,7 +69,7 @@ test("one synchronous scope filter reads settings at its boundaries, skips empty
     install_id: "coding", workspace: "none", role_id: "coding", title: "Excluded long-term entries" });
   prefs.mock.resetCalls();
   await assert.rejects(service.history({ ...person, memory_session: { session, current_scene: "coding",
-    target: { kind: "coding", id: "different-session", project_id: null } } }, persisted[0]!.memory_id), { code: "memory.not_found" });
+    target: { kind: "coding", id: "different-session", project_id: "project-a", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" } } }, persisted[0]!.memory_id), { code: "memory.not_found" });
   assert.equal(prefs.mock.callCount(), 0, "Session-excluded entries do not read settings");
   f.ledger().forgetting.accept({ scope: "personal", owner: person.actor_id, actor_id: person.actor_id,
     operation_id: "hide-fixed-scope", accepted_at: new Date().toISOString(), selection_mode: "exact-identities",

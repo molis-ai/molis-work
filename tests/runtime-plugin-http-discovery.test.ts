@@ -163,7 +163,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared, installedByHand,
     escapeHtml: String, translate: (value: string) => value,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
-  const pluginId = `io.molis.work.example.${randomUUID()}`;
+  const pluginId = `com.example.${randomUUID()}`;
   const action: ActionDefinition<{ value: number }, { doubled: number; report: { title: string; body_markdown: string; run_id: string } }> = {
     capability_id: "unfamiliar.persist", version: 1, operation: "command", action: {
       title: "Save doubled value", description: "Persist the result", kind: "operation", scope: "project",
@@ -248,7 +248,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   const other = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Other", actor_id: "user" }));
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const pluginId = `io.molis.work.example.${randomUUID()}`;
+  const pluginId = `com.example.${randomUUID()}`;
   const action: ActionDefinition<{ text: string }, { count: number }> = {
     capability_id: "unfamiliar.web.save", version: 1, operation: "command", action: {
       title: "Save", description: "Save a project note", kind: "operation", scope: "project",

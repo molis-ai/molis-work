@@ -68,7 +68,7 @@ test("S-71 RAC-2666 the record-slot path binds and reads a record's account as t
     assert.equal((await f.request(`${PATH}?project=${encodeURIComponent(one.project_id)}`, { method: "POST", raw })).status, 400, raw);
   }
   // A plugin with no installation in the project (nor in the Home) is not there to bind for: 404, and nothing is bound.
-  const absent = { ...body, plugin_id: "io.molis.work.example.recordslotabsent" };
+  const absent = { ...body, plugin_id: "com.example.recordslotabsent" };
   assert.equal((await post(one.project_id, absent)).status, 404);
   assert.equal((await f.request(`${PATH}?${new URLSearchParams({ project: one.project_id, plugin_id: absent.plugin_id, slot_id: "github", record_key: "src-1" })}`)).status, 404);
   assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: install.install_id, project_id: one.project_id, record_key: "src-1" }), absent.plugin_id, "github")), null);

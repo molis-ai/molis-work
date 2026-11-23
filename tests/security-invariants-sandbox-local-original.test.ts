@@ -21,7 +21,7 @@ import { assertContract, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesF
 // Host's readers (the address, the registered file). The client and the readers here are the Host's own, over a temporary Home and a local server.
 // RAC-360 to RAC-369 are this slice's.
 
-const PLUGIN_ID = "io.molis.work.example.sbxlocaloriginal";
+const PLUGIN_ID = "com.example.sbxlocaloriginal";
 const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-sbx", pluginId: PLUGIN_ID, namespace: "installed" };
 const LOCAL: SandboxEffects = { materials: ["fetch_local"] }, ORIGINAL: SandboxEffects = { materials: ["original"] }, BOTH: SandboxEffects = { materials: ["fetch_local", "original"] }, EVERY: SandboxEffects = { materials: ["read", "fetch_local", "original"] };
 const PART = 256 * 1024;
